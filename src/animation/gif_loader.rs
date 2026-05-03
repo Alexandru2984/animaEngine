@@ -19,11 +19,7 @@ pub fn load_gif(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
             Ok(frame) => {
                 // Extract the delay from GIF frame metadata
                 let (numerator, denominator) = frame.delay().numer_denom_ms();
-                let delay_ms = if denominator > 0 {
-                    numerator / denominator
-                } else {
-                    100 // Default 100ms (10 FPS) if delay is missing
-                };
+                let delay_ms = numerator.checked_div(denominator).unwrap_or(100);
 
                 let rgba_image = frame.into_buffer();
                 let (width, height) = rgba_image.dimensions();

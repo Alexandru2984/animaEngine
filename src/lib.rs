@@ -1,4 +1,5 @@
 pub mod animation;
+pub mod app;
 pub mod config;
 pub mod entity;
 pub mod input;

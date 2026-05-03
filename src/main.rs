@@ -1,5 +1,7 @@
+use anima_engine::app::App;
 use anima_engine::config::AppConfig;
 use anima_engine::scene::Scene;
+use anima_engine::window;
 
 // Force X11 backend — XWayland on Wayland systems.
 // This is required because:

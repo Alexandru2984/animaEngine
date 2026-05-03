@@ -55,8 +55,7 @@ impl Animation {
 
         if elapsed >= frame_duration {
             // Advance frame(s) — handles cases where multiple frames should be skipped
-            let frames_to_advance =
-                (elapsed.as_secs_f32() / frame_duration.as_secs_f32()) as usize;
+            let frames_to_advance = (elapsed.as_secs_f32() / frame_duration.as_secs_f32()) as usize;
             let frames_to_advance = frames_to_advance.max(1);
 
             self.current_frame = (self.current_frame + frames_to_advance) % self.frames.len();

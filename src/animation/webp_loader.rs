@@ -21,11 +21,7 @@ pub fn load_webp(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> 
             match frame_result {
                 Ok(frame) => {
                     let (numerator, denominator) = frame.delay().numer_denom_ms();
-                    let delay_ms = if denominator > 0 {
-                        numerator / denominator
-                    } else {
-                        100
-                    };
+                    let delay_ms = numerator.checked_div(denominator).unwrap_or(100);
 
                     let rgba_image = frame.into_buffer();
                     let (width, height) = rgba_image.dimensions();
@@ -66,6 +62,11 @@ pub fn load_static_webp(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::E
     let img = image::open(path)?.to_rgba8();
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
-    log::info!("Loaded static WebP: {}x{} from {}", width, height, path.display());
+    log::info!(
+        "Loaded static WebP: {}x{} from {}",
+        width,
+        height,
+        path.display()
+    );
     Ok(vec![Frame::new(rgba, width, height)])
 }

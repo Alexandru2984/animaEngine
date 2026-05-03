@@ -37,7 +37,9 @@ fn create_test_gif(path: &std::path::Path, frame_count: u32) {
             *pixel = image::Rgba([brightness as u8, 100, 200, 255]);
         }
         let frame = Frame::new(img);
-        encoder.encode_frames(std::iter::once(frame)).expect("Failed to encode GIF frame");
+        encoder
+            .encode_frames(std::iter::once(frame))
+            .expect("Failed to encode GIF frame");
     }
 }
 
@@ -168,8 +170,7 @@ fn test_load_spritesheet_basic() {
     // Create a 64x32 image (4 columns, 2 rows = 8 frames of 16x16)
     create_test_png(&path, 64, 32, [100, 150, 200, 255]);
 
-    let frames =
-        spritesheet::load_spritesheet(&path, 4, 2).expect("Should load spritesheet");
+    let frames = spritesheet::load_spritesheet(&path, 4, 2).expect("Should load spritesheet");
     assert_eq!(frames.len(), 8);
     assert_eq!(frames[0].width, 16);
     assert_eq!(frames[0].height, 16);
@@ -237,10 +238,7 @@ fn test_animation_no_per_frame_delays() {
     use anima_engine::animation::frame::Frame;
     use anima_engine::animation::Animation;
 
-    let frames = vec![
-        Frame::new(vec![0; 16], 2, 2),
-        Frame::new(vec![0; 16], 2, 2),
-    ];
+    let frames = vec![Frame::new(vec![0; 16], 2, 2), Frame::new(vec![0; 16], 2, 2)];
     let anim = Animation::new(frames, 12.0, true);
     assert!(!anim.has_per_frame_delays);
 }
@@ -261,10 +259,7 @@ fn test_animation_paused_no_tick() {
     use anima_engine::animation::frame::Frame;
     use anima_engine::animation::Animation;
 
-    let frames = vec![
-        Frame::new(vec![0; 16], 2, 2),
-        Frame::new(vec![0; 16], 2, 2),
-    ];
+    let frames = vec![Frame::new(vec![0; 16], 2, 2), Frame::new(vec![0; 16], 2, 2)];
     let mut anim = Animation::new(frames, 12.0, false); // paused
     std::thread::sleep(std::time::Duration::from_millis(200));
     assert!(!anim.tick());
@@ -336,60 +331,68 @@ fn test_config_roundtrip_serialization() {
 
     assert_eq!(loaded.characters.len(), config.characters.len());
     assert_eq!(loaded.characters[0].asset_type, AssetType::PngSequence);
-    assert_eq!(loaded.global.playback_enabled, config.global.playback_enabled);
+    assert_eq!(
+        loaded.global.playback_enabled,
+        config.global.playback_enabled
+    );
 }
 
 #[test]
 fn test_config_new_asset_types_serialize() {
-    use anima_engine::config::{AssetType, CharacterConfig};
+    use anima_engine::config::{AppConfig, AssetType, CharacterConfig, GlobalConfig};
 
-    let configs = vec![
-        CharacterConfig {
-            id: "test_webp".to_string(),
-            name: "WebP Test".to_string(),
-            asset_type: AssetType::WebpAnimated,
-            asset_path: "assets/test.webp".to_string(),
-            x: 0.0,
-            y: 0.0,
-            scale: 1.0,
-            opacity: 1.0,
-            fps: 12.0,
-            visible: true,
-            playing: true,
-            z_index: 0,
-            spritesheet_columns: None,
-            spritesheet_rows: None,
-        },
-        CharacterConfig {
-            id: "test_sheet".to_string(),
-            name: "Sheet Test".to_string(),
-            asset_type: AssetType::Spritesheet,
-            asset_path: "assets/sheet.png".to_string(),
-            x: 100.0,
-            y: 100.0,
-            scale: 2.0,
-            opacity: 0.8,
-            fps: 24.0,
-            visible: true,
-            playing: true,
-            z_index: 5,
-            spritesheet_columns: Some(4),
-            spritesheet_rows: Some(2),
-        },
-    ];
+    let config = AppConfig {
+        global: GlobalConfig::default(),
+        characters: vec![
+            CharacterConfig {
+                id: "test_webp".to_string(),
+                name: "WebP Test".to_string(),
+                asset_type: AssetType::WebpAnimated,
+                asset_path: "assets/test.webp".to_string(),
+                x: 0.0,
+                y: 0.0,
+                scale: 1.0,
+                opacity: 1.0,
+                fps: 12.0,
+                visible: true,
+                playing: true,
+                z_index: 0,
+                spritesheet_columns: None,
+                spritesheet_rows: None,
+            },
+            CharacterConfig {
+                id: "test_sheet".to_string(),
+                name: "Sheet Test".to_string(),
+                asset_type: AssetType::Spritesheet,
+                asset_path: "assets/sheet.png".to_string(),
+                x: 100.0,
+                y: 100.0,
+                scale: 2.0,
+                opacity: 0.8,
+                fps: 24.0,
+                visible: true,
+                playing: true,
+                z_index: 5,
+                spritesheet_columns: Some(4),
+                spritesheet_rows: Some(2),
+            },
+        ],
+    };
 
-    // Serialize
-    let toml_str = toml::to_string_pretty(&configs).expect("serialize");
+    // Serialize as full AppConfig (TOML requires a table at the root, not a bare array)
+    let toml_str = toml::to_string_pretty(&config).expect("serialize");
     // Deserialize
-    let loaded: Vec<CharacterConfig> = toml::from_str(&toml_str).expect("deserialize");
+    let loaded: AppConfig = toml::from_str(&toml_str).expect("deserialize");
 
-    assert_eq!(loaded[0].asset_type, AssetType::WebpAnimated);
-    assert_eq!(loaded[1].asset_type, AssetType::Spritesheet);
-    assert_eq!(loaded[1].spritesheet_columns, Some(4));
-    assert_eq!(loaded[1].spritesheet_rows, Some(2));
+    assert_eq!(loaded.characters[0].asset_type, AssetType::WebpAnimated);
+    assert_eq!(loaded.characters[1].asset_type, AssetType::Spritesheet);
+    assert_eq!(loaded.characters[1].spritesheet_columns, Some(4));
+    assert_eq!(loaded.characters[1].spritesheet_rows, Some(2));
 
-    // WebP should NOT have spritesheet fields serialized
-    assert!(!toml_str.contains("spritesheet_columns") || toml_str.contains("spritesheet_columns = 4"));
+    // WebP entry should NOT have spritesheet fields (they're None → skipped)
+    // Spritesheet entry SHOULD have them
+    assert!(toml_str.contains("spritesheet_columns = 4"));
+    assert!(toml_str.contains("spritesheet_rows = 2"));
 }
 
 #[test]
@@ -422,7 +425,10 @@ fn test_config_spritesheet_fields_skip_when_none() {
 #[test]
 fn test_detect_asset_type_gif() {
     use anima_engine::config::{AppConfig, AssetType};
-    assert_eq!(AppConfig::detect_asset_type("animation.gif"), AssetType::Gif);
+    assert_eq!(
+        AppConfig::detect_asset_type("animation.gif"),
+        AssetType::Gif
+    );
 }
 
 #[test]

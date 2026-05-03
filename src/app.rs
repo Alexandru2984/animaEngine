@@ -271,36 +271,36 @@ impl ApplicationHandler for App {
                 }
             }
 
-            WindowEvent::MouseInput { state, button, .. } => {
+            WindowEvent::MouseInput { state, button, .. }
                 // Only process mouse clicks when in edit mode
-                if self.edit_mode {
-                    match (button, state) {
-                        (MouseButton::Left, ElementState::Pressed) => {
-                            // Find entity under cursor
-                            if let Some(entity_idx) =
-                                self.scene.entity_at_point(self.mouse_x, self.mouse_y)
-                            {
-                                self.selection.select(entity_idx);
+                if self.edit_mode =>
+            {
+                match (button, state) {
+                    (MouseButton::Left, ElementState::Pressed) => {
+                        // Find entity under cursor
+                        if let Some(entity_idx) =
+                            self.scene.entity_at_point(self.mouse_x, self.mouse_y)
+                        {
+                            self.selection.select(entity_idx);
 
-                                // Start drag
-                                let entity = &self.scene.entities[entity_idx];
-                                let offset_x = self.mouse_x - entity.x;
-                                let offset_y = self.mouse_y - entity.y;
-                                self.drag.start_drag(entity_idx, offset_x, offset_y);
+                            // Start drag
+                            let entity = &self.scene.entities[entity_idx];
+                            let offset_x = self.mouse_x - entity.x;
+                            let offset_y = self.mouse_y - entity.y;
+                            self.drag.start_drag(entity_idx, offset_x, offset_y);
 
-                                log::info!("Clicked entity: {} ({})", entity.name, entity.id);
-                            } else {
-                                self.selection.deselect();
-                            }
+                            log::info!("Clicked entity: {} ({})", entity.name, entity.id);
+                        } else {
+                            self.selection.deselect();
                         }
-                        (MouseButton::Left, ElementState::Released) if self.drag.is_dragging() => {
-                            self.drag.end_drag();
-                            self.config_dirty = true;
-                            // Save after drag ends
-                            self.save_config_if_needed();
-                        }
-                        _ => {}
                     }
+                    (MouseButton::Left, ElementState::Released) if self.drag.is_dragging() => {
+                        self.drag.end_drag();
+                        self.config_dirty = true;
+                        // Save after drag ends
+                        self.save_config_if_needed();
+                    }
+                    _ => {}
                 }
             }
 

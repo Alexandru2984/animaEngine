@@ -61,7 +61,10 @@ pub fn detect_asset_type(path: &Path) -> (AssetType, &'static str) {
 
     match ext.as_str() {
         "gif" => (AssetType::Gif, "GIF animation"),
-        "webp" => (AssetType::WebpAnimated, "WebP (auto-detect animated/static)"),
+        "webp" => (
+            AssetType::WebpAnimated,
+            "WebP (auto-detect animated/static)",
+        ),
         "png" => {
             // If it's a directory, treat as PNG sequence
             if path.is_dir() {
@@ -76,7 +79,10 @@ pub fn detect_asset_type(path: &Path) -> (AssetType, &'static str) {
                 (AssetType::PngSequence, "PNG sequence (directory)")
             } else {
                 // Default to static PNG for unknown extensions
-                (AssetType::PngStatic, "Unknown format (trying as static image)")
+                (
+                    AssetType::PngStatic,
+                    "Unknown format (trying as static image)",
+                )
             }
         }
     }
