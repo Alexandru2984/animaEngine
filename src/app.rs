@@ -9,6 +9,10 @@ use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId, WindowLevel};
 
+// X11-specific: set window type to DOCK so it stays above all normal windows
+#[cfg(target_os = "linux")]
+use winit::platform::x11::{WindowAttributesExtX11, WindowType};
+
 /// Main application state — implements winit's ApplicationHandler.
 ///
 /// The overlay operates in two modes:
@@ -120,6 +124,8 @@ impl ApplicationHandler for App {
         log::info!("Creating window...");
 
         // Build window attributes: transparent, borderless, always-on-top
+        // On X11: set window type to DOCK — this tells the window manager
+        // to keep this window above all normal application windows, like a panel.
         let window_attrs = Window::default_attributes()
             .with_title("animaEngine")
             .with_transparent(true)
@@ -129,6 +135,10 @@ impl ApplicationHandler for App {
                 self.config.global.window_width,
                 self.config.global.window_height,
             ));
+
+        // X11-specific: Set window type to Dock (stays above all windows)
+        #[cfg(target_os = "linux")]
+        let window_attrs = window_attrs.with_x11_window_type(vec![WindowType::Dock]);
 
         match event_loop.create_window(window_attrs) {
             Ok(window) => {

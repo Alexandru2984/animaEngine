@@ -11,6 +11,16 @@ use app::App;
 use config::AppConfig;
 use scene::Scene;
 
+// Force X11 backend — XWayland on Wayland systems.
+// This is required because:
+// 1. X11 supports _NET_WM_WINDOW_TYPE_DOCK (true always-on-top overlay)
+// 2. X11 supports _NET_WM_STATE_ABOVE reliably
+// 3. X11 supports input shape (click-through) via XShape
+// 4. Wayland compositors don't provide reliable always-on-top for overlay apps
+// XWayland is available on virtually all Wayland systems.
+#[cfg(target_os = "linux")]
+use winit::platform::x11::EventLoopBuilderExtX11;
+
 fn main() {
     // Initialize logging
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
@@ -40,7 +50,33 @@ fn main() {
     // Build scene from config
     let scene = Scene::from_config(&config);
 
-    // Create event loop and run app
+    // Create event loop — force X11 backend for reliable overlay support.
+    // On Wayland systems, this uses XWayland which supports all the window
+    // management hints we need (DOCK type, always-on-top, click-through).
+    #[cfg(target_os = "linux")]
+    let event_loop = {
+        let mut builder = winit::event_loop::EventLoop::builder();
+        builder.with_x11();
+        match builder.build() {
+            Ok(el) => {
+                log::info!("Event loop created with X11 backend (XWayland if on Wayland)");
+                el
+            }
+            Err(e) => {
+                log::error!("Failed to create X11 event loop: {}", e);
+                log::info!("Falling back to default event loop...");
+                match winit::event_loop::EventLoop::new() {
+                    Ok(el) => el,
+                    Err(e2) => {
+                        log::error!("Failed to create fallback event loop: {}", e2);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        }
+    };
+
+    #[cfg(not(target_os = "linux"))]
     let event_loop = match winit::event_loop::EventLoop::new() {
         Ok(el) => el,
         Err(e) => {
