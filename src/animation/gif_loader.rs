@@ -5,8 +5,8 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
-/// Load frames from a GIF file.
-/// Best-effort: complex GIFs with disposal modes may not render perfectly.
+/// Load frames from a GIF file with per-frame delay extraction.
+/// Each frame carries its own delay in milliseconds from the GIF metadata.
 pub fn load_gif(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
@@ -17,10 +17,24 @@ pub fn load_gif(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
     for frame_result in gif_frames {
         match frame_result {
             Ok(frame) => {
+                // Extract the delay from GIF frame metadata
+                let (numerator, denominator) = frame.delay().numer_denom_ms();
+                let delay_ms = if denominator > 0 {
+                    numerator / denominator
+                } else {
+                    100 // Default 100ms (10 FPS) if delay is missing
+                };
+
                 let rgba_image = frame.into_buffer();
                 let (width, height) = rgba_image.dimensions();
                 let rgba = rgba_image.into_raw();
-                frames.push(Frame::new(rgba, width, height));
+
+                // Use per-frame delay if it's meaningful (> 0ms)
+                if delay_ms > 0 {
+                    frames.push(Frame::with_delay(rgba, width, height, delay_ms));
+                } else {
+                    frames.push(Frame::new(rgba, width, height));
+                }
             }
             Err(e) => {
                 log::warn!("Failed to decode GIF frame: {}", e);
@@ -32,10 +46,12 @@ pub fn load_gif(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
         return Err(format!("No frames decoded from GIF: {}", path.display()).into());
     }
 
+    let has_delays = frames.iter().any(|f| f.delay_ms.is_some());
     log::info!(
-        "Loaded GIF: {} frames from {}",
+        "Loaded GIF: {} frames from {} (per-frame delays: {})",
         frames.len(),
-        path.display()
+        path.display(),
+        if has_delays { "yes" } else { "no" }
     );
     Ok(frames)
 }

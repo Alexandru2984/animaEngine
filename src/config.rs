@@ -42,6 +42,9 @@ pub enum AssetType {
     PngStatic,
     PngSequence,
     Gif,
+    WebpAnimated,
+    WebpStatic,
+    Spritesheet,
 }
 
 /// Configuration for a single character/entity
@@ -65,6 +68,12 @@ pub struct CharacterConfig {
     pub playing: bool,
     #[serde(default)]
     pub z_index: i32,
+    /// Number of columns in spritesheet grid (only used for Spritesheet type)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spritesheet_columns: Option<u32>,
+    /// Number of rows in spritesheet grid (only used for Spritesheet type)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spritesheet_rows: Option<u32>,
 }
 
 fn default_scale() -> f32 {
@@ -106,6 +115,8 @@ impl Default for AppConfig {
                     visible: true,
                     playing: true,
                     z_index: 10,
+                    spritesheet_columns: None,
+                    spritesheet_rows: None,
                 },
                 CharacterConfig {
                     id: "slime".to_string(),
@@ -120,6 +131,8 @@ impl Default for AppConfig {
                     visible: true,
                     playing: true,
                     z_index: 20,
+                    spritesheet_columns: None,
+                    spritesheet_rows: None,
                 },
             ],
         }
@@ -187,9 +200,23 @@ impl AppConfig {
         Ok(())
     }
 
-    /// Resolve an asset path relative to the executable or current directory
+    /// Resolve an asset path relative to the executable or current directory.
+    /// Supports:
+    /// - Absolute paths (returned as-is)
+    /// - `~` expansion to home directory
+    /// - Relative paths (checked against exe dir, then cwd)
     pub fn resolve_asset_path(asset_path: &str) -> PathBuf {
-        let path = Path::new(asset_path);
+        let asset_path = if asset_path.starts_with('~') {
+            if let Ok(home) = std::env::var("HOME") {
+                asset_path.replacen('~', &home, 1)
+            } else {
+                asset_path.to_string()
+            }
+        } else {
+            asset_path.to_string()
+        };
+
+        let path = Path::new(&asset_path);
         if path.is_absolute() {
             return path.to_path_buf();
         }
@@ -197,7 +224,7 @@ impl AppConfig {
         // Try relative to current executable
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
-                let resolved = exe_dir.join(asset_path);
+                let resolved = exe_dir.join(&asset_path);
                 if resolved.exists() {
                     return resolved;
                 }
@@ -205,12 +232,35 @@ impl AppConfig {
         }
 
         // Try relative to current directory
-        let cwd_path = PathBuf::from(asset_path);
+        let cwd_path = PathBuf::from(&asset_path);
         if cwd_path.exists() {
             return cwd_path;
         }
 
         // Return as-is, let caller handle missing path
-        PathBuf::from(asset_path)
+        PathBuf::from(&asset_path)
+    }
+
+    /// Detect the AssetType from a file extension
+    pub fn detect_asset_type(path: &str) -> AssetType {
+        let ext = Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        match ext.as_str() {
+            "gif" => AssetType::Gif,
+            "webp" => AssetType::WebpAnimated,
+            "png" => {
+                let p = Path::new(path);
+                if p.is_dir() {
+                    AssetType::PngSequence
+                } else {
+                    AssetType::PngStatic
+                }
+            }
+            _ => AssetType::PngStatic,
+        }
     }
 }

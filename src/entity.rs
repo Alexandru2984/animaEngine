@@ -28,6 +28,10 @@ pub struct Entity {
     pub asset_path: String,
     /// Asset type (for config saving)
     pub asset_type: crate::config::AssetType,
+    /// Spritesheet columns (for config saving, only used for Spritesheet type)
+    pub spritesheet_columns: Option<u32>,
+    /// Spritesheet rows (for config saving, only used for Spritesheet type)
+    pub spritesheet_rows: Option<u32>,
 }
 
 impl Entity {
@@ -46,6 +50,8 @@ impl Entity {
             texture_dirty: true, // Needs initial texture upload
             asset_path: config.asset_path.clone(),
             asset_type: config.asset_type.clone(),
+            spritesheet_columns: config.spritesheet_columns,
+            spritesheet_rows: config.spritesheet_rows,
         }
     }
 
@@ -98,6 +104,8 @@ impl Entity {
             visible: self.visible,
             playing: self.animation.playing,
             z_index: self.z_index,
+            spritesheet_columns: self.spritesheet_columns,
+            spritesheet_rows: self.spritesheet_rows,
         }
     }
 }

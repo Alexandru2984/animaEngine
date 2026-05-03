@@ -1,15 +1,5 @@
-mod animation;
-mod app;
-mod config;
-mod entity;
-mod input;
-mod renderer;
-mod scene;
-mod window;
-
-use app::App;
-use config::AppConfig;
-use scene::Scene;
+use anima_engine::config::AppConfig;
+use anima_engine::scene::Scene;
 
 // Force X11 backend — XWayland on Wayland systems.
 // This is required because:
@@ -30,6 +20,7 @@ fn main() {
     log::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     log::info!("  animaEngine v{}", env!("CARGO_PKG_VERSION"));
     log::info!("  Linux-first animated desktop overlay engine");
+    log::info!("  Supported formats: PNG, GIF, WebP (animated), Spritesheets");
     log::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // Detect and log platform info

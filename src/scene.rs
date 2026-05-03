@@ -21,9 +21,10 @@ impl Scene {
             match Self::load_entity(char_config) {
                 Ok(entity) => {
                     log::info!(
-                        "Loaded entity '{}' ({} frames)",
+                        "Loaded entity '{}' ({} frames, per-frame delays: {})",
                         entity.name,
-                        entity.animation.frame_count()
+                        entity.animation.frame_count(),
+                        entity.animation.has_per_frame_delays
                     );
                     entities.push(entity);
                 }
@@ -54,7 +55,12 @@ impl Scene {
     /// Load a single entity from config
     fn load_entity(config: &CharacterConfig) -> Result<Entity, Box<dyn std::error::Error>> {
         let resolved_path = AppConfig::resolve_asset_path(&config.asset_path);
-        let frames = load_asset(&config.asset_type, &resolved_path)?;
+        let frames = load_asset(
+            &config.asset_type,
+            &resolved_path,
+            config.spritesheet_columns,
+            config.spritesheet_rows,
+        )?;
         let animation = Animation::new(frames, config.fps, config.playing);
         Ok(Entity::from_config(config, animation))
     }

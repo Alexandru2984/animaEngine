@@ -1,6 +1,8 @@
 use super::frame::Frame;
 use super::gif_loader;
 use super::png_sequence;
+use super::spritesheet;
+use super::webp_loader;
 use crate::config::AssetType;
 use std::path::Path;
 
@@ -9,6 +11,8 @@ use std::path::Path;
 pub fn load_asset(
     asset_type: &AssetType,
     asset_path: &Path,
+    spritesheet_columns: Option<u32>,
+    spritesheet_rows: Option<u32>,
 ) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
     match asset_type {
         AssetType::PngSequence => {
@@ -23,6 +27,57 @@ pub fn load_asset(
         AssetType::Gif => {
             log::info!("Loading GIF from: {}", asset_path.display());
             gif_loader::load_gif(asset_path)
+        }
+        AssetType::WebpAnimated => {
+            log::info!("Loading animated WebP from: {}", asset_path.display());
+            webp_loader::load_webp(asset_path)
+        }
+        AssetType::WebpStatic => {
+            log::info!("Loading static WebP from: {}", asset_path.display());
+            webp_loader::load_static_webp(asset_path)
+        }
+        AssetType::Spritesheet => {
+            let cols = spritesheet_columns.unwrap_or(4);
+            let rows = spritesheet_rows.unwrap_or(1);
+            log::info!(
+                "Loading spritesheet from: {} ({}x{} grid)",
+                asset_path.display(),
+                cols,
+                rows
+            );
+            spritesheet::load_spritesheet(asset_path, cols, rows)
+        }
+    }
+}
+
+/// Detect the best AssetType from a file path's extension and properties.
+/// Returns the detected type and a human-readable description.
+pub fn detect_asset_type(path: &Path) -> (AssetType, &'static str) {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match ext.as_str() {
+        "gif" => (AssetType::Gif, "GIF animation"),
+        "webp" => (AssetType::WebpAnimated, "WebP (auto-detect animated/static)"),
+        "png" => {
+            // If it's a directory, treat as PNG sequence
+            if path.is_dir() {
+                (AssetType::PngSequence, "PNG sequence (directory)")
+            } else {
+                (AssetType::PngStatic, "Static PNG")
+            }
+        }
+        _ => {
+            // Check if it's a directory (PNG sequence)
+            if path.is_dir() {
+                (AssetType::PngSequence, "PNG sequence (directory)")
+            } else {
+                // Default to static PNG for unknown extensions
+                (AssetType::PngStatic, "Unknown format (trying as static image)")
+            }
         }
     }
 }
