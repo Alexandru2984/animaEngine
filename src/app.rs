@@ -10,6 +10,13 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId, WindowLevel};
 
 /// Main application state — implements winit's ApplicationHandler.
+///
+/// The overlay operates in two modes:
+/// - **Pass-through mode** (default): clicks go through to the desktop.
+///   Characters are visible but non-interactive. You can use your desktop normally.
+/// - **Edit mode** (toggle with F1): clicks are captured by the overlay.
+///   You can drag characters, select them, etc.
+///   Press F1 again to return to pass-through mode.
 pub struct App {
     /// The winit window (created on resume)
     window: Option<Arc<Window>>,
@@ -26,9 +33,11 @@ pub struct App {
     /// Current mouse position
     mouse_x: f32,
     mouse_y: f32,
-
     /// Whether config needs saving (dirty flag)
     config_dirty: bool,
+    /// Whether the overlay is in "edit mode" (interactive) or "pass-through" mode
+    /// Default: false (pass-through — clicks go to desktop)
+    edit_mode: bool,
 }
 
 impl App {
@@ -42,8 +51,8 @@ impl App {
             selection: SelectionState::new(),
             mouse_x: 0.0,
             mouse_y: 0.0,
-
             config_dirty: false,
+            edit_mode: false, // Start in pass-through mode — desktop is usable
         }
     }
 
@@ -56,6 +65,48 @@ impl App {
                 log::warn!("Failed to save config: {}", e);
             }
             self.config_dirty = false;
+        }
+    }
+
+    /// Toggle between edit mode and pass-through mode
+    fn toggle_edit_mode(&mut self) {
+        self.edit_mode = !self.edit_mode;
+
+        if let Some(window) = &self.window {
+            // set_cursor_hittest(false) = clicks pass through the window to desktop
+            // set_cursor_hittest(true)  = clicks are captured by the overlay (edit mode)
+            match window.set_cursor_hittest(self.edit_mode) {
+                Ok(_) => {}
+                Err(e) => {
+                    log::warn!(
+                        "Failed to set cursor hit-test ({}): {}. \
+                         Click-through may not work on this compositor.",
+                        if self.edit_mode {
+                            "edit mode"
+                        } else {
+                            "pass-through"
+                        },
+                        e
+                    );
+                }
+            }
+        }
+
+        if self.edit_mode {
+            log::info!(
+                "━━━ EDIT MODE ON ━━━ Click and drag characters. Press F1 to exit edit mode."
+            );
+        } else {
+            log::info!(
+                "━━━ PASS-THROUGH MODE ━━━ Clicks go to desktop. Press F1 to enter edit mode."
+            );
+            // End any active drag when leaving edit mode
+            if self.drag.is_dragging() {
+                self.drag.end_drag();
+                self.config_dirty = true;
+                self.save_config_if_needed();
+            }
+            self.selection.deselect();
         }
     }
 }
@@ -88,6 +139,23 @@ impl ApplicationHandler for App {
                     window.inner_size().width,
                     window.inner_size().height
                 );
+
+                // CRITICAL: Enable click-through immediately so the desktop is usable.
+                // The window starts in pass-through mode by default.
+                match window.set_cursor_hittest(false) {
+                    Ok(_) => {
+                        log::info!(
+                            "Click-through enabled — desktop is usable. Press F1 to enter edit mode."
+                        );
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to enable click-through: {}. \
+                             The overlay may block input. Try running with: GDK_BACKEND=x11 cargo run",
+                            e
+                        );
+                    }
+                }
 
                 // Initialize wgpu renderer
                 match WgpuRenderer::new(window.clone()) {
@@ -129,6 +197,8 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => {
                 log::info!("Close requested — saving config and exiting");
                 self.save_config_if_needed();
+                // Drop renderer before exiting to avoid segfault on Vulkan cleanup
+                self.renderer = None;
                 event_loop.exit();
             }
 
@@ -178,44 +248,49 @@ impl ApplicationHandler for App {
                 self.mouse_x = position.x as f32;
                 self.mouse_y = position.y as f32;
 
-                // Update drag position
-                if let Some((entity_idx, new_x, new_y)) =
-                    self.drag.update(self.mouse_x, self.mouse_y)
-                {
-                    if let Some(entity) = self.scene.entities.get_mut(entity_idx) {
-                        entity.x = new_x;
-                        entity.y = new_y;
+                // Only process drag when in edit mode
+                if self.edit_mode {
+                    if let Some((entity_idx, new_x, new_y)) =
+                        self.drag.update(self.mouse_x, self.mouse_y)
+                    {
+                        if let Some(entity) = self.scene.entities.get_mut(entity_idx) {
+                            entity.x = new_x;
+                            entity.y = new_y;
+                        }
                     }
                 }
             }
 
             WindowEvent::MouseInput { state, button, .. } => {
-                match (button, state) {
-                    (MouseButton::Left, ElementState::Pressed) => {
-                        // Find entity under cursor
-                        if let Some(entity_idx) =
-                            self.scene.entity_at_point(self.mouse_x, self.mouse_y)
-                        {
-                            self.selection.select(entity_idx);
+                // Only process mouse clicks when in edit mode
+                if self.edit_mode {
+                    match (button, state) {
+                        (MouseButton::Left, ElementState::Pressed) => {
+                            // Find entity under cursor
+                            if let Some(entity_idx) =
+                                self.scene.entity_at_point(self.mouse_x, self.mouse_y)
+                            {
+                                self.selection.select(entity_idx);
 
-                            // Start drag
-                            let entity = &self.scene.entities[entity_idx];
-                            let offset_x = self.mouse_x - entity.x;
-                            let offset_y = self.mouse_y - entity.y;
-                            self.drag.start_drag(entity_idx, offset_x, offset_y);
+                                // Start drag
+                                let entity = &self.scene.entities[entity_idx];
+                                let offset_x = self.mouse_x - entity.x;
+                                let offset_y = self.mouse_y - entity.y;
+                                self.drag.start_drag(entity_idx, offset_x, offset_y);
 
-                            log::info!("Clicked entity: {} ({})", entity.name, entity.id);
-                        } else {
-                            self.selection.deselect();
+                                log::info!("Clicked entity: {} ({})", entity.name, entity.id);
+                            } else {
+                                self.selection.deselect();
+                            }
                         }
+                        (MouseButton::Left, ElementState::Released) if self.drag.is_dragging() => {
+                            self.drag.end_drag();
+                            self.config_dirty = true;
+                            // Save after drag ends
+                            self.save_config_if_needed();
+                        }
+                        _ => {}
                     }
-                    (MouseButton::Left, ElementState::Released) if self.drag.is_dragging() => {
-                        self.drag.end_drag();
-                        self.config_dirty = true;
-                        // Save after drag ends
-                        self.save_config_if_needed();
-                    }
-                    _ => {}
                 }
             }
 
@@ -228,18 +303,24 @@ impl ApplicationHandler for App {
                     },
                 ..
             } => match logical_key.as_ref() {
-                // Space: toggle global play/pause
+                // F1: Toggle edit mode / pass-through mode
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::F1) => {
+                    self.toggle_edit_mode();
+                }
+                // Space: toggle global play/pause (works in both modes)
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::Space) => {
                     self.scene.toggle_global_playback();
                     self.config_dirty = true;
                 }
-                // Escape: exit
+                // Escape: exit (works in both modes)
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) => {
                     log::info!("Escape pressed — saving and exiting");
                     self.save_config_if_needed();
+                    // Drop renderer before exiting to avoid segfault on Vulkan cleanup
+                    self.renderer = None;
                     event_loop.exit();
                 }
-                // S: save config
+                // S: save config (works in both modes)
                 winit::keyboard::Key::Character("s") => {
                     self.config_dirty = true;
                     self.save_config_if_needed();

@@ -9,11 +9,13 @@ Built in **Rust** with **wgpu** (Vulkan/OpenGL) for rendering and **winit** for 
 ## ✨ Features (MVP)
 
 - 🖼️ **Transparent overlay** — borderless, always-on-top window
+- 👆 **Click-through by default** — desktop is fully usable; characters float on top without blocking input
+- ✏️ **Edit mode (F1)** — toggle to interact with characters (drag, select); press F1 again to return to pass-through
 - 🎮 **Multiple characters** — render several animated entities simultaneously
 - 🎬 **PNG sequence animation** — load frames from a folder
 - 🎞️ **GIF support** — basic animated GIF loading
-- 🖱️ **Drag & drop** — click and drag characters to reposition them
-- 🎯 **Click-to-select** — click on characters to select them
+- 🖱️ **Drag & drop** — click and drag characters to reposition them (in edit mode)
+- 🎯 **Click-to-select** — click on characters to select them (in edit mode)
 - ⏯️ **Play/pause** — global playback toggle (Space key)
 - ⚙️ **Per-character config** — position, scale, opacity, FPS, visibility, z-index
 - 💾 **Persistent config** — TOML configuration saved to `~/.config/animaEngine/config.toml`
@@ -63,11 +65,14 @@ RUST_LOG=debug cargo run
 
 | Key/Action | Effect |
 |-----------|--------|
-| **Click + Drag** | Move a character |
-| **Click** | Select a character |
+| **F1** | Toggle edit mode ↔ pass-through mode |
+| **Click + Drag** | Move a character *(edit mode only)* |
+| **Click** | Select a character *(edit mode only)* |
 | **Space** | Toggle play/pause (global) |
 | **S** | Save config manually |
 | **Escape** | Save and exit |
+
+> **Default behavior:** The overlay starts in **pass-through mode** — all clicks go through to the desktop. Press **F1** to enter edit mode when you want to move characters.
 
 ---
 
@@ -203,7 +208,7 @@ Full support for:
 Wayland compositors may limit:
 - ⚠️ Absolute window positioning (compositor-dependent)
 - ⚠️ Always-on-top behavior (compositor-dependent)
-- ❌ Click-through not supported
+- ⚠️ Click-through uses `wl_surface::set_input_region` — may not work on all compositors
 
 **To force X11 on a Wayland system:**
 ```bash
@@ -275,7 +280,7 @@ sudo apt install mesa-vulkan-drivers intel-media-va-driver
 - [ ] AppImage/deb packaging
 - [ ] Full Wayland support (layer-shell protocol)
 - [ ] Windows/macOS support
-- [ ] Click-through mode (X11 XShape)
+- [x] Click-through mode (winit `set_cursor_hittest`)
 - [ ] Sprite sheet support (texture atlas)
 - [ ] MP4/video overlay support
 

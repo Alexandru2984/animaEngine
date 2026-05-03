@@ -52,11 +52,16 @@ fn main() {
     let mut app = App::new(config, scene);
 
     log::info!("Starting event loop...");
-    log::info!("Controls:");
-    log::info!("  • Click + Drag: move characters");
-    log::info!("  • Space: toggle play/pause");
-    log::info!("  • S: save config");
-    log::info!("  • Escape: exit");
+    log::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    log::info!("  PASS-THROUGH MODE (default)");
+    log::info!("  Clicks go through to the desktop. Characters are visible but non-interactive.");
+    log::info!("");
+    log::info!("  Controls:");
+    log::info!("    F1     — Toggle edit mode (drag characters) / pass-through mode");
+    log::info!("    Space  — Toggle play/pause animations");
+    log::info!("    S      — Save config");
+    log::info!("    Escape — Save and exit");
+    log::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     if let Err(e) = event_loop.run_app(&mut app) {
         log::error!("Event loop error: {}", e);
