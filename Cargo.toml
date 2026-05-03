@@ -1,0 +1,37 @@
+[package]
+name = "anima_engine"
+version = "0.1.0"
+edition = "2021"
+description = "Linux-first animated desktop overlay engine — render multiple animated characters over your desktop"
+license = "MIT"
+resolver = "2"
+
+[dependencies]
+# Windowing
+winit = { version = "0.30", features = ["x11", "wayland"] }
+
+# GPU rendering
+wgpu = "24"
+bytemuck = { version = "1", features = ["derive"] }
+
+# Image loading
+image = { version = "0.25", default-features = false, features = ["png", "gif"] }
+
+# Config
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+directories = "5"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Async for wgpu
+pollster = "0.4"
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+opt-level = 3
+lto = true

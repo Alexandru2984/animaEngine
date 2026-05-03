@@ -1,0 +1,20 @@
+# Rust build artifacts
+/target
+**/*.rs.bk
+
+# IDE / Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+
+# Generated demo assets (optional — uncomment if you want to regenerate)
+# assets/demo/
+
+# Logs
+*.log
