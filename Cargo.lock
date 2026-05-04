@@ -90,10 +90,12 @@ dependencies = [
  "image",
  "log",
  "pollster",
+ "raw-window-handle",
  "serde",
  "toml",
  "wgpu",
  "winit",
+ "x11rb",
 ]
 
 [[package]]

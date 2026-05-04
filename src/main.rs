@@ -85,11 +85,17 @@ fn main() {
     log::info!("  PASS-THROUGH MODE (default)");
     log::info!("  Clicks go through to the desktop. Characters are visible but non-interactive.");
     log::info!("");
-    log::info!("  Controls:");
-    log::info!("    F1     — Toggle edit mode (drag characters) / pass-through mode");
-    log::info!("    Space  — Toggle play/pause animations");
-    log::info!("    S      — Save config");
-    log::info!("    Escape — Save and exit");
+    log::info!("  Controls (work globally — no focus needed):");
+    log::info!("    Ctrl+Escape — Toggle edit mode / pass-through mode");
+    log::info!("    Ctrl+Space  — Toggle play/pause animations");
+    log::info!("    Ctrl+S      — Save config");
+    log::info!("    Ctrl+Q      — Save and quit");
+    log::info!("    ⚙ button    — Click the small button in the top-right corner");
+    log::info!("");
+    log::info!(
+        "  Add custom assets: edit {}",
+        AppConfig::config_path().display()
+    );
     log::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     if let Err(e) = event_loop.run_app(&mut app) {

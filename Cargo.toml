@@ -10,6 +10,11 @@ resolver = "2"
 # Windowing
 winit = { version = "0.30", features = ["x11", "wayland"] }
 
+# X11 input shape & global hotkey support
+# Dock-type windows don't receive keyboard focus, so we need direct X11 control
+x11rb = { version = "0.13", features = ["shape"] }
+raw-window-handle = "0.6"
+
 # GPU rendering
 wgpu = "24"
 bytemuck = { version = "1", features = ["derive"] }
