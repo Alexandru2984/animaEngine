@@ -7,6 +7,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
+/// Maximum number of quads we can batch in one draw call.
+/// Entities + UI elements (button, edit bar, selection highlights).
+/// 64 quads = 256 vertices × 32 bytes = 8 KB — trivial.
+const MAX_QUADS: usize = 64;
+
 /// The main GPU renderer.
 /// Manages the wgpu device, pipeline, and renders entities to the window surface.
 pub struct WgpuRenderer {
@@ -30,6 +35,11 @@ pub struct WgpuRenderer {
     button_tex_active: GpuTexture,
     /// UI: edit mode indicator bar texture (1x1 stretched)
     edit_bar_tex: GpuTexture,
+    /// UI: selection highlight texture (semi-transparent border)
+    selection_tex: GpuTexture,
+    /// Pre-allocated vertex buffer for dynamic quad drawing.
+    /// Reused every frame via `queue.write_buffer()` to avoid per-frame allocations.
+    dynamic_vertex_buffer: wgpu::Buffer,
 }
 
 /// Generate a simple circular button icon.
@@ -71,6 +81,64 @@ fn generate_button_frame(
                 rgba.extend_from_slice(&[bg[0], bg[1], bg[2], a]);
             } else {
                 // Outside — fully transparent
+                rgba.extend_from_slice(&[0, 0, 0, 0]);
+            }
+        }
+    }
+    Frame::new(rgba, size, size)
+}
+
+/// Generate a selection highlight frame — a rounded rectangle border with glow.
+fn generate_selection_frame(size: u32) -> Frame {
+    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
+    let border_w = 3.0f32;
+    let glow_w = 5.0f32;
+    let corner_r = 6.0f32;
+
+    for y in 0..size {
+        for x in 0..size {
+            let fx = x as f32;
+            let fy = y as f32;
+            let w = size as f32;
+            let h = size as f32;
+
+            // Distance to the nearest edge (accounting for rounded corners)
+            let dx = if fx < corner_r {
+                corner_r - fx
+            } else if fx > w - corner_r {
+                fx - (w - corner_r)
+            } else {
+                0.0
+            };
+            let dy = if fy < corner_r {
+                corner_r - fy
+            } else if fy > h - corner_r {
+                fy - (h - corner_r)
+            } else {
+                0.0
+            };
+
+            // Distance from the border (outer edge of the rect)
+            let dist_to_edge = if dx > 0.0 && dy > 0.0 {
+                // Corner: distance to the rounded corner center
+                let corner_dist = (dx * dx + dy * dy).sqrt();
+                corner_dist - corner_r + fx.min(w - fx).min(fy).min(h - fy)
+            } else {
+                fx.min(w - fx).min(fy).min(h - fy)
+            };
+
+            if dist_to_edge < border_w {
+                // Solid border — cyan-ish
+                let edge_factor = (dist_to_edge / border_w).max(0.0);
+                let a = (220.0 * (1.0 - edge_factor * 0.3)) as u8;
+                rgba.extend_from_slice(&[80, 200, 255, a]);
+            } else if dist_to_edge < border_w + glow_w {
+                // Glow falloff
+                let glow_factor = 1.0 - (dist_to_edge - border_w) / glow_w;
+                let a = (100.0 * glow_factor * glow_factor) as u8;
+                rgba.extend_from_slice(&[80, 200, 255, a]);
+            } else {
+                // Interior — transparent
                 rgba.extend_from_slice(&[0, 0, 0, 0]);
             }
         }
@@ -281,6 +349,21 @@ impl WgpuRenderer {
             usage: wgpu::BufferUsages::INDEX,
         });
 
+        // --- Pre-allocated dynamic vertex buffer ---
+        // MAX_QUADS quads × 4 vertices per quad × sizeof(SpriteVertex)
+        let vb_size = (MAX_QUADS * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
+        let dynamic_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Dynamic Vertex Buffer"),
+            size: vb_size,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        log::info!(
+            "Dynamic vertex buffer allocated: {} bytes ({} quads max)",
+            vb_size,
+            MAX_QUADS
+        );
+
         // --- UI textures ---
         let btn_size = 48u32;
         // Normal: dark semi-transparent with white ring
@@ -315,6 +398,16 @@ impl WgpuRenderer {
             "edit_bar",
         );
 
+        // Selection highlight: rounded border with glow, 64x64 stretched over entity
+        let sel_frame = generate_selection_frame(64);
+        let selection_tex = GpuTexture::from_frame(
+            &device,
+            &queue,
+            &sel_frame,
+            &texture_bind_group_layout,
+            "selection_highlight",
+        );
+
         Ok(Self {
             surface,
             device,
@@ -332,6 +425,8 @@ impl WgpuRenderer {
             button_tex_normal,
             button_tex_active,
             edit_bar_tex,
+            selection_tex,
+            dynamic_vertex_buffer,
         })
     }
 
@@ -392,27 +487,25 @@ impl WgpuRenderer {
         }
     }
 
-    /// Helper: draw a single textured quad
-    fn draw_quad(
-        device: &wgpu::Device,
-        render_pass: &mut wgpu::RenderPass<'_>,
-        tex: &GpuTexture,
+    /// Write quad vertices into the dynamic buffer at the given quad index offset.
+    /// Returns the byte offset where the vertices were written.
+    fn write_quad(
+        &self,
+        quad_index: usize,
         x: f32,
         y: f32,
         w: f32,
         h: f32,
         opacity: f32,
-        label: &str,
-    ) {
+    ) -> u64 {
         let vertices = make_quad_vertices(x, y, w, h, opacity);
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some(label),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        render_pass.set_bind_group(1, &tex.bind_group, &[]);
-        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-        render_pass.draw_indexed(0..6, 0, 0..1);
+        let offset = (quad_index * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
+        self.queue.write_buffer(
+            &self.dynamic_vertex_buffer,
+            offset,
+            bytemuck::cast_slice(&vertices),
+        );
+        offset
     }
 
     /// Render all visible entities + UI overlay to the surface
@@ -420,6 +513,7 @@ impl WgpuRenderer {
         &mut self,
         entities: &[&Entity],
         edit_mode: bool,
+        selected_entity_id: Option<&str>,
     ) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
@@ -432,6 +526,97 @@ impl WgpuRenderer {
                 label: Some("Render Encoder"),
             });
 
+        // --- Pre-compute all quad vertices into the dynamic buffer ---
+        let mut quad_idx: usize = 0;
+
+        // Build a draw list: (quad_index, bind_group reference)
+        // We'll store the info we need, then issue draws in the render pass.
+
+        // Entity quads
+        struct DrawCmd {
+            quad_index: usize,
+            texture_entity_id: Option<String>, // entity ID or special UI element
+            is_button: bool,
+            is_edit_bar: bool,
+            is_selection: bool,
+        }
+
+        let mut draws: Vec<DrawCmd> = Vec::with_capacity(entities.len() + 4);
+
+        for entity in entities {
+            if let Some(gpu_tex) = self.textures.get(&entity.id) {
+                let width = gpu_tex.width as f32 * entity.scale;
+                let height = gpu_tex.height as f32 * entity.scale;
+
+                self.write_quad(quad_idx, entity.x, entity.y, width, height, entity.opacity);
+                draws.push(DrawCmd {
+                    quad_index: quad_idx,
+                    texture_entity_id: Some(entity.id.clone()),
+                    is_button: false,
+                    is_edit_bar: false,
+                    is_selection: false,
+                });
+                quad_idx += 1;
+
+                // Selection highlight overlay (drawn right after the selected entity)
+                if let Some(sel_id) = selected_entity_id {
+                    if entity.id == sel_id && edit_mode {
+                        let pad = 6.0; // padding around entity
+                        self.write_quad(
+                            quad_idx,
+                            entity.x - pad,
+                            entity.y - pad,
+                            width + pad * 2.0,
+                            height + pad * 2.0,
+                            0.9,
+                        );
+                        draws.push(DrawCmd {
+                            quad_index: quad_idx,
+                            texture_entity_id: None,
+                            is_button: false,
+                            is_edit_bar: false,
+                            is_selection: true,
+                        });
+                        quad_idx += 1;
+                    }
+                }
+            }
+        }
+
+        // Edit mode indicator bar
+        if edit_mode {
+            self.write_quad(
+                quad_idx,
+                0.0,
+                0.0,
+                self.window_width as f32,
+                4.0,
+                1.0,
+            );
+            draws.push(DrawCmd {
+                quad_index: quad_idx,
+                texture_entity_id: None,
+                is_button: false,
+                is_edit_bar: true,
+                is_selection: false,
+            });
+            quad_idx += 1;
+        }
+
+        // Toggle button
+        let btn_size = 48.0f32;
+        let btn_x = self.window_width as f32 - btn_size;
+        self.write_quad(quad_idx, btn_x, 0.0, btn_size, btn_size, 1.0);
+        draws.push(DrawCmd {
+            quad_index: quad_idx,
+            texture_entity_id: None,
+            is_button: true,
+            is_edit_bar: false,
+            is_selection: false,
+        });
+        // quad_idx += 1; // last one, no need to increment
+
+        // --- Render pass ---
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Sprite Render Pass"),
@@ -458,64 +643,38 @@ impl WgpuRenderer {
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            // --- Draw entities ---
-            for entity in entities {
-                if let Some(gpu_tex) = self.textures.get(&entity.id) {
-                    let width = gpu_tex.width as f32 * entity.scale;
-                    let height = gpu_tex.height as f32 * entity.scale;
-
-                    let vertices =
-                        make_quad_vertices(entity.x, entity.y, width, height, entity.opacity);
-
-                    let vertex_buffer =
-                        self.device
-                            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                label: Some(&format!("{}_vertices", entity.id)),
-                                contents: bytemuck::cast_slice(&vertices),
-                                usage: wgpu::BufferUsages::VERTEX,
-                            });
-
-                    render_pass.set_bind_group(1, &gpu_tex.bind_group, &[]);
-                    render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                    render_pass.draw_indexed(0..6, 0, 0..1);
+            // Issue draw calls from the pre-computed list
+            for cmd in &draws {
+                // Bind the right texture
+                if cmd.is_button {
+                    let btn_tex = if edit_mode {
+                        &self.button_tex_active
+                    } else {
+                        &self.button_tex_normal
+                    };
+                    render_pass.set_bind_group(1, &btn_tex.bind_group, &[]);
+                } else if cmd.is_edit_bar {
+                    render_pass.set_bind_group(1, &self.edit_bar_tex.bind_group, &[]);
+                } else if cmd.is_selection {
+                    render_pass.set_bind_group(1, &self.selection_tex.bind_group, &[]);
+                } else if let Some(ref entity_id) = cmd.texture_entity_id {
+                    if let Some(gpu_tex) = self.textures.get(entity_id) {
+                        render_pass.set_bind_group(1, &gpu_tex.bind_group, &[]);
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
                 }
-            }
 
-            // --- Draw edit mode indicator bar (top of screen) ---
-            if edit_mode {
-                Self::draw_quad(
-                    &self.device,
-                    &mut render_pass,
-                    &self.edit_bar_tex,
-                    0.0,
-                    0.0,
-                    self.window_width as f32,
-                    4.0,
-                    1.0,
-                    "edit_bar_vertices",
-                );
+                // Set the vertex buffer slice for this quad
+                let byte_offset =
+                    (cmd.quad_index * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
+                let byte_end = byte_offset + (4 * std::mem::size_of::<SpriteVertex>()) as u64;
+                render_pass
+                    .set_vertex_buffer(0, self.dynamic_vertex_buffer.slice(byte_offset..byte_end));
+                render_pass.draw_indexed(0..6, 0, 0..1);
             }
-
-            // --- Draw toggle button (top-right corner) ---
-            let btn_tex = if edit_mode {
-                &self.button_tex_active
-            } else {
-                &self.button_tex_normal
-            };
-            let btn_size = 48.0f32;
-            let btn_x = self.window_width as f32 - btn_size;
-            let btn_y = 0.0;
-            Self::draw_quad(
-                &self.device,
-                &mut render_pass,
-                btn_tex,
-                btn_x,
-                btn_y,
-                btn_size,
-                btn_size,
-                1.0,
-                "toggle_btn_vertices",
-            );
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

@@ -3,7 +3,7 @@ use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
-use crate::window::x11_input::{self, TOGGLE_BUTTON_SIZE};
+use crate::window::x11_input::{X11InputManager, TOGGLE_BUTTON_SIZE};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, WindowEvent};
@@ -42,6 +42,8 @@ pub struct App {
     /// Whether the overlay is in "edit mode" (interactive) or "pass-through" mode
     /// Default: false (pass-through — clicks go to desktop)
     edit_mode: bool,
+    /// Pooled X11 input manager (holds a single X11 connection)
+    x11_input: Option<X11InputManager>,
 }
 
 impl App {
@@ -57,6 +59,7 @@ impl App {
             mouse_y: 0.0,
             config_dirty: false,
             edit_mode: false,
+            x11_input: None,
         }
     }
 
@@ -76,23 +79,28 @@ impl App {
     fn toggle_edit_mode(&mut self) {
         self.edit_mode = !self.edit_mode;
 
-        if let Some(window) = &self.window {
+        if let Some(x11) = &self.x11_input {
             if self.edit_mode {
                 // Edit mode: full window receives input
-                if let Err(e) = x11_input::set_full_input(window) {
+                if let Err(e) = x11.set_full_input() {
                     log::warn!("Failed to set full input shape: {}", e);
                     // Fallback to winit's method
-                    let _ = window.set_cursor_hittest(true);
+                    if let Some(window) = &self.window {
+                        let _ = window.set_cursor_hittest(true);
+                    }
                 }
             } else {
                 // Pass-through mode: only the toggle button receives input
-                if let Err(e) =
-                    x11_input::set_passthrough_with_button(window, TOGGLE_BUTTON_SIZE)
-                {
+                if let Err(e) = x11.set_passthrough_with_button(TOGGLE_BUTTON_SIZE) {
                     log::warn!("Failed to set passthrough input shape: {}", e);
-                    let _ = window.set_cursor_hittest(false);
+                    if let Some(window) = &self.window {
+                        let _ = window.set_cursor_hittest(false);
+                    }
                 }
             }
+        } else if let Some(window) = &self.window {
+            // No X11 manager — use winit fallback
+            let _ = window.set_cursor_hittest(self.edit_mode);
         }
 
         if self.edit_mode {
@@ -181,13 +189,19 @@ impl ApplicationHandler for App {
                     window.inner_size().height
                 );
 
-                // Set X11 input shape: click-through except toggle button
-                if let Err(e) =
-                    x11_input::set_passthrough_with_button(&window, TOGGLE_BUTTON_SIZE)
-                {
-                    log::warn!("Failed to set input shape: {}. Falling back to set_cursor_hittest.", e);
+                // Create pooled X11 input manager (single connection)
+                let x11_mgr = X11InputManager::new(&window);
+                if let Some(ref mgr) = x11_mgr {
+                    // Set initial input shape: click-through except toggle button
+                    if let Err(e) = mgr.set_passthrough_with_button(TOGGLE_BUTTON_SIZE) {
+                        log::warn!("Failed to set initial input shape: {}", e);
+                        let _ = window.set_cursor_hittest(false);
+                    }
+                } else {
+                    log::warn!("X11InputManager not available. Falling back to set_cursor_hittest.");
                     let _ = window.set_cursor_hittest(false);
                 }
+                self.x11_input = x11_mgr;
 
                 // Initialize wgpu renderer
                 match WgpuRenderer::new(window.clone()) {
@@ -231,6 +245,8 @@ impl ApplicationHandler for App {
                 self.save_config_if_needed();
                 // Drop renderer before exiting to avoid segfault on Vulkan cleanup
                 self.renderer = None;
+                // Drop X11 connection
+                self.x11_input = None;
                 event_loop.exit();
             }
 
@@ -240,11 +256,8 @@ impl ApplicationHandler for App {
                 }
                 // Re-apply input shape after resize
                 if !self.edit_mode {
-                    if let Some(window) = &self.window {
-                        let _ = x11_input::set_passthrough_with_button(
-                            window,
-                            TOGGLE_BUTTON_SIZE,
-                        );
+                    if let Some(x11) = &self.x11_input {
+                        let _ = x11.set_passthrough_with_button(TOGGLE_BUTTON_SIZE);
                     }
                 }
             }
@@ -262,9 +275,16 @@ impl ApplicationHandler for App {
                         }
                     }
 
+                    // Get selected entity ID for highlight rendering
+                    let selected_id = self
+                        .selection
+                        .selected_index()
+                        .and_then(|idx| self.scene.entities.get(idx))
+                        .map(|e| e.id.as_str());
+
                     // Render all visible entities + UI
                     let visible = self.scene.visible_entities();
-                    match renderer.render(&visible, self.edit_mode) {
+                    match renderer.render(&visible, self.edit_mode, selected_id) {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => {
                             renderer.resize(renderer.window_width, renderer.window_height);
@@ -363,6 +383,7 @@ impl ApplicationHandler for App {
                     log::info!("Q pressed — saving and exiting");
                     self.save_config_if_needed();
                     self.renderer = None;
+                    self.x11_input = None;
                     event_loop.exit();
                 }
                 winit::keyboard::Key::Character("s") => {

@@ -25,6 +25,11 @@ impl SelectionState {
         self.selected_entity = None;
     }
 
+    /// Get the index of the currently selected entity
+    pub fn selected_index(&self) -> Option<usize> {
+        self.selected_entity
+    }
+
     /// Check if a specific entity is selected
     pub fn is_selected(&self, index: usize) -> bool {
         self.selected_entity == Some(index)
