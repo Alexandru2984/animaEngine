@@ -1,5 +1,6 @@
 use super::sprite::{make_quad_vertices, orthographic_projection, SpriteVertex, QUAD_INDICES};
 use super::texture::GpuTexture;
+use crate::animation::frame::Frame;
 use crate::entity::Entity;
 use bytemuck;
 use std::collections::HashMap;
@@ -23,6 +24,58 @@ pub struct WgpuRenderer {
     pub textures: HashMap<String, GpuTexture>,
     pub window_width: u32,
     pub window_height: u32,
+    /// UI: toggle button texture (normal / pass-through state)
+    button_tex_normal: GpuTexture,
+    /// UI: toggle button texture (active / edit mode state)
+    button_tex_active: GpuTexture,
+    /// UI: edit mode indicator bar texture (1x1 stretched)
+    edit_bar_tex: GpuTexture,
+}
+
+/// Generate a simple circular button icon.
+/// Creates a circle with a ring and center dot — looks like a settings/target icon.
+fn generate_button_frame(
+    bg: [u8; 4],
+    icon: [u8; 4],
+    size: u32,
+) -> Frame {
+    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
+    let cx = size as f32 / 2.0;
+    let cy = size as f32 / 2.0;
+    let outer_r = size as f32 * 0.42;
+    let ring_r = size as f32 * 0.28;
+    let ring_w = 2.5;
+    let dot_r = size as f32 * 0.09;
+
+    for y in 0..size {
+        for x in 0..size {
+            let dx = x as f32 - cx;
+            let dy = y as f32 - cy;
+            let dist = (dx * dx + dy * dy).sqrt();
+
+            if dist < dot_r {
+                // Center dot
+                rgba.extend_from_slice(&icon);
+            } else if (dist - ring_r).abs() < ring_w {
+                // Ring
+                let edge = (ring_w - (dist - ring_r).abs()) / ring_w;
+                let a = (icon[3] as f32 * edge.min(1.0)) as u8;
+                rgba.extend_from_slice(&[icon[0], icon[1], icon[2], a]);
+            } else if dist < outer_r {
+                // Background fill
+                rgba.extend_from_slice(&bg);
+            } else if dist < outer_r + 1.5 {
+                // Anti-aliased edge
+                let factor = (outer_r + 1.5 - dist) / 1.5;
+                let a = (bg[3] as f32 * factor) as u8;
+                rgba.extend_from_slice(&[bg[0], bg[1], bg[2], a]);
+            } else {
+                // Outside — fully transparent
+                rgba.extend_from_slice(&[0, 0, 0, 0]);
+            }
+        }
+    }
+    Frame::new(rgba, size, size)
 }
 
 impl WgpuRenderer {
@@ -228,6 +281,40 @@ impl WgpuRenderer {
             usage: wgpu::BufferUsages::INDEX,
         });
 
+        // --- UI textures ---
+        let btn_size = 48u32;
+        // Normal: dark semi-transparent with white ring
+        let btn_normal_frame =
+            generate_button_frame([50, 50, 60, 160], [200, 200, 220, 200], btn_size);
+        let button_tex_normal = GpuTexture::from_frame(
+            &device,
+            &queue,
+            &btn_normal_frame,
+            &texture_bind_group_layout,
+            "btn_normal",
+        );
+
+        // Active: green with white ring
+        let btn_active_frame =
+            generate_button_frame([40, 160, 60, 200], [255, 255, 255, 240], btn_size);
+        let button_tex_active = GpuTexture::from_frame(
+            &device,
+            &queue,
+            &btn_active_frame,
+            &texture_bind_group_layout,
+            "btn_active",
+        );
+
+        // Edit bar: solid green semi-transparent, 1x1 stretched
+        let bar_frame = Frame::new(vec![50, 200, 80, 140], 1, 1);
+        let edit_bar_tex = GpuTexture::from_frame(
+            &device,
+            &queue,
+            &bar_frame,
+            &texture_bind_group_layout,
+            "edit_bar",
+        );
+
         Ok(Self {
             surface,
             device,
@@ -242,6 +329,9 @@ impl WgpuRenderer {
             textures: HashMap::new(),
             window_width,
             window_height,
+            button_tex_normal,
+            button_tex_active,
+            edit_bar_tex,
         })
     }
 
@@ -302,8 +392,35 @@ impl WgpuRenderer {
         }
     }
 
-    /// Render all visible entities to the surface
-    pub fn render(&mut self, entities: &[&Entity]) -> Result<(), wgpu::SurfaceError> {
+    /// Helper: draw a single textured quad
+    fn draw_quad(
+        device: &wgpu::Device,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        tex: &GpuTexture,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        opacity: f32,
+        label: &str,
+    ) {
+        let vertices = make_quad_vertices(x, y, w, h, opacity);
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        render_pass.set_bind_group(1, &tex.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        render_pass.draw_indexed(0..6, 0, 0..1);
+    }
+
+    /// Render all visible entities + UI overlay to the surface
+    pub fn render(
+        &mut self,
+        entities: &[&Entity],
+        edit_mode: bool,
+    ) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -341,7 +458,7 @@ impl WgpuRenderer {
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            // Draw each entity as a textured quad
+            // --- Draw entities ---
             for entity in entities {
                 if let Some(gpu_tex) = self.textures.get(&entity.id) {
                     let width = gpu_tex.width as f32 * entity.scale;
@@ -350,7 +467,6 @@ impl WgpuRenderer {
                     let vertices =
                         make_quad_vertices(entity.x, entity.y, width, height, entity.opacity);
 
-                    // Create a temporary vertex buffer for this quad
                     let vertex_buffer =
                         self.device
                             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -364,6 +480,42 @@ impl WgpuRenderer {
                     render_pass.draw_indexed(0..6, 0, 0..1);
                 }
             }
+
+            // --- Draw edit mode indicator bar (top of screen) ---
+            if edit_mode {
+                Self::draw_quad(
+                    &self.device,
+                    &mut render_pass,
+                    &self.edit_bar_tex,
+                    0.0,
+                    0.0,
+                    self.window_width as f32,
+                    4.0,
+                    1.0,
+                    "edit_bar_vertices",
+                );
+            }
+
+            // --- Draw toggle button (top-right corner) ---
+            let btn_tex = if edit_mode {
+                &self.button_tex_active
+            } else {
+                &self.button_tex_normal
+            };
+            let btn_size = 48.0f32;
+            let btn_x = self.window_width as f32 - btn_size;
+            let btn_y = 0.0;
+            Self::draw_quad(
+                &self.device,
+                &mut render_pass,
+                btn_tex,
+                btn_x,
+                btn_y,
+                btn_size,
+                btn_size,
+                1.0,
+                "toggle_btn_vertices",
+            );
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

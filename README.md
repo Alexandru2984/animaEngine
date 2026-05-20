@@ -65,14 +65,15 @@ RUST_LOG=debug cargo run
 
 | Key/Action | Effect |
 |-----------|--------|
-| **F1** | Toggle edit mode ↔ pass-through mode |
+| **⚙ button** (top-right) | Toggle edit mode ↔ pass-through mode |
 | **Click + Drag** | Move a character *(edit mode only)* |
 | **Click** | Select a character *(edit mode only)* |
-| **Space** | Toggle play/pause (global) |
-| **S** | Save config manually |
-| **Escape** | Save and exit |
+| **Escape** | Exit edit mode → pass-through |
+| **Space** | Toggle play/pause (edit mode) |
+| **S** | Save config (edit mode) |
+| **Q** | Save and exit (edit mode) |
 
-> **Default behavior:** The overlay starts in **pass-through mode** — all clicks go through to the desktop. Press **F1** to enter edit mode when you want to move characters.
+> **Default behavior:** The overlay starts in **pass-through mode** — all clicks go through to the desktop. Click the **⚙ button** in the top-right corner to enter edit mode when you want to move characters.
 
 ---
 

@@ -8,19 +8,19 @@ pub struct GlobalConfig {
     pub always_on_top: bool,
     pub transparent: bool,
     pub playback_enabled: bool,
-    /// Window width (0 = auto/fullscreen)
+    /// Window width (0 = auto-detect from monitor)
     #[serde(default = "default_window_width")]
     pub window_width: u32,
-    /// Window height (0 = auto/fullscreen)
+    /// Window height (0 = auto-detect from monitor)
     #[serde(default = "default_window_height")]
     pub window_height: u32,
 }
 
 fn default_window_width() -> u32 {
-    1920
+    0 // 0 = auto-detect from monitor
 }
 fn default_window_height() -> u32 {
-    1080
+    0 // 0 = auto-detect from monitor
 }
 
 impl Default for GlobalConfig {
@@ -29,8 +29,8 @@ impl Default for GlobalConfig {
             always_on_top: true,
             transparent: true,
             playback_enabled: true,
-            window_width: default_window_width(),
-            window_height: default_window_height(),
+            window_width: 0, // auto-detect
+            window_height: 0, // auto-detect
         }
     }
 }

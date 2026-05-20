@@ -3,8 +3,7 @@ use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
-use crate::window::x11_input::{self, HotkeyCommand, TOGGLE_BUTTON_SIZE};
-use std::sync::mpsc;
+use crate::window::x11_input::{self, TOGGLE_BUTTON_SIZE};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, WindowEvent};
@@ -20,8 +19,8 @@ use winit::platform::x11::{WindowAttributesExtX11, WindowType};
 /// The overlay operates in two modes:
 /// - **Pass-through mode** (default): clicks go through to the desktop,
 ///   except for a small toggle button in the top-right corner.
-/// - **Edit mode** (Ctrl+Escape or click toggle button): the full overlay
-///   receives input. You can drag characters, select them, etc.
+/// - **Edit mode** (click toggle button): the full overlay
+///   receives input. You can drag characters, select them, use keyboard shortcuts.
 pub struct App {
     /// The winit window (created on resume)
     window: Option<Arc<Window>>,
@@ -43,8 +42,6 @@ pub struct App {
     /// Whether the overlay is in "edit mode" (interactive) or "pass-through" mode
     /// Default: false (pass-through — clicks go to desktop)
     edit_mode: bool,
-    /// Receiver for global hotkey commands from the X11 thread
-    hotkey_rx: Option<mpsc::Receiver<HotkeyCommand>>,
 }
 
 impl App {
@@ -60,7 +57,6 @@ impl App {
             mouse_y: 0.0,
             config_dirty: false,
             edit_mode: false,
-            hotkey_rx: None,
         }
     }
 
@@ -101,11 +97,11 @@ impl App {
 
         if self.edit_mode {
             log::info!(
-                "━━━ EDIT MODE ON ━━━ Click and drag characters. Ctrl+Escape or click ⚙ button to exit."
+                "━━━ EDIT MODE ON ━━━ Click and drag characters. Press Escape or click ⚙ button to exit."
             );
         } else {
             log::info!(
-                "━━━ PASS-THROUGH MODE ━━━ Clicks go to desktop. Ctrl+Escape or click ⚙ button to enter edit mode."
+                "━━━ PASS-THROUGH MODE ━━━ Clicks go to desktop. Click ⚙ button to enter edit mode."
             );
             // End any active drag when leaving edit mode
             if self.drag.is_dragging() {
@@ -118,46 +114,13 @@ impl App {
     }
 
     /// Check if a click is on the toggle button (top-right corner)
-    fn is_toggle_button_click(&self, x: f32, _y: f32) -> bool {
+    fn is_toggle_button_click(&self, x: f32, y: f32) -> bool {
         if let Some(window) = &self.window {
             let win_width = window.inner_size().width as f32;
             let button_x = win_width - TOGGLE_BUTTON_SIZE as f32;
-            x >= button_x && _y <= TOGGLE_BUTTON_SIZE as f32
+            x >= button_x && y <= TOGGLE_BUTTON_SIZE as f32
         } else {
             false
-        }
-    }
-
-    /// Process any pending global hotkey commands
-    fn process_hotkeys(&mut self, event_loop: &ActiveEventLoop) {
-        // Collect commands first to avoid borrow conflicts
-        let commands: Vec<HotkeyCommand> = self
-            .hotkey_rx
-            .as_ref()
-            .map(|rx| rx.try_iter().collect())
-            .unwrap_or_default();
-
-        for cmd in commands {
-            match cmd {
-                HotkeyCommand::ToggleEditMode => {
-                    self.toggle_edit_mode();
-                }
-                HotkeyCommand::Quit => {
-                    log::info!("Ctrl+Q — saving and exiting");
-                    self.save_config_if_needed();
-                    self.renderer = None;
-                    event_loop.exit();
-                }
-                HotkeyCommand::SaveConfig => {
-                    self.config_dirty = true;
-                    self.save_config_if_needed();
-                    log::info!("Config saved (Ctrl+S)");
-                }
-                HotkeyCommand::TogglePlayback => {
-                    self.scene.toggle_global_playback();
-                    self.config_dirty = true;
-                }
-            }
         }
     }
 }
@@ -170,18 +133,39 @@ impl ApplicationHandler for App {
 
         log::info!("Creating window...");
 
+        // Auto-detect screen resolution if config values are 0
+        let (win_w, win_h) = if self.config.global.window_width == 0
+            || self.config.global.window_height == 0
+        {
+            if let Some(monitor) = event_loop
+                .primary_monitor()
+                .or_else(|| event_loop.available_monitors().next())
+            {
+                let size = monitor.size();
+                log::info!(
+                    "Auto-detected monitor resolution: {}x{}",
+                    size.width,
+                    size.height
+                );
+                (size.width, size.height)
+            } else {
+                log::warn!("Could not detect monitor resolution, falling back to 1920x1080");
+                (1920u32, 1080u32)
+            }
+        } else {
+            (
+                self.config.global.window_width,
+                self.config.global.window_height,
+            )
+        };
+
         // Build window attributes: transparent, borderless, always-on-top
-        // On X11: set window type to DOCK — this tells the window manager
-        // to keep this window above all normal application windows, like a panel.
         let window_attrs = Window::default_attributes()
             .with_title("animaEngine")
             .with_transparent(true)
             .with_decorations(false)
             .with_window_level(WindowLevel::AlwaysOnTop)
-            .with_inner_size(winit::dpi::LogicalSize::new(
-                self.config.global.window_width,
-                self.config.global.window_height,
-            ));
+            .with_inner_size(winit::dpi::LogicalSize::new(win_w, win_h));
 
         // X11-specific: Set window type to Dock (stays above all windows)
         #[cfg(target_os = "linux")]
@@ -203,16 +187,6 @@ impl ApplicationHandler for App {
                 {
                     log::warn!("Failed to set input shape: {}. Falling back to set_cursor_hittest.", e);
                     let _ = window.set_cursor_hittest(false);
-                }
-
-                // Start global hotkey listener thread
-                match x11_input::spawn_global_hotkey_listener() {
-                    Ok(rx) => {
-                        self.hotkey_rx = Some(rx);
-                    }
-                    Err(e) => {
-                        log::warn!("Failed to start global hotkey listener: {}", e);
-                    }
                 }
 
                 // Initialize wgpu renderer
@@ -276,9 +250,6 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::RedrawRequested => {
-                // Check for global hotkey commands every frame
-                self.process_hotkeys(event_loop);
-
                 // Tick animations
                 self.scene.tick();
 
@@ -291,9 +262,9 @@ impl ApplicationHandler for App {
                         }
                     }
 
-                    // Render all visible entities
+                    // Render all visible entities + UI
                     let visible = self.scene.visible_entities();
-                    match renderer.render(&visible) {
+                    match renderer.render(&visible, self.edit_mode) {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => {
                             renderer.resize(renderer.window_width, renderer.window_height);
@@ -375,7 +346,7 @@ impl ApplicationHandler for App {
                 }
             }
 
-            // Keyboard input only works in edit mode (when window has full input)
+            // Keyboard input works in edit mode (when window has full input shape)
             WindowEvent::KeyboardInput {
                 event:
                     winit::event::KeyEvent {

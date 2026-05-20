@@ -83,17 +83,19 @@ fn main() {
     log::info!("Starting event loop...");
     log::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     log::info!("  PASS-THROUGH MODE (default)");
-    log::info!("  Clicks go through to the desktop. Characters are visible but non-interactive.");
+    log::info!("  Clicks go through to desktop. Characters float on top.");
     log::info!("");
-    log::info!("  Controls (work globally — no focus needed):");
-    log::info!("    Ctrl+Escape — Toggle edit mode / pass-through mode");
-    log::info!("    Ctrl+Space  — Toggle play/pause animations");
-    log::info!("    Ctrl+S      — Save config");
-    log::info!("    Ctrl+Q      — Save and quit");
-    log::info!("    ⚙ button    — Click the small button in the top-right corner");
+    log::info!("  ⚙ Click the button in the top-right corner to toggle EDIT MODE");
+    log::info!("");
+    log::info!("  In edit mode:");
+    log::info!("    Click+Drag  — Move characters");
+    log::info!("    Escape      — Return to pass-through mode");
+    log::info!("    Space       — Toggle play/pause animations");
+    log::info!("    S           — Save config");
+    log::info!("    Q           — Save and quit");
     log::info!("");
     log::info!(
-        "  Add custom assets: edit {}",
+        "  Config: {}",
         AppConfig::config_path().display()
     );
     log::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
