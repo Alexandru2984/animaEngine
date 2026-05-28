@@ -416,10 +416,66 @@ impl ApplicationHandler for App {
                     self.scene.toggle_global_playback();
                     self.config_dirty = true;
                 }
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Delete)
+                | winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) => {
+                    // Delete selected entity
+                    if let Some(idx) = self.selection.selected_index() {
+                        // Remove GPU texture for this entity
+                        if let Some(renderer) = &mut self.renderer {
+                            let entity_id = &self.scene.entities[idx].id;
+                            renderer.textures.remove(entity_id);
+                        }
+                        if let Some(removed_id) = self.scene.remove_entity(idx) {
+                            log::info!("Deleted entity: {}", removed_id);
+                            self.selection.deselect();
+                            self.config_dirty = true;
+                            self.save_config_if_needed();
+                        }
+                    }
+                }
                 _ => {}
             },
+
+            // --- Drag and drop: add new assets ---
+            WindowEvent::DroppedFile(path) => {
+                log::info!("File dropped: {}", path.display());
+
+                // If not in edit mode, enter it automatically
+                if !self.edit_mode {
+                    self.toggle_edit_mode();
+                }
+
+                // Try to add the entity at the current mouse position
+                match self.scene.add_entity_from_path(&path, self.mouse_x, self.mouse_y) {
+                    Ok(idx) => {
+                        // Create texture for the new entity
+                        if let Some(renderer) = &mut self.renderer {
+                            renderer.ensure_texture(&self.scene.entities[idx]);
+                            self.scene.entities[idx].texture_dirty = false;
+                        }
+                        // Select the new entity
+                        self.selection.select(idx);
+                        self.config_dirty = true;
+                        self.save_config_if_needed();
+                        log::info!(
+                            "Added '{}' at ({:.0}, {:.0})",
+                            self.scene.entities[idx].name,
+                            self.mouse_x,
+                            self.mouse_y
+                        );
+                    }
+                    Err(e) => {
+                        log::error!("Failed to load dropped file {}: {}", path.display(), e);
+                    }
+                }
+            }
+
+            WindowEvent::HoveredFile(path) => {
+                log::debug!("File hovering: {}", path.display());
+            }
 
             _ => {}
         }
     }
 }
+

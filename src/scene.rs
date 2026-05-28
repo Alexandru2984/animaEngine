@@ -130,6 +130,96 @@ impl Scene {
         );
     }
 
+    /// Add a new entity by loading an asset from a file path.
+    /// Auto-detects the asset type from the extension.
+    /// Returns the index of the new entity, or an error if loading fails.
+    pub fn add_entity_from_path(
+        &mut self,
+        path: &std::path::Path,
+        x: f32,
+        y: f32,
+    ) -> Result<usize, Box<dyn std::error::Error>> {
+        use crate::animation::loader::detect_asset_type;
+
+        let (asset_type, type_desc) = detect_asset_type(path);
+
+        // Generate a unique ID from the filename
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("entity");
+        let id = format!("{}_{}", stem, self.entities.len());
+        let name = stem.to_string();
+
+        // Use absolute path for reliable loading
+        let abs_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .unwrap_or_default()
+                .join(path)
+        };
+        let asset_path_str = abs_path.to_string_lossy().to_string();
+
+        log::info!(
+            "Adding entity '{}' from {} ({})",
+            name,
+            asset_path_str,
+            type_desc
+        );
+
+        // Build a config for this entity
+        let char_config = CharacterConfig {
+            id: id.clone(),
+            name,
+            asset_type: asset_type.clone(),
+            asset_path: asset_path_str,
+            x,
+            y,
+            scale: 1.0,
+            opacity: 1.0,
+            fps: 12.0,
+            visible: true,
+            playing: true,
+            z_index: self.next_z_index(),
+            spritesheet_columns: None,
+            spritesheet_rows: None,
+        };
+
+        // Load and create the entity
+        let entity = Self::load_entity(&char_config)?;
+        log::info!(
+            "Entity '{}' loaded: {} frames",
+            entity.id,
+            entity.animation.frame_count()
+        );
+
+        self.entities.push(entity);
+        let idx = self.entities.len() - 1;
+        Ok(idx)
+    }
+
+    /// Remove an entity by index. Returns the removed entity's ID.
+    pub fn remove_entity(&mut self, index: usize) -> Option<String> {
+        if index < self.entities.len() {
+            let entity = self.entities.remove(index);
+            log::info!("Removed entity '{}' ({})", entity.name, entity.id);
+            Some(entity.id)
+        } else {
+            None
+        }
+    }
+
+    /// Get the next z_index value (one above the current maximum)
+    fn next_z_index(&self) -> i32 {
+        self.entities
+            .iter()
+            .map(|e| e.z_index)
+            .max()
+            .unwrap_or(0)
+            + 10
+    }
+
     /// Convert current scene state back to config for saving
     pub fn to_character_configs(&self) -> Vec<CharacterConfig> {
         self.entities.iter().map(|e| e.to_config()).collect()
