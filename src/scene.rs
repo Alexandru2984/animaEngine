@@ -186,12 +186,26 @@ impl Scene {
             spritesheet_rows: None,
         };
 
-        // Load and create the entity
-        let entity = Self::load_entity(&char_config)?;
+        // Load frames and resize to overlay-friendly dimensions
+        let resolved = AppConfig::resolve_asset_path(&char_config.asset_path);
+        let frames = load_asset(
+            &char_config.asset_type,
+            &resolved,
+            char_config.spritesheet_columns,
+            char_config.spritesheet_rows,
+        )?;
+
+        // Cap frames at 256px max dimension for dropped assets
+        const MAX_DROP_SIZE: u32 = 256;
+        let frames: Vec<_> = frames.into_iter().map(|f| f.resized(MAX_DROP_SIZE)).collect();
+
+        let animation = Animation::new(frames, char_config.fps, char_config.playing);
+        let entity = Entity::from_config(&char_config, animation);
         log::info!(
-            "Entity '{}' loaded: {} frames",
+            "Entity '{}' loaded: {} frames (max {}px)",
             entity.id,
-            entity.animation.frame_count()
+            entity.animation.frame_count(),
+            MAX_DROP_SIZE
         );
 
         self.entities.push(entity);

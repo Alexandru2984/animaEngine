@@ -20,7 +20,7 @@ wgpu = "24"
 bytemuck = { version = "1", features = ["derive"] }
 
 # Image loading
-image = { version = "0.25", default-features = false, features = ["png", "gif", "webp"] }
+image = { version = "0.25", default-features = false, features = ["png", "gif", "webp", "jpeg"] }
 
 # Config
 serde = { version = "1", features = ["derive"] }

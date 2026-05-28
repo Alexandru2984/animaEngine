@@ -73,6 +73,7 @@ pub fn detect_asset_type(path: &Path) -> (AssetType, &'static str) {
                 (AssetType::PngStatic, "Static PNG")
             }
         }
+        "jpg" | "jpeg" => (AssetType::PngStatic, "JPEG image"),
         _ => {
             // Check if it's a directory (PNG sequence)
             if path.is_dir() {
