@@ -1,34 +1,40 @@
 //! Direct X11 input management for overlay windows.
 //!
-//! Dock-type windows on X11 never receive keyboard focus, and `set_cursor_hittest(false)`
-//! makes the entire window invisible to ALL input. This module provides:
+//! On Wayland+XWayland (GNOME/Mutter), DOCK-type windows are treated as system
+//! panels and don't receive normal mouse input. This module instead uses:
 //!
-//! **Input Shape**: Use the X11 Shape extension to make most of the window
-//! click-through while keeping a small control button area clickable.
+//! - **Window type `_NET_WM_WINDOW_TYPE_NORMAL`** (not DOCK) so the window
+//!   receives mouse events normally through the compositor.
+//! - **EWMH hints** (`_NET_WM_STATE_ABOVE`, `_NET_WM_STATE_SKIP_TASKBAR`,
+//!   `_NET_WM_STATE_SKIP_PAGER`, `_NET_WM_STATE_STICKY`) to keep the window
+//!   always-on-top without appearing in the taskbar.
+//! - **X11 Input Shape** to make most of the window click-through while keeping
+//!   a control button area clickable.
 //!
 //! **Connection pooling**: `X11InputManager` holds a single X11 connection that is
-//! reused across all input shape operations, avoiding the overhead of opening a
-//! new connection on every toggle or resize.
+//! reused across all operations.
 
 use x11rb::connection::Connection;
+use x11rb::protocol::xproto::*;
 use x11rb::rust_connection::RustConnection;
 
-/// Size of the clickable toggle button in the corner (pixels)
-pub const TOGGLE_BUTTON_SIZE: u32 = 48;
+/// Size of the clickable toggle button in the corner (pixels).
+/// 64px is large enough to be easily clickable.
+pub const TOGGLE_BUTTON_SIZE: u32 = 64;
 
-/// Manages X11 input shape operations with a pooled connection.
-///
-/// Instead of opening a new `x11rb` connection on every call to
-/// `set_passthrough_with_button()` or `set_full_input()`, this struct keeps
-/// one connection alive and reuses it.
+/// Manages X11 window properties and input shape operations with a pooled connection.
 pub struct X11InputManager {
     conn: RustConnection,
     x11_window: u32,
+    screen_num: usize,
 }
 
 impl X11InputManager {
     /// Create a new manager for the given winit window.
     /// Returns `None` if the window is not running on X11.
+    ///
+    /// Also applies EWMH hints to make the window behave as an overlay:
+    /// always-on-top, skip-taskbar, skip-pager, sticky.
     pub fn new(window: &winit::window::Window) -> Option<Self> {
         use raw_window_handle::HasWindowHandle;
 
@@ -39,12 +45,25 @@ impl X11InputManager {
             let x11_window = xlib_handle.window as u32;
 
             match x11rb::connect(None) {
-                Ok((conn, _screen_num)) => {
+                Ok((conn, screen_num)) => {
                     log::info!(
-                        "X11InputManager: connection established (window=0x{:x})",
-                        x11_window
+                        "X11InputManager: connection established (window=0x{:x}, screen={})",
+                        x11_window,
+                        screen_num
                     );
-                    Some(Self { conn, x11_window })
+
+                    let mgr = Self {
+                        conn,
+                        x11_window,
+                        screen_num,
+                    };
+
+                    // Apply EWMH overlay hints
+                    if let Err(e) = mgr.apply_overlay_hints() {
+                        log::warn!("Failed to apply overlay EWMH hints: {}", e);
+                    }
+
+                    Some(mgr)
                 }
                 Err(e) => {
                     log::warn!("X11InputManager: failed to connect to X11: {}", e);
@@ -57,14 +76,76 @@ impl X11InputManager {
         }
     }
 
-    /// Set the X11 input shape so that only a small rectangle in the top-right corner
+    /// Apply EWMH hints to make the window behave as an overlay:
+    /// - `_NET_WM_STATE_ABOVE` — always on top
+    /// - `_NET_WM_STATE_SKIP_TASKBAR` — don't show in taskbar
+    /// - `_NET_WM_STATE_SKIP_PAGER` — don't show in pager
+    /// - `_NET_WM_STATE_STICKY` — visible on all workspaces
+    fn apply_overlay_hints(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let screen = &self.conn.setup().roots[self.screen_num];
+        let root = screen.root;
+
+        // Intern the atoms we need
+        let net_wm_state = self.intern_atom("_NET_WM_STATE")?;
+        let above = self.intern_atom("_NET_WM_STATE_ABOVE")?;
+        let skip_taskbar = self.intern_atom("_NET_WM_STATE_SKIP_TASKBAR")?;
+        let skip_pager = self.intern_atom("_NET_WM_STATE_SKIP_PAGER")?;
+        let sticky = self.intern_atom("_NET_WM_STATE_STICKY")?;
+
+        // Set the property directly
+        let states = [above, skip_taskbar, skip_pager, sticky];
+        change_property(
+            &self.conn,
+            PropMode::REPLACE,
+            self.x11_window,
+            net_wm_state,
+            AtomEnum::ATOM,
+            32,
+            states.len() as u32,
+            bytemuck::cast_slice(&states),
+        )?;
+
+        // Also send ClientMessage to the WM to activate _NET_WM_STATE_ABOVE
+        // (some WMs require this in addition to the property)
+        let data = ClientMessageData::from([
+            1u32, // _NET_WM_STATE_ADD
+            above,
+            0,
+            1, // source = normal application
+            0,
+        ]);
+        let event = ClientMessageEvent::new(32, self.x11_window, net_wm_state, data);
+        send_event(
+            &self.conn,
+            false,
+            root,
+            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+            event,
+        )?;
+
+        self.conn.flush()?;
+
+        log::info!(
+            "EWMH overlay hints applied: ABOVE, SKIP_TASKBAR, SKIP_PAGER, STICKY"
+        );
+        Ok(())
+    }
+
+    /// Intern an X11 atom by name.
+    fn intern_atom(&self, name: &str) -> Result<u32, Box<dyn std::error::Error>> {
+        let reply = self
+            .conn
+            .intern_atom(false, name.as_bytes())?
+            .reply()?;
+        Ok(reply.atom)
+    }
+
+    /// Set the X11 input shape so that only a rectangle in the top-right corner
     /// receives mouse input. The rest of the window is click-through.
     pub fn set_passthrough_with_button(
         &self,
         button_size: u32,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        use x11rb::protocol::xproto::*;
-
         // Get window geometry to know where to place the button
         let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
         let win_width = geom.width as i16;
@@ -126,17 +207,18 @@ impl X11InputManager {
         self.conn.flush()?;
 
         log::info!(
-            "X11 input shape set: {}x{} button at top-right, rest is click-through",
+            "X11 input shape set: {}x{} button at top-right (x={}), rest is click-through (window={}x{})",
             button_size,
-            button_size
+            button_size,
+            button_x,
+            geom.width,
+            geom.height
         );
         Ok(())
     }
 
     /// Set the window to receive input on the entire surface (edit mode).
     pub fn set_full_input(&self) -> Result<(), Box<dyn std::error::Error>> {
-        use x11rb::protocol::xproto::*;
-
         let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
 
         // Create a full pixmap (all 1s = all receives input)
@@ -177,7 +259,7 @@ impl X11InputManager {
         free_pixmap(&self.conn, pixmap)?;
         self.conn.flush()?;
 
-        log::info!("X11 input shape removed: full window receives input (edit mode)");
+        log::info!("X11 input shape: full window receives input (edit mode)");
         Ok(())
     }
 }

@@ -10,7 +10,8 @@ use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId, WindowLevel};
 
-// X11-specific: set window type to DOCK so it stays above all normal windows
+// X11-specific: set window type. We use Normal (NOT Dock) because DOCK windows
+// on XWayland/Mutter don't receive mouse events. EWMH hints handle always-on-top.
 #[cfg(target_os = "linux")]
 use winit::platform::x11::{WindowAttributesExtX11, WindowType};
 
@@ -175,9 +176,11 @@ impl ApplicationHandler for App {
             .with_window_level(WindowLevel::AlwaysOnTop)
             .with_inner_size(winit::dpi::LogicalSize::new(win_w, win_h));
 
-        // X11-specific: Set window type to Dock (stays above all windows)
+        // X11-specific: Use Normal type (NOT Dock).
+        // Dock windows on XWayland/Mutter don't receive mouse events.
+        // EWMH hints (ABOVE, SKIP_TASKBAR, etc.) are applied by X11InputManager.
         #[cfg(target_os = "linux")]
-        let window_attrs = window_attrs.with_x11_window_type(vec![WindowType::Dock]);
+        let window_attrs = window_attrs.with_x11_window_type(vec![WindowType::Normal]);
 
         match event_loop.create_window(window_attrs) {
             Ok(window) => {
@@ -309,6 +312,15 @@ impl ApplicationHandler for App {
                 self.mouse_x = position.x as f32;
                 self.mouse_y = position.y as f32;
 
+                // Debug: log when cursor enters the button area
+                if self.is_toggle_button_click(self.mouse_x, self.mouse_y) {
+                    log::debug!(
+                        "Cursor in button area: ({:.0}, {:.0})",
+                        self.mouse_x,
+                        self.mouse_y
+                    );
+                }
+
                 // Handle drag in edit mode
                 if self.edit_mode {
                     if let Some((entity_idx, new_x, new_y)) =
@@ -323,12 +335,21 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::MouseInput { state, button, .. } => {
+                log::debug!(
+                    "MouseInput: {:?} {:?} at ({:.0}, {:.0}) edit_mode={}",
+                    button,
+                    state,
+                    self.mouse_x,
+                    self.mouse_y,
+                    self.edit_mode
+                );
+
                 // Toggle button click: works in BOTH modes (pass-through has input shape for it)
                 if button == MouseButton::Left
                     && state == ElementState::Pressed
                     && self.is_toggle_button_click(self.mouse_x, self.mouse_y)
                 {
-                    log::info!("Toggle button clicked");
+                    log::info!("Toggle button clicked at ({:.0}, {:.0})", self.mouse_x, self.mouse_y);
                     self.toggle_edit_mode();
                     return;
                 }

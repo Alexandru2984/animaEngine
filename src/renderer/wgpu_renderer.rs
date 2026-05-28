@@ -2,6 +2,7 @@ use super::sprite::{make_quad_vertices, orthographic_projection, SpriteVertex, Q
 use super::texture::GpuTexture;
 use crate::animation::frame::Frame;
 use crate::entity::Entity;
+use crate::window::x11_input::TOGGLE_BUTTON_SIZE;
 use bytemuck;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -365,7 +366,7 @@ impl WgpuRenderer {
         );
 
         // --- UI textures ---
-        let btn_size = 48u32;
+        let btn_size = TOGGLE_BUTTON_SIZE;
         // Normal: dark semi-transparent with white ring
         let btn_normal_frame =
             generate_button_frame([50, 50, 60, 160], [200, 200, 220, 200], btn_size);
@@ -604,7 +605,7 @@ impl WgpuRenderer {
         }
 
         // Toggle button
-        let btn_size = 48.0f32;
+        let btn_size = TOGGLE_BUTTON_SIZE as f32;
         let btn_x = self.window_width as f32 - btn_size;
         self.write_quad(quad_idx, btn_x, 0.0, btn_size, btn_size, 1.0);
         draws.push(DrawCmd {
