@@ -10,18 +10,26 @@ Built in **Rust** with **wgpu** (Vulkan/OpenGL) for rendering and **winit** for 
 
 - 🖼️ **Transparent overlay** — borderless, always-on-top window
 - 👆 **Click-through by default** — desktop is fully usable; characters float on top without blocking input
-- ✏️ **Edit mode** — click the ⚙ toggle button to interact with characters (drag, select); click again to return to pass-through
+- ✏️ **Edit mode** — click the ⚙ toggle button to interact with characters; click again to return to pass-through
+- 📂 **Drag & drop** — drop PNG, GIF, WebP, or JPEG files onto the overlay to add new characters
 - 🎮 **Multiple characters** — render several animated entities simultaneously
 - 🎬 **PNG sequence animation** — load frames from a folder
 - 🎞️ **GIF support** — animated GIF loading with per-frame delays
 - 🌐 **WebP support** — animated and static WebP images
+- 📸 **JPEG support** — static JPEG/JPG images
 - 🎨 **Spritesheet support** — texture atlas with configurable rows/columns
-- 🖱️ **Drag & drop** — click and drag characters to reposition them (in edit mode)
-- 🎯 **Click-to-select** — click on characters to select them with visual highlight (in edit mode)
+- 🖱️ **Drag to move** — click and drag characters to reposition them (edit mode)
+- 🔍 **Scroll to resize** — mouse wheel scales the selected entity (edit mode)
+- ↔️ **Arrow key nudge** — pixel-perfect positioning with arrow keys (10px steps)
+- 🎚️ **Opacity control** — +/- keys to adjust transparency
+- 👁️ **Visibility toggle** — V key to show/hide selected entity
+- 🎯 **Click-to-select** — click on characters to select them with visual highlight
 - ⏯️ **Play/pause** — global playback toggle (Space key)
+- 🗑️ **Delete entities** — Delete/Backspace to remove selected character
 - ⚙️ **Per-character config** — position, scale, opacity, FPS, visibility, z-index
 - 💾 **Persistent config** — TOML configuration saved to `~/.config/animaEngine/config.toml`
 - 🎨 **GPU-accelerated** — wgpu rendering with Vulkan/OpenGL backend, optimized vertex buffer reuse
+- 🛡️ **Security hardened** — decompression bomb guard, entity cap, buffer overflow protection
 - 📦 **Demo included** — starts with 2 cute demo characters (ghost + slime) generated procedurally
 
 ---
@@ -68,14 +76,21 @@ RUST_LOG=debug cargo run
 | Key/Action | Effect |
 |-----------|--------|
 | **⚙ button** (top-right) | Toggle edit mode ↔ pass-through mode |
-| **Click + Drag** | Move a character *(edit mode only)* |
-| **Click** | Select a character with highlight *(edit mode only)* |
+| **Drag & drop file** | Add image/GIF as new character (auto-enters edit mode) |
+| **Click + Drag** | Move a character *(edit mode)* |
+| **Click** | Select a character *(edit mode)* |
+| **Scroll wheel** | Resize selected entity *(edit mode)* |
+| **Arrow keys** | Nudge selected entity 10px *(edit mode)* |
+| **+/=** | Increase opacity *(edit mode)* |
+| **-** | Decrease opacity *(edit mode)* |
+| **V** | Toggle visibility of selected entity *(edit mode)* |
+| **Delete/Backspace** | Remove selected entity *(edit mode)* |
+| **Space** | Toggle play/pause *(edit mode)* |
+| **S** | Save config *(edit mode)* |
+| **Q** | Save and exit *(edit mode)* |
 | **Escape** | Exit edit mode → pass-through |
-| **Space** | Toggle play/pause (edit mode) |
-| **S** | Save config (edit mode) |
-| **Q** | Save and exit (edit mode) |
 
-> **Default behavior:** The overlay starts in **pass-through mode** — all clicks go through to the desktop. Click the **⚙ button** in the top-right corner to enter edit mode when you want to move characters. Selected entities are highlighted with a cyan glow border.
+> **Default behavior:** The overlay starts in **pass-through mode** — all clicks go through to the desktop. Click the **⚙ button** in the top-right corner to enter edit mode. You can also drag & drop image files directly onto the overlay — it will auto-enter edit mode and add the character at the cursor position.
 
 ---
 
@@ -151,12 +166,15 @@ z_index = 20
 
 3. Restart the application.
 
+**Or simply drag & drop** any PNG, GIF, WebP, or JPEG file onto the overlay — it will be added instantly at the cursor position with auto-resize to 256px max.
+
 ### Asset Types
 
 | Type | Value | Description |
 |------|-------|-------------|
 | PNG Sequence | `png_sequence` | Folder of sorted PNG files (frame_001.png, frame_002.png, ...) |
 | Static PNG | `png_static` | Single PNG file |
+| JPEG | `png_static` | JPEG/JPG image (uses same loader) |
 | GIF | `gif` | Animated GIF file (supports per-frame delays) |
 | WebP (animated) | `webp_animated` | Animated WebP file |
 | WebP (static) | `webp_static` | Static WebP image |
@@ -173,10 +191,11 @@ src/
 ├── config.rs            # TOML config with serde serialization
 ├── scene.rs             # Scene: collection of entities, global controls
 ├── entity.rs            # Entity: animated character with transform
+├── physics.rs           # Physics: gravity, bounce, freeze/release
 ├── animation/
-│   ├── mod.rs           # Animation state: frame cycling, FPS, play/pause
-│   ├── frame.rs         # Frame: raw RGBA pixel data
-│   ├── loader.rs        # Asset type router + fallback generator
+│   ├── mod.rs           # Animation state: frame cycling, delta-time FPS
+│   ├── frame.rs         # Frame: raw RGBA pixel data + resize
+│   ├── loader.rs        # Asset type router + dimension validation
 │   ├── png_sequence.rs  # PNG directory loader
 │   ├── gif_loader.rs    # GIF frame decoder (per-frame delays)
 │   ├── webp_loader.rs   # WebP animated/static loader
@@ -190,7 +209,7 @@ src/
 │   ├── mod.rs
 │   ├── platform.rs      # X11/Wayland detection
 │   ├── linux.rs         # Compositor detection
-│   └── x11_input.rs     # X11 Input Shape (click-through) + connection pooling
+│   └── x11_input.rs     # X11 Input Shape + EWMH overlay hints + reconnect
 ├── input/
 │   ├── mod.rs
 │   ├── drag.rs          # Mouse drag state machine
@@ -208,9 +227,9 @@ src/
 Full support for:
 - ✅ Transparent window
 - ✅ Borderless/undecorated
-- ✅ Always-on-top (DOCK window type)
+- ✅ Always-on-top (Normal window + EWMH `_NET_WM_STATE_ABOVE`)
 - ✅ Click-through with toggle button (X11 Input Shape)
-- ✅ Mouse drag
+- ✅ Mouse drag, scroll resize, arrow key nudge
 - ✅ Auto-detect monitor resolution
 
 ### Wayland (via XWayland)
@@ -273,10 +292,19 @@ sudo apt install mesa-vulkan-drivers intel-media-va-driver
 - [x] Click-through mode (X11 Input Shape)
 - [x] Sprite sheet support (texture atlas)
 - [x] WebP support (animated + static)
+- [x] JPEG support
+- [x] Drag & drop files to add characters
+- [x] Auto-resize dropped assets (max 256px)
+- [x] Scroll wheel resize + arrow key nudge
+- [x] Opacity/visibility controls (+/-/V keys)
+- [x] Delete entities (Delete/Backspace)
 - [x] Visual selection highlight
 - [x] Optimized GPU rendering (vertex buffer reuse)
 - [x] Auto-detect monitor resolution
-- [x] X11 connection pooling
+- [x] X11 connection pooling + reconnect
+- [x] Security hardening (decompression bomb, entity cap, buffer overflow)
+- [x] Delta-time animation fix
+- [x] Physics engine (opt-in gravity with bounce)
 
 ### Next Steps
 - [ ] System tray icon with controls

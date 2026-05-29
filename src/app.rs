@@ -446,8 +446,78 @@ impl ApplicationHandler for App {
                         }
                     }
                 }
+                // Arrow keys: nudge selected entity position
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowUp) => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        self.scene.entities[idx].y -= 10.0;
+                        self.config_dirty = true;
+                    }
+                }
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowDown) => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        self.scene.entities[idx].y += 10.0;
+                        self.config_dirty = true;
+                    }
+                }
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowLeft) => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        self.scene.entities[idx].x -= 10.0;
+                        self.config_dirty = true;
+                    }
+                }
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowRight) => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        self.scene.entities[idx].x += 10.0;
+                        self.config_dirty = true;
+                    }
+                }
+                // +/= increase opacity, - decrease opacity
+                winit::keyboard::Key::Character("+" | "=") => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        let entity = &mut self.scene.entities[idx];
+                        entity.opacity = (entity.opacity + 0.1).min(1.0);
+                        log::info!("Opacity: {:.0}%", entity.opacity * 100.0);
+                        self.config_dirty = true;
+                    }
+                }
+                winit::keyboard::Key::Character("-") => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        let entity = &mut self.scene.entities[idx];
+                        entity.opacity = (entity.opacity - 0.1).max(0.05);
+                        log::info!("Opacity: {:.0}%", entity.opacity * 100.0);
+                        self.config_dirty = true;
+                    }
+                }
+                // V: toggle visibility of selected entity
+                winit::keyboard::Key::Character("v") => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        let entity = &mut self.scene.entities[idx];
+                        entity.visible = !entity.visible;
+                        log::info!(
+                            "Entity '{}' visibility: {}",
+                            entity.name,
+                            if entity.visible { "visible" } else { "hidden" }
+                        );
+                        self.config_dirty = true;
+                    }
+                }
                 _ => {}
             },
+
+            // Scroll wheel: resize selected entity in edit mode
+            WindowEvent::MouseWheel { delta, .. } if self.edit_mode => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let scroll_y = match delta {
+                        winit::event::MouseScrollDelta::LineDelta(_, y) => y,
+                        winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 50.0,
+                    };
+                    let entity = &mut self.scene.entities[idx];
+                    let factor = if scroll_y > 0.0 { 1.1 } else { 0.9 };
+                    entity.scale = (entity.scale * factor).clamp(0.1, 10.0);
+                    log::debug!("Scale: {:.2}", entity.scale);
+                    self.config_dirty = true;
+                }
+            }
 
             // --- Drag and drop: add new assets ---
             WindowEvent::DroppedFile(path) => {
@@ -491,4 +561,5 @@ impl ApplicationHandler for App {
         }
     }
 }
+
 
