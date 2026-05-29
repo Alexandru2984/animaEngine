@@ -116,9 +116,13 @@ impl App {
             if self.drag.is_dragging() {
                 self.drag.end_drag();
                 self.config_dirty = true;
-                self.save_config_if_needed();
             }
             self.selection.deselect();
+
+            // Auto-save any pending changes when exiting edit mode
+            if self.config_dirty {
+                self.save_config_if_needed();
+            }
         }
     }
 
@@ -497,6 +501,87 @@ impl ApplicationHandler for App {
                             "Entity '{}' visibility: {}",
                             entity.name,
                             if entity.visible { "visible" } else { "hidden" }
+                        );
+                        self.config_dirty = true;
+                    }
+                }
+                // P: toggle play/pause for selected entity
+                winit::keyboard::Key::Character("p") => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        let entity = &mut self.scene.entities[idx];
+                        entity.animation.toggle_playback();
+                        log::info!(
+                            "Entity '{}': {}",
+                            entity.name,
+                            if entity.animation.playing { "playing" } else { "paused" }
+                        );
+                        self.config_dirty = true;
+                    }
+                }
+                // D: duplicate selected entity
+                winit::keyboard::Key::Character("d") => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        let src = &self.scene.entities[idx];
+                        let src_path = std::path::PathBuf::from(&src.asset_path);
+                        let new_x = src.x + 30.0;
+                        let new_y = src.y + 30.0;
+
+                        match self.scene.add_entity_from_path(&src_path, new_x, new_y) {
+                            Ok(new_idx) => {
+                                // Copy scale/opacity from original
+                                let orig_scale = self.scene.entities[idx].scale;
+                                let orig_opacity = self.scene.entities[idx].opacity;
+                                self.scene.entities[new_idx].scale = orig_scale;
+                                self.scene.entities[new_idx].opacity = orig_opacity;
+
+                                if let Some(renderer) = &mut self.renderer {
+                                    renderer.ensure_texture(&self.scene.entities[new_idx]);
+                                    self.scene.entities[new_idx].texture_dirty = false;
+                                }
+                                self.selection.select(new_idx);
+                                self.config_dirty = true;
+                                self.save_config_if_needed();
+                                log::info!("Duplicated entity at ({:.0}, {:.0})", new_x, new_y);
+                            }
+                            Err(e) => log::error!("Failed to duplicate: {}", e),
+                        }
+                    }
+                }
+                // Tab: cycle selection through entities
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Tab) => {
+                    if !self.scene.entities.is_empty() {
+                        let next = match self.selection.selected_index() {
+                            Some(idx) => (idx + 1) % self.scene.entities.len(),
+                            None => 0,
+                        };
+                        self.selection.select(next);
+                        log::info!(
+                            "Selected: {} ({})",
+                            self.scene.entities[next].name,
+                            self.scene.entities[next].id
+                        );
+                    }
+                }
+                // Page Up: increase z-index (bring forward)
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::PageUp) => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        self.scene.entities[idx].z_index += 10;
+                        log::info!(
+                            "z-index: {} ({})",
+                            self.scene.entities[idx].z_index,
+                            self.scene.entities[idx].name
+                        );
+                        self.config_dirty = true;
+                    }
+                }
+                // Page Down: decrease z-index (send backward)
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::PageDown) => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        self.scene.entities[idx].z_index -= 10;
+                        log::info!(
+                            "z-index: {} ({})",
+                            self.scene.entities[idx].z_index,
+                            self.scene.entities[idx].name
                         );
                         self.config_dirty = true;
                     }

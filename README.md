@@ -24,8 +24,12 @@ Built in **Rust** with **wgpu** (Vulkan/OpenGL) for rendering and **winit** for 
 - 🎚️ **Opacity control** — +/- keys to adjust transparency
 - 👁️ **Visibility toggle** — V key to show/hide selected entity
 - 🎯 **Click-to-select** — click on characters to select them with visual highlight
-- ⏯️ **Play/pause** — global playback toggle (Space key)
+- 🔄 **Tab to cycle** — Tab key cycles through entities for quick selection
+- ⏯️ **Play/pause** — global (Space) and per-entity (P) playback toggle
+- 📋 **Duplicate** — D key to clone selected entity with its properties
+- 📊 **Z-order control** — Page Up/Down to layer entities
 - 🗑️ **Delete entities** — Delete/Backspace to remove selected character
+- 💾 **Auto-save** — config automatically saved when exiting edit mode
 - ⚙️ **Per-character config** — position, scale, opacity, FPS, visibility, z-index
 - 💾 **Persistent config** — TOML configuration saved to `~/.config/animaEngine/config.toml`
 - 🎨 **GPU-accelerated** — wgpu rendering with Vulkan/OpenGL backend, optimized vertex buffer reuse
@@ -79,16 +83,21 @@ RUST_LOG=debug cargo run
 | **Drag & drop file** | Add image/GIF as new character (auto-enters edit mode) |
 | **Click + Drag** | Move a character *(edit mode)* |
 | **Click** | Select a character *(edit mode)* |
+| **Tab** | Cycle selection through entities *(edit mode)* |
 | **Scroll wheel** | Resize selected entity *(edit mode)* |
 | **Arrow keys** | Nudge selected entity 10px *(edit mode)* |
 | **+/=** | Increase opacity *(edit mode)* |
 | **-** | Decrease opacity *(edit mode)* |
+| **P** | Toggle play/pause for selected entity *(edit mode)* |
 | **V** | Toggle visibility of selected entity *(edit mode)* |
+| **D** | Duplicate selected entity *(edit mode)* |
+| **Page Up** | Bring selected entity forward (z-index +10) *(edit mode)* |
+| **Page Down** | Send selected entity backward (z-index -10) *(edit mode)* |
 | **Delete/Backspace** | Remove selected entity *(edit mode)* |
-| **Space** | Toggle play/pause *(edit mode)* |
+| **Space** | Toggle global play/pause *(edit mode)* |
 | **S** | Save config *(edit mode)* |
 | **Q** | Save and exit *(edit mode)* |
-| **Escape** | Exit edit mode → pass-through |
+| **Escape** | Exit edit mode → pass-through (auto-saves) |
 
 > **Default behavior:** The overlay starts in **pass-through mode** — all clicks go through to the desktop. Click the **⚙ button** in the top-right corner to enter edit mode. You can also drag & drop image files directly onto the overlay — it will auto-enter edit mode and add the character at the cursor position.
 
