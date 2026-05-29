@@ -59,7 +59,8 @@ impl Animation {
             let frames_to_advance = frames_to_advance.max(1);
 
             self.current_frame = (self.current_frame + frames_to_advance) % self.frames.len();
-            self.last_frame_time = Instant::now();
+            // Accumulate instead of resetting: preserves fractional time
+            self.last_frame_time += frame_duration * frames_to_advance as u32;
             return true;
         }
 

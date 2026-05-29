@@ -80,7 +80,7 @@ impl App {
     fn toggle_edit_mode(&mut self) {
         self.edit_mode = !self.edit_mode;
 
-        if let Some(x11) = &self.x11_input {
+        if let Some(x11) = &mut self.x11_input {
             if self.edit_mode {
                 // Edit mode: full window receives input
                 if let Err(e) = x11.set_full_input() {
@@ -193,8 +193,8 @@ impl ApplicationHandler for App {
                 );
 
                 // Create pooled X11 input manager (single connection)
-                let x11_mgr = X11InputManager::new(&window);
-                if let Some(ref mgr) = x11_mgr {
+                let mut x11_mgr = X11InputManager::new(&window);
+                if let Some(ref mut mgr) = x11_mgr {
                     // Set initial input shape: click-through except toggle button
                     if let Err(e) = mgr.set_passthrough_with_button(TOGGLE_BUTTON_SIZE) {
                         log::warn!("Failed to set initial input shape: {}", e);
@@ -259,15 +259,20 @@ impl ApplicationHandler for App {
                 }
                 // Re-apply input shape after resize
                 if !self.edit_mode {
-                    if let Some(x11) = &self.x11_input {
+                    if let Some(x11) = &mut self.x11_input {
                         let _ = x11.set_passthrough_with_button(TOGGLE_BUTTON_SIZE);
                     }
                 }
             }
 
             WindowEvent::RedrawRequested => {
-                // Tick animations
-                self.scene.tick();
+                // Tick animations + physics
+                let screen_h = self
+                    .window
+                    .as_ref()
+                    .map(|w| w.inner_size().height as f32)
+                    .unwrap_or(1080.0);
+                self.scene.tick(screen_h);
 
                 // Update textures for entities with changed frames
                 if let Some(renderer) = &mut self.renderer {
@@ -364,8 +369,9 @@ impl ApplicationHandler for App {
                             {
                                 self.selection.select(entity_idx);
 
-                                // Start drag
-                                let entity = &self.scene.entities[entity_idx];
+                                // Start drag — freeze physics
+                                let entity = &mut self.scene.entities[entity_idx];
+                                entity.physics.freeze();
                                 let offset_x = self.mouse_x - entity.x;
                                 let offset_y = self.mouse_y - entity.y;
                                 self.drag.start_drag(entity_idx, offset_x, offset_y);
@@ -378,6 +384,12 @@ impl ApplicationHandler for App {
                         (MouseButton::Left, ElementState::Released)
                             if self.drag.is_dragging() =>
                         {
+                            // Release physics — entity will fall from here
+                            if let Some(idx) = self.drag.dragging_entity() {
+                                if idx < self.scene.entities.len() {
+                                    self.scene.entities[idx].physics.release();
+                                }
+                            }
                             self.drag.end_drag();
                             self.config_dirty = true;
                             self.save_config_if_needed();

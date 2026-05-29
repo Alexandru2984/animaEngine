@@ -140,10 +140,32 @@ impl X11InputManager {
         Ok(reply.atom)
     }
 
+    /// Try to reconnect to X11 if the connection is stale.
+    /// Returns true if reconnection succeeded.
+    fn try_reconnect(&mut self) -> bool {
+        log::warn!("X11 connection may be stale, attempting reconnect...");
+        match x11rb::connect(None) {
+            Ok((conn, screen_num)) => {
+                self.conn = conn;
+                self.screen_num = screen_num;
+                log::info!("X11 reconnected successfully");
+                // Re-apply overlay hints on new connection
+                if let Err(e) = self.apply_overlay_hints() {
+                    log::warn!("Failed to re-apply overlay hints after reconnect: {}", e);
+                }
+                true
+            }
+            Err(e) => {
+                log::error!("X11 reconnection failed: {}", e);
+                false
+            }
+        }
+    }
+
     /// Set the X11 input shape so that only a rectangle in the top-right corner
     /// receives mouse input. The rest of the window is click-through.
     pub fn set_passthrough_with_button(
-        &self,
+        &mut self,
         button_size: u32,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Get window geometry to know where to place the button
@@ -218,7 +240,7 @@ impl X11InputManager {
     }
 
     /// Set the window to receive input on the entire surface (edit mode).
-    pub fn set_full_input(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn set_full_input(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
 
         // Create a full pixmap (all 1s = all receives input)

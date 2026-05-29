@@ -545,6 +545,12 @@ impl WgpuRenderer {
         let mut draws: Vec<DrawCmd> = Vec::with_capacity(entities.len() + 4);
 
         for entity in entities {
+            if quad_idx >= MAX_QUADS - 3 {
+                // Reserve 3 quads for UI (edit bar + button + selection)
+                log::warn!("MAX_QUADS ({}) reached, skipping remaining entities", MAX_QUADS);
+                break;
+            }
+
             if let Some(gpu_tex) = self.textures.get(&entity.id) {
                 let width = gpu_tex.width as f32 * entity.scale;
                 let height = gpu_tex.height as f32 * entity.scale;

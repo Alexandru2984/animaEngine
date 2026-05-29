@@ -2,6 +2,7 @@ use crate::animation::loader::{generate_fallback_frame, load_asset};
 use crate::animation::Animation;
 use crate::config::{AppConfig, CharacterConfig};
 use crate::entity::Entity;
+use std::time::Instant;
 
 /// The scene holds all active entities and global playback state
 #[derive(Debug)]
@@ -10,6 +11,8 @@ pub struct Scene {
     pub entities: Vec<Entity>,
     /// Global play/pause flag
     pub global_playing: bool,
+    /// Last tick time for delta time calculation
+    last_tick: Instant,
 }
 
 impl Scene {
@@ -49,6 +52,7 @@ impl Scene {
         Self {
             entities,
             global_playing: config.global.playback_enabled,
+            last_tick: Instant::now(),
         }
     }
 
@@ -86,14 +90,22 @@ impl Scene {
         Entity::from_config(config, animation)
     }
 
-    /// Tick all entity animations
-    pub fn tick(&mut self) {
+    /// Tick all entity animations and physics.
+    /// `screen_height` is needed for floor collision.
+    pub fn tick(&mut self, screen_height: f32) {
+        let now = Instant::now();
+        let dt = now.duration_since(self.last_tick).as_secs_f32();
+        self.last_tick = now;
+
+        // Clamp dt to prevent physics explosion after long pauses
+        let dt = dt.min(0.1);
+
         if !self.global_playing {
             return;
         }
 
         for entity in &mut self.entities {
-            entity.tick();
+            entity.tick(dt, screen_height);
         }
     }
 

@@ -6,6 +6,42 @@ use super::webp_loader;
 use crate::config::AssetType;
 use std::path::Path;
 
+/// Maximum allowed image dimension (width or height) to prevent decompression bombs.
+/// A 4096×4096 RGBA image = 64 MB in RAM — safe limit for an overlay app.
+const MAX_IMAGE_DIM: u32 = 4096;
+
+/// Validate image dimensions by reading only the file header (no full decode).
+/// Returns an error if either dimension exceeds `MAX_IMAGE_DIM`.
+pub fn validate_image_dimensions(path: &Path) -> Result<(u32, u32), Box<dyn std::error::Error>> {
+    if path.is_dir() {
+        return Ok((0, 0)); // Directories are validated per-frame
+    }
+    if !path.exists() {
+        return Err(format!("File not found: {}", path.display()).into());
+    }
+
+    match image::image_dimensions(path) {
+        Ok((w, h)) => {
+            if w > MAX_IMAGE_DIM || h > MAX_IMAGE_DIM {
+                Err(format!(
+                    "Image too large: {}×{} (max {}×{}). Refusing to load to prevent OOM.",
+                    w, h, MAX_IMAGE_DIM, MAX_IMAGE_DIM
+                )
+                .into())
+            } else {
+                log::debug!("Image dimensions OK: {}×{}", w, h);
+                Ok((w, h))
+            }
+        }
+        Err(e) => {
+            // Can't read dimensions (might be a format we don't recognize at header level)
+            // Allow loading — the image crate will fail later if truly invalid
+            log::debug!("Could not read image dimensions for {}: {}", path.display(), e);
+            Ok((0, 0))
+        }
+    }
+}
+
 /// Load animation frames based on asset type and path.
 /// Returns a Vec of Frame on success.
 pub fn load_asset(
@@ -14,13 +50,18 @@ pub fn load_asset(
     spritesheet_columns: Option<u32>,
     spritesheet_rows: Option<u32>,
 ) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
+    // Validate dimensions for file-based assets (not directories)
+    if !asset_path.is_dir() {
+        validate_image_dimensions(asset_path)?;
+    }
+
     match asset_type {
         AssetType::PngSequence => {
             log::info!("Loading PNG sequence from: {}", asset_path.display());
             png_sequence::load_png_sequence(asset_path)
         }
         AssetType::PngStatic => {
-            log::info!("Loading static PNG from: {}", asset_path.display());
+            log::info!("Loading static image from: {}", asset_path.display());
             let frame = png_sequence::load_single_png(asset_path)?;
             Ok(vec![frame])
         }

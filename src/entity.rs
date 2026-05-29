@@ -1,5 +1,6 @@
 use crate::animation::Animation;
 use crate::config::CharacterConfig;
+use crate::physics::PhysicsState;
 
 /// A single animated entity on screen.
 /// Represents one character/asset with its position, appearance, and animation state.
@@ -32,6 +33,8 @@ pub struct Entity {
     pub spritesheet_columns: Option<u32>,
     /// Spritesheet rows (for config saving, only used for Spritesheet type)
     pub spritesheet_rows: Option<u32>,
+    /// Physics state (gravity, velocity, grounded)
+    pub physics: PhysicsState,
 }
 
 impl Entity {
@@ -52,11 +55,18 @@ impl Entity {
             asset_type: config.asset_type.clone(),
             spritesheet_columns: config.spritesheet_columns,
             spritesheet_rows: config.spritesheet_rows,
+            physics: PhysicsState::default(),
         }
     }
 
-    /// Tick the animation, returns true if texture needs GPU update
-    pub fn tick(&mut self) -> bool {
+    /// Tick the entity: animation + physics
+    /// `dt` = delta time in seconds, `screen_height` = screen height for floor collision
+    pub fn tick(&mut self, dt: f32, screen_height: f32) -> bool {
+        // Update physics (gravity, bounce)
+        let sprite_h = self.scaled_height();
+        self.y = self.physics.tick(self.y, sprite_h, screen_height, dt);
+
+        // Update animation
         if self.animation.tick() {
             self.texture_dirty = true;
             return true;

@@ -162,7 +162,17 @@ impl AppConfig {
         if path.exists() {
             match fs::read_to_string(&path) {
                 Ok(contents) => match toml::from_str::<AppConfig>(&contents) {
-                    Ok(config) => {
+                    Ok(mut config) => {
+                        // Safety cap: prevent DoS from huge config files
+                        const MAX_ENTITIES: usize = 64;
+                        if config.characters.len() > MAX_ENTITIES {
+                            log::warn!(
+                                "Config has {} characters, capping at {} to prevent resource exhaustion",
+                                config.characters.len(),
+                                MAX_ENTITIES
+                            );
+                            config.characters.truncate(MAX_ENTITIES);
+                        }
                         log::info!("Loaded config with {} characters", config.characters.len());
                         return config;
                     }

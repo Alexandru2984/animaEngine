@@ -3,6 +3,7 @@ pub mod app;
 pub mod config;
 pub mod entity;
 pub mod input;
+pub mod physics;
 pub mod renderer;
 pub mod scene;
 pub mod window;

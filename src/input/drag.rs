@@ -67,4 +67,12 @@ impl DragController {
     pub fn is_dragging(&self) -> bool {
         matches!(self.state, DragState::Dragging { .. })
     }
+
+    /// Get the index of the entity currently being dragged, if any.
+    pub fn dragging_entity(&self) -> Option<usize> {
+        match &self.state {
+            DragState::Dragging { entity_index, .. } => Some(*entity_index),
+            DragState::Idle => None,
+        }
+    }
 }
