@@ -29,7 +29,7 @@ impl Default for PhysicsState {
     fn default() -> Self {
         Self {
             velocity_y: 0.0,
-            grounded: false,
+            grounded: true, // Entities stay where placed by default
             frozen: false,
         }
     }
@@ -106,8 +106,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_gravity_fall() {
+    fn test_grounded_stays_put() {
         let mut physics = PhysicsState::default();
+        let y = 100.0;
+        let new_y = physics.tick(y, 64.0, 1080.0, 1.0 / 60.0);
+
+        // Default is grounded — entity should not move (stays where placed)
+        assert!(physics.grounded);
+        assert_eq!(new_y, y, "Grounded entity should stay in place");
+    }
+
+    #[test]
+    fn test_gravity_fall_after_release() {
+        let mut physics = PhysicsState::default();
+        physics.release(); // Explicitly activate gravity
         let screen_h = 1080.0;
         let sprite_h = 128.0;
         let mut y = 100.0;
@@ -125,6 +137,7 @@ mod tests {
     #[test]
     fn test_grounded_after_bouncing() {
         let mut physics = PhysicsState::default();
+        physics.release(); // Activate gravity first
         let screen_h = 500.0;
         let sprite_h = 64.0;
         let mut y = 0.0; // Start at top
@@ -157,7 +170,6 @@ mod tests {
     #[test]
     fn test_release_after_drag() {
         let mut physics = PhysicsState::default();
-        physics.grounded = true;
         physics.release();
 
         assert!(!physics.grounded);

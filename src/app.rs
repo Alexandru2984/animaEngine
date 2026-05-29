@@ -384,10 +384,11 @@ impl ApplicationHandler for App {
                         (MouseButton::Left, ElementState::Released)
                             if self.drag.is_dragging() =>
                         {
-                            // Release physics — entity will fall from here
+                            // Unfreeze physics but keep grounded — entity stays where placed
                             if let Some(idx) = self.drag.dragging_entity() {
                                 if idx < self.scene.entities.len() {
-                                    self.scene.entities[idx].physics.release();
+                                    self.scene.entities[idx].physics.frozen = false;
+                                    self.scene.entities[idx].physics.grounded = true;
                                 }
                             }
                             self.drag.end_drag();
