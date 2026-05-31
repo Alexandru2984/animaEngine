@@ -30,6 +30,7 @@ Built in **Rust** with **wgpu** (Vulkan/OpenGL) for rendering and **winit** for 
 - 📊 **Z-order control** — Page Up/Down to layer entities
 - 🗑️ **Delete entities** — Delete/Backspace to remove selected character
 - 💾 **Auto-save** — config automatically saved when exiting edit mode
+- 🔄 **Hot-reload config** — edit `config.toml` externally and see changes live (polls every 2s)
 - ⚙️ **Per-character config** — position, scale, opacity, FPS, visibility, z-index
 - 💾 **Persistent config** — TOML configuration saved to `~/.config/animaEngine/config.toml`
 - 🎨 **GPU-accelerated** — wgpu rendering with Vulkan/OpenGL backend, optimized vertex buffer reuse
@@ -321,8 +322,8 @@ sudo apt install mesa-vulkan-drivers intel-media-va-driver
 ### Next Steps
 - [ ] System tray icon with controls
 - [ ] Right-click context menu per character
-- [ ] Per-character play/pause toggle
-- [ ] Hot-reload config on file change
+- [x] Per-character play/pause toggle (P key)
+- [x] Hot-reload config on file change (polls every 2s)
 
 ### Future Vision
 - [ ] Visual editor for character placement

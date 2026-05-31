@@ -5,6 +5,7 @@ use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
 use crate::window::x11_input::{X11InputManager, TOGGLE_BUTTON_SIZE};
 use std::sync::Arc;
+use std::time::{Instant, SystemTime};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
@@ -47,6 +48,10 @@ pub struct App {
     shift_held: bool,
     /// Pooled X11 input manager (holds a single X11 connection)
     x11_input: Option<X11InputManager>,
+    /// Last time we checked config file for hot-reload
+    last_config_check: Instant,
+    /// Last known modification time of config file
+    config_mtime: Option<SystemTime>,
 }
 
 impl App {
@@ -64,6 +69,56 @@ impl App {
             edit_mode: false,
             shift_held: false,
             x11_input: None,
+            last_config_check: Instant::now(),
+            config_mtime: Self::get_config_mtime(),
+        }
+    }
+
+    /// Get the modification time of the config file
+    fn get_config_mtime() -> Option<SystemTime> {
+        let path = AppConfig::config_path();
+        std::fs::metadata(&path).ok()?.modified().ok()
+    }
+
+    /// Check if config file was modified externally and reload if needed
+    fn check_hot_reload(&mut self) {
+        // Only check every 2 seconds to avoid filesystem spam
+        if self.last_config_check.elapsed().as_secs() < 2 {
+            return;
+        }
+        self.last_config_check = Instant::now();
+
+        // Don't reload if we have unsaved changes (we'd overwrite user's edits)
+        if self.config_dirty {
+            return;
+        }
+
+        let new_mtime = Self::get_config_mtime();
+        if new_mtime != self.config_mtime {
+            self.config_mtime = new_mtime;
+            log::info!("Config file changed externally, reloading...");
+
+            let new_config = AppConfig::load();
+            let new_scene = Scene::from_config(&new_config);
+
+            // Clear old textures and reload
+            if let Some(renderer) = &mut self.renderer {
+                renderer.textures.clear();
+            }
+
+            self.config = new_config;
+            self.scene = new_scene;
+            self.selection.deselect();
+
+            // Upload textures for all entities
+            if let Some(renderer) = &mut self.renderer {
+                for entity in &mut self.scene.entities {
+                    renderer.ensure_texture(entity);
+                    entity.texture_dirty = false;
+                }
+            }
+
+            log::info!("Hot-reload complete: {} entities", self.scene.entities.len());
         }
     }
 
@@ -76,6 +131,8 @@ impl App {
                 log::warn!("Failed to save config: {}", e);
             }
             self.config_dirty = false;
+            // Update mtime so hot-reload doesn't trigger on our own save
+            self.config_mtime = Self::get_config_mtime();
         }
     }
 
@@ -273,6 +330,9 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::RedrawRequested => {
+                // Check for external config changes (hot-reload)
+                self.check_hot_reload();
+
                 // Tick animations + physics
                 let screen_h = self
                     .window
