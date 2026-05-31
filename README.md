@@ -86,8 +86,11 @@ RUST_LOG=debug cargo run
 | **Tab** | Cycle selection through entities *(edit mode)* |
 | **Scroll wheel** | Resize selected entity *(edit mode)* |
 | **Arrow keys** | Nudge selected entity 10px *(edit mode)* |
+| **Shift + Arrow keys** | Fine nudge 1px *(edit mode)* |
+| **Home** | Center selected entity on screen *(edit mode)* |
 | **+/=** | Increase opacity *(edit mode)* |
 | **-** | Decrease opacity *(edit mode)* |
+| **R** | Reset scale & opacity to defaults *(edit mode)* |
 | **P** | Toggle play/pause for selected entity *(edit mode)* |
 | **V** | Toggle visibility of selected entity *(edit mode)* |
 | **D** | Duplicate selected entity *(edit mode)* |

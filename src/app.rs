@@ -43,6 +43,8 @@ pub struct App {
     /// Whether the overlay is in "edit mode" (interactive) or "pass-through" mode
     /// Default: false (pass-through — clicks go to desktop)
     edit_mode: bool,
+    /// Whether Shift key is currently held (for fine control)
+    shift_held: bool,
     /// Pooled X11 input manager (holds a single X11 connection)
     x11_input: Option<X11InputManager>,
 }
@@ -60,6 +62,7 @@ impl App {
             mouse_y: 0.0,
             config_dirty: false,
             edit_mode: false,
+            shift_held: false,
             x11_input: None,
         }
     }
@@ -450,29 +453,56 @@ impl ApplicationHandler for App {
                         }
                     }
                 }
-                // Arrow keys: nudge selected entity position
+                // Arrow keys: nudge selected entity position (Shift = 1px fine, normal = 10px)
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowUp) => {
                     if let Some(idx) = self.selection.selected_index() {
-                        self.scene.entities[idx].y -= 10.0;
+                        let step = if self.shift_held { 1.0 } else { 10.0 };
+                        self.scene.entities[idx].y -= step;
                         self.config_dirty = true;
                     }
                 }
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowDown) => {
                     if let Some(idx) = self.selection.selected_index() {
-                        self.scene.entities[idx].y += 10.0;
+                        let step = if self.shift_held { 1.0 } else { 10.0 };
+                        self.scene.entities[idx].y += step;
                         self.config_dirty = true;
                     }
                 }
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowLeft) => {
                     if let Some(idx) = self.selection.selected_index() {
-                        self.scene.entities[idx].x -= 10.0;
+                        let step = if self.shift_held { 1.0 } else { 10.0 };
+                        self.scene.entities[idx].x -= step;
                         self.config_dirty = true;
                     }
                 }
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowRight) => {
                     if let Some(idx) = self.selection.selected_index() {
-                        self.scene.entities[idx].x += 10.0;
+                        let step = if self.shift_held { 1.0 } else { 10.0 };
+                        self.scene.entities[idx].x += step;
                         self.config_dirty = true;
+                    }
+                }
+                // R: reset scale and opacity to defaults
+                winit::keyboard::Key::Character("r") => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        let entity = &mut self.scene.entities[idx];
+                        entity.scale = 1.0;
+                        entity.opacity = 1.0;
+                        log::info!("Reset '{}' scale=1.0, opacity=1.0", entity.name);
+                        self.config_dirty = true;
+                    }
+                }
+                // Home: center selected entity on screen
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Home) => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        if let Some(window) = &self.window {
+                            let size = window.inner_size();
+                            let entity = &mut self.scene.entities[idx];
+                            entity.x = (size.width as f32 - entity.scaled_width()) / 2.0;
+                            entity.y = (size.height as f32 - entity.scaled_height()) / 2.0;
+                            log::info!("Centered '{}' at ({:.0}, {:.0})", entity.name, entity.x, entity.y);
+                            self.config_dirty = true;
+                        }
                     }
                 }
                 // +/= increase opacity, - decrease opacity
@@ -640,6 +670,11 @@ impl ApplicationHandler for App {
 
             WindowEvent::HoveredFile(path) => {
                 log::debug!("File hovering: {}", path.display());
+            }
+
+            // Track modifier keys (Shift for fine nudge)
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.shift_held = modifiers.state().shift_key();
             }
 
             _ => {}
