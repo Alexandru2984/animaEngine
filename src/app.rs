@@ -558,7 +558,11 @@ impl ApplicationHandler for App {
                         (s.width as f32, s.height as f32)
                     })
                     .unwrap_or((1920.0, 1080.0));
-                self.scene.tick(screen_w, screen_h);
+                // FollowCursor uses the live mouse position. In pass-through
+                // mode XShape blocks CursorMoved outside the toggle button,
+                // so the position is stale — accepted trade-off.
+                let cursor = Some((self.mouse_x, self.mouse_y));
+                self.scene.tick(screen_w, screen_h, cursor);
 
                 // Update textures for entities with changed frames
                 if let Some(renderer) = &mut self.renderer {

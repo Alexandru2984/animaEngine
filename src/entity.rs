@@ -1,5 +1,5 @@
 use crate::animation::Animation;
-use crate::behavior::{Behavior, BehaviorState};
+use crate::behavior::{Behavior, BehaviorState, TickContext};
 use crate::config::CharacterConfig;
 use crate::physics::PhysicsState;
 
@@ -68,22 +68,34 @@ impl Entity {
 
     /// Tick the entity: behavior + physics + animation.
     ///
-    /// Order matters: behavior moves the entity horizontally, physics
-    /// resolves vertical motion (gravity, floor), animation advances
-    /// the displayed frame.
-    pub fn tick(&mut self, dt: f32, screen_width: f32, screen_height: f32) -> bool {
-        // Behavior — autonomous horizontal motion.
+    /// Order matters: behavior moves the entity (possibly in 2D), then
+    /// physics resolves vertical motion if enabled (gravity wins on Y),
+    /// then the animation advances. `cursor` is the screen-space mouse
+    /// position if known — needed by `FollowCursor`.
+    pub fn tick(
+        &mut self,
+        dt: f32,
+        screen_width: f32,
+        screen_height: f32,
+        cursor: Option<(f32, f32)>,
+    ) -> bool {
         let sprite_w = self.scaled_width();
-        self.behavior.tick(
-            &mut self.behavior_state,
-            &mut self.x,
-            sprite_w,
-            screen_width,
-            dt,
-        );
-
-        // Physics — gravity / bounce on the vertical axis.
         let sprite_h = self.scaled_height();
+        let ctx = TickContext {
+            sprite_width: sprite_w,
+            sprite_height: sprite_h,
+            screen_width,
+            screen_height,
+            cursor,
+            dt,
+        };
+
+        // Behavior — autonomous motion (can affect both X and Y).
+        self.behavior
+            .tick(&mut self.behavior_state, &mut self.x, &mut self.y, &ctx);
+
+        // Physics — gravity / bounce on the vertical axis. When enabled
+        // this overrides whatever Y the behavior set.
         self.y = self.physics.tick(self.y, sprite_h, screen_height, dt);
 
         // Animation frame advance.

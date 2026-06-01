@@ -33,10 +33,26 @@ pub enum Behavior {
         #[serde(default = "default_walk_speed")]
         speed: f32,
     },
+    /// Chases the cursor with simple ease-in; stops within `comfort_distance`.
+    FollowCursor {
+        /// Maximum movement per second toward the cursor (px/s).
+        #[serde(default = "default_follow_speed")]
+        speed: f32,
+        /// Radius around the cursor at which the entity stops chasing.
+        /// Prevents jitter when the entity reaches the target.
+        #[serde(default = "default_comfort_distance")]
+        comfort_distance: f32,
+    },
 }
 
 fn default_walk_speed() -> f32 {
     60.0
+}
+fn default_follow_speed() -> f32 {
+    240.0
+}
+fn default_comfort_distance() -> f32 {
+    80.0
 }
 
 /// Runtime accumulators that don't belong in the user-facing config.
@@ -54,22 +70,35 @@ impl Default for BehaviorState {
     }
 }
 
+/// Per-frame inputs each behavior may read. Bundled into a struct so adding
+/// new behaviors doesn't blow up `tick`'s signature.
+#[derive(Debug, Clone, Copy)]
+pub struct TickContext {
+    pub sprite_width: f32,
+    pub sprite_height: f32,
+    pub screen_width: f32,
+    pub screen_height: f32,
+    /// Mouse position in screen space, if known. `None` when the cursor
+    /// isn't being tracked (e.g. window unfocused) — behaviors that need
+    /// it should no-op.
+    pub cursor: Option<(f32, f32)>,
+    pub dt: f32,
+}
+
 impl Behavior {
-    /// Advance the behavior by `dt` seconds. Mutates `entity_x` and the
-    /// runtime `state`; reads `sprite_width` / `screen_width` to clamp
-    /// movement inside the visible area.
+    /// Advance the behavior by `ctx.dt` seconds, mutating the entity's
+    /// position and the runtime `state`.
     pub fn tick(
         &self,
         state: &mut BehaviorState,
         entity_x: &mut f32,
-        sprite_width: f32,
-        screen_width: f32,
-        dt: f32,
+        entity_y: &mut f32,
+        ctx: &TickContext,
     ) {
         match self {
             Behavior::Idle => {}
             Behavior::WalkAround { speed } => {
-                *entity_x += state.walk_direction * speed * dt;
+                *entity_x += state.walk_direction * speed * ctx.dt;
 
                 // Bounce off the screen edges. We clamp position *and*
                 // flip direction so a tick that overshoots the edge
@@ -77,10 +106,36 @@ impl Behavior {
                 if *entity_x <= 0.0 {
                     *entity_x = 0.0;
                     state.walk_direction = 1.0;
-                } else if *entity_x + sprite_width >= screen_width {
-                    *entity_x = screen_width - sprite_width;
+                } else if *entity_x + ctx.sprite_width >= ctx.screen_width {
+                    *entity_x = ctx.screen_width - ctx.sprite_width;
                     state.walk_direction = -1.0;
                 }
+            }
+            Behavior::FollowCursor {
+                speed,
+                comfort_distance,
+            } => {
+                let Some((cx, cy)) = ctx.cursor else {
+                    return;
+                };
+                // Aim for cursor → entity *center*, not corner, so the
+                // sprite ends up visually centered on the mouse.
+                let entity_cx = *entity_x + ctx.sprite_width * 0.5;
+                let entity_cy = *entity_y + ctx.sprite_height * 0.5;
+                let dx = cx - entity_cx;
+                let dy = cy - entity_cy;
+                let dist = (dx * dx + dy * dy).sqrt();
+
+                if dist <= *comfort_distance {
+                    return; // Inside personal space — stop chasing.
+                }
+
+                // Move at most the gap-to-comfort-zone this frame so we
+                // never overshoot into the comfort radius.
+                let step = (speed * ctx.dt).min(dist - comfort_distance);
+                let inv = 1.0 / dist;
+                *entity_x += dx * inv * step;
+                *entity_y += dy * inv * step;
             }
         }
     }
@@ -90,13 +145,26 @@ impl Behavior {
 mod tests {
     use super::*;
 
+    fn ctx(dt: f32) -> TickContext {
+        TickContext {
+            sprite_width: 64.0,
+            sprite_height: 64.0,
+            screen_width: 1920.0,
+            screen_height: 1080.0,
+            cursor: None,
+            dt,
+        }
+    }
+
     #[test]
     fn idle_does_not_move() {
         let b = Behavior::Idle;
         let mut state = BehaviorState::default();
         let mut x = 100.0;
-        b.tick(&mut state, &mut x, 64.0, 1920.0, 1.0 / 60.0);
+        let mut y = 200.0;
+        b.tick(&mut state, &mut x, &mut y, &ctx(1.0 / 60.0));
         assert_eq!(x, 100.0);
+        assert_eq!(y, 200.0);
     }
 
     #[test]
@@ -104,9 +172,9 @@ mod tests {
         let b = Behavior::WalkAround { speed: 60.0 };
         let mut state = BehaviorState::default(); // direction = +1
         let mut x = 100.0;
-        // 1 second at 60 px/s → +60 px.
+        let mut y = 0.0;
         for _ in 0..60 {
-            b.tick(&mut state, &mut x, 64.0, 1920.0, 1.0 / 60.0);
+            b.tick(&mut state, &mut x, &mut y, &ctx(1.0 / 60.0));
         }
         assert!(x > 159.0 && x < 161.0, "x = {x}");
     }
@@ -116,16 +184,12 @@ mod tests {
         let b = Behavior::WalkAround { speed: 200.0 };
         let mut state = BehaviorState::default();
         let mut x = 1900.0;
-        let screen_w = 1920.0;
-        let sprite_w = 64.0;
-
-        // Drive long enough to hit the right wall.
+        let mut y = 0.0;
         for _ in 0..30 {
-            b.tick(&mut state, &mut x, sprite_w, screen_w, 1.0 / 60.0);
+            b.tick(&mut state, &mut x, &mut y, &ctx(1.0 / 60.0));
         }
-
-        assert_eq!(state.walk_direction, -1.0, "should reverse on right edge");
-        assert!(x + sprite_w <= screen_w, "should be clamped inside screen");
+        assert_eq!(state.walk_direction, -1.0);
+        assert!(x + 64.0 <= 1920.0);
     }
 
     #[test]
@@ -135,17 +199,69 @@ mod tests {
             walk_direction: -1.0,
         };
         let mut x = 20.0;
+        let mut y = 0.0;
         for _ in 0..30 {
-            b.tick(&mut state, &mut x, 64.0, 1920.0, 1.0 / 60.0);
+            b.tick(&mut state, &mut x, &mut y, &ctx(1.0 / 60.0));
         }
-
         assert_eq!(state.walk_direction, 1.0);
         assert!(x >= 0.0);
     }
 
     #[test]
+    fn follow_cursor_no_op_when_cursor_unknown() {
+        let b = Behavior::FollowCursor {
+            speed: 200.0,
+            comfort_distance: 50.0,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 100.0;
+        let mut y = 100.0;
+        // Default ctx has cursor = None.
+        b.tick(&mut state, &mut x, &mut y, &ctx(1.0 / 60.0));
+        assert_eq!((x, y), (100.0, 100.0));
+    }
+
+    #[test]
+    fn follow_cursor_moves_toward_target() {
+        let b = Behavior::FollowCursor {
+            speed: 200.0,
+            comfort_distance: 0.0,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 100.0;
+        let mut y = 100.0;
+        let mut c = ctx(1.0 / 60.0);
+        // Cursor far to the bottom-right of entity.
+        c.cursor = Some((500.0, 500.0));
+
+        for _ in 0..120 {
+            b.tick(&mut state, &mut x, &mut y, &c);
+        }
+        // Should have moved noticeably toward (500, 500).
+        assert!(x > 150.0, "x = {x}");
+        assert!(y > 150.0, "y = {y}");
+    }
+
+    #[test]
+    fn follow_cursor_stops_inside_comfort_radius() {
+        let b = Behavior::FollowCursor {
+            speed: 200.0,
+            comfort_distance: 50.0,
+        };
+        let mut state = BehaviorState::default();
+        // Entity center will already be at cursor.
+        let mut x = 500.0 - 32.0; // center = 500
+        let mut y = 500.0 - 32.0;
+        let mut c = ctx(1.0 / 60.0);
+        c.cursor = Some((500.0, 500.0));
+
+        let before = (x, y);
+        b.tick(&mut state, &mut x, &mut y, &c);
+        assert_eq!((x, y), before, "inside comfort radius → no motion");
+    }
+
+    #[test]
     fn default_is_idle() {
-        let b = Behavior::default();
-        assert!(matches!(b, Behavior::Idle));
+        assert!(matches!(Behavior::default(), Behavior::Idle));
     }
 }

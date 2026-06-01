@@ -5,6 +5,7 @@
 //! to scene / selection / dirty flag instead of `&mut self`.
 
 use crate::app::ContextMenuState;
+use crate::behavior::Behavior;
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::input::selection::SelectionState;
 use crate::scene::Scene;
@@ -162,6 +163,13 @@ fn entity_inspector(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> En
         change.any_field = true;
     }
 
+    // Behavior
+    ui.add_space(6.0);
+    ui.label("Behavior");
+    if behavior_picker(ui, &mut entity.behavior) {
+        change.any_field = true;
+    }
+
     // Z-order
     ui.add_space(6.0);
     ui.horizontal(|ui| {
@@ -179,6 +187,78 @@ fn entity_inspector(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> En
     });
 
     change
+}
+
+/// Behavior dropdown + variant-specific sliders. Returns `true` when the
+/// user touched anything in this section.
+fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
+    let mut changed = false;
+
+    // ComboBox with the three concrete variants. selectable_value compares
+    // via PartialEq, so picking the same variant a second time is a no-op.
+    let current_label = behavior_label(behavior);
+    egui::ComboBox::from_id_salt("behavior_picker")
+        .selected_text(current_label)
+        .show_ui(ui, |ui| {
+            let prev = behavior.clone();
+            ui.selectable_value(behavior, Behavior::Idle, "Idle");
+            ui.selectable_value(
+                behavior,
+                Behavior::WalkAround { speed: 60.0 },
+                "Walk around",
+            );
+            ui.selectable_value(
+                behavior,
+                Behavior::FollowCursor {
+                    speed: 240.0,
+                    comfort_distance: 80.0,
+                },
+                "Follow cursor",
+            );
+            if *behavior != prev {
+                changed = true;
+            }
+        });
+
+    // Variant-specific sliders.
+    match behavior {
+        Behavior::Idle => {}
+        Behavior::WalkAround { speed } => {
+            if ui
+                .add(egui::Slider::new(speed, 10.0..=400.0).text("Speed (px/s)"))
+                .changed()
+            {
+                changed = true;
+            }
+        }
+        Behavior::FollowCursor {
+            speed,
+            comfort_distance,
+        } => {
+            if ui
+                .add(egui::Slider::new(speed, 50.0..=800.0).text("Speed (px/s)"))
+                .changed()
+            {
+                changed = true;
+            }
+            if ui
+                .add(egui::Slider::new(comfort_distance, 0.0..=400.0).text("Comfort distance (px)"))
+                .changed()
+            {
+                changed = true;
+            }
+        }
+    }
+
+    changed
+}
+
+fn behavior_label(b: &Behavior) -> &'static str {
+    match b {
+        Behavior::Idle => "Idle",
+        Behavior::WalkAround { .. } => "Walk around",
+        Behavior::FollowCursor { .. } => "Follow cursor",
+    }
 }
 
 fn scene_list(
