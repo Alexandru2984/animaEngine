@@ -211,10 +211,12 @@ impl Scene {
         )?;
 
         // Cap frames at MAX_DROP_SIZE for overlay-friendly sprites.
+        // `?` propagates a corrupt-buffer error instead of silently producing
+        // a frame with mismatched dimensions.
         let frames: Vec<_> = frames
             .into_iter()
             .map(|f| f.resized(MAX_DROP_SIZE))
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         let animation = Animation::new(frames, char_config.fps, char_config.playing);
         let entity = Entity::from_config(&char_config, animation);
