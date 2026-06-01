@@ -357,6 +357,7 @@ fn test_config_new_asset_types_serialize() {
                 visible: true,
                 playing: true,
                 z_index: 0,
+                physics_enabled: false,
                 spritesheet_columns: None,
                 spritesheet_rows: None,
             },
@@ -373,6 +374,7 @@ fn test_config_new_asset_types_serialize() {
                 visible: true,
                 playing: true,
                 z_index: 5,
+                physics_enabled: false,
                 spritesheet_columns: Some(4),
                 spritesheet_rows: Some(2),
             },
@@ -396,6 +398,37 @@ fn test_config_new_asset_types_serialize() {
 }
 
 #[test]
+fn test_legacy_config_without_physics_field_defaults_to_disabled() {
+    // Configs written before physics_enabled was introduced must still parse,
+    // with physics_enabled defaulting to false (i.e. legacy behavior).
+    use anima_engine::config::{AppConfig, AssetType};
+
+    let legacy_toml = r#"
+[global]
+always_on_top = true
+transparent = true
+playback_enabled = true
+window_width = 0
+window_height = 0
+
+[[characters]]
+id = "legacy"
+name = "Legacy"
+asset_type = "png_static"
+asset_path = "x.png"
+x = 0.0
+y = 0.0
+"#;
+
+    let cfg: AppConfig = toml::from_str(legacy_toml).expect("legacy parse");
+    assert_eq!(cfg.characters[0].asset_type, AssetType::PngStatic);
+    assert!(
+        !cfg.characters[0].physics_enabled,
+        "missing physics_enabled must default to false"
+    );
+}
+
+#[test]
 fn test_config_spritesheet_fields_skip_when_none() {
     use anima_engine::config::{AssetType, CharacterConfig};
 
@@ -412,6 +445,7 @@ fn test_config_spritesheet_fields_skip_when_none() {
         visible: true,
         playing: true,
         z_index: 0,
+        physics_enabled: false,
         spritesheet_columns: None,
         spritesheet_rows: None,
     };

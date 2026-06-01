@@ -451,11 +451,11 @@ impl ApplicationHandler for App {
                             }
                         }
                         (MouseButton::Left, ElementState::Released) if self.drag.is_dragging() => {
-                            // Unfreeze physics but keep grounded — entity stays where placed
+                            // Drop the freeze. Physics remains whatever the user set —
+                            // off by default (entity stays put), on if they pressed G.
                             if let Some(idx) = self.drag.dragging_entity() {
                                 if idx < self.scene.entities.len() {
-                                    self.scene.entities[idx].physics.frozen = false;
-                                    self.scene.entities[idx].physics.grounded = true;
+                                    self.scene.entities[idx].physics.unfreeze();
                                 }
                             }
                             self.drag.end_drag();
@@ -596,6 +596,25 @@ impl ApplicationHandler for App {
                             "Entity '{}' visibility: {}",
                             entity.name,
                             if entity.visible { "visible" } else { "hidden" }
+                        );
+                        self.config_dirty = true;
+                    }
+                }
+                // G: toggle gravity for selected entity (off by default).
+                // When toggled on, the entity falls from its current position.
+                // When toggled off, the entity is pinned where it is.
+                winit::keyboard::Key::Character("g") => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        let entity = &mut self.scene.entities[idx];
+                        entity.physics.toggle();
+                        tracing::info!(
+                            "Entity '{}' gravity: {}",
+                            entity.name,
+                            if entity.physics.enabled {
+                                "ON (falling)"
+                            } else {
+                                "OFF (pinned)"
+                            }
                         );
                         self.config_dirty = true;
                     }
@@ -741,6 +760,8 @@ impl ApplicationHandler for App {
                         \n    P          — Play/pause entity\n\
                         \n    Space      — Global play/pause\n\
                         \n    [/]        — Adjust FPS\n\
+                        \n\n  Physics:\n\
+                        \n    G          — Toggle gravity (off by default)\n\
                         \n\n  Actions:\n\
                         \n    D          — Duplicate\n\
                         \n    Del/Bksp   — Delete\n\

@@ -196,6 +196,7 @@ impl Scene {
             visible: true,
             playing: true,
             z_index: self.next_z_index(),
+            physics_enabled: false,
             spritesheet_columns: None,
             spritesheet_rows: None,
         };

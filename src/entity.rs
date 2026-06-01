@@ -55,7 +55,7 @@ impl Entity {
             asset_type: config.asset_type.clone(),
             spritesheet_columns: config.spritesheet_columns,
             spritesheet_rows: config.spritesheet_rows,
-            physics: PhysicsState::default(),
+            physics: PhysicsState::from_enabled(config.physics_enabled),
         }
     }
 
@@ -114,6 +114,7 @@ impl Entity {
             visible: self.visible,
             playing: self.animation.playing,
             z_index: self.z_index,
+            physics_enabled: self.physics.enabled,
             spritesheet_columns: self.spritesheet_columns,
             spritesheet_rows: self.spritesheet_rows,
         }

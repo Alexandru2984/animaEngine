@@ -70,6 +70,10 @@ pub struct CharacterConfig {
     pub playing: bool,
     #[serde(default)]
     pub z_index: i32,
+    /// Whether gravity is active for this entity. Default `false` — entities
+    /// stay where the user places them. Toggle at runtime with the `G` key.
+    #[serde(default)]
+    pub physics_enabled: bool,
     /// Number of columns in spritesheet grid (only used for Spritesheet type)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spritesheet_columns: Option<u32>,
@@ -117,6 +121,7 @@ impl Default for AppConfig {
                     visible: true,
                     playing: true,
                     z_index: 10,
+                    physics_enabled: false,
                     spritesheet_columns: None,
                     spritesheet_rows: None,
                 },
@@ -133,6 +138,7 @@ impl Default for AppConfig {
                     visible: true,
                     playing: true,
                     z_index: 20,
+                    physics_enabled: false,
                     spritesheet_columns: None,
                     spritesheet_rows: None,
                 },
