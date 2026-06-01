@@ -59,8 +59,9 @@ pub struct App {
     /// Receiver for an in-flight async hot-reload. `Some` means a worker
     /// thread is currently decoding the new config + assets off the UI thread.
     hot_reload_rx: Option<mpsc::Receiver<HotReloadResult>>,
-    /// egui integration. Only paints in edit mode but always receives events
-    /// (mouse position tracking, etc.).
+    /// egui integration. Paints in BOTH modes — the ⚙ toggle button is an
+    /// egui widget that lives in pass-through too. Other UI (settings panel,
+    /// context menu, toasts) is gated to edit mode inside the build closure.
     ui: Option<EguiRenderer>,
     /// Ephemeral UI state (currently just the context menu) kept separate
     /// from the egui renderer so it survives across resumed/suspended cycles.
@@ -380,17 +381,6 @@ impl App {
             }
         }
     }
-
-    /// Check if a click is on the toggle button (top-right corner)
-    fn is_toggle_button_click(&self, x: f32, y: f32) -> bool {
-        if let Some(window) = &self.window {
-            let win_width = window.inner_size().width as f32;
-            let button_x = win_width - TOGGLE_BUTTON_SIZE as f32;
-            x >= button_x && y <= TOGGLE_BUTTON_SIZE as f32
-        } else {
-            false
-        }
-    }
 }
 
 impl ApplicationHandler for App {
@@ -511,15 +501,13 @@ impl ApplicationHandler for App {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        // Let egui peek at the event first when we're in edit mode. If a
-        // widget consumes it (e.g. typing in a text box, dragging a slider)
-        // we skip our own handler so the same click doesn't also move an
-        // entity. Outside edit mode there's no UI, so we never forward.
-        if self.edit_mode {
-            if let (Some(ui), Some(window)) = (self.ui.as_mut(), self.window.as_ref()) {
-                if ui.handle_event(window, &event) {
-                    return;
-                }
+        // Let egui peek at the event first. The toggle ⚙ button is an egui
+        // widget that lives in BOTH modes, so we always forward; a consumed
+        // event short-circuits our own handlers (so e.g. clicking the button
+        // doesn't also try to drag an entity).
+        if let (Some(ui), Some(window)) = (self.ui.as_mut(), self.window.as_ref()) {
+            if ui.handle_event(window, &event) {
+                return;
             }
         }
 
@@ -598,34 +586,47 @@ impl ApplicationHandler for App {
                     };
                     match render_result {
                         Ok(output) => {
+                            // egui runs in BOTH modes. In pass-through it
+                            // paints just the toggle ⚙ button; in edit mode it
+                            // adds the settings panel, context menu, toasts.
+                            self.toasts.prune();
+
                             let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
-                            if self.edit_mode {
-                                // Drop expired toasts before painting.
-                                self.toasts.prune();
+                            let mut toggle_requested = false;
 
-                                if let (Some(ui), Some(window)) =
-                                    (self.ui.as_mut(), self.window.as_ref())
-                                {
-                                    let view = output
-                                        .texture
-                                        .create_view(&wgpu::TextureViewDescriptor::default());
-                                    let size = [renderer.window_width, renderer.window_height];
+                            if let (Some(ui), Some(window)) =
+                                (self.ui.as_mut(), self.window.as_ref())
+                            {
+                                let view = output
+                                    .texture
+                                    .create_view(&wgpu::TextureViewDescriptor::default());
+                                let size = [renderer.window_width, renderer.window_height];
 
-                                    // Disjoint mutable borrows on disjoint fields.
-                                    let scene_mut = &mut self.scene;
-                                    let selection_mut = &mut self.selection;
-                                    let config_dirty_mut = &mut self.config_dirty;
-                                    let toasts_ref = &self.toasts;
-                                    let menu_state = self.ui_state.context_menu.clone();
-                                    let menu_outcome_ref = &mut menu_outcome;
+                                // Disjoint mutable borrows on disjoint fields.
+                                let scene_mut = &mut self.scene;
+                                let selection_mut = &mut self.selection;
+                                let config_dirty_mut = &mut self.config_dirty;
+                                let toasts_ref = &self.toasts;
+                                let menu_state = self.ui_state.context_menu.clone();
+                                let menu_outcome_ref = &mut menu_outcome;
+                                let toggle_requested_ref = &mut toggle_requested;
+                                let edit_mode = self.edit_mode;
 
-                                    ui.render(
-                                        window,
-                                        &renderer.device,
-                                        &renderer.queue,
-                                        &view,
-                                        size,
-                                        |ctx| {
+                                ui.render(
+                                    window,
+                                    &renderer.device,
+                                    &renderer.queue,
+                                    &view,
+                                    size,
+                                    |ctx| {
+                                        // Toggle button is the only UI in
+                                        // pass-through; in edit mode it sits
+                                        // on top of everything else.
+                                        if panels::toggle_button(ctx, edit_mode) {
+                                            *toggle_requested_ref = true;
+                                        }
+
+                                        if edit_mode {
                                             panels::settings(
                                                 ctx,
                                                 scene_mut,
@@ -637,15 +638,18 @@ impl ApplicationHandler for App {
                                                     Some(panels::context_menu(ctx, state));
                                             }
                                             panels::toasts(ctx, toasts_ref);
-                                        },
-                                    );
-                                }
+                                        }
+                                    },
+                                );
                             }
                             output.present();
 
-                            // Apply menu outcome AFTER the UI render so we
-                            // can take &mut renderer for texture management
-                            // (Duplicate creates a texture; Delete drops one).
+                            // Apply UI outcomes AFTER ui.render so we can
+                            // take &mut self.renderer / call other &mut self
+                            // methods that conflict with the egui borrow.
+                            if toggle_requested {
+                                self.toggle_edit_mode();
+                            }
                             if let Some(outcome) = menu_outcome {
                                 self.handle_menu_outcome(outcome);
                             }
@@ -696,19 +700,9 @@ impl ApplicationHandler for App {
                     self.edit_mode
                 );
 
-                // Toggle button click: works in BOTH modes (pass-through has input shape for it)
-                if button == MouseButton::Left
-                    && state == ElementState::Pressed
-                    && self.is_toggle_button_click(self.mouse_x, self.mouse_y)
-                {
-                    tracing::info!(
-                        "Toggle button clicked at ({:.0}, {:.0})",
-                        self.mouse_x,
-                        self.mouse_y
-                    );
-                    self.toggle_edit_mode();
-                    return;
-                }
+                // Toggle ⚙ button click is handled by egui (consumed at the
+                // top of window_event) → if we got here in pass-through, the
+                // click was on a transparent area we don't care about.
 
                 // Edit mode: handle entity selection, drag, and right-click context menu.
                 if self.edit_mode {

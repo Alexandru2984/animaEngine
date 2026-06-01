@@ -1,7 +1,7 @@
 use super::sprite::{make_quad_vertices, orthographic_projection, SpriteVertex, QUAD_INDICES};
 use super::texture::GpuTexture;
 use crate::animation::frame::Frame;
-use crate::constants::{MAX_QUADS, TOGGLE_BUTTON_SIZE};
+use crate::constants::MAX_QUADS;
 use crate::entity::Entity;
 use crate::error::{AnimaError, Result};
 use bytemuck;
@@ -26,59 +26,15 @@ pub struct WgpuRenderer {
     pub textures: HashMap<String, GpuTexture>,
     pub window_width: u32,
     pub window_height: u32,
-    /// UI: toggle button texture (normal / pass-through state)
-    button_tex_normal: GpuTexture,
-    /// UI: toggle button texture (active / edit mode state)
-    button_tex_active: GpuTexture,
-    /// UI: edit mode indicator bar texture (1x1 stretched)
+    /// UI: edit mode indicator bar texture (1x1 stretched).
+    /// Drawn as a sprite so it sits underneath egui — kept native because
+    /// it's a single-pixel stretched stripe, not a real widget.
     edit_bar_tex: GpuTexture,
     /// UI: selection highlight texture (semi-transparent border)
     selection_tex: GpuTexture,
     /// Pre-allocated vertex buffer for dynamic quad drawing.
     /// Reused every frame via `queue.write_buffer()` to avoid per-frame allocations.
     dynamic_vertex_buffer: wgpu::Buffer,
-}
-
-/// Generate a simple circular button icon.
-/// Creates a circle with a ring and center dot — looks like a settings/target icon.
-fn generate_button_frame(bg: [u8; 4], icon: [u8; 4], size: u32) -> Frame {
-    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
-    let cx = size as f32 / 2.0;
-    let cy = size as f32 / 2.0;
-    let outer_r = size as f32 * 0.42;
-    let ring_r = size as f32 * 0.28;
-    let ring_w = 2.5;
-    let dot_r = size as f32 * 0.09;
-
-    for y in 0..size {
-        for x in 0..size {
-            let dx = x as f32 - cx;
-            let dy = y as f32 - cy;
-            let dist = (dx * dx + dy * dy).sqrt();
-
-            if dist < dot_r {
-                // Center dot
-                rgba.extend_from_slice(&icon);
-            } else if (dist - ring_r).abs() < ring_w {
-                // Ring
-                let edge = (ring_w - (dist - ring_r).abs()) / ring_w;
-                let a = (icon[3] as f32 * edge.min(1.0)) as u8;
-                rgba.extend_from_slice(&[icon[0], icon[1], icon[2], a]);
-            } else if dist < outer_r {
-                // Background fill
-                rgba.extend_from_slice(&bg);
-            } else if dist < outer_r + 1.5 {
-                // Anti-aliased edge
-                let factor = (outer_r + 1.5 - dist) / 1.5;
-                let a = (bg[3] as f32 * factor) as u8;
-                rgba.extend_from_slice(&[bg[0], bg[1], bg[2], a]);
-            } else {
-                // Outside — fully transparent
-                rgba.extend_from_slice(&[0, 0, 0, 0]);
-            }
-        }
-    }
-    Frame::new(rgba, size, size)
 }
 
 /// Generate a selection highlight frame — a rounded rectangle border with glow.
@@ -359,29 +315,6 @@ impl WgpuRenderer {
         );
 
         // --- UI textures ---
-        let btn_size = TOGGLE_BUTTON_SIZE;
-        // Normal: dark semi-transparent with white ring
-        let btn_normal_frame =
-            generate_button_frame([50, 50, 60, 160], [200, 200, 220, 200], btn_size);
-        let button_tex_normal = GpuTexture::from_frame(
-            &device,
-            &queue,
-            &btn_normal_frame,
-            &texture_bind_group_layout,
-            "btn_normal",
-        );
-
-        // Active: green with white ring
-        let btn_active_frame =
-            generate_button_frame([40, 160, 60, 200], [255, 255, 255, 240], btn_size);
-        let button_tex_active = GpuTexture::from_frame(
-            &device,
-            &queue,
-            &btn_active_frame,
-            &texture_bind_group_layout,
-            "btn_active",
-        );
-
         // Edit bar: solid green semi-transparent, 1x1 stretched
         let bar_frame = Frame::new(vec![50, 200, 80, 140], 1, 1);
         let edit_bar_tex = GpuTexture::from_frame(
@@ -416,8 +349,6 @@ impl WgpuRenderer {
             textures: HashMap::new(),
             window_width,
             window_height,
-            button_tex_normal,
-            button_tex_active,
             edit_bar_tex,
             selection_tex,
             dynamic_vertex_buffer,
@@ -530,16 +461,15 @@ impl WgpuRenderer {
         struct DrawCmd {
             quad_index: usize,
             texture_entity_id: Option<String>, // entity ID or special UI element
-            is_button: bool,
             is_edit_bar: bool,
             is_selection: bool,
         }
 
-        let mut draws: Vec<DrawCmd> = Vec::with_capacity(entities.len() + 4);
+        let mut draws: Vec<DrawCmd> = Vec::with_capacity(entities.len() + 2);
 
         for entity in entities {
-            if quad_idx >= MAX_QUADS - 3 {
-                // Reserve 3 quads for UI (edit bar + button + selection)
+            if quad_idx >= MAX_QUADS - 2 {
+                // Reserve 2 quads for UI (edit bar + selection highlight)
                 tracing::warn!(
                     "MAX_QUADS ({}) reached, skipping remaining entities",
                     MAX_QUADS
@@ -555,7 +485,6 @@ impl WgpuRenderer {
                 draws.push(DrawCmd {
                     quad_index: quad_idx,
                     texture_entity_id: Some(entity.id.clone()),
-                    is_button: false,
                     is_edit_bar: false,
                     is_selection: false,
                 });
@@ -576,7 +505,6 @@ impl WgpuRenderer {
                         draws.push(DrawCmd {
                             quad_index: quad_idx,
                             texture_entity_id: None,
-                            is_button: false,
                             is_edit_bar: false,
                             is_selection: true,
                         });
@@ -592,25 +520,13 @@ impl WgpuRenderer {
             draws.push(DrawCmd {
                 quad_index: quad_idx,
                 texture_entity_id: None,
-                is_button: false,
                 is_edit_bar: true,
                 is_selection: false,
             });
-            quad_idx += 1;
+            // quad_idx += 1; // last UI quad, no need to increment
         }
-
-        // Toggle button
-        let btn_size = TOGGLE_BUTTON_SIZE as f32;
-        let btn_x = self.window_width as f32 - btn_size;
-        self.write_quad(quad_idx, btn_x, 0.0, btn_size, btn_size, 1.0);
-        draws.push(DrawCmd {
-            quad_index: quad_idx,
-            texture_entity_id: None,
-            is_button: true,
-            is_edit_bar: false,
-            is_selection: false,
-        });
-        // quad_idx += 1; // last one, no need to increment
+        // The toggle button (⚙) is rendered as a real egui Button in
+        // App's egui pass — no sprite needed here.
 
         // --- Render pass ---
         {
@@ -642,14 +558,7 @@ impl WgpuRenderer {
             // Issue draw calls from the pre-computed list
             for cmd in &draws {
                 // Bind the right texture
-                if cmd.is_button {
-                    let btn_tex = if edit_mode {
-                        &self.button_tex_active
-                    } else {
-                        &self.button_tex_normal
-                    };
-                    render_pass.set_bind_group(1, &btn_tex.bind_group, &[]);
-                } else if cmd.is_edit_bar {
+                if cmd.is_edit_bar {
                     render_pass.set_bind_group(1, &self.edit_bar_tex.bind_group, &[]);
                 } else if cmd.is_selection {
                     render_pass.set_bind_group(1, &self.selection_tex.bind_group, &[]);

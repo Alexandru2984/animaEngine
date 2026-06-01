@@ -5,6 +5,7 @@
 //! to scene / selection / dirty flag instead of `&mut self`.
 
 use crate::app::ContextMenuState;
+use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::input::selection::SelectionState;
 use crate::scene::Scene;
 use crate::ui::toasts::{ToastKind, ToastQueue};
@@ -342,4 +343,50 @@ pub fn toasts(ctx: &egui::Context, queue: &ToastQueue) {
                 }
             });
         });
+}
+
+/// Top-right ⚙ button that toggles between pass-through and edit mode.
+/// Returns `true` for the frame the user clicked it.
+///
+/// Geometry must match `TOGGLE_BUTTON_SIZE` because the X11 input shape
+/// in pass-through mode uses the same constant to decide which pixels
+/// receive clicks.
+pub fn toggle_button(ctx: &egui::Context, edit_mode: bool) -> bool {
+    let size = TOGGLE_BUTTON_SIZE as f32;
+    let screen = ctx.screen_rect();
+    let pos = egui::pos2(screen.right() - size, 0.0);
+
+    let bg = if edit_mode {
+        egui::Color32::from_rgb(40, 160, 60) // active = green
+    } else {
+        egui::Color32::from_rgba_unmultiplied(50, 50, 60, 200) // pass-through = dim
+    };
+    let tooltip = if edit_mode {
+        "Exit edit mode"
+    } else {
+        "Enter edit mode"
+    };
+
+    let mut clicked = false;
+    egui::Area::new(egui::Id::new("anima_toggle_button"))
+        .fixed_pos(pos)
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            let response = ui
+                .add_sized(
+                    egui::vec2(size, size),
+                    egui::Button::new(
+                        egui::RichText::new("⚙")
+                            .size(28.0)
+                            .color(egui::Color32::WHITE),
+                    )
+                    .fill(bg)
+                    .corner_radius(0.0),
+                )
+                .on_hover_text(tooltip);
+            if response.clicked() {
+                clicked = true;
+            }
+        });
+    clicked
 }
