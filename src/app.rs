@@ -4,6 +4,7 @@ use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
+use crate::ui::{panels, EguiRenderer};
 use crate::window::x11_input::X11InputManager;
 use std::collections::HashSet;
 use std::sync::mpsc;
@@ -58,6 +59,9 @@ pub struct App {
     /// Receiver for an in-flight async hot-reload. `Some` means a worker
     /// thread is currently decoding the new config + assets off the UI thread.
     hot_reload_rx: Option<mpsc::Receiver<HotReloadResult>>,
+    /// egui integration. Only paints in edit mode but always receives events
+    /// (mouse position tracking, etc.).
+    ui: Option<EguiRenderer>,
 }
 
 /// Result of an async hot-reload — produced by a worker thread, consumed by
@@ -85,6 +89,7 @@ impl App {
             last_config_check: Instant::now(),
             config_mtime: Self::get_config_mtime(),
             hot_reload_rx: None,
+            ui: None,
         }
     }
 
@@ -347,8 +352,16 @@ impl ApplicationHandler for App {
                         for entity in &mut self.scene.entities {
                             entity.texture_dirty = false;
                         }
+
+                        // egui wraps the existing wgpu device + queue.
+                        let ui = EguiRenderer::new(
+                            &renderer.device,
+                            renderer.config.format,
+                            window.clone(),
+                        );
+                        self.ui = Some(ui);
                         self.renderer = Some(renderer);
-                        tracing::info!("wgpu renderer initialized successfully");
+                        tracing::info!("wgpu + egui renderers initialized");
                     }
                     Err(e) => {
                         tracing::error!("Failed to initialize wgpu renderer: {}", e);
@@ -372,13 +385,26 @@ impl ApplicationHandler for App {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        // Let egui peek at the event first when we're in edit mode. If a
+        // widget consumes it (e.g. typing in a text box, dragging a slider)
+        // we skip our own handler so the same click doesn't also move an
+        // entity. Outside edit mode there's no UI, so we never forward.
+        if self.edit_mode {
+            if let (Some(ui), Some(window)) = (self.ui.as_mut(), self.window.as_ref()) {
+                if ui.handle_event(window, &event) {
+                    return;
+                }
+            }
+        }
+
         match event {
             WindowEvent::CloseRequested => {
                 tracing::info!("Close requested — saving config and exiting");
                 self.save_config_if_needed();
-                // Drop renderer before exiting to avoid segfault on Vulkan cleanup
+                // Order matters: egui owns wgpu resources, drop it before
+                // the renderer to avoid use-after-free during Vulkan cleanup.
+                self.ui = None;
                 self.renderer = None;
-                // Drop X11 connection
                 self.x11_input = None;
                 event_loop.exit();
             }
@@ -433,10 +459,35 @@ impl ApplicationHandler for App {
                         .and_then(|idx| self.scene.entities.get(idx))
                         .map(|e| e.id.as_str());
 
-                    // Render all visible entities + UI
+                    // Render all visible entities. WgpuRenderer hands back the
+                    // surface texture without presenting so egui can overlay on
+                    // top of the same frame.
                     let visible = self.scene.visible_entities();
+                    let entity_count = self.scene.entities.len();
                     match renderer.render(&visible, self.edit_mode, selected_id) {
-                        Ok(_) => {}
+                        Ok(output) => {
+                            // egui overlay — only in edit mode (zero cost
+                            // otherwise; build_ui simply isn't invoked).
+                            if self.edit_mode {
+                                if let (Some(ui), Some(window)) =
+                                    (self.ui.as_mut(), self.window.as_ref())
+                                {
+                                    let view = output
+                                        .texture
+                                        .create_view(&wgpu::TextureViewDescriptor::default());
+                                    let size = [renderer.window_width, renderer.window_height];
+                                    ui.render(
+                                        window,
+                                        &renderer.device,
+                                        &renderer.queue,
+                                        &view,
+                                        size,
+                                        |ctx| panels::edit_mode_probe(ctx, entity_count),
+                                    );
+                                }
+                            }
+                            output.present();
+                        }
                         Err(wgpu::SurfaceError::Lost) => {
                             renderer.resize(renderer.window_width, renderer.window_height);
                         }
@@ -552,6 +603,7 @@ impl ApplicationHandler for App {
                 winit::keyboard::Key::Character("q") => {
                     tracing::info!("Q pressed — saving and exiting");
                     self.save_config_if_needed();
+                    self.ui = None;
                     self.renderer = None;
                     self.x11_input = None;
                     event_loop.exit();

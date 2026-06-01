@@ -9,6 +9,7 @@ pub mod input;
 pub mod physics;
 pub mod renderer;
 pub mod scene;
+pub mod ui;
 pub mod window;
 
 pub use error::{AnimaError, Result};

@@ -496,6 +496,10 @@ impl WgpuRenderer {
 
     /// Render all visible entities + UI overlay to the surface.
     ///
+    /// Returns the acquired `SurfaceTexture` **without** calling `present()` —
+    /// the caller can paint an egui overlay on top of the same texture before
+    /// presenting. The caller is responsible for invoking `output.present()`.
+    ///
     /// Returns `wgpu::SurfaceError` directly (not `AnimaError`) because the
     /// caller needs to match on specific variants like `Lost` and `OutOfMemory`
     /// to drive recovery and shutdown logic.
@@ -504,7 +508,7 @@ impl WgpuRenderer {
         entities: &[&Entity],
         edit_mode: bool,
         selected_entity_id: Option<&str>,
-    ) -> std::result::Result<(), wgpu::SurfaceError> {
+    ) -> std::result::Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -669,8 +673,9 @@ impl WgpuRenderer {
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
 
-        Ok(())
+        // Hand the texture back to the caller — egui may paint on it before
+        // present() is finally invoked.
+        Ok(output)
     }
 }
