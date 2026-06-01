@@ -19,10 +19,6 @@ use x11rb::connection::Connection;
 use x11rb::protocol::xproto::*;
 use x11rb::rust_connection::RustConnection;
 
-/// Size of the clickable toggle button in the corner (pixels).
-/// 64px is large enough to be easily clickable.
-pub const TOGGLE_BUTTON_SIZE: u32 = 64;
-
 /// Manages X11 window properties and input shape operations with a pooled connection.
 pub struct X11InputManager {
     conn: RustConnection,

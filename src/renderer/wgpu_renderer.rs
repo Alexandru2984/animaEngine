@@ -1,18 +1,13 @@
 use super::sprite::{make_quad_vertices, orthographic_projection, SpriteVertex, QUAD_INDICES};
 use super::texture::GpuTexture;
 use crate::animation::frame::Frame;
+use crate::constants::{MAX_QUADS, TOGGLE_BUTTON_SIZE};
 use crate::entity::Entity;
 use crate::error::{AnimaError, Result};
-use crate::window::x11_input::TOGGLE_BUTTON_SIZE;
 use bytemuck;
 use std::collections::HashMap;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
-
-/// Maximum number of quads we can batch in one draw call.
-/// Entities + UI elements (button, edit bar, selection highlights).
-/// 64 quads = 256 vertices × 32 bytes = 8 KB — trivial.
-const MAX_QUADS: usize = 64;
 
 /// The main GPU renderer.
 /// Manages the wgpu device, pipeline, and renders entities to the window surface.

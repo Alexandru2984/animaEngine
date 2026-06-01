@@ -1,3 +1,4 @@
+use crate::constants::MAX_ENTITIES;
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -164,8 +165,6 @@ impl AppConfig {
             match fs::read_to_string(&path) {
                 Ok(contents) => match toml::from_str::<AppConfig>(&contents) {
                     Ok(mut config) => {
-                        // Safety cap: prevent DoS from huge config files
-                        const MAX_ENTITIES: usize = 64;
                         if config.characters.len() > MAX_ENTITIES {
                             log::warn!(
                                 "Config has {} characters, capping at {} to prevent resource exhaustion",

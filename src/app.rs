@@ -1,9 +1,10 @@
 use crate::config::AppConfig;
+use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
-use crate::window::x11_input::{X11InputManager, TOGGLE_BUTTON_SIZE};
+use crate::window::x11_input::X11InputManager;
 use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 use winit::application::ApplicationHandler;

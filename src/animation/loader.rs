@@ -4,12 +4,9 @@ use super::png_sequence;
 use super::spritesheet;
 use super::webp_loader;
 use crate::config::AssetType;
+use crate::constants::MAX_IMAGE_DIM;
 use crate::error::{AnimaError, Result};
 use std::path::Path;
-
-/// Maximum allowed image dimension (width or height) to prevent decompression bombs.
-/// A 4096×4096 RGBA image = 64 MB in RAM — safe limit for an overlay app.
-const MAX_IMAGE_DIM: u32 = 4096;
 
 /// Validate image dimensions by reading only the file header (no full decode).
 /// Returns an error if either dimension exceeds `MAX_IMAGE_DIM`.

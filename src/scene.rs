@@ -1,6 +1,7 @@
 use crate::animation::loader::{generate_fallback_frame, load_asset};
 use crate::animation::Animation;
 use crate::config::{AppConfig, CharacterConfig};
+use crate::constants::MAX_DROP_SIZE;
 use crate::entity::Entity;
 use crate::error::Result;
 use std::time::Instant;
@@ -206,8 +207,7 @@ impl Scene {
             char_config.spritesheet_rows,
         )?;
 
-        // Cap frames at 256px max dimension for dropped assets
-        const MAX_DROP_SIZE: u32 = 256;
+        // Cap frames at MAX_DROP_SIZE for overlay-friendly sprites.
         let frames: Vec<_> = frames
             .into_iter()
             .map(|f| f.resized(MAX_DROP_SIZE))
