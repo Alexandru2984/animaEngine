@@ -82,6 +82,7 @@ impl App {
     }
 
     /// Check if config file was modified externally and reload if needed
+    #[tracing::instrument(skip(self))]
     fn check_hot_reload(&mut self) {
         // Only check every 2 seconds to avoid filesystem spam
         if self.last_config_check.elapsed().as_secs() < 2 {
@@ -97,7 +98,7 @@ impl App {
         let new_mtime = Self::get_config_mtime();
         if new_mtime != self.config_mtime {
             self.config_mtime = new_mtime;
-            log::info!("Config file changed externally, reloading...");
+            tracing::info!("Config file changed externally, reloading...");
 
             let new_config = AppConfig::load();
             let new_scene = Scene::from_config(&new_config);
@@ -119,7 +120,7 @@ impl App {
                 }
             }
 
-            log::info!(
+            tracing::info!(
                 "Hot-reload complete: {} entities",
                 self.scene.entities.len()
             );
@@ -132,7 +133,7 @@ impl App {
             self.config.characters = self.scene.to_character_configs();
             self.config.global.playback_enabled = self.scene.global_playing;
             if let Err(e) = self.config.save() {
-                log::warn!("Failed to save config: {}", e);
+                tracing::warn!("Failed to save config: {}", e);
             }
             self.config_dirty = false;
             // Update mtime so hot-reload doesn't trigger on our own save
@@ -148,7 +149,7 @@ impl App {
             if self.edit_mode {
                 // Edit mode: full window receives input
                 if let Err(e) = x11.set_full_input() {
-                    log::warn!("Failed to set full input shape: {}", e);
+                    tracing::warn!("Failed to set full input shape: {}", e);
                     // Fallback to winit's method
                     if let Some(window) = &self.window {
                         let _ = window.set_cursor_hittest(true);
@@ -157,7 +158,7 @@ impl App {
             } else {
                 // Pass-through mode: only the toggle button receives input
                 if let Err(e) = x11.set_passthrough_with_button(TOGGLE_BUTTON_SIZE) {
-                    log::warn!("Failed to set passthrough input shape: {}", e);
+                    tracing::warn!("Failed to set passthrough input shape: {}", e);
                     if let Some(window) = &self.window {
                         let _ = window.set_cursor_hittest(false);
                     }
@@ -169,11 +170,11 @@ impl App {
         }
 
         if self.edit_mode {
-            log::info!(
+            tracing::info!(
                 "━━━ EDIT MODE ON ━━━ Click and drag characters. Press Escape or click ⚙ button to exit."
             );
         } else {
-            log::info!(
+            tracing::info!(
                 "━━━ PASS-THROUGH MODE ━━━ Clicks go to desktop. Click ⚙ button to enter edit mode."
             );
             // End any active drag when leaving edit mode
@@ -208,32 +209,33 @@ impl ApplicationHandler for App {
             return; // Already created
         }
 
-        log::info!("Creating window...");
+        tracing::info!("Creating window...");
 
         // Auto-detect screen resolution if config values are 0
-        let (win_w, win_h) =
-            if self.config.global.window_width == 0 || self.config.global.window_height == 0 {
-                if let Some(monitor) = event_loop
-                    .primary_monitor()
-                    .or_else(|| event_loop.available_monitors().next())
-                {
-                    let size = monitor.size();
-                    log::info!(
-                        "Auto-detected monitor resolution: {}x{}",
-                        size.width,
-                        size.height
-                    );
-                    (size.width, size.height)
-                } else {
-                    log::warn!("Could not detect monitor resolution, falling back to 1920x1080");
-                    (1920u32, 1080u32)
-                }
+        let (win_w, win_h) = if self.config.global.window_width == 0
+            || self.config.global.window_height == 0
+        {
+            if let Some(monitor) = event_loop
+                .primary_monitor()
+                .or_else(|| event_loop.available_monitors().next())
+            {
+                let size = monitor.size();
+                tracing::info!(
+                    "Auto-detected monitor resolution: {}x{}",
+                    size.width,
+                    size.height
+                );
+                (size.width, size.height)
             } else {
-                (
-                    self.config.global.window_width,
-                    self.config.global.window_height,
-                )
-            };
+                tracing::warn!("Could not detect monitor resolution, falling back to 1920x1080");
+                (1920u32, 1080u32)
+            }
+        } else {
+            (
+                self.config.global.window_width,
+                self.config.global.window_height,
+            )
+        };
 
         // Build window attributes: transparent, borderless, always-on-top
         let window_attrs = Window::default_attributes()
@@ -252,7 +254,7 @@ impl ApplicationHandler for App {
         match event_loop.create_window(window_attrs) {
             Ok(window) => {
                 let window = Arc::new(window);
-                log::info!(
+                tracing::info!(
                     "Window created: {:?} ({}x{})",
                     window.id(),
                     window.inner_size().width,
@@ -264,11 +266,11 @@ impl ApplicationHandler for App {
                 if let Some(ref mut mgr) = x11_mgr {
                     // Set initial input shape: click-through except toggle button
                     if let Err(e) = mgr.set_passthrough_with_button(TOGGLE_BUTTON_SIZE) {
-                        log::warn!("Failed to set initial input shape: {}", e);
+                        tracing::warn!("Failed to set initial input shape: {}", e);
                         let _ = window.set_cursor_hittest(false);
                     }
                 } else {
-                    log::warn!(
+                    tracing::warn!(
                         "X11InputManager not available. Falling back to set_cursor_hittest."
                     );
                     let _ = window.set_cursor_hittest(false);
@@ -287,10 +289,10 @@ impl ApplicationHandler for App {
                             entity.texture_dirty = false;
                         }
                         self.renderer = Some(renderer);
-                        log::info!("wgpu renderer initialized successfully");
+                        tracing::info!("wgpu renderer initialized successfully");
                     }
                     Err(e) => {
-                        log::error!("Failed to initialize wgpu renderer: {}", e);
+                        tracing::error!("Failed to initialize wgpu renderer: {}", e);
                         event_loop.exit();
                         return;
                     }
@@ -299,7 +301,7 @@ impl ApplicationHandler for App {
                 self.window = Some(window);
             }
             Err(e) => {
-                log::error!("Failed to create window: {}", e);
+                tracing::error!("Failed to create window: {}", e);
                 event_loop.exit();
             }
         }
@@ -313,7 +315,7 @@ impl ApplicationHandler for App {
     ) {
         match event {
             WindowEvent::CloseRequested => {
-                log::info!("Close requested — saving config and exiting");
+                tracing::info!("Close requested — saving config and exiting");
                 self.save_config_if_needed();
                 // Drop renderer before exiting to avoid segfault on Vulkan cleanup
                 self.renderer = None;
@@ -370,11 +372,11 @@ impl ApplicationHandler for App {
                             renderer.resize(renderer.window_width, renderer.window_height);
                         }
                         Err(wgpu::SurfaceError::OutOfMemory) => {
-                            log::error!("GPU out of memory!");
+                            tracing::error!("GPU out of memory!");
                             event_loop.exit();
                         }
                         Err(e) => {
-                            log::warn!("Render error: {:?}", e);
+                            tracing::warn!("Render error: {:?}", e);
                         }
                     }
                 }
@@ -388,15 +390,6 @@ impl ApplicationHandler for App {
             WindowEvent::CursorMoved { position, .. } => {
                 self.mouse_x = position.x as f32;
                 self.mouse_y = position.y as f32;
-
-                // Debug: log when cursor enters the button area
-                if self.is_toggle_button_click(self.mouse_x, self.mouse_y) {
-                    log::debug!(
-                        "Cursor in button area: ({:.0}, {:.0})",
-                        self.mouse_x,
-                        self.mouse_y
-                    );
-                }
 
                 // Handle drag in edit mode
                 if self.edit_mode {
@@ -412,7 +405,7 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::MouseInput { state, button, .. } => {
-                log::debug!(
+                tracing::debug!(
                     "MouseInput: {:?} {:?} at ({:.0}, {:.0}) edit_mode={}",
                     button,
                     state,
@@ -426,7 +419,7 @@ impl ApplicationHandler for App {
                     && state == ElementState::Pressed
                     && self.is_toggle_button_click(self.mouse_x, self.mouse_y)
                 {
-                    log::info!(
+                    tracing::info!(
                         "Toggle button clicked at ({:.0}, {:.0})",
                         self.mouse_x,
                         self.mouse_y
@@ -452,7 +445,7 @@ impl ApplicationHandler for App {
                                 let offset_y = self.mouse_y - entity.y;
                                 self.drag.start_drag(entity_idx, offset_x, offset_y);
 
-                                log::info!("Clicked entity: {} ({})", entity.name, entity.id);
+                                tracing::info!("Clicked entity: {} ({})", entity.name, entity.id);
                             } else {
                                 self.selection.deselect();
                             }
@@ -488,7 +481,7 @@ impl ApplicationHandler for App {
                     self.toggle_edit_mode();
                 }
                 winit::keyboard::Key::Character("q") => {
-                    log::info!("Q pressed — saving and exiting");
+                    tracing::info!("Q pressed — saving and exiting");
                     self.save_config_if_needed();
                     self.renderer = None;
                     self.x11_input = None;
@@ -497,7 +490,7 @@ impl ApplicationHandler for App {
                 winit::keyboard::Key::Character("s") => {
                     self.config_dirty = true;
                     self.save_config_if_needed();
-                    log::info!("Config saved manually");
+                    tracing::info!("Config saved manually");
                 }
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::Space) => {
                     self.scene.toggle_global_playback();
@@ -513,7 +506,7 @@ impl ApplicationHandler for App {
                             renderer.textures.remove(entity_id);
                         }
                         if let Some(removed_id) = self.scene.remove_entity(idx) {
-                            log::info!("Deleted entity: {}", removed_id);
+                            tracing::info!("Deleted entity: {}", removed_id);
                             self.selection.deselect();
                             self.config_dirty = true;
                             self.save_config_if_needed();
@@ -555,7 +548,7 @@ impl ApplicationHandler for App {
                         let entity = &mut self.scene.entities[idx];
                         entity.scale = 1.0;
                         entity.opacity = 1.0;
-                        log::info!("Reset '{}' scale=1.0, opacity=1.0", entity.name);
+                        tracing::info!("Reset '{}' scale=1.0, opacity=1.0", entity.name);
                         self.config_dirty = true;
                     }
                 }
@@ -567,7 +560,7 @@ impl ApplicationHandler for App {
                             let entity = &mut self.scene.entities[idx];
                             entity.x = (size.width as f32 - entity.scaled_width()) / 2.0;
                             entity.y = (size.height as f32 - entity.scaled_height()) / 2.0;
-                            log::info!(
+                            tracing::info!(
                                 "Centered '{}' at ({:.0}, {:.0})",
                                 entity.name,
                                 entity.x,
@@ -582,7 +575,7 @@ impl ApplicationHandler for App {
                     if let Some(idx) = self.selection.selected_index() {
                         let entity = &mut self.scene.entities[idx];
                         entity.opacity = (entity.opacity + 0.1).min(1.0);
-                        log::info!("Opacity: {:.0}%", entity.opacity * 100.0);
+                        tracing::info!("Opacity: {:.0}%", entity.opacity * 100.0);
                         self.config_dirty = true;
                     }
                 }
@@ -590,7 +583,7 @@ impl ApplicationHandler for App {
                     if let Some(idx) = self.selection.selected_index() {
                         let entity = &mut self.scene.entities[idx];
                         entity.opacity = (entity.opacity - 0.1).max(0.05);
-                        log::info!("Opacity: {:.0}%", entity.opacity * 100.0);
+                        tracing::info!("Opacity: {:.0}%", entity.opacity * 100.0);
                         self.config_dirty = true;
                     }
                 }
@@ -599,7 +592,7 @@ impl ApplicationHandler for App {
                     if let Some(idx) = self.selection.selected_index() {
                         let entity = &mut self.scene.entities[idx];
                         entity.visible = !entity.visible;
-                        log::info!(
+                        tracing::info!(
                             "Entity '{}' visibility: {}",
                             entity.name,
                             if entity.visible { "visible" } else { "hidden" }
@@ -612,7 +605,7 @@ impl ApplicationHandler for App {
                     if let Some(idx) = self.selection.selected_index() {
                         let entity = &mut self.scene.entities[idx];
                         entity.animation.toggle_playback();
-                        log::info!(
+                        tracing::info!(
                             "Entity '{}': {}",
                             entity.name,
                             if entity.animation.playing {
@@ -647,9 +640,9 @@ impl ApplicationHandler for App {
                                 self.selection.select(new_idx);
                                 self.config_dirty = true;
                                 self.save_config_if_needed();
-                                log::info!("Duplicated entity at ({:.0}, {:.0})", new_x, new_y);
+                                tracing::info!("Duplicated entity at ({:.0}, {:.0})", new_x, new_y);
                             }
-                            Err(e) => log::error!("Failed to duplicate: {}", e),
+                            Err(e) => tracing::error!("Failed to duplicate: {}", e),
                         }
                     }
                 }
@@ -662,7 +655,7 @@ impl ApplicationHandler for App {
                         None => 0,
                     };
                     self.selection.select(next);
-                    log::info!(
+                    tracing::info!(
                         "Selected: {} ({})",
                         self.scene.entities[next].name,
                         self.scene.entities[next].id
@@ -672,7 +665,7 @@ impl ApplicationHandler for App {
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::PageUp) => {
                     if let Some(idx) = self.selection.selected_index() {
                         self.scene.entities[idx].z_index += 10;
-                        log::info!(
+                        tracing::info!(
                             "z-index: {} ({})",
                             self.scene.entities[idx].z_index,
                             self.scene.entities[idx].name
@@ -684,7 +677,7 @@ impl ApplicationHandler for App {
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::PageDown) => {
                     if let Some(idx) = self.selection.selected_index() {
                         self.scene.entities[idx].z_index -= 10;
-                        log::info!(
+                        tracing::info!(
                             "z-index: {} ({})",
                             self.scene.entities[idx].z_index,
                             self.scene.entities[idx].name
@@ -699,7 +692,7 @@ impl ApplicationHandler for App {
                         entity
                             .animation
                             .set_fps((entity.animation.fps - 2.0).max(1.0));
-                        log::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
+                        tracing::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
                         self.config_dirty = true;
                     }
                 }
@@ -708,7 +701,7 @@ impl ApplicationHandler for App {
                     if let Some(idx) = self.selection.selected_index() {
                         let entity = &mut self.scene.entities[idx];
                         entity.animation.set_fps(entity.animation.fps + 2.0);
-                        log::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
+                        tracing::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
                         self.config_dirty = true;
                     }
                 }
@@ -716,7 +709,7 @@ impl ApplicationHandler for App {
                 winit::keyboard::Key::Character("i") => {
                     if let Some(idx) = self.selection.selected_index() {
                         let e = &self.scene.entities[idx];
-                        log::info!(
+                        tracing::info!(
                             "━━━ Entity Info ━━━\n  Name: {}\n  ID: {}\n  Position: ({:.0}, {:.0})\n  Scale: {:.2}\n  Opacity: {:.0}%\n  FPS: {:.0}\n  Frames: {}\n  z-index: {}\n  Visible: {}\n  Playing: {}\n  Asset: {}",
                             e.name, e.id, e.x, e.y, e.scale,
                             e.opacity * 100.0, e.animation.fps,
@@ -727,7 +720,7 @@ impl ApplicationHandler for App {
                 }
                 // H: show help (all keyboard shortcuts)
                 winit::keyboard::Key::Character("h") => {
-                    log::info!(
+                    tracing::info!(
                         "━━━ KEYBOARD SHORTCUTS ━━━\n\
                         \n  Navigation:\n\
                         \n    Tab        — Cycle through entities\n\
@@ -770,14 +763,14 @@ impl ApplicationHandler for App {
                     let entity = &mut self.scene.entities[idx];
                     let factor = if scroll_y > 0.0 { 1.1 } else { 0.9 };
                     entity.scale = (entity.scale * factor).clamp(0.1, 10.0);
-                    log::debug!("Scale: {:.2}", entity.scale);
+                    tracing::debug!("Scale: {:.2}", entity.scale);
                     self.config_dirty = true;
                 }
             }
 
             // --- Drag and drop: add new assets ---
             WindowEvent::DroppedFile(path) => {
-                log::info!("File dropped: {}", path.display());
+                tracing::info!("File dropped: {}", path.display());
 
                 // If not in edit mode, enter it automatically
                 if !self.edit_mode {
@@ -799,7 +792,7 @@ impl ApplicationHandler for App {
                         self.selection.select(idx);
                         self.config_dirty = true;
                         self.save_config_if_needed();
-                        log::info!(
+                        tracing::info!(
                             "Added '{}' at ({:.0}, {:.0})",
                             self.scene.entities[idx].name,
                             self.mouse_x,
@@ -807,13 +800,13 @@ impl ApplicationHandler for App {
                         );
                     }
                     Err(e) => {
-                        log::error!("Failed to load dropped file {}: {}", path.display(), e);
+                        tracing::error!("Failed to load dropped file {}: {}", path.display(), e);
                     }
                 }
             }
 
             WindowEvent::HoveredFile(path) => {
-                log::debug!("File hovering: {}", path.display());
+                tracing::debug!("File hovering: {}", path.display());
             }
 
             // Track modifier keys (Shift for fine nudge)

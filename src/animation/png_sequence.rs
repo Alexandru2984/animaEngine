@@ -28,7 +28,7 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
         return Err(AnimaError::EmptyAsset(dir_path.to_path_buf()));
     }
 
-    log::info!(
+    tracing::info!(
         "Loading PNG sequence: {} frames from {}",
         entries.len(),
         dir_path.display()
@@ -39,7 +39,7 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
         match load_single_png(path) {
             Ok(frame) => frames.push(frame),
             Err(e) => {
-                log::warn!("Failed to load PNG {}: {}", path.display(), e);
+                tracing::warn!("Failed to load PNG {}: {}", path.display(), e);
             }
         }
     }

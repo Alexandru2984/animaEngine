@@ -56,7 +56,7 @@ impl Frame {
         if let Some(img) = image::RgbaImage::from_raw(orig_w, orig_h, self.rgba) {
             let resized =
                 image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Triangle);
-            log::info!("Resized frame: {}x{} → {}x{}", orig_w, orig_h, new_w, new_h);
+            tracing::info!("Resized frame: {}x{} → {}x{}", orig_w, orig_h, new_w, new_h);
             Self {
                 rgba: resized.into_raw(),
                 width: new_w,

@@ -34,7 +34,7 @@ pub fn load_gif(path: &Path) -> Result<Vec<Frame>> {
                 }
             }
             Err(e) => {
-                log::warn!("Failed to decode GIF frame: {}", e);
+                tracing::warn!("Failed to decode GIF frame: {}", e);
             }
         }
     }
@@ -44,7 +44,7 @@ pub fn load_gif(path: &Path) -> Result<Vec<Frame>> {
     }
 
     let has_delays = frames.iter().any(|f| f.delay_ms.is_some());
-    log::info!(
+    tracing::info!(
         "Loaded GIF: {} frames from {} (per-frame delays: {})",
         frames.len(),
         path.display(),

@@ -141,12 +141,13 @@ fn generate_selection_frame(size: u32) -> Frame {
 
 impl WgpuRenderer {
     /// Initialize the wgpu renderer with the given window
+    #[tracing::instrument(skip(window))]
     pub fn new(window: Arc<winit::window::Window>) -> Result<Self> {
         let size = window.inner_size();
         let window_width = size.width.max(1);
         let window_height = size.height.max(1);
 
-        log::info!(
+        tracing::info!(
             "Initializing wgpu renderer ({}x{})",
             window_width,
             window_height
@@ -169,8 +170,8 @@ impl WgpuRenderer {
         }))
         .ok_or(AnimaError::NoAdapter)?;
 
-        log::info!("GPU adapter: {}", adapter.get_info().name);
-        log::info!("Backend: {:?}", adapter.get_info().backend);
+        tracing::info!("GPU adapter: {}", adapter.get_info().name);
+        tracing::info!("Backend: {:?}", adapter.get_info().backend);
 
         // Request device
         let (device, queue) = pollster::block_on(adapter.request_device(
@@ -185,8 +186,8 @@ impl WgpuRenderer {
 
         // Configure surface with transparency
         let surface_caps = surface.get_capabilities(&adapter);
-        log::info!("Available alpha modes: {:?}", surface_caps.alpha_modes);
-        log::info!("Available formats: {:?}", surface_caps.formats);
+        tracing::info!("Available alpha modes: {:?}", surface_caps.alpha_modes);
+        tracing::info!("Available formats: {:?}", surface_caps.formats);
 
         // Pick the best alpha mode for transparency
         let alpha_mode = if surface_caps
@@ -200,14 +201,14 @@ impl WgpuRenderer {
         {
             wgpu::CompositeAlphaMode::PostMultiplied
         } else {
-            log::warn!(
+            tracing::warn!(
                 "No premultiplied/postmultiplied alpha mode available. \
                  Transparency may not work. Available modes: {:?}",
                 surface_caps.alpha_modes
             );
             surface_caps.alpha_modes[0]
         };
-        log::info!("Using alpha mode: {:?}", alpha_mode);
+        tracing::info!("Using alpha mode: {:?}", alpha_mode);
 
         // Prefer sRGB format
         let format = surface_caps
@@ -216,7 +217,7 @@ impl WgpuRenderer {
             .find(|f| f.is_srgb())
             .copied()
             .unwrap_or(surface_caps.formats[0]);
-        log::info!("Using surface format: {:?}", format);
+        tracing::info!("Using surface format: {:?}", format);
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -351,7 +352,7 @@ impl WgpuRenderer {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        log::info!(
+        tracing::info!(
             "Dynamic vertex buffer allocated: {} bytes ({} quads max)",
             vb_size,
             MAX_QUADS
@@ -440,7 +441,7 @@ impl WgpuRenderer {
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&projection));
 
-        log::debug!("Resized to {}x{}", new_width, new_height);
+        tracing::debug!("Resized to {}x{}", new_width, new_height);
     }
 
     /// Ensure a texture exists for an entity, creating or updating as needed
@@ -535,7 +536,7 @@ impl WgpuRenderer {
         for entity in entities {
             if quad_idx >= MAX_QUADS - 3 {
                 // Reserve 3 quads for UI (edit bar + button + selection)
-                log::warn!(
+                tracing::warn!(
                     "MAX_QUADS ({}) reached, skipping remaining entities",
                     MAX_QUADS
                 );

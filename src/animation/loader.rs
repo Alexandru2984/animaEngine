@@ -27,14 +27,14 @@ pub fn validate_image_dimensions(path: &Path) -> Result<(u32, u32)> {
                     max: MAX_IMAGE_DIM,
                 })
             } else {
-                log::debug!("Image dimensions OK: {}×{}", w, h);
+                tracing::debug!("Image dimensions OK: {}×{}", w, h);
                 Ok((w, h))
             }
         }
         Err(e) => {
             // Can't read dimensions (might be a format we don't recognize at header level)
             // Allow loading — the image crate will fail later if truly invalid
-            log::debug!(
+            tracing::debug!(
                 "Could not read image dimensions for {}: {}",
                 path.display(),
                 e
@@ -46,6 +46,7 @@ pub fn validate_image_dimensions(path: &Path) -> Result<(u32, u32)> {
 
 /// Load animation frames based on asset type and path.
 /// Returns a Vec of Frame on success.
+#[tracing::instrument(skip(spritesheet_columns, spritesheet_rows), fields(path = %asset_path.display()))]
 pub fn load_asset(
     asset_type: &AssetType,
     asset_path: &Path,
@@ -59,30 +60,30 @@ pub fn load_asset(
 
     match asset_type {
         AssetType::PngSequence => {
-            log::info!("Loading PNG sequence from: {}", asset_path.display());
+            tracing::info!("Loading PNG sequence from: {}", asset_path.display());
             png_sequence::load_png_sequence(asset_path)
         }
         AssetType::PngStatic => {
-            log::info!("Loading static image from: {}", asset_path.display());
+            tracing::info!("Loading static image from: {}", asset_path.display());
             let frame = png_sequence::load_single_png(asset_path)?;
             Ok(vec![frame])
         }
         AssetType::Gif => {
-            log::info!("Loading GIF from: {}", asset_path.display());
+            tracing::info!("Loading GIF from: {}", asset_path.display());
             gif_loader::load_gif(asset_path)
         }
         AssetType::WebpAnimated => {
-            log::info!("Loading animated WebP from: {}", asset_path.display());
+            tracing::info!("Loading animated WebP from: {}", asset_path.display());
             webp_loader::load_webp(asset_path)
         }
         AssetType::WebpStatic => {
-            log::info!("Loading static WebP from: {}", asset_path.display());
+            tracing::info!("Loading static WebP from: {}", asset_path.display());
             webp_loader::load_static_webp(asset_path)
         }
         AssetType::Spritesheet => {
             let cols = spritesheet_columns.unwrap_or(4);
             let rows = spritesheet_rows.unwrap_or(1);
-            log::info!(
+            tracing::info!(
                 "Loading spritesheet from: {} ({}x{} grid)",
                 asset_path.display(),
                 cols,

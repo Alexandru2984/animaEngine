@@ -159,43 +159,44 @@ impl AppConfig {
     /// Load config from disk, or create default if not found
     pub fn load() -> Self {
         let path = Self::config_path();
-        log::info!("Config path: {}", path.display());
+        tracing::info!("Config path: {}", path.display());
 
         if path.exists() {
             match fs::read_to_string(&path) {
                 Ok(contents) => match toml::from_str::<AppConfig>(&contents) {
                     Ok(mut config) => {
                         if config.characters.len() > MAX_ENTITIES {
-                            log::warn!(
+                            tracing::warn!(
                                 "Config has {} characters, capping at {} to prevent resource exhaustion",
                                 config.characters.len(),
                                 MAX_ENTITIES
                             );
                             config.characters.truncate(MAX_ENTITIES);
                         }
-                        log::info!("Loaded config with {} characters", config.characters.len());
+                        tracing::info!("Loaded config with {} characters", config.characters.len());
                         return config;
                     }
                     Err(e) => {
-                        log::warn!("Failed to parse config: {}. Using defaults.", e);
+                        tracing::warn!("Failed to parse config: {}. Using defaults.", e);
                     }
                 },
                 Err(e) => {
-                    log::warn!("Failed to read config: {}. Using defaults.", e);
+                    tracing::warn!("Failed to read config: {}. Using defaults.", e);
                 }
             }
         } else {
-            log::info!("Config not found, creating default config");
+            tracing::info!("Config not found, creating default config");
         }
 
         let config = AppConfig::default();
         if let Err(e) = config.save() {
-            log::warn!("Failed to save default config: {}", e);
+            tracing::warn!("Failed to save default config: {}", e);
         }
         config
     }
 
     /// Save config to disk
+    #[tracing::instrument(skip(self), fields(n_chars = self.characters.len()))]
     pub fn save(&self) -> Result<()> {
         let path = Self::config_path();
 
@@ -206,7 +207,7 @@ impl AppConfig {
 
         let toml_string = toml::to_string_pretty(self)?;
         fs::write(&path, toml_string)?;
-        log::info!("Config saved to {}", path.display());
+        tracing::info!("Config saved to {}", path.display());
         Ok(())
     }
 

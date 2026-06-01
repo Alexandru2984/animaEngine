@@ -19,13 +19,14 @@ pub struct Scene {
 
 impl Scene {
     /// Build a scene from app config
+    #[tracing::instrument(skip(config), fields(n_chars = config.characters.len()))]
     pub fn from_config(config: &AppConfig) -> Self {
         let mut entities = Vec::new();
 
         for char_config in &config.characters {
             match Self::load_entity(char_config) {
                 Ok(entity) => {
-                    log::info!(
+                    tracing::info!(
                         "Loaded entity '{}' ({} frames, per-frame delays: {})",
                         entity.name,
                         entity.animation.frame_count(),
@@ -34,7 +35,7 @@ impl Scene {
                     entities.push(entity);
                 }
                 Err(e) => {
-                    log::warn!(
+                    tracing::warn!(
                         "Failed to load entity '{}': {}. Using fallback.",
                         char_config.id,
                         e
@@ -49,7 +50,7 @@ impl Scene {
         // Sort by z_index for correct draw order
         entities.sort_by_key(|e| e.z_index);
 
-        log::info!("Scene loaded with {} entities", entities.len());
+        tracing::info!("Scene loaded with {} entities", entities.len());
 
         Self {
             entities,
@@ -134,7 +135,7 @@ impl Scene {
     /// Toggle global playback
     pub fn toggle_global_playback(&mut self) {
         self.global_playing = !self.global_playing;
-        log::info!(
+        tracing::info!(
             "Global playback: {}",
             if self.global_playing {
                 "PLAYING"
@@ -147,6 +148,7 @@ impl Scene {
     /// Add a new entity by loading an asset from a file path.
     /// Auto-detects the asset type from the extension.
     /// Returns the index of the new entity, or an error if loading fails.
+    #[tracing::instrument(skip(self), fields(path = %path.display()))]
     pub fn add_entity_from_path(
         &mut self,
         path: &std::path::Path,
@@ -173,7 +175,7 @@ impl Scene {
         };
         let asset_path_str = abs_path.to_string_lossy().to_string();
 
-        log::info!(
+        tracing::info!(
             "Adding entity '{}' from {} ({})",
             name,
             asset_path_str,
@@ -215,7 +217,7 @@ impl Scene {
 
         let animation = Animation::new(frames, char_config.fps, char_config.playing);
         let entity = Entity::from_config(&char_config, animation);
-        log::info!(
+        tracing::info!(
             "Entity '{}' loaded: {} frames (max {}px)",
             entity.id,
             entity.animation.frame_count(),
@@ -231,7 +233,7 @@ impl Scene {
     pub fn remove_entity(&mut self, index: usize) -> Option<String> {
         if index < self.entities.len() {
             let entity = self.entities.remove(index);
-            log::info!("Removed entity '{}' ({})", entity.name, entity.id);
+            tracing::info!("Removed entity '{}' ({})", entity.name, entity.id);
             Some(entity.id)
         } else {
             None

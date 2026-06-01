@@ -28,8 +28,8 @@ toml = "0.8"
 directories = "5"
 
 # Logging
-log = "0.4"
-env_logger = "0.11"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # Error handling
 thiserror = "1"

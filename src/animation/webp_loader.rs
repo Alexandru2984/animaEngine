@@ -35,7 +35,7 @@ pub fn load_webp(path: &Path) -> Result<Vec<Frame>> {
                     }
                 }
                 Err(e) => {
-                    log::warn!("Failed to decode WebP frame: {}", e);
+                    tracing::warn!("Failed to decode WebP frame: {}", e);
                 }
             }
         }
@@ -45,7 +45,7 @@ pub fn load_webp(path: &Path) -> Result<Vec<Frame>> {
         }
 
         let has_delays = frames.iter().any(|f| f.delay_ms.is_some());
-        log::info!(
+        tracing::info!(
             "Loaded animated WebP: {} frames from {} (per-frame delays: {})",
             frames.len(),
             path.display(),
@@ -63,7 +63,7 @@ pub fn load_static_webp(path: &Path) -> Result<Vec<Frame>> {
     let img = image::open(path)?.to_rgba8();
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
-    log::info!(
+    tracing::info!(
         "Loaded static WebP: {}x{} from {}",
         width,
         height,

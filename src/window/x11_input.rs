@@ -43,7 +43,7 @@ impl X11InputManager {
 
             match x11rb::connect(None) {
                 Ok((conn, screen_num)) => {
-                    log::info!(
+                    tracing::info!(
                         "X11InputManager: connection established (window=0x{:x}, screen={})",
                         x11_window,
                         screen_num
@@ -57,18 +57,18 @@ impl X11InputManager {
 
                     // Apply EWMH overlay hints
                     if let Err(e) = mgr.apply_overlay_hints() {
-                        log::warn!("Failed to apply overlay EWMH hints: {}", e);
+                        tracing::warn!("Failed to apply overlay EWMH hints: {}", e);
                     }
 
                     Some(mgr)
                 }
                 Err(e) => {
-                    log::warn!("X11InputManager: failed to connect to X11: {}", e);
+                    tracing::warn!("X11InputManager: failed to connect to X11: {}", e);
                     None
                 }
             }
         } else {
-            log::info!("X11InputManager: not running on X11, input shape unavailable");
+            tracing::info!("X11InputManager: not running on X11, input shape unavailable");
             None
         }
     }
@@ -120,7 +120,7 @@ impl X11InputManager {
 
         self.conn.flush()?;
 
-        log::info!("EWMH overlay hints applied: ABOVE, SKIP_TASKBAR, SKIP_PAGER, STICKY");
+        tracing::info!("EWMH overlay hints applied: ABOVE, SKIP_TASKBAR, SKIP_PAGER, STICKY");
         Ok(())
     }
 
@@ -200,7 +200,7 @@ impl X11InputManager {
         free_pixmap(&self.conn, pixmap)?;
         self.conn.flush()?;
 
-        log::info!(
+        tracing::info!(
             "X11 input shape set: {}x{} button at top-right (x={}), rest is click-through (window={}x{})",
             button_size,
             button_size,
@@ -260,7 +260,7 @@ impl X11InputManager {
         free_pixmap(&self.conn, pixmap)?;
         self.conn.flush()?;
 
-        log::info!("X11 input shape: full window receives input (edit mode)");
+        tracing::info!("X11 input shape: full window receives input (edit mode)");
         Ok(())
     }
 }

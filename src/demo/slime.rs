@@ -12,16 +12,16 @@ pub fn generate() {
 
     if path.exists() {
         if super::assets_already_at_size(path, SIZE) {
-            log::debug!("Demo slime assets already exist at {}px: {}", SIZE, DIR);
+            tracing::debug!("Demo slime assets already exist at {}px: {}", SIZE, DIR);
             return;
         }
-        log::info!("Regenerating slime demo assets at {SIZE}×{SIZE}…");
+        tracing::info!("Regenerating slime demo assets at {SIZE}×{SIZE}…");
         let _ = std::fs::remove_dir_all(path);
     }
 
-    log::info!("Generating slime demo assets ({SIZE}×{SIZE}, {TOTAL_FRAMES} frames)…");
+    tracing::info!("Generating slime demo assets ({SIZE}×{SIZE}, {TOTAL_FRAMES} frames)…");
     if let Err(e) = std::fs::create_dir_all(path) {
-        log::warn!("Failed to create demo directory {DIR}: {e}");
+        tracing::warn!("Failed to create demo directory {DIR}: {e}");
         return;
     }
 
@@ -224,9 +224,9 @@ pub fn generate() {
 
         let frame_path = path.join(format!("frame_{frame_idx:03}.png"));
         if let Err(e) = img.save(&frame_path) {
-            log::warn!("Failed to save demo frame {}: {e}", frame_path.display());
+            tracing::warn!("Failed to save demo frame {}: {e}", frame_path.display());
         }
     }
 
-    log::info!("Generated {TOTAL_FRAMES} slime demo frames ({SIZE}×{SIZE})");
+    tracing::info!("Generated {TOTAL_FRAMES} slime demo frames ({SIZE}×{SIZE})");
 }

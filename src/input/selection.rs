@@ -14,13 +14,13 @@ impl SelectionState {
     /// Select an entity by index
     pub fn select(&mut self, index: usize) {
         self.selected_entity = Some(index);
-        log::debug!("Selected entity at index {}", index);
+        tracing::debug!("Selected entity at index {}", index);
     }
 
     /// Deselect all
     pub fn deselect(&mut self) {
         if self.selected_entity.is_some() {
-            log::debug!("Deselected entity");
+            tracing::debug!("Deselected entity");
         }
         self.selected_entity = None;
     }

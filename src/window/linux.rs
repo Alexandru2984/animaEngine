@@ -24,7 +24,7 @@ pub fn check_compositor() {
             || desktop_lower.contains("cinnamon")
             || desktop_lower.contains("mate")
         {
-            log::info!(
+            tracing::info!(
                 "Desktop environment '{}' typically includes a compositor",
                 desktop
             );
@@ -42,12 +42,12 @@ pub fn check_compositor() {
             .map(|o| o.status.success())
             .unwrap_or(false)
         {
-            log::info!("Compositor detected: {}", comp);
+            tracing::info!("Compositor detected: {}", comp);
             return;
         }
     }
 
-    log::warn!(
+    tracing::warn!(
         "No compositor detected. Window transparency may not work. \
          Consider running a compositor like picom."
     );

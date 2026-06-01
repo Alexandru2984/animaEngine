@@ -54,7 +54,7 @@ pub fn load_spritesheet(path: &Path, columns: u32, rows: u32) -> Result<Vec<Fram
         }
     }
 
-    log::info!(
+    tracing::info!(
         "Loaded spritesheet: {}x{} grid ({} frames of {}x{}) from {}",
         columns,
         rows,

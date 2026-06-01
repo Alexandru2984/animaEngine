@@ -35,7 +35,7 @@ impl DragController {
             offset_x,
             offset_y,
         };
-        log::debug!("Started dragging entity at index {}", entity_index);
+        tracing::debug!("Started dragging entity at index {}", entity_index);
     }
 
     /// Update the dragged entity's position based on current mouse position.
@@ -58,7 +58,7 @@ impl DragController {
     /// End the current drag
     pub fn end_drag(&mut self) {
         if matches!(self.state, DragState::Dragging { .. }) {
-            log::debug!("Ended drag");
+            tracing::debug!("Ended drag");
         }
         self.state = DragState::Idle;
     }

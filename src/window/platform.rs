@@ -44,26 +44,28 @@ pub fn detect_display_server() -> DisplayServer {
 
 /// Log platform information and any relevant warnings
 pub fn log_platform_info() {
-    let display = detect_display_server();
-    log::info!("Display server: {}", display);
+    let server = detect_display_server();
+    tracing::info!("Display server: {}", server);
 
     if let Ok(desktop) = env::var("XDG_CURRENT_DESKTOP") {
-        log::info!("Desktop environment: {}", desktop);
+        tracing::info!("Desktop environment: {}", desktop);
     }
 
-    match display {
+    match server {
         DisplayServer::Wayland => {
-            log::warn!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            log::warn!("Running on Wayland. Some features may be limited:");
-            log::warn!("  • Absolute window positioning may not work");
-            log::warn!("  • Always-on-top behavior depends on compositor");
-            log::warn!("  • Click-through is not supported");
-            log::warn!("For best results, run under X11:");
-            log::warn!("  GDK_BACKEND=x11 cargo run");
-            log::warn!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            tracing::warn!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            tracing::warn!("Running on Wayland. Some features may be limited:");
+            tracing::warn!("  • Absolute window positioning may not work");
+            tracing::warn!("  • Always-on-top behavior depends on compositor");
+            tracing::warn!("  • Click-through is not supported");
+            tracing::warn!("For best results, run under X11:");
+            tracing::warn!("  GDK_BACKEND=x11 cargo run");
+            tracing::warn!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         }
         DisplayServer::Unknown(_) => {
-            log::warn!("Could not detect display server. Overlay features may not work correctly.");
+            tracing::warn!(
+                "Could not detect display server. Overlay features may not work correctly."
+            );
         }
         _ => {}
     }
