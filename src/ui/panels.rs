@@ -4,8 +4,31 @@
 //! This keeps `App` borrow-safe: the caller passes disjoint `&mut` references
 //! to scene / selection / dirty flag instead of `&mut self`.
 
+use crate::app::ContextMenuState;
 use crate::input::selection::SelectionState;
 use crate::scene::Scene;
+
+/// Entity-targeted action requested from the right-click context menu.
+/// `App` applies it after `EguiRenderer::render` returns so it can grab a
+/// mutable borrow on the renderer for texture management (Duplicate, Delete).
+pub enum MenuAction {
+    Duplicate(usize),
+    Delete(usize),
+    ResetTransform(usize),
+    ToggleGravity(usize),
+    BringForward(usize),
+    SendBackward(usize),
+}
+
+/// What `context_menu` decided about its own state for this frame.
+pub enum ContextMenuOutcome {
+    /// Menu remains visible — nothing happened this frame.
+    Open,
+    /// User dismissed the menu (clicked outside).
+    Close,
+    /// User picked an action — caller should apply it and close the menu.
+    Action(MenuAction),
+}
 
 /// Right-side settings panel. Renders an inspector for the selected entity
 /// plus a scene list. Mutations flow directly through the supplied mutable
@@ -212,4 +235,64 @@ fn scene_list(
 enum ListAction {
     Select(usize),
     Delete(usize),
+}
+
+/// Floating right-click context menu anchored at `state.pos`. Caller
+/// owns the `ContextMenuState`; this function only inspects it and
+/// reports back via `ContextMenuOutcome`.
+pub(crate) fn context_menu(ctx: &egui::Context, state: &ContextMenuState) -> ContextMenuOutcome {
+    let idx = state.entity_idx;
+    let mut picked: Option<MenuAction> = None;
+
+    let area = egui::Area::new(egui::Id::new("anima_entity_context_menu"))
+        .fixed_pos(state.pos)
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                ui.set_min_width(160.0);
+
+                if ui.button("Duplicate").clicked() {
+                    picked = Some(MenuAction::Duplicate(idx));
+                }
+                if ui.button("Reset transform").clicked() {
+                    picked = Some(MenuAction::ResetTransform(idx));
+                }
+                if ui.button("Toggle gravity").clicked() {
+                    picked = Some(MenuAction::ToggleGravity(idx));
+                }
+                ui.separator();
+                if ui.button("Bring forward").clicked() {
+                    picked = Some(MenuAction::BringForward(idx));
+                }
+                if ui.button("Send backward").clicked() {
+                    picked = Some(MenuAction::SendBackward(idx));
+                }
+                ui.separator();
+                if ui
+                    .button(egui::RichText::new("Delete").color(egui::Color32::LIGHT_RED))
+                    .clicked()
+                {
+                    picked = Some(MenuAction::Delete(idx));
+                }
+            });
+        });
+
+    if let Some(action) = picked {
+        return ContextMenuOutcome::Action(action);
+    }
+
+    // Dismiss when the user clicks anywhere that isn't the menu itself, or
+    // presses Escape. We deliberately check `any_click` (not `pressed`) so
+    // a release that ended on a button still counts as "clicked the menu".
+    let dismissed = ctx.input(|i| {
+        let escape = i.key_pressed(egui::Key::Escape);
+        let outside_click = i.pointer.any_click() && !area.response.contains_pointer();
+        escape || outside_click
+    });
+
+    if dismissed {
+        ContextMenuOutcome::Close
+    } else {
+        ContextMenuOutcome::Open
+    }
 }

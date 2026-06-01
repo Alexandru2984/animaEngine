@@ -62,6 +62,9 @@ pub struct App {
     /// egui integration. Only paints in edit mode but always receives events
     /// (mouse position tracking, etc.).
     ui: Option<EguiRenderer>,
+    /// Ephemeral UI state (currently just the context menu) kept separate
+    /// from the egui renderer so it survives across resumed/suspended cycles.
+    ui_state: UiState,
 }
 
 /// Result of an async hot-reload — produced by a worker thread, consumed by
@@ -69,6 +72,20 @@ pub struct App {
 struct HotReloadResult {
     config: AppConfig,
     scene: Scene,
+}
+
+/// Transient UI state owned by `App` (vs the persistent settings panel
+/// which is stateless and rebuilt from `Scene` every frame).
+#[derive(Default)]
+pub(crate) struct UiState {
+    pub context_menu: Option<ContextMenuState>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ContextMenuState {
+    pub entity_idx: usize,
+    /// Screen-space anchor for the floating menu.
+    pub pos: egui::Pos2,
 }
 
 impl App {
@@ -90,6 +107,7 @@ impl App {
             config_mtime: Self::get_config_mtime(),
             hot_reload_rx: None,
             ui: None,
+            ui_state: UiState::default(),
         }
     }
 
@@ -187,6 +205,90 @@ impl App {
         tracing::info!("Hot-reload applied: {} entities", self.scene.entities.len());
     }
 
+    /// Dispatch a context menu outcome. Called after `ui.render` so we can
+    /// freely take `&mut self.renderer` for texture operations.
+    fn handle_menu_outcome(&mut self, outcome: panels::ContextMenuOutcome) {
+        match outcome {
+            panels::ContextMenuOutcome::Open => {}
+            panels::ContextMenuOutcome::Close => {
+                self.ui_state.context_menu = None;
+            }
+            panels::ContextMenuOutcome::Action(action) => {
+                self.apply_menu_action(action);
+                self.ui_state.context_menu = None;
+            }
+        }
+    }
+
+    fn apply_menu_action(&mut self, action: panels::MenuAction) {
+        match action {
+            panels::MenuAction::Duplicate(idx) => {
+                let Some(src) = self.scene.entities.get(idx) else {
+                    return;
+                };
+                let src_path = std::path::PathBuf::from(&src.asset_path);
+                let new_x = src.x + 30.0;
+                let new_y = src.y + 30.0;
+                let orig_scale = src.scale;
+                let orig_opacity = src.opacity;
+
+                match self.scene.add_entity_from_path(&src_path, new_x, new_y) {
+                    Ok(new_idx) => {
+                        self.scene.entities[new_idx].scale = orig_scale;
+                        self.scene.entities[new_idx].opacity = orig_opacity;
+                        if let Some(renderer) = &mut self.renderer {
+                            renderer.ensure_texture(&self.scene.entities[new_idx]);
+                            self.scene.entities[new_idx].texture_dirty = false;
+                        }
+                        self.selection.select(new_idx);
+                        self.config_dirty = true;
+                        self.save_config_if_needed();
+                    }
+                    Err(e) => tracing::error!("Context menu duplicate failed: {}", e),
+                }
+            }
+            panels::MenuAction::Delete(idx) => {
+                if let Some(renderer) = &mut self.renderer {
+                    if let Some(entity) = self.scene.entities.get(idx) {
+                        renderer.textures.remove(&entity.id);
+                    }
+                }
+                if self.scene.remove_entity(idx).is_some() {
+                    self.selection.deselect();
+                    self.config_dirty = true;
+                    self.save_config_if_needed();
+                }
+            }
+            panels::MenuAction::ResetTransform(idx) => {
+                if let Some(e) = self.scene.entities.get_mut(idx) {
+                    e.scale = 1.0;
+                    e.opacity = 1.0;
+                    self.config_dirty = true;
+                }
+            }
+            panels::MenuAction::ToggleGravity(idx) => {
+                if let Some(e) = self.scene.entities.get_mut(idx) {
+                    e.physics.toggle();
+                    self.config_dirty = true;
+                }
+            }
+            panels::MenuAction::BringForward(idx) => {
+                if let Some(e) = self.scene.entities.get_mut(idx) {
+                    e.z_index += 10;
+                    self.scene.mark_visible_dirty();
+                    self.config_dirty = true;
+                }
+            }
+            panels::MenuAction::SendBackward(idx) => {
+                if let Some(e) = self.scene.entities.get_mut(idx) {
+                    e.z_index -= 10;
+                    self.scene.mark_visible_dirty();
+                    self.config_dirty = true;
+                }
+            }
+        }
+    }
+
     /// Save config if dirty
     fn save_config_if_needed(&mut self) {
         if self.config_dirty {
@@ -247,6 +349,7 @@ impl App {
                 self.config_dirty = true;
             }
             self.selection.deselect();
+            self.ui_state.context_menu = None;
 
             // Auto-save any pending changes when exiting edit mode
             if self.config_dirty {
@@ -472,6 +575,7 @@ impl ApplicationHandler for App {
                     };
                     match render_result {
                         Ok(output) => {
+                            let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
                             if self.edit_mode {
                                 if let (Some(ui), Some(window)) =
                                     (self.ui.as_mut(), self.window.as_ref())
@@ -485,6 +589,8 @@ impl ApplicationHandler for App {
                                     let scene_mut = &mut self.scene;
                                     let selection_mut = &mut self.selection;
                                     let config_dirty_mut = &mut self.config_dirty;
+                                    let menu_state = self.ui_state.context_menu.clone();
+                                    let menu_outcome_ref = &mut menu_outcome;
 
                                     ui.render(
                                         window,
@@ -499,11 +605,22 @@ impl ApplicationHandler for App {
                                                 selection_mut,
                                                 config_dirty_mut,
                                             );
+                                            if let Some(state) = &menu_state {
+                                                *menu_outcome_ref =
+                                                    Some(panels::context_menu(ctx, state));
+                                            }
                                         },
                                     );
                                 }
                             }
                             output.present();
+
+                            // Apply menu outcome AFTER the UI render so we
+                            // can take &mut renderer for texture management
+                            // (Duplicate creates a texture; Delete drops one).
+                            if let Some(outcome) = menu_outcome {
+                                self.handle_menu_outcome(outcome);
+                            }
                         }
                         Err(wgpu::SurfaceError::Lost) => {
                             renderer.resize(renderer.window_width, renderer.window_height);
@@ -565,8 +682,24 @@ impl ApplicationHandler for App {
                     return;
                 }
 
-                // Edit mode: handle entity selection and drag
+                // Edit mode: handle entity selection, drag, and right-click context menu.
                 if self.edit_mode {
+                    // Right-click on an entity opens the context menu and
+                    // selects it. Right-click on empty space does nothing
+                    // (entity-less menu is reserved for a later phase).
+                    if button == MouseButton::Right && state == ElementState::Pressed {
+                        if let Some(entity_idx) =
+                            self.scene.entity_at_point(self.mouse_x, self.mouse_y)
+                        {
+                            self.selection.select(entity_idx);
+                            self.ui_state.context_menu = Some(ContextMenuState {
+                                entity_idx,
+                                pos: egui::pos2(self.mouse_x, self.mouse_y),
+                            });
+                        }
+                        return;
+                    }
+
                     match (button, state) {
                         (MouseButton::Left, ElementState::Pressed) => {
                             // Find entity under cursor
