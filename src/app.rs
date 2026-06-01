@@ -4,7 +4,7 @@ use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
-use crate::ui::{panels, EguiRenderer};
+use crate::ui::{panels, EguiRenderer, ToastQueue};
 use crate::window::x11_input::X11InputManager;
 use std::collections::HashSet;
 use std::sync::mpsc;
@@ -65,6 +65,9 @@ pub struct App {
     /// Ephemeral UI state (currently just the context menu) kept separate
     /// from the egui renderer so it survives across resumed/suspended cycles.
     ui_state: UiState,
+    /// Toast notification queue. Persistent across edit/pass-through
+    /// transitions but only painted when in edit mode (no UI otherwise).
+    toasts: ToastQueue,
 }
 
 /// Result of an async hot-reload — produced by a worker thread, consumed by
@@ -108,6 +111,7 @@ impl App {
             hot_reload_rx: None,
             ui: None,
             ui_state: UiState::default(),
+            toasts: ToastQueue::default(),
         }
     }
 
@@ -202,7 +206,10 @@ impl App {
             }
         }
 
-        tracing::info!("Hot-reload applied: {} entities", self.scene.entities.len());
+        let n = self.scene.entities.len();
+        tracing::info!("Hot-reload applied: {n} entities");
+        self.toasts
+            .info(format!("Reloaded {n} entities from config"));
     }
 
     /// Dispatch a context menu outcome. Called after `ui.render` so we can
@@ -226,6 +233,7 @@ impl App {
                 let Some(src) = self.scene.entities.get(idx) else {
                     return;
                 };
+                let src_name = src.name.clone();
                 let src_path = std::path::PathBuf::from(&src.asset_path);
                 let new_x = src.x + 30.0;
                 let new_y = src.y + 30.0;
@@ -242,12 +250,22 @@ impl App {
                         }
                         self.selection.select(new_idx);
                         self.config_dirty = true;
+                        self.toasts.success(format!("Duplicated {src_name}"));
                         self.save_config_if_needed();
                     }
-                    Err(e) => tracing::error!("Context menu duplicate failed: {}", e),
+                    Err(e) => {
+                        tracing::error!("Context menu duplicate failed: {}", e);
+                        self.toasts.error(format!("Duplicate failed: {e}"));
+                    }
                 }
             }
             panels::MenuAction::Delete(idx) => {
+                let removed_name = self
+                    .scene
+                    .entities
+                    .get(idx)
+                    .map(|e| e.name.clone())
+                    .unwrap_or_default();
                 if let Some(renderer) = &mut self.renderer {
                     if let Some(entity) = self.scene.entities.get(idx) {
                         renderer.textures.remove(&entity.id);
@@ -256,6 +274,7 @@ impl App {
                 if self.scene.remove_entity(idx).is_some() {
                     self.selection.deselect();
                     self.config_dirty = true;
+                    self.toasts.info(format!("Deleted {removed_name}"));
                     self.save_config_if_needed();
                 }
             }
@@ -294,8 +313,12 @@ impl App {
         if self.config_dirty {
             self.config.characters = self.scene.to_character_configs();
             self.config.global.playback_enabled = self.scene.global_playing;
-            if let Err(e) = self.config.save() {
-                tracing::warn!("Failed to save config: {}", e);
+            match self.config.save() {
+                Ok(()) => self.toasts.success("Config saved"),
+                Err(e) => {
+                    tracing::warn!("Failed to save config: {}", e);
+                    self.toasts.error(format!("Save failed: {e}"));
+                }
             }
             self.config_dirty = false;
             // Update mtime so hot-reload doesn't trigger on our own save
@@ -577,6 +600,9 @@ impl ApplicationHandler for App {
                         Ok(output) => {
                             let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
                             if self.edit_mode {
+                                // Drop expired toasts before painting.
+                                self.toasts.prune();
+
                                 if let (Some(ui), Some(window)) =
                                     (self.ui.as_mut(), self.window.as_ref())
                                 {
@@ -589,6 +615,7 @@ impl ApplicationHandler for App {
                                     let scene_mut = &mut self.scene;
                                     let selection_mut = &mut self.selection;
                                     let config_dirty_mut = &mut self.config_dirty;
+                                    let toasts_ref = &self.toasts;
                                     let menu_state = self.ui_state.context_menu.clone();
                                     let menu_outcome_ref = &mut menu_outcome;
 
@@ -609,6 +636,7 @@ impl ApplicationHandler for App {
                                                 *menu_outcome_ref =
                                                     Some(panels::context_menu(ctx, state));
                                             }
+                                            panels::toasts(ctx, toasts_ref);
                                         },
                                     );
                                 }
@@ -771,6 +799,12 @@ impl ApplicationHandler for App {
                 | winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) => {
                     // Delete selected entity
                     if let Some(idx) = self.selection.selected_index() {
+                        let removed_name = self
+                            .scene
+                            .entities
+                            .get(idx)
+                            .map(|e| e.name.clone())
+                            .unwrap_or_default();
                         // Remove GPU texture for this entity
                         if let Some(renderer) = &mut self.renderer {
                             let entity_id = &self.scene.entities[idx].id;
@@ -780,6 +814,7 @@ impl ApplicationHandler for App {
                             tracing::info!("Deleted entity: {}", removed_id);
                             self.selection.deselect();
                             self.config_dirty = true;
+                            self.toasts.info(format!("Deleted {removed_name}"));
                             self.save_config_if_needed();
                         }
                     }
@@ -1086,16 +1121,19 @@ impl ApplicationHandler for App {
                         // Select the new entity
                         self.selection.select(idx);
                         self.config_dirty = true;
+                        let added_name = self.scene.entities[idx].name.clone();
                         self.save_config_if_needed();
                         tracing::info!(
                             "Added '{}' at ({:.0}, {:.0})",
-                            self.scene.entities[idx].name,
+                            added_name,
                             self.mouse_x,
                             self.mouse_y
                         );
+                        self.toasts.success(format!("Added {added_name}"));
                     }
                     Err(e) => {
                         tracing::error!("Failed to load dropped file {}: {}", path.display(), e);
+                        self.toasts.error(format!("Load failed: {e}"));
                     }
                 }
             }

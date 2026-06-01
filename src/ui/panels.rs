@@ -7,6 +7,7 @@
 use crate::app::ContextMenuState;
 use crate::input::selection::SelectionState;
 use crate::scene::Scene;
+use crate::ui::toasts::{ToastKind, ToastQueue};
 
 /// Entity-targeted action requested from the right-click context menu.
 /// `App` applies it after `EguiRenderer::render` returns so it can grab a
@@ -295,4 +296,50 @@ pub(crate) fn context_menu(ctx: &egui::Context, state: &ContextMenuState) -> Con
     } else {
         ContextMenuOutcome::Open
     }
+}
+
+/// Stack of toast notifications anchored to the bottom-right corner.
+/// Renders above the settings panel and the context menu.
+pub fn toasts(ctx: &egui::Context, queue: &ToastQueue) {
+    if queue.is_empty() {
+        return;
+    }
+
+    // While there are visible toasts, drive continuous repaints so they
+    // disappear at the moment they expire (without waiting for the next
+    // input event).
+    ctx.request_repaint();
+
+    egui::Area::new(egui::Id::new("anima_toasts"))
+        .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-12.0, -12.0))
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
+                for toast in queue.iter() {
+                    let (bg, fg) = match toast.kind {
+                        ToastKind::Info => {
+                            (egui::Color32::from_rgb(40, 40, 45), egui::Color32::WHITE)
+                        }
+                        ToastKind::Success => {
+                            (egui::Color32::from_rgb(30, 100, 50), egui::Color32::WHITE)
+                        }
+                        ToastKind::Warn => {
+                            (egui::Color32::from_rgb(150, 110, 30), egui::Color32::WHITE)
+                        }
+                        ToastKind::Error => {
+                            (egui::Color32::from_rgb(140, 40, 40), egui::Color32::WHITE)
+                        }
+                    };
+
+                    egui::Frame::new()
+                        .fill(bg)
+                        .corner_radius(4.0)
+                        .inner_margin(egui::Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.colored_label(fg, &toast.message);
+                        });
+                    ui.add_space(4.0);
+                }
+            });
+        });
 }
