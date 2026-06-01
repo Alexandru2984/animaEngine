@@ -22,6 +22,9 @@ bytemuck = { version = "1", features = ["derive"] }
 # Image loading
 image = { version = "0.25", default-features = false, features = ["png", "gif", "webp", "jpeg"] }
 
+# Parallel iteration (PNG sequence decoding)
+rayon = "1"
+
 # Config
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
