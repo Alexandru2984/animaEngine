@@ -1,4 +1,5 @@
 use super::frame::Frame;
+use crate::error::{AnimaError, Result};
 use std::path::Path;
 
 /// Load a spritesheet image and split it into a grid of animation frames.
@@ -13,13 +14,11 @@ use std::path::Path;
 ///
 /// # Example
 /// A 512x256 spritesheet with 4 columns and 2 rows produces 8 frames of 128x128 each.
-pub fn load_spritesheet(
-    path: &Path,
-    columns: u32,
-    rows: u32,
-) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
+pub fn load_spritesheet(path: &Path, columns: u32, rows: u32) -> Result<Vec<Frame>> {
     if columns == 0 || rows == 0 {
-        return Err("Spritesheet columns and rows must be > 0".into());
+        return Err(AnimaError::InvalidSpritesheet(
+            "columns and rows must be > 0".into(),
+        ));
     }
 
     let img = image::open(path)?.to_rgba8();
@@ -29,11 +28,10 @@ pub fn load_spritesheet(
     let cell_height = img_height / rows;
 
     if cell_width == 0 || cell_height == 0 {
-        return Err(format!(
-            "Spritesheet cells too small: image is {}x{}, grid is {}x{} → cell would be {}x{}",
+        return Err(AnimaError::InvalidSpritesheet(format!(
+            "cells too small: image is {}x{}, grid is {}x{} → cell would be {}x{}",
             img_width, img_height, columns, rows, cell_width, cell_height
-        )
-        .into());
+        )));
     }
 
     let mut frames = Vec::with_capacity((columns * rows) as usize);

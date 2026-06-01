@@ -14,6 +14,7 @@
 //! **Connection pooling**: `X11InputManager` holds a single X11 connection that is
 //! reused across all operations.
 
+use crate::error::Result;
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::*;
 use x11rb::rust_connection::RustConnection;
@@ -81,7 +82,7 @@ impl X11InputManager {
     /// - `_NET_WM_STATE_SKIP_TASKBAR` — don't show in taskbar
     /// - `_NET_WM_STATE_SKIP_PAGER` — don't show in pager
     /// - `_NET_WM_STATE_STICKY` — visible on all workspaces
-    fn apply_overlay_hints(&self) -> Result<(), Box<dyn std::error::Error>> {
+    fn apply_overlay_hints(&self) -> Result<()> {
         let screen = &self.conn.setup().roots[self.screen_num];
         let root = screen.root;
 
@@ -132,7 +133,7 @@ impl X11InputManager {
     }
 
     /// Intern an X11 atom by name.
-    fn intern_atom(&self, name: &str) -> Result<u32, Box<dyn std::error::Error>> {
+    fn intern_atom(&self, name: &str) -> Result<u32> {
         let reply = self
             .conn
             .intern_atom(false, name.as_bytes())?
@@ -164,10 +165,7 @@ impl X11InputManager {
 
     /// Set the X11 input shape so that only a rectangle in the top-right corner
     /// receives mouse input. The rest of the window is click-through.
-    pub fn set_passthrough_with_button(
-        &mut self,
-        button_size: u32,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn set_passthrough_with_button(&mut self, button_size: u32) -> Result<()> {
         // Get window geometry to know where to place the button
         let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
         let win_width = geom.width as i16;
@@ -240,7 +238,7 @@ impl X11InputManager {
     }
 
     /// Set the window to receive input on the entire surface (edit mode).
-    pub fn set_full_input(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn set_full_input(&mut self) -> Result<()> {
         let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
 
         // Create a full pixmap (all 1s = all receives input)

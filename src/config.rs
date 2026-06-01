@@ -1,3 +1,4 @@
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -196,7 +197,7 @@ impl AppConfig {
     }
 
     /// Save config to disk
-    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save(&self) -> Result<()> {
         let path = Self::config_path();
 
         // Create parent directory if needed

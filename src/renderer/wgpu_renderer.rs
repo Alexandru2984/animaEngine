@@ -2,6 +2,7 @@ use super::sprite::{make_quad_vertices, orthographic_projection, SpriteVertex, Q
 use super::texture::GpuTexture;
 use crate::animation::frame::Frame;
 use crate::entity::Entity;
+use crate::error::{AnimaError, Result};
 use crate::window::x11_input::TOGGLE_BUTTON_SIZE;
 use bytemuck;
 use std::collections::HashMap;
@@ -149,7 +150,7 @@ fn generate_selection_frame(size: u32) -> Frame {
 
 impl WgpuRenderer {
     /// Initialize the wgpu renderer with the given window
-    pub fn new(window: Arc<winit::window::Window>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(window: Arc<winit::window::Window>) -> Result<Self> {
         let size = window.inner_size();
         let window_width = size.width.max(1);
         let window_height = size.height.max(1);
@@ -175,7 +176,7 @@ impl WgpuRenderer {
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
         }))
-        .ok_or("Failed to find a suitable GPU adapter")?;
+        .ok_or(AnimaError::NoAdapter)?;
 
         log::info!("GPU adapter: {}", adapter.get_info().name);
         log::info!("Backend: {:?}", adapter.get_info().backend);
@@ -509,13 +510,17 @@ impl WgpuRenderer {
         offset
     }
 
-    /// Render all visible entities + UI overlay to the surface
+    /// Render all visible entities + UI overlay to the surface.
+    ///
+    /// Returns `wgpu::SurfaceError` directly (not `AnimaError`) because the
+    /// caller needs to match on specific variants like `Lost` and `OutOfMemory`
+    /// to drive recovery and shutdown logic.
     pub fn render(
         &mut self,
         entities: &[&Entity],
         edit_mode: bool,
         selected_entity_id: Option<&str>,
-    ) -> Result<(), wgpu::SurfaceError> {
+    ) -> std::result::Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture

@@ -1,4 +1,5 @@
 use super::frame::Frame;
+use crate::error::{AnimaError, Result};
 use image::codecs::gif::GifDecoder;
 use image::AnimationDecoder;
 use std::fs::File;
@@ -7,7 +8,7 @@ use std::path::Path;
 
 /// Load frames from a GIF file with per-frame delay extraction.
 /// Each frame carries its own delay in milliseconds from the GIF metadata.
-pub fn load_gif(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
+pub fn load_gif(path: &Path) -> Result<Vec<Frame>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let decoder = GifDecoder::new(reader)?;
@@ -39,7 +40,7 @@ pub fn load_gif(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
     }
 
     if frames.is_empty() {
-        return Err(format!("No frames decoded from GIF: {}", path.display()).into());
+        return Err(AnimaError::EmptyAsset(path.to_path_buf()));
     }
 
     let has_delays = frames.iter().any(|f| f.delay_ms.is_some());

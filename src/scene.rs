@@ -2,6 +2,7 @@ use crate::animation::loader::{generate_fallback_frame, load_asset};
 use crate::animation::Animation;
 use crate::config::{AppConfig, CharacterConfig};
 use crate::entity::Entity;
+use crate::error::Result;
 use std::time::Instant;
 
 /// The scene holds all active entities and global playback state
@@ -57,7 +58,7 @@ impl Scene {
     }
 
     /// Load a single entity from config
-    fn load_entity(config: &CharacterConfig) -> Result<Entity, Box<dyn std::error::Error>> {
+    fn load_entity(config: &CharacterConfig) -> Result<Entity> {
         let resolved_path = AppConfig::resolve_asset_path(&config.asset_path);
         let frames = load_asset(
             &config.asset_type,
@@ -150,7 +151,7 @@ impl Scene {
         path: &std::path::Path,
         x: f32,
         y: f32,
-    ) -> Result<usize, Box<dyn std::error::Error>> {
+    ) -> Result<usize> {
         use crate::animation::loader::detect_asset_type;
 
         let (asset_type, type_desc) = detect_asset_type(path);

@@ -676,6 +676,69 @@ impl ApplicationHandler for App {
                         self.config_dirty = true;
                     }
                 }
+                // [: decrease FPS (slower animation)
+                winit::keyboard::Key::Character("[") => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        let entity = &mut self.scene.entities[idx];
+                        entity.animation.set_fps((entity.animation.fps - 2.0).max(1.0));
+                        log::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
+                        self.config_dirty = true;
+                    }
+                }
+                // ]: increase FPS (faster animation)
+                winit::keyboard::Key::Character("]") => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        let entity = &mut self.scene.entities[idx];
+                        entity.animation.set_fps(entity.animation.fps + 2.0);
+                        log::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
+                        self.config_dirty = true;
+                    }
+                }
+                // I: show entity info
+                winit::keyboard::Key::Character("i") => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        let e = &self.scene.entities[idx];
+                        log::info!(
+                            "━━━ Entity Info ━━━\n  Name: {}\n  ID: {}\n  Position: ({:.0}, {:.0})\n  Scale: {:.2}\n  Opacity: {:.0}%\n  FPS: {:.0}\n  Frames: {}\n  z-index: {}\n  Visible: {}\n  Playing: {}\n  Asset: {}",
+                            e.name, e.id, e.x, e.y, e.scale,
+                            e.opacity * 100.0, e.animation.fps,
+                            e.animation.frame_count(), e.z_index,
+                            e.visible, e.animation.playing, e.asset_path
+                        );
+                    }
+                }
+                // H: show help (all keyboard shortcuts)
+                winit::keyboard::Key::Character("h") => {
+                    log::info!(
+                        "━━━ KEYBOARD SHORTCUTS ━━━\n\
+                        \n  Navigation:\n\
+                        \n    Tab        — Cycle through entities\n\
+                        \n    Click      — Select entity\n\
+                        \n    Escape     — Exit edit mode (auto-saves)\n\
+                        \n\n  Position:\n\
+                        \n    Drag       — Move entity\n\
+                        \n    Arrows     — Nudge 10px\n\
+                        \n    Shift+Arrows — Fine nudge 1px\n\
+                        \n    Home       — Center on screen\n\
+                        \n\n  Appearance:\n\
+                        \n    Scroll     — Resize\n\
+                        \n    +/-        — Opacity\n\
+                        \n    R          — Reset scale/opacity\n\
+                        \n    V          — Toggle visibility\n\
+                        \n    PgUp/PgDn  — Z-order\n\
+                        \n\n  Animation:\n\
+                        \n    P          — Play/pause entity\n\
+                        \n    Space      — Global play/pause\n\
+                        \n    [/]        — Adjust FPS\n\
+                        \n\n  Actions:\n\
+                        \n    D          — Duplicate\n\
+                        \n    Del/Bksp   — Delete\n\
+                        \n    I          — Show entity info\n\
+                        \n    S          — Save config\n\
+                        \n    Q          — Save and exit\n\
+                        \n    H          — This help"
+                    );
+                }
                 _ => {}
             },
 

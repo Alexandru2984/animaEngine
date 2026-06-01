@@ -4,6 +4,7 @@ use super::png_sequence;
 use super::spritesheet;
 use super::webp_loader;
 use crate::config::AssetType;
+use crate::error::{AnimaError, Result};
 use std::path::Path;
 
 /// Maximum allowed image dimension (width or height) to prevent decompression bombs.
@@ -12,22 +13,22 @@ const MAX_IMAGE_DIM: u32 = 4096;
 
 /// Validate image dimensions by reading only the file header (no full decode).
 /// Returns an error if either dimension exceeds `MAX_IMAGE_DIM`.
-pub fn validate_image_dimensions(path: &Path) -> Result<(u32, u32), Box<dyn std::error::Error>> {
+pub fn validate_image_dimensions(path: &Path) -> Result<(u32, u32)> {
     if path.is_dir() {
         return Ok((0, 0)); // Directories are validated per-frame
     }
     if !path.exists() {
-        return Err(format!("File not found: {}", path.display()).into());
+        return Err(AnimaError::AssetNotFound(path.to_path_buf()));
     }
 
     match image::image_dimensions(path) {
         Ok((w, h)) => {
             if w > MAX_IMAGE_DIM || h > MAX_IMAGE_DIM {
-                Err(format!(
-                    "Image too large: {}×{} (max {}×{}). Refusing to load to prevent OOM.",
-                    w, h, MAX_IMAGE_DIM, MAX_IMAGE_DIM
-                )
-                .into())
+                Err(AnimaError::ImageTooLarge {
+                    width: w,
+                    height: h,
+                    max: MAX_IMAGE_DIM,
+                })
             } else {
                 log::debug!("Image dimensions OK: {}×{}", w, h);
                 Ok((w, h))
@@ -49,7 +50,7 @@ pub fn load_asset(
     asset_path: &Path,
     spritesheet_columns: Option<u32>,
     spritesheet_rows: Option<u32>,
-) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
+) -> Result<Vec<Frame>> {
     // Validate dimensions for file-based assets (not directories)
     if !asset_path.is_dir() {
         validate_image_dimensions(asset_path)?;

@@ -1,4 +1,5 @@
 use super::frame::Frame;
+use crate::error::{AnimaError, Result};
 use image::codecs::webp::WebPDecoder;
 use image::AnimationDecoder;
 use std::fs::File;
@@ -7,7 +8,7 @@ use std::path::Path;
 
 /// Load frames from an animated WebP file.
 /// Falls back to loading as a static image if animation decoding fails.
-pub fn load_webp(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
+pub fn load_webp(path: &Path) -> Result<Vec<Frame>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let decoder = WebPDecoder::new(reader)?;
@@ -40,7 +41,7 @@ pub fn load_webp(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> 
         }
 
         if frames.is_empty() {
-            return Err(format!("No frames decoded from animated WebP: {}", path.display()).into());
+            return Err(AnimaError::EmptyAsset(path.to_path_buf()));
         }
 
         let has_delays = frames.iter().any(|f| f.delay_ms.is_some());
@@ -58,7 +59,7 @@ pub fn load_webp(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> 
 }
 
 /// Load a static (non-animated) WebP as a single frame.
-pub fn load_static_webp(path: &Path) -> Result<Vec<Frame>, Box<dyn std::error::Error>> {
+pub fn load_static_webp(path: &Path) -> Result<Vec<Frame>> {
     let img = image::open(path)?.to_rgba8();
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
