@@ -1,8 +1,8 @@
-/// Simple 2D physics for entities: gravity, edge collision, and bounce.
-///
-/// Each entity has a `PhysicsState` that tracks vertical velocity.
-/// On each tick, gravity accelerates the entity downward. When the entity
-/// hits the bottom edge of the screen, it bounces with damping.
+//! Simple 2D physics for entities: gravity, edge collision, and bounce.
+//!
+//! Each entity has a `PhysicsState` that tracks vertical velocity.
+//! On each tick, gravity accelerates the entity downward. When the entity
+//! hits the bottom edge of the screen, it bounces with damping.
 
 /// Gravity acceleration in pixels per second squared.
 const GRAVITY: f32 = 400.0;

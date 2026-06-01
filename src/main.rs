@@ -94,10 +94,7 @@ fn main() {
     log::info!("    S           — Save config");
     log::info!("    Q           — Save and quit");
     log::info!("");
-    log::info!(
-        "  Config: {}",
-        AppConfig::config_path().display()
-    );
+    log::info!("  Config: {}", AppConfig::config_path().display());
     log::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     if let Err(e) = event_loop.run_app(&mut app) {
@@ -146,7 +143,7 @@ fn generate_ghost_assets() {
         let phase = (frame_idx as f32 - 1.0) * std::f32::consts::TAU / total_frames as f32;
 
         // Float offset (up/down bobbing)
-        let float_y = (phase.sin() * 4.0) as f32;
+        let float_y = phase.sin() * 4.0;
 
         // Ghost body center
         let body_cx = cx;
@@ -170,17 +167,19 @@ fn generate_ghost_assets() {
                 // Tail section — extends below the head with wavy bottom edge
                 let tail_top = body_cy;
                 let tail_bottom = body_cy + 50.0 + float_y * 0.5;
-                let tail_half_w = body_rx * (1.0 - ((fy - tail_top) / (tail_bottom - tail_top)).max(0.0) * 0.15);
+                let tail_half_w =
+                    body_rx * (1.0 - ((fy - tail_top) / (tail_bottom - tail_top)).max(0.0) * 0.15);
 
                 // Wavy bottom edge
                 let wave_freq = 3.0;
                 let wave_amp = 5.0 + (phase * 0.5).sin() * 2.0;
-                let wave_offset = (fx / size as f32 * wave_freq * std::f32::consts::TAU + phase * 2.0).sin() * wave_amp;
+                let wave_offset =
+                    (fx / size as f32 * wave_freq * std::f32::consts::TAU + phase * 2.0).sin()
+                        * wave_amp;
                 let effective_bottom = tail_bottom + wave_offset;
 
-                let in_tail = fy > tail_top
-                    && fy < effective_bottom
-                    && (fx - body_cx).abs() < tail_half_w;
+                let in_tail =
+                    fy > tail_top && fy < effective_bottom && (fx - body_cx).abs() < tail_half_w;
 
                 let in_body = in_head || in_tail;
 
@@ -332,8 +331,8 @@ fn generate_slime_assets() {
         // Squash-stretch parameters
         // At phase=0: neutral. phase=PI/2: stretch (tall). phase=PI: squash (wide).
         let stretch = phase.sin() * 0.15;
-        let sx = 1.0 - stretch;  // horizontal scale
-        let sy = 1.0 + stretch;  // vertical scale
+        let sx = 1.0 - stretch; // horizontal scale
+        let sy = 1.0 + stretch; // vertical scale
 
         let base_rx = 38.0;
         let base_ry = 32.0;
@@ -356,14 +355,20 @@ fn generate_slime_assets() {
 
                 // Only draw the top part as ellipse, bottom is flat
                 let is_top_half = fy <= body_cy;
-                let is_bottom = fy > body_cy && fy < body_cy + body_ry * 0.8
-                    && (fx - body_cx).abs() < body_rx * (1.0 - ((fy - body_cy) / (body_ry * 0.8)).powi(2)).max(0.0).sqrt();
+                let is_bottom = fy > body_cy
+                    && fy < body_cy + body_ry * 0.8
+                    && (fx - body_cx).abs()
+                        < body_rx
+                            * (1.0 - ((fy - body_cy) / (body_ry * 0.8)).powi(2))
+                                .max(0.0)
+                                .sqrt();
 
                 let in_body = (is_top_half && dist_sq < 1.0) || is_bottom;
 
                 if in_body {
                     // Gradient: lighter at top, darker at bottom
-                    let vert_progress = ((fy - (body_cy - body_ry)) / (body_ry * 2.0)).max(0.0).min(1.0);
+                    let vert_progress =
+                        ((fy - (body_cy - body_ry)) / (body_ry * 2.0)).clamp(0.0, 1.0);
                     let brightness = 1.0 - vert_progress * 0.35;
 
                     // Radial gradient for depth
@@ -405,9 +410,15 @@ fn generate_slime_assets() {
                         // Blend white highlight
                         let existing = img.get_pixel(hx, hy);
                         if existing[3] > 0 {
-                            let r = (existing[0] as f32 + (255.0 - existing[0] as f32) * intensity * 0.6) as u8;
-                            let g = (existing[1] as f32 + (255.0 - existing[1] as f32) * intensity * 0.5) as u8;
-                            let b = (existing[2] as f32 + (255.0 - existing[2] as f32) * intensity * 0.6) as u8;
+                            let r = (existing[0] as f32
+                                + (255.0 - existing[0] as f32) * intensity * 0.6)
+                                as u8;
+                            let g = (existing[1] as f32
+                                + (255.0 - existing[1] as f32) * intensity * 0.5)
+                                as u8;
+                            let b = (existing[2] as f32
+                                + (255.0 - existing[2] as f32) * intensity * 0.6)
+                                as u8;
                             img.put_pixel(hx, hy, image::Rgba([r, g, b, existing[3].max(a)]));
                         }
                     }
@@ -506,9 +517,15 @@ fn generate_slime_assets() {
                             let existing = img.get_pixel(bx, by);
                             if existing[3] > 100 {
                                 let intensity = (1.0 - dist / blush_r).powi(2);
-                                let r = (existing[0] as f32 + (255.0 - existing[0] as f32) * intensity * 0.5).min(255.0) as u8;
+                                let r = (existing[0] as f32
+                                    + (255.0 - existing[0] as f32) * intensity * 0.5)
+                                    .min(255.0) as u8;
                                 let g = (existing[1] as f32 * (1.0 - intensity * 0.15)) as u8;
-                                img.put_pixel(bx, by, image::Rgba([r, g, existing[2], existing[3]]));
+                                img.put_pixel(
+                                    bx,
+                                    by,
+                                    image::Rgba([r, g, existing[2], existing[3]]),
+                                );
                             }
                         }
                     }

@@ -118,7 +118,10 @@ impl App {
                 }
             }
 
-            log::info!("Hot-reload complete: {} entities", self.scene.entities.len());
+            log::info!(
+                "Hot-reload complete: {} entities",
+                self.scene.entities.len()
+            );
         }
     }
 
@@ -207,30 +210,29 @@ impl ApplicationHandler for App {
         log::info!("Creating window...");
 
         // Auto-detect screen resolution if config values are 0
-        let (win_w, win_h) = if self.config.global.window_width == 0
-            || self.config.global.window_height == 0
-        {
-            if let Some(monitor) = event_loop
-                .primary_monitor()
-                .or_else(|| event_loop.available_monitors().next())
-            {
-                let size = monitor.size();
-                log::info!(
-                    "Auto-detected monitor resolution: {}x{}",
-                    size.width,
-                    size.height
-                );
-                (size.width, size.height)
+        let (win_w, win_h) =
+            if self.config.global.window_width == 0 || self.config.global.window_height == 0 {
+                if let Some(monitor) = event_loop
+                    .primary_monitor()
+                    .or_else(|| event_loop.available_monitors().next())
+                {
+                    let size = monitor.size();
+                    log::info!(
+                        "Auto-detected monitor resolution: {}x{}",
+                        size.width,
+                        size.height
+                    );
+                    (size.width, size.height)
+                } else {
+                    log::warn!("Could not detect monitor resolution, falling back to 1920x1080");
+                    (1920u32, 1080u32)
+                }
             } else {
-                log::warn!("Could not detect monitor resolution, falling back to 1920x1080");
-                (1920u32, 1080u32)
-            }
-        } else {
-            (
-                self.config.global.window_width,
-                self.config.global.window_height,
-            )
-        };
+                (
+                    self.config.global.window_width,
+                    self.config.global.window_height,
+                )
+            };
 
         // Build window attributes: transparent, borderless, always-on-top
         let window_attrs = Window::default_attributes()
@@ -265,7 +267,9 @@ impl ApplicationHandler for App {
                         let _ = window.set_cursor_hittest(false);
                     }
                 } else {
-                    log::warn!("X11InputManager not available. Falling back to set_cursor_hittest.");
+                    log::warn!(
+                        "X11InputManager not available. Falling back to set_cursor_hittest."
+                    );
                     let _ = window.set_cursor_hittest(false);
                 }
                 self.x11_input = x11_mgr;
@@ -421,7 +425,11 @@ impl ApplicationHandler for App {
                     && state == ElementState::Pressed
                     && self.is_toggle_button_click(self.mouse_x, self.mouse_y)
                 {
-                    log::info!("Toggle button clicked at ({:.0}, {:.0})", self.mouse_x, self.mouse_y);
+                    log::info!(
+                        "Toggle button clicked at ({:.0}, {:.0})",
+                        self.mouse_x,
+                        self.mouse_y
+                    );
                     self.toggle_edit_mode();
                     return;
                 }
@@ -448,9 +456,7 @@ impl ApplicationHandler for App {
                                 self.selection.deselect();
                             }
                         }
-                        (MouseButton::Left, ElementState::Released)
-                            if self.drag.is_dragging() =>
-                        {
+                        (MouseButton::Left, ElementState::Released) if self.drag.is_dragging() => {
                             // Unfreeze physics but keep grounded — entity stays where placed
                             if let Some(idx) = self.drag.dragging_entity() {
                                 if idx < self.scene.entities.len() {
@@ -560,7 +566,12 @@ impl ApplicationHandler for App {
                             let entity = &mut self.scene.entities[idx];
                             entity.x = (size.width as f32 - entity.scaled_width()) / 2.0;
                             entity.y = (size.height as f32 - entity.scaled_height()) / 2.0;
-                            log::info!("Centered '{}' at ({:.0}, {:.0})", entity.name, entity.x, entity.y);
+                            log::info!(
+                                "Centered '{}' at ({:.0}, {:.0})",
+                                entity.name,
+                                entity.x,
+                                entity.y
+                            );
                             self.config_dirty = true;
                         }
                     }
@@ -603,7 +614,11 @@ impl ApplicationHandler for App {
                         log::info!(
                             "Entity '{}': {}",
                             entity.name,
-                            if entity.animation.playing { "playing" } else { "paused" }
+                            if entity.animation.playing {
+                                "playing"
+                            } else {
+                                "paused"
+                            }
                         );
                         self.config_dirty = true;
                     }
@@ -638,19 +653,19 @@ impl ApplicationHandler for App {
                     }
                 }
                 // Tab: cycle selection through entities
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Tab) => {
-                    if !self.scene.entities.is_empty() {
-                        let next = match self.selection.selected_index() {
-                            Some(idx) => (idx + 1) % self.scene.entities.len(),
-                            None => 0,
-                        };
-                        self.selection.select(next);
-                        log::info!(
-                            "Selected: {} ({})",
-                            self.scene.entities[next].name,
-                            self.scene.entities[next].id
-                        );
-                    }
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Tab)
+                    if !self.scene.entities.is_empty() =>
+                {
+                    let next = match self.selection.selected_index() {
+                        Some(idx) => (idx + 1) % self.scene.entities.len(),
+                        None => 0,
+                    };
+                    self.selection.select(next);
+                    log::info!(
+                        "Selected: {} ({})",
+                        self.scene.entities[next].name,
+                        self.scene.entities[next].id
+                    );
                 }
                 // Page Up: increase z-index (bring forward)
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::PageUp) => {
@@ -680,7 +695,9 @@ impl ApplicationHandler for App {
                 winit::keyboard::Key::Character("[") => {
                     if let Some(idx) = self.selection.selected_index() {
                         let entity = &mut self.scene.entities[idx];
-                        entity.animation.set_fps((entity.animation.fps - 2.0).max(1.0));
+                        entity
+                            .animation
+                            .set_fps((entity.animation.fps - 2.0).max(1.0));
                         log::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
                         self.config_dirty = true;
                     }
@@ -767,7 +784,10 @@ impl ApplicationHandler for App {
                 }
 
                 // Try to add the entity at the current mouse position
-                match self.scene.add_entity_from_path(&path, self.mouse_x, self.mouse_y) {
+                match self
+                    .scene
+                    .add_entity_from_path(&path, self.mouse_x, self.mouse_y)
+                {
                     Ok(idx) => {
                         // Create texture for the new entity
                         if let Some(renderer) = &mut self.renderer {
@@ -804,5 +824,3 @@ impl ApplicationHandler for App {
         }
     }
 }
-
-

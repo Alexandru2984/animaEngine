@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: clippy
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libwayland-dev libxrandr-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --all-targets -- -D warnings
+
+  test:
+    name: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libwayland-dev libxrandr-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --all-targets --no-fail-fast
+
+  build:
+    name: release build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libwayland-dev libxrandr-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked
+
+  smoke:
+    name: smoke test (Xvfb)
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libwayland-dev libxrandr-dev \
+            xvfb mesa-vulkan-drivers
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --locked
+      - name: Run under Xvfb for 5 seconds
+        run: |
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1280x720x24 &
+          sleep 2
+          timeout --preserve-status 5s cargo run --quiet || EXIT=$?
+          # 124 = timeout fired (expected); 0 = clean exit; anything else = failure
+          if [ "${EXIT:-0}" != "0" ] && [ "${EXIT:-0}" != "124" ] && [ "${EXIT:-0}" != "143" ]; then
+            echo "App exited with non-success/non-timeout code: $EXIT"
+            exit 1
+          fi
+          echo "Smoke test passed."

@@ -30,7 +30,7 @@ impl Default for GlobalConfig {
             always_on_top: true,
             transparent: true,
             playback_enabled: true,
-            window_width: 0, // auto-detect
+            window_width: 0,  // auto-detect
             window_height: 0, // auto-detect
         }
     }

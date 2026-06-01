@@ -37,7 +37,11 @@ pub fn validate_image_dimensions(path: &Path) -> Result<(u32, u32)> {
         Err(e) => {
             // Can't read dimensions (might be a format we don't recognize at header level)
             // Allow loading — the image crate will fail later if truly invalid
-            log::debug!("Could not read image dimensions for {}: {}", path.display(), e);
+            log::debug!(
+                "Could not read image dimensions for {}: {}",
+                path.display(),
+                e
+            );
             Ok((0, 0))
         }
     }

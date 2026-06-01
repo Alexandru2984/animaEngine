@@ -168,9 +168,7 @@ impl Scene {
         let abs_path = if path.is_absolute() {
             path.to_path_buf()
         } else {
-            std::env::current_dir()
-                .unwrap_or_default()
-                .join(path)
+            std::env::current_dir().unwrap_or_default().join(path)
         };
         let asset_path_str = abs_path.to_string_lossy().to_string();
 
@@ -210,7 +208,10 @@ impl Scene {
 
         // Cap frames at 256px max dimension for dropped assets
         const MAX_DROP_SIZE: u32 = 256;
-        let frames: Vec<_> = frames.into_iter().map(|f| f.resized(MAX_DROP_SIZE)).collect();
+        let frames: Vec<_> = frames
+            .into_iter()
+            .map(|f| f.resized(MAX_DROP_SIZE))
+            .collect();
 
         let animation = Animation::new(frames, char_config.fps, char_config.playing);
         let entity = Entity::from_config(&char_config, animation);
@@ -239,12 +240,7 @@ impl Scene {
 
     /// Get the next z_index value (one above the current maximum)
     fn next_z_index(&self) -> i32 {
-        self.entities
-            .iter()
-            .map(|e| e.z_index)
-            .max()
-            .unwrap_or(0)
-            + 10
+        self.entities.iter().map(|e| e.z_index).max().unwrap_or(0) + 10
     }
 
     /// Convert current scene state back to config for saving

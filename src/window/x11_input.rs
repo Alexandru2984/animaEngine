@@ -110,9 +110,7 @@ impl X11InputManager {
         // (some WMs require this in addition to the property)
         let data = ClientMessageData::from([
             1u32, // _NET_WM_STATE_ADD
-            above,
-            0,
-            1, // source = normal application
+            above, 0, 1, // source = normal application
             0,
         ]);
         let event = ClientMessageEvent::new(32, self.x11_window, net_wm_state, data);
@@ -126,41 +124,14 @@ impl X11InputManager {
 
         self.conn.flush()?;
 
-        log::info!(
-            "EWMH overlay hints applied: ABOVE, SKIP_TASKBAR, SKIP_PAGER, STICKY"
-        );
+        log::info!("EWMH overlay hints applied: ABOVE, SKIP_TASKBAR, SKIP_PAGER, STICKY");
         Ok(())
     }
 
     /// Intern an X11 atom by name.
     fn intern_atom(&self, name: &str) -> Result<u32> {
-        let reply = self
-            .conn
-            .intern_atom(false, name.as_bytes())?
-            .reply()?;
+        let reply = self.conn.intern_atom(false, name.as_bytes())?.reply()?;
         Ok(reply.atom)
-    }
-
-    /// Try to reconnect to X11 if the connection is stale.
-    /// Returns true if reconnection succeeded.
-    fn try_reconnect(&mut self) -> bool {
-        log::warn!("X11 connection may be stale, attempting reconnect...");
-        match x11rb::connect(None) {
-            Ok((conn, screen_num)) => {
-                self.conn = conn;
-                self.screen_num = screen_num;
-                log::info!("X11 reconnected successfully");
-                // Re-apply overlay hints on new connection
-                if let Err(e) = self.apply_overlay_hints() {
-                    log::warn!("Failed to re-apply overlay hints after reconnect: {}", e);
-                }
-                true
-            }
-            Err(e) => {
-                log::error!("X11 reconnection failed: {}", e);
-                false
-            }
-        }
     }
 
     /// Set the X11 input shape so that only a rectangle in the top-right corner
@@ -172,7 +143,14 @@ impl X11InputManager {
 
         // Create a pixmap for the input shape
         let pixmap = self.conn.generate_id()?;
-        create_pixmap(&self.conn, 1, pixmap, self.x11_window, geom.width, geom.height)?;
+        create_pixmap(
+            &self.conn,
+            1,
+            pixmap,
+            self.x11_window,
+            geom.width,
+            geom.height,
+        )?;
 
         // Fill the entire pixmap with 0 (transparent / pass-through)
         let gc = self.conn.generate_id()?;
@@ -243,7 +221,14 @@ impl X11InputManager {
 
         // Create a full pixmap (all 1s = all receives input)
         let pixmap = self.conn.generate_id()?;
-        create_pixmap(&self.conn, 1, pixmap, self.x11_window, geom.width, geom.height)?;
+        create_pixmap(
+            &self.conn,
+            1,
+            pixmap,
+            self.x11_window,
+            geom.width,
+            geom.height,
+        )?;
 
         let gc = self.conn.generate_id()?;
         create_gc(

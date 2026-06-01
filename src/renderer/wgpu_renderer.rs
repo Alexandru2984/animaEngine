@@ -46,11 +46,7 @@ pub struct WgpuRenderer {
 
 /// Generate a simple circular button icon.
 /// Creates a circle with a ring and center dot — looks like a settings/target icon.
-fn generate_button_frame(
-    bg: [u8; 4],
-    icon: [u8; 4],
-    size: u32,
-) -> Frame {
+fn generate_button_frame(bg: [u8; 4], icon: [u8; 4], size: u32) -> Frame {
     let mut rgba = Vec::with_capacity((size * size * 4) as usize);
     let cx = size as f32 / 2.0;
     let cy = size as f32 / 2.0;
@@ -491,15 +487,7 @@ impl WgpuRenderer {
 
     /// Write quad vertices into the dynamic buffer at the given quad index offset.
     /// Returns the byte offset where the vertices were written.
-    fn write_quad(
-        &self,
-        quad_index: usize,
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
-        opacity: f32,
-    ) -> u64 {
+    fn write_quad(&self, quad_index: usize, x: f32, y: f32, w: f32, h: f32, opacity: f32) -> u64 {
         let vertices = make_quad_vertices(x, y, w, h, opacity);
         let offset = (quad_index * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
         self.queue.write_buffer(
@@ -552,7 +540,10 @@ impl WgpuRenderer {
         for entity in entities {
             if quad_idx >= MAX_QUADS - 3 {
                 // Reserve 3 quads for UI (edit bar + button + selection)
-                log::warn!("MAX_QUADS ({}) reached, skipping remaining entities", MAX_QUADS);
+                log::warn!(
+                    "MAX_QUADS ({}) reached, skipping remaining entities",
+                    MAX_QUADS
+                );
                 break;
             }
 
@@ -597,14 +588,7 @@ impl WgpuRenderer {
 
         // Edit mode indicator bar
         if edit_mode {
-            self.write_quad(
-                quad_idx,
-                0.0,
-                0.0,
-                self.window_width as f32,
-                4.0,
-                1.0,
-            );
+            self.write_quad(quad_idx, 0.0, 0.0, self.window_width as f32, 4.0, 1.0);
             draws.push(DrawCmd {
                 quad_index: quad_idx,
                 texture_entity_id: None,
@@ -680,8 +664,7 @@ impl WgpuRenderer {
                 }
 
                 // Set the vertex buffer slice for this quad
-                let byte_offset =
-                    (cmd.quad_index * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
+                let byte_offset = (cmd.quad_index * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
                 let byte_end = byte_offset + (4 * std::mem::size_of::<SpriteVertex>()) as u64;
                 render_pass
                     .set_vertex_buffer(0, self.dynamic_vertex_buffer.slice(byte_offset..byte_end));
