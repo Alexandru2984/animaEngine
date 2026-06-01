@@ -6,8 +6,11 @@
 //!
 //! Not part of the runtime engine — only called from `main.rs` at startup.
 
+mod cat;
 mod ghost;
+mod heart;
 mod slime;
+mod star;
 
 use std::path::Path;
 
@@ -16,6 +19,9 @@ use std::path::Path;
 pub fn generate_assets() {
     ghost::generate();
     slime::generate();
+    heart::generate();
+    star::generate();
+    cat::generate();
 }
 
 /// Check whether a sprite directory already has frames at or above `min_size`.

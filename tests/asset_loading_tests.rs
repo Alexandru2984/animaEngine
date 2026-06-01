@@ -316,9 +316,10 @@ fn test_config_default_has_demo_characters() {
     use anima_engine::config::AppConfig;
 
     let config = AppConfig::default();
-    assert_eq!(config.characters.len(), 2);
-    assert_eq!(config.characters[0].id, "ghost");
-    assert_eq!(config.characters[1].id, "slime");
+    let ids: Vec<&str> = config.characters.iter().map(|c| c.id.as_str()).collect();
+    // Sample pack — five procedural demos. Order matters because z_index
+    // is currently derived from listing order.
+    assert_eq!(ids, vec!["ghost", "slime", "heart", "star", "cat"]);
 }
 
 #[test]
