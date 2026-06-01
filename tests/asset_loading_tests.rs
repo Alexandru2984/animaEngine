@@ -358,6 +358,7 @@ fn test_config_new_asset_types_serialize() {
                 playing: true,
                 z_index: 0,
                 physics_enabled: false,
+                behavior: anima_engine::behavior::Behavior::Idle,
                 spritesheet_columns: None,
                 spritesheet_rows: None,
             },
@@ -375,6 +376,7 @@ fn test_config_new_asset_types_serialize() {
                 playing: true,
                 z_index: 5,
                 physics_enabled: false,
+                behavior: anima_engine::behavior::Behavior::Idle,
                 spritesheet_columns: Some(4),
                 spritesheet_rows: Some(2),
             },
@@ -446,6 +448,7 @@ fn test_config_spritesheet_fields_skip_when_none() {
         playing: true,
         z_index: 0,
         physics_enabled: false,
+        behavior: anima_engine::behavior::Behavior::Idle,
         spritesheet_columns: None,
         spritesheet_rows: None,
     };

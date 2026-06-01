@@ -1,3 +1,4 @@
+use crate::behavior::Behavior;
 use crate::constants::MAX_ENTITIES;
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
@@ -74,12 +75,21 @@ pub struct CharacterConfig {
     /// stay where the user places them. Toggle at runtime with the `G` key.
     #[serde(default)]
     pub physics_enabled: bool,
+    /// Autonomous motion behavior (idle / walk-around / …). Default `Idle`.
+    /// `Idle` is also skipped on serialize so the most common case
+    /// produces a minimal TOML.
+    #[serde(default, skip_serializing_if = "is_idle_behavior")]
+    pub behavior: Behavior,
     /// Number of columns in spritesheet grid (only used for Spritesheet type)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spritesheet_columns: Option<u32>,
     /// Number of rows in spritesheet grid (only used for Spritesheet type)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spritesheet_rows: Option<u32>,
+}
+
+fn is_idle_behavior(b: &Behavior) -> bool {
+    matches!(b, Behavior::Idle)
 }
 
 fn default_scale() -> f32 {
@@ -122,6 +132,7 @@ impl Default for AppConfig {
                     playing: true,
                     z_index: 10,
                     physics_enabled: false,
+                    behavior: Behavior::Idle,
                     spritesheet_columns: None,
                     spritesheet_rows: None,
                 },
@@ -139,6 +150,7 @@ impl Default for AppConfig {
                     playing: true,
                     z_index: 20,
                     physics_enabled: false,
+                    behavior: Behavior::Idle,
                     spritesheet_columns: None,
                     spritesheet_rows: None,
                 },

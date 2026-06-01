@@ -549,13 +549,16 @@ impl ApplicationHandler for App {
                 // Check for external config changes (hot-reload)
                 self.check_hot_reload();
 
-                // Tick animations + physics
-                let screen_h = self
+                // Tick behavior + physics + animation.
+                let (screen_w, screen_h) = self
                     .window
                     .as_ref()
-                    .map(|w| w.inner_size().height as f32)
-                    .unwrap_or(1080.0);
-                self.scene.tick(screen_h);
+                    .map(|w| {
+                        let s = w.inner_size();
+                        (s.width as f32, s.height as f32)
+                    })
+                    .unwrap_or((1920.0, 1080.0));
+                self.scene.tick(screen_w, screen_h);
 
                 // Update textures for entities with changed frames
                 if let Some(renderer) = &mut self.renderer {

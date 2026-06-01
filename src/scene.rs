@@ -108,14 +108,14 @@ impl Scene {
         Entity::from_config(config, animation)
     }
 
-    /// Tick all entity animations and physics.
-    /// `screen_height` is needed for floor collision.
-    pub fn tick(&mut self, screen_height: f32) {
+    /// Tick all entities: behavior + physics + animation.
+    /// Screen dimensions bound autonomous motion (walk-around) and gravity.
+    pub fn tick(&mut self, screen_width: f32, screen_height: f32) {
         let now = Instant::now();
         let dt = now.duration_since(self.last_tick).as_secs_f32();
         self.last_tick = now;
 
-        // Clamp dt to prevent physics explosion after long pauses
+        // Clamp dt to prevent physics / behavior explosion after long pauses.
         let dt = dt.min(0.1);
 
         if !self.global_playing {
@@ -123,7 +123,7 @@ impl Scene {
         }
 
         for entity in &mut self.entities {
-            entity.tick(dt, screen_height);
+            entity.tick(dt, screen_width, screen_height);
         }
     }
 
@@ -234,6 +234,7 @@ impl Scene {
             playing: true,
             z_index: self.next_z_index(),
             physics_enabled: false,
+            behavior: crate::behavior::Behavior::Idle,
             spritesheet_columns: None,
             spritesheet_rows: None,
         };
@@ -316,6 +317,7 @@ mod tests {
             playing: false,
             z_index: z,
             physics_enabled: false,
+            behavior: crate::behavior::Behavior::Idle,
             spritesheet_columns: None,
             spritesheet_rows: None,
         };

@@ -1,4 +1,5 @@
 use crate::animation::Animation;
+use crate::behavior::{Behavior, BehaviorState};
 use crate::config::CharacterConfig;
 use crate::physics::PhysicsState;
 
@@ -35,6 +36,10 @@ pub struct Entity {
     pub spritesheet_rows: Option<u32>,
     /// Physics state (gravity, velocity, grounded)
     pub physics: PhysicsState,
+    /// Autonomous motion configuration.
+    pub behavior: Behavior,
+    /// Behavior runtime accumulators (direction, timers). Not serialized.
+    pub behavior_state: BehaviorState,
 }
 
 impl Entity {
@@ -56,17 +61,32 @@ impl Entity {
             spritesheet_columns: config.spritesheet_columns,
             spritesheet_rows: config.spritesheet_rows,
             physics: PhysicsState::from_enabled(config.physics_enabled),
+            behavior: config.behavior.clone(),
+            behavior_state: BehaviorState::default(),
         }
     }
 
-    /// Tick the entity: animation + physics
-    /// `dt` = delta time in seconds, `screen_height` = screen height for floor collision
-    pub fn tick(&mut self, dt: f32, screen_height: f32) -> bool {
-        // Update physics (gravity, bounce)
+    /// Tick the entity: behavior + physics + animation.
+    ///
+    /// Order matters: behavior moves the entity horizontally, physics
+    /// resolves vertical motion (gravity, floor), animation advances
+    /// the displayed frame.
+    pub fn tick(&mut self, dt: f32, screen_width: f32, screen_height: f32) -> bool {
+        // Behavior — autonomous horizontal motion.
+        let sprite_w = self.scaled_width();
+        self.behavior.tick(
+            &mut self.behavior_state,
+            &mut self.x,
+            sprite_w,
+            screen_width,
+            dt,
+        );
+
+        // Physics — gravity / bounce on the vertical axis.
         let sprite_h = self.scaled_height();
         self.y = self.physics.tick(self.y, sprite_h, screen_height, dt);
 
-        // Update animation
+        // Animation frame advance.
         if self.animation.tick() {
             self.texture_dirty = true;
             return true;
@@ -155,6 +175,8 @@ impl Entity {
             spritesheet_columns: None,
             spritesheet_rows: None,
             physics: PhysicsState::default(),
+            behavior: Behavior::Idle,
+            behavior_state: BehaviorState::default(),
         }
     }
 
@@ -174,6 +196,7 @@ impl Entity {
             playing: self.animation.playing,
             z_index: self.z_index,
             physics_enabled: self.physics.enabled,
+            behavior: self.behavior.clone(),
             spritesheet_columns: self.spritesheet_columns,
             spritesheet_rows: self.spritesheet_rows,
         }
