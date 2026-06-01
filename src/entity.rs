@@ -89,14 +89,73 @@ impl Entity {
             .unwrap_or(64.0)
     }
 
-    /// Check if a point (in screen coords) hits this entity
+    /// Check if a point (in screen coords) hits this entity.
+    ///
+    /// First does a fast AABB rejection, then samples the alpha of the
+    /// underlying pixel in the current animation frame. Transparent pixels
+    /// (alpha < ALPHA_HIT_THRESHOLD) do NOT count as a hit — clicking the
+    /// transparent corner of a circular ghost sprite no longer selects it.
+    ///
+    /// Falls back to AABB when no frame data is available (e.g. immediately
+    /// after construction before the first tick).
     pub fn contains_point(&self, px: f32, py: f32) -> bool {
+        /// Pixels with alpha at or below this are treated as non-hittable.
+        /// Small but non-zero so anti-aliased edges remain clickable.
+        const ALPHA_HIT_THRESHOLD: u8 = 20;
+
         if !self.visible {
             return false;
         }
         let w = self.scaled_width();
         let h = self.scaled_height();
-        px >= self.x && px <= self.x + w && py >= self.y && py <= self.y + h
+
+        // Fast AABB reject.
+        if px < self.x || px > self.x + w || py < self.y || py > self.y + h {
+            return false;
+        }
+
+        let Some(frame) = self.animation.current_frame_data() else {
+            return true; // No pixel data yet — accept the AABB hit.
+        };
+
+        if self.scale <= 0.0 || frame.width == 0 || frame.height == 0 {
+            return true;
+        }
+
+        // Map screen-space → texture-space.
+        let tex_x = ((px - self.x) / self.scale)
+            .floor()
+            .clamp(0.0, (frame.width - 1) as f32) as u32;
+        let tex_y = ((py - self.y) / self.scale)
+            .floor()
+            .clamp(0.0, (frame.height - 1) as f32) as u32;
+
+        let idx = (tex_y * frame.width + tex_x) as usize * 4;
+        // Defensive: corrupted frame data shouldn't crash a click.
+        let alpha = frame.rgba.get(idx + 3).copied().unwrap_or(0);
+        alpha > ALPHA_HIT_THRESHOLD
+    }
+
+    /// Construct a minimal entity for tests — bypasses CharacterConfig.
+    #[cfg(test)]
+    fn for_test(x: f32, y: f32, animation: Animation) -> Self {
+        Self {
+            id: "t".into(),
+            name: "t".into(),
+            x,
+            y,
+            scale: 1.0,
+            opacity: 1.0,
+            z_index: 0,
+            visible: true,
+            animation,
+            texture_dirty: false,
+            asset_path: String::new(),
+            asset_type: crate::config::AssetType::PngStatic,
+            spritesheet_columns: None,
+            spritesheet_rows: None,
+            physics: PhysicsState::default(),
+        }
     }
 
     /// Convert this entity's state back to a CharacterConfig for saving
@@ -118,5 +177,89 @@ impl Entity {
             spritesheet_columns: self.spritesheet_columns,
             spritesheet_rows: self.spritesheet_rows,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::animation::frame::Frame;
+
+    /// 4×4 frame, only the inner 2×2 is opaque (alpha 255), border is transparent.
+    fn checker_frame() -> Frame {
+        // Layout (alpha only, R/G/B = 0):
+        //   . . . .
+        //   . X X .
+        //   . X X .
+        //   . . . .
+        let mut rgba = vec![0u8; 4 * 4 * 4];
+        for (x, y) in [(1u32, 1u32), (2, 1), (1, 2), (2, 2)] {
+            let i = ((y * 4 + x) * 4) as usize;
+            rgba[i + 3] = 255;
+        }
+        Frame::new(rgba, 4, 4)
+    }
+
+    fn entity_at(x: f32, y: f32) -> Entity {
+        let anim = Animation::new(vec![checker_frame()], 1.0, false);
+        Entity::for_test(x, y, anim)
+    }
+
+    #[test]
+    fn alpha_hit_inside_opaque_region() {
+        let e = entity_at(0.0, 0.0);
+        // Pixel (1,1) is opaque; click at (1.5, 1.5) → tex (1,1).
+        assert!(e.contains_point(1.5, 1.5));
+    }
+
+    #[test]
+    fn alpha_miss_in_transparent_corner() {
+        let e = entity_at(0.0, 0.0);
+        // Pixel (0,0) is fully transparent — this is the bug we just fixed.
+        assert!(!e.contains_point(0.5, 0.5));
+    }
+
+    #[test]
+    fn aabb_reject_outside_sprite() {
+        let e = entity_at(10.0, 10.0);
+        assert!(!e.contains_point(0.0, 0.0));
+        assert!(!e.contains_point(100.0, 100.0));
+    }
+
+    #[test]
+    fn invisible_entity_never_hits() {
+        let mut e = entity_at(0.0, 0.0);
+        e.visible = false;
+        assert!(!e.contains_point(1.5, 1.5)); // would otherwise hit
+    }
+
+    #[test]
+    fn scale_maps_screen_to_texture_coords() {
+        let mut e = entity_at(0.0, 0.0);
+        e.scale = 4.0; // sprite is now 16×16 on screen, source still 4×4.
+                       // Screen (6, 6) → tex (6/4, 6/4) = (1, 1) → opaque.
+        assert!(e.contains_point(6.0, 6.0));
+        // Screen (2, 2) → tex (0, 0) → transparent.
+        assert!(!e.contains_point(2.0, 2.0));
+    }
+
+    #[test]
+    fn offset_position_still_maps_correctly() {
+        let e = entity_at(100.0, 50.0);
+        // World (101.5, 51.5) → local (1.5, 1.5) → tex (1, 1) → opaque.
+        assert!(e.contains_point(101.5, 51.5));
+        // World (100.5, 50.5) → tex (0, 0) → transparent.
+        assert!(!e.contains_point(100.5, 50.5));
+    }
+
+    #[test]
+    fn no_frame_data_falls_back_to_aabb() {
+        // Empty animation → current_frame_data() returns None.
+        let anim = Animation::new(vec![], 1.0, false);
+        let mut e = Entity::for_test(0.0, 0.0, anim);
+        // scaled_width/height default to 64.0 when no frame.
+        e.scale = 1.0;
+        assert!(e.contains_point(32.0, 32.0));
+        assert!(!e.contains_point(100.0, 100.0));
     }
 }
