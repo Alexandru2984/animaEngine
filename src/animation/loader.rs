@@ -1,3 +1,4 @@
+use super::cache;
 use super::frame::Frame;
 use super::gif_loader;
 use super::png_sequence;
@@ -82,27 +83,37 @@ pub fn load_asset(
     // Reject decompression bombs up-front (works for files AND directories).
     validate_image_dimensions(asset_path)?;
 
-    match asset_type {
+    // Try the on-disk RGBA cache first — skips PNG/GIF/WebP decoding
+    // entirely when the asset hasn't changed since last run.
+    if let Some(frames) = cache::try_load(asset_path) {
+        tracing::info!(
+            "Asset cache hit ({}): {} frames",
+            asset_path.display(),
+            frames.len()
+        );
+        return Ok(frames);
+    }
+
+    let frames = match asset_type {
         AssetType::PngSequence => {
             tracing::info!("Loading PNG sequence from: {}", asset_path.display());
-            png_sequence::load_png_sequence(asset_path)
+            png_sequence::load_png_sequence(asset_path)?
         }
         AssetType::PngStatic => {
             tracing::info!("Loading static image from: {}", asset_path.display());
-            let frame = png_sequence::load_single_png(asset_path)?;
-            Ok(vec![frame])
+            vec![png_sequence::load_single_png(asset_path)?]
         }
         AssetType::Gif => {
             tracing::info!("Loading GIF from: {}", asset_path.display());
-            gif_loader::load_gif(asset_path)
+            gif_loader::load_gif(asset_path)?
         }
         AssetType::WebpAnimated => {
             tracing::info!("Loading animated WebP from: {}", asset_path.display());
-            webp_loader::load_webp(asset_path)
+            webp_loader::load_webp(asset_path)?
         }
         AssetType::WebpStatic => {
             tracing::info!("Loading static WebP from: {}", asset_path.display());
-            webp_loader::load_static_webp(asset_path)
+            webp_loader::load_static_webp(asset_path)?
         }
         AssetType::Spritesheet => {
             let cols = spritesheet_columns.unwrap_or(4);
@@ -113,9 +124,20 @@ pub fn load_asset(
                 cols,
                 rows
             );
-            spritesheet::load_spritesheet(asset_path, cols, rows)
+            spritesheet::load_spritesheet(asset_path, cols, rows)?
         }
+    };
+
+    // Best-effort cache write — never fails the load.
+    if let Err(e) = cache::try_save(asset_path, &frames) {
+        tracing::warn!(
+            "Failed to write asset cache for {}: {}",
+            asset_path.display(),
+            e
+        );
     }
+
+    Ok(frames)
 }
 
 /// Detect the best AssetType from a file path's extension and properties.

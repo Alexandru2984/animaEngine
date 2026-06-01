@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod frame;
 pub mod gif_loader;
 pub mod loader;
