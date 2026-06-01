@@ -20,3 +20,8 @@ pub const MAX_QUADS: usize = 64;
 /// Size (px) of the clickable toggle button in the top-right corner.
 /// In pass-through mode this is the only area that receives mouse input.
 pub const TOGGLE_BUTTON_SIZE: u32 = 64;
+
+/// Maximum number of frames extracted from a video. ~20 seconds at 30 fps.
+/// Caps memory at roughly MAX_VIDEO_FRAMES × MAX_DROP_SIZE² × 4 bytes
+/// (≈150 MB for a 256-px square, much less for typical overlay sprites).
+pub const MAX_VIDEO_FRAMES: usize = 600;

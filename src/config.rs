@@ -48,6 +48,8 @@ pub enum AssetType {
     WebpAnimated,
     WebpStatic,
     Spritesheet,
+    /// MP4 container with an H.264 video track. Audio (if any) is ignored.
+    Video,
 }
 
 /// Configuration for a single character/entity

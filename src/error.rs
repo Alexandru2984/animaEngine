@@ -53,6 +53,9 @@ pub enum AnimaError {
     #[error("invalid spritesheet: {0}")]
     InvalidSpritesheet(String),
 
+    #[error("video decode error: {0}")]
+    VideoDecode(String),
+
     #[error("frame buffer corrupted: expected {expected} bytes, got {got}")]
     FrameBufferCorrupt { expected: usize, got: usize },
 

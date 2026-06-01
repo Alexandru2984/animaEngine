@@ -30,6 +30,12 @@ image = { version = "0.25", default-features = false, features = ["png", "gif", 
 # Parallel iteration (PNG sequence decoding)
 rayon = "1"
 
+# Video — pure Rust MP4 demuxing + H.264 decoder (audio is ignored).
+# `openh264` defaults to `source` feature which builds the C library
+# from source, so no system dependency is required.
+mp4 = "0.14"
+openh264 = "0.9"
+
 # Config
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"

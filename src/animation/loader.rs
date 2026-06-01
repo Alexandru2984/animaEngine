@@ -3,6 +3,7 @@ use super::frame::Frame;
 use super::gif_loader;
 use super::png_sequence;
 use super::spritesheet;
+use super::video_loader;
 use super::webp_loader;
 use crate::config::AssetType;
 use crate::constants::MAX_IMAGE_DIM;
@@ -126,6 +127,10 @@ pub fn load_asset(
             );
             spritesheet::load_spritesheet(asset_path, cols, rows)?
         }
+        AssetType::Video => {
+            tracing::info!("Loading MP4 video from: {}", asset_path.display());
+            video_loader::load_video(asset_path)?
+        }
     };
 
     // Best-effort cache write — never fails the load.
@@ -164,6 +169,7 @@ pub fn detect_asset_type(path: &Path) -> (AssetType, &'static str) {
             }
         }
         "jpg" | "jpeg" => (AssetType::PngStatic, "JPEG image"),
+        "mp4" | "m4v" | "mov" => (AssetType::Video, "MP4 / H.264 video"),
         _ => {
             // Check if it's a directory (PNG sequence)
             if path.is_dir() {
