@@ -5,6 +5,8 @@ use crate::input::selection::SelectionState;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
 use crate::window::x11_input::X11InputManager;
+use std::collections::HashSet;
+use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 use winit::application::ApplicationHandler;
@@ -53,6 +55,16 @@ pub struct App {
     last_config_check: Instant,
     /// Last known modification time of config file
     config_mtime: Option<SystemTime>,
+    /// Receiver for an in-flight async hot-reload. `Some` means a worker
+    /// thread is currently decoding the new config + assets off the UI thread.
+    hot_reload_rx: Option<mpsc::Receiver<HotReloadResult>>,
+}
+
+/// Result of an async hot-reload — produced by a worker thread, consumed by
+/// the UI thread on the next frame.
+struct HotReloadResult {
+    config: AppConfig,
+    scene: Scene,
 }
 
 impl App {
@@ -72,6 +84,7 @@ impl App {
             x11_input: None,
             last_config_check: Instant::now(),
             config_mtime: Self::get_config_mtime(),
+            hot_reload_rx: None,
         }
     }
 
@@ -81,50 +94,92 @@ impl App {
         std::fs::metadata(&path).ok()?.modified().ok()
     }
 
-    /// Check if config file was modified externally and reload if needed
+    /// Drive the hot-reload pipeline:
+    /// 1. Apply any result already produced by a worker (non-blocking).
+    /// 2. If the config file changed on disk, spawn a worker to load it.
+    ///
+    /// The UI thread never blocks on asset decoding — even for users with
+    /// dozens of GIFs the reload happens off-thread.
     #[tracing::instrument(skip(self))]
     fn check_hot_reload(&mut self) {
-        // Only check every 2 seconds to avoid filesystem spam
+        // Phase 1: drain a finished worker, if any.
+        if let Some(rx) = &self.hot_reload_rx {
+            match rx.try_recv() {
+                Ok(result) => {
+                    self.apply_hot_reload(result);
+                    self.hot_reload_rx = None;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    tracing::warn!("Hot-reload worker disconnected unexpectedly");
+                    self.hot_reload_rx = None;
+                }
+                Err(mpsc::TryRecvError::Empty) => {} // still working
+            }
+        }
+
+        // Phase 2: check if we should kick off a new worker. Cheap syscall — OK
+        // to do every couple of seconds.
         if self.last_config_check.elapsed().as_secs() < 2 {
             return;
         }
         self.last_config_check = Instant::now();
 
-        // Don't reload if we have unsaved changes (we'd overwrite user's edits)
-        if self.config_dirty {
+        // Skip if there are unsaved local changes (we'd clobber them) or a
+        // previous reload is still in flight.
+        if self.config_dirty || self.hot_reload_rx.is_some() {
             return;
         }
 
         let new_mtime = Self::get_config_mtime();
-        if new_mtime != self.config_mtime {
-            self.config_mtime = new_mtime;
-            tracing::info!("Config file changed externally, reloading...");
-
-            let new_config = AppConfig::load();
-            let new_scene = Scene::from_config(&new_config);
-
-            // Clear old textures and reload
-            if let Some(renderer) = &mut self.renderer {
-                renderer.textures.clear();
-            }
-
-            self.config = new_config;
-            self.scene = new_scene;
-            self.selection.deselect();
-
-            // Upload textures for all entities
-            if let Some(renderer) = &mut self.renderer {
-                for entity in &mut self.scene.entities {
-                    renderer.ensure_texture(entity);
-                    entity.texture_dirty = false;
-                }
-            }
-
-            tracing::info!(
-                "Hot-reload complete: {} entities",
-                self.scene.entities.len()
-            );
+        if new_mtime == self.config_mtime {
+            return;
         }
+        self.config_mtime = new_mtime;
+        tracing::info!("Config file changed externally, spawning reload worker…");
+
+        let (tx, rx) = mpsc::channel();
+        self.hot_reload_rx = Some(rx);
+        std::thread::spawn(move || {
+            // AppConfig::load already falls back to defaults on parse errors,
+            // so this thread can't panic in practice.
+            let config = AppConfig::load();
+            let scene = Scene::from_config(&config);
+            // Receiver dropped (e.g. app exiting) → ignore send error.
+            let _ = tx.send(HotReloadResult { config, scene });
+        });
+    }
+
+    /// Apply a finished hot-reload result on the UI thread.
+    /// Diffs textures by entity ID so unchanged entities keep their GPU
+    /// memory instead of being re-uploaded from scratch.
+    fn apply_hot_reload(&mut self, result: HotReloadResult) {
+        // Drop textures whose entity ID is no longer in the new scene.
+        if let Some(renderer) = &mut self.renderer {
+            let new_ids: HashSet<&str> = result
+                .scene
+                .entities
+                .iter()
+                .map(|e| e.id.as_str())
+                .collect();
+            renderer
+                .textures
+                .retain(|id, _| new_ids.contains(id.as_str()));
+        }
+
+        self.config = result.config;
+        self.scene = result.scene;
+        self.selection.deselect();
+
+        // For each entity: ensure_texture either creates new, updates in
+        // place (same dimensions), or recreates (different dimensions).
+        if let Some(renderer) = &mut self.renderer {
+            for entity in &mut self.scene.entities {
+                renderer.ensure_texture(entity);
+                entity.texture_dirty = false;
+            }
+        }
+
+        tracing::info!("Hot-reload applied: {} entities", self.scene.entities.len());
     }
 
     /// Save config if dirty
