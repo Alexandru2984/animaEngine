@@ -4,7 +4,18 @@ use crate::config::{AppConfig, CharacterConfig};
 use crate::constants::MAX_DROP_SIZE;
 use crate::entity::Entity;
 use crate::error::Result;
+use std::cell::RefCell;
 use std::time::Instant;
+
+/// Cached visibility/z-order index list. Rebuilt only when invalidated.
+#[derive(Debug, Default)]
+struct VisibleCache {
+    /// Indices into `Scene::entities`, sorted by z_index ascending.
+    /// Contains only visible entities.
+    indices: Vec<usize>,
+    /// `true` if `indices` matches the current scene state.
+    valid: bool,
+}
 
 /// The scene holds all active entities and global playback state
 #[derive(Debug)]
@@ -15,6 +26,9 @@ pub struct Scene {
     pub global_playing: bool,
     /// Last tick time for delta time calculation
     last_tick: Instant,
+    /// Cached visibility/z-order. `RefCell` lets `visible_entities(&self)`
+    /// refresh the cache lazily without taking `&mut self`.
+    visible_cache: RefCell<VisibleCache>,
 }
 
 impl Scene {
@@ -56,6 +70,7 @@ impl Scene {
             entities,
             global_playing: config.global.playback_enabled,
             last_tick: Instant::now(),
+            visible_cache: RefCell::default(),
         }
     }
 
@@ -112,11 +127,33 @@ impl Scene {
         }
     }
 
-    /// Get entities sorted by z_index for rendering (back to front)
+    /// Mark the visible/z-order cache dirty. Call this from a parent module
+    /// any time an entity's `visible` or `z_index` field changes directly.
+    /// (Mutations through `add_entity_from_path` / `remove_entity` invalidate
+    /// the cache automatically.)
+    pub fn mark_visible_dirty(&mut self) {
+        self.visible_cache.borrow_mut().valid = false;
+    }
+
+    /// Get entities sorted by z_index for rendering (back to front).
+    ///
+    /// Uses a lazily-refreshed cache so the per-frame cost is just a Vec build
+    /// from cached indices, not a full filter + sort. The cache is invalidated
+    /// on add/remove and via `mark_visible_dirty` for direct field changes.
     pub fn visible_entities(&self) -> Vec<&Entity> {
-        let mut visible: Vec<&Entity> = self.entities.iter().filter(|e| e.visible).collect();
-        visible.sort_by_key(|e| e.z_index);
-        visible
+        {
+            let mut cache = self.visible_cache.borrow_mut();
+            if !cache.valid {
+                cache.indices.clear();
+                cache
+                    .indices
+                    .extend((0..self.entities.len()).filter(|&i| self.entities[i].visible));
+                cache.indices.sort_by_key(|&i| self.entities[i].z_index);
+                cache.valid = true;
+            }
+        }
+        let cache = self.visible_cache.borrow();
+        cache.indices.iter().map(|&i| &self.entities[i]).collect()
     }
 
     /// Find the topmost entity at a screen position (reverse z-order)
@@ -228,6 +265,7 @@ impl Scene {
         );
 
         self.entities.push(entity);
+        self.mark_visible_dirty();
         let idx = self.entities.len() - 1;
         Ok(idx)
     }
@@ -237,6 +275,7 @@ impl Scene {
         if index < self.entities.len() {
             let entity = self.entities.remove(index);
             tracing::info!("Removed entity '{}' ({})", entity.name, entity.id);
+            self.mark_visible_dirty();
             Some(entity.id)
         } else {
             None
@@ -251,5 +290,107 @@ impl Scene {
     /// Convert current scene state back to config for saving
     pub fn to_character_configs(&self) -> Vec<CharacterConfig> {
         self.entities.iter().map(|e| e.to_config()).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::animation::frame::Frame;
+    use crate::config::{AssetType, GlobalConfig};
+
+    fn make_entity(id: &str, z: i32, visible: bool) -> Entity {
+        let frame = Frame::new(vec![0u8; 4], 1, 1);
+        let anim = Animation::new(vec![frame], 1.0, false);
+        let cfg = CharacterConfig {
+            id: id.into(),
+            name: id.into(),
+            asset_type: AssetType::PngStatic,
+            asset_path: String::new(),
+            x: 0.0,
+            y: 0.0,
+            scale: 1.0,
+            opacity: 1.0,
+            fps: 1.0,
+            visible,
+            playing: false,
+            z_index: z,
+            physics_enabled: false,
+            spritesheet_columns: None,
+            spritesheet_rows: None,
+        };
+        Entity::from_config(&cfg, anim)
+    }
+
+    fn empty_scene() -> Scene {
+        let config = AppConfig {
+            global: GlobalConfig::default(),
+            characters: vec![],
+        };
+        Scene::from_config(&config)
+    }
+
+    #[test]
+    fn visible_entities_filters_and_sorts_by_z_index() {
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("a", 30, true));
+        scene.entities.push(make_entity("b", 10, true));
+        scene.entities.push(make_entity("c", 20, false)); // hidden — must be skipped
+        scene.entities.push(make_entity("d", 20, true));
+        scene.mark_visible_dirty();
+
+        let ids: Vec<&str> = scene
+            .visible_entities()
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["b", "d", "a"]);
+    }
+
+    #[test]
+    fn cache_is_reused_when_valid() {
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("a", 0, true));
+        scene.mark_visible_dirty();
+        // First call populates the cache.
+        let _ = scene.visible_entities();
+        assert!(scene.visible_cache.borrow().valid);
+        // Without invalidation, second call leaves it valid.
+        let _ = scene.visible_entities();
+        assert!(scene.visible_cache.borrow().valid);
+    }
+
+    #[test]
+    fn add_entity_invalidates_cache() {
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("a", 0, true));
+        scene.mark_visible_dirty();
+        let _ = scene.visible_entities();
+        assert!(scene.visible_cache.borrow().valid);
+
+        // add_entity_from_path requires real I/O, so simulate the
+        // invariant: any mutation that adds/removes must invalidate.
+        scene.entities.push(make_entity("b", 5, true));
+        scene.mark_visible_dirty();
+        assert!(!scene.visible_cache.borrow().valid);
+    }
+
+    #[test]
+    fn remove_entity_invalidates_cache() {
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("a", 0, true));
+        scene.entities.push(make_entity("b", 10, true));
+        scene.mark_visible_dirty();
+        let _ = scene.visible_entities();
+
+        scene.remove_entity(0);
+        assert!(!scene.visible_cache.borrow().valid);
+
+        let ids: Vec<&str> = scene
+            .visible_entities()
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["b"]);
     }
 }

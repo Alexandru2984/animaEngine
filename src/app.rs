@@ -666,6 +666,7 @@ impl ApplicationHandler for App {
                             entity.name,
                             if entity.visible { "visible" } else { "hidden" }
                         );
+                        self.scene.mark_visible_dirty();
                         self.config_dirty = true;
                     }
                 }
@@ -758,6 +759,7 @@ impl ApplicationHandler for App {
                             self.scene.entities[idx].z_index,
                             self.scene.entities[idx].name
                         );
+                        self.scene.mark_visible_dirty();
                         self.config_dirty = true;
                     }
                 }
@@ -770,6 +772,7 @@ impl ApplicationHandler for App {
                             self.scene.entities[idx].z_index,
                             self.scene.entities[idx].name
                         );
+                        self.scene.mark_visible_dirty();
                         self.config_dirty = true;
                     }
                 }
