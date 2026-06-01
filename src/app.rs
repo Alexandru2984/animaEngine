@@ -462,12 +462,16 @@ impl ApplicationHandler for App {
                     // Render all visible entities. WgpuRenderer hands back the
                     // surface texture without presenting so egui can overlay on
                     // top of the same frame.
-                    let visible = self.scene.visible_entities();
-                    let entity_count = self.scene.entities.len();
-                    match renderer.render(&visible, self.edit_mode, selected_id) {
+                    //
+                    // We drop `visible` before the egui block so the immutable
+                    // borrow on self.scene is released and the UI can take a
+                    // mutable one to drive sliders / list mutations.
+                    let render_result = {
+                        let visible = self.scene.visible_entities();
+                        renderer.render(&visible, self.edit_mode, selected_id)
+                    };
+                    match render_result {
                         Ok(output) => {
-                            // egui overlay — only in edit mode (zero cost
-                            // otherwise; build_ui simply isn't invoked).
                             if self.edit_mode {
                                 if let (Some(ui), Some(window)) =
                                     (self.ui.as_mut(), self.window.as_ref())
@@ -476,13 +480,26 @@ impl ApplicationHandler for App {
                                         .texture
                                         .create_view(&wgpu::TextureViewDescriptor::default());
                                     let size = [renderer.window_width, renderer.window_height];
+
+                                    // Disjoint mutable borrows on disjoint fields.
+                                    let scene_mut = &mut self.scene;
+                                    let selection_mut = &mut self.selection;
+                                    let config_dirty_mut = &mut self.config_dirty;
+
                                     ui.render(
                                         window,
                                         &renderer.device,
                                         &renderer.queue,
                                         &view,
                                         size,
-                                        |ctx| panels::edit_mode_probe(ctx, entity_count),
+                                        |ctx| {
+                                            panels::settings(
+                                                ctx,
+                                                scene_mut,
+                                                selection_mut,
+                                                config_dirty_mut,
+                                            );
+                                        },
                                     );
                                 }
                             }
