@@ -215,6 +215,17 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                 },
                 "Follow cursor",
             );
+            ui.selectable_value(
+                behavior,
+                Behavior::BoundedWander {
+                    x_min: 200.0,
+                    x_max: 1200.0,
+                    y_min: 200.0,
+                    y_max: 800.0,
+                    speed: 120.0,
+                },
+                "Bounded wander",
+            );
             if *behavior != prev {
                 changed = true;
             }
@@ -248,6 +259,52 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                 changed = true;
             }
         }
+        Behavior::BoundedWander {
+            x_min,
+            x_max,
+            y_min,
+            y_max,
+            speed,
+        } => {
+            if ui
+                .add(egui::Slider::new(speed, 20.0..=400.0).text("Speed (px/s)"))
+                .changed()
+            {
+                changed = true;
+            }
+            ui.add_space(2.0);
+            ui.label(egui::RichText::new("Wander box").small().weak());
+            ui.horizontal(|ui| {
+                ui.label("X");
+                if ui
+                    .add(egui::DragValue::new(x_min).speed(1.0).prefix("min "))
+                    .changed()
+                {
+                    changed = true;
+                }
+                if ui
+                    .add(egui::DragValue::new(x_max).speed(1.0).prefix("max "))
+                    .changed()
+                {
+                    changed = true;
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Y");
+                if ui
+                    .add(egui::DragValue::new(y_min).speed(1.0).prefix("min "))
+                    .changed()
+                {
+                    changed = true;
+                }
+                if ui
+                    .add(egui::DragValue::new(y_max).speed(1.0).prefix("max "))
+                    .changed()
+                {
+                    changed = true;
+                }
+            });
+        }
     }
 
     changed
@@ -258,6 +315,7 @@ fn behavior_label(b: &Behavior) -> &'static str {
         Behavior::Idle => "Idle",
         Behavior::WalkAround { .. } => "Walk around",
         Behavior::FollowCursor { .. } => "Follow cursor",
+        Behavior::BoundedWander { .. } => "Bounded wander",
     }
 }
 

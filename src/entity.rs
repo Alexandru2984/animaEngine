@@ -45,6 +45,13 @@ pub struct Entity {
 impl Entity {
     /// Create an entity from config + loaded animation frames
     pub fn from_config(config: &CharacterConfig, animation: Animation) -> Self {
+        // Seed the behavior RNG from the entity id so two BoundedWander
+        // characters created from the same template don't trace identical
+        // paths. Same-id reloads still get the same seed → deterministic.
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(&config.id, &mut hasher);
+        let seed = std::hash::Hasher::finish(&hasher);
+
         Self {
             id: config.id.clone(),
             name: config.name.clone(),
@@ -62,7 +69,7 @@ impl Entity {
             spritesheet_rows: config.spritesheet_rows,
             physics: PhysicsState::from_enabled(config.physics_enabled),
             behavior: config.behavior.clone(),
-            behavior_state: BehaviorState::default(),
+            behavior_state: BehaviorState::with_seed(seed),
         }
     }
 

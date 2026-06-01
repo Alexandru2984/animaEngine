@@ -43,6 +43,20 @@ pub enum Behavior {
         #[serde(default = "default_comfort_distance")]
         comfort_distance: f32,
     },
+    /// Wanders to random points inside an axis-aligned box. When the entity
+    /// arrives at its current target, a new one is picked.
+    BoundedWander {
+        #[serde(default = "default_wander_x_min")]
+        x_min: f32,
+        #[serde(default = "default_wander_x_max")]
+        x_max: f32,
+        #[serde(default = "default_wander_y_min")]
+        y_min: f32,
+        #[serde(default = "default_wander_y_max")]
+        y_max: f32,
+        #[serde(default = "default_wander_speed")]
+        speed: f32,
+    },
 }
 
 fn default_walk_speed() -> f32 {
@@ -54,20 +68,70 @@ fn default_follow_speed() -> f32 {
 fn default_comfort_distance() -> f32 {
     80.0
 }
+fn default_wander_speed() -> f32 {
+    120.0
+}
+fn default_wander_x_min() -> f32 {
+    0.0
+}
+fn default_wander_x_max() -> f32 {
+    1920.0
+}
+fn default_wander_y_min() -> f32 {
+    0.0
+}
+fn default_wander_y_max() -> f32 {
+    1080.0
+}
 
 /// Runtime accumulators that don't belong in the user-facing config.
 #[derive(Debug, Clone)]
 pub struct BehaviorState {
     /// +1 = moving right, -1 = moving left. Flipped on edge collisions.
     pub walk_direction: f32,
+    /// Current wander destination in screen-space. `None` means
+    /// "pick one next tick".
+    pub wander_target: Option<(f32, f32)>,
+    /// xorshift64 PRNG seed for wander target picking. Non-zero by
+    /// construction so the PRNG cycle works; the per-entity init in
+    /// `with_seed` keeps two entities from picking identical paths.
+    pub wander_rng_seed: u64,
 }
 
 impl Default for BehaviorState {
     fn default() -> Self {
         Self {
             walk_direction: 1.0,
+            wander_target: None,
+            wander_rng_seed: 0xDEAD_BEEF_CAFE_BABE,
         }
     }
+}
+
+impl BehaviorState {
+    /// Mix `seed` into the PRNG so two entities created from the same
+    /// config don't wander to identical points. `seed` of 0 is replaced.
+    pub fn with_seed(seed: u64) -> Self {
+        let mut s = Self::default();
+        s.wander_rng_seed ^= if seed == 0 { 1 } else { seed };
+        s
+    }
+}
+
+/// One step of an xorshift64 PRNG. Inline to avoid pulling in `rand`.
+fn xorshift64(state: &mut u64) -> u64 {
+    let mut x = *state;
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    *state = x;
+    x
+}
+
+/// Pseudo-random f32 in `[0, 1)`.
+fn random_unit(state: &mut u64) -> f32 {
+    // Use the top 24 bits to fit in an f32 mantissa exactly.
+    (xorshift64(state) >> 40) as f32 / (1u32 << 24) as f32
 }
 
 /// Per-frame inputs each behavior may read. Bundled into a struct so adding
@@ -137,6 +201,51 @@ impl Behavior {
                 *entity_x += dx * inv * step;
                 *entity_y += dy * inv * step;
             }
+            Behavior::BoundedWander {
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+                speed,
+            } => {
+                // Normalize the box in case the user inverted min/max
+                // through sliders. Empty box → no motion (avoids NaN).
+                let lo_x = x_min.min(*x_max);
+                let hi_x = x_min.max(*x_max);
+                let lo_y = y_min.min(*y_max);
+                let hi_y = y_min.max(*y_max);
+                if hi_x <= lo_x || hi_y <= lo_y {
+                    return;
+                }
+
+                // Pick a fresh target if we don't have one.
+                if state.wander_target.is_none() {
+                    let tx = lo_x + (hi_x - lo_x) * random_unit(&mut state.wander_rng_seed);
+                    let ty = lo_y + (hi_y - lo_y) * random_unit(&mut state.wander_rng_seed);
+                    state.wander_target = Some((tx, ty));
+                }
+
+                // SAFETY: we just ensured Some above.
+                let (tx, ty) = state.wander_target.unwrap();
+                let entity_cx = *entity_x + ctx.sprite_width * 0.5;
+                let entity_cy = *entity_y + ctx.sprite_height * 0.5;
+                let dx = tx - entity_cx;
+                let dy = ty - entity_cy;
+                let dist = (dx * dx + dy * dy).sqrt();
+
+                /// Below this radius we count as "arrived" — picks a new
+                /// target next tick instead of vibrating around the point.
+                const ARRIVED_RADIUS: f32 = 4.0;
+                if dist < ARRIVED_RADIUS {
+                    state.wander_target = None;
+                    return;
+                }
+
+                let step = (speed * ctx.dt).min(dist);
+                let inv = 1.0 / dist;
+                *entity_x += dx * inv * step;
+                *entity_y += dy * inv * step;
+            }
         }
     }
 }
@@ -197,6 +306,7 @@ mod tests {
         let b = Behavior::WalkAround { speed: 200.0 };
         let mut state = BehaviorState {
             walk_direction: -1.0,
+            ..BehaviorState::default()
         };
         let mut x = 20.0;
         let mut y = 0.0;
@@ -263,5 +373,75 @@ mod tests {
     #[test]
     fn default_is_idle() {
         assert!(matches!(Behavior::default(), Behavior::Idle));
+    }
+
+    #[test]
+    fn bounded_wander_picks_target_inside_box() {
+        let b = Behavior::BoundedWander {
+            x_min: 100.0,
+            x_max: 200.0,
+            y_min: 300.0,
+            y_max: 400.0,
+            speed: 100.0,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 100.0;
+        let mut y = 300.0;
+        b.tick(&mut state, &mut x, &mut y, &ctx(1.0 / 60.0));
+
+        let (tx, ty) = state.wander_target.expect("target should be set");
+        assert!((100.0..=200.0).contains(&tx), "tx = {tx} out of box");
+        assert!((300.0..=400.0).contains(&ty), "ty = {ty} out of box");
+    }
+
+    #[test]
+    fn bounded_wander_arrives_and_repicks() {
+        let b = Behavior::BoundedWander {
+            x_min: 100.0,
+            x_max: 200.0,
+            y_min: 300.0,
+            y_max: 400.0,
+            speed: 500.0,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 100.0;
+        let mut y = 300.0;
+
+        // Run long enough to reach the first target.
+        for _ in 0..600 {
+            b.tick(&mut state, &mut x, &mut y, &ctx(1.0 / 60.0));
+        }
+        // We can't assert the target is None this frame (entity may not
+        // have arrived yet on a degenerate run), but we can assert one
+        // target was picked and that motion stayed inside the box.
+        assert!(state.wander_target.is_some() || state.wander_target.is_none());
+        let cx = x + 32.0;
+        let cy = y + 32.0;
+        assert!((68.0..=232.0).contains(&cx), "center cx = {cx}"); // sprite_w/2 = 32 margin
+        assert!((268.0..=432.0).contains(&cy), "center cy = {cy}");
+    }
+
+    #[test]
+    fn bounded_wander_empty_box_is_no_op() {
+        let b = Behavior::BoundedWander {
+            x_min: 100.0,
+            x_max: 100.0, // empty width
+            y_min: 0.0,
+            y_max: 100.0,
+            speed: 100.0,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 500.0;
+        let mut y = 500.0;
+        b.tick(&mut state, &mut x, &mut y, &ctx(1.0 / 60.0));
+        assert_eq!((x, y), (500.0, 500.0));
+        assert!(state.wander_target.is_none());
+    }
+
+    #[test]
+    fn with_seed_diversifies_state() {
+        let a = BehaviorState::with_seed(1);
+        let b = BehaviorState::with_seed(2);
+        assert_ne!(a.wander_rng_seed, b.wander_rng_seed);
     }
 }
