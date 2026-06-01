@@ -196,33 +196,37 @@ impl App {
         }
     }
 
-    /// Toggle between edit mode and pass-through mode
-    fn toggle_edit_mode(&mut self) {
-        self.edit_mode = !self.edit_mode;
-
+    /// Push the X11 input shape that matches the current `edit_mode`.
+    ///
+    /// Must be called any time the shape can desync from reality: mode
+    /// toggle, window resize, regaining focus or visibility (compositors
+    /// like Mutter occasionally clip the shape after fractional-scaling
+    /// transitions or after the window is minimized and restored).
+    fn reapply_input_shape(&mut self) {
         if let Some(x11) = &mut self.x11_input {
-            if self.edit_mode {
-                // Edit mode: full window receives input
-                if let Err(e) = x11.set_full_input() {
-                    tracing::warn!("Failed to set full input shape: {}", e);
-                    // Fallback to winit's method
-                    if let Some(window) = &self.window {
-                        let _ = window.set_cursor_hittest(true);
-                    }
-                }
+            let result = if self.edit_mode {
+                x11.set_full_input()
             } else {
-                // Pass-through mode: only the toggle button receives input
-                if let Err(e) = x11.set_passthrough_with_button(TOGGLE_BUTTON_SIZE) {
-                    tracing::warn!("Failed to set passthrough input shape: {}", e);
-                    if let Some(window) = &self.window {
-                        let _ = window.set_cursor_hittest(false);
-                    }
+                x11.set_passthrough_with_button(TOGGLE_BUTTON_SIZE)
+            };
+            if let Err(e) = result {
+                tracing::warn!("Failed to apply input shape: {}", e);
+                // Fall back to winit's cursor-hittest so we never end up
+                // in a totally unclickable state.
+                if let Some(window) = &self.window {
+                    let _ = window.set_cursor_hittest(self.edit_mode);
                 }
             }
         } else if let Some(window) = &self.window {
-            // No X11 manager — use winit fallback
+            // No X11 manager available — winit fallback only.
             let _ = window.set_cursor_hittest(self.edit_mode);
         }
+    }
+
+    /// Toggle between edit mode and pass-through mode
+    fn toggle_edit_mode(&mut self) {
+        self.edit_mode = !self.edit_mode;
+        self.reapply_input_shape();
 
         if self.edit_mode {
             tracing::info!(
@@ -383,12 +387,22 @@ impl ApplicationHandler for App {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize(physical_size.width, physical_size.height);
                 }
-                // Re-apply input shape after resize
-                if !self.edit_mode {
-                    if let Some(x11) = &mut self.x11_input {
-                        let _ = x11.set_passthrough_with_button(TOGGLE_BUTTON_SIZE);
-                    }
-                }
+                // The input shape mask is sized to the old window dimensions;
+                // re-apply for the new size in whatever mode we're in.
+                self.reapply_input_shape();
+            }
+
+            // Re-apply input shape when the window regains focus.
+            // Some compositors (notably Mutter with fractional scaling) clip
+            // the input shape after a focus loss → restore cycle.
+            WindowEvent::Focused(true) => {
+                self.reapply_input_shape();
+            }
+
+            // Re-apply input shape when the window becomes visible again
+            // after being occluded (e.g. user pressed Super+H, then restored).
+            WindowEvent::Occluded(false) => {
+                self.reapply_input_shape();
             }
 
             WindowEvent::RedrawRequested => {
