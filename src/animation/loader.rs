@@ -6,14 +6,28 @@ use super::webp_loader;
 use crate::config::AssetType;
 use crate::constants::MAX_IMAGE_DIM;
 use crate::error::{AnimaError, Result};
+use std::fs;
 use std::path::Path;
 
-/// Validate image dimensions by reading only the file header (no full decode).
-/// Returns an error if either dimension exceeds `MAX_IMAGE_DIM`.
+/// Validate that loading the asset at `path` won't blow up memory.
+///
+/// - For a single file, checks the header dimensions against `MAX_IMAGE_DIM`.
+/// - For a directory (PNG sequence), validates **every** `.png` file inside.
+///   The first oversized frame triggers an `ImageTooLarge` error so we never
+///   start decoding a 64-frame sequence only to OOM on frame 32.
+///
+/// Returns the dimensions of the file (or `(0, 0)` for directories — the
+/// caller doesn't use the value for sequences anyway).
 pub fn validate_image_dimensions(path: &Path) -> Result<(u32, u32)> {
     if path.is_dir() {
-        return Ok((0, 0)); // Directories are validated per-frame
+        validate_directory(path)?;
+        return Ok((0, 0));
     }
+    validate_single_file(path)
+}
+
+/// Header-only dimension check for a single image file.
+fn validate_single_file(path: &Path) -> Result<(u32, u32)> {
     if !path.exists() {
         return Err(AnimaError::AssetNotFound(path.to_path_buf()));
     }
@@ -32,8 +46,8 @@ pub fn validate_image_dimensions(path: &Path) -> Result<(u32, u32)> {
             }
         }
         Err(e) => {
-            // Can't read dimensions (might be a format we don't recognize at header level)
-            // Allow loading — the image crate will fail later if truly invalid
+            // Unknown format at header level — let the actual decoder
+            // surface the error. We refuse to fabricate dimensions.
             tracing::debug!(
                 "Could not read image dimensions for {}: {}",
                 path.display(),
@@ -42,6 +56,18 @@ pub fn validate_image_dimensions(path: &Path) -> Result<(u32, u32)> {
             Ok((0, 0))
         }
     }
+}
+
+/// Validate every `.png` inside a sequence directory before any decode.
+fn validate_directory(dir: &Path) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("png") {
+            validate_single_file(&path)?;
+        }
+    }
+    Ok(())
 }
 
 /// Load animation frames based on asset type and path.
@@ -53,10 +79,8 @@ pub fn load_asset(
     spritesheet_columns: Option<u32>,
     spritesheet_rows: Option<u32>,
 ) -> Result<Vec<Frame>> {
-    // Validate dimensions for file-based assets (not directories)
-    if !asset_path.is_dir() {
-        validate_image_dimensions(asset_path)?;
-    }
+    // Reject decompression bombs up-front (works for files AND directories).
+    validate_image_dimensions(asset_path)?;
 
     match asset_type {
         AssetType::PngSequence => {
@@ -159,4 +183,76 @@ pub fn generate_fallback_frame(color: [u8; 4], size: u32) -> Frame {
         }
     }
     Frame::new(rgba, size, size)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a temp dir under `target/` so we don't pollute the workspace.
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("validate_tests")
+            .join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_png(path: &Path, w: u32, h: u32) {
+        let img = image::RgbaImage::new(w, h);
+        img.save(path).unwrap();
+    }
+
+    #[test]
+    fn validate_dir_with_safe_pngs_succeeds() {
+        let dir = temp_dir("safe_seq");
+        for i in 1..=3 {
+            write_png(&dir.join(format!("frame_{i:03}.png")), 32, 32);
+        }
+        assert!(validate_image_dimensions(&dir).is_ok());
+    }
+
+    #[test]
+    fn validate_dir_rejects_oversized_frame() {
+        let dir = temp_dir("oversized_seq");
+        // One safe frame, then an oversized one. Validation must catch the
+        // big one regardless of file ordering inside the dir.
+        write_png(&dir.join("frame_001.png"), 32, 32);
+        write_png(&dir.join("frame_002.png"), MAX_IMAGE_DIM + 100, 32);
+
+        let err = validate_image_dimensions(&dir).unwrap_err();
+        match err {
+            AnimaError::ImageTooLarge { width, .. } => {
+                assert!(width > MAX_IMAGE_DIM);
+            }
+            other => panic!("expected ImageTooLarge, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_dir_ignores_non_png_files() {
+        let dir = temp_dir("mixed_seq");
+        write_png(&dir.join("frame_001.png"), 32, 32);
+        // A README that would fail dimension probing — must be ignored.
+        std::fs::write(dir.join("README.txt"), b"not an image").unwrap();
+        assert!(validate_image_dimensions(&dir).is_ok());
+    }
+
+    #[test]
+    fn validate_single_oversized_file_errors() {
+        let dir = temp_dir("oversized_file");
+        let path = dir.join("big.png");
+        write_png(&path, MAX_IMAGE_DIM + 50, MAX_IMAGE_DIM + 50);
+
+        let err = validate_image_dimensions(&path).unwrap_err();
+        assert!(matches!(err, AnimaError::ImageTooLarge { .. }));
+    }
+
+    #[test]
+    fn validate_missing_file_errors() {
+        let err = validate_image_dimensions(Path::new("/nonexistent/x.png")).unwrap_err();
+        assert!(matches!(err, AnimaError::AssetNotFound(_)));
+    }
 }
