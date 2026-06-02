@@ -10,6 +10,7 @@
 //! know what's being painted, only how to paint it.
 
 mod egui_renderer;
+pub mod icons;
 pub mod panels;
 pub mod theme;
 pub mod toasts;

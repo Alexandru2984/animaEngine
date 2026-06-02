@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Variant 3 — "Frame Stack"
+
+  Reads as: "frame-by-frame animation"
+  Mood:     clear technical metaphor, approachable, recognizable in any
+            launcher list because the silhouette is instantly different
+            from neighbouring app icons
+  Palette:  solid accent background with white frames + a single warm
+            highlight dot for personality
+  Hook:     three sprite-sheet-style frames offset diagonally, with a
+            play-triangle on the topmost frame and a small motion dot
+            trailing — communicates the engine's purpose literally
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>animaEngine — Frame Stack</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7C8EFF"/>
+      <stop offset="1" stop-color="#5163E8"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="0" dy="3" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.35"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded badge -->
+  <rect width="256" height="256" rx="56" ry="56" fill="url(#bg)"/>
+
+  <!-- Three stacked frames, offset diagonally (back-to-front).
+       Each is a rounded card with a subtle gap so the eye reads
+       them as a stack, not a single shape. -->
+  <g filter="url(#cardShadow)">
+    <!-- Back frame -->
+    <rect x="80" y="60" width="120" height="120" rx="14"
+          fill="#FFFFFF" opacity="0.45"/>
+    <!-- Middle frame -->
+    <rect x="68" y="72" width="120" height="120" rx="14"
+          fill="#FFFFFF" opacity="0.70"/>
+    <!-- Front frame — full opacity, has the play triangle -->
+    <rect x="56" y="84" width="120" height="120" rx="14"
+          fill="#FFFFFF"/>
+  </g>
+
+  <!-- Play triangle on the front frame -->
+  <path d="M 102 124 L 138 144 L 102 164 Z"
+        fill="#5163E8"/>
+
+  <!-- Motion dot — single warm accent so the icon doesn't feel cold
+       at small sizes, and ties back to the demo "heart" sprite -->
+  <circle cx="216" cy="56" r="14" fill="#FFFFFF" opacity="0.92"/>
+  <circle cx="216" cy="56" r="6"  fill="#F26565"/>
+</svg>

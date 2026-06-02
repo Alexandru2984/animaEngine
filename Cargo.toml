@@ -109,6 +109,7 @@ thiserror = "1"
 
 # Async for wgpu
 pollster = "0.4"
+egui-phosphor = "0.9"
 
 [profile.dev]
 opt-level = 1

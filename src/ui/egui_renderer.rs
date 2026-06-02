@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::ui::icons;
 use crate::ui::theme::{self, Theme};
 
 /// Single-window egui integration. All three pieces (`Context`, `State`,
@@ -39,8 +40,10 @@ impl EguiRenderer {
         // Single-sample, no depth — matches our sprite pipeline.
         let renderer = egui_wgpu::Renderer::new(device, output_format, None, 1, false);
 
-        // Push the initial design-system style; the rest of the UI code
-        // can read `ctx.style()` and trust it matches docs/design-system.md.
+        // Push the initial design-system style + register the icon font.
+        // Order matters: `set_fonts` invalidates the glyph atlas, so we
+        // do it before any panel paints — both calls happen at startup.
+        icons::install(&context);
         theme::apply(&context, theme);
 
         Self {

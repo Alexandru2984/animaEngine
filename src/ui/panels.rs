@@ -9,6 +9,7 @@ use crate::behavior::Behavior;
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::input::selection::SelectionState;
 use crate::scene::Scene;
+use crate::ui::icons;
 use crate::ui::theme::Theme;
 use crate::ui::toasts::{ToastKind, ToastQueue};
 
@@ -94,13 +95,13 @@ pub fn settings(
 fn theme_picker(ui: &mut egui::Ui, theme: &mut Theme) -> bool {
     let mut changed = false;
     ui.horizontal(|ui| {
-        ui.label("Theme");
+        ui.label(format!("{}  Theme", icons::PALETTE));
         egui::ComboBox::from_id_salt("theme_picker")
-            .selected_text(theme.label())
+            .selected_text(theme_label_with_icon(*theme))
             .show_ui(ui, |ui| {
                 for option in Theme::ALL {
                     if ui
-                        .selectable_label(*theme == *option, option.label())
+                        .selectable_label(*theme == *option, theme_label_with_icon(*option))
                         .clicked()
                         && *theme != *option
                     {
@@ -111,6 +112,14 @@ fn theme_picker(ui: &mut egui::Ui, theme: &mut Theme) -> bool {
             });
     });
     changed
+}
+
+fn theme_label_with_icon(t: Theme) -> String {
+    let icon = match t {
+        Theme::Dark => icons::DARK_MODE,
+        Theme::Light => icons::LIGHT_MODE,
+    };
+    format!("{icon}  {}", t.label())
 }
 
 /// Tracks which fields of an entity were modified, so the caller can mark
@@ -234,16 +243,20 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
 
     // ComboBox with the three concrete variants. selectable_value compares
     // via PartialEq, so picking the same variant a second time is a no-op.
-    let current_label = behavior_label(behavior);
+    let current_label = behavior_label_with_icon(behavior);
     egui::ComboBox::from_id_salt("behavior_picker")
         .selected_text(current_label)
         .show_ui(ui, |ui| {
             let prev = behavior.clone();
-            ui.selectable_value(behavior, Behavior::Idle, "Idle");
+            ui.selectable_value(
+                behavior,
+                Behavior::Idle,
+                format!("{}  Idle", icons::BEHAVIOR_IDLE),
+            );
             ui.selectable_value(
                 behavior,
                 Behavior::WalkAround { speed: 60.0 },
-                "Walk around",
+                format!("{}  Walk around", icons::BEHAVIOR_WALK),
             );
             ui.selectable_value(
                 behavior,
@@ -251,7 +264,7 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                     speed: 240.0,
                     comfort_distance: 80.0,
                 },
-                "Follow cursor",
+                format!("{}  Follow cursor", icons::BEHAVIOR_FOLLOW),
             );
             ui.selectable_value(
                 behavior,
@@ -262,7 +275,7 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                     y_max: 800.0,
                     speed: 120.0,
                 },
-                "Bounded wander",
+                format!("{}  Bounded wander", icons::BEHAVIOR_WANDER),
             );
             if *behavior != prev {
                 changed = true;
@@ -348,13 +361,14 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
     changed
 }
 
-fn behavior_label(b: &Behavior) -> &'static str {
-    match b {
-        Behavior::Idle => "Idle",
-        Behavior::WalkAround { .. } => "Walk around",
-        Behavior::FollowCursor { .. } => "Follow cursor",
-        Behavior::BoundedWander { .. } => "Bounded wander",
-    }
+fn behavior_label_with_icon(b: &Behavior) -> String {
+    let (icon, name) = match b {
+        Behavior::Idle => (icons::BEHAVIOR_IDLE, "Idle"),
+        Behavior::WalkAround { .. } => (icons::BEHAVIOR_WALK, "Walk around"),
+        Behavior::FollowCursor { .. } => (icons::BEHAVIOR_FOLLOW, "Follow cursor"),
+        Behavior::BoundedWander { .. } => (icons::BEHAVIOR_WANDER, "Bounded wander"),
+    };
+    format!("{icon}  {name}")
 }
 
 fn scene_list(
@@ -385,13 +399,17 @@ fn scene_list(
                     let label = if entity.visible {
                         entity.name.clone()
                     } else {
-                        format!("{} (hidden)", entity.name)
+                        format!("{}  {}", icons::HIDDEN, entity.name)
                     };
                     if ui.selectable_label(is_selected, label).clicked() {
                         action = Some(ListAction::Select(idx));
                     }
                     // Small delete button on the right.
-                    if ui.small_button("×").on_hover_text("Delete").clicked() {
+                    if ui
+                        .small_button(icons::TRASH)
+                        .on_hover_text("Delete")
+                        .clicked()
+                    {
                         action = Some(ListAction::Delete(idx));
                     }
                 });
@@ -429,25 +447,40 @@ pub(crate) fn context_menu(ctx: &egui::Context, state: &ContextMenuState) -> Con
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.set_min_width(160.0);
 
-                if ui.button("Duplicate").clicked() {
+                if ui.button(format!("{}  Duplicate", icons::COPY)).clicked() {
                     picked = Some(MenuAction::Duplicate(idx));
                 }
-                if ui.button("Reset transform").clicked() {
+                if ui
+                    .button(format!("{}  Reset transform", icons::RESET))
+                    .clicked()
+                {
                     picked = Some(MenuAction::ResetTransform(idx));
                 }
-                if ui.button("Toggle gravity").clicked() {
+                if ui
+                    .button(format!("{}  Toggle gravity", icons::GRAVITY))
+                    .clicked()
+                {
                     picked = Some(MenuAction::ToggleGravity(idx));
                 }
                 ui.separator();
-                if ui.button("Bring forward").clicked() {
+                if ui
+                    .button(format!("{}  Bring forward", icons::BRING_FORWARD))
+                    .clicked()
+                {
                     picked = Some(MenuAction::BringForward(idx));
                 }
-                if ui.button("Send backward").clicked() {
+                if ui
+                    .button(format!("{}  Send backward", icons::SEND_BACKWARD))
+                    .clicked()
+                {
                     picked = Some(MenuAction::SendBackward(idx));
                 }
                 ui.separator();
+                let error_color = ui.visuals().error_fg_color;
                 if ui
-                    .button(egui::RichText::new("Delete").color(egui::Color32::LIGHT_RED))
+                    .button(
+                        egui::RichText::new(format!("{}  Delete", icons::TRASH)).color(error_color),
+                    )
                     .clicked()
                 {
                     picked = Some(MenuAction::Delete(idx));
@@ -552,7 +585,7 @@ pub fn toggle_button(ctx: &egui::Context, edit_mode: bool) -> bool {
                 .add_sized(
                     egui::vec2(size, size),
                     egui::Button::new(
-                        egui::RichText::new("⚙")
+                        egui::RichText::new(icons::SETTINGS)
                             .size(28.0)
                             .color(egui::Color32::WHITE),
                     )
