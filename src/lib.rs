@@ -12,6 +12,7 @@ pub mod input;
 pub mod physics;
 pub mod renderer;
 pub mod scene;
+pub mod single_instance;
 pub mod tray;
 pub mod ui;
 pub mod window;

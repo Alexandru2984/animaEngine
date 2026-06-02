@@ -14,6 +14,9 @@ pub enum AnimaEvent {
     HideOverlay,
     /// Show the overlay window (visible).
     ShowOverlay,
+    /// A second launch attempt asked us to come back to the front
+    /// (single-instance handshake).
+    RaiseWindow,
     /// Save config and exit cleanly.
     Quit,
 }

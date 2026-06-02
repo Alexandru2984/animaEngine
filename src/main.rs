@@ -2,6 +2,7 @@ use anima_engine::app::App;
 use anima_engine::config::AppConfig;
 use anima_engine::event::AnimaEvent;
 use anima_engine::scene::Scene;
+use anima_engine::single_instance::{self, AcquireOutcome};
 use anima_engine::{demo, hotkeys, tray, window};
 
 // Force X11 backend — XWayland on Wayland systems.
@@ -22,6 +23,16 @@ fn main() {
     tracing::info!("  Linux-first animated desktop overlay engine");
     tracing::info!("  Supported formats: PNG, GIF, WebP (animated), Spritesheets");
     tracing::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // Single-instance handshake — must happen before any work, otherwise
+    // a redundant launch would do all the setup just to hand off.
+    let dbus_connection = match single_instance::try_acquire() {
+        AcquireOutcome::Claimed(conn) => conn,
+        AcquireOutcome::HandedOff => {
+            tracing::info!("Another instance is already running. Asked it to raise.");
+            std::process::exit(0);
+        }
+    };
 
     window::platform::log_platform_info();
     window::linux::check_compositor();
@@ -82,6 +93,12 @@ fn main() {
     // Register global hotkeys (Ctrl+Shift+A/H/P). The controller must live
     // as long as the app — dropping it un-registers the bindings.
     let _hotkeys = hotkeys::register(event_loop.create_proxy());
+
+    // Now that we have a proxy, install the single-instance service so a
+    // future redundant launch can ask us to raise instead of starting up.
+    if let Some(conn) = dbus_connection {
+        single_instance::install_service(conn, event_loop.create_proxy());
+    }
 
     let mut app = App::new(config, scene);
 

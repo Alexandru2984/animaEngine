@@ -413,6 +413,17 @@ impl ApplicationHandler<AnimaEvent> for App {
                     window.set_visible(false);
                 }
             }
+            AnimaEvent::RaiseWindow => {
+                // Someone launched a second instance. Make sure we're
+                // visible and ask the WM to focus us. EWMH ABOVE keeps us
+                // on top regardless; this is just a nudge.
+                if let Some(window) = &self.window {
+                    window.set_visible(true);
+                    window.focus_window();
+                    self.reapply_input_shape();
+                }
+                tracing::info!("Raised by second-instance handshake");
+            }
             AnimaEvent::Quit => {
                 tracing::info!("Quit requested from tray");
                 self.save_config_if_needed();

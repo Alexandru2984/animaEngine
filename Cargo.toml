@@ -36,6 +36,10 @@ async-io = "2"
 # and visibility without focusing the overlay.
 global-hotkey = "0.8"
 
+# Already pulled in transitively by ksni; pin explicitly so the
+# single-instance D-Bus handshake doesn't break on minor bumps.
+zbus = { version = "5", default-features = false, features = ["async-io"] }
+
 # Image loading
 image = { version = "0.25", default-features = false, features = ["png", "gif", "webp", "jpeg"] }
 
