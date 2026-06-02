@@ -16,6 +16,7 @@ pub mod scene;
 pub mod single_instance;
 pub mod tray;
 pub mod ui;
+pub mod util;
 pub mod wayland;
 pub mod window;
 

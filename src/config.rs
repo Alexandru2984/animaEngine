@@ -269,18 +269,14 @@ impl AppConfig {
         config
     }
 
-    /// Save config to disk
+    /// Save config to disk **atomically** — writes to a temp sibling
+    /// then renames over the target. A crash mid-save can no longer
+    /// leave a truncated `config.toml`.
     #[tracing::instrument(skip(self), fields(n_chars = self.characters.len()))]
     pub fn save(&self) -> Result<()> {
         let path = Self::config_path();
-
-        // Create parent directory if needed
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-
         let toml_string = toml::to_string_pretty(self)?;
-        fs::write(&path, toml_string)?;
+        crate::util::atomic_write_bytes(&path, toml_string.as_bytes())?;
         tracing::info!("Config saved to {}", path.display());
         Ok(())
     }

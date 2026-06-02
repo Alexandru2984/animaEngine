@@ -28,11 +28,30 @@ pub fn validate_image_dimensions(path: &Path) -> Result<(u32, u32)> {
     validate_single_file(path)
 }
 
+/// Extensions we know how to validate via the `image` crate's
+/// header-only probe. For these we fail closed if the probe fails.
+const IMAGE_PROBE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp"];
+
 /// Header-only dimension check for a single image file.
+///
+/// **Fail-closed for known image extensions** (PNG / JPEG / GIF / WebP):
+/// if the header can't be read, return `Err` instead of letting the
+/// real decoder paper over it later. For other extensions (e.g. video,
+/// where `image_dimensions` doesn't apply) we return `(0, 0)` so the
+/// format-specific loader can do its own checks.
 fn validate_single_file(path: &Path) -> Result<(u32, u32)> {
     if !path.exists() {
         return Err(AnimaError::AssetNotFound(path.to_path_buf()));
     }
+
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_ascii_lowercase());
+    let is_image_ext = ext
+        .as_deref()
+        .map(|e| IMAGE_PROBE_EXTENSIONS.contains(&e))
+        .unwrap_or(false);
 
     match image::image_dimensions(path) {
         Ok((w, h)) => {
@@ -47,11 +66,19 @@ fn validate_single_file(path: &Path) -> Result<(u32, u32)> {
                 Ok((w, h))
             }
         }
+        Err(e) if is_image_ext => {
+            // Known image extension but the header is unreadable —
+            // refuse instead of trusting the decoder to fail later.
+            Err(AnimaError::other(format!(
+                "Unreadable {ext:?} header at {}: {e}",
+                path.display()
+            )))
+        }
         Err(e) => {
-            // Unknown format at header level — let the actual decoder
-            // surface the error. We refuse to fabricate dimensions.
+            // Unknown extension (video, …) — defer to the format-specific
+            // loader.
             tracing::debug!(
-                "Could not read image dimensions for {}: {}",
+                "Could not read image dimensions for {} (deferring): {}",
                 path.display(),
                 e
             );
@@ -282,5 +309,29 @@ mod tests {
     fn validate_missing_file_errors() {
         let err = validate_image_dimensions(Path::new("/nonexistent/x.png")).unwrap_err();
         assert!(matches!(err, AnimaError::AssetNotFound(_)));
+    }
+
+    #[test]
+    fn validate_corrupt_png_fails_closed() {
+        // A file with a .png extension but no real PNG header. Old behavior
+        // returned (0, 0) and deferred to the decoder; we now error out.
+        let dir = temp_dir("corrupt_png");
+        let path = dir.join("not_really.png");
+        std::fs::write(&path, b"this is not a png").unwrap();
+        let err = validate_image_dimensions(&path).unwrap_err();
+        // We mostly care that it's NOT silently Ok((0, 0)) and NOT an
+        // "asset not found" — the path exists, it just isn't a PNG.
+        assert!(matches!(err, AnimaError::Other(_)));
+    }
+
+    #[test]
+    fn validate_unknown_extension_defers() {
+        // A .xyz file the image crate can't probe — we still return Ok
+        // because the format-specific loader may know what to do with it.
+        let dir = temp_dir("unknown_ext");
+        let path = dir.join("blob.xyz");
+        std::fs::write(&path, b"opaque bytes").unwrap();
+        let dims = validate_image_dimensions(&path).expect("should defer, not error");
+        assert_eq!(dims, (0, 0));
     }
 }

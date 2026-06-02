@@ -130,12 +130,10 @@ pub fn try_save(asset_path: &Path, frames: &[Frame]) -> Result<()> {
         return Ok(());
     };
 
-    if let Some(parent) = key.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
     let bytes = serialize_frames(frames);
-    fs::write(&key, &bytes)?;
+    // Atomic write so a crash mid-write can't corrupt a cache file the
+    // next launch would have to repair.
+    crate::util::atomic_write_bytes(&key, &bytes)?;
     tracing::debug!(
         "Wrote asset cache: {} ({} bytes)",
         key.display(),
