@@ -1,7 +1,7 @@
 use crate::behavior::Behavior;
 use crate::constants::MAX_ENTITIES;
 use crate::error::Result;
-use crate::ui::Theme;
+use crate::ui::{OnboardingProgress, Theme};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -22,6 +22,14 @@ pub struct GlobalConfig {
     /// field round-trip through `Theme::default()`.
     #[serde(default)]
     pub theme: Theme,
+    /// Which onboarding hints the user has already dismissed.
+    /// `#[serde(default = ...)]` deliberately points at
+    /// `OnboardingProgress::all_seen` so existing users (configs
+    /// without this field) skip the new hints — only brand-new
+    /// installs (`AppConfig::default()`) start with everything
+    /// pending.
+    #[serde(default = "OnboardingProgress::all_seen")]
+    pub onboarding: OnboardingProgress,
 }
 
 fn default_window_width() -> u32 {
@@ -40,6 +48,9 @@ impl Default for GlobalConfig {
             window_width: 0,  // auto-detect
             window_height: 0, // auto-detect
             theme: Theme::default(),
+            // Brand-new install: nothing has been dismissed yet, so
+            // every progressive hint will appear on the first run.
+            onboarding: OnboardingProgress::default(),
         }
     }
 }

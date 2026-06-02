@@ -11,6 +11,7 @@ use crate::input::selection::SelectionState;
 use crate::scene::Scene;
 use crate::ui::anim;
 use crate::ui::icons;
+use crate::ui::onboarding::{self, OnboardingProgress};
 use crate::ui::states;
 use crate::ui::theme::{self, h2, Theme, SPACE_2XL, SPACE_L, SPACE_M, SPACE_S, SPACE_XS};
 use crate::ui::toasts::{Toast, ToastKind, ToastQueue};
@@ -79,6 +80,7 @@ pub fn settings(
     selection: &mut SelectionState,
     config_dirty: &mut bool,
     theme: &mut Theme,
+    onboarding: &mut OnboardingProgress,
 ) {
     egui::SidePanel::right("anima_settings")
         .resizable(false)
@@ -116,6 +118,16 @@ pub fn settings(
             });
             ui.separator();
 
+            // First-run hint right under the tab switcher.
+            if onboarding::hint(
+                ui,
+                "Settings split across three tabs — Inspector, Scene, Appearance.",
+                &mut onboarding.tabs,
+            ) {
+                *config_dirty = true;
+            }
+            ui.add_space(SPACE_XS);
+
             // ── Tab body ──────────────────────────────────────────────
             // Each tab gets its own animate-value id so switching
             // restarts the curve from 0 and produces a 100ms fade-in
@@ -131,13 +143,13 @@ pub fn settings(
                     ui.set_opacity(tab_alpha);
                     match active_tab {
                         SettingsTab::Inspector => {
-                            inspector_tab(ui, scene, selection, config_dirty);
+                            inspector_tab(ui, scene, selection, config_dirty, onboarding);
                         }
                         SettingsTab::Scene => {
                             scene_tab(ui, scene, selection, config_dirty);
                         }
                         SettingsTab::Appearance => {
-                            appearance_tab(ui, theme, config_dirty);
+                            appearance_tab(ui, theme, config_dirty, onboarding);
                         }
                     }
                 });
@@ -166,10 +178,20 @@ fn inspector_tab(
     scene: &mut Scene,
     selection: &mut SelectionState,
     config_dirty: &mut bool,
+    onboarding: &mut OnboardingProgress,
 ) {
     let selected_idx = selection.selected_index();
     match selected_idx.and_then(|idx| scene.entities.get_mut(idx).map(|e| (idx, e))) {
         Some((_idx, entity)) => {
+            // Hint about V / G shortcuts, sitting above the quick-toggle
+            // row so the visual proximity makes the connection.
+            if onboarding::hint(
+                ui,
+                "Tip: V toggles visibility, G toggles gravity — no need to open this panel.",
+                &mut onboarding.quick_toggles,
+            ) {
+                *config_dirty = true;
+            }
             let changed = entity_inspector(ui, entity);
             if changed.any() {
                 *config_dirty = true;
@@ -212,10 +234,23 @@ fn scene_tab(
     scene_list(ui, scene, selection, config_dirty);
 }
 
-fn appearance_tab(ui: &mut egui::Ui, theme: &mut Theme, config_dirty: &mut bool) {
+fn appearance_tab(
+    ui: &mut egui::Ui,
+    theme: &mut Theme,
+    config_dirty: &mut bool,
+    onboarding: &mut OnboardingProgress,
+) {
     ui.label(egui::RichText::new("Theme").text_style(h2()));
     ui.add_space(SPACE_S);
     if theme_picker(ui, theme) {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    if onboarding::hint(
+        ui,
+        "Themes apply instantly — no restart needed.",
+        &mut onboarding.theme,
+    ) {
         *config_dirty = true;
     }
     ui.add_space(SPACE_2XL);

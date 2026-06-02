@@ -675,6 +675,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 let selection_mut = &mut self.selection;
                                 let config_dirty_mut = &mut self.config_dirty;
                                 let theme_mut = &mut self.config.global.theme;
+                                let onboarding_mut = &mut self.config.global.onboarding;
                                 let toasts_ref = &self.toasts;
                                 let menu_state = self.ui_state.context_menu.clone();
                                 let menu_outcome_ref = &mut menu_outcome;
@@ -702,6 +703,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                                                 selection_mut,
                                                 config_dirty_mut,
                                                 theme_mut,
+                                                onboarding_mut,
                                             );
                                             if let Some(state) = &menu_state {
                                                 *menu_outcome_ref =

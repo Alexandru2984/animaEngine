@@ -12,11 +12,13 @@
 pub mod anim;
 mod egui_renderer;
 pub mod icons;
+pub mod onboarding;
 pub mod panels;
 pub mod states;
 pub mod theme;
 pub mod toasts;
 
 pub use egui_renderer::EguiRenderer;
+pub use onboarding::OnboardingProgress;
 pub use theme::{Palette, Theme};
 pub use toasts::ToastQueue;

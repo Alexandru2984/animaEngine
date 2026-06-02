@@ -68,6 +68,8 @@ pub const CURSOR: &str = ph::CURSOR;
 pub const GHOST: &str = ph::GHOST;
 pub const STACK: &str = ph::STACK;
 pub const KEYBOARD: &str = ph::KEYBOARD;
+pub const CLOSE: &str = ph::X;
+pub const HINT: &str = ph::LIGHTBULB;
 
 // Behaviors (used in the behavior picker).
 pub const BEHAVIOR_IDLE: &str = ph::PERSON_SIMPLE;
