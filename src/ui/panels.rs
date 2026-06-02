@@ -9,6 +9,7 @@ use crate::behavior::Behavior;
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::input::selection::SelectionState;
 use crate::scene::Scene;
+use crate::ui::anim;
 use crate::ui::icons;
 use crate::ui::states;
 use crate::ui::theme::{self, h2, Theme, SPACE_2XL, SPACE_L, SPACE_M, SPACE_S, SPACE_XS};
@@ -39,7 +40,7 @@ pub enum ContextMenuOutcome {
 /// Which tab is currently focused in the settings sidebar. Persisted
 /// across frames in `egui::Memory` so we don't have to thread state
 /// through `App` for purely UI-local switching.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 enum SettingsTab {
     #[default]
     Inspector,
@@ -116,17 +117,28 @@ pub fn settings(
             ui.separator();
 
             // ── Tab body ──────────────────────────────────────────────
+            // Each tab gets its own animate-value id so switching
+            // restarts the curve from 0 and produces a 100ms fade-in
+            // (linear, per design-system §6 "tab content cross-fade").
+            let tab_alpha = ctx.animate_value_with_time(
+                egui::Id::new(("anima.settings.tab.alpha", active_tab)),
+                1.0,
+                0.1,
+            );
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
-                .show(ui, |ui| match active_tab {
-                    SettingsTab::Inspector => {
-                        inspector_tab(ui, scene, selection, config_dirty);
-                    }
-                    SettingsTab::Scene => {
-                        scene_tab(ui, scene, selection, config_dirty);
-                    }
-                    SettingsTab::Appearance => {
-                        appearance_tab(ui, theme, config_dirty);
+                .show(ui, |ui| {
+                    ui.set_opacity(tab_alpha);
+                    match active_tab {
+                        SettingsTab::Inspector => {
+                            inspector_tab(ui, scene, selection, config_dirty);
+                        }
+                        SettingsTab::Scene => {
+                            scene_tab(ui, scene, selection, config_dirty);
+                        }
+                        SettingsTab::Appearance => {
+                            appearance_tab(ui, theme, config_dirty);
+                        }
                     }
                 });
 
@@ -676,6 +688,21 @@ pub fn toasts(ctx: &egui::Context, queue: &ToastQueue) {
 }
 
 fn toast_card(ui: &mut egui::Ui, toast: &Toast) {
+    // ── Per design-system §6 micro-animation timings ─────────────────
+    // - Slide-in fade:  200 ms, ease-out-quad
+    // - Fade-out:       300 ms, ease-in-quad (trailing window before expiry)
+    const SLIDE_IN: f32 = 0.200;
+    const FADE_OUT: f32 = 0.300;
+    let age = toast.age().as_secs_f32();
+    let remaining = toast.remaining().as_secs_f32();
+    let in_alpha = anim::ease_out_quad((age / SLIDE_IN).min(1.0));
+    let out_alpha = if remaining < FADE_OUT {
+        1.0 - anim::ease_in_quad(((FADE_OUT - remaining) / FADE_OUT).clamp(0.0, 1.0))
+    } else {
+        1.0
+    };
+    let alpha = (in_alpha * out_alpha).clamp(0.0, 1.0);
+
     let visuals = ui.visuals();
     let bg = visuals.faint_bg_color; // bg.elevated per theme
     let body_fg = visuals.text_color(); // fg.primary
@@ -692,17 +719,20 @@ fn toast_card(ui: &mut egui::Ui, toast: &Toast) {
         ToastKind::Error => icons::ERROR,
     };
 
-    egui::Frame::new()
-        .fill(bg)
-        .corner_radius(theme::RADIUS_LG)
-        .inner_margin(egui::Margin::symmetric(SPACE_L as i8, SPACE_M as i8))
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(icon).size(18.0).color(severity_fg));
-                ui.add_space(SPACE_S);
-                ui.colored_label(body_fg, &toast.message);
+    ui.scope(|ui| {
+        ui.set_opacity(alpha);
+        egui::Frame::new()
+            .fill(bg)
+            .corner_radius(theme::RADIUS_LG)
+            .inner_margin(egui::Margin::symmetric(SPACE_L as i8, SPACE_M as i8))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(icon).size(18.0).color(severity_fg));
+                    ui.add_space(SPACE_S);
+                    ui.colored_label(body_fg, &toast.message);
+                });
             });
-        });
+    });
 }
 
 /// Top-right ⚙ button that toggles between pass-through and edit mode.

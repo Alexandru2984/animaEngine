@@ -20,7 +20,32 @@ pub enum ToastKind {
 pub struct Toast {
     pub kind: ToastKind,
     pub message: String,
-    pub expires_at: Instant,
+    /// When the toast was queued. Drives the slide-in / fade-out timing
+    /// in the renderer (`panels::toast_card`); `prune` uses
+    /// `expires_at()` for retention.
+    pub created_at: Instant,
+    /// Total time the toast remains visible before `prune` removes it.
+    pub lifetime: Duration,
+}
+
+impl Toast {
+    /// Absolute removal time. Derived rather than stored so we can't
+    /// hand out a struct whose `created_at + lifetime` disagrees with
+    /// `expires_at`.
+    pub fn expires_at(&self) -> Instant {
+        self.created_at + self.lifetime
+    }
+
+    /// How long this toast has been on screen, clamped at 0 so a system
+    /// clock step backwards can't produce a negative.
+    pub fn age(&self) -> Duration {
+        Instant::now().saturating_duration_since(self.created_at)
+    }
+
+    /// How much longer the toast has before it auto-expires.
+    pub fn remaining(&self) -> Duration {
+        self.expires_at().saturating_duration_since(Instant::now())
+    }
 }
 
 /// Hard cap so a tight loop emitting toasts can't pin them all visible.
@@ -49,7 +74,8 @@ impl ToastQueue {
         self.toasts.push(Toast {
             kind,
             message: msg.into(),
-            expires_at: Instant::now() + lifetime,
+            created_at: Instant::now(),
+            lifetime,
         });
         if self.toasts.len() > MAX_TOASTS {
             // Drop the oldest — newer messages are usually more relevant.
@@ -61,7 +87,7 @@ impl ToastQueue {
     /// before rendering.
     pub fn prune(&mut self) {
         let now = Instant::now();
-        self.toasts.retain(|t| t.expires_at > now);
+        self.toasts.retain(|t| t.expires_at() > now);
     }
 
     pub fn is_empty(&self) -> bool {
@@ -97,7 +123,8 @@ mod tests {
         q.toasts.push(Toast {
             kind: ToastKind::Info,
             message: "old".into(),
-            expires_at: Instant::now() - Duration::from_secs(1),
+            created_at: Instant::now() - Duration::from_secs(10),
+            lifetime: Duration::from_secs(1),
         });
         q.info("fresh");
         q.prune();

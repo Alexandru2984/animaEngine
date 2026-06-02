@@ -9,6 +9,7 @@
 //! UI itself is defined in `panels` and friends — `EguiRenderer` does not
 //! know what's being painted, only how to paint it.
 
+pub mod anim;
 mod egui_renderer;
 pub mod icons;
 pub mod panels;
