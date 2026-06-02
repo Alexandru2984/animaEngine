@@ -27,7 +27,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
+        # Dropped ubuntu-22.04 in 0.2.0 — Swatinem/rust-cache was racing
+        # against new transitive deps (ksni / zbus) and producing
+        # spurious "can't find crate" errors. 24.04 is our LTS target
+        # of record; the AppImage covers 22.04 users at runtime.
+        os: [ubuntu-24.04]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -48,7 +52,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
+        # See clippy job above for why 22.04 was dropped.
+        os: [ubuntu-24.04]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -122,7 +127,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-audit
         run: cargo install --locked cargo-audit
-      - run: cargo audit --deny warnings
+      # Known-ignored advisories:
+      #   RUSTSEC-2024-0436 — `paste` unmaintained. Pulled in transitively
+      #   via wgpu-hal's macOS metal backend and accesskit_winit's Windows
+      #   AT bridge; neither path runs on our Linux X11/Wayland targets,
+      #   so there's no runtime exposure. Revisit when wgpu / accesskit
+      #   drop the dependency upstream.
+      - run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436
 
   deny:
     name: cargo deny check
