@@ -22,12 +22,20 @@ METAINFODIR:= $(DESTDIR)$(PREFIX)/share/metainfo
 BINARY := target/release/anima_engine
 APPID  := com.animaengine.Anima
 
-.PHONY: all release install uninstall validate
+.PHONY: all release install uninstall validate appimage clean-build
 
 all: release
 
 release:
 	cargo build --release --locked
+
+# Build a self-contained AppImage in build/. Downloads linuxdeploy on
+# first run; cached for subsequent builds.
+appimage:
+	scripts/build-appimage.sh
+
+clean-build:
+	rm -rf build/AppDir build/animaEngine-*.AppImage
 
 install: $(BINARY)
 	install -Dm0755 $(BINARY)                              $(BINDIR)/anima-engine

@@ -2,6 +2,11 @@
 /target
 **/*.rs.bk
 
+# Packaging output (AppImage, .deb, staging trees)
+/build/
+*.AppImage
+*.deb
+
 # IDE / Editor files
 .idea/
 .vscode/
