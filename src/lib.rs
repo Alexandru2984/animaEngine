@@ -11,6 +11,7 @@ pub mod event;
 pub mod hotkeys;
 pub mod input;
 pub mod physics;
+pub mod presets;
 pub mod renderer;
 pub mod scene;
 pub mod single_instance;

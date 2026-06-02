@@ -294,6 +294,38 @@ impl Scene {
     pub fn to_character_configs(&self) -> Vec<CharacterConfig> {
         self.entities.iter().map(|e| e.to_config()).collect()
     }
+
+    /// Replace every entity with the given character configs. Used by
+    /// the preset gallery (`presets::apply_to_scene`) when the user
+    /// picks "Replace". Failed loads fall back to a placeholder so a
+    /// missing asset can't strand the preset application midway.
+    pub fn reset_to_configs(&mut self, configs: &[CharacterConfig]) {
+        self.entities.clear();
+        for cfg in configs {
+            let entity = Self::load_entity(cfg).unwrap_or_else(|err| {
+                tracing::warn!(
+                    "Preset entity '{}' failed to load: {}; using fallback",
+                    cfg.id,
+                    err,
+                );
+                Self::create_fallback_entity(cfg)
+            });
+            self.entities.push(entity);
+        }
+        self.entities.sort_by_key(|e| e.z_index);
+        self.mark_visible_dirty();
+    }
+
+    /// Append one character config to the scene. Mirrors the success
+    /// path of `add_entity_from_path` but skips the path-resolution +
+    /// type-detection dance because the caller already has a finished
+    /// `CharacterConfig` (a preset, a hot-reload result, etc.).
+    pub fn append_character_config(&mut self, cfg: &CharacterConfig) -> Result<()> {
+        let entity = Self::load_entity(cfg)?;
+        self.entities.push(entity);
+        self.mark_visible_dirty();
+        Ok(())
+    }
 }
 
 #[cfg(test)]

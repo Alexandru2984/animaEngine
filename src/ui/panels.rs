@@ -8,6 +8,7 @@ use crate::app::ContextMenuState;
 use crate::behavior::Behavior;
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::input::selection::SelectionState;
+use crate::presets::{self, ApplyMode, Preset, PresetId};
 use crate::scene::Scene;
 use crate::ui::anim;
 use crate::ui::icons;
@@ -215,23 +216,129 @@ fn scene_tab(
     selection: &mut SelectionState,
     config_dirty: &mut bool,
 ) {
-    if scene.entities.is_empty() {
+    let is_empty = scene.entities.is_empty();
+
+    if is_empty {
         states::empty(
             ui,
             icons::GHOST,
             "Empty scene",
-            "Drop a PNG / GIF / WebP / MP4 onto the overlay to add an entity.",
+            "Drop a PNG / GIF / WebP / MP4 onto the overlay — or try a preset below.",
         );
-        return;
+    } else {
+        ui.label(
+            egui::RichText::new("Drop a PNG / GIF / WebP onto the overlay to add one.")
+                .text_style(theme::caption())
+                .weak(),
+        );
+        ui.add_space(SPACE_M);
+        scene_list(ui, scene, selection, config_dirty);
+        ui.add_space(SPACE_L);
+        ui.separator();
     }
 
-    ui.label(
-        egui::RichText::new("Drop a PNG / GIF / WebP onto the overlay to add one.")
-            .text_style(theme::caption())
-            .weak(),
-    );
     ui.add_space(SPACE_M);
-    scene_list(ui, scene, selection, config_dirty);
+    preset_gallery(ui, scene, selection, config_dirty, is_empty);
+}
+
+/// Curated scene presets. Defaults to *open* when the scene is empty
+/// (giving fresh users an obvious starting point) and *closed* once
+/// they've already populated something, to keep the Scene tab tidy.
+fn preset_gallery(
+    ui: &mut egui::Ui,
+    scene: &mut Scene,
+    selection: &mut SelectionState,
+    config_dirty: &mut bool,
+    default_open: bool,
+) {
+    let header = egui::RichText::new(format!("{}  Presets", icons::SPARKLE)).text_style(h2());
+    egui::CollapsingHeader::new(header)
+        .id_salt("anima.scene.presets")
+        .default_open(default_open)
+        .show(ui, |ui| {
+            ui.add_space(SPACE_S);
+            for id in PresetId::ALL {
+                preset_card(ui, *id, scene, selection, config_dirty);
+                ui.add_space(SPACE_S);
+            }
+        });
+}
+
+fn preset_card(
+    ui: &mut egui::Ui,
+    id: PresetId,
+    scene: &mut Scene,
+    selection: &mut SelectionState,
+    config_dirty: &mut bool,
+) {
+    let preset = Preset::for_id(id);
+    let (bg, accent, body_color) = {
+        let v = ui.visuals();
+        (v.faint_bg_color, v.hyperlink_color, v.text_color())
+    };
+
+    egui::Frame::new()
+        .fill(bg)
+        .corner_radius(theme::RADIUS_MD)
+        .inner_margin(egui::Margin::symmetric(SPACE_M as i8, SPACE_S as i8))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(preset.icon).size(18.0).color(accent));
+                ui.add_space(SPACE_S);
+                ui.vertical(|ui| {
+                    ui.label(egui::RichText::new(preset.name).strong().color(body_color));
+                    ui.label(
+                        egui::RichText::new(preset.description)
+                            .text_style(theme::caption())
+                            .weak(),
+                    );
+                });
+            });
+            ui.add_space(SPACE_XS);
+            ui.horizontal(|ui| {
+                if ui.button("Append").clicked() {
+                    apply_preset(scene, selection, &preset, ApplyMode::Append);
+                    *config_dirty = true;
+                }
+                let error_color = ui.visuals().error_fg_color;
+                if ui
+                    .button(egui::RichText::new("Replace").color(error_color))
+                    .on_hover_text("Wipes the current scene before adding")
+                    .clicked()
+                {
+                    apply_preset(scene, selection, &preset, ApplyMode::Replace);
+                    *config_dirty = true;
+                }
+            });
+        });
+}
+
+fn apply_preset(
+    scene: &mut Scene,
+    selection: &mut SelectionState,
+    preset: &Preset,
+    mode: ApplyMode,
+) {
+    let existing = scene.to_character_configs();
+    let new = presets::apply_to_scene(existing, preset, mode);
+    if matches!(mode, ApplyMode::Replace) {
+        scene.reset_to_configs(&new);
+        selection.deselect();
+    } else {
+        // Append the suffixed preset characters that aren't already present.
+        let already: std::collections::HashSet<&str> =
+            scene.entities.iter().map(|e| e.id.as_str()).collect();
+        let to_add: Vec<_> = new
+            .iter()
+            .filter(|c| !already.contains(c.id.as_str()))
+            .cloned()
+            .collect();
+        for cfg in &to_add {
+            if let Err(e) = scene.append_character_config(cfg) {
+                tracing::warn!("Preset entity '{}' failed to append: {}", cfg.id, e);
+            }
+        }
+    }
 }
 
 fn appearance_tab(

@@ -76,3 +76,9 @@ pub const BEHAVIOR_IDLE: &str = ph::PERSON_SIMPLE;
 pub const BEHAVIOR_WALK: &str = ph::FOOTPRINTS;
 pub const BEHAVIOR_FOLLOW: &str = ph::CURSOR_CLICK;
 pub const BEHAVIOR_WANDER: &str = ph::ARROWS_OUT_CARDINAL;
+
+// Presets (used in the Scene tab preset gallery).
+pub const HEART: &str = ph::HEART;
+pub const FLAME: &str = ph::FLAME;
+pub const CONFETTI: &str = ph::CONFETTI;
+pub const SPARKLE: &str = ph::SPARKLE;
