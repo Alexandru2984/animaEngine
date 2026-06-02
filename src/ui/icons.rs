@@ -66,6 +66,8 @@ pub const PALETTE: &str = ph::PALETTE;
 pub const SETTINGS: &str = ph::GEAR_SIX;
 pub const CURSOR: &str = ph::CURSOR;
 pub const GHOST: &str = ph::GHOST;
+pub const STACK: &str = ph::STACK;
+pub const KEYBOARD: &str = ph::KEYBOARD;
 
 // Behaviors (used in the behavior picker).
 pub const BEHAVIOR_IDLE: &str = ph::PERSON_SIMPLE;

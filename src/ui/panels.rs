@@ -10,7 +10,7 @@ use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::input::selection::SelectionState;
 use crate::scene::Scene;
 use crate::ui::icons;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{self, h2, Theme, SPACE_2XL, SPACE_M, SPACE_S, SPACE_XS};
 use crate::ui::toasts::{ToastKind, ToastQueue};
 
 /// Entity-targeted action requested from the right-click context menu.
@@ -35,10 +35,42 @@ pub enum ContextMenuOutcome {
     Action(MenuAction),
 }
 
-/// Right-side settings panel. Renders an inspector for the selected entity
-/// plus a scene list. Mutations flow directly through the supplied mutable
-/// references; `config_dirty` is set when anything changes so the existing
-/// save-on-exit-edit-mode path picks them up.
+/// Which tab is currently focused in the settings sidebar. Persisted
+/// across frames in `egui::Memory` so we don't have to thread state
+/// through `App` for purely UI-local switching.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum SettingsTab {
+    #[default]
+    Inspector,
+    Scene,
+    Appearance,
+}
+
+impl SettingsTab {
+    const ALL: &'static [Self] = &[Self::Inspector, Self::Scene, Self::Appearance];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Inspector => "Inspector",
+            Self::Scene => "Scene",
+            Self::Appearance => "Appearance",
+        }
+    }
+
+    fn icon(self) -> &'static str {
+        match self {
+            Self::Inspector => icons::CURSOR,
+            Self::Scene => icons::STACK,
+            Self::Appearance => icons::PALETTE,
+        }
+    }
+}
+
+/// Right-side settings panel. Organized into three tabs (Inspector /
+/// Scene / Appearance) with a sticky header and a scrollable body.
+/// Mutations flow directly through the supplied mutable references;
+/// `config_dirty` is set when anything changes so the save-on-exit-
+/// edit-mode path picks them up.
 pub fn settings(
     ctx: &egui::Context,
     scene: &mut Scene,
@@ -48,45 +80,165 @@ pub fn settings(
 ) {
     egui::SidePanel::right("anima_settings")
         .resizable(false)
-        .default_width(280.0)
+        .default_width(320.0)
         .show(ctx, |ui| {
-            ui.heading("Anima");
-            ui.separator();
+            // ── Sticky header ─────────────────────────────────────────
+            ui.add_space(SPACE_S);
+            ui.horizontal(|ui| {
+                ui.add_space(SPACE_XS);
+                ui.label(
+                    egui::RichText::new(format!("{}  Anima", icons::GHOST))
+                        .text_style(egui::TextStyle::Heading),
+                );
+            });
+            ui.add_space(SPACE_S);
 
-            // ── Selected entity inspector ─────────────────────────────────
-            let selected_idx = selection.selected_index();
-            if let Some(idx) = selected_idx {
-                if let Some(entity) = scene.entities.get_mut(idx) {
-                    let changed = entity_inspector(ui, entity);
-                    if changed.any() {
-                        *config_dirty = true;
-                    }
-                    if changed.touches_visibility_or_z_order {
-                        scene.mark_visible_dirty();
+            // ── Tab switcher ──────────────────────────────────────────
+            let mut active_tab: SettingsTab = ui.memory(|m| {
+                m.data
+                    .get_temp::<SettingsTab>(egui::Id::new("anima.settings.tab"))
+                    .unwrap_or_default()
+            });
+            ui.horizontal(|ui| {
+                for tab in SettingsTab::ALL {
+                    let selected = *tab == active_tab;
+                    let label = format!("{}  {}", tab.icon(), tab.label());
+                    if ui.selectable_label(selected, label).clicked() {
+                        active_tab = *tab;
                     }
                 }
-            } else {
-                ui.label("Nothing selected.");
-                ui.label("Click an entity or press Tab.");
-            }
-
+            });
+            ui.memory_mut(|m| {
+                m.data
+                    .insert_temp(egui::Id::new("anima.settings.tab"), active_tab);
+            });
             ui.separator();
 
-            // ── Scene list ────────────────────────────────────────────────
-            ui.label("Entities");
-            scene_list(ui, scene, selection, config_dirty);
+            // ── Tab body ──────────────────────────────────────────────
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| match active_tab {
+                    SettingsTab::Inspector => {
+                        inspector_tab(ui, scene, selection, config_dirty);
+                    }
+                    SettingsTab::Scene => {
+                        scene_tab(ui, scene, selection, config_dirty);
+                    }
+                    SettingsTab::Appearance => {
+                        appearance_tab(ui, theme, config_dirty);
+                    }
+                });
 
-            ui.separator();
+            // ── Sticky footer with entity count ───────────────────────
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                ui.add_space(SPACE_S);
+                let count = scene.entities.len();
+                let plural = if count == 1 { "entity" } else { "entities" };
+                ui.horizontal(|ui| {
+                    ui.add_space(SPACE_XS);
+                    ui.label(
+                        egui::RichText::new(format!("{count} {plural}"))
+                            .text_style(theme::caption())
+                            .weak(),
+                    );
+                });
+            });
+        });
+}
 
-            // ── Appearance ────────────────────────────────────────────────
-            // Placeholder section — A.3 reorganizes this into a dedicated
-            // Appearance tab; for now the theme switcher lives at the
-            // bottom of the settings sidebar so we can exercise the
-            // theme-change code path end-to-end.
-            if theme_picker(ui, theme) {
+// ─── tabs ──────────────────────────────────────────────────────────────
+
+fn inspector_tab(
+    ui: &mut egui::Ui,
+    scene: &mut Scene,
+    selection: &mut SelectionState,
+    config_dirty: &mut bool,
+) {
+    let selected_idx = selection.selected_index();
+    match selected_idx.and_then(|idx| scene.entities.get_mut(idx).map(|e| (idx, e))) {
+        Some((_idx, entity)) => {
+            let changed = entity_inspector(ui, entity);
+            if changed.any() {
                 *config_dirty = true;
             }
-        });
+            if changed.touches_visibility_or_z_order {
+                scene.mark_visible_dirty();
+            }
+        }
+        None => empty_state(
+            ui,
+            icons::CURSOR,
+            "Nothing selected",
+            "Click an entity in the Scene tab, or press Tab to cycle through them.",
+        ),
+    }
+}
+
+fn scene_tab(
+    ui: &mut egui::Ui,
+    scene: &mut Scene,
+    selection: &mut SelectionState,
+    config_dirty: &mut bool,
+) {
+    if scene.entities.is_empty() {
+        empty_state(
+            ui,
+            icons::GHOST,
+            "Empty scene",
+            "Drop a PNG / GIF / WebP / MP4 onto the overlay to add an entity.",
+        );
+        return;
+    }
+
+    ui.label(
+        egui::RichText::new("Drop a PNG / GIF / WebP onto the overlay to add one.")
+            .text_style(theme::caption())
+            .weak(),
+    );
+    ui.add_space(SPACE_M);
+    scene_list(ui, scene, selection, config_dirty);
+}
+
+fn appearance_tab(ui: &mut egui::Ui, theme: &mut Theme, config_dirty: &mut bool) {
+    ui.label(egui::RichText::new("Theme").text_style(h2()));
+    ui.add_space(SPACE_S);
+    if theme_picker(ui, theme) {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_2XL);
+
+    // Placeholder sections — populated in later sub-phases.
+    ui.label(egui::RichText::new(format!("{}  Keyboard", icons::KEYBOARD)).text_style(h2()));
+    ui.add_space(SPACE_S);
+    ui.label(
+        egui::RichText::new("Keyboard shortcuts will be customizable here (planned for A.8).")
+            .text_style(theme::caption())
+            .weak(),
+    );
+}
+
+// ─── building blocks ──────────────────────────────────────────────────
+
+/// Centered empty-state card. A.4 promotes this into a proper helper in
+/// `src/ui/states.rs`; for now it lives here so we can reuse it across
+/// Inspector and Scene tabs without a circular module dependency.
+fn empty_state(ui: &mut egui::Ui, icon: &str, headline: &str, hint: &str) {
+    ui.add_space(SPACE_2XL);
+    ui.vertical_centered(|ui| {
+        ui.label(
+            egui::RichText::new(icon)
+                .size(40.0)
+                .color(ui.visuals().weak_text_color()),
+        );
+        ui.add_space(SPACE_M);
+        ui.label(egui::RichText::new(headline).text_style(h2()));
+        ui.add_space(SPACE_XS);
+        ui.label(
+            egui::RichText::new(hint)
+                .text_style(theme::caption())
+                .weak(),
+        );
+    });
 }
 
 /// Theme dropdown. Returns `true` when the user picked a different
@@ -139,101 +291,122 @@ impl EntityChange {
 fn entity_inspector(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> EntityChange {
     let mut change = EntityChange::default();
 
-    ui.label(format!("Selected: {}", entity.name));
+    // ── Header: entity name + id ──────────────────────────────────────
+    ui.label(egui::RichText::new(&entity.name).text_style(h2()));
     ui.label(
         egui::RichText::new(format!("id: {}", entity.id))
-            .small()
+            .text_style(egui::TextStyle::Monospace)
+            .text_style(theme::caption())
             .weak(),
     );
-    ui.add_space(4.0);
+    ui.add_space(SPACE_M);
 
-    // Position
-    ui.label("Position");
-    if ui
-        .add(egui::Slider::new(&mut entity.x, -200.0..=4000.0).text("X"))
-        .changed()
-    {
-        change.any_field = true;
-    }
-    if ui
-        .add(egui::Slider::new(&mut entity.y, -200.0..=4000.0).text("Y"))
-        .changed()
-    {
-        change.any_field = true;
-    }
-
-    // Appearance
-    ui.add_space(6.0);
-    ui.label("Appearance");
-    if ui
-        .add(egui::Slider::new(&mut entity.scale, 0.1..=5.0).text("Scale"))
-        .changed()
-    {
-        change.any_field = true;
-    }
-    if ui
-        .add(egui::Slider::new(&mut entity.opacity, 0.0..=1.0).text("Opacity"))
-        .changed()
-    {
-        change.any_field = true;
-    }
-
-    // Animation
-    ui.add_space(6.0);
-    ui.label("Animation");
-    let mut fps = entity.animation.fps;
-    if ui
-        .add(egui::Slider::new(&mut fps, 1.0..=60.0).text("FPS"))
-        .changed()
-    {
-        entity.animation.set_fps(fps);
-        change.any_field = true;
-    }
-    let mut playing = entity.animation.playing;
-    if ui.checkbox(&mut playing, "Playing").changed() {
-        entity.animation.playing = playing;
-        change.any_field = true;
-    }
-
-    // Toggles
-    ui.add_space(6.0);
-    if ui.checkbox(&mut entity.visible, "Visible").changed() {
-        change.touches_visibility_or_z_order = true;
-    }
-    let mut gravity = entity.physics.enabled;
-    if ui.checkbox(&mut gravity, "Gravity (G)").changed() {
-        if gravity {
-            entity.physics.enable();
-        } else {
-            entity.physics.disable();
-        }
-        change.any_field = true;
-    }
-
-    // Behavior
-    ui.add_space(6.0);
-    ui.label("Behavior");
-    if behavior_picker(ui, &mut entity.behavior) {
-        change.any_field = true;
-    }
-
-    // Z-order
-    ui.add_space(6.0);
+    // Quick-toggle row: Visible + Gravity. These are the two
+    // booleans users flip most often, so they stay at the top — the
+    // collapsibles below host the slider-heavy detail.
     ui.horizontal(|ui| {
-        ui.label("z-index");
+        if ui.checkbox(&mut entity.visible, "Visible").changed() {
+            change.touches_visibility_or_z_order = true;
+        }
+        let mut gravity = entity.physics.enabled;
+        if ui.checkbox(&mut gravity, "Gravity").changed() {
+            if gravity {
+                entity.physics.enable();
+            } else {
+                entity.physics.disable();
+            }
+            change.any_field = true;
+        }
+    });
+    ui.add_space(SPACE_S);
+
+    // ── Collapsibles ──────────────────────────────────────────────────
+    section(ui, "Position", true, |ui| {
         if ui
-            .add(
-                egui::DragValue::new(&mut entity.z_index)
-                    .speed(1.0)
-                    .range(-10_000..=10_000),
-            )
+            .add(egui::Slider::new(&mut entity.x, -200.0..=4000.0).text("X"))
             .changed()
         {
-            change.touches_visibility_or_z_order = true;
+            change.any_field = true;
+        }
+        if ui
+            .add(egui::Slider::new(&mut entity.y, -200.0..=4000.0).text("Y"))
+            .changed()
+        {
+            change.any_field = true;
+        }
+        ui.horizontal(|ui| {
+            ui.label("z-index");
+            if ui
+                .add(
+                    egui::DragValue::new(&mut entity.z_index)
+                        .speed(1.0)
+                        .range(-10_000..=10_000),
+                )
+                .changed()
+            {
+                change.touches_visibility_or_z_order = true;
+            }
+        });
+    });
+
+    section(ui, "Appearance", true, |ui| {
+        if ui
+            .add(egui::Slider::new(&mut entity.scale, 0.1..=5.0).text("Scale"))
+            .changed()
+        {
+            change.any_field = true;
+        }
+        if ui
+            .add(egui::Slider::new(&mut entity.opacity, 0.0..=1.0).text("Opacity"))
+            .changed()
+        {
+            change.any_field = true;
+        }
+    });
+
+    section(ui, "Animation", true, |ui| {
+        let mut fps = entity.animation.fps;
+        if ui
+            .add(egui::Slider::new(&mut fps, 1.0..=60.0).text("FPS"))
+            .changed()
+        {
+            entity.animation.set_fps(fps);
+            change.any_field = true;
+        }
+        let mut playing = entity.animation.playing;
+        if ui.checkbox(&mut playing, "Playing").changed() {
+            entity.animation.playing = playing;
+            change.any_field = true;
+        }
+    });
+
+    section(ui, "Behavior", false, |ui| {
+        if behavior_picker(ui, &mut entity.behavior) {
+            change.any_field = true;
         }
     });
 
     change
+}
+
+/// Collapsing inspector section with the design-system heading style.
+/// `default_open` reflects the recent-use heuristic: Position /
+/// Appearance / Animation are touched on most edits; Behavior is rarer.
+fn section(
+    ui: &mut egui::Ui,
+    title: &str,
+    default_open: bool,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    let header = egui::RichText::new(title).text_style(h2());
+    egui::CollapsingHeader::new(header)
+        .id_salt(("anima.inspector.section", title))
+        .default_open(default_open)
+        .show(ui, |ui| {
+            ui.add_space(SPACE_XS);
+            add_contents(ui);
+        });
+    ui.add_space(SPACE_S);
 }
 
 /// Behavior dropdown + variant-specific sliders. Returns `true` when the
@@ -377,44 +550,31 @@ fn scene_list(
     selection: &mut SelectionState,
     config_dirty: &mut bool,
 ) {
-    // Hint about adding entities. File picker comes in a later phase.
-    ui.label(
-        egui::RichText::new("Drop a PNG / GIF / WebP onto the overlay to add one.")
-            .small()
-            .weak(),
-    );
-    ui.add_space(4.0);
-
     // Gather actions to apply *after* the loop so we don't hold a borrow
     // of scene.entities while we mutate the scene.
     let mut action: Option<ListAction> = None;
 
-    egui::ScrollArea::vertical()
-        .max_height(220.0)
-        .auto_shrink([false, true])
-        .show(ui, |ui| {
-            for (idx, entity) in scene.entities.iter().enumerate() {
-                let is_selected = selection.is_selected(idx);
-                ui.horizontal(|ui| {
-                    let label = if entity.visible {
-                        entity.name.clone()
-                    } else {
-                        format!("{}  {}", icons::HIDDEN, entity.name)
-                    };
-                    if ui.selectable_label(is_selected, label).clicked() {
-                        action = Some(ListAction::Select(idx));
-                    }
-                    // Small delete button on the right.
-                    if ui
-                        .small_button(icons::TRASH)
-                        .on_hover_text("Delete")
-                        .clicked()
-                    {
-                        action = Some(ListAction::Delete(idx));
-                    }
-                });
+    for (idx, entity) in scene.entities.iter().enumerate() {
+        let is_selected = selection.is_selected(idx);
+        ui.horizontal(|ui| {
+            let label = if entity.visible {
+                entity.name.clone()
+            } else {
+                format!("{}  {}", icons::HIDDEN, entity.name)
+            };
+            if ui.selectable_label(is_selected, label).clicked() {
+                action = Some(ListAction::Select(idx));
+            }
+            // Small delete button on the right.
+            if ui
+                .small_button(icons::TRASH)
+                .on_hover_text("Delete")
+                .clicked()
+            {
+                action = Some(ListAction::Delete(idx));
             }
         });
+    }
 
     match action {
         Some(ListAction::Select(idx)) => {
