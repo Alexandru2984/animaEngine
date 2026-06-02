@@ -27,10 +27,15 @@
 use crate::error::{AnimaError, Result};
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
-    delegate_compositor, delegate_layer, delegate_output, delegate_registry,
+    delegate_compositor, delegate_layer, delegate_output, delegate_pointer, delegate_registry,
+    delegate_seat,
     output::{OutputHandler, OutputState},
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
+    seat::{
+        pointer::{PointerData, PointerEvent, PointerEventKind, PointerHandler},
+        Capability, SeatHandler, SeatState,
+    },
     shell::{
         wlr_layer::{
             Anchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface,
@@ -42,7 +47,7 @@ use smithay_client_toolkit::{
 use std::sync::Arc;
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{wl_output, wl_surface},
+    protocol::{wl_output, wl_pointer, wl_seat, wl_surface},
     Connection, EventQueue, QueueHandle,
 };
 
@@ -75,6 +80,7 @@ impl LayerWindow {
         // we touch wgpu.
         let registry_state = RegistryState::new(&globals);
         let output_state = OutputState::new(&globals, &qh);
+        let seat_state = SeatState::new(&globals, &qh);
         let compositor = CompositorState::bind(&globals, &qh)
             .map_err(|e| AnimaError::other(format!("no wl_compositor: {e}")))?;
         let layer_shell = LayerShell::bind(&globals, &qh)
@@ -115,10 +121,14 @@ impl LayerWindow {
         let mut state = WaylandState {
             registry_state,
             output_state,
+            seat_state,
             _compositor: compositor,
             _layer_shell: layer_shell,
             layer,
+            pointer: None,
             pending_size: None,
+            cursor_pos: None,
+            pending_egui_events: Vec::new(),
             close_requested: false,
         };
 
@@ -189,14 +199,37 @@ fn build_wgpu_surface(
 pub struct WaylandState {
     pub registry_state: RegistryState,
     pub output_state: OutputState,
+    pub seat_state: SeatState,
     _compositor: CompositorState,
     _layer_shell: LayerShell,
     pub layer: LayerSurface,
+    /// Active pointer once a seat advertises the capability. We keep one
+    /// reference even on multi-seat setups (overlays don't usually need
+    /// per-seat cursors).
+    pub pointer: Option<wl_pointer::WlPointer>,
     /// Last size we got from a `configure` event — drives wgpu resize.
     pub pending_size: Option<(u32, u32)>,
+    /// Current cursor position in surface-local logical pixels.
+    pub cursor_pos: Option<(f32, f32)>,
+    /// Pointer events translated into egui's vocabulary, buffered until
+    /// `LayerWindow::drain_egui_events` is called once per frame.
+    ///
+    /// Keyboard events are intentionally absent — without `xkbcommon` we
+    /// can't decode keymap data, and our actual shortcut surface is
+    /// covered by global hotkeys (Faza 6.2) + tray menu. Text input in
+    /// egui widgets degrades to "click only" on native Wayland for now.
+    pub pending_egui_events: Vec<egui::Event>,
     /// True after a layer-surface `closed` event. Caller polls this to
     /// know when to tear down.
     pub close_requested: bool,
+}
+
+impl LayerWindow {
+    /// Drain pointer events accumulated since the previous call. Frame
+    /// callbacks invoke this and feed the result into egui.
+    pub fn drain_egui_events(&mut self) -> Vec<egui::Event> {
+        std::mem::take(&mut self.state.pending_egui_events)
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -304,19 +337,152 @@ impl OutputHandler for WaylandState {
     }
 }
 
+impl SeatHandler for WaylandState {
+    fn seat_state(&mut self) -> &mut SeatState {
+        &mut self.seat_state
+    }
+
+    fn new_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {}
+
+    fn new_capability(
+        &mut self,
+        _conn: &Connection,
+        qh: &QueueHandle<Self>,
+        seat: wl_seat::WlSeat,
+        capability: Capability,
+    ) {
+        if capability == Capability::Pointer && self.pointer.is_none() {
+            match self
+                .seat_state
+                .get_pointer_with_data(qh, &seat, PointerData::new(seat.clone()))
+            {
+                Ok(p) => self.pointer = Some(p),
+                Err(e) => tracing::warn!("Failed to bind wl_pointer: {e}"),
+            }
+        }
+    }
+
+    fn remove_capability(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _seat: wl_seat::WlSeat,
+        capability: Capability,
+    ) {
+        if capability == Capability::Pointer {
+            if let Some(p) = self.pointer.take() {
+                p.release();
+            }
+        }
+    }
+
+    fn remove_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {
+    }
+}
+
+impl PointerHandler for WaylandState {
+    fn pointer_frame(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _pointer: &wl_pointer::WlPointer,
+        events: &[PointerEvent],
+    ) {
+        for event in events {
+            match &event.kind {
+                PointerEventKind::Enter { .. } => {
+                    self.cursor_pos = Some((event.position.0 as f32, event.position.1 as f32));
+                    self.pending_egui_events
+                        .push(egui::Event::PointerMoved(egui::pos2(
+                            event.position.0 as f32,
+                            event.position.1 as f32,
+                        )));
+                }
+                PointerEventKind::Leave { .. } => {
+                    self.cursor_pos = None;
+                    self.pending_egui_events.push(egui::Event::PointerGone);
+                }
+                PointerEventKind::Motion { .. } => {
+                    self.cursor_pos = Some((event.position.0 as f32, event.position.1 as f32));
+                    self.pending_egui_events
+                        .push(egui::Event::PointerMoved(egui::pos2(
+                            event.position.0 as f32,
+                            event.position.1 as f32,
+                        )));
+                }
+                PointerEventKind::Press { button, .. } => {
+                    if let Some(b) = linux_button_to_egui(*button) {
+                        if let Some((x, y)) = self.cursor_pos {
+                            self.pending_egui_events.push(egui::Event::PointerButton {
+                                pos: egui::pos2(x, y),
+                                button: b,
+                                pressed: true,
+                                modifiers: egui::Modifiers::NONE,
+                            });
+                        }
+                    }
+                }
+                PointerEventKind::Release { button, .. } => {
+                    if let Some(b) = linux_button_to_egui(*button) {
+                        if let Some((x, y)) = self.cursor_pos {
+                            self.pending_egui_events.push(egui::Event::PointerButton {
+                                pos: egui::pos2(x, y),
+                                button: b,
+                                pressed: false,
+                                modifiers: egui::Modifiers::NONE,
+                            });
+                        }
+                    }
+                }
+                PointerEventKind::Axis {
+                    horizontal,
+                    vertical,
+                    ..
+                } => {
+                    // Wayland reports scroll in "discrete steps" (mouse
+                    // wheel) and "absolute" (touchpad). Use `absolute`
+                    // for fidelity; egui expects pixels per second-ish.
+                    let dx = -horizontal.absolute as f32;
+                    let dy = -vertical.absolute as f32;
+                    if dx != 0.0 || dy != 0.0 {
+                        self.pending_egui_events.push(egui::Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: egui::vec2(dx, dy),
+                            modifiers: egui::Modifiers::NONE,
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Linux input event button codes (from `linux/input-event-codes.h`).
+/// We only translate the three buttons egui actually handles.
+fn linux_button_to_egui(code: u32) -> Option<egui::PointerButton> {
+    match code {
+        0x110 => Some(egui::PointerButton::Primary), // BTN_LEFT
+        0x111 => Some(egui::PointerButton::Secondary), // BTN_RIGHT
+        0x112 => Some(egui::PointerButton::Middle),  // BTN_MIDDLE
+        _ => None,
+    }
+}
+
 impl ProvidesRegistryState for WaylandState {
     fn registry(&mut self) -> &mut RegistryState {
         &mut self.registry_state
     }
-    registry_handlers![OutputState];
+    registry_handlers![OutputState, SeatState];
 }
 
 delegate_compositor!(WaylandState);
 delegate_layer!(WaylandState);
 delegate_output!(WaylandState);
+delegate_pointer!(WaylandState);
 delegate_registry!(WaylandState);
+delegate_seat!(WaylandState);
 
-// Type-side hint to keep the `Arc` import live — once 7.3 adds pointer /
-// keyboard handlers, those structures will be shared between threads.
+// Type-side hint to keep the `Arc` import live — once a sub-phase moves
+// state across threads, this becomes meaningful.
 #[allow(dead_code)]
 fn _arc_used(_x: Arc<()>) {}
