@@ -40,6 +40,14 @@ global-hotkey = "0.8"
 # single-instance D-Bus handshake doesn't break on minor bumps.
 zbus = { version = "5", default-features = false, features = ["async-io"] }
 
+# Native Wayland — used in addition to winit, not as a replacement.
+# winit covers X11/XWayland (95 % of Linux desktops); sctk + wlr-layer-shell
+# adds true overlay support on wlroots compositors (sway, Hyprland, river).
+# The compositor probe at startup picks which backend is actually used.
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "unstable"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+
 # Image loading
 image = { version = "0.25", default-features = false, features = ["png", "gif", "webp", "jpeg"] }
 

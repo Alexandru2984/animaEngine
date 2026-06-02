@@ -3,7 +3,7 @@ use anima_engine::config::AppConfig;
 use anima_engine::event::AnimaEvent;
 use anima_engine::scene::Scene;
 use anima_engine::single_instance::{self, AcquireOutcome};
-use anima_engine::{demo, hotkeys, tray, window};
+use anima_engine::{demo, hotkeys, tray, wayland, window};
 
 // Force X11 backend — XWayland on Wayland systems.
 // This is required because:
@@ -36,6 +36,11 @@ fn main() {
 
     window::platform::log_platform_info();
     window::linux::check_compositor();
+
+    // Probe native Wayland capabilities. The result is only logged for now;
+    // the native code path will consume it in a later sub-phase.
+    let wayland_caps = wayland::detect();
+    wayland::log_status(&wayland_caps);
 
     // First-run demo so users see something on screen. Safe to delete from config.
     demo::generate_assets();
