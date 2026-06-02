@@ -1,6 +1,7 @@
 use crate::behavior::Behavior;
 use crate::constants::MAX_ENTITIES;
 use crate::error::Result;
+use crate::ui::Theme;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,6 +18,10 @@ pub struct GlobalConfig {
     /// Window height (0 = auto-detect from monitor)
     #[serde(default = "default_window_height")]
     pub window_height: u32,
+    /// Active UI theme. Defaults to Dark; older configs without the
+    /// field round-trip through `Theme::default()`.
+    #[serde(default)]
+    pub theme: Theme,
 }
 
 fn default_window_width() -> u32 {
@@ -34,6 +39,7 @@ impl Default for GlobalConfig {
             playback_enabled: true,
             window_width: 0,  // auto-detect
             window_height: 0, // auto-detect
+            theme: Theme::default(),
         }
     }
 }

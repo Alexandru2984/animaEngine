@@ -9,6 +9,7 @@ use crate::behavior::Behavior;
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::input::selection::SelectionState;
 use crate::scene::Scene;
+use crate::ui::theme::Theme;
 use crate::ui::toasts::{ToastKind, ToastQueue};
 
 /// Entity-targeted action requested from the right-click context menu.
@@ -42,6 +43,7 @@ pub fn settings(
     scene: &mut Scene,
     selection: &mut SelectionState,
     config_dirty: &mut bool,
+    theme: &mut Theme,
 ) {
     egui::SidePanel::right("anima_settings")
         .resizable(false)
@@ -72,7 +74,43 @@ pub fn settings(
             // ── Scene list ────────────────────────────────────────────────
             ui.label("Entities");
             scene_list(ui, scene, selection, config_dirty);
+
+            ui.separator();
+
+            // ── Appearance ────────────────────────────────────────────────
+            // Placeholder section — A.3 reorganizes this into a dedicated
+            // Appearance tab; for now the theme switcher lives at the
+            // bottom of the settings sidebar so we can exercise the
+            // theme-change code path end-to-end.
+            if theme_picker(ui, theme) {
+                *config_dirty = true;
+            }
         });
+}
+
+/// Theme dropdown. Returns `true` when the user picked a different
+/// theme than the current value, so the caller can flag the config
+/// dirty.
+fn theme_picker(ui: &mut egui::Ui, theme: &mut Theme) -> bool {
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label("Theme");
+        egui::ComboBox::from_id_salt("theme_picker")
+            .selected_text(theme.label())
+            .show_ui(ui, |ui| {
+                for option in Theme::ALL {
+                    if ui
+                        .selectable_label(*theme == *option, option.label())
+                        .clicked()
+                        && *theme != *option
+                    {
+                        *theme = *option;
+                        changed = true;
+                    }
+                }
+            });
+    });
+    changed
 }
 
 /// Tracks which fields of an entity were modified, so the caller can mark

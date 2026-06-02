@@ -530,6 +530,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                             &renderer.device,
                             renderer.config.format,
                             window.clone(),
+                            self.config.global.theme,
                         );
                         self.ui = Some(ui);
                         self.renderer = Some(renderer);
@@ -660,6 +661,10 @@ impl ApplicationHandler<AnimaEvent> for App {
                             if let (Some(ui), Some(window)) =
                                 (self.ui.as_mut(), self.window.as_ref())
                             {
+                                // Pick up theme changes made in the settings
+                                // panel before any panel paints this frame.
+                                ui.ensure_theme(self.config.global.theme);
+
                                 let view = output
                                     .texture
                                     .create_view(&wgpu::TextureViewDescriptor::default());
@@ -669,6 +674,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 let scene_mut = &mut self.scene;
                                 let selection_mut = &mut self.selection;
                                 let config_dirty_mut = &mut self.config_dirty;
+                                let theme_mut = &mut self.config.global.theme;
                                 let toasts_ref = &self.toasts;
                                 let menu_state = self.ui_state.context_menu.clone();
                                 let menu_outcome_ref = &mut menu_outcome;
@@ -695,6 +701,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                                                 scene_mut,
                                                 selection_mut,
                                                 config_dirty_mut,
+                                                theme_mut,
                                             );
                                             if let Some(state) = &menu_state {
                                                 *menu_outcome_ref =

@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use crate::ui::theme::{self, Theme};
+
 /// Single-window egui integration. All three pieces (`Context`, `State`,
 /// `Renderer`) are kept together because they share an implicit invariant:
 /// the viewport id used to construct `State` must match the context the
@@ -10,6 +12,10 @@ pub struct EguiRenderer {
     context: egui::Context,
     state: egui_winit::State,
     renderer: egui_wgpu::Renderer,
+    /// Last theme pushed into `context.style`. We track it so
+    /// `ensure_theme` can be called on every frame for free — only an
+    /// actual theme switch reaches `theme::apply`.
+    current_theme: Theme,
 }
 
 impl EguiRenderer {
@@ -17,6 +23,7 @@ impl EguiRenderer {
         device: &wgpu::Device,
         output_format: wgpu::TextureFormat,
         window: Arc<winit::window::Window>,
+        theme: Theme,
     ) -> Self {
         let context = egui::Context::default();
         let viewport_id = context.viewport_id();
@@ -32,10 +39,25 @@ impl EguiRenderer {
         // Single-sample, no depth — matches our sprite pipeline.
         let renderer = egui_wgpu::Renderer::new(device, output_format, None, 1, false);
 
+        // Push the initial design-system style; the rest of the UI code
+        // can read `ctx.style()` and trust it matches docs/design-system.md.
+        theme::apply(&context, theme);
+
         Self {
             context,
             state,
             renderer,
+            current_theme: theme,
+        }
+    }
+
+    /// Re-apply the design-system style if the active theme changed.
+    /// Cheap when stable (one enum comparison); call once per frame
+    /// from the event loop with the value currently in `AppConfig`.
+    pub fn ensure_theme(&mut self, theme: Theme) {
+        if self.current_theme != theme {
+            theme::apply(&self.context, theme);
+            self.current_theme = theme;
         }
     }
 

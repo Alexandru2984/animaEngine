@@ -11,7 +11,9 @@
 
 mod egui_renderer;
 pub mod panels;
+pub mod theme;
 pub mod toasts;
 
 pub use egui_renderer::EguiRenderer;
+pub use theme::{Palette, Theme};
 pub use toasts::ToastQueue;
