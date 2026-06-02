@@ -27,6 +27,16 @@
 # rust-analyzer
 .rust-analyzer/
 
+# ── AI assistant / agent artifacts ───────────────────────────────────
+# Per-developer agent config, memory, and session state. Lives next to
+# the repo for convenience but is not project history — each contributor
+# has their own.
+.claude/
+.aider*
+.cursor/
+.continue/
+CLAUDE.local.md
+
 # ── Atomic-write leftovers ───────────────────────────────────────────
 # util::atomic_write_bytes uses this suffix; a crash mid-write can
 # strand one of these next to a target file.
