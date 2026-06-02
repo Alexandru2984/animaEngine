@@ -13,6 +13,8 @@
 //! 5. ⏳ App integration — `run` picks the backend at startup based on
 //!    `probe::detect`.
 
+pub mod layer_window;
 pub mod probe;
 
+pub use layer_window::{LayerWindow, WaylandState};
 pub use probe::{detect, log_status, WaylandCapabilities};

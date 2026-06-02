@@ -47,6 +47,14 @@ zbus = { version = "5", default-features = false, features = ["async-io"] }
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "unstable"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+# High-level Wayland client conveniences (registry, output, compositor,
+# layer-shell handlers + the calloop event loop they integrate with).
+# `xkbcommon` is intentionally disabled — it requires libxkbcommon-dev as
+# a system dep, which we don't want to force on users. Keyboard handling
+# on the native Wayland path is built directly on top of `wl_keyboard`.
+smithay-client-toolkit = { version = "0.19", default-features = false, features = ["calloop"] }
+calloop = "0.13"
+calloop-wayland-source = "0.3"
 
 # Image loading
 image = { version = "0.25", default-features = false, features = ["png", "gif", "webp", "jpeg"] }
