@@ -6,6 +6,37 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-03
+
+Patch release. Fixes a startup crash on systems that don't have
+`libxkbcommon-x11` preinstalled — surfaced when the smoke test on a
+minimal Xvfb container panicked while AccessKit tried to `dlopen` the
+library. Affected anyone who downloaded the 0.2.0 AppImage on a
+distro without the package, or installed the 0.2.0 `.deb` and didn't
+already pull in `libxkbcommon-x11-0` transitively.
+
+### Fixed
+
+- **AppImage now bundles `libxkbcommon-x11.so.0` explicitly**.
+  `linuxdeploy` walks ELF NEEDED tags, but the library is opened via
+  `dlopen` from `accesskit_unix`, so it never showed up.
+  `scripts/build-appimage.sh` now resolves a candidate path via
+  `ldconfig` on the build host and passes it through `--library`.
+- **`.deb` declares `libxkbcommon-x11-0` in `depends`**. Previously
+  relied on `$auto`, which only inspects NEEDED tags and missed the
+  dlopen.
+- **CI installs `libxkbcommon-x11-dev`** across `clippy`, `test`,
+  `build`, and `smoke` jobs so the smoke test under Xvfb actually
+  reaches the event loop.
+
+### Notes for 0.2.0 downloaders
+
+If your 0.2.0 install runs fine, you don't have to upgrade — your
+distro had the library either preinstalled or pulled in by another
+package. If it crashed at startup with `Library libxkbcommon-x11.so
+could not be loaded`, either install `libxkbcommon-x11-0` manually or
+download 0.2.1.
+
 ## [0.2.0] — 2026-06-02
 
 UI/UX polish release. Faza A (A.0-A.11) landed on top of the 0.1.0 +

@@ -73,6 +73,17 @@ fi
 log "Packing AppImage with linuxdeploy…"
 # `--output appimage` triggers the embedded appimagetool step.
 # `--executable` lists every binary linuxdeploy should walk for deps.
+#
+# `--library` lists dlopen()'d libraries that linuxdeploy can't discover
+# by walking the ELF NEEDED tags. accesskit_unix opens libxkbcommon-x11
+# this way; we resolve a candidate path on the build host and bundle it
+# so the AppImage runs on systems that don't ship the package.
+XKB_X11_LIB="$(ldconfig -p | awk '/libxkbcommon-x11\.so\.0/ {print $NF; exit}')"
+if [[ -z "$XKB_X11_LIB" || ! -f "$XKB_X11_LIB" ]]; then
+    die "libxkbcommon-x11.so.0 not found on the build host (install libxkbcommon-x11-dev)."
+fi
+log "Bundling $XKB_X11_LIB"
+
 OUTPUT_DIR="$BUILD_DIR" \
 ARCH="$ARCH" \
 VERSION="$VERSION" \
@@ -81,6 +92,7 @@ VERSION="$VERSION" \
     --desktop-file "$APPDIR/anima-engine.desktop" \
     --icon-file "$APPDIR/anima-engine.svg" \
     --executable "$APPDIR/usr/bin/anima-engine" \
+    --library "$XKB_X11_LIB" \
     --output appimage
 
 # linuxdeploy writes animaEngine-<version>-x86_64.AppImage into the cwd

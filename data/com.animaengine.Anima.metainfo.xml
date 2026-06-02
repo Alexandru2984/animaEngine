@@ -57,6 +57,16 @@
   </recommends>
 
   <releases>
+    <release version="0.2.1" date="2026-06-03">
+      <description>
+        <p>Patch release fixing a startup crash on systems without libxkbcommon-x11 preinstalled. Affects AppImage on minimal containers and fresh .deb installs.</p>
+        <ul>
+          <li>Bundle libxkbcommon-x11 explicitly in the AppImage (linuxdeploy can't discover dlopen'd libraries on its own).</li>
+          <li>Add libxkbcommon-x11-0 to .deb depends.</li>
+          <li>Install libxkbcommon-x11-dev across all CI jobs so smoke tests pass on Xvfb runners.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-06-02">
       <description>
         <p>UI/UX polish release. Twelve sub-phases focused on coherence, accessibility, and localisation.</p>

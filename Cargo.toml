@@ -1,6 +1,6 @@
 [package]
 name = "anima_engine"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Linux-first animated desktop overlay engine — render multiple animated characters over your desktop"
 license = "MIT"
@@ -24,7 +24,10 @@ Click-through by default; drag-and-drop PNG / GIF / WebP / JPEG / MP4
 to add new characters; tray icon and global hotkeys included."""
 section = "graphics"
 priority = "optional"
-depends = "$auto, libgl1, libvulkan1"
+# `$auto` reads NEEDED tags from the ELF; libxkbcommon-x11 is opened via
+# dlopen by accesskit_unix at runtime, so it isn't in NEEDED and we list
+# it explicitly. libgl1 + libvulkan1 cover the GPU side.
+depends = "$auto, libgl1, libvulkan1, libxkbcommon-x11-0"
 assets = [
     ["target/release/anima_engine", "usr/bin/anima-engine", "755"],
     ["data/anima-engine.desktop", "usr/share/applications/", "644"],
