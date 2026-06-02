@@ -142,6 +142,14 @@ or drag-drop yet. Use the tray + `Ctrl+Shift+A` to control it. See
 [docs/architecture.md](docs/architecture.md#native-wayland-status) for
 the full status matrix.
 
+## Security & trust
+
+Single-user desktop overlay, designed to run as your unprivileged user.
+Asset loaders enforce frame / dimension / byte caps so a malicious file
+can't OOM you; config + cache writes are atomic so a crash can't
+corrupt either. Full invariants in [docs/threat-model.md](
+docs/threat-model.md). Zero network calls. Don't run it as root.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

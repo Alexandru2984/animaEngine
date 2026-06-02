@@ -105,3 +105,32 @@ jobs:
             exit 1
           fi
           echo "Smoke test passed."
+
+  # ── Supply-chain checks ─────────────────────────────────────────────
+  # Both jobs run against the committed Cargo.lock. Failures don't have
+  # to gate the whole CI; we mark them as soft for now (continue-on-error)
+  # because a freshly-disclosed advisory can break PRs that touched
+  # nothing related. Flip continue-on-error to `false` once we settle on
+  # an exception policy.
+
+  audit:
+    name: cargo audit (RustSec)
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install --locked cargo-audit
+      - run: cargo audit --deny warnings
+
+  deny:
+    name: cargo deny check
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-deny
+        run: cargo install --locked cargo-deny
+      - run: cargo deny check

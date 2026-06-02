@@ -42,6 +42,10 @@ review fast:
   `WgpuRenderer::new`). The hot path (`render`, `tick`) stays clean.
 - **No telemetry**: zero network calls, no Sentry, no analytics, no
   ping-on-launch. Decision baked into the project.
+- **Security invariants** in [docs/threat-model.md](docs/threat-model.md):
+  asset caps, atomic writes, drag-drop pre-validation, single-method
+  D-Bus surface. Read it before changing a loader or adding a D-Bus
+  method.
 - **Opt-in dangerous defaults**: physics, native Wayland, and the disk
   cache are all opt-in via field / env var. New "potentially surprising"
   features should follow the same pattern.

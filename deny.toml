@@ -1,0 +1,74 @@
+# cargo-deny configuration for animaEngine.
+# Run locally with: cargo deny check
+#
+# Three concerns are checked:
+#   - advisories  (matches cargo-audit; deny known vulns)
+#   - licenses    (allowlist + deny known incompatibles)
+#   - bans        (catch duplicate / yanked / wildcard deps)
+
+[graph]
+# We don't build on these targets, so don't pull their transitive
+# advisories into our PR noise.
+exclude-dev = false
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-unknown-linux-gnu" },
+]
+
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# `deny` is the strictest knob — any advisory in the graph fails CI.
+# `unmaintained = "workspace"` only flags crates we depend on directly
+# (transitive unmaintained crates are out of our control short of
+# rewriting upstream).
+unmaintained = "workspace"
+yanked = "deny"
+ignore = [
+    # Add advisory IDs here with a brief note if you need to ignore one,
+    # e.g. RUSTSEC-2024-XXXX = "tracked upstream, no fix yet"
+]
+
+[licenses]
+version = 2
+# We're MIT. The allowlist below is what's actually in our graph today;
+# bumping a dep that pulls a new SPDX expression triggers a fail and
+# forces a deliberate choice rather than silent license drift.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "CC0-1.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "MPL-2.0",
+    # Fonts shipped by egui (epaint_default_fonts).
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+]
+confidence-threshold = 0.85
+exceptions = [
+    # Crate-specific carve-outs go here.
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+allow = []
+deny = []
+# Tracking known duplicates (different majors landed in our tree
+# transitively). Drop entries from this list as upstream catches up.
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

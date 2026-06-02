@@ -208,3 +208,5 @@ top-level `Makefile`. AppImage and `.deb` both go through it.
 - Event arm matrix: `src/app.rs::user_event` (the AnimaEvent dispatch)
 - Wayland scaffolding: read `src/wayland/mod.rs` first, then the
   sub-files in the order it lists
+- **Security invariants**: `docs/threat-model.md` — what the codebase
+  promises to keep safe and what it deliberately doesn't
