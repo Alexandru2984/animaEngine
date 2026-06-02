@@ -2,7 +2,7 @@ use anima_engine::app::App;
 use anima_engine::config::AppConfig;
 use anima_engine::event::AnimaEvent;
 use anima_engine::scene::Scene;
-use anima_engine::{demo, tray, window};
+use anima_engine::{demo, hotkeys, tray, window};
 
 // Force X11 backend — XWayland on Wayland systems.
 // This is required because:
@@ -78,6 +78,10 @@ fn main() {
     // to us via this proxy; ignore the join handle — the tray dies with
     // the process.
     let _tray_thread = tray::spawn(event_loop.create_proxy());
+
+    // Register global hotkeys (Ctrl+Shift+A/H/P). The controller must live
+    // as long as the app — dropping it un-registers the bindings.
+    let _hotkeys = hotkeys::register(event_loop.create_proxy());
 
     let mut app = App::new(config, scene);
 

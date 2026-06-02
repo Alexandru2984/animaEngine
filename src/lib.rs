@@ -7,6 +7,7 @@ pub mod demo;
 pub mod entity;
 pub mod error;
 pub mod event;
+pub mod hotkeys;
 pub mod input;
 pub mod physics;
 pub mod renderer;

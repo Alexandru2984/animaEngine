@@ -32,6 +32,10 @@ egui-winit = { version = "0.31", default-features = false, features = ["wayland"
 ksni = { version = "0.3", default-features = false, features = ["async-io"] }
 async-io = "2"
 
+# Global hotkeys (XGrabKey on X11; XWayland inherits) — toggle edit mode
+# and visibility without focusing the overlay.
+global-hotkey = "0.8"
+
 # Image loading
 image = { version = "0.25", default-features = false, features = ["png", "gif", "webp", "jpeg"] }
 
