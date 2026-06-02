@@ -54,6 +54,37 @@ fn main() {
 
     let scene = Scene::from_config(&config);
 
+    // Opt-in native Wayland path. Requires:
+    //   - ANIMA_USE_WAYLAND_NATIVE=1 in the environment
+    //   - A compositor that advertises zwlr_layer_shell_v1 (wlroots, sway,
+    //     Hyprland, river, …). Mutter / KWin will fail the probe and we
+    //     fall through to the X11 path.
+    //
+    // On success this never returns. On failure we log a warning and
+    // continue with winit + XWayland as if the flag weren't set.
+    if wayland_caps.layer_shell && std::env::var_os("ANIMA_USE_WAYLAND_NATIVE").is_some() {
+        tracing::info!("ANIMA_USE_WAYLAND_NATIVE=1 set — trying native layer-shell path");
+        match wayland::run_native(scene) {
+            Ok(()) => {
+                tracing::info!("Native Wayland session ended cleanly.");
+                return;
+            }
+            Err(e) => {
+                tracing::warn!("Native Wayland init failed: {e}. Falling back to X11 path.");
+                // Re-load scene because the previous one was consumed.
+                let scene = Scene::from_config(&config);
+                run_winit_path(config, scene, dbus_connection);
+                return;
+            }
+        }
+    }
+
+    run_winit_path(config, scene, dbus_connection);
+}
+
+/// X11 / XWayland path — the default. Factored into its own function so
+/// the native-Wayland branch above can fall back to it cleanly.
+fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus::Connection>) {
     // Force X11 backend for reliable overlay support.
     // On Wayland systems, XWayland provides all the window hints we need.
     // Use `with_user_event` so the tray (and future global hotkeys) can

@@ -15,6 +15,8 @@
 
 pub mod layer_window;
 pub mod probe;
+pub mod run;
 
-pub use layer_window::{LayerWindow, WaylandState};
+pub use layer_window::{InputRect, LayerWindow, WaylandState};
 pub use probe::{detect, log_status, WaylandCapabilities};
+pub use run::run_native;

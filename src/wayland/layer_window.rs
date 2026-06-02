@@ -53,12 +53,19 @@ use wayland_client::{
 
 /// What `try_create` produces. The caller stores it and drives the event
 /// loop manually (we don't spawn anything internally).
+///
+/// `wgpu_instance` / `wgpu_surface` are `Option` so the run-loop can
+/// `.take()` them and hand them to `WgpuRenderer::from_instance_surface`
+/// without copying or transmuting. The `LayerWindow` keeps the underlying
+/// `wl_surface` alive afterward — the raw handle baked into the wgpu
+/// surface remains valid until the `LayerWindow` is dropped, so the
+/// caller must drop `WgpuRenderer` first.
 pub struct LayerWindow {
     pub connection: Connection,
     pub event_queue: EventQueue<WaylandState>,
     pub state: WaylandState,
-    pub wgpu_surface: wgpu::Surface<'static>,
-    pub wgpu_instance: wgpu::Instance,
+    pub wgpu_surface: Option<wgpu::Surface<'static>>,
+    pub wgpu_instance: Option<wgpu::Instance>,
     /// Logical dimensions reported by the compositor's first `configure`.
     /// Stays `None` until the round-trip after surface commit completes.
     pub size: Option<(u32, u32)>,
@@ -144,8 +151,8 @@ impl LayerWindow {
             connection,
             event_queue,
             state,
-            wgpu_surface,
-            wgpu_instance,
+            wgpu_surface: Some(wgpu_surface),
+            wgpu_instance: Some(wgpu_instance),
             size,
         })
     }

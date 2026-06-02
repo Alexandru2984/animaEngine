@@ -96,12 +96,33 @@ fn generate_selection_frame(size: u32) -> Frame {
 }
 
 impl WgpuRenderer {
-    /// Initialize the wgpu renderer with the given window
+    /// Initialize the wgpu renderer with the given window (winit path).
     #[tracing::instrument(skip(window))]
     pub fn new(window: Arc<winit::window::Window>) -> Result<Self> {
         let size = window.inner_size();
         let window_width = size.width.max(1);
         let window_height = size.height.max(1);
+
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
+            ..Default::default()
+        });
+        let surface = instance.create_surface(window.clone())?;
+        Self::from_instance_surface(instance, surface, window_width, window_height)
+    }
+
+    /// Construct from a pre-built `Instance` and `Surface`. This is the
+    /// backend-agnostic entry point — the native Wayland path (and any
+    /// future backend) calls this directly after attaching a surface
+    /// to its own window handle.
+    pub fn from_instance_surface(
+        instance: wgpu::Instance,
+        surface: wgpu::Surface<'static>,
+        window_width: u32,
+        window_height: u32,
+    ) -> Result<Self> {
+        let window_width = window_width.max(1);
+        let window_height = window_height.max(1);
 
         tracing::info!(
             "Initializing wgpu renderer ({}x{})",
@@ -109,16 +130,6 @@ impl WgpuRenderer {
             window_height
         );
 
-        // Create wgpu instance
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
-            ..Default::default()
-        });
-
-        // Create surface from window
-        let surface = instance.create_surface(window.clone())?;
-
-        // Request adapter
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
             compatible_surface: Some(&surface),

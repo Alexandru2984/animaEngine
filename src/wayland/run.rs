@@ -1,0 +1,153 @@
+//! Native Wayland run loop — opt-in via `ANIMA_USE_WAYLAND_NATIVE=1`.
+//!
+//! This is the proof-of-concept stitching everything in `src/wayland/`
+//! together: layer surface (7.2), pointer translation (7.3), input region
+//! (7.4), and a sprite-only render loop driven by `WgpuRenderer`.
+//!
+//! ## What works
+//!
+//! - Fullscreen overlay on wlroots compositors (sway, Hyprland, river, …).
+//! - Animated sprite rendering for every entity in `Scene`.
+//! - Pointer events are collected (`drain_egui_events` returns them) —
+//!   we just don't drive any egui UI on this path yet.
+//! - `Ctrl+Shift+A/H/P` global hotkeys (Faza 6.2) and the tray (Faza 6.1)
+//!   still work — they don't depend on winit.
+//!
+//! ## What doesn't (yet)
+//!
+//! - **No egui UI** — settings panel, context menu, toasts, the ⚙ button.
+//!   Edit mode toggling is currently only accessible through the tray /
+//!   `Ctrl+Shift+A`. Pointer events are buffered but discarded.
+//! - **No keyboard** — sctk's keyboard module requires libxkbcommon-dev.
+//!   Shortcuts continue to flow through the global-hotkey path.
+//! - **No drag-and-drop** of asset files from a file manager. Wayland
+//!   data-device protocol lands in a later iteration.
+//!
+//! All of these are tracked as follow-ups; the goal of 7.5 is "binary
+//! that actually renders an overlay through layer-shell on sway".
+
+use crate::constants::TOGGLE_BUTTON_SIZE;
+use crate::error::{AnimaError, Result};
+use crate::renderer::wgpu_renderer::WgpuRenderer;
+use crate::scene::Scene;
+use crate::wayland::layer_window::{InputRect, LayerWindow};
+use std::time::Duration;
+
+/// Drive a native-Wayland session end-to-end.
+///
+/// Returns `Err` only when initialization fails (no compositor, missing
+/// globals, wgpu surface creation refused, …). The caller falls back to
+/// the X11 path on error. A successful return means the user closed
+/// the layer surface (or the compositor disconnected).
+#[tracing::instrument(skip(scene))]
+pub fn run_native(mut scene: Scene) -> Result<()> {
+    let mut layer = LayerWindow::try_create()?;
+    let (width, height) = layer
+        .size
+        .ok_or_else(|| AnimaError::other("compositor produced no initial size"))?;
+
+    // Take the wgpu instance + surface out of the LayerWindow and hand
+    // them to the renderer. The wl_surface backing the wgpu surface
+    // stays alive inside `layer.state.layer` for the rest of this scope;
+    // ordering guarantees `renderer` is dropped before `layer` (Rust
+    // drops locals in reverse declaration order).
+    let instance = layer
+        .wgpu_instance
+        .take()
+        .ok_or_else(|| AnimaError::other("LayerWindow missing wgpu instance"))?;
+    let surface = layer
+        .wgpu_surface
+        .take()
+        .ok_or_else(|| AnimaError::other("LayerWindow missing wgpu surface"))?;
+    let mut renderer = WgpuRenderer::from_instance_surface(instance, surface, width, height)?;
+    tracing::info!("Native Wayland renderer initialized ({width}×{height})");
+
+    // Start in pass-through mode with the ⚙ button cutout — same default
+    // as the X11 path.
+    layer.set_input_region(Some(InputRect::toggle_button_corner(
+        width,
+        TOGGLE_BUTTON_SIZE,
+    )))?;
+
+    // Upload textures once for the initial scene.
+    for entity in &scene.entities {
+        renderer.ensure_texture(entity);
+    }
+    for entity in &mut scene.entities {
+        entity.texture_dirty = false;
+    }
+
+    // ── Main loop ──
+    // `blocking_dispatch` waits for compositor events; the 16-ms sleep
+    // below ensures animations keep ticking even when the compositor
+    // doesn't push events at us.
+    loop {
+        layer
+            .event_queue
+            .blocking_dispatch(&mut layer.state)
+            .map_err(|e| AnimaError::other(format!("wayland dispatch: {e}")))?;
+
+        if layer.state.close_requested {
+            tracing::info!("Layer surface closed by compositor — exiting.");
+            break;
+        }
+
+        // Pick up any resize the compositor sent us.
+        if let Some((new_w, new_h)) = layer.state.pending_size.take() {
+            if new_w != renderer.window_width || new_h != renderer.window_height {
+                renderer.resize(new_w, new_h);
+                layer.set_input_region(Some(InputRect::toggle_button_corner(
+                    new_w,
+                    TOGGLE_BUTTON_SIZE,
+                )))?;
+                tracing::info!("Layer surface resized to {new_w}×{new_h}");
+            }
+        }
+
+        // Pointer events are translated but ignored on this path — egui
+        // UI integration is a follow-up. Drain so the buffer doesn't
+        // grow unbounded.
+        let _events = layer.drain_egui_events();
+
+        // Tick the simulation. screen_w / screen_h match the surface so
+        // walk-around behaviors stay inside the visible area.
+        scene.tick(
+            renderer.window_width as f32,
+            renderer.window_height as f32,
+            None, // no cursor on this path until egui is wired in
+        );
+
+        // Update any dirty textures (animation frame advance).
+        for entity in &mut scene.entities {
+            if entity.texture_dirty {
+                renderer.ensure_texture(entity);
+                entity.texture_dirty = false;
+            }
+        }
+
+        // Render the scene. We don't have an edit mode toggle on this
+        // path yet so always render in pass-through visuals.
+        let visible = scene.visible_entities();
+        match renderer.render(&visible, false, None) {
+            Ok(output) => output.present(),
+            Err(wgpu::SurfaceError::Lost) => {
+                renderer.resize(renderer.window_width, renderer.window_height);
+            }
+            Err(wgpu::SurfaceError::OutOfMemory) => {
+                return Err(AnimaError::other("GPU out of memory"));
+            }
+            Err(e) => {
+                tracing::warn!("Render error on Wayland path: {e:?}");
+            }
+        }
+
+        // Soft cap at ~60 Hz when idle.
+        std::thread::sleep(Duration::from_millis(16));
+    }
+
+    // Renderer is dropped here before `layer` — wgpu surface releases
+    // its handle while the underlying wl_surface is still alive.
+    drop(renderer);
+    drop(layer);
+    Ok(())
+}
