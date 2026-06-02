@@ -322,26 +322,7 @@ impl AppConfig {
         PathBuf::from(&asset_path)
     }
 
-    /// Detect the AssetType from a file extension
-    pub fn detect_asset_type(path: &str) -> AssetType {
-        let ext = Path::new(path)
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-
-        match ext.as_str() {
-            "gif" => AssetType::Gif,
-            "webp" => AssetType::WebpAnimated,
-            "png" => {
-                let p = Path::new(path);
-                if p.is_dir() {
-                    AssetType::PngSequence
-                } else {
-                    AssetType::PngStatic
-                }
-            }
-            _ => AssetType::PngStatic,
-        }
-    }
+    // Asset-type detection lives in animation::loader::detect_asset_type
+    // — see comments there for the canonical extension → AssetType table
+    // (it covers JPEG and MP4 / MOV / M4V too).
 }

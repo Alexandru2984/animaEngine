@@ -1,26 +1,58 @@
-# Rust build artifacts
+# ── Rust build artifacts ─────────────────────────────────────────────
 /target
 **/*.rs.bk
+*.pdb
+*.profraw
 
-# Packaging output (AppImage, .deb, staging trees)
+# ── Packaging output ─────────────────────────────────────────────────
 /build/
 *.AppImage
 *.deb
+*.flatpak
+# Per-build manifest files cargo-deb emits next to .deb
+*.changes
+*.buildinfo
 
-# IDE / Editor files
+# ── IDE / Editor files ───────────────────────────────────────────────
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 .DS_Store
+*.bak
+.#*
+\#*\#
+.netrwhist
+# rust-analyzer
+.rust-analyzer/
 
-# Environment
+# ── Atomic-write leftovers ───────────────────────────────────────────
+# util::atomic_write_bytes uses this suffix; a crash mid-write can
+# strand one of these next to a target file.
+*.anima.tmp
+
+# ── Crash recovery / config backups produced by anima-engine ─────────
+# These live under ~/.config/animaEngine but show up here if someone
+# runs the binary from the source tree.
+*.toml.bak
+crash-recovery.toml
+
+# ── Environment / secrets ────────────────────────────────────────────
 .env
+.env.local
+.envrc
 
-# Generated demo assets (optional — uncomment if you want to regenerate)
+# ── Logs / coredumps ─────────────────────────────────────────────────
+*.log
+core
+core.*
+
+# ── Demo assets (generated procedurally at first run) ────────────────
+# Committed to make `git clone && cargo run` show characters
+# immediately. Uncomment if you'd rather regenerate them locally.
 # assets/demo/
 
-# Logs
-*.log
-*.flatpak
+# ── OS-specific junk ─────────────────────────────────────────────────
+Thumbs.db
+desktop.ini

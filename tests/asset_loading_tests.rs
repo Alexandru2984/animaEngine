@@ -460,41 +460,9 @@ fn test_config_spritesheet_fields_skip_when_none() {
     assert!(!toml_str.contains("spritesheet_rows"));
 }
 
-#[test]
-fn test_detect_asset_type_gif() {
-    use anima_engine::config::{AppConfig, AssetType};
-    assert_eq!(
-        AppConfig::detect_asset_type("animation.gif"),
-        AssetType::Gif
-    );
-}
-
-#[test]
-fn test_detect_asset_type_webp() {
-    use anima_engine::config::{AppConfig, AssetType};
-    assert_eq!(
-        AppConfig::detect_asset_type("sprite.webp"),
-        AssetType::WebpAnimated
-    );
-}
-
-#[test]
-fn test_detect_asset_type_png() {
-    use anima_engine::config::{AppConfig, AssetType};
-    assert_eq!(
-        AppConfig::detect_asset_type("image.png"),
-        AssetType::PngStatic
-    );
-}
-
-#[test]
-fn test_detect_asset_type_unknown() {
-    use anima_engine::config::{AppConfig, AssetType};
-    assert_eq!(
-        AppConfig::detect_asset_type("something.bmp"),
-        AssetType::PngStatic
-    );
-}
+// `AppConfig::detect_asset_type` removed in favor of the more complete
+// `animation::loader::detect_asset_type` (handles JPEG + MP4 / MOV /
+// M4V too). The smoke test below exercises the surviving entry point.
 
 // ============================================================================
 // Asset type detection from loader module
@@ -506,12 +474,34 @@ fn test_loader_detect_asset_type() {
     use anima_engine::config::AssetType;
     use std::path::Path;
 
+    // Animated formats
     let (t, _) = detect_asset_type(Path::new("character.gif"));
     assert_eq!(t, AssetType::Gif);
 
     let (t, _) = detect_asset_type(Path::new("sprite.webp"));
     assert_eq!(t, AssetType::WebpAnimated);
 
+    // Single-frame stills
     let (t, _) = detect_asset_type(Path::new("icon.png"));
+    assert_eq!(t, AssetType::PngStatic);
+
+    let (t, _) = detect_asset_type(Path::new("photo.jpg"));
+    assert_eq!(t, AssetType::PngStatic);
+
+    let (t, _) = detect_asset_type(Path::new("photo.jpeg"));
+    assert_eq!(t, AssetType::PngStatic);
+
+    // Video formats — the bit AppConfig::detect_asset_type used to miss
+    let (t, _) = detect_asset_type(Path::new("clip.mp4"));
+    assert_eq!(t, AssetType::Video);
+
+    let (t, _) = detect_asset_type(Path::new("clip.m4v"));
+    assert_eq!(t, AssetType::Video);
+
+    let (t, _) = detect_asset_type(Path::new("clip.mov"));
+    assert_eq!(t, AssetType::Video);
+
+    // Unknown extension defaults to a single static image
+    let (t, _) = detect_asset_type(Path::new("blob.bmp"));
     assert_eq!(t, AssetType::PngStatic);
 }
