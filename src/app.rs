@@ -229,6 +229,40 @@ impl App {
         }
     }
 
+    fn handle_palette_outcome(&mut self, outcome: panels::PaletteOutcome) {
+        use crate::presets::{self, Preset};
+        match outcome {
+            panels::PaletteOutcome::SwitchTheme(theme) => {
+                self.config.global.theme = theme;
+                self.config_dirty = true;
+                self.toasts.success(format!("Theme: {}", theme.label()));
+            }
+            panels::PaletteOutcome::ApplyPreset(id, mode) => {
+                let preset = Preset::for_id(id);
+                let existing = self.scene.to_character_configs();
+                let new = presets::apply_to_scene(existing, &preset, mode);
+                match mode {
+                    presets::ApplyMode::Replace => {
+                        self.scene.reset_to_configs(&new);
+                        self.selection.deselect();
+                    }
+                    presets::ApplyMode::Append => {
+                        let already: std::collections::HashSet<String> =
+                            self.scene.entities.iter().map(|e| e.id.clone()).collect();
+                        for cfg in new.iter().filter(|c| !already.contains(&c.id)) {
+                            if let Err(e) = self.scene.append_character_config(cfg) {
+                                tracing::warn!("Palette preset append failed: {e}");
+                            }
+                        }
+                    }
+                }
+                self.config_dirty = true;
+                self.toasts
+                    .success(format!("Loaded preset: {}", preset.name));
+            }
+        }
+    }
+
     fn apply_menu_action(&mut self, action: panels::MenuAction) {
         match action {
             panels::MenuAction::Duplicate(idx) => {
@@ -656,6 +690,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                             self.toasts.prune();
 
                             let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
+                            let mut palette_outcome: Option<panels::PaletteOutcome> = None;
                             let mut toggle_requested = false;
 
                             if let (Some(ui), Some(window)) =
@@ -679,6 +714,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 let toasts_ref = &self.toasts;
                                 let menu_state = self.ui_state.context_menu.clone();
                                 let menu_outcome_ref = &mut menu_outcome;
+                                let palette_outcome_ref = &mut palette_outcome;
                                 let toggle_requested_ref = &mut toggle_requested;
                                 let edit_mode = self.edit_mode;
 
@@ -709,6 +745,8 @@ impl ApplicationHandler<AnimaEvent> for App {
                                                 *menu_outcome_ref =
                                                     Some(panels::context_menu(ctx, state));
                                             }
+                                            // Ctrl+K opens the command palette.
+                                            *palette_outcome_ref = panels::command_palette(ctx);
                                             panels::toasts(ctx, toasts_ref);
                                         }
                                     },
@@ -724,6 +762,9 @@ impl ApplicationHandler<AnimaEvent> for App {
                             }
                             if let Some(outcome) = menu_outcome {
                                 self.handle_menu_outcome(outcome);
+                            }
+                            if let Some(outcome) = palette_outcome {
+                                self.handle_palette_outcome(outcome);
                             }
                         }
                         Err(wgpu::SurfaceError::Lost) => {
