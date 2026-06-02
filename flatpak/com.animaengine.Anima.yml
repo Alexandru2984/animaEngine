@@ -1,0 +1,81 @@
+# Flatpak manifest for animaEngine.
+#
+# Local build:
+#   make flatpak             # uses the flatpak-builder one-liner in
+#                            # scripts/build-flatpak.sh
+#
+# Flathub submission (later):
+#   1. Run `flatpak-cargo-generator.py` on Cargo.lock to produce
+#      cargo-sources.json with every crate pinned by hash, then add
+#      it as a source below — Flathub forbids network access during
+#      build, so we can't `cargo fetch` at build time.
+#   2. Confirm the app-id matches a domain you control (or use the
+#      io.github.<USER>.AnimaEngine pattern if you don't own
+#      animaengine.com).
+#   3. Add screenshots + a release entry to the metainfo.
+
+app-id: com.animaengine.Anima
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: anima-engine
+
+# What the sandbox sees from the host. Keep this list minimal —
+# every entry is an attack surface from the user's POV.
+finish-args:
+  # Display servers (both, so the binary picks at runtime).
+  - --share=ipc
+  - --socket=x11
+  - --socket=fallback-x11
+  - --socket=wayland
+  # GPU for wgpu (Vulkan / OpenGL).
+  - --device=dri
+  # System tray via StatusNotifierItem — host KDE / GNOME need to
+  # see our DBus name.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  # Single-instance handshake (Faza 6.3) — we own the bus name that
+  # matches our app-id.
+  - --own-name=com.animaengine.Anima
+  # User can drop assets from anywhere in their home (PNG/GIF/MP4/…).
+  # `home:ro` is plenty since we copy decoded pixels into our cache.
+  - --filesystem=home:ro
+  # XDG dirs for the config + cache so the sandboxed app finds the
+  # same paths as the native build.
+  - --filesystem=xdg-config/animaEngine
+  - --filesystem=xdg-cache/animaEngine
+
+modules:
+  - name: anima-engine
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        # Keep cargo's downloads inside the build dir so reruns are
+        # cheap. On Flathub this will be replaced by cargo-sources.json.
+        CARGO_HOME: /run/build/anima-engine/cargo
+        CARGO_TARGET_DIR: /run/build/anima-engine/target
+    build-commands:
+      - cargo build --release --locked
+      - install -Dm0755 target/release/anima_engine
+            /app/bin/anima-engine
+      - install -Dm0644 data/anima-engine.desktop
+            /app/share/applications/com.animaengine.Anima.desktop
+      - install -Dm0644 data/anima-engine.svg
+            /app/share/icons/hicolor/scalable/apps/com.animaengine.Anima.svg
+      - install -Dm0644 data/com.animaengine.Anima.metainfo.xml
+            /app/share/metainfo/com.animaengine.Anima.metainfo.xml
+      # The .desktop file ships with Icon=anima-engine for the .deb /
+      # AppImage paths. Rewrite it inline so it matches the Flatpak
+      # app-id naming on the install side.
+      - sed -i 's/^Icon=.*/Icon=com.animaengine.Anima/'
+            /app/share/applications/com.animaengine.Anima.desktop
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - target
+          - build
+          - .git

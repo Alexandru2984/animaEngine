@@ -30,7 +30,7 @@
 
   <provides>
     <binary>anima-engine</binary>
-    <dbus type="session">org.animaengine.Anima</dbus>
+    <dbus type="session">com.animaengine.Anima</dbus>
   </provides>
 
   <url type="homepage">https://github.com/Alexandru2984/animaEngine</url>

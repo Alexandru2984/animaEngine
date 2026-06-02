@@ -13,8 +13,12 @@ use winit::event_loop::EventLoopProxy;
 use zbus::interface;
 use zbus::names::WellKnownName;
 
-const SERVICE_NAME: &str = "org.animaengine.Anima";
-const OBJECT_PATH: &str = "/org/animaengine/Anima";
+// Service name kept in sync with the Flatpak app-id and the .desktop
+// file id (see data/com.animaengine.Anima.metainfo.xml and the Flatpak
+// manifest at flatpak/com.animaengine.Anima.yml). Flatpak only lets a
+// sandboxed app own the bus name that matches its app-id.
+const SERVICE_NAME: &str = "com.animaengine.Anima";
+const OBJECT_PATH: &str = "/com/animaengine/Anima";
 
 /// What the initial handshake decided about this process.
 pub enum AcquireOutcome {

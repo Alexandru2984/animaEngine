@@ -22,7 +22,7 @@ METAINFODIR:= $(DESTDIR)$(PREFIX)/share/metainfo
 BINARY := target/release/anima_engine
 APPID  := com.animaengine.Anima
 
-.PHONY: all release install uninstall validate appimage deb clean-build
+.PHONY: all release install uninstall validate appimage deb flatpak clean-build
 
 all: release
 
@@ -40,8 +40,14 @@ appimage:
 deb:
 	scripts/build-deb.sh
 
+# Build a Flatpak bundle via flatpak-builder. See flatpak/README.md for
+# the one-time SDK install. Output: build/com.animaengine.Anima.flatpak.
+flatpak:
+	scripts/build-flatpak.sh
+
 clean-build:
-	rm -rf build/AppDir build/animaEngine-*.AppImage build/anima-engine_*.deb
+	rm -rf build/AppDir build/animaEngine-*.AppImage build/anima-engine_*.deb \
+	       build/com.animaengine.Anima.flatpak build/flatpak-*
 
 install: $(BINARY)
 	install -Dm0755 $(BINARY)                              $(BINDIR)/anima-engine
