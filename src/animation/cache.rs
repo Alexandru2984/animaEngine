@@ -28,6 +28,7 @@
 //! debugging asset loaders.
 
 use crate::animation::frame::Frame;
+use crate::constants::{MAX_ANIMATION_FRAMES, MAX_DECODED_ASSET_BYTES, MAX_IMAGE_DIM};
 use crate::error::{AnimaError, Result};
 use std::fs;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -179,9 +180,19 @@ fn deserialize_frames(bytes: &[u8]) -> Result<Vec<Frame>> {
         return Err(AnimaError::other("cache version mismatch"));
     }
 
+    // A malicious / corrupted cache file could claim a 100M-frame asset
+    // and trick us into preallocating a huge Vec<Frame>. Reject up front
+    // against the same caps the live decoders enforce.
     let count = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+    if count > MAX_ANIMATION_FRAMES {
+        return Err(AnimaError::other(format!(
+            "cache claims {count} frames, max {MAX_ANIMATION_FRAMES}"
+        )));
+    }
+
     let mut frames = Vec::with_capacity(count);
     let mut cursor = HEADER_BYTES;
+    let mut total_bytes: usize = 0;
 
     for _ in 0..count {
         if cursor + PER_FRAME_HEADER > bytes.len() {
@@ -192,6 +203,16 @@ fn deserialize_frames(bytes: &[u8]) -> Result<Vec<Frame>> {
         let d = u32::from_le_bytes(bytes[cursor + 8..cursor + 12].try_into().unwrap());
         cursor += PER_FRAME_HEADER;
 
+        // Reject frames whose dimensions exceed what we'd accept from a
+        // fresh decode. Mirrors validate_image_dimensions.
+        if w > MAX_IMAGE_DIM || h > MAX_IMAGE_DIM {
+            return Err(AnimaError::ImageTooLarge {
+                width: w,
+                height: h,
+                max: MAX_IMAGE_DIM,
+            });
+        }
+
         let pixel_len = (w as usize)
             .checked_mul(h as usize)
             .and_then(|n| n.checked_mul(4))
@@ -199,6 +220,19 @@ fn deserialize_frames(bytes: &[u8]) -> Result<Vec<Frame>> {
         if cursor + pixel_len > bytes.len() {
             return Err(AnimaError::other("cache truncated mid-pixels"));
         }
+
+        // Refuse before allocating if the cumulative pixel payload would
+        // exceed our universal asset cap.
+        total_bytes = total_bytes
+            .checked_add(pixel_len)
+            .ok_or_else(|| AnimaError::other("cumulative byte counter overflow"))?;
+        if total_bytes > MAX_DECODED_ASSET_BYTES {
+            return Err(AnimaError::other(format!(
+                "cache exceeds MAX_DECODED_ASSET_BYTES = {} MB",
+                MAX_DECODED_ASSET_BYTES / (1024 * 1024)
+            )));
+        }
+
         let rgba = bytes[cursor..cursor + pixel_len].to_vec();
         cursor += pixel_len;
 
@@ -267,5 +301,45 @@ mod tests {
     #[test]
     fn empty_input_rejected() {
         assert!(deserialize_frames(&[]).is_err());
+    }
+
+    /// Build a header with an arbitrary `count` and no frames after it —
+    /// used to test the count-cap without writing a real payload.
+    fn header_with_count(count: u32) -> Vec<u8> {
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&MAGIC.to_le_bytes());
+        buf.extend_from_slice(&VERSION.to_le_bytes());
+        buf.extend_from_slice(&count.to_le_bytes());
+        buf
+    }
+
+    #[test]
+    fn excessive_frame_count_rejected() {
+        // Claim 1 million frames — well above MAX_ANIMATION_FRAMES.
+        let bytes = header_with_count(1_000_000);
+        let err = deserialize_frames(&bytes).unwrap_err();
+        assert!(err.to_string().contains("max"), "got: {err}");
+    }
+
+    /// Build a one-frame cache with the given declared dimensions but a
+    /// matching payload (so we get past the truncation check).
+    fn one_frame_cache(w: u32, h: u32) -> Vec<u8> {
+        let mut buf = header_with_count(1);
+        buf.extend_from_slice(&w.to_le_bytes());
+        buf.extend_from_slice(&h.to_le_bytes());
+        buf.extend_from_slice(&0u32.to_le_bytes()); // delay
+        let pixel_len = (w as usize) * (h as usize) * 4;
+        buf.extend(std::iter::repeat(0u8).take(pixel_len));
+        buf
+    }
+
+    #[test]
+    fn oversized_frame_dim_rejected() {
+        // Declare a 5000×5000 frame. We allocate the corresponding payload
+        // (100 MB of zeros) just so the truncation check passes; the
+        // dimension check should trigger first.
+        let bytes = one_frame_cache(MAX_IMAGE_DIM + 1, 32);
+        let err = deserialize_frames(&bytes).unwrap_err();
+        assert!(matches!(err, AnimaError::ImageTooLarge { .. }));
     }
 }
