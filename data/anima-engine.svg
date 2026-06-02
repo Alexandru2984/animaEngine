@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>animaEngine</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5e72e4"/>
+      <stop offset="1" stop-color="#825ee4"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Rounded-corner badge -->
+  <rect width="256" height="256" rx="56" ry="56" fill="url(#bg)"/>
+  <rect width="256" height="256" rx="56" ry="56" fill="url(#glow)"/>
+  <!-- Lowercase "a" — stylized animation/anima mark -->
+  <text x="128" y="184"
+        font-family="DejaVu Sans, sans-serif"
+        font-size="180"
+        font-weight="700"
+        fill="#ffffff"
+        text-anchor="middle"
+        letter-spacing="-4">a</text>
+  <!-- Trailing motion dot, hints at "animation" -->
+  <circle cx="200" cy="182" r="10" fill="#ffffff" opacity="0.85"/>
+</svg>

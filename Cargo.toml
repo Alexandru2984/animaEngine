@@ -5,6 +5,33 @@ edition = "2021"
 description = "Linux-first animated desktop overlay engine — render multiple animated characters over your desktop"
 license = "MIT"
 resolver = "2"
+homepage = "https://github.com/Alexandru2984/animaEngine"
+repository = "https://github.com/Alexandru2984/animaEngine"
+readme = "README.md"
+
+# ── cargo-deb (used by `make deb` in 8.3) ────────────────────────────
+# The release binary is renamed to `anima-engine` in /usr/bin and the
+# .desktop / icon / metainfo files land at the freedesktop XDG paths.
+[package.metadata.deb]
+maintainer = "animaEngine contributors"
+copyright = "2026, animaEngine contributors"
+license-file = ["LICENSE", "0"]
+extended-description = """\
+Render multiple animated characters or sprites on top of your desktop
+using transparent, always-on-top windows with GPU acceleration. Written
+in Rust on wgpu + winit — no Electron, no Chromium, minimal RAM use.
+Click-through by default; drag-and-drop PNG / GIF / WebP / JPEG / MP4
+to add new characters; tray icon and global hotkeys included."""
+section = "graphics"
+priority = "optional"
+depends = "$auto, libgl1, libvulkan1"
+assets = [
+    ["target/release/anima_engine", "usr/bin/anima-engine", "755"],
+    ["data/anima-engine.desktop", "usr/share/applications/", "644"],
+    ["data/anima-engine.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["data/com.animaengine.Anima.metainfo.xml", "usr/share/metainfo/", "644"],
+    ["README.md", "usr/share/doc/anima-engine/", "644"],
+]
 
 [dependencies]
 # Windowing

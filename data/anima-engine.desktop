@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=animaEngine
+GenericName=Desktop Overlay Engine
+Comment=Animated character overlay for your Linux desktop
+Comment[ro]=Suprapunere cu personaje animate pentru desktop-ul tău Linux
+Icon=anima-engine
+Exec=anima-engine
+TryExec=anima-engine
+Categories=Graphics;
+Keywords=overlay;animation;sprite;mascot;character;wayland;x11;
+StartupNotify=false
+StartupWMClass=animaEngine
+Terminal=false
+SingleMainWindow=true

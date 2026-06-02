@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.animaengine.Anima</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>animaEngine</name>
+  <summary>Animated character overlay for your Linux desktop</summary>
+  <summary xml:lang="ro">Suprapunere cu personaje animate pentru desktop-ul tău Linux</summary>
+
+  <description>
+    <p>
+      animaEngine renders multiple animated characters or sprites on top of your
+      desktop using transparent, always-on-top windows with GPU acceleration. It's
+      written in Rust with wgpu and winit — no Electron, no Chromium, minimal RAM
+      footprint.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Click-through by default — your desktop stays fully usable</li>
+      <li>Drag-and-drop PNG, GIF, WebP, JPEG, or H.264 MP4 files to add characters</li>
+      <li>Per-entity behaviors: walk-around, follow-cursor, bounded-wander</li>
+      <li>System tray icon and global hotkeys (Ctrl+Shift+A/H/P)</li>
+      <li>Hot-reload of the TOML config — edit live</li>
+      <li>Native X11 (XShape click-through) and experimental wlr-layer-shell paths</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">anima-engine.desktop</launchable>
+
+  <provides>
+    <binary>anima-engine</binary>
+    <dbus type="session">org.animaengine.Anima</dbus>
+  </provides>
+
+  <url type="homepage">https://github.com/Alexandru2984/animaEngine</url>
+  <url type="bugtracker">https://github.com/Alexandru2984/animaEngine/issues</url>
+
+  <developer id="com.animaengine">
+    <name>animaEngine contributors</name>
+  </developer>
+
+  <content_rating type="oars-1.1"/>
+
+  <categories>
+    <category>Graphics</category>
+    <category>Utility</category>
+  </categories>
+
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+
+  <recommends>
+    <display_length compare="ge">768</display_length>
+  </recommends>
+
+  <releases>
+    <release version="0.1.0" date="2026-06-02">
+      <description>
+        <p>Initial development snapshot.</p>
+      </description>
+    </release>
+  </releases>
+</component>
