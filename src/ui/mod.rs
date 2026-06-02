@@ -12,6 +12,7 @@
 mod egui_renderer;
 pub mod icons;
 pub mod panels;
+pub mod states;
 pub mod theme;
 pub mod toasts;
 

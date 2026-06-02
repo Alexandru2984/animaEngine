@@ -10,8 +10,9 @@ use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::input::selection::SelectionState;
 use crate::scene::Scene;
 use crate::ui::icons;
-use crate::ui::theme::{self, h2, Theme, SPACE_2XL, SPACE_M, SPACE_S, SPACE_XS};
-use crate::ui::toasts::{ToastKind, ToastQueue};
+use crate::ui::states;
+use crate::ui::theme::{self, h2, Theme, SPACE_2XL, SPACE_L, SPACE_M, SPACE_S, SPACE_XS};
+use crate::ui::toasts::{Toast, ToastKind, ToastQueue};
 
 /// Entity-targeted action requested from the right-click context menu.
 /// `App` applies it after `EguiRenderer::render` returns so it can grab a
@@ -165,7 +166,7 @@ fn inspector_tab(
                 scene.mark_visible_dirty();
             }
         }
-        None => empty_state(
+        None => states::empty(
             ui,
             icons::CURSOR,
             "Nothing selected",
@@ -181,7 +182,7 @@ fn scene_tab(
     config_dirty: &mut bool,
 ) {
     if scene.entities.is_empty() {
-        empty_state(
+        states::empty(
             ui,
             icons::GHOST,
             "Empty scene",
@@ -218,28 +219,6 @@ fn appearance_tab(ui: &mut egui::Ui, theme: &mut Theme, config_dirty: &mut bool)
 }
 
 // ─── building blocks ──────────────────────────────────────────────────
-
-/// Centered empty-state card. A.4 promotes this into a proper helper in
-/// `src/ui/states.rs`; for now it lives here so we can reuse it across
-/// Inspector and Scene tabs without a circular module dependency.
-fn empty_state(ui: &mut egui::Ui, icon: &str, headline: &str, hint: &str) {
-    ui.add_space(SPACE_2XL);
-    ui.vertical_centered(|ui| {
-        ui.label(
-            egui::RichText::new(icon)
-                .size(40.0)
-                .color(ui.visuals().weak_text_color()),
-        );
-        ui.add_space(SPACE_M);
-        ui.label(egui::RichText::new(headline).text_style(h2()));
-        ui.add_space(SPACE_XS);
-        ui.label(
-            egui::RichText::new(hint)
-                .text_style(theme::caption())
-                .weak(),
-        );
-    });
-}
 
 /// Theme dropdown. Returns `true` when the user picked a different
 /// theme than the current value, so the caller can flag the config
@@ -669,7 +648,10 @@ pub(crate) fn context_menu(ctx: &egui::Context, state: &ContextMenuState) -> Con
 }
 
 /// Stack of toast notifications anchored to the bottom-right corner.
-/// Renders above the settings panel and the context menu.
+/// Renders above the settings panel and the context menu, styled per
+/// docs/design-system.md §7.8: `bg.elevated` surface, leading severity
+/// icon coloured by `semantic.*`, body text in `fg.primary`, radius
+/// `lg`, `elev.mid` shadow, stack gap `space.s`.
 pub fn toasts(ctx: &egui::Context, queue: &ToastQueue) {
     if queue.is_empty() {
         return;
@@ -681,35 +663,44 @@ pub fn toasts(ctx: &egui::Context, queue: &ToastQueue) {
     ctx.request_repaint();
 
     egui::Area::new(egui::Id::new("anima_toasts"))
-        .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-12.0, -12.0))
+        .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-SPACE_L, -SPACE_L))
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
             ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
                 for toast in queue.iter() {
-                    let (bg, fg) = match toast.kind {
-                        ToastKind::Info => {
-                            (egui::Color32::from_rgb(40, 40, 45), egui::Color32::WHITE)
-                        }
-                        ToastKind::Success => {
-                            (egui::Color32::from_rgb(30, 100, 50), egui::Color32::WHITE)
-                        }
-                        ToastKind::Warn => {
-                            (egui::Color32::from_rgb(150, 110, 30), egui::Color32::WHITE)
-                        }
-                        ToastKind::Error => {
-                            (egui::Color32::from_rgb(140, 40, 40), egui::Color32::WHITE)
-                        }
-                    };
-
-                    egui::Frame::new()
-                        .fill(bg)
-                        .corner_radius(4.0)
-                        .inner_margin(egui::Margin::symmetric(10, 6))
-                        .show(ui, |ui| {
-                            ui.colored_label(fg, &toast.message);
-                        });
-                    ui.add_space(4.0);
+                    toast_card(ui, toast);
+                    ui.add_space(SPACE_S);
                 }
+            });
+        });
+}
+
+fn toast_card(ui: &mut egui::Ui, toast: &Toast) {
+    let visuals = ui.visuals();
+    let bg = visuals.faint_bg_color; // bg.elevated per theme
+    let body_fg = visuals.text_color(); // fg.primary
+    let severity_fg = match toast.kind {
+        ToastKind::Info => visuals.hyperlink_color, // info / accent tone
+        ToastKind::Success => egui::Color32::from_rgb(0x5B, 0xCB, 0x7B),
+        ToastKind::Warn => visuals.warn_fg_color,
+        ToastKind::Error => visuals.error_fg_color,
+    };
+    let icon = match toast.kind {
+        ToastKind::Info => icons::INFO,
+        ToastKind::Success => icons::SUCCESS,
+        ToastKind::Warn => icons::WARN,
+        ToastKind::Error => icons::ERROR,
+    };
+
+    egui::Frame::new()
+        .fill(bg)
+        .corner_radius(theme::RADIUS_LG)
+        .inner_margin(egui::Margin::symmetric(SPACE_L as i8, SPACE_M as i8))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(icon).size(18.0).color(severity_fg));
+                ui.add_space(SPACE_S);
+                ui.colored_label(body_fg, &toast.message);
             });
         });
 }
