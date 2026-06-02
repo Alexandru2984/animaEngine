@@ -1,4 +1,5 @@
 use super::frame::Frame;
+use crate::constants::{MAX_DECODED_ASSET_BYTES, MAX_SEQUENCE_FILES};
 use crate::error::{AnimaError, Result};
 use rayon::prelude::*;
 use std::fs;
@@ -11,6 +12,12 @@ use std::path::Path;
 /// (par_iter().map().collect() guarantees source-order output). A single
 /// corrupt PNG is logged and skipped; the whole load only fails if every
 /// frame fails.
+///
+/// Two safety caps:
+/// - `MAX_SEQUENCE_FILES` limits the enumeration so a directory with 50 k
+///   files doesn't pin the CPU before we even start decoding.
+/// - `MAX_DECODED_ASSET_BYTES` truncates after decode so the same cap
+///   used by GIF/WebP applies here too.
 pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
     if !dir_path.is_dir() {
         return Err(AnimaError::NotADirectory(dir_path.to_path_buf()));
@@ -34,13 +41,24 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
         return Err(AnimaError::EmptyAsset(dir_path.to_path_buf()));
     }
 
+    let truncated_for_file_count = entries.len() > MAX_SEQUENCE_FILES;
+    if truncated_for_file_count {
+        tracing::warn!(
+            "PNG sequence {} has {} files; capping at MAX_SEQUENCE_FILES = {}",
+            dir_path.display(),
+            entries.len(),
+            MAX_SEQUENCE_FILES
+        );
+        entries.truncate(MAX_SEQUENCE_FILES);
+    }
+
     tracing::info!(
         "Loading PNG sequence: {} frames from {} (parallel decode)",
         entries.len(),
         dir_path.display()
     );
 
-    let frames: Vec<Frame> = entries
+    let decoded: Vec<Frame> = entries
         .par_iter()
         .filter_map(|path| match load_single_png(path) {
             Ok(frame) => Some(frame),
@@ -50,6 +68,28 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
             }
         })
         .collect();
+
+    // Apply the decoded-bytes cap sequentially after parallel decode.
+    // Truncating during par_iter would race the running total.
+    let mut frames: Vec<Frame> = Vec::with_capacity(decoded.len());
+    let mut total_bytes: usize = 0;
+    let mut truncated_for_bytes = false;
+    for frame in decoded {
+        if total_bytes.saturating_add(frame.rgba.len()) > MAX_DECODED_ASSET_BYTES {
+            truncated_for_bytes = true;
+            break;
+        }
+        total_bytes += frame.rgba.len();
+        frames.push(frame);
+    }
+    if truncated_for_bytes {
+        tracing::warn!(
+            "PNG sequence {} truncated at MAX_DECODED_ASSET_BYTES = {} MB ({} frames kept)",
+            dir_path.display(),
+            MAX_DECODED_ASSET_BYTES / (1024 * 1024),
+            frames.len()
+        );
+    }
 
     if frames.is_empty() {
         return Err(AnimaError::EmptyAsset(dir_path.to_path_buf()));
@@ -87,6 +127,21 @@ mod tests {
             *px = image::Rgba(color);
         }
         img.save(path).unwrap();
+    }
+
+    #[test]
+    fn caps_file_count_at_max_sequence_files() {
+        // Synthesize MAX_SEQUENCE_FILES + 50 tiny PNGs and verify the
+        // loader truncates instead of trying to decode all of them.
+        let dir = temp_dir("oversized_seq");
+        let total = crate::constants::MAX_SEQUENCE_FILES + 50;
+        for i in 1..=total {
+            let path = dir.join(format!("frame_{i:06}.png"));
+            // Tiny 1×1 PNGs so the test runs fast.
+            write_colored_png(&path, 1, 1, [255, 0, 0, 255]);
+        }
+        let frames = load_png_sequence(&dir).expect("load");
+        assert!(frames.len() <= crate::constants::MAX_SEQUENCE_FILES);
     }
 
     #[test]

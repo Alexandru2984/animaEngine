@@ -17,7 +17,7 @@
 //! - **Audio dropped.** We don't even look at audio tracks.
 
 use super::frame::Frame;
-use crate::constants::MAX_VIDEO_FRAMES;
+use crate::constants::{MAX_DECODED_ASSET_BYTES, MAX_IMAGE_DIM, MAX_VIDEO_FRAMES};
 use crate::error::{AnimaError, Result};
 use mp4::Mp4Reader;
 use openh264::decoder::Decoder;
@@ -75,6 +75,7 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
     push_sps_pps_from_avcc(&mp4, track_id, &mut annex_b)?;
 
     let mut frames: Vec<Frame> = Vec::new();
+    let mut total_bytes: usize = 0;
 
     for sample_id in 1..=sample_count {
         if frames.len() >= MAX_VIDEO_FRAMES {
@@ -94,22 +95,42 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
             continue;
         };
 
-        // Re-frame length-prefixed NALUs as Annex-B.
         annex_b.clear();
         avcc_to_annex_b(&sample.bytes, &mut annex_b);
 
-        // Decoder returns None for SPS/PPS-only samples and for B/P frames
-        // that don't produce output yet — that's fine, just skip.
         match decoder.decode(&annex_b) {
             Ok(Some(yuv)) => {
                 let (w, h) = yuv.dimensions();
-                let mut rgba = vec![0u8; w * h * 4];
+                // Sanity-check what openh264 just handed us. A pathological
+                // stream could claim huge dimensions; refuse before alloc.
+                if w as u32 > MAX_IMAGE_DIM || h as u32 > MAX_IMAGE_DIM {
+                    return Err(AnimaError::ImageTooLarge {
+                        width: w as u32,
+                        height: h as u32,
+                        max: MAX_IMAGE_DIM,
+                    });
+                }
+                let frame_bytes = w
+                    .checked_mul(h)
+                    .and_then(|n| n.checked_mul(4))
+                    .ok_or_else(|| AnimaError::VideoDecode("frame size overflow".into()))?;
+                if total_bytes.saturating_add(frame_bytes) > MAX_DECODED_ASSET_BYTES {
+                    tracing::warn!(
+                        "Video {} truncated at MAX_DECODED_ASSET_BYTES = {} MB ({} frames kept)",
+                        path.display(),
+                        MAX_DECODED_ASSET_BYTES / (1024 * 1024),
+                        frames.len()
+                    );
+                    break;
+                }
+                total_bytes += frame_bytes;
+
+                let mut rgba = vec![0u8; frame_bytes];
                 yuv_to_rgba(&yuv, &mut rgba);
                 frames.push(Frame::with_delay(rgba, w as u32, h as u32, avg_delay_ms));
             }
             Ok(None) => {}
             Err(e) => {
-                // A bad sample shouldn't kill the whole load — log and move on.
                 tracing::warn!("openh264 decode error on sample {sample_id}: {e}");
             }
         }

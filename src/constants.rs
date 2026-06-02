@@ -25,3 +25,25 @@ pub const TOGGLE_BUTTON_SIZE: u32 = 64;
 /// Caps memory at roughly MAX_VIDEO_FRAMES × MAX_DROP_SIZE² × 4 bytes
 /// (≈150 MB for a 256-px square, much less for typical overlay sprites).
 pub const MAX_VIDEO_FRAMES: usize = 600;
+
+/// Cap on the number of frames we'll keep from any animated asset
+/// (GIF / WebP / PNG sequence / spritesheet). A pathological 10 000-frame
+/// GIF at 256 px would otherwise eat ~2.5 GB of RAM after decode.
+pub const MAX_ANIMATION_FRAMES: usize = 600;
+
+/// Cap on the number of PNG files we'll honour inside a sequence
+/// directory. The frames-count cap above already protects against decode
+/// blowup; this one cuts off the *enumeration* before we even try to
+/// open files (handles directories with tens of thousands of entries).
+pub const MAX_SEQUENCE_FILES: usize = 1_000;
+
+/// Hard cap on the total decoded-RGBA size we'll hold in memory for a
+/// single asset (after resize / sequence). 512 MB matches what a high-end
+/// integrated GPU can host without thrashing; loaders that exceed it
+/// truncate and log a warning.
+pub const MAX_DECODED_ASSET_BYTES: usize = 512 * 1024 * 1024;
+
+/// Cap on the on-disk size we'll accept for a single drag-dropped asset.
+/// 200 MB — plenty for any reasonable GIF or short MP4, while still
+/// keeping a misclick on a multi-GB video from running OOM on parse.
+pub const MAX_ASSET_FILE_BYTES: u64 = 200 * 1024 * 1024;
