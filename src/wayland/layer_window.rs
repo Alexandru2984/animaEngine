@@ -47,8 +47,8 @@ use smithay_client_toolkit::{
 use std::sync::Arc;
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{wl_output, wl_pointer, wl_seat, wl_surface},
-    Connection, EventQueue, QueueHandle,
+    protocol::{wl_output, wl_pointer, wl_region, wl_seat, wl_surface},
+    Connection, Dispatch, EventQueue, QueueHandle,
 };
 
 /// What `try_create` produces. The caller stores it and drives the event
@@ -122,7 +122,7 @@ impl LayerWindow {
             registry_state,
             output_state,
             seat_state,
-            _compositor: compositor,
+            compositor,
             _layer_shell: layer_shell,
             layer,
             pointer: None,
@@ -200,7 +200,7 @@ pub struct WaylandState {
     pub registry_state: RegistryState,
     pub output_state: OutputState,
     pub seat_state: SeatState,
-    _compositor: CompositorState,
+    pub compositor: CompositorState,
     _layer_shell: LayerShell,
     pub layer: LayerSurface,
     /// Active pointer once a seat advertises the capability. We keep one
@@ -229,6 +229,78 @@ impl LayerWindow {
     /// callbacks invoke this and feed the result into egui.
     pub fn drain_egui_events(&mut self) -> Vec<egui::Event> {
         std::mem::take(&mut self.state.pending_egui_events)
+    }
+
+    /// Configure the click-through input region.
+    ///
+    /// - `cutout = None` → empty region → **every** pixel is click-through
+    ///   (no point in this state for our overlay, but a useful primitive).
+    /// - `cutout = Some(rect)` → only `rect` receives input; the rest is
+    ///   click-through. Equivalent to the X11 input shape used in
+    ///   pass-through mode for the ⚙ toggle button.
+    /// - Pass `cutout = Some(InputRect::full(w, h))` to make the entire
+    ///   surface receive input — used for edit mode.
+    pub fn set_input_region(&mut self, cutout: Option<InputRect>) -> Result<()> {
+        let qh = self.event_queue.handle();
+        // `wl_compositor::create_region` is a constructor — the returned
+        // proxy is fresh state owned by the client. We hand it back to
+        // the compositor via `set_input_region` (which copies it) and
+        // then destroy it immediately; the surface keeps the region.
+        let region = self.state.compositor.wl_compositor().create_region(&qh, ());
+        if let Some(rect) = cutout {
+            region.add(rect.x, rect.y, rect.w as i32, rect.h as i32);
+        }
+        self.state
+            .layer
+            .wl_surface()
+            .set_input_region(Some(&region));
+        self.state.layer.commit();
+        region.destroy();
+        Ok(())
+    }
+}
+
+/// Rectangular cutout used by `LayerWindow::set_input_region`.
+#[derive(Debug, Clone, Copy)]
+pub struct InputRect {
+    pub x: i32,
+    pub y: i32,
+    pub w: u32,
+    pub h: u32,
+}
+
+impl InputRect {
+    /// Whole-surface input region — every pixel receives clicks. Used
+    /// when entering edit mode.
+    pub fn full(w: u32, h: u32) -> Self {
+        Self { x: 0, y: 0, w, h }
+    }
+
+    /// Top-right corner of size `size` × `size` inside an `w` × `h`
+    /// surface — matches the ⚙ button geometry from the X11 path.
+    pub fn toggle_button_corner(surface_w: u32, size: u32) -> Self {
+        Self {
+            x: surface_w as i32 - size as i32,
+            y: 0,
+            w: size,
+            h: size,
+        }
+    }
+}
+
+/// `wl_compositor::create_region` returns a `wl_region` proxy that we
+/// never receive events on (it's purely a constructor handle). sctk
+/// requires a `Dispatch` impl for every protocol object the queue
+/// touches; a no-op covers it.
+impl Dispatch<wl_region::WlRegion, ()> for WaylandState {
+    fn event(
+        _state: &mut Self,
+        _proxy: &wl_region::WlRegion,
+        _event: <wl_region::WlRegion as wayland_client::Proxy>::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
     }
 }
 
