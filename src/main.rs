@@ -1,7 +1,8 @@
 use anima_engine::app::App;
 use anima_engine::config::AppConfig;
+use anima_engine::event::AnimaEvent;
 use anima_engine::scene::Scene;
-use anima_engine::{demo, window};
+use anima_engine::{demo, tray, window};
 
 // Force X11 backend — XWayland on Wayland systems.
 // This is required because:
@@ -39,9 +40,11 @@ fn main() {
 
     // Force X11 backend for reliable overlay support.
     // On Wayland systems, XWayland provides all the window hints we need.
+    // Use `with_user_event` so the tray (and future global hotkeys) can
+    // post commands back to the UI thread.
     #[cfg(target_os = "linux")]
     let event_loop = {
-        let mut builder = winit::event_loop::EventLoop::builder();
+        let mut builder = winit::event_loop::EventLoop::<AnimaEvent>::with_user_event();
         builder.with_x11();
         match builder.build() {
             Ok(el) => {
@@ -51,7 +54,7 @@ fn main() {
             Err(e) => {
                 tracing::error!("Failed to create X11 event loop: {e}");
                 tracing::info!("Falling back to default event loop…");
-                match winit::event_loop::EventLoop::new() {
+                match winit::event_loop::EventLoop::<AnimaEvent>::with_user_event().build() {
                     Ok(el) => el,
                     Err(e2) => {
                         tracing::error!("Failed to create fallback event loop: {e2}");
@@ -63,13 +66,18 @@ fn main() {
     };
 
     #[cfg(not(target_os = "linux"))]
-    let event_loop = match winit::event_loop::EventLoop::new() {
+    let event_loop = match winit::event_loop::EventLoop::<AnimaEvent>::with_user_event().build() {
         Ok(el) => el,
         Err(e) => {
             tracing::error!("Failed to create event loop: {e}");
             std::process::exit(1);
         }
     };
+
+    // Spawn the tray on its own thread. It posts AnimaEvent commands back
+    // to us via this proxy; ignore the join handle — the tray dies with
+    // the process.
+    let _tray_thread = tray::spawn(event_loop.create_proxy());
 
     let mut app = App::new(config, scene);
 

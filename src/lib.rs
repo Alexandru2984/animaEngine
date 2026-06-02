@@ -6,10 +6,12 @@ pub mod constants;
 pub mod demo;
 pub mod entity;
 pub mod error;
+pub mod event;
 pub mod input;
 pub mod physics;
 pub mod renderer;
 pub mod scene;
+pub mod tray;
 pub mod ui;
 pub mod window;
 

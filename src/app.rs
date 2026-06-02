@@ -1,5 +1,6 @@
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
+use crate::event::AnimaEvent;
 use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
@@ -383,7 +384,46 @@ impl App {
     }
 }
 
-impl ApplicationHandler for App {
+impl ApplicationHandler<AnimaEvent> for App {
+    /// Handle tray / global-hotkey commands routed through the event loop.
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AnimaEvent) {
+        match event {
+            AnimaEvent::ToggleEditMode => {
+                self.toggle_edit_mode();
+            }
+            AnimaEvent::ToggleGlobalPlayback => {
+                self.scene.toggle_global_playback();
+                self.config_dirty = true;
+                let label = if self.scene.global_playing {
+                    "Playback resumed"
+                } else {
+                    "Playback paused"
+                };
+                self.toasts.info(label);
+            }
+            AnimaEvent::ShowOverlay => {
+                if let Some(window) = &self.window {
+                    window.set_visible(true);
+                    // Compositors sometimes clip our shape on unmap/map.
+                    self.reapply_input_shape();
+                }
+            }
+            AnimaEvent::HideOverlay => {
+                if let Some(window) = &self.window {
+                    window.set_visible(false);
+                }
+            }
+            AnimaEvent::Quit => {
+                tracing::info!("Quit requested from tray");
+                self.save_config_if_needed();
+                self.ui = None;
+                self.renderer = None;
+                self.x11_input = None;
+                event_loop.exit();
+            }
+        }
+    }
+
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_some() {
             return; // Already created
