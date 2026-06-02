@@ -3,6 +3,7 @@ pub mod app;
 pub mod behavior;
 pub mod config;
 pub mod constants;
+pub mod crash;
 pub mod demo;
 pub mod entity;
 pub mod error;

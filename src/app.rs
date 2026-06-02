@@ -316,7 +316,12 @@ impl App {
             self.config.characters = self.scene.to_character_configs();
             self.config.global.playback_enabled = self.scene.global_playing;
             match self.config.save() {
-                Ok(()) => self.toasts.success("Config saved"),
+                Ok(()) => {
+                    self.toasts.success("Config saved");
+                    // Mirror the clean state into the crash-recovery slot
+                    // so the panic hook has something useful to dump.
+                    crate::crash::record_known_good(&self.config);
+                }
                 Err(e) => {
                     tracing::warn!("Failed to save config: {}", e);
                     self.toasts.error(format!("Save failed: {e}"));

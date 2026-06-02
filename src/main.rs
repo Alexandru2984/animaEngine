@@ -1,5 +1,6 @@
 use anima_engine::app::App;
 use anima_engine::config::AppConfig;
+use anima_engine::crash::{self, RecoverOutcome};
 use anima_engine::event::AnimaEvent;
 use anima_engine::scene::Scene;
 use anima_engine::single_instance::{self, AcquireOutcome};
@@ -17,6 +18,41 @@ use winit::platform::x11::EventLoopBuilderExtX11;
 
 fn main() {
     init_tracing();
+
+    // CLI: `anima-engine --recover` restores a crash-recovery snapshot
+    // and exits. Anything else runs the app. We deliberately keep the
+    // flag handling argv-only (no clap dep) — it's one switch.
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--recover" || a == "-r") {
+        match crash::try_recover() {
+            RecoverOutcome::NoSnapshot => {
+                eprintln!("No crash-recovery snapshot found — nothing to restore.");
+                std::process::exit(0);
+            }
+            RecoverOutcome::Restored { backup } => {
+                if let Some(b) = backup {
+                    eprintln!(
+                        "Snapshot restored. Previous config kept at: {}",
+                        b.display()
+                    );
+                } else {
+                    eprintln!("Snapshot restored.");
+                }
+                std::process::exit(0);
+            }
+            RecoverOutcome::Failed(e) => {
+                eprintln!("Recovery failed: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        print_help();
+        std::process::exit(0);
+    }
+
+    // Install before any work — even our own startup can panic.
+    crash::install_panic_hook();
 
     tracing::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     tracing::info!("  animaEngine v{}", env!("CARGO_PKG_VERSION"));
@@ -51,6 +87,9 @@ fn main() {
         config.characters.len(),
         config.global.playback_enabled
     );
+    // Seed the crash-recovery slot so a panic between now and the first
+    // user-driven save still produces a useful snapshot.
+    crash::record_known_good(&config);
 
     let scene = Scene::from_config(&config);
 
@@ -159,6 +198,29 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
         tracing::error!("Event loop error: {e}");
         std::process::exit(1);
     }
+}
+
+fn print_help() {
+    eprintln!(
+        "animaEngine v{} — animated desktop overlay engine
+
+USAGE:
+    anima-engine [OPTIONS]
+
+OPTIONS:
+    -h, --help       Print this help and exit
+    -r, --recover    Restore a crash-recovery snapshot over the live
+                     config (the live config is backed up to
+                     config.toml.bak), then exit.
+
+ENVIRONMENT:
+    RUST_LOG=anima_engine=debug    Verbose logs
+    ANIMA_NO_CACHE=1               Bypass the on-disk RGBA cache
+    ANIMA_USE_WAYLAND_NATIVE=1     Try native wlr-layer-shell
+
+See README.md for more.",
+        env!("CARGO_PKG_VERSION")
+    );
 }
 
 /// Initialize tracing-subscriber with millisecond timestamps and RUST_LOG support.
