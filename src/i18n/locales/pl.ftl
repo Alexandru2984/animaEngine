@@ -1,0 +1,69 @@
+# Polski — tłumaczenie bazowe. Wymaga przeglądu native speakera.
+
+app-name = animaEngine
+
+settings-tab-inspector = Inspektor
+settings-tab-scene = Scena
+settings-tab-appearance = Wygląd
+entity-count-zero = Brak elementów
+entity-count-singular = { $n } element
+entity-count-plural = { $n } elementów
+
+inspector-section-position = Pozycja
+inspector-section-appearance = Wygląd
+inspector-section-animation = Animacja
+inspector-section-behavior = Zachowanie
+inspector-visible = Widoczny
+inspector-gravity = Grawitacja
+inspector-scale = Skala
+inspector-opacity = Krycie
+inspector-fps = FPS
+inspector-playing = Odtwarzanie
+inspector-x = X
+inspector-y = Y
+inspector-z-index = z-index
+inspector-nothing-selected-headline = Nic nie wybrano
+inspector-nothing-selected-hint = Kliknij element w zakładce Scena lub naciśnij Tab, aby je przejrzeć.
+
+behavior-idle = Bezczynny
+behavior-walk = Chodzi
+behavior-follow = Podąża za kursorem
+behavior-wander = Ograniczona wędrówka
+
+scene-empty-headline = Pusta scena
+scene-empty-hint = Przeciągnij plik PNG / GIF / WebP / MP4 na nakładkę — lub wypróbuj preset poniżej.
+scene-drop-hint = Przeciągnij plik PNG / GIF / WebP na nakładkę, aby dodać element.
+scene-presets-header = Presety
+scene-preset-append = Dodaj
+scene-preset-replace = Zastąp
+scene-preset-replace-tooltip = Wyczyści obecną scenę przed dodaniem
+
+appearance-theme-header = Motyw
+appearance-theme-label = Motyw
+appearance-language-header = Język
+appearance-keyboard-header = Klawiatura
+appearance-keyboard-note = Tylko do odczytu w 0.2.0 — zmiana skrótów pojawi się w kolejnym wydaniu.
+theme-dark = Ciemny
+theme-light = Jasny
+theme-dark-hc = Ciemny · Wysoki kontrast
+theme-light-hc = Jasny · Wysoki kontrast
+
+onboarding-tabs = Ustawienia rozdzielono na trzy zakładki — Inspektor, Scena, Wygląd.
+onboarding-quick-toggles = Wskazówka: V przełącza widoczność, G grawitację — bez otwierania tego panelu.
+onboarding-theme = Motywy stosują się natychmiast — bez restartu.
+onboarding-dismiss = Zamknij
+
+menu-duplicate = Duplikuj
+menu-reset-transform = Resetuj transformację
+menu-toggle-gravity = Przełącz grawitację
+menu-bring-forward = Przenieś na wierzch
+menu-send-backward = Wyślij na spód
+menu-delete = Usuń
+
+toggle-enter-edit = Wejdź w tryb edycji
+toggle-exit-edit = Wyjdź z trybu edycji
+
+palette-search-placeholder = Wpisz, aby wyszukać motywy / presety…
+palette-close-hint = Esc zamyka · Ctrl+K przełącza
+palette-switch-theme = Przełącz na motyw { $theme }
+palette-apply-preset = Zastosuj preset: { $preset }

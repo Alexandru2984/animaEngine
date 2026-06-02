@@ -110,6 +110,8 @@ thiserror = "1"
 # Async for wgpu
 pollster = "0.4"
 egui-phosphor = "0.9"
+fluent = "0.17.0"
+unic-langid = "0.9.6"
 
 [profile.dev]
 opt-level = 1

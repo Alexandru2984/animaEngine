@@ -22,6 +22,11 @@ pub struct GlobalConfig {
     /// field round-trip through `Theme::default()`.
     #[serde(default)]
     pub theme: Theme,
+    /// Active locale code (e.g. "en", "ro", "pt-BR"). `None` means
+    /// "detect from environment" — older configs round-trip through
+    /// that, so upgrading users keep their OS-level language.
+    #[serde(default)]
+    pub locale: Option<String>,
     /// Which onboarding hints the user has already dismissed.
     /// `#[serde(default = ...)]` deliberately points at
     /// `OnboardingProgress::all_seen` so existing users (configs
@@ -48,6 +53,7 @@ impl Default for GlobalConfig {
             window_width: 0,  // auto-detect
             window_height: 0, // auto-detect
             theme: Theme::default(),
+            locale: None,
             // Brand-new install: nothing has been dismissed yet, so
             // every progressive hint will appear on the first run.
             onboarding: OnboardingProgress::default(),

@@ -87,6 +87,12 @@ fn main() {
         config.characters.len(),
         config.global.playback_enabled
     );
+
+    // i18n: prefer the explicit setting in config; otherwise detect from
+    // the user's environment locale. After this call, anima_engine::i18n::t
+    // is available everywhere.
+    anima_engine::i18n::init(config.global.locale.as_deref());
+    tracing::info!("Active locale: {}", anima_engine::i18n::current_locale());
     // Seed the crash-recovery slot so a panic between now and the first
     // user-driven save still produces a useful snapshot.
     crash::record_known_good(&config);

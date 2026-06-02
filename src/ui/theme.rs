@@ -86,13 +86,28 @@ impl Theme {
         Theme::LightHighContrast,
     ];
 
-    /// Human-readable label shown in the settings picker.
-    pub fn label(self) -> &'static str {
-        match self {
-            Theme::Dark => "Dark",
-            Theme::Light => "Light",
-            Theme::DarkHighContrast => "Dark · High contrast",
-            Theme::LightHighContrast => "Light · High contrast",
+    /// Localised human-readable label shown in the settings picker
+    /// and the command palette. Falls through to English if the i18n
+    /// subsystem hasn't initialised yet (the `t` fallback marker would
+    /// look terrible in a UI label).
+    pub fn label(self) -> String {
+        let key = match self {
+            Theme::Dark => "theme-dark",
+            Theme::Light => "theme-light",
+            Theme::DarkHighContrast => "theme-dark-hc",
+            Theme::LightHighContrast => "theme-light-hc",
+        };
+        let s = crate::i18n::t(key);
+        if s.starts_with('?') {
+            // i18n not yet initialised — fall back to canonical names.
+            match self {
+                Theme::Dark => "Dark".to_string(),
+                Theme::Light => "Light".to_string(),
+                Theme::DarkHighContrast => "Dark · High contrast".to_string(),
+                Theme::LightHighContrast => "Light · High contrast".to_string(),
+            }
+        } else {
+            s
         }
     }
 

@@ -7,6 +7,7 @@
 use crate::app::ContextMenuState;
 use crate::behavior::Behavior;
 use crate::constants::TOGGLE_BUTTON_SIZE;
+use crate::i18n::t;
 use crate::input::selection::SelectionState;
 use crate::presets::{self, ApplyMode, Preset, PresetId};
 use crate::scene::Scene;
@@ -53,11 +54,11 @@ enum SettingsTab {
 impl SettingsTab {
     const ALL: &'static [Self] = &[Self::Inspector, Self::Scene, Self::Appearance];
 
-    fn label(self) -> &'static str {
+    fn label(self) -> String {
         match self {
-            Self::Inspector => "Inspector",
-            Self::Scene => "Scene",
-            Self::Appearance => "Appearance",
+            Self::Inspector => t("settings-tab-inspector"),
+            Self::Scene => t("settings-tab-scene"),
+            Self::Appearance => t("settings-tab-appearance"),
         }
     }
 
@@ -81,6 +82,7 @@ pub fn settings(
     selection: &mut SelectionState,
     config_dirty: &mut bool,
     theme: &mut Theme,
+    locale: &mut Option<String>,
     onboarding: &mut OnboardingProgress,
 ) {
     egui::SidePanel::right("anima_settings")
@@ -92,7 +94,7 @@ pub fn settings(
             ui.horizontal(|ui| {
                 ui.add_space(SPACE_XS);
                 ui.label(
-                    egui::RichText::new(format!("{}  Anima", icons::GHOST))
+                    egui::RichText::new(format!("{}  {}", icons::GHOST, t("app-name")))
                         .text_style(egui::TextStyle::Heading),
                 );
             });
@@ -120,11 +122,7 @@ pub fn settings(
             ui.separator();
 
             // First-run hint right under the tab switcher.
-            if onboarding::hint(
-                ui,
-                "Settings split across three tabs — Inspector, Scene, Appearance.",
-                &mut onboarding.tabs,
-            ) {
+            if onboarding::hint(ui, &t("onboarding-tabs"), &mut onboarding.tabs) {
                 *config_dirty = true;
             }
             ui.add_space(SPACE_XS);
@@ -150,7 +148,7 @@ pub fn settings(
                             scene_tab(ui, scene, selection, config_dirty);
                         }
                         SettingsTab::Appearance => {
-                            appearance_tab(ui, theme, config_dirty, onboarding);
+                            appearance_tab(ui, theme, locale, config_dirty, onboarding);
                         }
                     }
                 });
@@ -159,17 +157,33 @@ pub fn settings(
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                 ui.add_space(SPACE_S);
                 let count = scene.entities.len();
-                let plural = if count == 1 { "entity" } else { "entities" };
+                let label = entity_count_label(count);
                 ui.horizontal(|ui| {
                     ui.add_space(SPACE_XS);
                     ui.label(
-                        egui::RichText::new(format!("{count} {plural}"))
+                        egui::RichText::new(label)
                             .text_style(theme::caption())
                             .weak(),
                     );
                 });
             });
         });
+}
+
+/// Localised footer label like "5 entities". Falls back to English
+/// plural rules because we have no `{$n} ->` switches in the FTL files
+/// yet — that's a future enhancement once we know which locales need
+/// non-trivial plural tables.
+fn entity_count_label(count: usize) -> String {
+    use fluent::FluentArgs;
+    let mut args = FluentArgs::new();
+    args.set("n", count as i64);
+    let key = match count {
+        0 => "entity-count-zero",
+        1 => "entity-count-singular",
+        _ => "entity-count-plural",
+    };
+    crate::i18n::t_args(key, &args)
 }
 
 // ─── tabs ──────────────────────────────────────────────────────────────
@@ -188,7 +202,7 @@ fn inspector_tab(
             // row so the visual proximity makes the connection.
             if onboarding::hint(
                 ui,
-                "Tip: V toggles visibility, G toggles gravity — no need to open this panel.",
+                &t("onboarding-quick-toggles"),
                 &mut onboarding.quick_toggles,
             ) {
                 *config_dirty = true;
@@ -204,8 +218,8 @@ fn inspector_tab(
         None => states::empty(
             ui,
             icons::CURSOR,
-            "Nothing selected",
-            "Click an entity in the Scene tab, or press Tab to cycle through them.",
+            &t("inspector-nothing-selected-headline"),
+            &t("inspector-nothing-selected-hint"),
         ),
     }
 }
@@ -222,12 +236,12 @@ fn scene_tab(
         states::empty(
             ui,
             icons::GHOST,
-            "Empty scene",
-            "Drop a PNG / GIF / WebP / MP4 onto the overlay — or try a preset below.",
+            &t("scene-empty-headline"),
+            &t("scene-empty-hint"),
         );
     } else {
         ui.label(
-            egui::RichText::new("Drop a PNG / GIF / WebP onto the overlay to add one.")
+            egui::RichText::new(t("scene-drop-hint"))
                 .text_style(theme::caption())
                 .weak(),
         );
@@ -251,7 +265,8 @@ fn preset_gallery(
     config_dirty: &mut bool,
     default_open: bool,
 ) {
-    let header = egui::RichText::new(format!("{}  Presets", icons::SPARKLE)).text_style(h2());
+    let header = egui::RichText::new(format!("{}  {}", icons::SPARKLE, t("scene-presets-header")))
+        .text_style(h2());
     egui::CollapsingHeader::new(header)
         .id_salt("anima.scene.presets")
         .default_open(default_open)
@@ -296,14 +311,14 @@ fn preset_card(
             });
             ui.add_space(SPACE_XS);
             ui.horizontal(|ui| {
-                if ui.button("Append").clicked() {
+                if ui.button(t("scene-preset-append")).clicked() {
                     apply_preset(scene, selection, &preset, ApplyMode::Append);
                     *config_dirty = true;
                 }
                 let error_color = ui.visuals().error_fg_color;
                 if ui
-                    .button(egui::RichText::new("Replace").color(error_color))
-                    .on_hover_text("Wipes the current scene before adding")
+                    .button(egui::RichText::new(t("scene-preset-replace")).color(error_color))
+                    .on_hover_text(t("scene-preset-replace-tooltip"))
                     .clicked()
                 {
                     apply_preset(scene, selection, &preset, ApplyMode::Replace);
@@ -344,34 +359,77 @@ fn apply_preset(
 fn appearance_tab(
     ui: &mut egui::Ui,
     theme: &mut Theme,
+    locale: &mut Option<String>,
     config_dirty: &mut bool,
     onboarding: &mut OnboardingProgress,
 ) {
-    ui.label(egui::RichText::new("Theme").text_style(h2()));
+    ui.label(egui::RichText::new(t("appearance-theme-header")).text_style(h2()));
     ui.add_space(SPACE_S);
     if theme_picker(ui, theme) {
         *config_dirty = true;
     }
     ui.add_space(SPACE_S);
-    if onboarding::hint(
-        ui,
-        "Themes apply instantly — no restart needed.",
-        &mut onboarding.theme,
-    ) {
+    if onboarding::hint(ui, &t("onboarding-theme"), &mut onboarding.theme) {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_2XL);
+
+    // ── Language ─────────────────────────────────────────────────────
+    ui.label(egui::RichText::new(t("appearance-language-header")).text_style(h2()));
+    ui.add_space(SPACE_S);
+    if language_picker(ui, locale) {
         *config_dirty = true;
     }
     ui.add_space(SPACE_2XL);
 
     // ── Keyboard shortcuts ───────────────────────────────────────────
-    ui.label(egui::RichText::new(format!("{}  Keyboard", icons::KEYBOARD)).text_style(h2()));
+    ui.label(
+        egui::RichText::new(format!(
+            "{}  {}",
+            icons::KEYBOARD,
+            t("appearance-keyboard-header")
+        ))
+        .text_style(h2()),
+    );
     ui.add_space(SPACE_S);
     ui.label(
-        egui::RichText::new("Read-only for 0.2.0 — rebinding lands in a follow-up release.")
+        egui::RichText::new(t("appearance-keyboard-note"))
             .text_style(theme::caption())
             .weak(),
     );
     ui.add_space(SPACE_S);
     keyboard_table(ui);
+}
+
+/// Locale dropdown. Each option is the locale's *autonym* (its name in
+/// its own language) so users see "Română" / "日本語" / "Polski" and
+/// can pick theirs without reading English first.
+fn language_picker(ui: &mut egui::Ui, locale: &mut Option<String>) -> bool {
+    use crate::i18n::{current_locale, set_locale, SUPPORTED};
+    let mut changed = false;
+    let active_code = locale
+        .as_deref()
+        .map(|s| s.to_string())
+        .unwrap_or_else(current_locale);
+    let active_label = SUPPORTED
+        .iter()
+        .find(|(c, _)| *c == active_code)
+        .map(|(_, name)| (*name).to_string())
+        .unwrap_or_else(|| active_code.clone());
+
+    egui::ComboBox::from_id_salt("anima.language.picker")
+        .selected_text(active_label)
+        .show_ui(ui, |ui| {
+            for (code, autonym) in SUPPORTED {
+                let selected = *code == active_code;
+                if ui.selectable_label(selected, *autonym).clicked() && !selected {
+                    set_locale(code);
+                    *locale = Some((*code).to_string());
+                    changed = true;
+                }
+            }
+        });
+    changed
 }
 
 /// Two-column read-only table of every action and its default key combo.

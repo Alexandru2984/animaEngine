@@ -9,6 +9,7 @@ pub mod entity;
 pub mod error;
 pub mod event;
 pub mod hotkeys;
+pub mod i18n;
 pub mod input;
 pub mod physics;
 pub mod presets;
