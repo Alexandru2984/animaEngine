@@ -1,0 +1,1 @@
+- [Audit 2026-06-02](audit_2026_06_02.md) — Full security audit findings, unsafe blocks, dependency risks, file I/O patterns

@@ -22,7 +22,7 @@ METAINFODIR:= $(DESTDIR)$(PREFIX)/share/metainfo
 BINARY := target/release/anima_engine
 APPID  := com.animaengine.Anima
 
-.PHONY: all release install uninstall validate appimage clean-build
+.PHONY: all release install uninstall validate appimage deb clean-build
 
 all: release
 
@@ -34,8 +34,14 @@ release:
 appimage:
 	scripts/build-appimage.sh
 
+# Build a .deb package via cargo-deb. Reads [package.metadata.deb] in
+# Cargo.toml (assets, depends, description, …) set up in Etapa 8.1.
+# Requires `cargo install cargo-deb` once per machine.
+deb:
+	scripts/build-deb.sh
+
 clean-build:
-	rm -rf build/AppDir build/animaEngine-*.AppImage
+	rm -rf build/AppDir build/animaEngine-*.AppImage build/anima-engine_*.deb
 
 install: $(BINARY)
 	install -Dm0755 $(BINARY)                              $(BINDIR)/anima-engine
