@@ -433,8 +433,8 @@ fn theme_picker(ui: &mut egui::Ui, theme: &mut Theme) -> bool {
 
 fn theme_label_with_icon(t: Theme) -> String {
     let icon = match t {
-        Theme::Dark => icons::DARK_MODE,
-        Theme::Light => icons::LIGHT_MODE,
+        Theme::Dark | Theme::DarkHighContrast => icons::DARK_MODE,
+        Theme::Light | Theme::LightHighContrast => icons::LIGHT_MODE,
     };
     format!("{icon}  {}", t.label())
 }
@@ -982,8 +982,8 @@ pub fn command_palette(ctx: &egui::Context) -> Option<PaletteOutcome> {
                     let label = format!("Switch to {} theme", theme.label());
                     if matches_filter(&label) {
                         let icon = match theme {
-                            Theme::Dark => icons::DARK_MODE,
-                            Theme::Light => icons::LIGHT_MODE,
+                            Theme::Dark | Theme::DarkHighContrast => icons::DARK_MODE,
+                            Theme::Light | Theme::LightHighContrast => icons::LIGHT_MODE,
                         };
                         if ui.button(format!("{icon}  {label}")).clicked() {
                             outcome = Some(PaletteOutcome::SwitchTheme(*theme));

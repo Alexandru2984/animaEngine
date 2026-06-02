@@ -49,7 +49,7 @@ bytemuck = { version = "1", features = ["derive"] }
 # Immediate-mode UI (settings panel, context menus)
 egui = "0.31"
 egui-wgpu = "0.31"
-egui-winit = { version = "0.31", default-features = false, features = ["wayland", "x11", "links"] }
+egui-winit = { version = "0.31", default-features = false, features = ["wayland", "x11", "links", "accesskit"] }
 
 # System tray via the freedesktop StatusNotifierItem D-Bus protocol.
 # `ksni` is a pure-Rust implementation — zero system deps beyond an

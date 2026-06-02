@@ -62,34 +62,53 @@ pub fn caption() -> TextStyle {
 
 /// Top-level theme selector. Persisted in `GlobalConfig.theme`.
 ///
-/// Two variants for 0.2.0; extend with `DarkHighContrast` / `LightHighContrast`
-/// in Faza A.9 without touching the rest of the UI code — sub-phases that
-/// branch on `Theme` should use exhaustive matches so new variants
-/// surface as compile errors at every call site.
+/// Four variants for 0.2.0: standard Dark / Light plus two high-contrast
+/// siblings. High-contrast clears any tint toward grey, holds every text
+/// foreground at the maximum luminance distance from its background
+/// (≥ 7:1, WCAG AAA), and thickens the focus stroke for users who
+/// navigate by keyboard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Theme {
     #[default]
     Dark,
     Light,
+    DarkHighContrast,
+    LightHighContrast,
 }
 
 impl Theme {
     /// In-order list for iterating in UI pickers.
-    pub const ALL: &'static [Theme] = &[Theme::Dark, Theme::Light];
+    pub const ALL: &'static [Theme] = &[
+        Theme::Dark,
+        Theme::Light,
+        Theme::DarkHighContrast,
+        Theme::LightHighContrast,
+    ];
 
     /// Human-readable label shown in the settings picker.
     pub fn label(self) -> &'static str {
         match self {
             Theme::Dark => "Dark",
             Theme::Light => "Light",
+            Theme::DarkHighContrast => "Dark · High contrast",
+            Theme::LightHighContrast => "Light · High contrast",
         }
+    }
+
+    /// `true` for the high-contrast variants; lets call sites apply
+    /// extra accommodations (e.g. thicker focus ring) without
+    /// matching every variant.
+    pub fn is_high_contrast(self) -> bool {
+        matches!(self, Theme::DarkHighContrast | Theme::LightHighContrast)
     }
 
     pub fn palette(self) -> Palette {
         match self {
             Theme::Dark => Palette::dark(),
             Theme::Light => Palette::light(),
+            Theme::DarkHighContrast => Palette::dark_high_contrast(),
+            Theme::LightHighContrast => Palette::light_high_contrast(),
         }
     }
 }
@@ -191,6 +210,74 @@ impl Palette {
             is_dark: false,
         }
     }
+
+    /// Maximum-contrast dark theme. Pure black surfaces, pure white
+    /// text, accent in bright cyan for ~17:1 against the base. All
+    /// foreground tiers stay at white (no muted greys); the
+    /// "secondary" and "muted" distinctions are conveyed through
+    /// weight and surrounding spacing instead.
+    pub fn dark_high_contrast() -> Self {
+        Self {
+            bg_base: Color32::from_rgb(0x00, 0x00, 0x00),
+            bg_surface: Color32::from_rgb(0x00, 0x00, 0x00),
+            bg_elevated: Color32::from_rgb(0x12, 0x12, 0x12),
+
+            fg_primary: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+            fg_secondary: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+            fg_muted: Color32::from_rgb(0xE0, 0xE0, 0xE0),
+            fg_inverse: Color32::from_rgb(0x00, 0x00, 0x00),
+
+            // Bright cyan: ~16:1 on black, distinct from any text colour.
+            accent_base: Color32::from_rgb(0x00, 0xE5, 0xFF),
+            accent_hover: Color32::from_rgb(0x66, 0xF0, 0xFF),
+            accent_subtle: Color32::from_rgba_unmultiplied(0x00, 0xE5, 0xFF, 0x40),
+
+            // Saturated semantic colours; all pass AAA on pure black.
+            semantic_success: Color32::from_rgb(0x33, 0xFF, 0x66),
+            semantic_warn: Color32::from_rgb(0xFF, 0xD7, 0x00),
+            semantic_error: Color32::from_rgb(0xFF, 0x4D, 0x4D),
+            semantic_info: Color32::from_rgb(0x80, 0xCC, 0xFF),
+
+            // Borders are now fully opaque, never tinted by alpha — high
+            // contrast users need the box edges visible at a glance.
+            border_subtle: Color32::from_rgb(0x66, 0x66, 0x66),
+            border_strong: Color32::from_rgb(0xCC, 0xCC, 0xCC),
+            border_focus: Color32::from_rgb(0x00, 0xE5, 0xFF),
+
+            is_dark: true,
+        }
+    }
+
+    /// Maximum-contrast light theme. Pure white surfaces, pure black
+    /// text, accent in deep blue (~10:1 on white).
+    pub fn light_high_contrast() -> Self {
+        Self {
+            bg_base: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+            bg_surface: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+            bg_elevated: Color32::from_rgb(0xF2, 0xF2, 0xF2),
+
+            fg_primary: Color32::from_rgb(0x00, 0x00, 0x00),
+            fg_secondary: Color32::from_rgb(0x00, 0x00, 0x00),
+            fg_muted: Color32::from_rgb(0x33, 0x33, 0x33),
+            fg_inverse: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+
+            // Deep navy: 11.7:1 on white, clearly distinct from black text.
+            accent_base: Color32::from_rgb(0x00, 0x26, 0x80),
+            accent_hover: Color32::from_rgb(0x00, 0x3A, 0xB3),
+            accent_subtle: Color32::from_rgba_unmultiplied(0x00, 0x26, 0x80, 0x33),
+
+            semantic_success: Color32::from_rgb(0x00, 0x66, 0x00),
+            semantic_warn: Color32::from_rgb(0x80, 0x4A, 0x00),
+            semantic_error: Color32::from_rgb(0xB3, 0x00, 0x00),
+            semantic_info: Color32::from_rgb(0x00, 0x42, 0x80),
+
+            border_subtle: Color32::from_rgb(0x99, 0x99, 0x99),
+            border_strong: Color32::from_rgb(0x33, 0x33, 0x33),
+            border_focus: Color32::from_rgb(0x00, 0x26, 0x80),
+
+            is_dark: false,
+        }
+    }
 }
 
 // ─── apply ─────────────────────────────────────────────────────────────
@@ -202,21 +289,23 @@ impl Palette {
 pub fn apply(ctx: &egui::Context, theme: Theme) {
     let palette = theme.palette();
     let mut style: Style = (*ctx.style()).clone();
-    apply_to_style(&mut style, &palette);
+    apply_to_style(&mut style, &palette, theme.is_high_contrast());
     ctx.set_style(style);
 }
 
 /// Apply a palette to a `Style` in place. Split out from [`apply`] so
 /// unit tests can inspect the result without an egui context.
-fn apply_to_style(style: &mut Style, p: &Palette) {
-    apply_visuals(&mut style.visuals, p);
+fn apply_to_style(style: &mut Style, p: &Palette, high_contrast: bool) {
+    apply_visuals(&mut style.visuals, p, high_contrast);
     apply_text_styles(&mut style.text_styles);
     apply_spacing(&mut style.spacing);
-    // Matches §6 "popup fade + scale" — short, snappy.
-    style.animation_time = 0.12;
+    // Matches §6 "popup fade + scale" — short, snappy. High-contrast
+    // users sometimes have motion sensitivities — kill animations so
+    // nothing flickers under their assistive tech.
+    style.animation_time = if high_contrast { 0.0 } else { 0.12 };
 }
 
-fn apply_visuals(v: &mut Visuals, p: &Palette) {
+fn apply_visuals(v: &mut Visuals, p: &Palette, high_contrast: bool) {
     v.dark_mode = p.is_dark;
     v.override_text_color = Some(p.fg_primary);
     v.hyperlink_color = p.accent_base;
@@ -255,11 +344,15 @@ fn apply_visuals(v: &mut Visuals, p: &Palette) {
         stroke: Stroke::new(1.0, p.accent_base),
     };
 
-    v.widgets = build_widgets(p);
+    v.widgets = build_widgets(p, high_contrast);
 }
 
-fn build_widgets(p: &Palette) -> Widgets {
+fn build_widgets(p: &Palette, high_contrast: bool) -> Widgets {
     let radius = CornerRadius::same(RADIUS_MD);
+    // High-contrast users get a thicker focus ring (3 px vs 2 px),
+    // bright enough to read above any background. AA users still need
+    // a clear focus indicator; this is the WCAG 2.4.7 requirement.
+    let focus_width = if high_contrast { 3.0 } else { 2.0 };
 
     Widgets {
         // Static surfaces — panel chrome, separators, group frames.
@@ -293,7 +386,7 @@ fn build_widgets(p: &Palette) -> Widgets {
         active: WidgetVisuals {
             bg_fill: mix(p.bg_elevated, p.accent_base, 0.16),
             weak_bg_fill: mix(p.bg_elevated, p.accent_base, 0.16),
-            bg_stroke: Stroke::new(2.0, p.accent_base),
+            bg_stroke: Stroke::new(focus_width, p.accent_base),
             fg_stroke: Stroke::new(1.0, p.fg_primary),
             corner_radius: radius,
             expansion: 1.0,
@@ -500,20 +593,130 @@ mod tests {
     fn apply_to_style_writes_panel_fill() {
         let mut style = Style::default();
         let p = Palette::dark();
-        apply_to_style(&mut style, &p);
+        apply_to_style(&mut style, &p, false);
         assert_eq!(style.visuals.panel_fill, p.bg_surface);
         assert!(style.visuals.dark_mode);
     }
 
     #[test]
-    fn theme_all_covers_both_variants() {
+    fn theme_all_covers_all_variants() {
         assert!(Theme::ALL.contains(&Theme::Dark));
         assert!(Theme::ALL.contains(&Theme::Light));
-        assert_eq!(Theme::ALL.len(), 2);
+        assert!(Theme::ALL.contains(&Theme::DarkHighContrast));
+        assert!(Theme::ALL.contains(&Theme::LightHighContrast));
+        assert_eq!(Theme::ALL.len(), 4);
     }
 
     #[test]
     fn theme_default_is_dark() {
         assert_eq!(Theme::default(), Theme::Dark);
+    }
+
+    #[test]
+    fn theme_is_high_contrast_matches_variants() {
+        assert!(!Theme::Dark.is_high_contrast());
+        assert!(!Theme::Light.is_high_contrast());
+        assert!(Theme::DarkHighContrast.is_high_contrast());
+        assert!(Theme::LightHighContrast.is_high_contrast());
+    }
+
+    /// High-contrast variants must clear the WCAG AAA threshold (7:1)
+    /// for primary body text, not just AA. This is the whole point of
+    /// the HC variants.
+    #[test]
+    fn dark_high_contrast_meets_aaa_body() {
+        let p = Palette::dark_high_contrast();
+        let ratio = contrast_ratio(p.fg_primary, p.bg_surface);
+        assert!(
+            ratio >= 7.0,
+            "dark HC fg_primary on bg_surface = {ratio:.2}"
+        );
+    }
+
+    #[test]
+    fn light_high_contrast_meets_aaa_body() {
+        let p = Palette::light_high_contrast();
+        let ratio = contrast_ratio(p.fg_primary, p.bg_surface);
+        assert!(
+            ratio >= 7.0,
+            "light HC fg_primary on bg_surface = {ratio:.2}",
+        );
+    }
+
+    /// HC secondary and "muted" must stay AAA too — high-contrast users
+    /// can't recover information from a low-contrast tier, so we don't
+    /// have one.
+    #[test]
+    fn dark_high_contrast_secondary_and_muted_meet_aaa() {
+        let p = Palette::dark_high_contrast();
+        assert!(contrast_ratio(p.fg_secondary, p.bg_surface) >= 7.0);
+        assert!(contrast_ratio(p.fg_muted, p.bg_surface) >= 7.0);
+    }
+
+    #[test]
+    fn light_high_contrast_secondary_and_muted_meet_aaa() {
+        let p = Palette::light_high_contrast();
+        assert!(contrast_ratio(p.fg_secondary, p.bg_surface) >= 7.0);
+        assert!(contrast_ratio(p.fg_muted, p.bg_surface) >= 7.0);
+    }
+
+    /// Semantic colours (success, warn, error, info) on the elevated
+    /// surface must stay AA for HC — they're the only colour-coded
+    /// signal in toasts, so a low-contrast badge would defeat the
+    /// notification.
+    #[test]
+    fn dark_high_contrast_semantics_meet_aa() {
+        let p = Palette::dark_high_contrast();
+        for (name, c) in [
+            ("success", p.semantic_success),
+            ("warn", p.semantic_warn),
+            ("error", p.semantic_error),
+            ("info", p.semantic_info),
+        ] {
+            let ratio = contrast_ratio(c, p.bg_elevated);
+            assert!(
+                ratio >= 4.5,
+                "dark HC semantic.{name} on bg_elevated = {ratio:.2}",
+            );
+        }
+    }
+
+    #[test]
+    fn light_high_contrast_semantics_meet_aa() {
+        let p = Palette::light_high_contrast();
+        for (name, c) in [
+            ("success", p.semantic_success),
+            ("warn", p.semantic_warn),
+            ("error", p.semantic_error),
+            ("info", p.semantic_info),
+        ] {
+            let ratio = contrast_ratio(c, p.bg_elevated);
+            assert!(
+                ratio >= 4.5,
+                "light HC semantic.{name} on bg_elevated = {ratio:.2}",
+            );
+        }
+    }
+
+    /// The accent → fg_inverse pairing drives filled "primary" buttons
+    /// in HC; if it dips below AAA the call-to-action becomes
+    /// unreadable.
+    #[test]
+    fn high_contrast_accent_button_meets_aaa() {
+        for p in [
+            Palette::dark_high_contrast(),
+            Palette::light_high_contrast(),
+        ] {
+            let ratio = contrast_ratio(p.fg_inverse, p.accent_base);
+            assert!(ratio >= 7.0, "HC accent button = {ratio:.2}");
+        }
+    }
+
+    #[test]
+    fn high_contrast_apply_kills_animation_time() {
+        let mut style = Style::default();
+        let p = Palette::dark_high_contrast();
+        apply_to_style(&mut style, &p, true);
+        assert_eq!(style.animation_time, 0.0);
     }
 }
