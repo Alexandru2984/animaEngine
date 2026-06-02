@@ -170,6 +170,17 @@ pub fn settings(
         });
 }
 
+/// Subtle 2s-cycle pulse for the selected scene-list row. Range
+/// `[0.45, 1.0]` so the stripe never disappears — it just *breathes*.
+/// Matches design-system §6 "selection pulse: sine 2s cycle, low amplitude".
+fn pulse_alpha_at(t: f64) -> f32 {
+    const PERIOD: f64 = 2.0;
+    const MIN_ALPHA: f32 = 0.45;
+    let phase = ((t / PERIOD).fract() * std::f64::consts::TAU).sin();
+    let wave = 0.5 + 0.5 * (phase as f32);
+    MIN_ALPHA + (1.0 - MIN_ALPHA) * wave
+}
+
 /// Localised footer label like "5 entities". Falls back to English
 /// plural rules because we have no `{$n} ->` switches in the FTL files
 /// yet — that's a future enhancement once we know which locales need
@@ -777,9 +788,22 @@ fn scene_list(
     // of scene.entities while we mutate the scene.
     let mut action: Option<ListAction> = None;
 
+    // Selection pulse — design-system §6, sine 2s cycle, low amplitude.
+    // We paint a subtle accent stripe at the left of the selected row
+    // after the row itself has been laid out, so a keyboard-only user
+    // can spot which row Tab landed on without scanning opacity / weight
+    // differences.
+    let now = ui.ctx().input(|i| i.time);
+    let pulse_alpha = pulse_alpha_at(now);
+    if selection.selected_index().is_some() {
+        ui.ctx().request_repaint();
+    }
+    let accent = ui.visuals().selection.stroke.color;
+    let delete_tooltip = t("menu-delete");
+
     for (idx, entity) in scene.entities.iter().enumerate() {
         let is_selected = selection.is_selected(idx);
-        ui.horizontal(|ui| {
+        let row_response = ui.horizontal(|ui| {
             let label = if entity.visible {
                 entity.name.clone()
             } else {
@@ -788,15 +812,23 @@ fn scene_list(
             if ui.selectable_label(is_selected, label).clicked() {
                 action = Some(ListAction::Select(idx));
             }
-            // Small delete button on the right.
             if ui
                 .small_button(icons::TRASH)
-                .on_hover_text("Delete")
+                .on_hover_text(&delete_tooltip)
                 .clicked()
             {
                 action = Some(ListAction::Delete(idx));
             }
         });
+        if is_selected {
+            let rect = row_response.response.rect;
+            let stripe = egui::Rect::from_min_max(
+                rect.left_top(),
+                egui::pos2(rect.left() + 3.0, rect.bottom()),
+            );
+            ui.painter()
+                .rect_filled(stripe, 1.5, accent.gamma_multiply(pulse_alpha));
+        }
     }
 
     match action {

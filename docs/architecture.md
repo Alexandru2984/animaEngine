@@ -43,16 +43,34 @@ Two entry points:
 ```
 EguiRenderer (src/ui/egui_renderer.rs)
   ├─ egui::Context + egui_winit::State + egui_wgpu::Renderer
+  ├─ Installs Phosphor icon font + active theme on construction
   └─ Renders on top of the sprite pass via LoadOp::Load
 
 Panels (src/ui/panels.rs)
-  ├─ settings()       — right-side inspector + scene list
-  ├─ context_menu()   — right-click popup with 6 actions
-  ├─ toasts()         — bottom-right notification stack
-  └─ toggle_button()  — the ⚙ widget in pass-through mode
+  ├─ settings()         — tabbed sidebar (Inspector / Scene / Appearance)
+  ├─ context_menu()     — right-click popup with 6 actions
+  ├─ command_palette()  — Ctrl+K fuzzy search over themes + presets
+  ├─ toasts()           — bottom-right notification stack
+  └─ toggle_button()    — the ⚙ widget in pass-through mode
+
+Token + helper modules (Faza A):
+  ├─ theme.rs        — Palette, 4 themes (Dark/Light + HC pairs), apply()
+  ├─ icons.rs        — Phosphor glyph constants by domain
+  ├─ states.rs       — empty / error / spinner reusable cards
+  ├─ anim.rs         — pure easing helpers (ease_in_quad, ease_out_quad)
+  ├─ onboarding.rs   — OnboardingProgress + dismissible hint widget
+  └─ keyboard.rs     — Action enum + canonical key combo registry
 
 Toast queue (src/ui/toasts.rs)
-  └─ FIFO with 8-entry cap, 4 severity levels with auto-expire
+  └─ FIFO with 8-entry cap, 4 severity levels (timing via created_at)
+
+Localisation (src/i18n/)
+  ├─ FluentBundle per locale, English fallback at every t() call
+  ├─ 10 .ftl resources baked in via include_str!
+  └─ Auto-detect from LANG / LC_ALL / LC_MESSAGES at startup
+
+Curated content (src/presets.rs)
+  └─ Six PresetIds with Apply{Replace, Append} modes for the Scene tab
 ```
 
 ### Behaviors

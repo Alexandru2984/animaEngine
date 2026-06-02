@@ -5,9 +5,10 @@ characters or sprites on top of your desktop using transparent,
 always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 + **winit** + **egui** — no Electron, no Chromium, minimal RAM use.
 
-> Status: 0.1 — production-ready packaging (`.deb` / AppImage / Flatpak),
-> X11 + opt-in native Wayland. See [Architecture](docs/architecture.md)
-> for a deeper map; [CONTRIBUTING.md](CONTRIBUTING.md) for how to hack on it.
+> Status: 0.2 — production-ready packaging (`.deb` / AppImage / Flatpak),
+> X11 + opt-in native Wayland, ten UI locales. See
+> [Architecture](docs/architecture.md) for a deeper map;
+> [CONTRIBUTING.md](CONTRIBUTING.md) for how to hack on it.
 
 ## What it does
 
@@ -16,14 +17,28 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 - **Click-through by default**: clicks pass straight to your desktop;
   the only widget that catches input in pass-through mode is the ⚙
   toggle button in the top-right.
-- **Edit mode** exposes a settings panel (egui), right-click context
-  menus, scene list, sliders for every field, drag-and-drop placement.
+- **Edit mode** exposes a tabbed settings panel (Inspector / Scene /
+  Appearance), right-click context menus, collapsible inspector
+  sections, sliders for every field, drag-and-drop placement.
 - **Autonomous behaviors** per entity: `Idle` (default), `WalkAround`,
   `FollowCursor`, `BoundedWander` — wired through the UI.
+- **Themes**: Dark and Light plus high-contrast siblings for both,
+  switchable instantly without restart. HC variants clear WCAG AAA.
+- **Bundled presets**: six curated one-click scenes (Cozy Companion,
+  Productivity Zen, Halloween Party, Birthday Confetti, Studio
+  Session, Cursor Follower) — Append or Replace.
+- **Command palette** (`Ctrl+K`): fuzzy-search themes and presets,
+  execute in one keystroke.
+- **Ten UI languages**: English, Română, Español, Deutsch, Français,
+  Italiano, Português (BR), Polski, Nederlands, 日本語 — auto-detected
+  from `LANG`, switchable in Appearance.
 - **System integration**: tray icon (StatusNotifierItem),
   `Ctrl+Shift+A/H/P` global hotkeys, single-instance D-Bus handshake.
 - **Hot-reload**: edit `~/.config/animaEngine/config.toml` while the app
   runs; changes are decoded off the UI thread and applied seamlessly.
+- **Accessibility**: AccessKit bridge for AT-SPI screen readers,
+  visible focus rings, full keyboard reference table. See
+  [docs/accessibility.md](docs/accessibility.md).
 
 ## Install
 
@@ -35,11 +50,11 @@ via `make appimage` / `make deb` / `make flatpak`):
 
 ```bash
 # Debian / Ubuntu (.deb)
-sudo apt install ./anima-engine_0.1.0-1_amd64.deb
+sudo apt install ./anima-engine_0.2.0-1_amd64.deb
 
 # AppImage (any distro)
-chmod +x animaEngine-0.1.0-x86_64.AppImage
-./animaEngine-0.1.0-x86_64.AppImage
+chmod +x animaEngine-0.2.0-x86_64.AppImage
+./animaEngine-0.2.0-x86_64.AppImage
 
 # Flatpak
 flatpak install --user com.animaengine.Anima.flatpak

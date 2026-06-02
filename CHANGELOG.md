@@ -6,8 +6,111 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Audit hardening landed on top of the 0.1.0 series — see the Faza B
-entries below.
+## [0.2.0] — 2026-06-02
+
+UI/UX polish release. Faza A (A.0-A.11) landed on top of the 0.1.0 +
+B series — twelve sub-phases focused on coherence, accessibility,
+and localisation rather than new sprite features. The engine renders
+the same content; the chrome around it is dramatically nicer.
+
+### Added
+
+**Design system (Faza A.0):**
+- `docs/design-system.md` — single source of truth for colours,
+  typography, spacing, radii, icons, motion, and component patterns
+- Every panel now references token constants instead of hardcoded
+  hex values / magic numbers
+
+**Theme system (Faza A.1, A.9):**
+- Four themes: Dark, Light, Dark · High contrast, Light · High contrast
+- Theme persisted in `GlobalConfig.theme`
+- HC variants clear WCAG AAA (≥ 7:1) on every text tier, thicken
+  the focus ring to 3 px, and zero out animation time for
+  motion-sensitive users
+- CI enforces contrast thresholds via unit tests
+
+**Iconography (Faza A.2):**
+- `egui-phosphor` icon font wired through `src/ui/icons.rs` — every
+  in-app glyph is a named constant for grep-ability
+- New "Ghost Mascot" app icon ([data/anima-engine.svg](data/anima-engine.svg))
+  selected from three exploratory variants in
+  [packaging/icon-variants/](packaging/icon-variants/)
+
+**Settings sidebar redesign (Faza A.3):**
+- Three tabs (Inspector / Scene / Appearance) with sticky header,
+  scrollable body, entity-count footer
+- Inspector has collapsible sections (Position / Appearance /
+  Animation / Behavior) and quick-toggle row for Visible/Gravity
+- Tab selection persists through `egui::Memory`
+
+**Empty / error / loading states (Faza A.4):**
+- `src/ui/states.rs` with reusable `empty`, `error`, `spinner`
+  helpers
+- Toasts redesigned per design-system §7.8: bg.elevated surface,
+  semantic-coloured severity icons, radius_lg, theme-aware
+
+**Micro-animations (Faza A.5):**
+- `src/ui/anim.rs` with `ease_in_quad` / `ease_out_quad` / `lerp`
+- Toast slide-in (200 ms ease-out-quad) + fade-out
+  (300 ms ease-in-quad) computed off `Toast::age()`
+- Tab cross-fade (100 ms) via `ctx.animate_value_with_time`
+- Hover and focus transitions ride egui's built-in animation_time
+
+**Onboarding (Faza A.6):**
+- Three dismissible inline hints for fresh users (tabs, V/G shortcuts,
+  theme instant-apply)
+- Existing users (configs pre-A.6) skip all hints via `#[serde(default = ...)]`
+
+**Preset library (Faza A.7):**
+- Six curated presets using only the shipped demo assets:
+  Cozy Companion, Productivity Zen, Halloween Party,
+  Birthday Confetti, Studio Session, Cursor Follower
+- Append / Replace modes; Append suffixes IDs with `_a/_b/...` to
+  avoid collisions
+
+**Keyboard map + command palette (Faza A.8):**
+- `src/ui/keyboard.rs` Action enum with label + description +
+  default combo (21 actions)
+- Read-only keyboard reference table in the Appearance tab
+- **Ctrl+K command palette** — fuzzy search across themes and
+  presets, executes via `PaletteOutcome` back into `App`
+
+**Accessibility (Faza A.9):**
+- AccessKit bridge enabled via egui-winit feature → AT-SPI events
+  on Linux for every egui widget
+- High-contrast theme variants (see Theme system above)
+- `docs/accessibility.md` documenting commitments and non-goals
+
+**Internationalisation (Faza A.10):**
+- `fluent-rs` backend with `OnceLock<RwLock<State>>` for constant-time
+  locale switching
+- Ten locales shipped (`en`, `ro`, `es`, `de`, `fr`, `it`, `pt-BR`,
+  `pl`, `nl`, `ja`) covering ~45 keys each
+- Auto-detect from `LANG` / `LC_ALL` / `LC_MESSAGES` with sensible
+  fallback chain (exact match → language-only → English)
+- Language picker in Appearance tab with autonyms (Română, 日本語, …)
+- Explicit selection persists in `GlobalConfig.locale`
+
+**Polish (Faza A.11):**
+- Selection pulse on the active scene-list row (2 s sine, low
+  amplitude, accent-coloured left stripe)
+- Hardcoded values from earlier sub-phases swept into token
+  references where missed
+
+### Changed
+
+- `Theme::label()` returns `String` (was `&'static str`) — locale-aware
+- `Toast::expires_at` field replaced by `Toast::age()` / `remaining()`
+  helpers backed by `created_at + lifetime`
+- `panels::settings()` signature now takes `&mut Theme`,
+  `&mut Option<String>`, `&mut OnboardingProgress`
+- Settings sidebar default width: 280 px → 320 px
+
+### Tests
+
+- **119 tests** passing (up from 90 in 0.1.0)
+- WCAG contrast assertions on every theme variant
+- FTL syntax + key coverage parity assertions across all 10 locales
 
 ## [0.1.0] — 2026-06-02
 

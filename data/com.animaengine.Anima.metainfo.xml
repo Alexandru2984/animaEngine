@@ -57,6 +57,20 @@
   </recommends>
 
   <releases>
+    <release version="0.2.0" date="2026-06-02">
+      <description>
+        <p>UI/UX polish release. Twelve sub-phases focused on coherence, accessibility, and localisation.</p>
+        <ul>
+          <li>Four themes: Dark, Light, Dark · High contrast, Light · High contrast (WCAG AAA).</li>
+          <li>Tabbed settings sidebar: Inspector, Scene, Appearance.</li>
+          <li>Six bundled scene presets — Append or Replace.</li>
+          <li>Ctrl+K command palette with fuzzy search over themes and presets.</li>
+          <li>Ten UI languages — English, Română, Español, Deutsch, Français, Italiano, Português (BR), Polski, Nederlands, 日本語.</li>
+          <li>AccessKit bridge for AT-SPI screen readers; keyboard reference table in Appearance.</li>
+          <li>New Ghost Mascot app icon.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-06-02">
       <description>
         <p>Initial development snapshot.</p>
