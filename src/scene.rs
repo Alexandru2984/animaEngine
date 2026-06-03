@@ -377,6 +377,7 @@ mod tests {
         let config = AppConfig {
             global: GlobalConfig::default(),
             characters: vec![],
+            windows: vec![],
         };
         Scene::from_config(&config)
     }

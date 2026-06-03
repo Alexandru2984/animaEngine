@@ -147,12 +147,71 @@ fn default_true() -> bool {
     true
 }
 
+/// One overlay window's worth of state. Independent of monitor
+/// distribution — a single window can still span monitors or pin to
+/// one via the global `monitor_mode`. C.3 ships the data layer; the
+/// actual multi-window event loop (one `winit::Window` per entry)
+/// lands later. For 0.3 the renderer still uses one window backed by
+/// the union of all entities (legacy + windowed) so existing setups
+/// behave identically.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WindowConfig {
+    /// Stable identifier used by `Activate()` cycling and tray menu
+    /// entries. Required because window names can be edited by the
+    /// user; ids stay constant. Conventionally lowercase-kebab.
+    pub id: String,
+    /// User-visible name shown in tray menus and the settings UI.
+    pub name: String,
+    /// Per-window override of the global monitor distribution. `None`
+    /// inherits `GlobalConfig.monitor_mode`. Useful for "main on
+    /// every monitor; companion always on the laptop screen" setups.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_mode: Option<MonitorMode>,
+    /// Characters belonging to this window. Independent from the
+    /// top-level `characters` array (which 0.2 configs use).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub characters: Vec<CharacterConfig>,
+}
+
 /// Full application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub global: GlobalConfig,
     #[serde(rename = "characters")]
     pub characters: Vec<CharacterConfig>,
+    /// Multi-window roster. Empty (or absent) means "legacy single
+    /// overlay backed by `characters` above" — 0.2 configs decode
+    /// identically with no migration. When non-empty, `characters`
+    /// continues to work and is treated as the first implicit window
+    /// so we never silently drop user entities.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub windows: Vec<WindowConfig>,
+}
+
+impl AppConfig {
+    /// Returns the full list of windows, including the implicit legacy
+    /// window backed by top-level `characters` when present.
+    ///
+    /// Lookup precedence:
+    /// 1. If `windows` is non-empty, return clones of those entries.
+    /// 2. Otherwise synthesise one window named "default" carrying the
+    ///    top-level `characters`. This is the 0.2 compat path.
+    ///
+    /// Used by the tray submenu, the settings UI window picker, and
+    /// the D-Bus `Activate()` cycle. The actual render path can still
+    /// flatten this into a single scene until full multi-window
+    /// dispatch lands.
+    pub fn windows_normalised(&self) -> Vec<WindowConfig> {
+        if !self.windows.is_empty() {
+            return self.windows.clone();
+        }
+        vec![WindowConfig {
+            id: "default".to_string(),
+            name: "Main".to_string(),
+            monitor_mode: None,
+            characters: self.characters.clone(),
+        }]
+    }
 }
 
 impl Default for AppConfig {
@@ -256,6 +315,10 @@ impl Default for AppConfig {
                     monitor: None,
                 },
             ],
+            // 0.3 fresh installs use the legacy single-window shape;
+            // multi-window is opt-in via UI / hand-edit (data layer ready
+            // in C.3, render-side dispatch coming in 0.4).
+            windows: vec![],
         }
     }
 }
@@ -370,4 +433,138 @@ impl AppConfig {
     // Asset-type detection lives in animation::loader::detect_asset_type
     // — see comments there for the canonical extension → AssetType table
     // (it covers JPEG and MP4 / MOV / M4V too).
+}
+
+#[cfg(test)]
+mod windows_tests {
+    use super::*;
+    use crate::behavior::Behavior;
+
+    fn empty_char(id: &str) -> CharacterConfig {
+        CharacterConfig {
+            id: id.into(),
+            name: id.into(),
+            asset_type: AssetType::PngStatic,
+            asset_path: "/dev/null".into(),
+            x: 0.0,
+            y: 0.0,
+            scale: 1.0,
+            opacity: 1.0,
+            fps: 1.0,
+            visible: true,
+            playing: true,
+            z_index: 0,
+            physics_enabled: false,
+            behavior: Behavior::Idle,
+            spritesheet_columns: None,
+            spritesheet_rows: None,
+            monitor: None,
+        }
+    }
+
+    #[test]
+    fn legacy_config_synthesises_default_window() {
+        let cfg = AppConfig {
+            global: GlobalConfig::default(),
+            characters: vec![empty_char("ghost")],
+            windows: vec![],
+        };
+        let ws = cfg.windows_normalised();
+        assert_eq!(ws.len(), 1);
+        assert_eq!(ws[0].id, "default");
+        assert_eq!(ws[0].name, "Main");
+        assert_eq!(ws[0].characters.len(), 1);
+        assert_eq!(ws[0].characters[0].id, "ghost");
+    }
+
+    #[test]
+    fn explicit_windows_short_circuit_legacy_path() {
+        let cfg = AppConfig {
+            global: GlobalConfig::default(),
+            characters: vec![empty_char("ghost")],
+            windows: vec![
+                WindowConfig {
+                    id: "main".into(),
+                    name: "Main".into(),
+                    monitor_mode: None,
+                    characters: vec![empty_char("slime")],
+                },
+                WindowConfig {
+                    id: "side".into(),
+                    name: "Companion".into(),
+                    monitor_mode: None,
+                    characters: vec![],
+                },
+            ],
+        };
+        let ws = cfg.windows_normalised();
+        assert_eq!(ws.len(), 2);
+        // Top-level `characters` ignored when explicit windows present
+        // (preserving the user's deliberate distribution).
+        assert!(ws
+            .iter()
+            .all(|w| w.characters.iter().all(|c| c.id != "ghost")));
+        assert_eq!(ws[0].id, "main");
+        assert_eq!(ws[1].id, "side");
+    }
+
+    #[test]
+    fn empty_legacy_synthesises_window_with_no_characters() {
+        let cfg = AppConfig {
+            global: GlobalConfig::default(),
+            characters: vec![],
+            windows: vec![],
+        };
+        let ws = cfg.windows_normalised();
+        assert_eq!(ws.len(), 1);
+        assert!(ws[0].characters.is_empty());
+    }
+
+    #[test]
+    fn window_config_round_trips_through_toml() {
+        let w = WindowConfig {
+            id: "side".into(),
+            name: "Companion".into(),
+            monitor_mode: Some(MonitorMode::Single {
+                name: "HDMI-A-1".into(),
+            }),
+            characters: vec![empty_char("cat")],
+        };
+        let toml_str = toml::to_string(&w).expect("serialize");
+        let back: WindowConfig = toml::from_str(&toml_str).expect("deserialize");
+        assert_eq!(back.id, "side");
+        assert_eq!(back.characters.len(), 1);
+        matches!(
+            back.monitor_mode,
+            Some(MonitorMode::Single { ref name }) if name == "HDMI-A-1"
+        );
+    }
+
+    /// A pre-0.3 TOML must decode cleanly into the new struct shape:
+    /// no `windows` table, the field defaults to `vec![]`, and
+    /// `windows_normalised` synthesises the legacy default.
+    #[test]
+    fn pre_0_3_toml_without_windows_field_decodes() {
+        let toml_str = r#"
+            [global]
+            always_on_top = true
+            transparent = true
+            playback_enabled = true
+            window_width = 0
+            window_height = 0
+
+            [[characters]]
+            id = "ghost"
+            name = "Ghost"
+            asset_type = "png_static"
+            asset_path = "/tmp/g.png"
+            x = 0.0
+            y = 0.0
+        "#;
+        let cfg: AppConfig = toml::from_str(toml_str).expect("decode 0.2 config");
+        assert!(cfg.windows.is_empty());
+        let ws = cfg.windows_normalised();
+        assert_eq!(ws.len(), 1);
+        assert_eq!(ws[0].characters.len(), 1);
+    }
 }
