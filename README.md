@@ -5,10 +5,10 @@ characters or sprites on top of your desktop using transparent,
 always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 + **winit** + **egui** — no Electron, no Chromium, minimal RAM use.
 
-> Status: 0.2 — production-ready packaging (`.deb` / AppImage / Flatpak),
-> X11 + opt-in native Wayland, ten UI locales. See
-> [Architecture](docs/architecture.md) for a deeper map;
-> [CONTRIBUTING.md](CONTRIBUTING.md) for how to hack on it.
+> Status: 0.3 — production-ready packaging (`.deb` / AppImage / Flatpak),
+> X11 + opt-in native Wayland, ten UI locales, multi-monitor distribution,
+> asset library, sprite groups. See [Architecture](docs/architecture.md)
+> for a deeper map; [CONTRIBUTING.md](CONTRIBUTING.md) for how to hack on it.
 
 ## What it does
 
@@ -18,10 +18,22 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   the only widget that catches input in pass-through mode is the ⚙
   toggle button in the top-right.
 - **Edit mode** exposes a tabbed settings panel (Inspector / Scene /
-  Appearance), right-click context menus, collapsible inspector
-  sections, sliders for every field, drag-and-drop placement.
+  Library / Appearance), right-click context menus, collapsible
+  inspector sections, sliders for every field, drag-and-drop placement.
 - **Autonomous behaviors** per entity: `Idle` (default), `WalkAround`,
-  `FollowCursor`, `BoundedWander` — wired through the UI.
+  `FollowCursor`, `BoundedWander`, `Bounce` — wired through the UI.
+- **Animation curves**: six easing options (Linear / Ease in / Ease out
+  / Ease in-out / Sine / Bounce out) distort per-frame timing while
+  preserving the loop's total duration.
+- **Multi-monitor distribution**: `PerMonitor` (default) / `Span` /
+  `Single { name }`, plus a per-entity pin and `Ctrl+M` to cycle the
+  selected entity through monitors.
+- **Asset library**: scans `~/.local/share/animaEngine/assets/` (or
+  `$ANIMA_ASSETS_DIR`) and surfaces a search-filtered grid; "Add to
+  scene" routes through the same drag-drop validation path so asset
+  caps and the extension whitelist still apply.
+- **Sprite groups**: bind multiple entities into one named group; a
+  hidden group hides every member and blocks their click hit-test.
 - **Themes**: Dark and Light plus high-contrast siblings for both,
   switchable instantly without restart. HC variants clear WCAG AAA.
 - **Bundled presets**: six curated one-click scenes (Cozy Companion,
@@ -50,11 +62,11 @@ via `make appimage` / `make deb` / `make flatpak`):
 
 ```bash
 # Debian / Ubuntu (.deb)
-sudo apt install ./anima-engine_0.2.1-1_amd64.deb
+sudo apt install ./anima-engine_0.3.0-1_amd64.deb
 
 # AppImage (any distro)
-chmod +x animaEngine-0.2.1-x86_64.AppImage
-./animaEngine-0.2.1-x86_64.AppImage
+chmod +x animaEngine-0.3.0-x86_64.AppImage
+./animaEngine-0.3.0-x86_64.AppImage
 
 # Flatpak
 flatpak install --user com.animaengine.Anima.flatpak

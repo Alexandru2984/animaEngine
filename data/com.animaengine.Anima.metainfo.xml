@@ -57,6 +57,20 @@
   </recommends>
 
   <releases>
+    <release version="0.3.0" date="2026-06-03">
+      <description>
+        <p>Faza C — engine polish. Ten sub-phases across multi-monitor, multi-window data, asset library, behavior expansion, animation curves, and sprite groups.</p>
+        <ul>
+          <li>Multi-monitor distribution modes (PerMonitor / Span / Single-by-name) with per-entity pin and Ctrl+M cycle hotkey.</li>
+          <li>Multi-window data layer — WindowConfig with backwards-compat migration.</li>
+          <li>Asset library — directory scan, persistent index, search-filter UI, drag-drop validation preserved on every "Add to scene".</li>
+          <li>Bounce behavior (Horizontal / Vertical / Both axes) with rest-position locking and drag invalidation.</li>
+          <li>Six easing curves on the per-frame timing pipeline; GIF/WebP delays remain authoritative.</li>
+          <li>Sprite groups (data + visibility composition); a hidden group hides every member, click hit-test honours it.</li>
+          <li>Hand-tuned performance baseline ships under examples/perf_baseline.rs.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.1" date="2026-06-03">
       <description>
         <p>Patch release fixing a startup crash on systems without libxkbcommon-x11 preinstalled. Affects AppImage on minimal containers and fresh .deb installs.</p>

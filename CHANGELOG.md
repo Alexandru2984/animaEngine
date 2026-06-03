@@ -6,6 +6,130 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-06-03
+
+Faza C — **engine polish**. Ten sub-phases across multi-monitor,
+multi-window, asset library, behavior expansion, animation curves,
+and sprite groups. The renderer pipeline still draws the same way
+it did in 0.2 — the engine got a wider model around it instead of
+a faster one.
+
+### Added
+
+**Multi-monitor (C.1, C.2):**
+- `src/monitor.rs` data layer: `MonitorMode` (PerMonitor / Span /
+  Single-by-name) persisted in `GlobalConfig.monitor_mode`
+- `MonitorInfo` topology snapshot taken on first `resumed()` with
+  HiDPI scale + primary marker
+- `resolve_monitor_for_position` pure helper: explicit pin →
+  centroid hit-test → primary fallback
+- Per-entity `monitor: Option<String>` pin in `CharacterConfig`
+  with stale-pin warn + auto-fallback
+- Scene tab picker for the global mode, Inspector picker for the
+  per-entity pin
+- `Ctrl+M` cycles the selected entity through all monitors and
+  emits a localised toast
+
+**Multi-window data layer (C.3):**
+- `WindowConfig` (id, name, optional per-window `monitor_mode`,
+  characters)
+- `AppConfig.windows: Vec<WindowConfig>` with serde defaults so
+  every 0.2 / 0.2.1 config decodes cleanly
+- `AppConfig::windows_normalised()` synthesises a default window
+  from top-level `characters` when no explicit windows exist
+- Render-side multi-window dispatch (one winit::Window per entry)
+  deferred to 0.4 / Faza D
+
+**Asset library (C.4, C.5):**
+- `src/asset_library/` module: directory discovery (env override →
+  XDG → exe-relative), recursive scan with symlink depth cap 4,
+  FNV-1a stable ids (12 hex chars, zero new dep), atomic-written
+  `library.toml`, mtime-based thumbnail freshness helpers
+- Extension whitelist mirrors `app::DROP_EXTENSIONS` exactly — a
+  unit test asserts the two stay aligned (audit invariant L2)
+- New "Library" tab in the settings sidebar with search bar,
+  per-row kind icon, basename + path-on-hover, "Add to scene"
+  button that routes through `Scene::add_entity_from_path` (full
+  pre-validation + asset caps preserved)
+- Library merge-scan at startup preserves user tags + last_used_at
+- Real thumbnail decoding remains a polish opportunity for later;
+  rows show typed Phosphor icons for now
+
+**Bounce behavior (C.6):**
+- `Behavior::Bounce { amplitude_px, period_sec, axis: BounceAxis }`
+  with `BounceAxis` = Horizontal / Vertical (default) / Both
+  (cos+sin = circular Lissajous)
+- `BehaviorState::bounce_invalidate()` called from drag, arrow-key
+  nudge, and Home-center so the sprite never snaps back to a stale
+  rest position
+- Period clamped to ≥ 50 ms; gravity wins when both bounce and
+  physics are on
+- Spinner and Reactive variants from the original C.6 spec moved
+  to 0.4 — rationale documented in `docs/engine-features.md` §4.1
+  and §4.3
+
+**Animation curves (C.7):**
+- `src/anim.rs` relocated from `src/ui/anim.rs` (no longer
+  UI-specific) with a new `EasingCurve` enum: Linear (default) /
+  EaseInQuad / EaseOutQuad / EaseInOutQuad / Sine / BounceOut
+- `Animation.easing: Option<EasingCurve>` distorts per-frame
+  intervals while preserving total loop duration; GIF / WebP
+  per-frame delays remain authoritative when present
+- 6-choice picker in the Inspector's Animation section
+
+**Sprite groups (C.8):**
+- `src/group.rs` with `GroupConfig` (id, name, member_ids,
+  offset_x, offset_y, scale, visible), pure composition helpers
+  (`visible_for_member`, `cleanup_after_entity_removal`,
+  `first_duplicate_id`), and a manual `Default` impl matching the
+  serde defaults
+- `Scene::visible_entities()` and `entity_at_point()` honour
+  group visibility — members of a hidden group don't render *and*
+  can't catch clicks
+- `Scene::remove_entity` scrubs the removed id from every group's
+  `member_ids` (dangling-membership invariant)
+- Read-only Groups section in the Scene tab
+- Offset / scale composition in the renderer + UI edit (add /
+  remove / rename) deferred to 0.4
+
+**Performance baseline (C.9):**
+- `examples/perf_baseline.rs` measures `Scene::tick` +
+  `visible_entities` at 10 / 25 / 50 / 100 entities (procedural
+  fallback frames, no I/O). On the dev box at 100 entities the
+  combined per-frame cost lands at ~0.004 ms — well under the
+  engine target of 8 ms and the 60 fps budget of 16.6 ms
+
+### Changed
+
+- `src/anim.rs` graduated from `src/ui/anim.rs`; one import path
+  change in `panels.rs`, no behavioural delta
+- `CharacterConfig` carries new optional fields `monitor`,
+  `easing` — both `#[serde(default, skip_serializing_if = "Option::is_none")]`
+- `Animation` gained an `easing: Option<EasingCurve>` field
+- `App` tracks `ctrl_held` (used by `Ctrl+M`) alongside
+  `shift_held`
+- Settings sidebar now has four tabs (Inspector / Scene / Library /
+  Appearance) — previously three
+
+### Tests
+
+- **211 total** (up from 195 in 0.2.1) — +9 monitor, +6 panels
+  (monitor cycle), +5 windows, +9 asset_library, +9 bounce, +10
+  easing, +12 group, +14 documenting C.4/C.5/C.6/C.7/C.8 invariants
+  across `tests/` integration
+- New CI invariants: i18n key coverage parity (across all ten
+  locales); library extension whitelist matches drag-drop
+  whitelist; intervals-sum-to-total-duration under every easing
+  curve
+
+### i18n
+
+- 10 new monitor keys across all ten locales
+- 14 new library keys
+- 5 new bounce keys
+- 7 new easing keys (label + 6 curve labels)
+- Test `every_locale_covers_every_en_key` still green
+
 ## [0.2.1] — 2026-06-03
 
 Patch release. Fixes a startup crash on systems that don't have
