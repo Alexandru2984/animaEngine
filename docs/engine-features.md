@@ -231,16 +231,19 @@ on every "Add to scene" click.
 Three new variants added to `Behavior`. Existing behaviors
 (`Idle`, `WalkAround`, `FollowCursor`, `BoundedWander`) unchanged.
 
-### 4.1 `Spinner`
+### 4.1 `Spinner` (deferred to 0.4)
+
+Originally scoped for C.6. Implementing sprite rotation requires a
+per-quad transform matrix in the vertex shader and a `rotation: f32`
+field on `Entity`; both are clean changes but they cross the
+behavior / renderer boundary cleanly enough that they deserve their
+own sub-phase. Moved to 0.4 / Faza D where the AccessKit-runtime-
+toggle and rebindable-keymap refactors also touch wider surfaces.
+The shape stays as originally specified:
 
 ```rust
 Behavior::Spinner { rps: f32 }
 ```
-
-Rotates the sprite around its own centre. `rps` = revolutions per
-second; range `[-10.0, 10.0]` (negative spins counter-clockwise).
-No translation. Common range: 0.2 – 1.0 for ambient spinning,
-3.0 + for fidget-spinner feel.
 
 ### 4.2 `Bounce`
 
@@ -262,23 +265,22 @@ Combinable mentally with gravity: a `Bounce` entity with
 `physics_enabled = true` is undefined behaviour for 0.3; we keep
 gravity as a hard override (gravity wins, bounce inactive).
 
-### 4.3 `Reactive`
+### 4.3 `Reactive` (deferred to 0.4)
+
+Originally scoped for C.6. Triggers require hooks in the click
+dispatch and the mouse-enter detection that the X11 input shape
+mechanism doesn't surface today; we'd be plumbing a "behavior gets
+told about UI events" channel through the event loop. That's
+exactly the kind of cross-cut better tackled with the multi-window
+event-loop refactor in 0.4. Spec stays as originally written:
 
 ```rust
 Behavior::Reactive {
     trigger: ReactiveTrigger,   // ClickOnSelf / CursorEnter / GlobalHotkey(...)
     effect: ReactiveEffect,     // Bounce(...) / Spinner(...) / SwapFrameRange(...)
-    cooldown_sec: f32,          // ignore re-triggers for this many seconds
+    cooldown_sec: f32,
 }
 ```
-
-A behavior wrapper that fires another behavior temporarily on
-trigger. After the effect finishes, the entity returns to `Idle`.
-Cooldown prevents click-spam.
-
-`SwapFrameRange { start, end }` is a new effect that briefly plays
-a sub-range of the entity's frames (e.g. a "happy" sprite-sheet
-strip). Useful for reactive characters that have hidden states.
 
 ### 4.4 UI
 

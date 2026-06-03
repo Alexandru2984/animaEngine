@@ -29,6 +29,11 @@ behavior-idle = 待機
 behavior-walk = 歩き回る
 behavior-follow = カーソルを追う
 behavior-wander = 範囲内をさまよう
+behavior-bounce = バウンス
+behavior-bounce-axis = 軸
+behavior-bounce-horizontal = 水平
+behavior-bounce-vertical = 垂直
+behavior-bounce-both = 両方 (円)
 
 scene-empty-headline = シーンは空です
 scene-empty-hint = PNG / GIF / WebP / MP4 をオーバーレイにドロップ — もしくは下のプリセットをお試しください。

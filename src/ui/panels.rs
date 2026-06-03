@@ -1041,6 +1041,15 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                 },
                 format!("{}  Bounded wander", icons::BEHAVIOR_WANDER),
             );
+            ui.selectable_value(
+                behavior,
+                Behavior::Bounce {
+                    amplitude_px: 24.0,
+                    period_sec: 1.5,
+                    axis: crate::behavior::BounceAxis::Vertical,
+                },
+                format!("{}  Bounce", icons::BEHAVIOR_BOUNCE),
+            );
             if *behavior != prev {
                 changed = true;
             }
@@ -1120,6 +1129,46 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                 }
             });
         }
+        Behavior::Bounce {
+            amplitude_px,
+            period_sec,
+            axis,
+        } => {
+            if ui
+                .add(egui::Slider::new(amplitude_px, 1.0..=200.0).text("Amplitude (px)"))
+                .changed()
+            {
+                changed = true;
+            }
+            if ui
+                .add(egui::Slider::new(period_sec, 0.1..=10.0).text("Period (s)"))
+                .changed()
+            {
+                changed = true;
+            }
+            ui.horizontal(|ui| {
+                ui.label(t("behavior-bounce-axis"));
+                let prev_axis = *axis;
+                ui.selectable_value(
+                    axis,
+                    crate::behavior::BounceAxis::Horizontal,
+                    t("behavior-bounce-horizontal"),
+                );
+                ui.selectable_value(
+                    axis,
+                    crate::behavior::BounceAxis::Vertical,
+                    t("behavior-bounce-vertical"),
+                );
+                ui.selectable_value(
+                    axis,
+                    crate::behavior::BounceAxis::Both,
+                    t("behavior-bounce-both"),
+                );
+                if *axis != prev_axis {
+                    changed = true;
+                }
+            });
+        }
     }
 
     changed
@@ -1131,6 +1180,7 @@ fn behavior_label_with_icon(b: &Behavior) -> String {
         Behavior::WalkAround { .. } => (icons::BEHAVIOR_WALK, "Walk around"),
         Behavior::FollowCursor { .. } => (icons::BEHAVIOR_FOLLOW, "Follow cursor"),
         Behavior::BoundedWander { .. } => (icons::BEHAVIOR_WANDER, "Bounded wander"),
+        Behavior::Bounce { .. } => (icons::BEHAVIOR_BOUNCE, "Bounce"),
     };
     format!("{icon}  {name}")
 }

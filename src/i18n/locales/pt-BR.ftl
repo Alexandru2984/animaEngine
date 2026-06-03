@@ -29,6 +29,11 @@ behavior-idle = Parado
 behavior-walk = Andar
 behavior-follow = Seguir o cursor
 behavior-wander = Vagar limitado
+behavior-bounce = Pulo
+behavior-bounce-axis = Eixo
+behavior-bounce-horizontal = Horizontal
+behavior-bounce-vertical = Vertical
+behavior-bounce-both = Ambos (círculo)
 
 scene-empty-headline = Cena vazia
 scene-empty-hint = Arraste um PNG / GIF / WebP / MP4 para o overlay — ou experimente um preset abaixo.

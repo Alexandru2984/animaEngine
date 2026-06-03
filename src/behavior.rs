@@ -57,6 +57,49 @@ pub enum Behavior {
         #[serde(default = "default_wander_speed")]
         speed: f32,
     },
+    /// Sinusoidal oscillation around the entity's rest position.
+    /// The rest position is captured the first tick the behavior runs
+    /// (or after a hot-reload / drag), so the user's manually placed
+    /// position is preserved — bounce adds an offset on top, it never
+    /// drifts the stored `(x, y)`. Gravity (`physics_enabled = true`)
+    /// is a hard override: when both are on, gravity wins and bounce
+    /// stays passive.
+    Bounce {
+        /// Peak displacement in pixels, applied symmetrically (so the
+        /// total travel between extremes is `2 * amplitude_px`).
+        #[serde(default = "default_bounce_amplitude")]
+        amplitude_px: f32,
+        /// One full sine cycle in seconds. Clamped to `>= 0.05` at
+        /// tick time to prevent NaNs from a misconfigured config.
+        #[serde(default = "default_bounce_period")]
+        period_sec: f32,
+        /// Which axis (or both) the oscillation rides along.
+        #[serde(default)]
+        axis: BounceAxis,
+    },
+}
+
+/// Axis selector for `Behavior::Bounce`. `Both` produces a circular
+/// motion (90° phase offset between x and y) rather than a diagonal
+/// shake — circles look more lifelike for ambient bobbing.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BounceAxis {
+    /// Horizontal-only oscillation.
+    Horizontal,
+    /// Vertical-only oscillation (default — closest match to the
+    /// "floating ghost" feel everyone expects from a bounce).
+    #[default]
+    Vertical,
+    /// Both axes simultaneously, 90° out of phase → circular motion.
+    Both,
+}
+
+fn default_bounce_amplitude() -> f32 {
+    24.0
+}
+fn default_bounce_period() -> f32 {
+    1.5
 }
 
 fn default_walk_speed() -> f32 {
@@ -96,6 +139,14 @@ pub struct BehaviorState {
     /// construction so the PRNG cycle works; the per-entity init in
     /// `with_seed` keeps two entities from picking identical paths.
     pub wander_rng_seed: u64,
+    /// Rest position for `Behavior::Bounce`. Captured on first tick
+    /// (or after `bounce_invalidate()`) so the user's manually placed
+    /// `(x, y)` is the centre of the oscillation. `None` means
+    /// "snapshot the position next tick".
+    pub bounce_rest: Option<(f32, f32)>,
+    /// Phase accumulator in seconds for `Behavior::Bounce`. Modulo'd
+    /// by the period to stay numerically stable over long sessions.
+    pub bounce_t: f32,
 }
 
 impl Default for BehaviorState {
@@ -104,7 +155,21 @@ impl Default for BehaviorState {
             walk_direction: 1.0,
             wander_target: None,
             wander_rng_seed: 0xDEAD_BEEF_CAFE_BABE,
+            bounce_rest: None,
+            bounce_t: 0.0,
         }
+    }
+}
+
+impl BehaviorState {
+    /// Drop the captured `bounce_rest` so the next tick re-snaps it
+    /// from the entity's current position. Call this when the user
+    /// drags the entity, picks a new behavior, or hot-reload swaps
+    /// configs — without this, a drag would visibly snap back to the
+    /// old rest as soon as drag ends.
+    pub fn bounce_invalidate(&mut self) {
+        self.bounce_rest = None;
+        self.bounce_t = 0.0;
     }
 }
 
@@ -245,6 +310,45 @@ impl Behavior {
                 let inv = 1.0 / dist;
                 *entity_x += dx * inv * step;
                 *entity_y += dy * inv * step;
+            }
+            Behavior::Bounce {
+                amplitude_px,
+                period_sec,
+                axis,
+            } => {
+                // Lock in the rest position on first tick (or after
+                // bounce_invalidate). Without this guard the entity
+                // would drift each frame because we'd treat the
+                // bounce-offset position as the new rest.
+                if state.bounce_rest.is_none() {
+                    state.bounce_rest = Some((*entity_x, *entity_y));
+                    state.bounce_t = 0.0;
+                }
+                let (rest_x, rest_y) = state.bounce_rest.unwrap();
+
+                // Guard against degenerate periods. 50ms is a hard
+                // floor below which the math is fine but the visual
+                // is incoherent.
+                let period = period_sec.max(0.05);
+                state.bounce_t = (state.bounce_t + ctx.dt) % period;
+                let phase = state.bounce_t / period; // 0..1
+
+                let two_pi = std::f32::consts::TAU;
+                let (offset_x, offset_y) = match axis {
+                    BounceAxis::Horizontal => (amplitude_px * (phase * two_pi).sin(), 0.0),
+                    BounceAxis::Vertical => (0.0, amplitude_px * (phase * two_pi).sin()),
+                    BounceAxis::Both => {
+                        // 90° phase offset → circular motion. Lissajous
+                        // (1, 1, π/2) is a circle with radius=amplitude.
+                        (
+                            amplitude_px * (phase * two_pi).cos(),
+                            amplitude_px * (phase * two_pi).sin(),
+                        )
+                    }
+                };
+
+                *entity_x = rest_x + offset_x;
+                *entity_y = rest_y + offset_y;
             }
         }
     }
@@ -443,5 +547,181 @@ mod tests {
         let a = BehaviorState::with_seed(1);
         let b = BehaviorState::with_seed(2);
         assert_ne!(a.wander_rng_seed, b.wander_rng_seed);
+    }
+}
+
+#[cfg(test)]
+mod bounce_tests {
+    use super::*;
+
+    fn ctx(dt: f32) -> TickContext {
+        TickContext {
+            sprite_width: 64.0,
+            sprite_height: 64.0,
+            screen_width: 1920.0,
+            screen_height: 1080.0,
+            cursor: None,
+            dt,
+        }
+    }
+
+    /// On the very first tick the rest position MUST be captured from
+    /// the entity's current position; otherwise a Bounce on an entity
+    /// the user just placed would teleport it on the first frame.
+    #[test]
+    fn first_tick_snapshots_rest_position() {
+        let b = Behavior::Bounce {
+            amplitude_px: 10.0,
+            period_sec: 1.0,
+            axis: BounceAxis::Vertical,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 500.0;
+        let mut y = 300.0;
+        b.tick(&mut state, &mut x, &mut y, &ctx(0.0));
+        assert_eq!(state.bounce_rest, Some((500.0, 300.0)));
+    }
+
+    /// At t=0 the sine wave is zero → offset zero → entity stays at
+    /// rest. This guards the "no first-frame jump" invariant.
+    #[test]
+    fn vertical_offset_at_t_zero_is_zero() {
+        let b = Behavior::Bounce {
+            amplitude_px: 50.0,
+            period_sec: 2.0,
+            axis: BounceAxis::Vertical,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 100.0;
+        let mut y = 100.0;
+        b.tick(&mut state, &mut x, &mut y, &ctx(0.0));
+        assert!((x - 100.0).abs() < 1e-3);
+        assert!((y - 100.0).abs() < 1e-3);
+    }
+
+    /// At t = period/4 the sine wave peaks at +1 → y = rest + amplitude.
+    /// Vertical-only means x stays put.
+    #[test]
+    fn vertical_quarter_period_hits_amplitude_peak() {
+        let b = Behavior::Bounce {
+            amplitude_px: 50.0,
+            period_sec: 4.0,
+            axis: BounceAxis::Vertical,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 100.0;
+        let mut y = 100.0;
+        // Capture rest at t=0.
+        b.tick(&mut state, &mut x, &mut y, &ctx(0.0));
+        // Advance to quarter-period (sin(π/2) = 1).
+        b.tick(&mut state, &mut x, &mut y, &ctx(1.0));
+        assert!((y - 150.0).abs() < 1.0, "expected y≈150, got {y}");
+        assert!((x - 100.0).abs() < 0.01, "x should not drift, got {x}");
+    }
+
+    #[test]
+    fn horizontal_axis_only_moves_x() {
+        let b = Behavior::Bounce {
+            amplitude_px: 30.0,
+            period_sec: 4.0,
+            axis: BounceAxis::Horizontal,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 200.0;
+        let mut y = 200.0;
+        b.tick(&mut state, &mut x, &mut y, &ctx(0.0));
+        b.tick(&mut state, &mut x, &mut y, &ctx(1.0));
+        assert!((y - 200.0).abs() < 0.01);
+        assert!((x - 230.0).abs() < 1.0);
+    }
+
+    /// `Both` produces a circle: at t=0 the cosine peaks, sine is zero
+    /// → entity sits at (rest + amplitude, rest). At quarter period
+    /// they swap → (rest, rest + amplitude).
+    #[test]
+    fn both_axis_traces_a_circle() {
+        let b = Behavior::Bounce {
+            amplitude_px: 20.0,
+            period_sec: 4.0,
+            axis: BounceAxis::Both,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 100.0;
+        let mut y = 100.0;
+        // t = 0 → cos(0)=1, sin(0)=0 → (rest + amp, rest)
+        b.tick(&mut state, &mut x, &mut y, &ctx(0.0));
+        assert!((x - 120.0).abs() < 1e-3, "x at t=0: got {x}");
+        assert!((y - 100.0).abs() < 1e-3, "y at t=0: got {y}");
+        // t = period/4 → (rest, rest + amp)
+        b.tick(&mut state, &mut x, &mut y, &ctx(1.0));
+        assert!((x - 100.0).abs() < 1.0, "x at t=1: got {x}");
+        assert!((y - 120.0).abs() < 1.0, "y at t=1: got {y}");
+    }
+
+    /// Without invalidation, dragging mid-bounce would snap the sprite
+    /// back to the old rest. `bounce_invalidate` clears the captured
+    /// rest so the next tick re-snaps from the dragged position.
+    #[test]
+    fn bounce_invalidate_restarts_from_new_position() {
+        let b = Behavior::Bounce {
+            amplitude_px: 10.0,
+            period_sec: 1.0,
+            axis: BounceAxis::Vertical,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 100.0;
+        let mut y = 100.0;
+        b.tick(&mut state, &mut x, &mut y, &ctx(0.5));
+        assert_eq!(state.bounce_rest, Some((100.0, 100.0)));
+        // User drags to a new spot.
+        state.bounce_invalidate();
+        x = 500.0;
+        y = 500.0;
+        b.tick(&mut state, &mut x, &mut y, &ctx(0.0));
+        assert_eq!(state.bounce_rest, Some((500.0, 500.0)));
+    }
+
+    /// A degenerate period (≤ 50ms) is clamped to 50ms. Without the
+    /// clamp, a config with `period_sec = 0` would divide by zero.
+    #[test]
+    fn near_zero_period_does_not_panic() {
+        let b = Behavior::Bounce {
+            amplitude_px: 20.0,
+            period_sec: 0.0,
+            axis: BounceAxis::Vertical,
+        };
+        let mut state = BehaviorState::default();
+        let mut x = 100.0;
+        let mut y = 100.0;
+        // Ten ticks at 16ms each — should never produce NaN.
+        for _ in 0..10 {
+            b.tick(&mut state, &mut x, &mut y, &ctx(0.016));
+        }
+        assert!(x.is_finite() && y.is_finite());
+    }
+
+    #[test]
+    fn bounce_axis_default_is_vertical() {
+        assert_eq!(BounceAxis::default(), BounceAxis::Vertical);
+    }
+
+    #[test]
+    fn bounce_round_trips_through_toml() {
+        let b = Behavior::Bounce {
+            amplitude_px: 32.0,
+            period_sec: 2.5,
+            axis: BounceAxis::Both,
+        };
+        // Wrap in a tiny struct because TOML needs a table at the root.
+        #[derive(serde::Serialize, serde::Deserialize)]
+        struct W {
+            behavior: Behavior,
+        }
+        let s = toml::to_string(&W {
+            behavior: b.clone(),
+        })
+        .unwrap();
+        let back: W = toml::from_str(&s).unwrap();
+        assert_eq!(back.behavior, b);
     }
 }

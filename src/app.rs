@@ -935,8 +935,15 @@ impl ApplicationHandler<AnimaEvent> for App {
                         self.drag.update(self.mouse_x, self.mouse_y)
                     {
                         if entity_idx < self.scene.entities.len() {
-                            self.scene.entities[entity_idx].x = new_x;
-                            self.scene.entities[entity_idx].y = new_y;
+                            let entity = &mut self.scene.entities[entity_idx];
+                            entity.x = new_x;
+                            entity.y = new_y;
+                            // Drag relocates the entity → invalidate any
+                            // Bounce rest position so the next tick
+                            // re-snaps it from the new (x, y) and the
+                            // sprite doesn't spring back to the old
+                            // centre as soon as drag ends.
+                            entity.behavior_state.bounce_invalidate();
                         }
                     }
                 }
@@ -1065,11 +1072,14 @@ impl ApplicationHandler<AnimaEvent> for App {
                         }
                     }
                 }
-                // Arrow keys: nudge selected entity position (Shift = 1px fine, normal = 10px)
+                // Arrow keys: nudge selected entity position (Shift = 1px fine, normal = 10px).
+                // Every nudge invalidates Bounce rest so the entity doesn't
+                // snap back to where it was before the keypress.
                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowUp) => {
                     if let Some(idx) = self.selection.selected_index() {
                         let step = if self.shift_held { 1.0 } else { 10.0 };
                         self.scene.entities[idx].y -= step;
+                        self.scene.entities[idx].behavior_state.bounce_invalidate();
                         self.config_dirty = true;
                     }
                 }
@@ -1077,6 +1087,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                     if let Some(idx) = self.selection.selected_index() {
                         let step = if self.shift_held { 1.0 } else { 10.0 };
                         self.scene.entities[idx].y += step;
+                        self.scene.entities[idx].behavior_state.bounce_invalidate();
                         self.config_dirty = true;
                     }
                 }
@@ -1084,6 +1095,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                     if let Some(idx) = self.selection.selected_index() {
                         let step = if self.shift_held { 1.0 } else { 10.0 };
                         self.scene.entities[idx].x -= step;
+                        self.scene.entities[idx].behavior_state.bounce_invalidate();
                         self.config_dirty = true;
                     }
                 }
@@ -1091,6 +1103,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                     if let Some(idx) = self.selection.selected_index() {
                         let step = if self.shift_held { 1.0 } else { 10.0 };
                         self.scene.entities[idx].x += step;
+                        self.scene.entities[idx].behavior_state.bounce_invalidate();
                         self.config_dirty = true;
                     }
                 }
@@ -1112,6 +1125,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                             let entity = &mut self.scene.entities[idx];
                             entity.x = (size.width as f32 - entity.scaled_width()) / 2.0;
                             entity.y = (size.height as f32 - entity.scaled_height()) / 2.0;
+                            entity.behavior_state.bounce_invalidate();
                             tracing::info!(
                                 "Centered '{}' at ({:.0}, {:.0})",
                                 entity.name,

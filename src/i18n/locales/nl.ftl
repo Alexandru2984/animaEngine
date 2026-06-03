@@ -29,6 +29,11 @@ behavior-idle = Inactief
 behavior-walk = Rondlopen
 behavior-follow = Cursor volgen
 behavior-wander = Begrensd zwerven
+behavior-bounce = Stuiteren
+behavior-bounce-axis = As
+behavior-bounce-horizontal = Horizontaal
+behavior-bounce-vertical = Verticaal
+behavior-bounce-both = Beide (cirkel)
 
 scene-empty-headline = Lege scène
 scene-empty-hint = Sleep een PNG / GIF / WebP / MP4 naar de overlay — of probeer hieronder een preset.

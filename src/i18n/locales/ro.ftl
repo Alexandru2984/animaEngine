@@ -29,6 +29,11 @@ behavior-idle = Pe loc
 behavior-walk = Plimbare
 behavior-follow = Urmărește cursorul
 behavior-wander = Rătăcire delimitată
+behavior-bounce = Săritură
+behavior-bounce-axis = Axă
+behavior-bounce-horizontal = Orizontală
+behavior-bounce-vertical = Verticală
+behavior-bounce-both = Ambele (cerc)
 
 scene-empty-headline = Scenă goală
 scene-empty-hint = Trage un fișier PNG / GIF / WebP / MP4 peste overlay — sau încearcă un preset mai jos.

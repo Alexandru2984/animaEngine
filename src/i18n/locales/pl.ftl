@@ -29,6 +29,11 @@ behavior-idle = Bezczynny
 behavior-walk = Chodzi
 behavior-follow = Podąża za kursorem
 behavior-wander = Ograniczona wędrówka
+behavior-bounce = Odbicie
+behavior-bounce-axis = Oś
+behavior-bounce-horizontal = Poziomo
+behavior-bounce-vertical = Pionowo
+behavior-bounce-both = Oba (okrąg)
 
 scene-empty-headline = Pusta scena
 scene-empty-hint = Przeciągnij plik PNG / GIF / WebP / MP4 na nakładkę — lub wypróbuj preset poniżej.

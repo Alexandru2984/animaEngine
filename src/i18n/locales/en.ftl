@@ -51,6 +51,11 @@ behavior-idle = Idle
 behavior-walk = Walk around
 behavior-follow = Follow cursor
 behavior-wander = Bounded wander
+behavior-bounce = Bounce
+behavior-bounce-axis = Axis
+behavior-bounce-horizontal = Horizontal
+behavior-bounce-vertical = Vertical
+behavior-bounce-both = Both (circle)
 
 # ── Scene tab ─────────────────────────────────────────────────────────
 scene-empty-headline = Empty scene
