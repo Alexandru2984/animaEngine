@@ -11,6 +11,7 @@ pub mod event;
 pub mod hotkeys;
 pub mod i18n;
 pub mod input;
+pub mod monitor;
 pub mod physics;
 pub mod presets;
 pub mod renderer;

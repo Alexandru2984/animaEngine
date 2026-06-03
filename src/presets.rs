@@ -146,6 +146,7 @@ fn demo_character(
         behavior,
         spritesheet_columns: None,
         spritesheet_rows: None,
+        monitor: None,
     }
 }
 

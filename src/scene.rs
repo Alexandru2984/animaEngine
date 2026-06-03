@@ -239,6 +239,7 @@ impl Scene {
             behavior: crate::behavior::Behavior::Idle,
             spritesheet_columns: None,
             spritesheet_rows: None,
+            monitor: None,
         };
 
         // Load frames and resize to overlay-friendly dimensions
@@ -367,6 +368,7 @@ mod tests {
             behavior: crate::behavior::Behavior::Idle,
             spritesheet_columns: None,
             spritesheet_rows: None,
+            monitor: None,
         };
         Entity::from_config(&cfg, anim)
     }

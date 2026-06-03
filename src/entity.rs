@@ -34,6 +34,11 @@ pub struct Entity {
     pub spritesheet_columns: Option<u32>,
     /// Spritesheet rows (for config saving, only used for Spritesheet type)
     pub spritesheet_rows: Option<u32>,
+    /// Optional monitor pin — mirrors `CharacterConfig::monitor`.
+    /// `None` means "resolve via centroid". The renderer reads this
+    /// each frame; the inspector mutates it when the user explicitly
+    /// chooses a monitor in the picker.
+    pub monitor: Option<String>,
     /// Physics state (gravity, velocity, grounded)
     pub physics: PhysicsState,
     /// Autonomous motion configuration.
@@ -67,6 +72,7 @@ impl Entity {
             asset_type: config.asset_type.clone(),
             spritesheet_columns: config.spritesheet_columns,
             spritesheet_rows: config.spritesheet_rows,
+            monitor: config.monitor.clone(),
             physics: PhysicsState::from_enabled(config.physics_enabled),
             behavior: config.behavior.clone(),
             behavior_state: BehaviorState::with_seed(seed),
@@ -193,6 +199,7 @@ impl Entity {
             asset_type: crate::config::AssetType::PngStatic,
             spritesheet_columns: None,
             spritesheet_rows: None,
+            monitor: None,
             physics: PhysicsState::default(),
             behavior: Behavior::Idle,
             behavior_state: BehaviorState::default(),
@@ -218,6 +225,7 @@ impl Entity {
             behavior: self.behavior.clone(),
             spritesheet_columns: self.spritesheet_columns,
             spritesheet_rows: self.spritesheet_rows,
+            monitor: self.monitor.clone(),
         }
     }
 }

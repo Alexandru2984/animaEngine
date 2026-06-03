@@ -70,6 +70,11 @@ pub struct App {
     /// Toast notification queue. Persistent across edit/pass-through
     /// transitions but only painted when in edit mode (no UI otherwise).
     toasts: ToastQueue,
+    /// Snapshot of the monitor topology taken on the first `resumed()`
+    /// — empty until then. Used by the picker UI (C.2) and the
+    /// per-monitor render path (C.3); the data layer (this commit /
+    /// C.1) only populates and logs it.
+    monitors: Vec<crate::monitor::MonitorInfo>,
 }
 
 /// Result of an async hot-reload — produced by a worker thread, consumed by
@@ -114,6 +119,7 @@ impl App {
             ui: None,
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),
+            monitors: Vec::new(),
         }
     }
 
@@ -480,6 +486,38 @@ impl ApplicationHandler<AnimaEvent> for App {
         }
 
         tracing::info!("Creating window...");
+
+        // Snapshot the monitor topology once so the rest of the engine
+        // can use the renderer-agnostic MonitorInfo instead of holding
+        // a borrow on the event loop. The picker UI in C.2 will read
+        // this list; for now we log it and keep the data ready.
+        let monitors: Vec<crate::monitor::MonitorInfo> = {
+            let primary = event_loop.primary_monitor();
+            event_loop
+                .available_monitors()
+                .map(|m| {
+                    let size = m.size();
+                    let pos = m.position();
+                    let is_primary = primary
+                        .as_ref()
+                        .is_some_and(|p| p.name() == m.name() && p.size() == size);
+                    let name = m
+                        .name()
+                        .unwrap_or_else(|| format!("Display {}", self.monitors.len()));
+                    crate::monitor::MonitorInfo {
+                        name,
+                        x: pos.x,
+                        y: pos.y,
+                        width: size.width,
+                        height: size.height,
+                        scale_factor: m.scale_factor(),
+                        is_primary,
+                    }
+                })
+                .collect()
+        };
+        crate::monitor::log_topology(&monitors);
+        self.monitors = monitors;
 
         // Auto-detect screen resolution if config values are 0
         let (win_w, win_h) = if self.config.global.window_width == 0

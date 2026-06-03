@@ -1,6 +1,7 @@
 use crate::behavior::Behavior;
 use crate::constants::MAX_ENTITIES;
 use crate::error::Result;
+use crate::monitor::MonitorMode;
 use crate::ui::{OnboardingProgress, Theme};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -35,6 +36,13 @@ pub struct GlobalConfig {
     /// pending.
     #[serde(default = "OnboardingProgress::all_seen")]
     pub onboarding: OnboardingProgress,
+    /// How the overlay is distributed across monitors. Defaults to
+    /// `PerMonitor` for fresh installs in 0.3; existing 0.2 configs
+    /// without the field round-trip through `MonitorMode::default()`
+    /// which is also `PerMonitor`. Operators who relied on the
+    /// implicit `Span` behaviour of 0.2 can set this explicitly.
+    #[serde(default)]
+    pub monitor_mode: MonitorMode,
 }
 
 fn default_window_width() -> u32 {
@@ -57,6 +65,7 @@ impl Default for GlobalConfig {
             // Brand-new install: nothing has been dismissed yet, so
             // every progressive hint will appear on the first run.
             onboarding: OnboardingProgress::default(),
+            monitor_mode: MonitorMode::default(),
         }
     }
 }
@@ -111,6 +120,14 @@ pub struct CharacterConfig {
     /// Number of rows in spritesheet grid (only used for Spritesheet type)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spritesheet_rows: Option<u32>,
+    /// Optional override for which monitor this entity belongs to.
+    /// `None` (omitted in TOML) means "resolve via centroid hit-test
+    /// against the live monitor topology"; `Some("eDP-1")` pins the
+    /// entity to that monitor. Stale names fall back to centroid
+    /// resolution at runtime with a warning. Backwards compat: every
+    /// 0.2 config decodes as `None` and behaves exactly as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor: Option<String>,
 }
 
 fn is_idle_behavior(b: &Behavior) -> bool {
@@ -160,6 +177,7 @@ impl Default for AppConfig {
                     behavior: Behavior::Idle,
                     spritesheet_columns: None,
                     spritesheet_rows: None,
+                    monitor: None,
                 },
                 CharacterConfig {
                     id: "slime".to_string(),
@@ -178,6 +196,7 @@ impl Default for AppConfig {
                     behavior: Behavior::Idle,
                     spritesheet_columns: None,
                     spritesheet_rows: None,
+                    monitor: None,
                 },
                 CharacterConfig {
                     id: "heart".to_string(),
@@ -196,6 +215,7 @@ impl Default for AppConfig {
                     behavior: Behavior::Idle,
                     spritesheet_columns: None,
                     spritesheet_rows: None,
+                    monitor: None,
                 },
                 CharacterConfig {
                     id: "star".to_string(),
@@ -214,6 +234,7 @@ impl Default for AppConfig {
                     behavior: Behavior::Idle,
                     spritesheet_columns: None,
                     spritesheet_rows: None,
+                    monitor: None,
                 },
                 CharacterConfig {
                     id: "cat".to_string(),
@@ -232,6 +253,7 @@ impl Default for AppConfig {
                     behavior: Behavior::Idle,
                     spritesheet_columns: None,
                     spritesheet_rows: None,
+                    monitor: None,
                 },
             ],
         }
