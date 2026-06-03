@@ -4,6 +4,7 @@
 //! This keeps `App` borrow-safe: the caller passes disjoint `&mut` references
 //! to scene / selection / dirty flag instead of `&mut self`.
 
+use crate::anim;
 use crate::app::ContextMenuState;
 use crate::asset_library::{LibraryAsset, LibraryIndex, LibraryKind};
 use crate::behavior::Behavior;
@@ -13,7 +14,6 @@ use crate::input::selection::SelectionState;
 use crate::monitor::{MonitorInfo, MonitorMode};
 use crate::presets::{self, ApplyMode, Preset, PresetId};
 use crate::scene::Scene;
-use crate::ui::anim;
 use crate::ui::icons;
 use crate::ui::onboarding::{self, OnboardingProgress};
 use crate::ui::states;
@@ -969,6 +969,9 @@ fn entity_inspector(
             entity.animation.playing = playing;
             change.any_field = true;
         }
+        if easing_picker(ui, &mut entity.animation.easing) {
+            change.any_field = true;
+        }
     });
 
     section(ui, "Behavior", false, |ui| {
@@ -1002,6 +1005,41 @@ fn section(
 
 /// Behavior dropdown + variant-specific sliders. Returns `true` when the
 /// user touched anything in this section.
+/// Easing-curve dropdown for `Animation::easing`. `None` represents
+/// "Linear (default)" — the 0.2 behaviour. Returns `true` when the
+/// selection changed so the caller can flag the config dirty.
+fn easing_picker(ui: &mut egui::Ui, easing: &mut Option<crate::anim::EasingCurve>) -> bool {
+    use crate::anim::EasingCurve;
+    let mut changed = false;
+    let active_label = match easing {
+        None => t("easing-linear"),
+        Some(c) => t(c.i18n_key()),
+    };
+    ui.horizontal(|ui| {
+        ui.label(t("animation-easing-label"));
+        egui::ComboBox::from_id_salt("anima.animation.easing")
+            .selected_text(active_label)
+            .show_ui(ui, |ui| {
+                let is_linear = easing.is_none() || matches!(easing, Some(EasingCurve::Linear));
+                if ui.selectable_label(is_linear, t("easing-linear")).clicked() && !is_linear {
+                    *easing = None;
+                    changed = true;
+                }
+                for &c in EasingCurve::ALL {
+                    if matches!(c, EasingCurve::Linear) {
+                        continue;
+                    }
+                    let is_current = matches!(easing, Some(x) if *x == c);
+                    if ui.selectable_label(is_current, t(c.i18n_key())).clicked() && !is_current {
+                        *easing = Some(c);
+                        changed = true;
+                    }
+                }
+            });
+    });
+    changed
+}
+
 fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
     let mut changed = false;
 

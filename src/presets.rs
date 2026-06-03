@@ -147,6 +147,7 @@ fn demo_character(
         spritesheet_columns: None,
         spritesheet_rows: None,
         monitor: None,
+        easing: None,
     }
 }
 

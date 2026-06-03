@@ -1,3 +1,4 @@
+pub mod anim;
 pub mod animation;
 pub mod app;
 pub mod asset_library;

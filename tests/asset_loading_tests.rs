@@ -363,6 +363,7 @@ fn test_config_new_asset_types_serialize() {
                 spritesheet_columns: None,
                 spritesheet_rows: None,
                 monitor: None,
+                easing: None,
             },
             CharacterConfig {
                 id: "test_sheet".to_string(),
@@ -382,6 +383,7 @@ fn test_config_new_asset_types_serialize() {
                 spritesheet_columns: Some(4),
                 spritesheet_rows: Some(2),
                 monitor: None,
+                easing: None,
             },
         ],
         windows: vec![],
@@ -456,6 +458,7 @@ fn test_config_spritesheet_fields_skip_when_none() {
         spritesheet_columns: None,
         spritesheet_rows: None,
         monitor: None,
+        easing: None,
     };
 
     let toml_str = toml::to_string_pretty(&config).expect("serialize");

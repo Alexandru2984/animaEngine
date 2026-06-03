@@ -57,6 +57,9 @@ impl Entity {
         std::hash::Hash::hash(&config.id, &mut hasher);
         let seed = std::hash::Hasher::finish(&hasher);
 
+        let mut animation = animation;
+        animation.easing = config.easing;
+
         Self {
             id: config.id.clone(),
             name: config.name.clone(),
@@ -226,6 +229,7 @@ impl Entity {
             spritesheet_columns: self.spritesheet_columns,
             spritesheet_rows: self.spritesheet_rows,
             monitor: self.monitor.clone(),
+            easing: self.animation.easing,
         }
     }
 }

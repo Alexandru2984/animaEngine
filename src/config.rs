@@ -128,6 +128,12 @@ pub struct CharacterConfig {
     /// 0.2 config decodes as `None` and behaves exactly as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub monitor: Option<String>,
+    /// Optional easing curve applied to per-frame timing. `None`
+    /// (omitted) keeps the 0.2 behaviour (linear). Ignored when the
+    /// underlying asset carries per-frame delays from GIF/WebP
+    /// metadata — those are authoritative.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub easing: Option<crate::anim::EasingCurve>,
 }
 
 fn is_idle_behavior(b: &Behavior) -> bool {
@@ -237,6 +243,7 @@ impl Default for AppConfig {
                     spritesheet_columns: None,
                     spritesheet_rows: None,
                     monitor: None,
+                    easing: None,
                 },
                 CharacterConfig {
                     id: "slime".to_string(),
@@ -256,6 +263,7 @@ impl Default for AppConfig {
                     spritesheet_columns: None,
                     spritesheet_rows: None,
                     monitor: None,
+                    easing: None,
                 },
                 CharacterConfig {
                     id: "heart".to_string(),
@@ -275,6 +283,7 @@ impl Default for AppConfig {
                     spritesheet_columns: None,
                     spritesheet_rows: None,
                     monitor: None,
+                    easing: None,
                 },
                 CharacterConfig {
                     id: "star".to_string(),
@@ -294,6 +303,7 @@ impl Default for AppConfig {
                     spritesheet_columns: None,
                     spritesheet_rows: None,
                     monitor: None,
+                    easing: None,
                 },
                 CharacterConfig {
                     id: "cat".to_string(),
@@ -313,6 +323,7 @@ impl Default for AppConfig {
                     spritesheet_columns: None,
                     spritesheet_rows: None,
                     monitor: None,
+                    easing: None,
                 },
             ],
             // 0.3 fresh installs use the legacy single-window shape;
@@ -459,6 +470,7 @@ mod windows_tests {
             spritesheet_columns: None,
             spritesheet_rows: None,
             monitor: None,
+            easing: None,
         }
     }
 

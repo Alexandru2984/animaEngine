@@ -240,6 +240,7 @@ impl Scene {
             spritesheet_columns: None,
             spritesheet_rows: None,
             monitor: None,
+            easing: None,
         };
 
         // Load frames and resize to overlay-friendly dimensions
@@ -369,6 +370,7 @@ mod tests {
             spritesheet_columns: None,
             spritesheet_rows: None,
             monitor: None,
+            easing: None,
         };
         Entity::from_config(&cfg, anim)
     }

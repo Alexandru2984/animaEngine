@@ -30,6 +30,13 @@ pub struct Animation {
     last_frame_time: Instant,
     /// Whether this animation uses per-frame delays (from GIF/WebP)
     pub has_per_frame_delays: bool,
+    /// Optional easing curve applied to frame-interval timing. `None`
+    /// means linear (the 0.2 behaviour). When set, the per-frame
+    /// interval gets distorted so the loop's total duration stays
+    /// exactly `n / fps` — see `crate::anim::EasingCurve::frame_interval`.
+    /// Ignored when the asset carries per-frame delays (GIF / WebP),
+    /// because those delays are authoritative.
+    pub easing: Option<crate::anim::EasingCurve>,
 }
 
 impl Animation {
@@ -42,6 +49,7 @@ impl Animation {
             playing,
             last_frame_time: Instant::now(),
             has_per_frame_delays,
+            easing: None,
         }
     }
 
@@ -70,7 +78,13 @@ impl Animation {
     }
 
     /// Get the duration for the current frame.
-    /// Uses per-frame delay if available, otherwise falls back to global FPS.
+    ///
+    /// Priority:
+    /// 1. Per-frame delay from GIF/WebP metadata when present
+    ///    (authoritative — `Animation::easing` is ignored).
+    /// 2. Otherwise: global FPS, optionally distorted by `easing` so
+    ///    the loop's total duration stays at `n / fps` while the
+    ///    individual frame holds vary.
     fn current_frame_duration(&self) -> std::time::Duration {
         if let Some(frame) = self.frames.get(self.current_frame) {
             if let Some(delay_ms) = frame.delay_ms {
@@ -79,8 +93,18 @@ impl Animation {
                 }
             }
         }
-        // Fallback: use global FPS
-        std::time::Duration::from_secs_f32(1.0 / self.fps)
+        let baseline_total = self.frames.len() as f32 / self.fps;
+        let interval = match self.easing {
+            None | Some(crate::anim::EasingCurve::Linear) => 1.0 / self.fps,
+            Some(curve) => {
+                curve.frame_interval(self.current_frame, self.frames.len(), baseline_total)
+            }
+        };
+        // Defensive: an extreme curve at very low frame count can in
+        // theory produce a near-zero interval. Floor at 1ms so the
+        // engine never tight-loops trying to advance the frame.
+        let interval = interval.max(0.001);
+        std::time::Duration::from_secs_f32(interval)
     }
 
     /// Get the current frame data
