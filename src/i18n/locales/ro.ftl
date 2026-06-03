@@ -78,3 +78,20 @@ palette-search-placeholder = Scrie pentru a căuta teme / preseturi…
 palette-close-hint = Esc pentru a închide · Ctrl+K pentru a comuta
 palette-switch-theme = Schimbă pe tema { $theme }
 palette-apply-preset = Aplică presetul: { $preset }
+
+settings-tab-library = Bibliotecă
+
+# Asset library tab
+library-empty-headline = Niciun asset indexat
+library-empty-hint = Trage fișiere în ~/.local/share/animaEngine/assets/ sau setează ANIMA_ASSETS_DIR.
+library-no-asset-root = Niciun director de assets găsit. Creează unul la ~/.local/share/animaEngine/assets/
+library-search-placeholder = Caută assets…
+library-add-to-scene = Adaugă în scenă
+library-sort-recent = Recente
+library-sort-name = Nume
+library-kind-image = Imagine
+library-kind-animated = Animat
+library-kind-video = Video
+library-asset-added-toast = { $name } adăugat în scenă
+library-asset-add-failed-toast = Nu am putut adăuga { $name }
+library-count = { $n } assets indexate

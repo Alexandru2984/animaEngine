@@ -78,3 +78,20 @@ palette-search-placeholder = Typ om thema's / presets te zoeken…
 palette-close-hint = Esc om te sluiten · Ctrl+K om te wisselen
 palette-switch-theme = Wisselen naar thema { $theme }
 palette-apply-preset = Preset toepassen: { $preset }
+
+settings-tab-library = Bibliotheek
+
+# Asset library tab
+library-empty-headline = Geen assets geïndexeerd
+library-empty-hint = Sleep bestanden naar ~/.local/share/animaEngine/assets/ of stel ANIMA_ASSETS_DIR in.
+library-no-asset-root = Geen asset-map gevonden. Maak er een aan in ~/.local/share/animaEngine/assets/
+library-search-placeholder = Assets zoeken…
+library-add-to-scene = Toevoegen aan scène
+library-sort-recent = Recent
+library-sort-name = Naam
+library-kind-image = Afbeelding
+library-kind-animated = Animatie
+library-kind-video = Video
+library-asset-added-toast = { $name } toegevoegd aan de scène
+library-asset-add-failed-toast = Kon { $name } niet toevoegen
+library-count = { $n } assets geïndexeerd

@@ -8,6 +8,23 @@ app-name = animaEngine
 settings-tab-inspector = Inspector
 settings-tab-scene = Scene
 settings-tab-appearance = Appearance
+settings-tab-library = Library
+
+# ── Asset library tab ────────────────────────────────────────────────
+library-empty-headline = No assets indexed
+library-empty-hint = Drop files into ~/.local/share/animaEngine/assets/ or set ANIMA_ASSETS_DIR to point at your collection.
+library-no-asset-root = No asset directory found. Create one at ~/.local/share/animaEngine/assets/
+library-search-placeholder = Search assets…
+library-add-to-scene = Add to scene
+library-sort-recent = Recent
+library-sort-name = Name
+library-kind-image = Image
+library-kind-animated = Animated
+library-kind-video = Video
+library-asset-added-toast = Added { $name } to the scene
+library-asset-add-failed-toast = Couldn't add { $name }
+library-count = { $n } assets indexed
+
 entity-count-zero = No entities
 entity-count-singular = { $n } entity
 entity-count-plural = { $n } entities

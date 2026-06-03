@@ -78,3 +78,20 @@ palette-search-placeholder = テーマ / プリセットを検索…
 palette-close-hint = Esc で閉じる · Ctrl+K で切替
 palette-switch-theme = { $theme } テーマに切替
 palette-apply-preset = プリセットを適用: { $preset }
+
+settings-tab-library = ライブラリ
+
+# Asset library tab
+library-empty-headline = アセットが見つかりません
+library-empty-hint = ~/.local/share/animaEngine/assets/ にファイルを入れるか、ANIMA_ASSETS_DIR を設定してください。
+library-no-asset-root = アセットディレクトリが見つかりません。~/.local/share/animaEngine/assets/ に作成してください
+library-search-placeholder = アセットを検索…
+library-add-to-scene = シーンに追加
+library-sort-recent = 最近
+library-sort-name = 名前
+library-kind-image = 画像
+library-kind-animated = アニメーション
+library-kind-video = 動画
+library-asset-added-toast = { $name } をシーンに追加しました
+library-asset-add-failed-toast = { $name } を追加できませんでした
+library-count = { $n } 個のアセットがインデックス済み

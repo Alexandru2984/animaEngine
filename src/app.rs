@@ -78,6 +78,15 @@ pub struct App {
     /// per-monitor render path (C.3); the data layer (this commit /
     /// C.1) only populates and logs it.
     monitors: Vec<crate::monitor::MonitorInfo>,
+    /// Asset library index. `None` when no asset root was discovered
+    /// at startup (env var unset, XDG dir missing, no exe-relative
+    /// fallback). The UI shows an empty state in that case rather
+    /// than failing.
+    library: Option<crate::asset_library::LibraryIndex>,
+    /// Asset root path used at startup. Kept so the "Add to scene"
+    /// path can resolve relative asset paths to absolute without
+    /// re-scanning.
+    library_root: Option<std::path::PathBuf>,
 }
 
 /// Result of an async hot-reload — produced by a worker thread, consumed by
@@ -124,6 +133,8 @@ impl App {
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),
             monitors: Vec::new(),
+            library: None,
+            library_root: None,
         }
     }
 
@@ -235,6 +246,55 @@ impl App {
             panels::ContextMenuOutcome::Action(action) => {
                 self.apply_menu_action(action);
                 self.ui_state.context_menu = None;
+            }
+        }
+    }
+
+    fn handle_library_outcome(&mut self, outcome: panels::LibraryOutcome) {
+        let Some(root) = self.library_root.as_ref() else {
+            tracing::warn!("Library outcome received but no library_root is set; ignoring.");
+            return;
+        };
+        let abs_path = root.join(&outcome.relative_path);
+        // Drop in the middle of the visible viewport, falling back to
+        // a sensible default when the window isn't fully wired yet.
+        let (x, y) = self
+            .window
+            .as_ref()
+            .map(|w| {
+                let size = w.inner_size();
+                (size.width as f32 / 2.0, size.height as f32 / 2.0)
+            })
+            .unwrap_or((400.0, 300.0));
+        // `add_entity_from_path` runs the full asset-cap + extension
+        // detection pipeline — same path as drag-drop — so audit L2
+        // is preserved even though the asset came from the library
+        // index instead of a user drop.
+        match self.scene.add_entity_from_path(&abs_path, x, y) {
+            Ok(_) => {
+                let mut args = fluent::FluentArgs::new();
+                args.set("name", outcome.display_name.clone());
+                self.toasts
+                    .success(crate::i18n::t_args("library-asset-added-toast", &args));
+                // Bump last_used_at so the asset surfaces in the future
+                // "Recent" sort introduced in C.9 polish.
+                if let Some(library) = self.library.as_mut() {
+                    if let Some(asset) =
+                        library.assets.iter_mut().find(|a| a.id == outcome.asset_id)
+                    {
+                        asset.last_used_at = Some(std::time::SystemTime::now());
+                    }
+                    // Best-effort persist; failure is non-fatal.
+                    let _ = library.save(&crate::asset_library::LibraryIndex::default_path());
+                }
+                self.config_dirty = true;
+            }
+            Err(e) => {
+                tracing::warn!("Library add failed for {}: {e}", outcome.relative_path);
+                let mut args = fluent::FluentArgs::new();
+                args.set("name", outcome.display_name);
+                self.toasts
+                    .error(crate::i18n::t_args("library-asset-add-failed-toast", &args));
             }
         }
     }
@@ -523,6 +583,29 @@ impl ApplicationHandler<AnimaEvent> for App {
         crate::monitor::log_topology(&monitors);
         self.monitors = monitors;
 
+        // Discover + load + merge-scan the asset library. Errors are
+        // logged but never fatal — an empty library is fine.
+        if let Some(root) = crate::asset_library::discover_asset_root() {
+            let index_path = crate::asset_library::LibraryIndex::default_path();
+            let mut idx = crate::asset_library::LibraryIndex::load(&index_path);
+            let scanned = crate::asset_library::scan(&root);
+            let scanned_count = scanned.len();
+            idx.merge_scan(scanned);
+            if let Err(e) = idx.save(&index_path) {
+                tracing::warn!("Failed to persist library.toml: {e}");
+            }
+            tracing::info!(
+                "Asset library at {}: {} indexed ({} from this scan)",
+                root.display(),
+                idx.assets.len(),
+                scanned_count,
+            );
+            self.library = Some(idx);
+            self.library_root = Some(root);
+        } else {
+            tracing::info!("No asset library root found; Library tab will show empty state.");
+        }
+
         // Auto-detect screen resolution if config values are 0
         let (win_w, win_h) = if self.config.global.window_width == 0
             || self.config.global.window_height == 0
@@ -733,6 +816,7 @@ impl ApplicationHandler<AnimaEvent> for App {
 
                             let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
                             let mut palette_outcome: Option<panels::PaletteOutcome> = None;
+                            let mut library_outcome: Option<panels::LibraryOutcome> = None;
                             let mut toggle_requested = false;
 
                             if let (Some(ui), Some(window)) =
@@ -760,6 +844,8 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 let menu_state = self.ui_state.context_menu.clone();
                                 let menu_outcome_ref = &mut menu_outcome;
                                 let palette_outcome_ref = &mut palette_outcome;
+                                let library_outcome_ref = &mut library_outcome;
+                                let library_ref = self.library.as_ref();
                                 let toggle_requested_ref = &mut toggle_requested;
                                 let edit_mode = self.edit_mode;
 
@@ -788,6 +874,8 @@ impl ApplicationHandler<AnimaEvent> for App {
                                                 onboarding_mut,
                                                 monitor_mode_mut,
                                                 monitors_ref,
+                                                library_ref,
+                                                library_outcome_ref,
                                             );
                                             if let Some(state) = &menu_state {
                                                 *menu_outcome_ref =
@@ -813,6 +901,9 @@ impl ApplicationHandler<AnimaEvent> for App {
                             }
                             if let Some(outcome) = palette_outcome {
                                 self.handle_palette_outcome(outcome);
+                            }
+                            if let Some(outcome) = library_outcome {
+                                self.handle_library_outcome(outcome);
                             }
                         }
                         Err(wgpu::SurfaceError::Lost) => {

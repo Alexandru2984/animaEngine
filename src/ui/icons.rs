@@ -82,3 +82,11 @@ pub const HEART: &str = ph::HEART;
 pub const FLAME: &str = ph::FLAME;
 pub const CONFETTI: &str = ph::CONFETTI;
 pub const SPARKLE: &str = ph::SPARKLE;
+
+// Library
+pub const LIBRARY: &str = ph::FOLDER;
+pub const SEARCH: &str = ph::MAGNIFYING_GLASS;
+pub const KIND_IMAGE: &str = ph::IMAGE;
+pub const KIND_ANIMATED: &str = ph::FILM_REEL;
+pub const KIND_VIDEO: &str = ph::FILM_SCRIPT;
+pub const ADD: &str = ph::PLUS;

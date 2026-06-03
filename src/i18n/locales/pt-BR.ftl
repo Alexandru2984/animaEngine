@@ -78,3 +78,20 @@ palette-search-placeholder = Digite para buscar temas / presets…
 palette-close-hint = Esc para fechar · Ctrl+K para alternar
 palette-switch-theme = Mudar para o tema { $theme }
 palette-apply-preset = Aplicar preset: { $preset }
+
+settings-tab-library = Biblioteca
+
+# Asset library tab
+library-empty-headline = Nenhum asset indexado
+library-empty-hint = Arraste arquivos para ~/.local/share/animaEngine/assets/ ou defina ANIMA_ASSETS_DIR.
+library-no-asset-root = Diretório de assets não encontrado. Crie um em ~/.local/share/animaEngine/assets/
+library-search-placeholder = Buscar assets…
+library-add-to-scene = Adicionar à cena
+library-sort-recent = Recentes
+library-sort-name = Nome
+library-kind-image = Imagem
+library-kind-animated = Animado
+library-kind-video = Vídeo
+library-asset-added-toast = { $name } adicionado à cena
+library-asset-add-failed-toast = Não foi possível adicionar { $name }
+library-count = { $n } assets indexados
