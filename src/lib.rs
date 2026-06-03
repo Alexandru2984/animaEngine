@@ -10,6 +10,7 @@ pub mod demo;
 pub mod entity;
 pub mod error;
 pub mod event;
+pub mod group;
 pub mod hotkeys;
 pub mod i18n;
 pub mod input;

@@ -29,6 +29,12 @@ pub struct Scene {
     /// Cached visibility/z-order. `RefCell` lets `visible_entities(&self)`
     /// refresh the cache lazily without taking `&mut self`.
     visible_cache: RefCell<VisibleCache>,
+    /// Sprite groups composed at visibility-resolve time (C.8). Empty
+    /// when the user hasn't created any. Mirrors `AppConfig.groups`;
+    /// kept on Scene so visibility folding doesn't need an extra
+    /// argument threaded through every render call site. Offset and
+    /// scale composition land in the renderer in C.9 polish.
+    pub groups: Vec<crate::group::GroupConfig>,
 }
 
 impl Scene {
@@ -66,11 +72,22 @@ impl Scene {
 
         tracing::info!("Scene loaded with {} entities", entities.len());
 
+        // Group id-uniqueness is a soft constraint: we log on
+        // duplicates but keep the data so a hand-edited config that
+        // copy-pasted a `[[groups]]` entry doesn't crash on load.
+        if let Some(dup) = crate::group::first_duplicate_id(&config.groups) {
+            tracing::warn!(
+                "AppConfig.groups carries duplicate id {:?}; first occurrence wins for visibility resolution",
+                dup,
+            );
+        }
+
         Self {
             entities,
             global_playing: config.global.playback_enabled,
             last_tick: Instant::now(),
             visible_cache: RefCell::default(),
+            groups: config.groups.clone(),
         }
     }
 
@@ -149,7 +166,7 @@ impl Scene {
                 cache.indices.clear();
                 cache
                     .indices
-                    .extend((0..self.entities.len()).filter(|&i| self.entities[i].visible));
+                    .extend((0..self.entities.len()).filter(|&i| self.effective_visible(i)));
                 cache.indices.sort_by_key(|&i| self.entities[i].z_index);
                 cache.valid = true;
             }
@@ -158,11 +175,29 @@ impl Scene {
         cache.indices.iter().map(|&i| &self.entities[i]).collect()
     }
 
-    /// Find the topmost entity at a screen position (reverse z-order)
+    /// Resolve effective visibility for the entity at `idx`, folding
+    /// the entity's own `visible` flag with any owning group's
+    /// `visible` flag (`crate::group::visible_for_member`). Used by
+    /// the visibility cache and the hit-test below so a group hidden
+    /// by the user doesn't catch clicks either.
+    fn effective_visible(&self, idx: usize) -> bool {
+        let entity = &self.entities[idx];
+        if !entity.visible {
+            return false;
+        }
+        if self.groups.is_empty() {
+            return true;
+        }
+        crate::group::visible_for_member(&self.groups, &entity.id, entity.visible)
+    }
+
+    /// Find the topmost entity at a screen position (reverse z-order).
+    /// Honours group visibility — an entity in a hidden group can't
+    /// be clicked.
     pub fn entity_at_point(&self, x: f32, y: f32) -> Option<usize> {
         // Check in reverse z-order (topmost first)
         let mut indices: Vec<usize> = (0..self.entities.len())
-            .filter(|&i| self.entities[i].visible)
+            .filter(|&i| self.effective_visible(i))
             .collect();
         indices.sort_by(|&a, &b| self.entities[b].z_index.cmp(&self.entities[a].z_index));
 
@@ -276,10 +311,13 @@ impl Scene {
     }
 
     /// Remove an entity by index. Returns the removed entity's ID.
+    /// Also scrubs the entity's id from every group's `member_ids`
+    /// so dangling references can't survive — the C.8 invariant.
     pub fn remove_entity(&mut self, index: usize) -> Option<String> {
         if index < self.entities.len() {
             let entity = self.entities.remove(index);
             tracing::info!("Removed entity '{}' ({})", entity.name, entity.id);
+            crate::group::cleanup_after_entity_removal(&mut self.groups, &entity.id);
             self.mark_visible_dirty();
             Some(entity.id)
         } else {
@@ -349,7 +387,7 @@ mod tests {
     use crate::animation::frame::Frame;
     use crate::config::{AssetType, GlobalConfig};
 
-    fn make_entity(id: &str, z: i32, visible: bool) -> Entity {
+    pub(super) fn make_entity(id: &str, z: i32, visible: bool) -> Entity {
         let frame = Frame::new(vec![0u8; 4], 1, 1);
         let anim = Animation::new(vec![frame], 1.0, false);
         let cfg = CharacterConfig {
@@ -375,11 +413,12 @@ mod tests {
         Entity::from_config(&cfg, anim)
     }
 
-    fn empty_scene() -> Scene {
+    pub(super) fn empty_scene() -> Scene {
         let config = AppConfig {
             global: GlobalConfig::default(),
             characters: vec![],
             windows: vec![],
+            groups: vec![],
         };
         Scene::from_config(&config)
     }
@@ -446,5 +485,93 @@ mod tests {
             .map(|e| e.id.as_str())
             .collect();
         assert_eq!(ids, vec!["b"]);
+    }
+}
+
+#[cfg(test)]
+mod groups_tests {
+    use super::tests::{empty_scene, make_entity};
+    use crate::group::GroupConfig;
+
+    fn make_group(id: &str, members: &[&str], visible: bool) -> GroupConfig {
+        GroupConfig {
+            id: id.into(),
+            name: id.into(),
+            member_ids: members.iter().map(|s| (*s).to_string()).collect(),
+            offset_x: 0.0,
+            offset_y: 0.0,
+            scale: 1.0,
+            visible,
+        }
+    }
+
+    /// Member of a hidden group is filtered out of `visible_entities`,
+    /// even though its own `visible` flag is true.
+    #[test]
+    fn hidden_group_hides_its_members() {
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("ghost", 10, true));
+        scene.entities.push(make_entity("cat", 20, true));
+        scene.groups.push(make_group("party", &["ghost"], false));
+        scene.mark_visible_dirty();
+
+        let ids: Vec<&str> = scene
+            .visible_entities()
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["cat"]);
+    }
+
+    /// Removing an entity must scrub its id from every group's
+    /// `member_ids` so dangling references can't survive.
+    #[test]
+    fn remove_entity_cleans_up_group_membership() {
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("ghost", 0, true));
+        scene.entities.push(make_entity("cat", 0, true));
+        scene
+            .groups
+            .push(make_group("party", &["ghost", "cat"], true));
+
+        // remove "ghost" (index 0).
+        scene.remove_entity(0);
+        assert_eq!(scene.groups[0].member_ids, vec!["cat".to_string()]);
+    }
+
+    /// A click on a hidden-by-group entity must NOT select it —
+    /// otherwise the user could pick up sprites they can't see.
+    #[test]
+    fn entity_at_point_skips_hidden_group_members() {
+        let mut scene = empty_scene();
+        // Make ghost large enough to be clickable at (50, 50).
+        let mut ghost = make_entity("ghost", 0, true);
+        // for_test uses x=0, y=0 + a 1-frame Animation. Reposition
+        // by mutating the public field directly.
+        ghost.x = 0.0;
+        ghost.y = 0.0;
+        scene.entities.push(ghost);
+        scene.groups.push(make_group("party", &["ghost"], false));
+
+        // entity_at_point should now skip the ghost even though its
+        // own `visible` is true.
+        assert!(scene.entity_at_point(0.0, 0.0).is_none());
+    }
+
+    /// Empty groups are valid (user just made one but hasn't added
+    /// members yet) — scene loads them without complaint.
+    #[test]
+    fn empty_group_is_no_op_on_visibility() {
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("ghost", 0, true));
+        scene.groups.push(make_group("empty_party", &[], true));
+        scene.mark_visible_dirty();
+
+        let ids: Vec<&str> = scene
+            .visible_entities()
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["ghost"]);
     }
 }

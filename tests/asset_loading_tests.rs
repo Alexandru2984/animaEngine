@@ -387,6 +387,7 @@ fn test_config_new_asset_types_serialize() {
             },
         ],
         windows: vec![],
+        groups: vec![],
     };
 
     // Serialize as full AppConfig (TOML requires a table at the root, not a bare array)

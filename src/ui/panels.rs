@@ -466,6 +466,39 @@ fn scene_tab(
 
     ui.add_space(SPACE_M);
     preset_gallery(ui, scene, selection, config_dirty, is_empty);
+
+    if !scene.groups.is_empty() {
+        ui.add_space(SPACE_L);
+        ui.separator();
+        ui.add_space(SPACE_M);
+        groups_section(ui, scene);
+    }
+}
+
+/// Read-only summary of sprite groups (C.8). Edits go through
+/// `config.toml` hand-editing for now; full inline edit lands with
+/// the C.9 polish that also wires up offset/scale composition in
+/// the renderer.
+fn groups_section(ui: &mut egui::Ui, scene: &Scene) {
+    ui.label(egui::RichText::new(format!("{}  Groups", icons::STACK)).text_style(h2()));
+    ui.add_space(SPACE_S);
+    let body_color = ui.visuals().text_color();
+    let weak = ui.visuals().weak_text_color();
+    for group in &scene.groups {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&group.name).strong().color(body_color));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let visibility_marker = if group.visible { "" } else { " · hidden" };
+                let count = group.member_ids.len();
+                let plural = if count == 1 { "entity" } else { "entities" };
+                ui.label(
+                    egui::RichText::new(format!("{count} {plural}{visibility_marker}"))
+                        .text_style(theme::caption())
+                        .color(weak),
+                );
+            });
+        });
+    }
 }
 
 /// Curated scene presets. Defaults to *open* when the scene is empty

@@ -192,6 +192,12 @@ pub struct AppConfig {
     /// so we never silently drop user entities.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub windows: Vec<WindowConfig>,
+    /// Sprite groups (C.8). Empty for the legacy/0.2 path. Each
+    /// `GroupConfig` carries a stable id and a list of member entity
+    /// ids; composition rules (offset, scale, visibility) are
+    /// applied at render / visibility-resolve time.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<crate::group::GroupConfig>,
 }
 
 impl AppConfig {
@@ -330,6 +336,7 @@ impl Default for AppConfig {
             // multi-window is opt-in via UI / hand-edit (data layer ready
             // in C.3, render-side dispatch coming in 0.4).
             windows: vec![],
+            groups: vec![],
         }
     }
 }
@@ -480,6 +487,7 @@ mod windows_tests {
             global: GlobalConfig::default(),
             characters: vec![empty_char("ghost")],
             windows: vec![],
+            groups: vec![],
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 1);
@@ -494,6 +502,7 @@ mod windows_tests {
         let cfg = AppConfig {
             global: GlobalConfig::default(),
             characters: vec![empty_char("ghost")],
+            groups: vec![],
             windows: vec![
                 WindowConfig {
                     id: "main".into(),
@@ -526,6 +535,7 @@ mod windows_tests {
             global: GlobalConfig::default(),
             characters: vec![],
             windows: vec![],
+            groups: vec![],
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 1);
