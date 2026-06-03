@@ -25,6 +25,13 @@ fi
 log "Building Debian package…"
 mkdir -p build
 
+# Rasterize the SVG into the discrete hicolor sizes BEFORE cargo-deb
+# reads the assets — Cargo.toml [package.metadata.deb].assets
+# references build/icons/<size>/anima-engine.png paths directly, so
+# they must exist on disk by the time `cargo deb` runs.
+log "Rendering icon PNGs…"
+"$REPO/scripts/render-icons.sh"
+
 # `cargo deb` rebuilds in release mode and reads
 # [package.metadata.deb] for everything else. Output ends up at
 # target/debian/. We move it to build/ for parity with the AppImage path.

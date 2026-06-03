@@ -6,6 +6,43 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-06-03
+
+Patch release. The 0.3.0 `.deb` shipped only the scalable SVG at
+`/usr/share/icons/hicolor/scalable/apps/`, which Yaru, Adwaita, and
+most other freedesktop themes look at only **after** they've walked
+their own discrete-size buckets. End result: an entry in the GNOME
+app launcher with the right *name* but no icon.
+
+### Fixed
+
+- **Pre-rasterized icons land at 16 / 24 / 32 / 48 / 64 / 128 / 256
+  px** under `/usr/share/icons/hicolor/<size>/apps/anima-engine.png`.
+  Every freedesktop-spec resolver picks one up before falling back
+  to the SVG; GNOME shows the icon in launcher / dock / Activities.
+- **`scripts/render-icons.sh`** is the new canonical rasterizer
+  (prefers `rsvg-convert`, falls back to Inkscape, then ImageMagick).
+  `make icons` runs it explicitly; `make install`,
+  `scripts/build-deb.sh`, and AppImage staging all depend on it
+  implicitly so `.deb` / AppImage / `make install` ship the PNGs
+  out of the box.
+- **`make install` and `make uninstall` refresh
+  `gtk-update-icon-cache`** so the icon shows up without a logout.
+
+### Notes for 0.3.0 downloaders
+
+If your 0.3.0 install already shows a proper icon in the launcher,
+you don't need this update — your desktop happened to find the SVG
+on its first lookup pass. If the launcher entry shows the app name
+but no icon (the GNOME / Ubuntu default), grab the 0.3.1 `.deb`:
+
+```bash
+sudo apt install ./anima-engine_0.3.1-1_amd64.deb
+```
+
+`apt` upgrades 0.3.0 → 0.3.1 in place; your config at
+`~/.config/animaEngine/config.toml` is untouched.
+
 ## [0.3.0] — 2026-06-03
 
 Faza C — **engine polish**. Ten sub-phases across multi-monitor,

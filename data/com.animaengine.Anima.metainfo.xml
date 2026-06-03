@@ -57,6 +57,16 @@
   </recommends>
 
   <releases>
+    <release version="0.3.1" date="2026-06-03">
+      <description>
+        <p>Patch release fixing a missing app-launcher icon on GNOME/Yaru and any other desktop that resolves icons through hicolor's discrete-size lookup before falling back to scalable/.</p>
+        <ul>
+          <li>Ship pre-rasterized PNGs at 16/24/32/48/64/128/256 px alongside the scalable SVG.</li>
+          <li>Makefile install + cargo-deb assets pick them up automatically; build-deb.sh runs the new render-icons.sh first.</li>
+          <li>gtk-update-icon-cache refresh wired into make install / uninstall.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-06-03">
       <description>
         <p>Faza C — engine polish. Ten sub-phases across multi-monitor, multi-window data, asset library, behavior expansion, animation curves, and sprite groups.</p>

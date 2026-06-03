@@ -17,12 +17,14 @@ DESTDIR ?=
 BINDIR     := $(DESTDIR)$(PREFIX)/bin
 APPDIR     := $(DESTDIR)$(PREFIX)/share/applications
 ICONDIR    := $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps
+ICONROOT   := $(DESTDIR)$(PREFIX)/share/icons/hicolor
 METAINFODIR:= $(DESTDIR)$(PREFIX)/share/metainfo
+ICON_SIZES := 16 24 32 48 64 128 256
 
 BINARY := target/release/anima_engine
 APPID  := com.animaengine.Anima
 
-.PHONY: all release install uninstall validate appimage deb flatpak clean-build
+.PHONY: all release install uninstall validate appimage deb flatpak clean-build icons
 
 all: release
 
@@ -49,24 +51,43 @@ clean-build:
 	rm -rf build/AppDir build/animaEngine-*.AppImage build/anima-engine_*.deb \
 	       build/com.animaengine.Anima.flatpak build/flatpak-*
 
-install: $(BINARY)
+install: $(BINARY) icons
 	install -Dm0755 $(BINARY)                              $(BINDIR)/anima-engine
 	install -Dm0644 data/anima-engine.desktop              $(APPDIR)/anima-engine.desktop
 	install -Dm0644 data/anima-engine.svg                  $(ICONDIR)/anima-engine.svg
+	@for size in $(ICON_SIZES); do \
+		install -Dm0644 build/icons/$$size/anima-engine.png \
+		  $(ICONROOT)/$${size}x$${size}/apps/anima-engine.png; \
+	done
 	install -Dm0644 data/$(APPID).metainfo.xml             $(METAINFODIR)/$(APPID).metainfo.xml
 	@if [ -z "$(DESTDIR)" ] && command -v update-desktop-database >/dev/null 2>&1; then \
 		update-desktop-database -q $(APPDIR) || true; \
 	fi
+	@if [ -z "$(DESTDIR)" ] && command -v gtk-update-icon-cache >/dev/null 2>&1; then \
+		gtk-update-icon-cache -q -t -f $(ICONROOT) 2>/dev/null || true; \
+	fi
 	@echo "Installed under $(PREFIX)."
 	@echo "Run: anima-engine"
+
+# Rasterize the SVG into the discrete hicolor sizes. Idempotent; runs
+# automatically as part of `make install`, and triggered explicitly
+# by `scripts/build-deb.sh` before cargo-deb reads the assets.
+icons:
+	scripts/render-icons.sh
 
 uninstall:
 	rm -f $(BINDIR)/anima-engine
 	rm -f $(APPDIR)/anima-engine.desktop
 	rm -f $(ICONDIR)/anima-engine.svg
+	@for size in $(ICON_SIZES); do \
+		rm -f $(ICONROOT)/$${size}x$${size}/apps/anima-engine.png; \
+	done
 	rm -f $(METAINFODIR)/$(APPID).metainfo.xml
 	@if command -v update-desktop-database >/dev/null 2>&1; then \
 		update-desktop-database -q $(APPDIR) || true; \
+	fi
+	@if command -v gtk-update-icon-cache >/dev/null 2>&1; then \
+		gtk-update-icon-cache -q -t -f $(ICONROOT) 2>/dev/null || true; \
 	fi
 
 # Lint the metadata files before shipping. Both validators are widely

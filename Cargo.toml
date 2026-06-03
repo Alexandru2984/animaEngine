@@ -1,6 +1,6 @@
 [package]
 name = "anima_engine"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "Linux-first animated desktop overlay engine — render multiple animated characters over your desktop"
 license = "MIT"
@@ -31,7 +31,20 @@ depends = "$auto, libgl1, libvulkan1, libxkbcommon-x11-0"
 assets = [
     ["target/release/anima_engine", "usr/bin/anima-engine", "755"],
     ["data/anima-engine.desktop", "usr/share/applications/", "644"],
+    # SVG for scalable rendering + pre-rasterized PNGs at the seven
+    # discrete sizes every freedesktop-spec icon resolver looks up
+    # (Yaru / Adwaita / Breeze / Papirus all walk hicolor/<N>x<N>/
+    # before falling back to scalable/). The PNGs are produced by
+    # scripts/render-icons.sh on each `make deb`; if you build the
+    # .deb manually with cargo-deb, run that script first.
     ["data/anima-engine.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["build/icons/16/anima-engine.png", "usr/share/icons/hicolor/16x16/apps/", "644"],
+    ["build/icons/24/anima-engine.png", "usr/share/icons/hicolor/24x24/apps/", "644"],
+    ["build/icons/32/anima-engine.png", "usr/share/icons/hicolor/32x32/apps/", "644"],
+    ["build/icons/48/anima-engine.png", "usr/share/icons/hicolor/48x48/apps/", "644"],
+    ["build/icons/64/anima-engine.png", "usr/share/icons/hicolor/64x64/apps/", "644"],
+    ["build/icons/128/anima-engine.png", "usr/share/icons/hicolor/128x128/apps/", "644"],
+    ["build/icons/256/anima-engine.png", "usr/share/icons/hicolor/256x256/apps/", "644"],
     ["data/com.animaengine.Anima.metainfo.xml", "usr/share/metainfo/", "644"],
     ["README.md", "usr/share/doc/anima-engine/", "644"],
 ]
