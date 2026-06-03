@@ -44,6 +44,18 @@ scene-preset-append = Append
 scene-preset-replace = Replace
 scene-preset-replace-tooltip = Wipes the current scene before adding
 
+# ── Monitor / scene distribution ──────────────────────────────────────
+monitor-section-header = Monitors
+monitor-mode-label = Distribution
+monitor-mode-per-monitor = Per monitor
+monitor-mode-span = Span all monitors
+monitor-mode-single = Single monitor
+monitor-pin-label = Pin to monitor
+monitor-pin-auto = Auto (follow position)
+monitor-pinned-toast = Entity pinned to { $name }
+monitor-pin-cleared-toast = Entity now follows its position
+monitor-no-monitors-detected = No monitors detected
+
 # ── Appearance tab ────────────────────────────────────────────────────
 appearance-theme-header = Theme
 appearance-theme-label = Theme

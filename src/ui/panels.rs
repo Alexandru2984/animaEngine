@@ -9,6 +9,7 @@ use crate::behavior::Behavior;
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::i18n::t;
 use crate::input::selection::SelectionState;
+use crate::monitor::{MonitorInfo, MonitorMode};
 use crate::presets::{self, ApplyMode, Preset, PresetId};
 use crate::scene::Scene;
 use crate::ui::anim;
@@ -76,6 +77,7 @@ impl SettingsTab {
 /// Mutations flow directly through the supplied mutable references;
 /// `config_dirty` is set when anything changes so the save-on-exit-
 /// edit-mode path picks them up.
+#[allow(clippy::too_many_arguments)]
 pub fn settings(
     ctx: &egui::Context,
     scene: &mut Scene,
@@ -84,6 +86,8 @@ pub fn settings(
     theme: &mut Theme,
     locale: &mut Option<String>,
     onboarding: &mut OnboardingProgress,
+    monitor_mode: &mut MonitorMode,
+    monitors: &[MonitorInfo],
 ) {
     egui::SidePanel::right("anima_settings")
         .resizable(false)
@@ -142,10 +146,10 @@ pub fn settings(
                     ui.set_opacity(tab_alpha);
                     match active_tab {
                         SettingsTab::Inspector => {
-                            inspector_tab(ui, scene, selection, config_dirty, onboarding);
+                            inspector_tab(ui, scene, selection, config_dirty, onboarding, monitors);
                         }
                         SettingsTab::Scene => {
-                            scene_tab(ui, scene, selection, config_dirty);
+                            scene_tab(ui, scene, selection, config_dirty, monitor_mode, monitors);
                         }
                         SettingsTab::Appearance => {
                             appearance_tab(ui, theme, locale, config_dirty, onboarding);
@@ -168,6 +172,169 @@ pub fn settings(
                 });
             });
         });
+}
+
+// ─── monitor pickers ────────────────────────────────────────────────
+
+/// Scene-tab section that picks the global monitor distribution
+/// (`PerMonitor` / `Span` / `Single { name }`). Returns nothing —
+/// flips `config_dirty` directly on change.
+fn monitor_mode_picker(
+    ui: &mut egui::Ui,
+    mode: &mut MonitorMode,
+    monitors: &[MonitorInfo],
+    config_dirty: &mut bool,
+) {
+    ui.label(egui::RichText::new(t("monitor-section-header")).text_style(h2()));
+    ui.add_space(SPACE_S);
+
+    if monitors.is_empty() {
+        ui.label(
+            egui::RichText::new(t("monitor-no-monitors-detected"))
+                .text_style(theme::caption())
+                .weak(),
+        );
+        return;
+    }
+
+    ui.horizontal(|ui| {
+        ui.label(t("monitor-mode-label"));
+        egui::ComboBox::from_id_salt("anima.monitor.mode")
+            .selected_text(monitor_mode_label_localised(mode))
+            .show_ui(ui, |ui| {
+                let mut new_mode = mode.clone();
+                if ui
+                    .selectable_label(
+                        matches!(mode, MonitorMode::PerMonitor),
+                        t("monitor-mode-per-monitor"),
+                    )
+                    .clicked()
+                {
+                    new_mode = MonitorMode::PerMonitor;
+                }
+                if ui
+                    .selectable_label(matches!(mode, MonitorMode::Span), t("monitor-mode-span"))
+                    .clicked()
+                {
+                    new_mode = MonitorMode::Span;
+                }
+                // Single-mode requires a named monitor; offer one entry
+                // per monitor so the user picks both the mode and the
+                // target in one click.
+                for m in monitors {
+                    let is_current =
+                        matches!(mode, MonitorMode::Single { name } if name == &m.name);
+                    let label = format!("{} — {}", t("monitor-mode-single"), m.name);
+                    if ui.selectable_label(is_current, label).clicked() {
+                        new_mode = MonitorMode::Single {
+                            name: m.name.clone(),
+                        };
+                    }
+                }
+                if &new_mode != mode {
+                    *mode = new_mode;
+                    *config_dirty = true;
+                }
+            });
+    });
+
+    // Compact list of detected monitors for orientation.
+    ui.add_space(SPACE_S);
+    ui.label(
+        egui::RichText::new(monitor_topology_summary(monitors))
+            .text_style(theme::caption())
+            .weak(),
+    );
+}
+
+/// Inspector picker for the per-entity monitor pin. Returns `true`
+/// when the user changed the selection.
+fn entity_monitor_picker(
+    ui: &mut egui::Ui,
+    pin: &mut Option<String>,
+    monitors: &[MonitorInfo],
+) -> bool {
+    if monitors.is_empty() {
+        return false;
+    }
+    let mut changed = false;
+    let active_label = match pin {
+        None => t("monitor-pin-auto"),
+        Some(name) => name.clone(),
+    };
+    ui.horizontal(|ui| {
+        ui.label(t("monitor-pin-label"));
+        egui::ComboBox::from_id_salt("anima.entity.monitor")
+            .selected_text(active_label)
+            .show_ui(ui, |ui| {
+                if ui
+                    .selectable_label(pin.is_none(), t("monitor-pin-auto"))
+                    .clicked()
+                    && pin.is_some()
+                {
+                    *pin = None;
+                    changed = true;
+                }
+                for m in monitors {
+                    let is_current = pin.as_deref() == Some(m.name.as_str());
+                    if ui.selectable_label(is_current, &m.name).clicked() && !is_current {
+                        *pin = Some(m.name.clone());
+                        changed = true;
+                    }
+                }
+            });
+    });
+    changed
+}
+
+/// Cycle the entity's monitor pin in declaration order. Used by the
+/// `Ctrl+M` hotkey. Returns the localised toast message describing
+/// the new state, so the caller can dispatch it.
+///
+/// Cycle: `None` → first monitor → second → … → last → `None`.
+pub fn cycle_entity_monitor(pin: &mut Option<String>, monitors: &[MonitorInfo]) -> String {
+    if monitors.is_empty() {
+        return t("monitor-no-monitors-detected");
+    }
+    let next = match pin.as_deref() {
+        None => Some(monitors[0].name.clone()),
+        Some(current) => match monitors.iter().position(|m| m.name == current) {
+            // Currently pinned to a monitor that no longer exists →
+            // restart the cycle from the first available.
+            None => Some(monitors[0].name.clone()),
+            Some(i) if i + 1 < monitors.len() => Some(monitors[i + 1].name.clone()),
+            // Last monitor → wrap to auto.
+            Some(_) => None,
+        },
+    };
+    *pin = next.clone();
+    match next {
+        Some(n) => {
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", n);
+            crate::i18n::t_args("monitor-pinned-toast", &args)
+        }
+        None => t("monitor-pin-cleared-toast"),
+    }
+}
+
+fn monitor_mode_label_localised(mode: &MonitorMode) -> String {
+    match mode {
+        MonitorMode::PerMonitor => t("monitor-mode-per-monitor"),
+        MonitorMode::Span => t("monitor-mode-span"),
+        MonitorMode::Single { name } => format!("{} — {name}", t("monitor-mode-single")),
+    }
+}
+
+fn monitor_topology_summary(monitors: &[MonitorInfo]) -> String {
+    monitors
+        .iter()
+        .map(|m| {
+            let marker = if m.is_primary { " *" } else { "" };
+            format!("{}{} ({}×{})", m.name, marker, m.width, m.height)
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
 /// Subtle 2s-cycle pulse for the selected scene-list row. Range
@@ -205,6 +372,7 @@ fn inspector_tab(
     selection: &mut SelectionState,
     config_dirty: &mut bool,
     onboarding: &mut OnboardingProgress,
+    monitors: &[MonitorInfo],
 ) {
     let selected_idx = selection.selected_index();
     match selected_idx.and_then(|idx| scene.entities.get_mut(idx).map(|e| (idx, e))) {
@@ -218,7 +386,7 @@ fn inspector_tab(
             ) {
                 *config_dirty = true;
             }
-            let changed = entity_inspector(ui, entity);
+            let changed = entity_inspector(ui, entity, monitors);
             if changed.any() {
                 *config_dirty = true;
             }
@@ -240,7 +408,15 @@ fn scene_tab(
     scene: &mut Scene,
     selection: &mut SelectionState,
     config_dirty: &mut bool,
+    monitor_mode: &mut MonitorMode,
+    monitors: &[MonitorInfo],
 ) {
+    // ── Monitor distribution section ─────────────────────────────────
+    monitor_mode_picker(ui, monitor_mode, monitors, config_dirty);
+    ui.add_space(SPACE_L);
+    ui.separator();
+    ui.add_space(SPACE_M);
+
     let is_empty = scene.entities.is_empty();
 
     if is_empty {
@@ -522,7 +698,11 @@ impl EntityChange {
     }
 }
 
-fn entity_inspector(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> EntityChange {
+fn entity_inspector(
+    ui: &mut egui::Ui,
+    entity: &mut crate::entity::Entity,
+    monitors: &[MonitorInfo],
+) -> EntityChange {
     let mut change = EntityChange::default();
 
     // ── Header: entity name + id ──────────────────────────────────────
@@ -581,6 +761,11 @@ fn entity_inspector(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> En
                 change.touches_visibility_or_z_order = true;
             }
         });
+        // Monitor pin lives in the Position section because it's
+        // conceptually a 3rd axis: x / y / which-screen.
+        if entity_monitor_picker(ui, &mut entity.monitor, monitors) {
+            change.any_field = true;
+        }
     });
 
     section(ui, "Appearance", true, |ui| {
@@ -1190,4 +1375,84 @@ pub fn toggle_button(ctx: &egui::Context, edit_mode: bool) -> bool {
             }
         });
     clicked
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn two_monitors() -> Vec<MonitorInfo> {
+        vec![
+            MonitorInfo {
+                name: "eDP-1".into(),
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+                scale_factor: 1.0,
+                is_primary: true,
+            },
+            MonitorInfo {
+                name: "HDMI-A-1".into(),
+                x: 1920,
+                y: 0,
+                width: 2560,
+                height: 1440,
+                scale_factor: 1.5,
+                is_primary: false,
+            },
+        ]
+    }
+
+    #[test]
+    fn cycle_from_none_picks_first_monitor() {
+        let monitors = two_monitors();
+        let mut pin = None;
+        cycle_entity_monitor(&mut pin, &monitors);
+        assert_eq!(pin.as_deref(), Some("eDP-1"));
+    }
+
+    #[test]
+    fn cycle_walks_in_declaration_order() {
+        let monitors = two_monitors();
+        let mut pin = Some("eDP-1".to_string());
+        cycle_entity_monitor(&mut pin, &monitors);
+        assert_eq!(pin.as_deref(), Some("HDMI-A-1"));
+    }
+
+    #[test]
+    fn cycle_wraps_from_last_to_none() {
+        let monitors = two_monitors();
+        let mut pin = Some("HDMI-A-1".to_string());
+        cycle_entity_monitor(&mut pin, &monitors);
+        assert!(pin.is_none(), "expected wrap to None, got {pin:?}");
+    }
+
+    #[test]
+    fn cycle_on_stale_pin_restarts_from_first() {
+        let monitors = two_monitors();
+        let mut pin = Some("DP-99".to_string()); // not in monitors
+        cycle_entity_monitor(&mut pin, &monitors);
+        assert_eq!(pin.as_deref(), Some("eDP-1"));
+    }
+
+    #[test]
+    fn cycle_with_no_monitors_keeps_pin_unchanged() {
+        let empty: Vec<MonitorInfo> = vec![];
+        let mut pin = Some("eDP-1".to_string());
+        let toast = cycle_entity_monitor(&mut pin, &empty);
+        assert_eq!(pin.as_deref(), Some("eDP-1"));
+        // Toast should mention the no-monitors state (resolves via i18n
+        // fallback if i18n hasn't been initialised in the test runner).
+        assert!(!toast.is_empty());
+    }
+
+    #[test]
+    fn topology_summary_marks_primary() {
+        let monitors = two_monitors();
+        let summary = monitor_topology_summary(&monitors);
+        // Primary monitor gets an asterisk marker; the other one doesn't.
+        assert!(summary.contains("eDP-1 *"));
+        assert!(!summary.contains("HDMI-A-1 *"));
+    }
 }

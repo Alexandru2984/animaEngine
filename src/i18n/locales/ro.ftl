@@ -38,6 +38,17 @@ scene-preset-append = Adaugă
 scene-preset-replace = Înlocuiește
 scene-preset-replace-tooltip = Șterge scena curentă înainte să adauge
 
+monitor-section-header = Monitoare
+monitor-mode-label = Distribuție
+monitor-mode-per-monitor = Pe fiecare monitor
+monitor-mode-span = Întinde pe toate monitoarele
+monitor-mode-single = Un singur monitor
+monitor-pin-label = Pinează pe monitor
+monitor-pin-auto = Auto (urmează poziția)
+monitor-pinned-toast = Entitate pinată pe { $name }
+monitor-pin-cleared-toast = Entitatea urmează acum poziția
+monitor-no-monitors-detected = Niciun monitor detectat
+
 appearance-theme-header = Temă
 appearance-theme-label = Temă
 appearance-language-header = Limbă

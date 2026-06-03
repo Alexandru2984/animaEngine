@@ -38,6 +38,17 @@ scene-preset-append = 追加
 scene-preset-replace = 置換
 scene-preset-replace-tooltip = 追加前に現在のシーンを消去します
 
+monitor-section-header = モニター
+monitor-mode-label = 配分
+monitor-mode-per-monitor = モニター毎
+monitor-mode-span = 全モニターにまたがって表示
+monitor-mode-single = 単一モニター
+monitor-pin-label = モニターに固定
+monitor-pin-auto = 自動 (位置に従う)
+monitor-pinned-toast = エンティティを { $name } に固定しました
+monitor-pin-cleared-toast = エンティティは位置に従います
+monitor-no-monitors-detected = モニターが検出されません
+
 appearance-theme-header = テーマ
 appearance-theme-label = テーマ
 appearance-language-header = 言語

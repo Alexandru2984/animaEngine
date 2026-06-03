@@ -51,6 +51,9 @@ pub struct App {
     edit_mode: bool,
     /// Whether Shift key is currently held (for fine control)
     shift_held: bool,
+    /// Whether Ctrl key is currently held (used for Ctrl+M monitor cycle
+    /// and any future Ctrl-modified shortcut).
+    ctrl_held: bool,
     /// Pooled X11 input manager (holds a single X11 connection)
     x11_input: Option<X11InputManager>,
     /// Last time we checked config file for hot-reload
@@ -112,6 +115,7 @@ impl App {
             config_dirty: false,
             edit_mode: false,
             shift_held: false,
+            ctrl_held: false,
             x11_input: None,
             last_config_check: Instant::now(),
             config_mtime: Self::get_config_mtime(),
@@ -750,6 +754,8 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 let theme_mut = &mut self.config.global.theme;
                                 let locale_mut = &mut self.config.global.locale;
                                 let onboarding_mut = &mut self.config.global.onboarding;
+                                let monitor_mode_mut = &mut self.config.global.monitor_mode;
+                                let monitors_ref = self.monitors.as_slice();
                                 let toasts_ref = &self.toasts;
                                 let menu_state = self.ui_state.context_menu.clone();
                                 let menu_outcome_ref = &mut menu_outcome;
@@ -780,6 +786,8 @@ impl ApplicationHandler<AnimaEvent> for App {
                                                 theme_mut,
                                                 locale_mut,
                                                 onboarding_mut,
+                                                monitor_mode_mut,
+                                                monitors_ref,
                                             );
                                             if let Some(state) = &menu_state {
                                                 *menu_outcome_ref =
@@ -1180,6 +1188,18 @@ impl ApplicationHandler<AnimaEvent> for App {
                         self.config_dirty = true;
                     }
                 }
+                // Ctrl+M: cycle the selected entity's monitor pin.
+                // Bare 'm' is reserved for future use.
+                winit::keyboard::Key::Character("m") if self.ctrl_held => {
+                    if let Some(idx) = self.selection.selected_index() {
+                        if let Some(entity) = self.scene.entities.get_mut(idx) {
+                            let toast =
+                                panels::cycle_entity_monitor(&mut entity.monitor, &self.monitors);
+                            self.toasts.info(toast);
+                            self.config_dirty = true;
+                        }
+                    }
+                }
                 // I: show entity info
                 winit::keyboard::Key::Character("i") => {
                     if let Some(idx) = self.selection.selected_index() {
@@ -1299,9 +1319,10 @@ impl ApplicationHandler<AnimaEvent> for App {
                 tracing::debug!("File hovering: {}", path.display());
             }
 
-            // Track modifier keys (Shift for fine nudge)
+            // Track modifier keys (Shift for fine nudge, Ctrl for Ctrl+M)
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.shift_held = modifiers.state().shift_key();
+                self.ctrl_held = modifiers.state().control_key();
             }
 
             _ => {}

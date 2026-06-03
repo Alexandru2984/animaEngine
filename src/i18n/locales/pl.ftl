@@ -38,6 +38,17 @@ scene-preset-append = Dodaj
 scene-preset-replace = Zastąp
 scene-preset-replace-tooltip = Wyczyści obecną scenę przed dodaniem
 
+monitor-section-header = Monitory
+monitor-mode-label = Dystrybucja
+monitor-mode-per-monitor = Na każdym monitorze
+monitor-mode-span = Rozciągnij na wszystkich monitorach
+monitor-mode-single = Pojedynczy monitor
+monitor-pin-label = Przypnij do monitora
+monitor-pin-auto = Auto (śledź pozycję)
+monitor-pinned-toast = Element przypięty do { $name }
+monitor-pin-cleared-toast = Element teraz śledzi swoją pozycję
+monitor-no-monitors-detected = Nie wykryto żadnych monitorów
+
 appearance-theme-header = Motyw
 appearance-theme-label = Motyw
 appearance-language-header = Język
