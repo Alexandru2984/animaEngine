@@ -299,6 +299,15 @@ impl Scene {
     /// the preset gallery (`presets::apply_to_scene`) when the user
     /// picks "Replace". Failed loads fall back to a placeholder so a
     /// missing asset can't strand the preset application midway.
+    ///
+    /// SECURITY: this entry point assumes `configs` come from a trusted
+    /// in-binary source (hardcoded `Preset::for_id` rosters). Each
+    /// `CharacterConfig::asset_path` is fed to `load_asset` without
+    /// going through `app::pre_validate_dropped_file`. If you wire a
+    /// future "import scene from URL / external file" path into this
+    /// method, you MUST run the same drag-drop validation (extension
+    /// whitelist, byte cap, frame cap) on every `asset_path` first, or
+    /// route it through `add_entity_from_path` per character instead.
     pub fn reset_to_configs(&mut self, configs: &[CharacterConfig]) {
         self.entities.clear();
         for cfg in configs {
@@ -320,6 +329,10 @@ impl Scene {
     /// path of `add_entity_from_path` but skips the path-resolution +
     /// type-detection dance because the caller already has a finished
     /// `CharacterConfig` (a preset, a hot-reload result, etc.).
+    ///
+    /// SECURITY: same trust assumption as `reset_to_configs` above —
+    /// `cfg.asset_path` is loaded as-is, with no whitelist or size
+    /// pre-check. Today every caller passes a hardcoded preset config.
     pub fn append_character_config(&mut self, cfg: &CharacterConfig) -> Result<()> {
         let entity = Self::load_entity(cfg)?;
         self.entities.push(entity);

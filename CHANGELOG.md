@@ -29,6 +29,31 @@ already pull in `libxkbcommon-x11-0` transitively.
   `build`, and `smoke` jobs so the smoke test under Xvfb actually
   reaches the event loop.
 
+### Security hardening (from the post-Faza A audit)
+
+- **AT-SPI exposure documented** in [`docs/threat-model.md`](
+  docs/threat-model.md). The AccessKit bridge enabled in 0.2.0
+  broadcasts every egui widget label and the Ctrl+K palette query
+  on the session bus. Same-UID processes were already in the trust
+  boundary; the note makes the *what* visible. Opt-out path is to
+  depend on `egui-winit` without the `accesskit` feature and rebuild.
+- **Locale rejection now logs** via `tracing::warn!` in
+  `i18n::init` (when `config.toml` carries an unknown code) and
+  `i18n::set_locale` (when a direct caller passes a non-SUPPORTED
+  code). Silent fall-back masked tampering before.
+- **SECURITY-tagged comment** added to `Scene::reset_to_configs`
+  and `Scene::append_character_config` documenting that callers
+  must pre-validate `asset_path` if it comes from outside the
+  hardcoded preset set. No code change — preserves the
+  drag-drop-validation invariant from 0.1.0's Faza B.
+- **AppImage reproducibility envelope** documented and a pinned
+  build container shipped at
+  [`packaging/Dockerfile.appimage-builder`](
+  packaging/Dockerfile.appimage-builder). Maintainers building
+  inside the container produce byte-identical artefacts; building
+  on a different host is expected to differ from our published
+  SHA256SUMS.
+
 ### Notes for 0.2.0 downloaders
 
 If your 0.2.0 install runs fine, you don't have to upgrade — your

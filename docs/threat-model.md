@@ -104,6 +104,36 @@ is a piece of attack surface the way `Activate` is small. If something
 needs to be richer, design it as a separate object path with
 authentication.
 
+### D-Bus accessibility tree (AT-SPI) — opt-out only
+
+Since 0.2.0 (Faza A.9) we enable the `accesskit` feature on
+`egui-winit`, which makes Linux screen readers like Orca work without
+extra plumbing. The mechanism is `accesskit_unix` registering an
+`org.a11y.atspi.*` object on the session bus. **Every egui widget
+label, hover text, focus event, and `TextEdit` keystroke is broadcast
+on that bus** so assistive technologies can read them.
+
+What this widens, vs. pre-0.2.0:
+
+- The Ctrl+K command-palette query is published character by character
+  as the user types. A user who pastes a secret into the palette by
+  mistake exposes it to any same-UID process subscribed to AT-SPI.
+- Settings sidebar text (entity names, theme labels, scene list rows)
+  appears in the AT-SPI tree.
+
+What it does *not* widen:
+
+- The single-method invariant above still holds — `com.animaengine.Anima`
+  has only `Activate`. AT-SPI is a separate, standards-required surface
+  registered under `org.a11y.atspi.*` by AccessKit, not by us.
+- Same-UID processes were already in the trust boundary (see "Trusted
+  local user" below). AT-SPI does not extend access to a different UID.
+
+**Operators who need to disable this** (e.g. a kiosk with no AT
+requirements) can depend on `egui-winit` without the `accesskit`
+feature and rebuild. A future release may expose this as a runtime
+config flag.
+
 ### No network
 
 The binary never makes outbound network connections. No telemetry,
@@ -182,6 +212,33 @@ correctness preview, not a hardened production target.
   `cache::deserialize_frames`, `video_loader::avcc_to_annex_b`, and
   the `image` crate's GIF/WebP paths. Targets are tracked as a
   post-0.1.0 task.
+
+## Build reproducibility
+
+The `.deb` is reproducible: `cargo-deb` consumes the committed
+`Cargo.lock` and a deterministic set of metadata fields, so two
+maintainers building the same git tag on the same Rust toolchain
+produce byte-identical packages.
+
+The **AppImage** is *not* byte-reproducible by default — its bundled
+`libxkbcommon-x11.so.0` is whatever the build host's `ldconfig` returns,
+which differs across Ubuntu point releases and across distros. To
+narrow this:
+
+- A pinned build container ships at [`packaging/Dockerfile.appimage-builder`](
+  ../packaging/Dockerfile.appimage-builder). Building inside that image
+  ensures every maintainer produces the same artefact.
+- The `SHA256SUMS-vX.Y.Z.txt` we publish in GitHub Releases is the
+  hash *of the image-built AppImage*. Reproducing on a different host
+  is expected to differ; reproducing inside the container should match.
+- We do not yet sign the artefacts. When that lands, the signature
+  will cover the published binary, not the build process.
+
+If you're producing an AppImage for redistribution, please build inside
+the container or document your build host clearly. A user who downloads
+our SHA256SUMS file and reproduces locally with `make appimage` on a
+different distro **will** get a different hash, and that's expected
+behaviour, not tampering.
 
 ## Reporting
 

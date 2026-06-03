@@ -1,0 +1,74 @@
+# Reproducible build environment for the animaEngine AppImage.
+#
+# We pin Ubuntu 22.04 as the build base for three reasons:
+#
+# 1. glibc 2.35 — the AppImage will run on any distro shipping a glibc
+#    ≥ this (every supported Debian/Ubuntu/Fedora/Arch release in
+#    2026 satisfies that).
+# 2. libxkbcommon-x11 sha256 is stable per Ubuntu release pocket; building
+#    against the same base means the bundled .so is byte-identical
+#    across maintainer machines (M2 from the 0.2.1 security audit).
+# 3. linuxdeploy + appimagetool both work cleanly on this base.
+#
+# Build the image once:
+#
+#     docker build -f packaging/Dockerfile.appimage-builder -t anima-appimage .
+#
+# Then produce the AppImage with the repo bind-mounted:
+#
+#     docker run --rm -v "$(pwd)":/work -w /work anima-appimage make appimage
+#
+# The output lands in build/animaEngine-<version>-x86_64.AppImage with
+# byte-for-byte the same dependencies as any other maintainer who runs
+# this image. CI can use the same image to verify reproducibility.
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Pin apt snapshot date so package versions don't drift between builds
+# of the same image tag. (Comment out if your apt mirror doesn't
+# support snapshot URLs — falls back to whatever's current.)
+#
+#   ARG APT_SNAPSHOT=20260601T000000Z
+#   RUN sed -i "s|http://archive.ubuntu.com/ubuntu/|http://snapshot.ubuntu.com/ubuntu/${APT_SNAPSHOT}/|g" /etc/apt/sources.list
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        curl \
+        ca-certificates \
+        file \
+        # System libs animaEngine links against (or dlopens)
+        libvulkan-dev \
+        libx11-dev \
+        libxcb1-dev \
+        libxkbcommon-dev \
+        libxkbcommon-x11-dev \
+        libwayland-dev \
+        libxrandr-dev \
+        # AppImage tooling fetches linuxdeploy on demand; these are its
+        # runtime requirements
+        fuse \
+        libfuse2 \
+        # Stripping + readelf for build verification
+        binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install rustup + a pinned Rust toolchain. Bump these together when we
+# move to a new Rust release; the AppImage hash will then change once,
+# deliberately, on the next docker build.
+ARG RUST_VERSION=1.96.0
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --default-toolchain "${RUST_VERSION}" --profile minimal \
+    && /root/.cargo/bin/rustup --version
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Cargo caches inside the image (warm cache) so the first `docker run`
+# isn't a cold rebuild of every dep. The bind-mounted /work brings the
+# source; target/ stays inside the container.
+ENV CARGO_TARGET_DIR=/work/target
+
+# `make appimage` is the entry point; override at runtime if needed.
+CMD ["make", "appimage"]

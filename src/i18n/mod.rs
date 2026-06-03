@@ -78,6 +78,19 @@ static STATE: OnceLock<RwLock<State>> = OnceLock::new();
 /// twice is a no-op (the second locale wins anyway via
 /// [`set_locale`]).
 pub fn init(requested: Option<&str>) {
+    // Reject an explicit `requested` code that isn't supported, but log
+    // it — a config tampered with (or a typo'd CLI flag) shouldn't
+    // silently fall back. The env-var path is intentionally quieter
+    // because `LANG=fr_FR.UTF-8` on a non-French build is normal user
+    // behaviour, not an anomaly.
+    if let Some(code) = requested {
+        if !code_is_supported(code) {
+            tracing::warn!(
+                "Requested locale {:?} is not in the SUPPORTED list; falling back",
+                code,
+            );
+        }
+    }
     let initial = requested
         .map(|s| s.to_string())
         .or_else(detect_from_env)
@@ -153,6 +166,10 @@ fn strip_isolates(s: &str) -> String {
 /// defensive fallback for direct callers.
 pub fn set_locale(code: &str) {
     if !code_is_supported(code) {
+        tracing::warn!(
+            "set_locale ignored unsupported code {:?}; active locale unchanged",
+            code,
+        );
         return;
     }
     let Some(state) = STATE.get() else { return };
