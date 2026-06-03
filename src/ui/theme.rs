@@ -1,4 +1,4 @@
-//! Theme system — the live implementation of [`docs/design-system.md`].
+//! Theme system — the live implementation of `docs/design-system.md`.
 //!
 //! Three exports matter:
 //!

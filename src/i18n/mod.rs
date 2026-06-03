@@ -33,7 +33,7 @@
 //!
 //! 1. Drop a new `xx.ftl` (or `xx-YY.ftl`) in `locales/`.
 //! 2. Append the code to [`SUPPORTED`].
-//! 3. Append an `include_str!` arm in [`load_source`].
+//! 3. Append an `include_str!` arm in `load_source`.
 
 use std::sync::{Arc, OnceLock, RwLock};
 

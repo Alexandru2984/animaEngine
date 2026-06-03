@@ -230,7 +230,7 @@ pub fn discover_asset_root() -> Option<PathBuf> {
 
 /// Walk `root` recursively and return a [`LibraryAsset`] for every
 /// file whose extension is in [`LIBRARY_EXTENSIONS`]. Symlinks are
-/// followed but capped at [`MAX_SYMLINK_DEPTH`] to defuse loops.
+/// followed but capped at `MAX_SYMLINK_DEPTH` (4) to defuse loops.
 ///
 /// Paths in the returned assets are relative to `root` and use `/`
 /// separators on every platform so the index file round-trips across

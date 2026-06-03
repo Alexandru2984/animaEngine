@@ -12,7 +12,7 @@
 //!
 //! Adding a new preset means:
 //! 1. Adding a [`PresetId`] variant.
-//! 2. Returning its config from [`Preset::config`].
+//! 2. Returning its config from [`Preset::for_id`].
 //! 3. The unit tests below run automatically against every variant
 //!    and will catch a broken asset path / duplicate IDs / entity
 //!    over-cap.

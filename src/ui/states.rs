@@ -1,5 +1,5 @@
 //! Empty / error / loading state helpers — the live implementation of
-//! [`docs/design-system.md`] §8.
+//! `docs/design-system.md` §8.
 //!
 //! Three exports:
 //!

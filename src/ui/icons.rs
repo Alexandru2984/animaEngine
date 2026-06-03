@@ -1,4 +1,4 @@
-//! Iconography — the live implementation of [`docs/design-system.md`] §5.
+//! Iconography — the live implementation of `docs/design-system.md` §5.
 //!
 //! Two exports matter:
 //!
@@ -20,7 +20,7 @@ use egui_phosphor::regular as ph;
 
 /// Register the Phosphor icon font with `ctx`. Idempotent: calling
 /// twice replaces the previous registration with the same data, which
-/// is cheap. Invoked from [`EguiRenderer::new`] after `theme::apply`
+/// is cheap. Invoked from `EguiRenderer::new` after `theme::apply`
 /// so both the palette and the icon font are ready before the first
 /// frame.
 pub fn install(ctx: &egui::Context) {
