@@ -1,5 +1,6 @@
 pub mod animation;
 pub mod app;
+pub mod asset_library;
 pub mod behavior;
 pub mod config;
 pub mod constants;
