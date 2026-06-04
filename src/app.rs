@@ -3,6 +3,7 @@ use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::event::AnimaEvent;
 use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
+use crate::keybindings::{Action, KeyChord, KeyCode, ModifierMask};
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
 use crate::ui::{panels, EguiRenderer, ToastQueue};
@@ -58,9 +59,13 @@ pub struct App {
     edit_mode: bool,
     /// Whether Shift key is currently held (for fine control)
     shift_held: bool,
-    /// Whether Ctrl key is currently held (used for Ctrl+M monitor cycle
-    /// and any future Ctrl-modified shortcut).
+    /// Whether Ctrl key is currently held (used for Ctrl-modified chords).
     ctrl_held: bool,
+    /// Whether Alt is currently held — tracked so user-bound chords
+    /// involving Alt resolve correctly through `KeyBindings::lookup`.
+    alt_held: bool,
+    /// Whether Super (Win/Cmd/Meta) is currently held — same reason.
+    super_held: bool,
     /// Pooled X11 input manager (holds a single X11 connection)
     x11_input: Option<X11InputManager>,
     /// Last time we checked config file for hot-reload
@@ -132,6 +137,8 @@ impl App {
             edit_mode: false,
             shift_held: false,
             ctrl_held: false,
+            alt_held: false,
+            super_held: false,
             x11_input: None,
             last_config_check: Instant::now(),
             config_mtime: Self::get_config_mtime(),
@@ -149,6 +156,343 @@ impl App {
     fn get_config_mtime() -> Option<SystemTime> {
         let path = AppConfig::config_path();
         std::fs::metadata(&path).ok()?.modified().ok()
+    }
+
+    /// Snapshot the current modifier-key state into the bitmask shape
+    /// `KeyBindings::lookup` expects. Drains the four tracked booleans
+    /// into one `ModifierMask` per call site so the chord build is
+    /// allocation-free.
+    fn modifier_mask(&self) -> ModifierMask {
+        ModifierMask::from_state(
+            self.ctrl_held,
+            self.shift_held,
+            self.alt_held,
+            self.super_held,
+        )
+    }
+
+    /// Run the handler bound to `action`. The match preserves the
+    /// per-arm behaviour previously inlined in the `KeyboardInput`
+    /// match: per-entity actions silently no-op without a selection,
+    /// `QuitWithSave` tears down GPU/X11 state before calling
+    /// `event_loop.exit()`, etc.
+    fn dispatch_action(&mut self, action: Action, event_loop: &ActiveEventLoop) {
+        match action {
+            Action::ToggleEditMode => {
+                self.toggle_edit_mode();
+            }
+            Action::QuitWithSave => {
+                tracing::info!("Quit action — saving and exiting");
+                self.save_config_if_needed();
+                self.ui = None;
+                self.renderer = None;
+                self.x11_input = None;
+                event_loop.exit();
+            }
+            Action::SaveNow => {
+                self.config_dirty = true;
+                self.save_config_if_needed();
+                tracing::info!("Config saved manually");
+            }
+            Action::PauseAll => {
+                self.scene.toggle_global_playback();
+                self.config_dirty = true;
+            }
+            Action::DeleteSelected => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let removed_name = self
+                        .scene
+                        .entities
+                        .get(idx)
+                        .map(|e| e.name.clone())
+                        .unwrap_or_default();
+                    if let Some(renderer) = &mut self.renderer {
+                        let entity_id = &self.scene.entities[idx].id;
+                        renderer.textures.remove(entity_id);
+                    }
+                    if let Some(removed_id) = self.scene.remove_entity(idx) {
+                        tracing::info!("Deleted entity: {}", removed_id);
+                        self.selection.deselect();
+                        self.config_dirty = true;
+                        self.toasts.info(format!("Deleted {removed_name}"));
+                        self.save_config_if_needed();
+                    }
+                }
+            }
+            // Arrow nudges: Shift = 1 px fine, normal = 10 px. Every
+            // nudge invalidates Bounce rest so the entity doesn't
+            // snap back after the keypress.
+            Action::NudgeUp => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let step = if self.shift_held { 1.0 } else { 10.0 };
+                    self.scene.entities[idx].y -= step;
+                    self.scene.entities[idx].behavior_state.bounce_invalidate();
+                    self.config_dirty = true;
+                }
+            }
+            Action::NudgeDown => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let step = if self.shift_held { 1.0 } else { 10.0 };
+                    self.scene.entities[idx].y += step;
+                    self.scene.entities[idx].behavior_state.bounce_invalidate();
+                    self.config_dirty = true;
+                }
+            }
+            Action::NudgeLeft => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let step = if self.shift_held { 1.0 } else { 10.0 };
+                    self.scene.entities[idx].x -= step;
+                    self.scene.entities[idx].behavior_state.bounce_invalidate();
+                    self.config_dirty = true;
+                }
+            }
+            Action::NudgeRight => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let step = if self.shift_held { 1.0 } else { 10.0 };
+                    self.scene.entities[idx].x += step;
+                    self.scene.entities[idx].behavior_state.bounce_invalidate();
+                    self.config_dirty = true;
+                }
+            }
+            Action::ResetTransform => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let entity = &mut self.scene.entities[idx];
+                    entity.scale = 1.0;
+                    entity.opacity = 1.0;
+                    tracing::info!("Reset '{}' scale=1.0, opacity=1.0", entity.name);
+                    self.config_dirty = true;
+                }
+            }
+            Action::CenterOnScreen => {
+                if let Some(idx) = self.selection.selected_index() {
+                    if let Some(window) = &self.window {
+                        let size = window.inner_size();
+                        let entity = &mut self.scene.entities[idx];
+                        entity.x = (size.width as f32 - entity.scaled_width()) / 2.0;
+                        entity.y = (size.height as f32 - entity.scaled_height()) / 2.0;
+                        entity.behavior_state.bounce_invalidate();
+                        tracing::info!(
+                            "Centered '{}' at ({:.0}, {:.0})",
+                            entity.name,
+                            entity.x,
+                            entity.y
+                        );
+                        self.config_dirty = true;
+                    }
+                }
+            }
+            Action::OpacityUp => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let entity = &mut self.scene.entities[idx];
+                    entity.opacity = (entity.opacity + 0.1).min(1.0);
+                    tracing::info!("Opacity: {:.0}%", entity.opacity * 100.0);
+                    self.config_dirty = true;
+                }
+            }
+            Action::OpacityDown => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let entity = &mut self.scene.entities[idx];
+                    entity.opacity = (entity.opacity - 0.1).max(0.05);
+                    tracing::info!("Opacity: {:.0}%", entity.opacity * 100.0);
+                    self.config_dirty = true;
+                }
+            }
+            Action::ToggleVisible => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let entity = &mut self.scene.entities[idx];
+                    entity.visible = !entity.visible;
+                    tracing::info!(
+                        "Entity '{}' visibility: {}",
+                        entity.name,
+                        if entity.visible { "visible" } else { "hidden" }
+                    );
+                    self.scene.mark_visible_dirty();
+                    self.config_dirty = true;
+                }
+            }
+            // Gravity: off by default — entity stays put. Toggling on
+            // makes it fall from its current position; off pins it.
+            Action::ToggleGravity => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let entity = &mut self.scene.entities[idx];
+                    entity.physics.toggle();
+                    tracing::info!(
+                        "Entity '{}' gravity: {}",
+                        entity.name,
+                        if entity.physics.enabled {
+                            "ON (falling)"
+                        } else {
+                            "OFF (pinned)"
+                        }
+                    );
+                    self.config_dirty = true;
+                }
+            }
+            Action::TogglePlayback => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let entity = &mut self.scene.entities[idx];
+                    entity.animation.toggle_playback();
+                    tracing::info!(
+                        "Entity '{}': {}",
+                        entity.name,
+                        if entity.animation.playing {
+                            "playing"
+                        } else {
+                            "paused"
+                        }
+                    );
+                    self.config_dirty = true;
+                }
+            }
+            Action::DuplicateSelected => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let src = &self.scene.entities[idx];
+                    let src_path = std::path::PathBuf::from(&src.asset_path);
+                    let new_x = src.x + 30.0;
+                    let new_y = src.y + 30.0;
+                    match self.scene.add_entity_from_path(&src_path, new_x, new_y) {
+                        Ok(new_idx) => {
+                            let orig_scale = self.scene.entities[idx].scale;
+                            let orig_opacity = self.scene.entities[idx].opacity;
+                            self.scene.entities[new_idx].scale = orig_scale;
+                            self.scene.entities[new_idx].opacity = orig_opacity;
+                            if let Some(renderer) = &mut self.renderer {
+                                renderer.ensure_texture(&self.scene.entities[new_idx]);
+                                self.scene.entities[new_idx].texture_dirty = false;
+                            }
+                            self.selection.select(new_idx);
+                            self.config_dirty = true;
+                            self.save_config_if_needed();
+                            tracing::info!("Duplicated entity at ({:.0}, {:.0})", new_x, new_y);
+                        }
+                        Err(e) => tracing::error!("Failed to duplicate: {}", e),
+                    }
+                }
+            }
+            Action::CycleEntity => {
+                // Empty scene: nothing to cycle through, silently
+                // no-op so the user's `Tab` doesn't grab focus from
+                // the egui panel (which Tab would otherwise navigate).
+                if self.scene.entities.is_empty() {
+                    return;
+                }
+                let next = match self.selection.selected_index() {
+                    Some(idx) => (idx + 1) % self.scene.entities.len(),
+                    None => 0,
+                };
+                self.selection.select(next);
+                tracing::info!(
+                    "Selected: {} ({})",
+                    self.scene.entities[next].name,
+                    self.scene.entities[next].id
+                );
+            }
+            Action::BringForward => {
+                if let Some(idx) = self.selection.selected_index() {
+                    self.scene.entities[idx].z_index += 10;
+                    tracing::info!(
+                        "z-index: {} ({})",
+                        self.scene.entities[idx].z_index,
+                        self.scene.entities[idx].name
+                    );
+                    self.scene.mark_visible_dirty();
+                    self.config_dirty = true;
+                }
+            }
+            Action::SendBackward => {
+                if let Some(idx) = self.selection.selected_index() {
+                    self.scene.entities[idx].z_index -= 10;
+                    tracing::info!(
+                        "z-index: {} ({})",
+                        self.scene.entities[idx].z_index,
+                        self.scene.entities[idx].name
+                    );
+                    self.scene.mark_visible_dirty();
+                    self.config_dirty = true;
+                }
+            }
+            Action::FpsDown => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let entity = &mut self.scene.entities[idx];
+                    entity
+                        .animation
+                        .set_fps((entity.animation.fps - 2.0).max(1.0));
+                    tracing::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
+                    self.config_dirty = true;
+                }
+            }
+            Action::FpsUp => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let entity = &mut self.scene.entities[idx];
+                    entity.animation.set_fps(entity.animation.fps + 2.0);
+                    tracing::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
+                    self.config_dirty = true;
+                }
+            }
+            Action::CycleMonitor => {
+                if let Some(idx) = self.selection.selected_index() {
+                    if let Some(entity) = self.scene.entities.get_mut(idx) {
+                        let toast =
+                            panels::cycle_entity_monitor(&mut entity.monitor, &self.monitors);
+                        self.toasts.info(toast);
+                        self.config_dirty = true;
+                    }
+                }
+            }
+            Action::ShowEntityInfo => {
+                if let Some(idx) = self.selection.selected_index() {
+                    let e = &self.scene.entities[idx];
+                    tracing::info!(
+                        "━━━ Entity Info ━━━\n  Name: {}\n  ID: {}\n  Position: ({:.0}, {:.0})\n  Scale: {:.2}\n  Opacity: {:.0}%\n  FPS: {:.0}\n  Frames: {}\n  z-index: {}\n  Visible: {}\n  Playing: {}\n  Asset: {}",
+                        e.name, e.id, e.x, e.y, e.scale,
+                        e.opacity * 100.0, e.animation.fps,
+                        e.animation.frame_count(), e.z_index,
+                        e.visible, e.animation.playing, e.asset_path
+                    );
+                }
+            }
+            Action::ShowHelp => {
+                tracing::info!(
+                    "━━━ KEYBOARD SHORTCUTS ━━━\n\
+                    \n  Navigation:\n\
+                    \n    Tab        — Cycle through entities\n\
+                    \n    Click      — Select entity\n\
+                    \n    Escape     — Exit edit mode (auto-saves)\n\
+                    \n\n  Position:\n\
+                    \n    Drag       — Move entity\n\
+                    \n    Arrows     — Nudge 10px\n\
+                    \n    Shift+Arrows — Fine nudge 1px\n\
+                    \n    Home       — Center on screen\n\
+                    \n\n  Appearance:\n\
+                    \n    Scroll     — Resize\n\
+                    \n    +/-        — Opacity\n\
+                    \n    R          — Reset scale/opacity\n\
+                    \n    V          — Toggle visibility\n\
+                    \n    PgUp/PgDn  — Z-order\n\
+                    \n\n  Animation:\n\
+                    \n    P          — Play/pause entity\n\
+                    \n    Space      — Global play/pause\n\
+                    \n    [/]        — Adjust FPS\n\
+                    \n\n  Physics:\n\
+                    \n    G          — Toggle gravity (off by default)\n\
+                    \n\n  Actions:\n\
+                    \n    D          — Duplicate\n\
+                    \n    Del/Bksp   — Delete\n\
+                    \n    I          — Show entity info\n\
+                    \n    S          — Save config\n\
+                    \n    Q          — Save and exit\n\
+                    \n    H          — This help"
+                );
+            }
+            // Actions whose runtime path lives outside the in-app
+            // dispatch: HideOverlay fires only as a global hotkey;
+            // OpenCommandPalette is intercepted by `panels.rs` reading
+            // egui's keyboard input. Both reach this match arm when
+            // a user rebinds them onto a chord that's still active in
+            // edit mode — we leave the handling to the original sites
+            // rather than duplicate it here.
+            Action::HideOverlay | Action::OpenCommandPalette => {}
+        }
     }
 
     /// Drive the hot-reload pipeline:
@@ -1044,6 +1388,10 @@ impl ApplicationHandler<AnimaEvent> for App {
             }
 
             // Keyboard input works in edit mode (when window has full input shape)
+            // Edit-mode keyboard dispatch goes through the rebindable
+            // `KeyBindings::lookup` table. Conversion failures (function
+            // keys, IME, etc.) and unbound chords are silent no-ops —
+            // every other path stays inside `dispatch_action`.
             WindowEvent::KeyboardInput {
                 event:
                     winit::event::KeyEvent {
@@ -1052,333 +1400,14 @@ impl ApplicationHandler<AnimaEvent> for App {
                         ..
                     },
                 ..
-            } if self.edit_mode => match logical_key.as_ref() {
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) => {
-                    self.toggle_edit_mode();
-                }
-                winit::keyboard::Key::Character("q") => {
-                    tracing::info!("Q pressed — saving and exiting");
-                    self.save_config_if_needed();
-                    self.ui = None;
-                    self.renderer = None;
-                    self.x11_input = None;
-                    event_loop.exit();
-                }
-                winit::keyboard::Key::Character("s") => {
-                    self.config_dirty = true;
-                    self.save_config_if_needed();
-                    tracing::info!("Config saved manually");
-                }
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Space) => {
-                    self.scene.toggle_global_playback();
-                    self.config_dirty = true;
-                }
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Delete)
-                | winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) => {
-                    // Delete selected entity
-                    if let Some(idx) = self.selection.selected_index() {
-                        let removed_name = self
-                            .scene
-                            .entities
-                            .get(idx)
-                            .map(|e| e.name.clone())
-                            .unwrap_or_default();
-                        // Remove GPU texture for this entity
-                        if let Some(renderer) = &mut self.renderer {
-                            let entity_id = &self.scene.entities[idx].id;
-                            renderer.textures.remove(entity_id);
-                        }
-                        if let Some(removed_id) = self.scene.remove_entity(idx) {
-                            tracing::info!("Deleted entity: {}", removed_id);
-                            self.selection.deselect();
-                            self.config_dirty = true;
-                            self.toasts.info(format!("Deleted {removed_name}"));
-                            self.save_config_if_needed();
-                        }
+            } if self.edit_mode => {
+                if let Some(keycode) = KeyCode::from_winit(logical_key.as_ref()) {
+                    let chord = KeyChord::new(self.modifier_mask(), keycode);
+                    if let Some(action) = self.config.keybindings.lookup(chord) {
+                        self.dispatch_action(action, event_loop);
                     }
                 }
-                // Arrow keys: nudge selected entity position (Shift = 1px fine, normal = 10px).
-                // Every nudge invalidates Bounce rest so the entity doesn't
-                // snap back to where it was before the keypress.
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowUp) => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let step = if self.shift_held { 1.0 } else { 10.0 };
-                        self.scene.entities[idx].y -= step;
-                        self.scene.entities[idx].behavior_state.bounce_invalidate();
-                        self.config_dirty = true;
-                    }
-                }
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowDown) => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let step = if self.shift_held { 1.0 } else { 10.0 };
-                        self.scene.entities[idx].y += step;
-                        self.scene.entities[idx].behavior_state.bounce_invalidate();
-                        self.config_dirty = true;
-                    }
-                }
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowLeft) => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let step = if self.shift_held { 1.0 } else { 10.0 };
-                        self.scene.entities[idx].x -= step;
-                        self.scene.entities[idx].behavior_state.bounce_invalidate();
-                        self.config_dirty = true;
-                    }
-                }
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowRight) => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let step = if self.shift_held { 1.0 } else { 10.0 };
-                        self.scene.entities[idx].x += step;
-                        self.scene.entities[idx].behavior_state.bounce_invalidate();
-                        self.config_dirty = true;
-                    }
-                }
-                // R: reset scale and opacity to defaults
-                winit::keyboard::Key::Character("r") => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let entity = &mut self.scene.entities[idx];
-                        entity.scale = 1.0;
-                        entity.opacity = 1.0;
-                        tracing::info!("Reset '{}' scale=1.0, opacity=1.0", entity.name);
-                        self.config_dirty = true;
-                    }
-                }
-                // Home: center selected entity on screen
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Home) => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        if let Some(window) = &self.window {
-                            let size = window.inner_size();
-                            let entity = &mut self.scene.entities[idx];
-                            entity.x = (size.width as f32 - entity.scaled_width()) / 2.0;
-                            entity.y = (size.height as f32 - entity.scaled_height()) / 2.0;
-                            entity.behavior_state.bounce_invalidate();
-                            tracing::info!(
-                                "Centered '{}' at ({:.0}, {:.0})",
-                                entity.name,
-                                entity.x,
-                                entity.y
-                            );
-                            self.config_dirty = true;
-                        }
-                    }
-                }
-                // +/= increase opacity, - decrease opacity
-                winit::keyboard::Key::Character("+" | "=") => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let entity = &mut self.scene.entities[idx];
-                        entity.opacity = (entity.opacity + 0.1).min(1.0);
-                        tracing::info!("Opacity: {:.0}%", entity.opacity * 100.0);
-                        self.config_dirty = true;
-                    }
-                }
-                winit::keyboard::Key::Character("-") => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let entity = &mut self.scene.entities[idx];
-                        entity.opacity = (entity.opacity - 0.1).max(0.05);
-                        tracing::info!("Opacity: {:.0}%", entity.opacity * 100.0);
-                        self.config_dirty = true;
-                    }
-                }
-                // V: toggle visibility of selected entity
-                winit::keyboard::Key::Character("v") => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let entity = &mut self.scene.entities[idx];
-                        entity.visible = !entity.visible;
-                        tracing::info!(
-                            "Entity '{}' visibility: {}",
-                            entity.name,
-                            if entity.visible { "visible" } else { "hidden" }
-                        );
-                        self.scene.mark_visible_dirty();
-                        self.config_dirty = true;
-                    }
-                }
-                // G: toggle gravity for selected entity (off by default).
-                // When toggled on, the entity falls from its current position.
-                // When toggled off, the entity is pinned where it is.
-                winit::keyboard::Key::Character("g") => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let entity = &mut self.scene.entities[idx];
-                        entity.physics.toggle();
-                        tracing::info!(
-                            "Entity '{}' gravity: {}",
-                            entity.name,
-                            if entity.physics.enabled {
-                                "ON (falling)"
-                            } else {
-                                "OFF (pinned)"
-                            }
-                        );
-                        self.config_dirty = true;
-                    }
-                }
-                // P: toggle play/pause for selected entity
-                winit::keyboard::Key::Character("p") => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let entity = &mut self.scene.entities[idx];
-                        entity.animation.toggle_playback();
-                        tracing::info!(
-                            "Entity '{}': {}",
-                            entity.name,
-                            if entity.animation.playing {
-                                "playing"
-                            } else {
-                                "paused"
-                            }
-                        );
-                        self.config_dirty = true;
-                    }
-                }
-                // D: duplicate selected entity
-                winit::keyboard::Key::Character("d") => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let src = &self.scene.entities[idx];
-                        let src_path = std::path::PathBuf::from(&src.asset_path);
-                        let new_x = src.x + 30.0;
-                        let new_y = src.y + 30.0;
-
-                        match self.scene.add_entity_from_path(&src_path, new_x, new_y) {
-                            Ok(new_idx) => {
-                                // Copy scale/opacity from original
-                                let orig_scale = self.scene.entities[idx].scale;
-                                let orig_opacity = self.scene.entities[idx].opacity;
-                                self.scene.entities[new_idx].scale = orig_scale;
-                                self.scene.entities[new_idx].opacity = orig_opacity;
-
-                                if let Some(renderer) = &mut self.renderer {
-                                    renderer.ensure_texture(&self.scene.entities[new_idx]);
-                                    self.scene.entities[new_idx].texture_dirty = false;
-                                }
-                                self.selection.select(new_idx);
-                                self.config_dirty = true;
-                                self.save_config_if_needed();
-                                tracing::info!("Duplicated entity at ({:.0}, {:.0})", new_x, new_y);
-                            }
-                            Err(e) => tracing::error!("Failed to duplicate: {}", e),
-                        }
-                    }
-                }
-                // Tab: cycle selection through entities
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Tab)
-                    if !self.scene.entities.is_empty() =>
-                {
-                    let next = match self.selection.selected_index() {
-                        Some(idx) => (idx + 1) % self.scene.entities.len(),
-                        None => 0,
-                    };
-                    self.selection.select(next);
-                    tracing::info!(
-                        "Selected: {} ({})",
-                        self.scene.entities[next].name,
-                        self.scene.entities[next].id
-                    );
-                }
-                // Page Up: increase z-index (bring forward)
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::PageUp) => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        self.scene.entities[idx].z_index += 10;
-                        tracing::info!(
-                            "z-index: {} ({})",
-                            self.scene.entities[idx].z_index,
-                            self.scene.entities[idx].name
-                        );
-                        self.scene.mark_visible_dirty();
-                        self.config_dirty = true;
-                    }
-                }
-                // Page Down: decrease z-index (send backward)
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::PageDown) => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        self.scene.entities[idx].z_index -= 10;
-                        tracing::info!(
-                            "z-index: {} ({})",
-                            self.scene.entities[idx].z_index,
-                            self.scene.entities[idx].name
-                        );
-                        self.scene.mark_visible_dirty();
-                        self.config_dirty = true;
-                    }
-                }
-                // [: decrease FPS (slower animation)
-                winit::keyboard::Key::Character("[") => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let entity = &mut self.scene.entities[idx];
-                        entity
-                            .animation
-                            .set_fps((entity.animation.fps - 2.0).max(1.0));
-                        tracing::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
-                        self.config_dirty = true;
-                    }
-                }
-                // ]: increase FPS (faster animation)
-                winit::keyboard::Key::Character("]") => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let entity = &mut self.scene.entities[idx];
-                        entity.animation.set_fps(entity.animation.fps + 2.0);
-                        tracing::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
-                        self.config_dirty = true;
-                    }
-                }
-                // Ctrl+M: cycle the selected entity's monitor pin.
-                // Bare 'm' is reserved for future use.
-                winit::keyboard::Key::Character("m") if self.ctrl_held => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        if let Some(entity) = self.scene.entities.get_mut(idx) {
-                            let toast =
-                                panels::cycle_entity_monitor(&mut entity.monitor, &self.monitors);
-                            self.toasts.info(toast);
-                            self.config_dirty = true;
-                        }
-                    }
-                }
-                // I: show entity info
-                winit::keyboard::Key::Character("i") => {
-                    if let Some(idx) = self.selection.selected_index() {
-                        let e = &self.scene.entities[idx];
-                        tracing::info!(
-                            "━━━ Entity Info ━━━\n  Name: {}\n  ID: {}\n  Position: ({:.0}, {:.0})\n  Scale: {:.2}\n  Opacity: {:.0}%\n  FPS: {:.0}\n  Frames: {}\n  z-index: {}\n  Visible: {}\n  Playing: {}\n  Asset: {}",
-                            e.name, e.id, e.x, e.y, e.scale,
-                            e.opacity * 100.0, e.animation.fps,
-                            e.animation.frame_count(), e.z_index,
-                            e.visible, e.animation.playing, e.asset_path
-                        );
-                    }
-                }
-                // H: show help (all keyboard shortcuts)
-                winit::keyboard::Key::Character("h") => {
-                    tracing::info!(
-                        "━━━ KEYBOARD SHORTCUTS ━━━\n\
-                        \n  Navigation:\n\
-                        \n    Tab        — Cycle through entities\n\
-                        \n    Click      — Select entity\n\
-                        \n    Escape     — Exit edit mode (auto-saves)\n\
-                        \n\n  Position:\n\
-                        \n    Drag       — Move entity\n\
-                        \n    Arrows     — Nudge 10px\n\
-                        \n    Shift+Arrows — Fine nudge 1px\n\
-                        \n    Home       — Center on screen\n\
-                        \n\n  Appearance:\n\
-                        \n    Scroll     — Resize\n\
-                        \n    +/-        — Opacity\n\
-                        \n    R          — Reset scale/opacity\n\
-                        \n    V          — Toggle visibility\n\
-                        \n    PgUp/PgDn  — Z-order\n\
-                        \n\n  Animation:\n\
-                        \n    P          — Play/pause entity\n\
-                        \n    Space      — Global play/pause\n\
-                        \n    [/]        — Adjust FPS\n\
-                        \n\n  Physics:\n\
-                        \n    G          — Toggle gravity (off by default)\n\
-                        \n\n  Actions:\n\
-                        \n    D          — Duplicate\n\
-                        \n    Del/Bksp   — Delete\n\
-                        \n    I          — Show entity info\n\
-                        \n    S          — Save config\n\
-                        \n    Q          — Save and exit\n\
-                        \n    H          — This help"
-                    );
-                }
-                _ => {}
-            },
+            }
 
             // Scroll wheel: resize selected entity in edit mode
             WindowEvent::MouseWheel { delta, .. } if self.edit_mode => {
@@ -1449,10 +1478,13 @@ impl ApplicationHandler<AnimaEvent> for App {
                 tracing::debug!("File hovering: {}", path.display());
             }
 
-            // Track modifier keys (Shift for fine nudge, Ctrl for Ctrl+M)
+            // Track all four modifiers so user-bound chords involving
+            // Alt or Super resolve correctly via `KeyBindings::lookup`.
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.shift_held = modifiers.state().shift_key();
                 self.ctrl_held = modifiers.state().control_key();
+                self.alt_held = modifiers.state().alt_key();
+                self.super_held = modifiers.state().super_key();
             }
 
             _ => {}
