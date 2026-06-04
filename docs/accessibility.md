@@ -54,16 +54,36 @@ semantic meaning; surfacing them as widgets would only pollute the
 focus order. The accessible tree describes the *controls*, not the
 canvas.
 
-### 5. Discoverable keyboard model
+### 5. Discoverable & rebindable keyboard model
 
 Every action animaEngine handles has an entry in
-[src/ui/keyboard.rs](../src/ui/keyboard.rs) with a label, a one-line
-description, and its default key combo. The Appearance tab renders
-this table read-only; the Ctrl+K command palette uses the same
-metadata to fuzzy-search across actions, themes, and presets.
+[src/keybindings.rs](../src/keybindings.rs) carrying a label,
+description, default chord set, and stable i18n key. Three surfaces
+read that table:
 
-The keymap is not yet user-rebindable; the registry is in place so
-0.3 can land that without UI surgery.
+- **Keybindings tab** in the settings sidebar — renders the live
+  chord table, lets the user record new bindings, surfaces conflicts
+  inline, and offers per-row + global "reset to defaults" buttons.
+- **Ctrl+K command palette** — fuzzy-searches across actions, themes,
+  and presets; uses the same metadata so rebinds show up immediately.
+- **Config file** (`~/.config/animaEngine/config.toml`) — the
+  `[keybindings.map]` table mirrors the in-memory `BTreeMap<Action,
+  Vec<KeyChord>>`. Chord strings round-trip through
+  `KeyChord::FromStr` (`"Ctrl+Shift+A"`, `"Esc"`, `"ArrowUp"`, …) so
+  hand-editing is supported.
+
+Bindings introduced after a config was first written fall back to
+their defaults at lookup time, so users upgrading from 0.3 don't
+silently lose actions added in 0.4.
+
+#### Global vs in-app chords
+
+Global hotkeys are restricted to chords with at least one modifier
+(Ctrl / Alt / Super) — registering a bare letter via `XGrabKey`
+would steal the key from every focused app. The default global set
+(`Ctrl+Shift+A` / `Ctrl+Shift+H` / `Ctrl+Shift+P`) maps onto
+`ToggleEditMode` / `HideOverlay` / `PauseAll`; rebinding any of those
+onto an unmodifier chord silently demotes it to in-app-only.
 
 ### 6. Icon-only buttons get tooltips
 
@@ -107,7 +127,7 @@ Run the accessibility-relevant tests in isolation:
 
 ```bash
 cargo test --lib ui::theme    # contrast + HC palettes
-cargo test --lib ui::keyboard # action metadata completeness
+cargo test --lib keybindings  # action metadata, chord round-trip, conflict detect
 ```
 
 Manual screen-reader smoke test on Linux:

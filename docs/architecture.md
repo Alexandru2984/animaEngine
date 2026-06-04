@@ -59,7 +59,14 @@ Token + helper modules (Faza A):
   ├─ states.rs       — empty / error / spinner reusable cards
   ├─ anim.rs         — pure easing helpers (ease_in_quad, ease_out_quad)
   ├─ onboarding.rs   — OnboardingProgress + dismissible hint widget
-  └─ keyboard.rs     — Action enum + canonical key combo registry
+  └─ keyboard.rs     — thin re-export of crate::keybindings::Action
+
+Rebindable keyboard map (src/keybindings.rs, D.1):
+  ├─ Action enum (27 variants) — single source of truth for dispatch
+  ├─ KeyChord + KeyCode + ModifierMask — canonical serializable form
+  ├─ KeyBindings (BTreeMap<Action, Vec<KeyChord>>) — user-overridable
+  ├─ lookup() drives both global hotkeys and in-app dispatch
+  └─ persisted under [keybindings.map] in config.toml
 
 Toast queue (src/ui/toasts.rs)
   └─ FIFO with 8-entry cap, 4 severity levels (timing via created_at)
