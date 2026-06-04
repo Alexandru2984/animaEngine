@@ -1208,6 +1208,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 let locale_mut = &mut self.config.global.locale;
                                 let onboarding_mut = &mut self.config.global.onboarding;
                                 let monitor_mode_mut = &mut self.config.global.monitor_mode;
+                                let keybindings_mut = &mut self.config.keybindings;
                                 let monitors_ref = self.monitors.as_slice();
                                 let toasts_ref = &self.toasts;
                                 let menu_state = self.ui_state.context_menu.clone();
@@ -1245,6 +1246,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                                                 monitors_ref,
                                                 library_ref,
                                                 library_outcome_ref,
+                                                keybindings_mut,
                                             );
                                             if let Some(state) = &menu_state {
                                                 *menu_outcome_ref =

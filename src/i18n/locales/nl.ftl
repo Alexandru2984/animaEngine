@@ -107,3 +107,12 @@ library-kind-video = Video
 library-asset-added-toast = { $name } toegevoegd aan de scène
 library-asset-add-failed-toast = Kon { $name } niet toevoegen
 library-count = { $n } assets geïndexeerd
+
+# ── Keybindings tab (D.1) — placeholder pending D.4 native-speaker audit
+settings-tab-keybindings = Keybindings
+keybindings-unbound = (unbound)
+keybindings-add = Add
+keybindings-recording = Press a chord… (Esc to cancel)
+keybindings-conflict = Conflicts with { $action }
+keybindings-reset-all = Reset all to defaults
+keybindings-help = Custom shortcuts persist in config.toml

@@ -107,3 +107,12 @@ library-kind-video = Video
 library-asset-added-toast = { $name } adăugat în scenă
 library-asset-add-failed-toast = Nu am putut adăuga { $name }
 library-count = { $n } assets indexate
+
+# ── Tab Comenzi taste (D.1) ───────────────────────────────────────────
+settings-tab-keybindings = Comenzi taste
+keybindings-unbound = (nelegat)
+keybindings-add = Adaugă
+keybindings-recording = Apasă o combinație… (Esc pentru anulare)
+keybindings-conflict = Conflict cu { $action }
+keybindings-reset-all = Resetează tot la implicit
+keybindings-help = Comenzile personalizate se salvează în config.toml

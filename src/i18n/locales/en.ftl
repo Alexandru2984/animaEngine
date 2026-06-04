@@ -119,3 +119,12 @@ palette-search-placeholder = Type to search themes / presets…
 palette-close-hint = Esc to close · Ctrl+K to toggle
 palette-switch-theme = Switch to { $theme } theme
 palette-apply-preset = Apply preset: { $preset }
+
+# ── Keybindings tab (D.1) ─────────────────────────────────────────────
+settings-tab-keybindings = Keybindings
+keybindings-unbound = (unbound)
+keybindings-add = Add
+keybindings-recording = Press a chord… (Esc to cancel)
+keybindings-conflict = Conflicts with { $action }
+keybindings-reset-all = Reset all to defaults
+keybindings-help = Custom shortcuts persist in config.toml

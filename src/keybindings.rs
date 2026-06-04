@@ -157,6 +157,72 @@ impl KeyCode {
         }
     }
 
+    /// Build from an `egui::Key` — used by the rebinding UI when the
+    /// user presses a chord to record. Mirrors `from_winit` but with
+    /// egui's pre-mapped enum so the panel doesn't have to reach into
+    /// winit's input space.
+    pub fn from_egui(key: egui::Key) -> Option<Self> {
+        use egui::Key as E;
+        Some(match key {
+            E::A => Self::Letter('A'),
+            E::B => Self::Letter('B'),
+            E::C => Self::Letter('C'),
+            E::D => Self::Letter('D'),
+            E::E => Self::Letter('E'),
+            E::F => Self::Letter('F'),
+            E::G => Self::Letter('G'),
+            E::H => Self::Letter('H'),
+            E::I => Self::Letter('I'),
+            E::J => Self::Letter('J'),
+            E::K => Self::Letter('K'),
+            E::L => Self::Letter('L'),
+            E::M => Self::Letter('M'),
+            E::N => Self::Letter('N'),
+            E::O => Self::Letter('O'),
+            E::P => Self::Letter('P'),
+            E::Q => Self::Letter('Q'),
+            E::R => Self::Letter('R'),
+            E::S => Self::Letter('S'),
+            E::T => Self::Letter('T'),
+            E::U => Self::Letter('U'),
+            E::V => Self::Letter('V'),
+            E::W => Self::Letter('W'),
+            E::X => Self::Letter('X'),
+            E::Y => Self::Letter('Y'),
+            E::Z => Self::Letter('Z'),
+            E::Num0 => Self::Digit(0),
+            E::Num1 => Self::Digit(1),
+            E::Num2 => Self::Digit(2),
+            E::Num3 => Self::Digit(3),
+            E::Num4 => Self::Digit(4),
+            E::Num5 => Self::Digit(5),
+            E::Num6 => Self::Digit(6),
+            E::Num7 => Self::Digit(7),
+            E::Num8 => Self::Digit(8),
+            E::Num9 => Self::Digit(9),
+            E::Escape => Self::Named(NamedKey::Escape),
+            E::Space => Self::Named(NamedKey::Space),
+            E::Tab => Self::Named(NamedKey::Tab),
+            E::Enter => Self::Named(NamedKey::Enter),
+            E::Backspace => Self::Named(NamedKey::Backspace),
+            E::Delete => Self::Named(NamedKey::Delete),
+            E::Home => Self::Named(NamedKey::Home),
+            E::End => Self::Named(NamedKey::End),
+            E::PageUp => Self::Named(NamedKey::PageUp),
+            E::PageDown => Self::Named(NamedKey::PageDown),
+            E::ArrowUp => Self::Named(NamedKey::ArrowUp),
+            E::ArrowDown => Self::Named(NamedKey::ArrowDown),
+            E::ArrowLeft => Self::Named(NamedKey::ArrowLeft),
+            E::ArrowRight => Self::Named(NamedKey::ArrowRight),
+            E::Plus => Self::Symbol(SymbolKey::Plus),
+            E::Minus => Self::Symbol(SymbolKey::Minus),
+            E::Equals => Self::Symbol(SymbolKey::Equal),
+            E::OpenBracket => Self::Symbol(SymbolKey::BracketLeft),
+            E::CloseBracket => Self::Symbol(SymbolKey::BracketRight),
+            _ => return None,
+        })
+    }
+
     /// Build from winit's logical `Key`. Returns `None` for inputs not
     /// in our dispatch table (function keys, IME composition events,
     /// etc.) — callers ignore those.
@@ -304,6 +370,22 @@ pub struct KeyChord {
 impl KeyChord {
     pub const fn new(mods: ModifierMask, key: KeyCode) -> Self {
         Self { mods, key }
+    }
+
+    /// Build a chord from egui's per-event input, returning `None`
+    /// when the key isn't in our supported set (function keys, etc.).
+    /// Used by the rebinding UI to capture the chord the user pressed.
+    pub fn from_egui(key: egui::Key, mods: egui::Modifiers) -> Option<Self> {
+        // Treat egui's `mac_cmd` / `command` as Super for cross-platform
+        // consistency — the recorded chord can later be re-pressed on
+        // any platform without losing the modifier identity.
+        let mask = ModifierMask::from_state(
+            mods.ctrl,
+            mods.shift,
+            mods.alt,
+            mods.mac_cmd || mods.command,
+        );
+        Some(Self::new(mask, KeyCode::from_egui(key)?))
     }
 
     /// Render the chord in canonical TOML form (`Ctrl+Shift+A`).

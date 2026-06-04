@@ -38,6 +38,7 @@ pub fn install(ctx: &egui::Context) {
 
 // Action / verbs (used in buttons, menus, toolbars).
 pub const TRASH: &str = ph::TRASH;
+pub const PLUS: &str = ph::PLUS;
 pub const COPY: &str = ph::COPY;
 pub const RESET: &str = ph::ARROW_COUNTER_CLOCKWISE;
 pub const BRING_FORWARD: &str = ph::ARROW_FAT_UP;
