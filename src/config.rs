@@ -1,6 +1,7 @@
 use crate::behavior::Behavior;
 use crate::constants::MAX_ENTITIES;
 use crate::error::Result;
+use crate::keybindings::KeyBindings;
 use crate::monitor::MonitorMode;
 use crate::ui::{OnboardingProgress, Theme};
 use serde::{Deserialize, Serialize};
@@ -198,6 +199,12 @@ pub struct AppConfig {
     /// applied at render / visibility-resolve time.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub groups: Vec<crate::group::GroupConfig>,
+    /// Rebindable keyboard shortcuts (D.1). Defaults match the 0.3
+    /// hard-coded set, so existing configs decode without losing any
+    /// binding and pre-D configs without a `[keybindings]` section
+    /// still behave exactly as before.
+    #[serde(default)]
+    pub keybindings: KeyBindings,
 }
 
 impl AppConfig {
@@ -337,6 +344,7 @@ impl Default for AppConfig {
             // in C.3, render-side dispatch coming in 0.4).
             windows: vec![],
             groups: vec![],
+            keybindings: KeyBindings::default(),
         }
     }
 }
@@ -488,6 +496,7 @@ mod windows_tests {
             characters: vec![empty_char("ghost")],
             windows: vec![],
             groups: vec![],
+            keybindings: KeyBindings::default(),
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 1);
@@ -517,6 +526,7 @@ mod windows_tests {
                     characters: vec![],
                 },
             ],
+            keybindings: KeyBindings::default(),
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 2);
@@ -536,6 +546,7 @@ mod windows_tests {
             characters: vec![],
             windows: vec![],
             groups: vec![],
+            keybindings: KeyBindings::default(),
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 1);

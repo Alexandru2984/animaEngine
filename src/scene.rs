@@ -419,6 +419,7 @@ mod tests {
             characters: vec![],
             windows: vec![],
             groups: vec![],
+            keybindings: crate::keybindings::KeyBindings::default(),
         };
         Scene::from_config(&config)
     }

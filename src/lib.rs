@@ -14,6 +14,7 @@ pub mod group;
 pub mod hotkeys;
 pub mod i18n;
 pub mod input;
+pub mod keybindings;
 pub mod monitor;
 pub mod physics;
 pub mod presets;

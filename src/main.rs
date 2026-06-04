@@ -171,9 +171,11 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
     // the process.
     let _tray_thread = tray::spawn(event_loop.create_proxy());
 
-    // Register global hotkeys (Ctrl+Shift+A/H/P). The controller must live
-    // as long as the app — dropping it un-registers the bindings.
-    let _hotkeys = hotkeys::register(event_loop.create_proxy());
+    // Register the user's globally-bound chords (ToggleEditMode,
+    // HideOverlay, PauseAll — anything else with a modifier). The
+    // controller must live as long as the app — dropping it
+    // un-registers the bindings.
+    let _hotkeys = hotkeys::register(event_loop.create_proxy(), &config.keybindings);
 
     // Now that we have a proxy, install the single-instance service so a
     // future redundant launch can ask us to raise instead of starting up.
