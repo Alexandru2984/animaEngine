@@ -21,6 +21,13 @@ use winit::window::{Window, WindowId, WindowLevel};
 #[cfg(target_os = "linux")]
 use winit::platform::x11::{WindowAttributesExtX11, WindowType};
 
+// Wayland-specific: set app_id so the compositor (Mutter, KWin, sway) maps
+// the window to the .desktop / launcher entry. Must match StartupWMClass
+// in data/com.animaengine.Anima.desktop — otherwise the dock picks up the
+// window as a separate, no-icon entry alongside the pinned one.
+#[cfg(target_os = "linux")]
+use winit::platform::wayland::WindowAttributesExtWayland;
+
 /// Main application state — implements winit's ApplicationHandler.
 ///
 /// The overlay operates in two modes:
@@ -643,8 +650,26 @@ impl ApplicationHandler<AnimaEvent> for App {
         // X11-specific: Use Normal type (NOT Dock).
         // Dock windows on XWayland/Mutter don't receive mouse events.
         // EWMH hints (ABOVE, SKIP_TASKBAR, etc.) are applied by X11InputManager.
+        //
+        // Plus: set X11 WM_CLASS *and* Wayland app_id to "animaEngine" so
+        // the launcher entry (StartupWMClass=animaEngine in the .desktop)
+        // matches the runtime window — without this, the dock shows a
+        // separate "running" entry next to the pinned one with a
+        // placeholder icon. Both APIs accept the same identifier; we
+        // pass it identically to keep X11 and Wayland behaviour aligned.
         #[cfg(target_os = "linux")]
-        let window_attrs = window_attrs.with_x11_window_type(vec![WindowType::Normal]);
+        let window_attrs = {
+            // Disambiguated explicitly because both X11 and Wayland
+            // extension traits provide a `with_name`-style API; using
+            // UFCS keeps the intent clear and stops rustc from picking
+            // the wrong one.
+            let attrs = WindowAttributesExtX11::with_name(
+                window_attrs.with_x11_window_type(vec![WindowType::Normal]),
+                "animaEngine",
+                "animaEngine",
+            );
+            WindowAttributesExtWayland::with_name(attrs, "animaEngine", "animaEngine")
+        };
 
         match event_loop.create_window(window_attrs) {
             Ok(window) => {

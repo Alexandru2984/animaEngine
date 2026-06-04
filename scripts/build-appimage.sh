@@ -55,7 +55,11 @@ make install DESTDIR="$APPDIR" PREFIX=/usr >/dev/null
 # linuxdeploy also expects top-level .desktop + icon as siblings of
 # AppRun. We symlink them rather than copy so a single source of truth
 # remains under usr/share/.
-ln -sf usr/share/applications/anima-engine.desktop "$APPDIR/anima-engine.desktop"
+# 0.3.2 renamed the .desktop file to match the AppStream <id>
+# (GNOME Shell 47+ icon-resolution requirement). The symlink target
+# follows the new filename; linuxdeploy then uses it as the canonical
+# AppImage .desktop entry.
+ln -sf usr/share/applications/com.animaengine.Anima.desktop "$APPDIR/com.animaengine.Anima.desktop"
 ln -sf usr/share/icons/hicolor/scalable/apps/anima-engine.svg "$APPDIR/anima-engine.svg"
 
 # ── 3) Fetch linuxdeploy on demand ───────────────────────────────────
@@ -89,7 +93,7 @@ ARCH="$ARCH" \
 VERSION="$VERSION" \
 "$LINUXDEPLOY" \
     --appdir "$APPDIR" \
-    --desktop-file "$APPDIR/anima-engine.desktop" \
+    --desktop-file "$APPDIR/com.animaengine.Anima.desktop" \
     --icon-file "$APPDIR/anima-engine.svg" \
     --executable "$APPDIR/usr/bin/anima-engine" \
     --library "$XKB_X11_LIB" \

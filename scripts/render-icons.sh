@@ -31,7 +31,13 @@ render() {
     elif command -v inkscape >/dev/null 2>&1; then
         inkscape --export-type=png --export-width="$size" --export-filename="$out" "$SRC" >/dev/null 2>&1
     elif command -v convert >/dev/null 2>&1; then
-        convert -background none -resize "${size}x${size}" "$SRC" "$out"
+        # `PNG32` forces 8-bit/channel sRGB output (32 bits total = 8R+8G+8B+8A).
+        # ImageMagick's quantum depth defaults to 16 on most distros, which
+        # produces 16-bit-per-channel PNGs that some icon caches (notably
+        # GNOME Shell + Dash to Dock) silently refuse to render even though
+        # libgdk-pixbuf accepts them. Forcing 8-bit dodges that incompatibility
+        # while staying within the PNG spec.
+        convert -background none -resize "${size}x${size}" "$SRC" "PNG32:$out"
     else
         echo "error: no SVG rasterizer found (need rsvg-convert, inkscape, or imagemagick)" >&2
         exit 1

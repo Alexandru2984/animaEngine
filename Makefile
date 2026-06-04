@@ -53,7 +53,9 @@ clean-build:
 
 install: $(BINARY) icons
 	install -Dm0755 $(BINARY)                              $(BINDIR)/anima-engine
-	install -Dm0644 data/anima-engine.desktop              $(APPDIR)/anima-engine.desktop
+	# .desktop filename MUST match the AppStream <id> (com.animaengine.Anima)
+	# — see Cargo.toml metadata.deb assets for the GNOME Shell 47+ reason.
+	install -Dm0644 data/$(APPID).desktop                  $(APPDIR)/$(APPID).desktop
 	install -Dm0644 data/anima-engine.svg                  $(ICONDIR)/anima-engine.svg
 	@for size in $(ICON_SIZES); do \
 		install -Dm0644 build/icons/$$size/anima-engine.png \
@@ -77,6 +79,9 @@ icons:
 
 uninstall:
 	rm -f $(BINDIR)/anima-engine
+	rm -f $(APPDIR)/$(APPID).desktop
+	# Legacy filename from 0.3.0/0.3.1 — clean it too so upgrading
+	# users don't end up with two launcher entries.
 	rm -f $(APPDIR)/anima-engine.desktop
 	rm -f $(ICONDIR)/anima-engine.svg
 	@for size in $(ICON_SIZES); do \
@@ -94,7 +99,7 @@ uninstall:
 # packaged; missing tools become warnings, not failures.
 validate:
 	@if command -v desktop-file-validate >/dev/null 2>&1; then \
-		desktop-file-validate data/anima-engine.desktop && \
+		desktop-file-validate data/$(APPID).desktop && \
 		  echo "✓ .desktop file valid"; \
 	else \
 		echo "skip: desktop-file-utils not installed"; \

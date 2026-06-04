@@ -6,6 +6,48 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-06-04
+
+Patch release. 0.3.1 shipped the PNGs at every hicolor size but the
+GNOME Shell launcher entry still rendered without an icon on
+Ubuntu's Wayland session — the freedesktop-spec compliant theme
+lookup found the file fine, but Mutter never wired it to the entry.
+Two unrelated spec corners we'd both missed:
+
+### Fixed
+
+- **Rename `data/anima-engine.desktop` →
+  `data/com.animaengine.Anima.desktop`** so the `.desktop` filename
+  matches the AppStream `<id>` in the metainfo. GNOME Shell 47+ on
+  Ubuntu uses that match as a primary key for resolving the icon in
+  the dock and launcher — without it, even a correct `Icon=` field
+  + correct theme lookup is silently ignored.
+- **Set X11 WM_CLASS + Wayland `app_id` to `animaEngine`** explicitly
+  in `src/app.rs` via `WindowAttributesExtX11::with_name` and
+  `WindowAttributesExtWayland::with_name`. Now the runtime window's
+  identity matches `StartupWMClass=animaEngine` in the `.desktop`
+  entry, so the dock binds the running window to the pinned entry
+  instead of treating them as two separate apps.
+
+`Makefile` and `scripts/build-appimage.sh` both updated to use the
+new filename; `make uninstall` also clears the legacy
+`anima-engine.desktop` so an upgrading user doesn't end up with two
+launcher entries.
+
+### Notes for 0.3.1 downloaders
+
+```bash
+sudo apt install ./anima-engine_0.3.2-1_amd64.deb
+```
+
+dpkg sees the .desktop filename change and cleans the old one up
+automatically on upgrade. After install, the launcher icon should
+appear — **on the first session that starts fresh after the
+install**. Logout/login is the cheapest path; reboot is the
+guaranteed one. (Mutter's in-session app-icon cache is
+session-lifetime; nothing we can touch from a post-install hook
+invalidates it.)
+
 ## [0.3.1] — 2026-06-03
 
 Patch release. The 0.3.0 `.deb` shipped only the scalable SVG at

@@ -26,7 +26,7 @@
     </ul>
   </description>
 
-  <launchable type="desktop-id">anima-engine.desktop</launchable>
+  <launchable type="desktop-id">com.animaengine.Anima.desktop</launchable>
 
   <provides>
     <binary>anima-engine</binary>
@@ -57,6 +57,15 @@
   </recommends>
 
   <releases>
+    <release version="0.3.2" date="2026-06-04">
+      <description>
+        <p>Patch release fixing the launcher icon for real this time. Two related freedesktop-spec corner cases caused GNOME Shell 47+ on Ubuntu to render the launcher entry without an icon even though the PNGs were valid and the hicolor theme cache was fresh.</p>
+        <ul>
+          <li>Rename the .desktop file to com.animaengine.Anima.desktop so it matches the AppStream &lt;id&gt; — GNOME Shell uses that filename↔id relationship as a key for icon resolution in the dock/launcher.</li>
+          <li>Set X11 WM_CLASS + Wayland app_id explicitly to "animaEngine" so the runtime window matches the .desktop StartupWMClass; without this, the dock would create a separate "running" entry alongside the pinned one.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-06-03">
       <description>
         <p>Patch release fixing a missing app-launcher icon on GNOME/Yaru and any other desktop that resolves icons through hicolor's discrete-size lookup before falling back to scalable/.</p>
