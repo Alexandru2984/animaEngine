@@ -894,8 +894,8 @@ fn keybindings_tab(
                 )
             };
             for &action in Action::ALL {
-                // ── Column 1: action label
-                ui.label(action.label());
+                // ── Column 1: action label (localized)
+                ui.label(t(action.i18n_key()));
 
                 // ── Column 2: chord chips + Record affordance
                 ui.horizontal_wrapped(|ui| {
@@ -964,7 +964,7 @@ fn keybindings_tab(
             // as the conflict source via t_args.
             let mut others = actions
                 .iter()
-                .map(|a| a.label())
+                .map(|a| t(a.i18n_key()))
                 .collect::<Vec<_>>();
             others.remove(0);
             let conflict_with = others.join(", ");

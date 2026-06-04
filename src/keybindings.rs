@@ -766,38 +766,41 @@ impl Action {
             .join("  /  ")
     }
 
-    /// Stable i18n key like `action.toggle_edit_mode`. Used in the
-    /// rebind UI and command palette so the action label localizes
-    /// without forcing every locale file to retain English fallbacks.
+    /// Stable Fluent message id like `action-toggle-edit-mode`. Used
+    /// by the rebind UI and command palette so the action label
+    /// localizes without forcing every locale file to retain English
+    /// fallbacks. Fluent restricts message ids to ASCII letters,
+    /// digits, `-`, and `_`; we use `-` to match the existing locale
+    /// files' kebab-case convention.
     pub fn i18n_key(self) -> &'static str {
         match self {
-            Self::ToggleEditMode => "action.toggle_edit_mode",
-            Self::HideOverlay => "action.hide_overlay",
-            Self::PauseAll => "action.pause_all",
-            Self::QuitWithSave => "action.quit_with_save",
-            Self::SaveNow => "action.save_now",
-            Self::OpenCommandPalette => "action.open_command_palette",
-            Self::CycleEntity => "action.cycle_entity",
-            Self::DeleteSelected => "action.delete_selected",
-            Self::NudgeUp => "action.nudge_up",
-            Self::NudgeDown => "action.nudge_down",
-            Self::NudgeLeft => "action.nudge_left",
-            Self::NudgeRight => "action.nudge_right",
-            Self::CenterOnScreen => "action.center_on_screen",
-            Self::ToggleVisible => "action.toggle_visible",
-            Self::ToggleGravity => "action.toggle_gravity",
-            Self::TogglePlayback => "action.toggle_playback",
-            Self::DuplicateSelected => "action.duplicate_selected",
-            Self::ResetTransform => "action.reset_transform",
-            Self::BringForward => "action.bring_forward",
-            Self::SendBackward => "action.send_backward",
-            Self::FpsUp => "action.fps_up",
-            Self::FpsDown => "action.fps_down",
-            Self::OpacityUp => "action.opacity_up",
-            Self::OpacityDown => "action.opacity_down",
-            Self::CycleMonitor => "action.cycle_monitor",
-            Self::ShowEntityInfo => "action.show_entity_info",
-            Self::ShowHelp => "action.show_help",
+            Self::ToggleEditMode => "action-toggle-edit-mode",
+            Self::HideOverlay => "action-hide-overlay",
+            Self::PauseAll => "action-pause-all",
+            Self::QuitWithSave => "action-quit-with-save",
+            Self::SaveNow => "action-save-now",
+            Self::OpenCommandPalette => "action-open-command-palette",
+            Self::CycleEntity => "action-cycle-entity",
+            Self::DeleteSelected => "action-delete-selected",
+            Self::NudgeUp => "action-nudge-up",
+            Self::NudgeDown => "action-nudge-down",
+            Self::NudgeLeft => "action-nudge-left",
+            Self::NudgeRight => "action-nudge-right",
+            Self::CenterOnScreen => "action-center-on-screen",
+            Self::ToggleVisible => "action-toggle-visible",
+            Self::ToggleGravity => "action-toggle-gravity",
+            Self::TogglePlayback => "action-toggle-playback",
+            Self::DuplicateSelected => "action-duplicate-selected",
+            Self::ResetTransform => "action-reset-transform",
+            Self::BringForward => "action-bring-forward",
+            Self::SendBackward => "action-send-backward",
+            Self::FpsUp => "action-fps-up",
+            Self::FpsDown => "action-fps-down",
+            Self::OpacityUp => "action-opacity-up",
+            Self::OpacityDown => "action-opacity-down",
+            Self::CycleMonitor => "action-cycle-monitor",
+            Self::ShowEntityInfo => "action-show-entity-info",
+            Self::ShowHelp => "action-show-help",
         }
     }
 }
