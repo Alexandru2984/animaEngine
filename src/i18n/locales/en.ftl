@@ -159,3 +159,8 @@ action-opacity-down = Decrease opacity
 action-cycle-monitor = Cycle entity monitor pin
 action-show-entity-info = Show entity info
 action-show-help = Show keyboard help
+
+# ── Accessibility section in Appearance tab (D.3) ─────────────────────
+appearance-accessibility-header = Accessibility
+appearance-accesskit-label = Generate AccessKit tree updates
+appearance-accesskit-hint = Powers AT-SPI screen readers (Orca etc.). Leave on unless you want a tighter footprint or your desktop doesn't run an AT-SPI bus.

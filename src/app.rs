@@ -1208,7 +1208,17 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 let locale_mut = &mut self.config.global.locale;
                                 let onboarding_mut = &mut self.config.global.onboarding;
                                 let monitor_mode_mut = &mut self.config.global.monitor_mode;
+                                // Snapshot the AccessKit flag BEFORE taking
+                                // its mutable borrow — the render closure
+                                // syncs egui's runtime gate from this copy
+                                // each frame, and the closure also writes
+                                // back through `accesskit_mut`. A new toggle
+                                // therefore applies one frame later, which
+                                // is below any perceivable lag.
+                                let accesskit_enabled = self.config.global.accesskit_enabled;
                                 let keybindings_mut = &mut self.config.keybindings;
+                                let collapse_state_mut = &mut self.config.collapse_state;
+                                let accesskit_mut = &mut self.config.global.accesskit_enabled;
                                 let monitors_ref = self.monitors.as_slice();
                                 let toasts_ref = &self.toasts;
                                 let menu_state = self.ui_state.context_menu.clone();
@@ -1226,6 +1236,18 @@ impl ApplicationHandler<AnimaEvent> for App {
                                     &view,
                                     size,
                                     |ctx| {
+                                        // Sync the runtime AccessKit gate
+                                        // with the persisted preference each
+                                        // frame — both calls are idempotent
+                                        // flag writes, so the cost is
+                                        // negligible compared to leaving
+                                        // tree-update generation running
+                                        // when the user has it off.
+                                        if accesskit_enabled {
+                                            ctx.enable_accesskit();
+                                        } else {
+                                            ctx.disable_accesskit();
+                                        }
                                         // Toggle button is the only UI in
                                         // pass-through; in edit mode it sits
                                         // on top of everything else.
@@ -1247,6 +1269,8 @@ impl ApplicationHandler<AnimaEvent> for App {
                                                 library_ref,
                                                 library_outcome_ref,
                                                 keybindings_mut,
+                                                collapse_state_mut,
+                                                accesskit_mut,
                                             );
                                             if let Some(state) = &menu_state {
                                                 *menu_outcome_ref =

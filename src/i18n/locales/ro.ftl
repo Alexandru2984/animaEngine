@@ -145,3 +145,8 @@ action-opacity-down = Scade opacitatea
 action-cycle-monitor = Schimbă monitorul entității
 action-show-entity-info = Arată detaliile entității
 action-show-help = Arată ajutor pentru taste
+
+# ── Secțiune accesibilitate în tab-ul Aspect (D.3) ────────────────────
+appearance-accessibility-header = Accesibilitate
+appearance-accesskit-label = Generează actualizări AccessKit
+appearance-accesskit-hint = Alimentează cititoarele de ecran AT-SPI (Orca etc.). Lasă activ dacă nu vrei să reduci consumul sau dacă desktop-ul tău nu rulează un bus AT-SPI.

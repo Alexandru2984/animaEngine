@@ -40,7 +40,7 @@ strobe under their assistive tech. We turn them off unconditionally,
 not as a separate setting — the assumption is that anyone who wants
 reduced motion will also want HC, and the reverse is rarely false.
 
-### 4. AccessKit screen-reader bridge
+### 4. AccessKit screen-reader bridge (runtime-toggleable in 0.4)
 
 The `accesskit` feature on `egui-winit` is enabled by default in our
 Cargo.toml. This wires `AccessKit` into the egui input loop, which
@@ -53,6 +53,16 @@ deliberately outside this tree. They are visual decoration with no
 semantic meaning; surfacing them as widgets would only pollute the
 focus order. The accessible tree describes the *controls*, not the
 canvas.
+
+**0.4 runtime toggle.** Users who don't run a screen reader and want
+a tighter footprint can flip the bridge off from
+**Appearance → Accessibility → Generate AccessKit tree updates**.
+That setting drives `egui::Context::enable_accesskit()` /
+`disable_accesskit()` each frame, so toggles apply without restart.
+The AT-SPI registration itself stays alive (it's wired in by
+egui-winit at init); disabling stops tree-update generation, which
+is the bulk of the overhead. Persisted in `[global]` as
+`accesskit_enabled = true/false`.
 
 ### 5. Discoverable & rebindable keyboard model
 

@@ -12,6 +12,7 @@ use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::i18n::{t, t_args};
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyBindings, KeyChord};
+use crate::ui::collapse::CollapseState;
 use crate::monitor::{MonitorInfo, MonitorMode};
 use crate::presets::{self, ApplyMode, Preset, PresetId};
 use crate::scene::Scene;
@@ -117,6 +118,8 @@ pub fn settings(
     library: Option<&LibraryIndex>,
     library_outcome: &mut Option<LibraryOutcome>,
     keybindings: &mut KeyBindings,
+    collapse_state: &mut CollapseState,
+    accesskit_enabled: &mut bool,
 ) {
     egui::SidePanel::right("anima_settings")
         .resizable(false)
@@ -175,16 +178,39 @@ pub fn settings(
                     ui.set_opacity(tab_alpha);
                     match active_tab {
                         SettingsTab::Inspector => {
-                            inspector_tab(ui, scene, selection, config_dirty, onboarding, monitors);
+                            inspector_tab(
+                                ui,
+                                scene,
+                                selection,
+                                config_dirty,
+                                onboarding,
+                                monitors,
+                                collapse_state,
+                            );
                         }
                         SettingsTab::Scene => {
-                            scene_tab(ui, scene, selection, config_dirty, monitor_mode, monitors);
+                            scene_tab(
+                                ui,
+                                scene,
+                                selection,
+                                config_dirty,
+                                monitor_mode,
+                                monitors,
+                                collapse_state,
+                            );
                         }
                         SettingsTab::Library => {
                             library_tab(ui, library, library_outcome);
                         }
                         SettingsTab::Appearance => {
-                            appearance_tab(ui, theme, locale, config_dirty, onboarding);
+                            appearance_tab(
+                                ui,
+                                theme,
+                                locale,
+                                config_dirty,
+                                onboarding,
+                                accesskit_enabled,
+                            );
                         }
                         SettingsTab::Keybindings => {
                             keybindings_tab(ctx, ui, keybindings, config_dirty);
@@ -408,6 +434,7 @@ fn inspector_tab(
     config_dirty: &mut bool,
     onboarding: &mut OnboardingProgress,
     monitors: &[MonitorInfo],
+    collapse_state: &mut CollapseState,
 ) {
     let selected_idx = selection.selected_index();
     match selected_idx.and_then(|idx| scene.entities.get_mut(idx).map(|e| (idx, e))) {
@@ -421,7 +448,7 @@ fn inspector_tab(
             ) {
                 *config_dirty = true;
             }
-            let changed = entity_inspector(ui, entity, monitors);
+            let changed = entity_inspector(ui, entity, monitors, collapse_state, config_dirty);
             if changed.any() {
                 *config_dirty = true;
             }
@@ -445,6 +472,7 @@ fn scene_tab(
     config_dirty: &mut bool,
     monitor_mode: &mut MonitorMode,
     monitors: &[MonitorInfo],
+    collapse_state: &mut CollapseState,
 ) {
     // ── Monitor distribution section ─────────────────────────────────
     monitor_mode_picker(ui, monitor_mode, monitors, config_dirty);
@@ -474,7 +502,13 @@ fn scene_tab(
     }
 
     ui.add_space(SPACE_M);
-    preset_gallery(ui, scene, selection, config_dirty, is_empty);
+    preset_gallery(
+        ui,
+        scene,
+        selection,
+        config_dirty,
+        &mut collapse_state.scene_presets,
+    );
 
     if !scene.groups.is_empty() {
         ui.add_space(SPACE_L);
@@ -510,21 +544,21 @@ fn groups_section(ui: &mut egui::Ui, scene: &Scene) {
     }
 }
 
-/// Curated scene presets. Defaults to *open* when the scene is empty
-/// (giving fresh users an obvious starting point) and *closed* once
-/// they've already populated something, to keep the Scene tab tidy.
+/// Curated scene presets. Open by default on fresh installs so users
+/// see the gallery; the flag persists across sessions through
+/// [`CollapseState::scene_presets`] once the user toggles it.
 fn preset_gallery(
     ui: &mut egui::Ui,
     scene: &mut Scene,
     selection: &mut SelectionState,
     config_dirty: &mut bool,
-    default_open: bool,
+    open: &mut bool,
 ) {
     let header = egui::RichText::new(format!("{}  {}", icons::SPARKLE, t("scene-presets-header")))
         .text_style(h2());
-    egui::CollapsingHeader::new(header)
+    let response = egui::CollapsingHeader::new(header)
         .id_salt("anima.scene.presets")
-        .default_open(default_open)
+        .default_open(*open)
         .show(ui, |ui| {
             ui.add_space(SPACE_S);
             for id in PresetId::ALL {
@@ -532,6 +566,11 @@ fn preset_gallery(
                 ui.add_space(SPACE_S);
             }
         });
+    let visually_open = response.openness > 0.5;
+    if visually_open != *open {
+        *open = visually_open;
+        *config_dirty = true;
+    }
 }
 
 fn preset_card(
@@ -763,6 +802,7 @@ fn appearance_tab(
     locale: &mut Option<String>,
     config_dirty: &mut bool,
     onboarding: &mut OnboardingProgress,
+    accesskit_enabled: &mut bool,
 ) {
     ui.label(egui::RichText::new(t("appearance-theme-header")).text_style(h2()));
     ui.add_space(SPACE_S);
@@ -779,6 +819,18 @@ fn appearance_tab(
     ui.label(egui::RichText::new(t("appearance-language-header")).text_style(h2()));
     ui.add_space(SPACE_S);
     if language_picker(ui, locale) {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_2XL);
+
+    // ── Accessibility ────────────────────────────────────────────────
+    ui.label(egui::RichText::new(t("appearance-accessibility-header")).text_style(h2()));
+    ui.add_space(SPACE_S);
+    if ui
+        .checkbox(accesskit_enabled, t("appearance-accesskit-label"))
+        .on_hover_text(t("appearance-accesskit-hint"))
+        .changed()
+    {
         *config_dirty = true;
     }
     // Keyboard shortcuts moved to their own tab in D.1 — the dedicated
@@ -1054,6 +1106,8 @@ fn entity_inspector(
     ui: &mut egui::Ui,
     entity: &mut crate::entity::Entity,
     monitors: &[MonitorInfo],
+    collapse_state: &mut CollapseState,
+    config_dirty: &mut bool,
 ) -> EntityChange {
     let mut change = EntityChange::default();
 
@@ -1087,7 +1141,12 @@ fn entity_inspector(
     ui.add_space(SPACE_S);
 
     // ── Collapsibles ──────────────────────────────────────────────────
-    section(ui, "Position", true, |ui| {
+    section(
+        ui,
+        "Position",
+        &mut collapse_state.inspector_position,
+        config_dirty,
+        |ui| {
         if ui
             .add(egui::Slider::new(&mut entity.x, -200.0..=4000.0).text("X"))
             .changed()
@@ -1118,9 +1177,15 @@ fn entity_inspector(
         if entity_monitor_picker(ui, &mut entity.monitor, monitors) {
             change.any_field = true;
         }
-    });
+        },
+    );
 
-    section(ui, "Appearance", true, |ui| {
+    section(
+        ui,
+        "Appearance",
+        &mut collapse_state.inspector_appearance,
+        config_dirty,
+        |ui| {
         if ui
             .add(egui::Slider::new(&mut entity.scale, 0.1..=5.0).text("Scale"))
             .changed()
@@ -1133,9 +1198,15 @@ fn entity_inspector(
         {
             change.any_field = true;
         }
-    });
+        },
+    );
 
-    section(ui, "Animation", true, |ui| {
+    section(
+        ui,
+        "Animation",
+        &mut collapse_state.inspector_animation,
+        config_dirty,
+        |ui| {
         let mut fps = entity.animation.fps;
         if ui
             .add(egui::Slider::new(&mut fps, 1.0..=60.0).text("FPS"))
@@ -1152,34 +1223,53 @@ fn entity_inspector(
         if easing_picker(ui, &mut entity.animation.easing) {
             change.any_field = true;
         }
-    });
+        },
+    );
 
-    section(ui, "Behavior", false, |ui| {
-        if behavior_picker(ui, &mut entity.behavior) {
-            change.any_field = true;
-        }
-    });
+    section(
+        ui,
+        "Behavior",
+        &mut collapse_state.inspector_behavior,
+        config_dirty,
+        |ui| {
+            if behavior_picker(ui, &mut entity.behavior) {
+                change.any_field = true;
+            }
+        },
+    );
 
     change
 }
 
 /// Collapsing inspector section with the design-system heading style.
-/// `default_open` reflects the recent-use heuristic: Position /
-/// Appearance / Animation are touched on most edits; Behavior is rarer.
+///
+/// `open` is the persisted flag from [`CollapseState`] — used as the
+/// first-frame seed via `default_open` and synced back from the
+/// widget's animated openness so a user click toggles config-dirty
+/// exactly once (not per frame during the expand/collapse animation).
 fn section(
     ui: &mut egui::Ui,
     title: &str,
-    default_open: bool,
+    open: &mut bool,
+    config_dirty: &mut bool,
     add_contents: impl FnOnce(&mut egui::Ui),
 ) {
     let header = egui::RichText::new(title).text_style(h2());
-    egui::CollapsingHeader::new(header)
+    let response = egui::CollapsingHeader::new(header)
         .id_salt(("anima.inspector.section", title))
-        .default_open(default_open)
+        .default_open(*open)
         .show(ui, |ui| {
             ui.add_space(SPACE_XS);
             add_contents(ui);
         });
+    // `openness` animates 0.0..=1.0. Crossing 0.5 == user-visible
+    // state flipped — write the new value back to the persisted bool
+    // and flag dirty exactly once per toggle.
+    let visually_open = response.openness > 0.5;
+    if visually_open != *open {
+        *open = visually_open;
+        *config_dirty = true;
+    }
     ui.add_space(SPACE_S);
 }
 

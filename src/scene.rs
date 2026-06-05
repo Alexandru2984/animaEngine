@@ -420,6 +420,7 @@ mod tests {
             windows: vec![],
             groups: vec![],
             keybindings: crate::keybindings::KeyBindings::default(),
+            collapse_state: crate::ui::CollapseState::default(),
         };
         Scene::from_config(&config)
     }

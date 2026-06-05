@@ -3,7 +3,7 @@ use crate::constants::MAX_ENTITIES;
 use crate::error::Result;
 use crate::keybindings::KeyBindings;
 use crate::monitor::MonitorMode;
-use crate::ui::{OnboardingProgress, Theme};
+use crate::ui::{CollapseState, OnboardingProgress, Theme};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -44,6 +44,14 @@ pub struct GlobalConfig {
     /// implicit `Span` behaviour of 0.2 can set this explicitly.
     #[serde(default)]
     pub monitor_mode: MonitorMode,
+    /// Generate AccessKit tree updates (the AT-SPI bridge that drives
+    /// screen readers like Orca). On by default — the overhead is
+    /// negligible and we want screen-reader users to "just work" out
+    /// of the box. Users on minimal setups who want a tighter footprint
+    /// (or are bothered by the AT-SPI registration) can flip this off
+    /// from Appearance; the change applies live without restart.
+    #[serde(default = "default_true")]
+    pub accesskit_enabled: bool,
 }
 
 fn default_window_width() -> u32 {
@@ -67,6 +75,7 @@ impl Default for GlobalConfig {
             // every progressive hint will appear on the first run.
             onboarding: OnboardingProgress::default(),
             monitor_mode: MonitorMode::default(),
+            accesskit_enabled: true,
         }
     }
 }
@@ -205,6 +214,12 @@ pub struct AppConfig {
     /// still behave exactly as before.
     #[serde(default)]
     pub keybindings: KeyBindings,
+    /// Open/closed state of every persistable collapse section (D.2).
+    /// Pre-0.4 configs without the `[collapse_state]` table fall back
+    /// to the design-system defaults defined in
+    /// `CollapseState::default()`.
+    #[serde(default)]
+    pub collapse_state: CollapseState,
 }
 
 impl AppConfig {
@@ -345,6 +360,7 @@ impl Default for AppConfig {
             windows: vec![],
             groups: vec![],
             keybindings: KeyBindings::default(),
+            collapse_state: CollapseState::default(),
         }
     }
 }
@@ -497,6 +513,7 @@ mod windows_tests {
             windows: vec![],
             groups: vec![],
             keybindings: KeyBindings::default(),
+            collapse_state: CollapseState::default(),
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 1);
@@ -527,6 +544,7 @@ mod windows_tests {
                 },
             ],
             keybindings: KeyBindings::default(),
+            collapse_state: CollapseState::default(),
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 2);
@@ -547,6 +565,7 @@ mod windows_tests {
             windows: vec![],
             groups: vec![],
             keybindings: KeyBindings::default(),
+            collapse_state: CollapseState::default(),
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 1);
