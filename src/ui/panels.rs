@@ -515,12 +515,18 @@ fn scene_tab(
     let is_empty = scene.entities.is_empty();
 
     if is_empty {
-        states::empty(
+        // D.8: zero-config CTA — open the preset gallery so a fresh
+        // install can land in a curated scene with one click.
+        if states::empty_with_action(
             ui,
             icons::GHOST,
             &t("scene-empty-headline"),
             &t("scene-empty-hint"),
-        );
+            Some(&t("scene-empty-action-browse-presets")),
+        ) {
+            collapse_state.scene_presets = true;
+            *config_dirty = true;
+        }
     } else {
         ui.label(
             egui::RichText::new(t("scene-drop-hint"))
@@ -693,22 +699,32 @@ fn library_tab(
     outcome: &mut Option<LibraryOutcome>,
 ) {
     let Some(library) = library else {
-        states::empty(
+        // D.8: copy the documented path to the clipboard so the user
+        // can paste it into a file manager / terminal without typing.
+        if states::empty_with_action(
             ui,
             icons::LIBRARY,
             &t("library-empty-headline"),
             &t("library-no-asset-root"),
-        );
+            Some(&t("library-empty-action-copy-path")),
+        ) {
+            let path = default_asset_path_hint();
+            ui.ctx().copy_text(path);
+        }
         return;
     };
 
     if library.assets.is_empty() {
-        states::empty(
+        if states::empty_with_action(
             ui,
             icons::LIBRARY,
             &t("library-empty-headline"),
             &t("library-empty-hint"),
-        );
+            Some(&t("library-empty-action-copy-path")),
+        ) {
+            let path = default_asset_path_hint();
+            ui.ctx().copy_text(path);
+        }
         return;
     }
 
@@ -915,6 +931,19 @@ fn language_picker(ui: &mut egui::Ui, locale: &mut Option<String>) -> bool {
             }
         });
     changed
+}
+
+/// Documented asset-library path used by the empty-state CTA — kept
+/// in sync with `library-no-asset-root` i18n and the doc in
+/// `docs/config.md`. Lives here so the panels module can expose a
+/// "Copy path" button without dragging the library module's path
+/// resolution into the panel.
+fn default_asset_path_hint() -> String {
+    if let Ok(home) = std::env::var("HOME") {
+        format!("{home}/.local/share/animaEngine/assets")
+    } else {
+        "~/.local/share/animaEngine/assets".into()
+    }
 }
 
 /// Render a single persistent warning banner inside the settings

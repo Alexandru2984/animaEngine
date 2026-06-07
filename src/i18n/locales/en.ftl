@@ -181,3 +181,7 @@ whats-new-accessibility-toggle = AccessKit can be turned off from Appearance →
 onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.
 onboarding-perf-overlay = Press Ctrl+Shift+` to open the live perf overlay.
 appearance-reset-onboarding = Reset onboarding hints
+
+# ── Empty-state CTAs (D.8) ────────────────────────────────────────────
+scene-empty-action-browse-presets = Browse presets
+library-empty-action-copy-path = Copy path to clipboard

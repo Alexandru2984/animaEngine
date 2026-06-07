@@ -167,3 +167,7 @@ whats-new-accessibility-toggle = AccessKit poate fi dezactivat din Aspect → Ac
 onboarding-keybindings = Apasă × pe un chord ca să-l elimini; apasă o combinație ca să înregistrezi una nouă.
 onboarding-perf-overlay = Apasă Ctrl+Shift+` ca să deschizi overlay-ul live de performanță.
 appearance-reset-onboarding = Resetează hint-urile de bun venit
+
+# ── Acțiuni stări goale (D.8) ─────────────────────────────────────────
+scene-empty-action-browse-presets = Răsfoiește preseturi
+library-empty-action-copy-path = Copiază calea

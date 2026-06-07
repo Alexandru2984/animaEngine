@@ -22,7 +22,24 @@ use crate::ui::theme::{self, h2, SPACE_2XL, SPACE_M, SPACE_S, SPACE_XS};
 /// where the absence of data is *expected* and the user just needs
 /// guidance toward the next action.
 pub fn empty(ui: &mut egui::Ui, icon: &str, headline: &str, hint: &str) {
+    let _ = empty_with_action(ui, icon, headline, hint, None);
+}
+
+/// Same as [`empty`] but with an optional CTA button at the bottom.
+/// Returns `true` for the frame the user clicked the button so the
+/// caller can route the action (insert a demo preset, mkdir the
+/// asset root, etc.). When `action_label` is `None`, the behaviour
+/// is identical to `empty`.
+#[must_use]
+pub fn empty_with_action(
+    ui: &mut egui::Ui,
+    icon: &str,
+    headline: &str,
+    hint: &str,
+    action_label: Option<&str>,
+) -> bool {
     ui.add_space(SPACE_2XL);
+    let mut clicked = false;
     ui.vertical_centered(|ui| {
         ui.label(
             egui::RichText::new(icon)
@@ -37,7 +54,14 @@ pub fn empty(ui: &mut egui::Ui, icon: &str, headline: &str, hint: &str) {
                 .text_style(theme::caption())
                 .weak(),
         );
+        if let Some(label) = action_label {
+            ui.add_space(SPACE_M);
+            if ui.button(label).clicked() {
+                clicked = true;
+            }
+        }
     });
+    clicked
 }
 
 /// Error-state card. Same shape as [`empty`] but tinted with the active
