@@ -43,6 +43,16 @@ pub struct OnboardingProgress {
     /// quick-toggle row in the Inspector tab.
     #[serde(default)]
     pub quick_toggles: bool,
+
+    /// "Click any chord to rebind" — shown under the Keybindings tab
+    /// header (D.7, new in 0.4).
+    #[serde(default)]
+    pub keybindings_tab: bool,
+
+    /// "Press Ctrl+Shift+\` for perf overlay" — shown at the bottom
+    /// of the Appearance tab (D.7, new in 0.4).
+    #[serde(default)]
+    pub perf_overlay: bool,
 }
 
 impl OnboardingProgress {
@@ -54,7 +64,15 @@ impl OnboardingProgress {
             tabs: true,
             theme: true,
             quick_toggles: true,
+            keybindings_tab: true,
+            perf_overlay: true,
         }
+    }
+
+    /// Reverse of `all_seen` — used by the "Reset onboarding hints"
+    /// button in Appearance (D.7) so the user can retake the tour.
+    pub fn reset(&mut self) {
+        *self = Self::default();
     }
 
     /// Whether every hint has been dismissed — handy for callers
@@ -135,10 +153,13 @@ mod tests {
     #[test]
     fn default_is_not_dismissed() {
         // Fresh install — every flag should still be pending.
-        assert!(!OnboardingProgress::default().fully_dismissed());
-        assert!(!OnboardingProgress::default().tabs);
-        assert!(!OnboardingProgress::default().theme);
-        assert!(!OnboardingProgress::default().quick_toggles);
+        let d = OnboardingProgress::default();
+        assert!(!d.fully_dismissed());
+        assert!(!d.tabs);
+        assert!(!d.theme);
+        assert!(!d.quick_toggles);
+        assert!(!d.keybindings_tab);
+        assert!(!d.perf_overlay);
     }
 
     #[test]
@@ -147,8 +168,19 @@ mod tests {
             tabs: true,
             theme: true,
             quick_toggles: false,
+            keybindings_tab: false,
+            perf_overlay: false,
         };
         assert!(!p.fully_dismissed());
+    }
+
+    #[test]
+    fn reset_brings_back_every_hint() {
+        let mut p = OnboardingProgress::all_seen();
+        p.reset();
+        assert!(!p.fully_dismissed());
+        assert!(!p.tabs);
+        assert!(!p.perf_overlay);
     }
 
     /// Existing users (whose config was saved before A.6) deserialize

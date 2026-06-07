@@ -20,6 +20,7 @@ pub mod perf_overlay;
 pub mod states;
 pub mod theme;
 pub mod toasts;
+pub mod whats_new;
 
 pub use banner::Warning;
 pub use collapse::CollapseState;

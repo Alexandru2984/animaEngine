@@ -122,6 +122,7 @@ pub fn settings(
     collapse_state: &mut CollapseState,
     accesskit_enabled: &mut bool,
     warnings: &std::collections::BTreeSet<Warning>,
+    last_seen_whats_new: &mut Option<String>,
 ) {
     egui::SidePanel::right("anima_settings")
         .resizable(false)
@@ -170,6 +171,14 @@ pub fn settings(
                     warning_banner(ui, *warning);
                 }
                 ui.add_space(SPACE_XS);
+            }
+
+            // ── What's new panel (D.7) ───────────────────────────────
+            // One-shot per minor-version bump; dismissing stamps the
+            // current WHATS_NEW_VERSION into the config so the next
+            // session skips the panel.
+            if crate::ui::whats_new::show(ui, last_seen_whats_new) {
+                *config_dirty = true;
             }
 
             // First-run hint right under the tab switcher.
@@ -228,6 +237,14 @@ pub fn settings(
                             );
                         }
                         SettingsTab::Keybindings => {
+                            // First-time hint about the rebinding UX (D.7).
+                            if onboarding::hint(
+                                ui,
+                                &t("onboarding-keybindings"),
+                                &mut onboarding.keybindings_tab,
+                            ) {
+                                *config_dirty = true;
+                            }
                             keybindings_tab(ctx, ui, keybindings, config_dirty);
                         }
                     }
@@ -848,9 +865,25 @@ fn appearance_tab(
     {
         *config_dirty = true;
     }
-    // Keyboard shortcuts moved to their own tab in D.1 — the dedicated
-    // Keybindings tab shows the live binding table and supports
-    // rebinding, which the old read-only Appearance section couldn't.
+    ui.add_space(SPACE_M);
+
+    // ── Reset onboarding hints (D.7) ─────────────────────────────────
+    // Single button — retakes every progressive hint plus the
+    // What's new panel for this version.
+    if ui.button(t("appearance-reset-onboarding")).clicked() {
+        onboarding.reset();
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_M);
+
+    // ── Perf-overlay hint (D.7, dev-affordance, gated by onboarding) ─
+    if onboarding::hint(
+        ui,
+        &t("onboarding-perf-overlay"),
+        &mut onboarding.perf_overlay,
+    ) {
+        *config_dirty = true;
+    }
 }
 
 /// Locale dropdown. Each option is the locale's *autonym* (its name in

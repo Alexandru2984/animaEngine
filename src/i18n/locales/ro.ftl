@@ -155,3 +155,15 @@ appearance-accesskit-hint = Alimentează cititoarele de ecran AT-SPI (Orca etc.)
 warning-global-hotkeys-unavailable = Comenzile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.
 warning-hot-reload-disconnected = Procesul de reîncărcare la cald s-a oprit pe neașteptate; modificările pe config nu se vor aplica până la repornire.
 action-toggle-perf-overlay = Comută suprapunerea de performanță
+
+# ── Panou "What's new" (D.7) ──────────────────────────────────────────
+whats-new-header = Noutăți în 0.4
+whats-new-keybindings = Comenzi taste rebindable — deschide noul tab Comenzi taste.
+whats-new-collapse-state = Secțiunile Inspector își amintesc starea deschisă/închisă între sesiuni.
+whats-new-error-banners = Erorile (tăcute înainte) apar acum ca toast sau banner — le vezi.
+whats-new-accessibility-toggle = AccessKit poate fi dezactivat din Aspect → Accesibilitate.
+
+# ── Hint-uri onboarding noi (D.7) ─────────────────────────────────────
+onboarding-keybindings = Apasă × pe un chord ca să-l elimini; apasă o combinație ca să înregistrezi una nouă.
+onboarding-perf-overlay = Apasă Ctrl+Shift+` ca să deschizi overlay-ul live de performanță.
+appearance-reset-onboarding = Resetează hint-urile de bun venit

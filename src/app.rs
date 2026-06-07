@@ -1300,6 +1300,8 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 let collapse_state_mut = &mut self.config.collapse_state;
                                 let accesskit_mut = &mut self.config.global.accesskit_enabled;
                                 let warnings_ref = &self.warnings;
+                                let last_seen_whats_new_mut =
+                                    &mut self.config.global.last_seen_whats_new;
                                 let perf_sampler_ref = &self.perf_sampler;
                                 let perf_overlay_visible = self.perf_overlay_visible;
                                 let perf_rss_kib = self.perf_last_rss_kib;
@@ -1362,6 +1364,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                                                 collapse_state_mut,
                                                 accesskit_mut,
                                                 warnings_ref,
+                                                last_seen_whats_new_mut,
                                             );
                                             if let Some(state) = &menu_state {
                                                 *menu_outcome_ref =

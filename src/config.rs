@@ -52,6 +52,11 @@ pub struct GlobalConfig {
     /// from Appearance; the change applies live without restart.
     #[serde(default = "default_true")]
     pub accesskit_enabled: bool,
+    /// Last "What's new" version the user has dismissed (D.7). `None`
+    /// on pre-0.4 configs and on brand-new installs — the panel fires
+    /// once per minor-version bump after that.
+    #[serde(default)]
+    pub last_seen_whats_new: Option<String>,
 }
 
 fn default_window_width() -> u32 {
@@ -76,6 +81,7 @@ impl Default for GlobalConfig {
             onboarding: OnboardingProgress::default(),
             monitor_mode: MonitorMode::default(),
             accesskit_enabled: true,
+            last_seen_whats_new: None,
         }
     }
 }

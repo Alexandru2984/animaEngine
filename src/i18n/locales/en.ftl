@@ -169,3 +169,15 @@ appearance-accesskit-hint = Powers AT-SPI screen readers (Orca etc.). Leave on u
 warning-global-hotkeys-unavailable = Global hotkeys couldn't register (typical on a native Wayland session). The tray menu and the ⚙ button still work.
 warning-hot-reload-disconnected = The hot-reload worker stopped unexpectedly; in-flight config edits won't apply until you restart the app.
 action-toggle-perf-overlay = Toggle perf overlay
+
+# ── What's new panel (D.7) ────────────────────────────────────────────
+whats-new-header = What's new in 0.4
+whats-new-keybindings = Rebindable keyboard shortcuts — open the new Keybindings tab.
+whats-new-collapse-state = Inspector sections remember their open/closed state across sessions.
+whats-new-error-banners = Failure surfaces (silent before) now toast or banner — you'll see them.
+whats-new-accessibility-toggle = AccessKit can be turned off from Appearance → Accessibility.
+
+# ── New onboarding hints (D.7) ────────────────────────────────────────
+onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.
+onboarding-perf-overlay = Press Ctrl+Shift+` to open the live perf overlay.
+appearance-reset-onboarding = Reset onboarding hints
