@@ -4,6 +4,7 @@ use crate::event::AnimaEvent;
 use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyChord, KeyCode, ModifierMask};
+use crate::ui::Warning;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
 use crate::ui::{panels, EguiRenderer, ToastQueue};
@@ -85,6 +86,29 @@ pub struct App {
     /// Toast notification queue. Persistent across edit/pass-through
     /// transitions but only painted when in edit mode (no UI otherwise).
     toasts: ToastQueue,
+    /// Session-lifetime warnings rendered as a banner at the top of
+    /// the settings panel (D.5). Distinct from toasts: these persist
+    /// until the underlying condition clears or the user dismisses
+    /// the banner. Stored as `BTreeSet` so insertion is idempotent
+    /// (the same warning fired twice doesn't duplicate the banner)
+    /// and display order is deterministic.
+    warnings: std::collections::BTreeSet<Warning>,
+    /// Per-system frame-time + total sampler (D.6). Always populated;
+    /// the overlay widget is what's actually toggled. Keeping the
+    /// sampler always-on costs ~5 µs/frame which is below any
+    /// perceivable noise, and lets the overlay show meaningful
+    /// averages the moment it opens.
+    perf_sampler: crate::perf::PerfSampler,
+    /// Whether the perf overlay widget is currently visible. Toggled
+    /// via `Action::TogglePerfOverlay` (`Ctrl+Shift+\`` by default).
+    perf_overlay_visible: bool,
+    /// Cached resident-set size (KiB) shown in the perf overlay. Updated
+    /// every `RSS_REFRESH_FRAMES` frames so the proc-fs read doesn't
+    /// land in the per-frame budget. `None` until the first read or on
+    /// non-Linux platforms.
+    perf_last_rss_kib: Option<u64>,
+    /// Frame counter for the RSS refresh cadence.
+    perf_frame_counter: u32,
     /// Snapshot of the monitor topology taken on the first `resumed()`
     /// — empty until then. Used by the picker UI (C.2) and the
     /// per-monitor render path (C.3); the data layer (this commit /
@@ -146,6 +170,11 @@ impl App {
             ui: None,
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),
+            warnings: std::collections::BTreeSet::new(),
+            perf_sampler: crate::perf::PerfSampler::default(),
+            perf_overlay_visible: false,
+            perf_last_rss_kib: None,
+            perf_frame_counter: 0,
             monitors: Vec::new(),
             library: None,
             library_root: None,
@@ -156,6 +185,22 @@ impl App {
     fn get_config_mtime() -> Option<SystemTime> {
         let path = AppConfig::config_path();
         std::fs::metadata(&path).ok()?.modified().ok()
+    }
+
+    /// Mark a session-lifetime warning. Idempotent — setting the same
+    /// variant twice does not duplicate the banner. Called by
+    /// `main.rs` for startup-time conditions (global hotkeys
+    /// unavailable) and from inside `App` for runtime conditions
+    /// (hot-reload worker disconnected).
+    pub fn push_warning(&mut self, w: Warning) {
+        self.warnings.insert(w);
+    }
+
+    /// Clear a warning — used when the underlying condition resolves
+    /// (e.g. the next hot-reload succeeds after a previous failure).
+    #[allow(dead_code)]
+    pub fn clear_warning(&mut self, w: Warning) {
+        self.warnings.remove(&w);
     }
 
     /// Snapshot the current modifier-key state into the bitmask shape
@@ -365,7 +410,10 @@ impl App {
                             self.save_config_if_needed();
                             tracing::info!("Duplicated entity at ({:.0}, {:.0})", new_x, new_y);
                         }
-                        Err(e) => tracing::error!("Failed to duplicate: {}", e),
+                        Err(e) => {
+                            tracing::error!("Failed to duplicate: {}", e);
+                            self.toasts.error(format!("Duplicate failed: {e}"));
+                        }
                     }
                 }
             }
@@ -484,6 +532,13 @@ impl App {
                     \n    H          — This help"
                 );
             }
+            Action::TogglePerfOverlay => {
+                self.perf_overlay_visible = !self.perf_overlay_visible;
+                tracing::debug!(
+                    "Perf overlay {}",
+                    if self.perf_overlay_visible { "shown" } else { "hidden" }
+                );
+            }
             // Actions whose runtime path lives outside the in-app
             // dispatch: HideOverlay fires only as a global hotkey;
             // OpenCommandPalette is intercepted by `panels.rs` reading
@@ -513,6 +568,10 @@ impl App {
                 Err(mpsc::TryRecvError::Disconnected) => {
                     tracing::warn!("Hot-reload worker disconnected unexpectedly");
                     self.hot_reload_rx = None;
+                    // Surface the silent crash to the user — without
+                    // this banner the in-flight edit would just not
+                    // apply and they'd assume the file save took.
+                    self.warnings.insert(Warning::HotReloadDisconnected);
                 }
                 Err(mpsc::TryRecvError::Empty) => {} // still working
             }
@@ -673,6 +732,9 @@ impl App {
                         for cfg in new.iter().filter(|c| !already.contains(&c.id)) {
                             if let Err(e) = self.scene.append_character_config(cfg) {
                                 tracing::warn!("Palette preset append failed: {e}");
+                                self.toasts.warn(format!(
+                                    "Couldn't add preset entry: {e}"
+                                ));
                             }
                         }
                     }
@@ -1131,6 +1193,20 @@ impl ApplicationHandler<AnimaEvent> for App {
             }
 
             WindowEvent::RedrawRequested => {
+                // Mark the start of a perf frame. `begin_frame` resets
+                // the in-progress sample; the overlay reads from the
+                // ring buffer so it's safe to begin/end every frame
+                // regardless of whether the overlay is visible.
+                self.perf_sampler.begin_frame();
+                // Refresh RSS once a second at 60 fps. /proc syscall is
+                // cheap but per-frame would still be visible at the
+                // microsecond scale the overlay reports.
+                const RSS_REFRESH_FRAMES: u32 = 60;
+                if self.perf_frame_counter % RSS_REFRESH_FRAMES == 0 {
+                    self.perf_last_rss_kib = crate::perf::read_rss_kib();
+                }
+                self.perf_frame_counter = self.perf_frame_counter.wrapping_add(1);
+
                 // Check for external config changes (hot-reload)
                 self.check_hot_reload();
 
@@ -1147,7 +1223,10 @@ impl ApplicationHandler<AnimaEvent> for App {
                 // mode XShape blocks CursorMoved outside the toggle button,
                 // so the position is stale — accepted trade-off.
                 let cursor = Some((self.mouse_x, self.mouse_y));
-                self.scene.tick(screen_w, screen_h, cursor);
+                {
+                    let _s = self.perf_sampler.scope(crate::perf::Category::SceneUpdate);
+                    self.scene.tick(screen_w, screen_h, cursor);
+                }
 
                 // Update textures for entities with changed frames
                 if let Some(renderer) = &mut self.renderer {
@@ -1173,6 +1252,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                     // borrow on self.scene is released and the UI can take a
                     // mutable one to drive sliders / list mutations.
                     let render_result = {
+                        let _s = self.perf_sampler.scope(crate::perf::Category::WgpuSubmit);
                         let visible = self.scene.visible_entities();
                         renderer.render(&visible, self.edit_mode, selected_id)
                     };
@@ -1219,6 +1299,12 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 let keybindings_mut = &mut self.config.keybindings;
                                 let collapse_state_mut = &mut self.config.collapse_state;
                                 let accesskit_mut = &mut self.config.global.accesskit_enabled;
+                                let warnings_ref = &self.warnings;
+                                let perf_sampler_ref = &self.perf_sampler;
+                                let perf_overlay_visible = self.perf_overlay_visible;
+                                let perf_rss_kib = self.perf_last_rss_kib;
+                                let mut perf_export_request = false;
+                                let perf_export_request_ref = &mut perf_export_request;
                                 let monitors_ref = self.monitors.as_slice();
                                 let toasts_ref = &self.toasts;
                                 let menu_state = self.ui_state.context_menu.clone();
@@ -1229,6 +1315,10 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 let toggle_requested_ref = &mut toggle_requested;
                                 let edit_mode = self.edit_mode;
 
+                                // Manual elapsed measurement for the egui pass —
+                                // the Scope guard would conflict with the
+                                // perf_sampler_ref the overlay needs to read.
+                                let egui_start = std::time::Instant::now();
                                 ui.render(
                                     window,
                                     &renderer.device,
@@ -1271,6 +1361,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                                                 keybindings_mut,
                                                 collapse_state_mut,
                                                 accesskit_mut,
+                                                warnings_ref,
                                             );
                                             if let Some(state) = &menu_state {
                                                 *menu_outcome_ref =
@@ -1280,10 +1371,57 @@ impl ApplicationHandler<AnimaEvent> for App {
                                             *palette_outcome_ref = panels::command_palette(ctx);
                                             panels::toasts(ctx, toasts_ref);
                                         }
+                                        // Perf overlay sits on top of every
+                                        // other surface so a user investigating
+                                        // a stutter doesn't have to chase it
+                                        // behind a panel.
+                                        if perf_overlay_visible
+                                            && crate::ui::perf_overlay::show(
+                                                ctx,
+                                                perf_sampler_ref,
+                                                perf_rss_kib,
+                                            )
+                                            .is_some()
+                                        {
+                                            *perf_export_request_ref = true;
+                                        }
                                     },
                                 );
+                                // Closure's done; perf_sampler_ref's borrow ended.
+                                // Safe to take a fresh &mut self.perf_sampler.
+                                self.perf_sampler.add(
+                                    crate::perf::Category::EguiPaint,
+                                    egui_start.elapsed(),
+                                );
+                                if perf_export_request {
+                                    match crate::perf::export_snapshot(&self.perf_sampler) {
+                                        Ok(path) => {
+                                            tracing::info!(
+                                                "Perf snapshot written: {}",
+                                                path.display()
+                                            );
+                                            self.toasts.success(format!(
+                                                "Perf snapshot: {}",
+                                                path.display()
+                                            ));
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Perf snapshot failed: {e}");
+                                            self.toasts
+                                                .error(format!("Snapshot failed: {e}"));
+                                        }
+                                    }
+                                }
                             }
-                            output.present();
+                            {
+                                let _s = self
+                                    .perf_sampler
+                                    .scope(crate::perf::Category::Present);
+                                output.present();
+                            }
+                            // Close the perf frame. The Idle bucket falls
+                            // out implicitly: total - sum(other categories).
+                            self.perf_sampler.end_frame();
 
                             // Apply UI outcomes AFTER ui.render so we can
                             // take &mut self.renderer / call other &mut self

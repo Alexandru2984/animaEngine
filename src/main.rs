@@ -175,7 +175,9 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
     // HideOverlay, PauseAll — anything else with a modifier). The
     // controller must live as long as the app — dropping it
     // un-registers the bindings.
-    let _hotkeys = hotkeys::register(event_loop.create_proxy(), &config.keybindings);
+    let hotkeys = hotkeys::register(event_loop.create_proxy(), &config.keybindings);
+    let hotkeys_available = hotkeys.is_some();
+    let _hotkeys = hotkeys;
 
     // Now that we have a proxy, install the single-instance service so a
     // future redundant launch can ask us to raise instead of starting up.
@@ -184,6 +186,12 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
     }
 
     let mut app = App::new(config, scene);
+    if !hotkeys_available {
+        // hotkeys::register returned None — typically a native Wayland
+        // session without XGrabKey. The tray + ⚙ button still work;
+        // the banner makes the loss discoverable.
+        app.push_warning(anima_engine::ui::Warning::GlobalHotkeysUnavailable);
+    }
 
     tracing::info!("Starting event loop…");
     tracing::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

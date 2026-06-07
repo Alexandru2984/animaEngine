@@ -213,6 +213,7 @@ fn keycode_to_global_code(key: KeyCode) -> Option<Code> {
             SymbolKey::Equal => Code::Equal,
             SymbolKey::BracketLeft => Code::BracketLeft,
             SymbolKey::BracketRight => Code::BracketRight,
+            SymbolKey::Backquote => Code::Backquote,
         },
     })
 }

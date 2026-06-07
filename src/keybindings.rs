@@ -128,6 +128,7 @@ pub enum SymbolKey {
     Equal,        // '='
     BracketLeft,  // '['
     BracketRight, // ']'
+    Backquote,    // '`'
 }
 
 impl KeyCode {
@@ -219,6 +220,7 @@ impl KeyCode {
             E::Equals => Self::Symbol(SymbolKey::Equal),
             E::OpenBracket => Self::Symbol(SymbolKey::BracketLeft),
             E::CloseBracket => Self::Symbol(SymbolKey::BracketRight),
+            E::Backtick => Self::Symbol(SymbolKey::Backquote),
             _ => return None,
         })
     }
@@ -240,6 +242,7 @@ impl KeyCode {
                     '=' => Self::Symbol(SymbolKey::Equal),
                     '[' => Self::Symbol(SymbolKey::BracketLeft),
                     ']' => Self::Symbol(SymbolKey::BracketRight),
+                    '`' => Self::Symbol(SymbolKey::Backquote),
                     _ => return None,
                 }
             }
@@ -311,6 +314,7 @@ impl SymbolKey {
             Self::Equal => "=",
             Self::BracketLeft => "[",
             Self::BracketRight => "]",
+            Self::Backquote => "`",
         }
     }
 
@@ -321,6 +325,7 @@ impl SymbolKey {
             "=" | "Equal" => Self::Equal,
             "[" | "BracketLeft" => Self::BracketLeft,
             "]" | "BracketRight" => Self::BracketRight,
+            "`" | "Backquote" => Self::Backquote,
             _ => return None,
         })
     }
@@ -346,6 +351,7 @@ impl FromStr for KeyCode {
                 '=' => Self::Symbol(SymbolKey::Equal),
                 '[' => Self::Symbol(SymbolKey::BracketLeft),
                 ']' => Self::Symbol(SymbolKey::BracketRight),
+                '`' => Self::Symbol(SymbolKey::Backquote),
                 _ => return Err(ChordParseError::UnknownKey(s.to_string())),
             });
         }
@@ -543,6 +549,13 @@ pub enum Action {
     CycleMonitor,
     ShowEntityInfo,
     ShowHelp,
+
+    // ── Dev tools ──
+    /// Toggles the in-app frame-time + per-system perf overlay (D.6).
+    /// Bound to `Ctrl+Shift+`` by default. Discoverable for power
+    /// users via the Keybindings tab; doesn't appear in any onboarding
+    /// or help surface — dev affordance, not a feature.
+    TogglePerfOverlay,
 }
 
 impl Action {
@@ -576,6 +589,7 @@ impl Action {
         Self::CycleMonitor,
         Self::ShowEntityInfo,
         Self::ShowHelp,
+        Self::TogglePerfOverlay,
     ];
 
     /// Short human-readable label for the settings panel and command
@@ -609,6 +623,7 @@ impl Action {
             Self::CycleMonitor => "Cycle entity monitor pin",
             Self::ShowEntityInfo => "Show entity info",
             Self::ShowHelp => "Show keyboard help",
+            Self::TogglePerfOverlay => "Toggle perf overlay",
         }
     }
 
@@ -643,6 +658,7 @@ impl Action {
             Self::CycleMonitor => "Pin the selected entity to the next monitor.",
             Self::ShowEntityInfo => "Print the selection's full state to the log.",
             Self::ShowHelp => "Print every shortcut in a toast.",
+            Self::TogglePerfOverlay => "Show or hide the live FPS / frame-time overlay.",
         }
     }
 
@@ -720,6 +736,10 @@ impl Action {
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('I'))];
     const C_SHOW_HELP: &'static [KeyChord] =
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('H'))];
+    const C_TOGGLE_PERF_OVERLAY: &'static [KeyChord] = &[KeyChord::new(
+        ModifierMask(0b0011),
+        KeyCode::Symbol(SymbolKey::Backquote),
+    )];
 
     /// Default chord set for this action. The UI rebind tab starts
     /// from this; user overrides land in `KeyBindings.map`.
@@ -752,6 +772,7 @@ impl Action {
             Self::CycleMonitor => Self::C_CYCLE_MONITOR,
             Self::ShowEntityInfo => Self::C_SHOW_ENTITY_INFO,
             Self::ShowHelp => Self::C_SHOW_HELP,
+            Self::TogglePerfOverlay => Self::C_TOGGLE_PERF_OVERLAY,
         }
     }
 
@@ -801,6 +822,7 @@ impl Action {
             Self::CycleMonitor => "action-cycle-monitor",
             Self::ShowEntityInfo => "action-show-entity-info",
             Self::ShowHelp => "action-show-help",
+            Self::TogglePerfOverlay => "action-toggle-perf-overlay",
         }
     }
 }
@@ -960,7 +982,7 @@ mod tests {
         let set: HashSet<&Action> = Action::ALL.iter().collect();
         assert_eq!(set.len(), Action::ALL.len(), "ALL contains duplicates");
         // Bumped manually when a variant is added.
-        assert_eq!(Action::ALL.len(), 27);
+        assert_eq!(Action::ALL.len(), 28);
     }
 
     #[test]

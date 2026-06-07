@@ -150,3 +150,8 @@ action-show-help = Arată ajutor pentru taste
 appearance-accessibility-header = Accesibilitate
 appearance-accesskit-label = Generează actualizări AccessKit
 appearance-accesskit-hint = Alimentează cititoarele de ecran AT-SPI (Orca etc.). Lasă activ dacă nu vrei să reduci consumul sau dacă desktop-ul tău nu rulează un bus AT-SPI.
+
+# ── Avertismente persistente (D.5) ────────────────────────────────────
+warning-global-hotkeys-unavailable = Comenzile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.
+warning-hot-reload-disconnected = Procesul de reîncărcare la cald s-a oprit pe neașteptate; modificările pe config nu se vor aplica până la repornire.
+action-toggle-perf-overlay = Comută suprapunerea de performanță

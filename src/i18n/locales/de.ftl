@@ -150,3 +150,8 @@ action-show-help = Show keyboard help
 appearance-accessibility-header = Accessibility
 appearance-accesskit-label = Generate AccessKit tree updates
 appearance-accesskit-hint = Powers AT-SPI screen readers (Orca etc.). Leave on unless you want a tighter footprint or your desktop doesn't run an AT-SPI bus.
+
+# ── Warning banners (D.5) — placeholder pending native-speaker audit
+warning-global-hotkeys-unavailable = Global hotkeys couldn't register (typical on a native Wayland session). The tray menu and the ⚙ button still work.
+warning-hot-reload-disconnected = The hot-reload worker stopped unexpectedly; in-flight config edits won't apply until you restart the app.
+action-toggle-perf-overlay = Toggle perf overlay

@@ -12,6 +12,7 @@ use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::i18n::{t, t_args};
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyBindings, KeyChord};
+use crate::ui::banner::{Severity, Warning};
 use crate::ui::collapse::CollapseState;
 use crate::monitor::{MonitorInfo, MonitorMode};
 use crate::presets::{self, ApplyMode, Preset, PresetId};
@@ -120,6 +121,7 @@ pub fn settings(
     keybindings: &mut KeyBindings,
     collapse_state: &mut CollapseState,
     accesskit_enabled: &mut bool,
+    warnings: &std::collections::BTreeSet<Warning>,
 ) {
     egui::SidePanel::right("anima_settings")
         .resizable(false)
@@ -156,6 +158,19 @@ pub fn settings(
                     .insert_temp(egui::Id::new("anima.settings.tab"), active_tab);
             });
             ui.separator();
+
+            // ── Banners (session-lifetime warnings) ──────────────────
+            // Rendered between the tab switcher and the tab body so
+            // the user notices them the moment the panel opens; they
+            // never appear in pass-through mode (the whole panel is
+            // hidden there). Auto-disappear when the underlying
+            // condition clears (see App::clear_warning).
+            if !warnings.is_empty() {
+                for warning in warnings {
+                    warning_banner(ui, *warning);
+                }
+                ui.add_space(SPACE_XS);
+            }
 
             // First-run hint right under the tab switcher.
             if onboarding::hint(ui, &t("onboarding-tabs"), &mut onboarding.tabs) {
@@ -867,6 +882,29 @@ fn language_picker(ui: &mut egui::Ui, locale: &mut Option<String>) -> bool {
             }
         });
     changed
+}
+
+/// Render a single persistent warning banner inside the settings
+/// panel. Severity drives the accent colour; the message body comes
+/// from i18n via the `Warning::i18n_key`. No dismiss button for now —
+/// banners auto-clear when the underlying condition resolves.
+fn warning_banner(ui: &mut egui::Ui, warning: Warning) {
+    let accent = match warning.severity() {
+        Severity::Warn => egui::Color32::from_rgb(220, 180, 60),
+        Severity::Error => egui::Color32::from_rgb(220, 80, 80),
+    };
+    egui::Frame::group(ui.style())
+        .stroke(egui::Stroke::new(1.0, accent))
+        .show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(egui::RichText::new(icons::WARN).color(accent));
+                ui.label(
+                    egui::RichText::new(t(warning.i18n_key()))
+                        .text_style(theme::caption()),
+                );
+            });
+        });
+    ui.add_space(SPACE_XS);
 }
 
 /// The dedicated Keybindings tab body. Renders every action's live

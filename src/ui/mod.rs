@@ -9,16 +9,19 @@
 //! UI itself is defined in `panels` and friends — `EguiRenderer` does not
 //! know what's being painted, only how to paint it.
 
+pub mod banner;
 pub mod collapse;
 mod egui_renderer;
 pub mod icons;
 pub mod keyboard;
 pub mod onboarding;
 pub mod panels;
+pub mod perf_overlay;
 pub mod states;
 pub mod theme;
 pub mod toasts;
 
+pub use banner::Warning;
 pub use collapse::CollapseState;
 pub use egui_renderer::EguiRenderer;
 pub use keyboard::Action;
