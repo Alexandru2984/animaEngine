@@ -6,6 +6,110 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-06-07
+
+Faza D — UX completion. Ten sub-phases focused on giving every UX
+surface a coherent story: rebindable shortcuts, persistent panel
+state, runtime accessibility control, native-speaker review
+pipeline, surfaced failure paths, live perf instrumentation,
+onboarding polish, opinionated empty states, locale + tooltip
+sweep.
+
+### Added
+
+- **Rebindable keyboard map** (D.1): every action animaEngine
+  dispatches lives in `src/keybindings.rs` as one variant of `Action`
+  (27 user-facing + 1 dev `TogglePerfOverlay`). The Keybindings tab
+  in the settings sidebar shows the live chord table; clicking
+  **Record** captures the next chord, conflicts colour the offending
+  binding yellow, per-row + global "Reset to defaults" buttons. The
+  bindings persist in `config.toml` under `[keybindings.map]` —
+  hand-editing is supported, chord strings round-trip through
+  `KeyChord::FromStr` (`"Ctrl+Shift+A"`, `"Esc"`, `"ArrowUp"`, …).
+- **Persistent collapse state** (D.2): the four inspector sections
+  (Position / Appearance / Animation / Behavior) and the Scene-tab
+  preset gallery remember their open/closed flag across sessions.
+  Stored under `[collapse_state]`; defaults match the pre-D.2
+  open-state heuristics so upgrading users see no visual shuffle.
+- **Runtime AccessKit toggle** (D.3): Appearance → Accessibility
+  hosts a checkbox driving `Context::enable_accesskit()` /
+  `disable_accesskit()` per frame. Persisted as
+  `[global].accesskit_enabled` (default true). Users on minimal
+  setups can shut down the AT-SPI tree-update generation without
+  rebuilding from source.
+- **Locale review pipeline** (D.4):
+  [`docs/i18n-pipeline.md`](docs/i18n-pipeline.md) documents how
+  new strings flow from `en.ftl` to the nine translated locales,
+  including the placeholder-English convention used while a native
+  speaker hasn't reviewed yet. Per-locale audits under
+  [`docs/locale-audit/`](docs/locale-audit/) carry glossary
+  anchors, suspect-issue lists, and AI-confidence labels.
+  GitHub issue template `.github/ISSUE_TEMPLATE/locale-review.md`
+  for structured review requests.
+- **Error banners + toast wiring** (D.5): the new `Warning` enum
+  (`GlobalHotkeysUnavailable`, `HotReloadDisconnected`) renders
+  session-lifetime banners at the top of the settings panel — so
+  the user notices when `XGrabKey` couldn't grab the global
+  chords or the hot-reload worker crashed silently. Toast
+  coverage filled in at previously silent failure paths:
+  duplicate-via-keypress, palette preset append.
+- **Live perf overlay** (D.6): toggleable via `Ctrl+Shift+\``
+  (`Action::TogglePerfOverlay`, rebindable). Shows FPS, rolling
+  avg + p95 frame time, 60-frame averages for five categories
+  (`scene_update`, `egui_paint`, `wgpu_submit`, `present`,
+  `idle`), RSS in MiB (Linux), and a 120-frame sparkline with a
+  16.7 ms reference line. "Export snapshot" writes a
+  chrome-tracing JSON file at
+  `~/.cache/animaEngine/perf-<ts>.json` openable in
+  `chrome://tracing` or Perfetto.
+- **Onboarding 2.0** (D.7): retains the progressive-tooltip
+  concept from Faza A; adds the "What's new in 0.4" highlight
+  panel anchored by `WHATS_NEW_VERSION = "0.4.0"` (one-shot per
+  minor bump), two new hint sites (Keybindings tab,
+  perf overlay), and an Appearance → "Reset onboarding hints"
+  button so users can retake the tour.
+- **Empty-state CTAs** (D.8): the Scene-empty card now offers
+  "Browse presets" (opens the preset gallery); the Library
+  no-asset-root / empty-index cards offer "Copy path to
+  clipboard" so users can paste the documented assets path
+  straight into their file manager.
+
+### Changed
+
+- Inspector section headers route through `t()` against the
+  `inspector-section-*` keys (D.9). Non-English locales see the
+  section labels in their language for the first time.
+- `src/ui/keyboard.rs` collapsed to a thin re-export of the new
+  `crate::keybindings::Action`; the canonical Action enum + label /
+  description / default chords now live in `src/keybindings.rs`.
+- Toast for "Library asset add failed" and the global hotkeys
+  startup outcome both wire through the new banner / toast paths.
+
+### Removed
+
+- Dead i18n keys `appearance-keyboard-header` and
+  `appearance-keyboard-note` from all 10 locale files — the call
+  sites went away when D.1.6 replaced the Appearance read-only
+  table with the dedicated Keybindings tab.
+
+### Stats
+
+- Locale key count: 128 → 168 (D.1: +34, D.3: +3, D.5: +2, D.7: +8,
+  D.8: +2, D.9: +1, −2 dead).
+- New modules: `src/keybindings.rs`, `src/perf.rs`,
+  `src/ui/banner.rs`, `src/ui/collapse.rs`,
+  `src/ui/perf_overlay.rs`, `src/ui/whats_new.rs`.
+- Test suite: 210 lib + 25 integration + 1 demo = 236 pass.
+
+### Upgrade notes
+
+Pre-0.4 `config.toml` files decode unchanged — every new field
+carries `#[serde(default)]`. The first session after upgrade
+shows the "What's new in 0.4" panel; dismissing it stamps the
+version into `[global].last_seen_whats_new`. The previously
+hard-coded chord set survives intact as the default
+`[keybindings.map]`, so muscle memory is preserved.
+
 ## [0.3.2] — 2026-06-04
 
 Patch release. 0.3.1 shipped the PNGs at every hicolor size but the

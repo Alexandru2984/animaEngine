@@ -57,6 +57,21 @@
   </recommends>
 
   <releases>
+    <release version="0.4.0" date="2026-06-07">
+      <description>
+        <p>Faza D — UX completion. Ten sub-phases across rebindable keyboard map, persistent panel state, runtime AccessKit toggle, locale review pipeline, surfaced failure paths, live perf overlay, onboarding polish, empty-state CTAs, and a consistency sweep.</p>
+        <ul>
+          <li>Rebindable keyboard map: 27 actions in a dedicated Keybindings tab with record / conflict-detect / reset; chord set persists in config.toml and the global hotkeys read from it.</li>
+          <li>Persistent collapse state for inspector sections + preset gallery so users don't re-collapse the same surfaces after every restart.</li>
+          <li>Runtime AccessKit toggle in Appearance → Accessibility; AT-SPI tree-update generation can be turned off without rebuilding.</li>
+          <li>Native-speaker review pipeline + per-locale audit docs + GitHub issue template under docs/locale-audit/.</li>
+          <li>Persistent warning banners + filled-in toast wiring at previously silent failure paths.</li>
+          <li>Live perf overlay (Ctrl+Shift+`): FPS + per-system timings + RSS + 120-frame sparkline + chrome-tracing JSON snapshot export.</li>
+          <li>Onboarding 2.0: "What's new in 0.4" highlight panel + new hint sites + "Reset onboarding hints" button.</li>
+          <li>Empty-state CTAs route users to the next action (Browse presets, Copy asset path).</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.2" date="2026-06-04">
       <description>
         <p>Patch release fixing the launcher icon for real this time. Two related freedesktop-spec corner cases caused GNOME Shell 47+ on Ubuntu to render the launcher entry without an icon even though the PNGs were valid and the hicolor theme cache was fresh.</p>
