@@ -57,18 +57,12 @@ pub fn show(
                 .strong(),
             );
             ui.label(
-                egui::RichText::new(format!(
-                    "avg  {:>6.2} ms",
-                    avg.map(ms).unwrap_or(0.0),
-                ))
-                .text_style(egui::TextStyle::Monospace),
+                egui::RichText::new(format!("avg  {:>6.2} ms", avg.map(ms).unwrap_or(0.0),))
+                    .text_style(egui::TextStyle::Monospace),
             );
             ui.label(
-                egui::RichText::new(format!(
-                    "p95  {:>6.2} ms",
-                    p95.map(ms).unwrap_or(0.0),
-                ))
-                .text_style(egui::TextStyle::Monospace),
+                egui::RichText::new(format!("p95  {:>6.2} ms", p95.map(ms).unwrap_or(0.0),))
+                    .text_style(egui::TextStyle::Monospace),
             );
             ui.separator();
 
@@ -116,12 +110,9 @@ pub fn show(
                     export_clicked = true;
                 }
                 ui.label(
-                    egui::RichText::new(format!(
-                        "{} frames",
-                        sampler.history_len()
-                    ))
-                    .weak()
-                    .small(),
+                    egui::RichText::new(format!("{} frames", sampler.history_len()))
+                        .weak()
+                        .small(),
                 );
             });
         });
@@ -141,17 +132,8 @@ fn sparkline(ui: &mut egui::Ui, sampler: &PerfSampler) {
     const H: f32 = 28.0;
     let (rect, _) = ui.allocate_exact_size(egui::vec2(W, H), egui::Sense::hover());
     let painter = ui.painter();
-    painter.rect_filled(
-        rect,
-        2.0,
-        ui.visuals().extreme_bg_color,
-    );
-    let samples: Vec<Duration> = sampler
-        .history()
-        .rev()
-        .take(N)
-        .map(|s| s.total)
-        .collect();
+    painter.rect_filled(rect, 2.0, ui.visuals().extreme_bg_color);
+    let samples: Vec<Duration> = sampler.history().rev().take(N).map(|s| s.total).collect();
     if samples.is_empty() {
         return;
     }

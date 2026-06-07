@@ -12,11 +12,11 @@ use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::i18n::{t, t_args};
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyBindings, KeyChord};
-use crate::ui::banner::{Severity, Warning};
-use crate::ui::collapse::CollapseState;
 use crate::monitor::{MonitorInfo, MonitorMode};
 use crate::presets::{self, ApplyMode, Preset, PresetId};
 use crate::scene::Scene;
+use crate::ui::banner::{Severity, Warning};
+use crate::ui::collapse::CollapseState;
 use crate::ui::icons;
 use crate::ui::onboarding::{self, OnboardingProgress};
 use crate::ui::states;
@@ -964,10 +964,7 @@ fn warning_banner(ui: &mut egui::Ui, warning: Warning) {
         .show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label(egui::RichText::new(icons::WARN).color(accent));
-                ui.label(
-                    egui::RichText::new(t(warning.i18n_key()))
-                        .text_style(theme::caption()),
-                );
+                ui.label(egui::RichText::new(t(warning.i18n_key())).text_style(theme::caption()));
             });
         });
     ui.add_space(SPACE_XS);
@@ -1044,10 +1041,7 @@ fn keybindings_tab(
         .show(ui, |ui| {
             let (warn_color, caption_color) = {
                 let v = ui.visuals();
-                (
-                    egui::Color32::from_rgb(220, 180, 60),
-                    v.weak_text_color(),
-                )
+                (egui::Color32::from_rgb(220, 180, 60), v.weak_text_color())
             };
             for &action in Action::ALL {
                 // ── Column 1: action label (localized)
@@ -1064,8 +1058,7 @@ fn keybindings_tab(
                         );
                     } else {
                         for chord in &chords {
-                            let conflict =
-                                conflicts.iter().any(|(c, _)| c == chord);
+                            let conflict = conflicts.iter().any(|(c, _)| c == chord);
                             let mut chip = egui::RichText::new(chord.display_str())
                                 .text_style(egui::TextStyle::Monospace);
                             if conflict {
@@ -1118,23 +1111,16 @@ fn keybindings_tab(
         for (chord, actions) in &conflicts {
             // Pick the first action as the "anchor" and list the rest
             // as the conflict source via t_args.
-            let mut others = actions
-                .iter()
-                .map(|a| t(a.i18n_key()))
-                .collect::<Vec<_>>();
+            let mut others = actions.iter().map(|a| t(a.i18n_key())).collect::<Vec<_>>();
             others.remove(0);
             let conflict_with = others.join(", ");
             let mut args = fluent::FluentArgs::new();
             args.set("action", conflict_with);
             ui.horizontal(|ui| {
                 ui.label(
-                    egui::RichText::new(format!(
-                        "{}  {}",
-                        icons::WARN,
-                        chord.display_str()
-                    ))
-                    .text_style(egui::TextStyle::Monospace)
-                    .color(egui::Color32::from_rgb(220, 180, 60)),
+                    egui::RichText::new(format!("{}  {}", icons::WARN, chord.display_str()))
+                        .text_style(egui::TextStyle::Monospace)
+                        .color(egui::Color32::from_rgb(220, 180, 60)),
                 );
                 ui.label(
                     egui::RichText::new(t_args("keybindings-conflict", &args))
@@ -1251,36 +1237,36 @@ fn entity_inspector(
         &mut collapse_state.inspector_position,
         config_dirty,
         |ui| {
-        if ui
-            .add(egui::Slider::new(&mut entity.x, -200.0..=4000.0).text("X"))
-            .changed()
-        {
-            change.any_field = true;
-        }
-        if ui
-            .add(egui::Slider::new(&mut entity.y, -200.0..=4000.0).text("Y"))
-            .changed()
-        {
-            change.any_field = true;
-        }
-        ui.horizontal(|ui| {
-            ui.label("z-index");
             if ui
-                .add(
-                    egui::DragValue::new(&mut entity.z_index)
-                        .speed(1.0)
-                        .range(-10_000..=10_000),
-                )
+                .add(egui::Slider::new(&mut entity.x, -200.0..=4000.0).text("X"))
                 .changed()
             {
-                change.touches_visibility_or_z_order = true;
+                change.any_field = true;
             }
-        });
-        // Monitor pin lives in the Position section because it's
-        // conceptually a 3rd axis: x / y / which-screen.
-        if entity_monitor_picker(ui, &mut entity.monitor, monitors) {
-            change.any_field = true;
-        }
+            if ui
+                .add(egui::Slider::new(&mut entity.y, -200.0..=4000.0).text("Y"))
+                .changed()
+            {
+                change.any_field = true;
+            }
+            ui.horizontal(|ui| {
+                ui.label("z-index");
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut entity.z_index)
+                            .speed(1.0)
+                            .range(-10_000..=10_000),
+                    )
+                    .changed()
+                {
+                    change.touches_visibility_or_z_order = true;
+                }
+            });
+            // Monitor pin lives in the Position section because it's
+            // conceptually a 3rd axis: x / y / which-screen.
+            if entity_monitor_picker(ui, &mut entity.monitor, monitors) {
+                change.any_field = true;
+            }
         },
     );
 
@@ -1290,18 +1276,18 @@ fn entity_inspector(
         &mut collapse_state.inspector_appearance,
         config_dirty,
         |ui| {
-        if ui
-            .add(egui::Slider::new(&mut entity.scale, 0.1..=5.0).text("Scale"))
-            .changed()
-        {
-            change.any_field = true;
-        }
-        if ui
-            .add(egui::Slider::new(&mut entity.opacity, 0.0..=1.0).text("Opacity"))
-            .changed()
-        {
-            change.any_field = true;
-        }
+            if ui
+                .add(egui::Slider::new(&mut entity.scale, 0.1..=5.0).text("Scale"))
+                .changed()
+            {
+                change.any_field = true;
+            }
+            if ui
+                .add(egui::Slider::new(&mut entity.opacity, 0.0..=1.0).text("Opacity"))
+                .changed()
+            {
+                change.any_field = true;
+            }
         },
     );
 
@@ -1311,22 +1297,22 @@ fn entity_inspector(
         &mut collapse_state.inspector_animation,
         config_dirty,
         |ui| {
-        let mut fps = entity.animation.fps;
-        if ui
-            .add(egui::Slider::new(&mut fps, 1.0..=60.0).text("FPS"))
-            .changed()
-        {
-            entity.animation.set_fps(fps);
-            change.any_field = true;
-        }
-        let mut playing = entity.animation.playing;
-        if ui.checkbox(&mut playing, "Playing").changed() {
-            entity.animation.playing = playing;
-            change.any_field = true;
-        }
-        if easing_picker(ui, &mut entity.animation.easing) {
-            change.any_field = true;
-        }
+            let mut fps = entity.animation.fps;
+            if ui
+                .add(egui::Slider::new(&mut fps, 1.0..=60.0).text("FPS"))
+                .changed()
+            {
+                entity.animation.set_fps(fps);
+                change.any_field = true;
+            }
+            let mut playing = entity.animation.playing;
+            if ui.checkbox(&mut playing, "Playing").changed() {
+                entity.animation.playing = playing;
+                change.any_field = true;
+            }
+            if easing_picker(ui, &mut entity.animation.easing) {
+                change.any_field = true;
+            }
         },
     );
 

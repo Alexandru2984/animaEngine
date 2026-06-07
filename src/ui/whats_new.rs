@@ -83,10 +83,8 @@ pub fn show(ui: &mut egui::Ui, last_seen: &mut Option<String>) -> bool {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
                         .add(
-                            egui::Button::new(
-                                egui::RichText::new(icons::CLOSE).size(12.0).weak(),
-                            )
-                            .frame(false),
+                            egui::Button::new(egui::RichText::new(icons::CLOSE).size(12.0).weak())
+                                .frame(false),
                         )
                         .on_hover_text("Dismiss")
                         .clicked()

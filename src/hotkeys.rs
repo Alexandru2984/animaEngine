@@ -14,7 +14,9 @@
 //! the key from every focused app.
 
 use crate::event::AnimaEvent;
-use crate::keybindings::{Action, KeyBindings, KeyChord, KeyCode, ModifierMask, NamedKey, SymbolKey};
+use crate::keybindings::{
+    Action, KeyBindings, KeyChord, KeyCode, ModifierMask, NamedKey, SymbolKey,
+};
 use global_hotkey::{
     hotkey::{Code, HotKey, Modifiers},
     GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,

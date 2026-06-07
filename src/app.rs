@@ -4,9 +4,9 @@ use crate::event::AnimaEvent;
 use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyChord, KeyCode, ModifierMask};
-use crate::ui::Warning;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
+use crate::ui::Warning;
 use crate::ui::{panels, EguiRenderer, ToastQueue};
 use crate::window::x11_input::X11InputManager;
 use std::collections::HashSet;
@@ -536,7 +536,11 @@ impl App {
                 self.perf_overlay_visible = !self.perf_overlay_visible;
                 tracing::debug!(
                     "Perf overlay {}",
-                    if self.perf_overlay_visible { "shown" } else { "hidden" }
+                    if self.perf_overlay_visible {
+                        "shown"
+                    } else {
+                        "hidden"
+                    }
                 );
             }
             // Actions whose runtime path lives outside the in-app
@@ -732,9 +736,7 @@ impl App {
                         for cfg in new.iter().filter(|c| !already.contains(&c.id)) {
                             if let Err(e) = self.scene.append_character_config(cfg) {
                                 tracing::warn!("Palette preset append failed: {e}");
-                                self.toasts.warn(format!(
-                                    "Couldn't add preset entry: {e}"
-                                ));
+                                self.toasts.warn(format!("Couldn't add preset entry: {e}"));
                             }
                         }
                     }
@@ -1392,10 +1394,8 @@ impl ApplicationHandler<AnimaEvent> for App {
                                 );
                                 // Closure's done; perf_sampler_ref's borrow ended.
                                 // Safe to take a fresh &mut self.perf_sampler.
-                                self.perf_sampler.add(
-                                    crate::perf::Category::EguiPaint,
-                                    egui_start.elapsed(),
-                                );
+                                self.perf_sampler
+                                    .add(crate::perf::Category::EguiPaint, egui_start.elapsed());
                                 if perf_export_request {
                                     match crate::perf::export_snapshot(&self.perf_sampler) {
                                         Ok(path) => {
@@ -1410,16 +1410,13 @@ impl ApplicationHandler<AnimaEvent> for App {
                                         }
                                         Err(e) => {
                                             tracing::error!("Perf snapshot failed: {e}");
-                                            self.toasts
-                                                .error(format!("Snapshot failed: {e}"));
+                                            self.toasts.error(format!("Snapshot failed: {e}"));
                                         }
                                     }
                                 }
                             }
                             {
-                                let _s = self
-                                    .perf_sampler
-                                    .scope(crate::perf::Category::Present);
+                                let _s = self.perf_sampler.scope(crate::perf::Category::Present);
                                 output.present();
                             }
                             // Close the perf frame. The Idle bucket falls

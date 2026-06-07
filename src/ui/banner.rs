@@ -22,9 +22,7 @@ use serde::{Deserialize, Serialize};
 /// exists" surface lands; removed when the underlying source goes
 /// away. The `Ord` derive drives display order — variants higher
 /// in the declaration land at the top of the banner stack.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Warning {
     /// `hotkeys::register` returned `None` at startup — typically
     /// because the session is native Wayland without XWayland

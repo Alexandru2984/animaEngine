@@ -186,13 +186,7 @@ impl PerfSampler {
         if take == 0 {
             return None;
         }
-        let sum: Duration = self
-            .history
-            .iter()
-            .rev()
-            .take(take)
-            .map(|s| s.total)
-            .sum();
+        let sum: Duration = self.history.iter().rev().take(take).map(|s| s.total).sum();
         Some(sum / take as u32)
     }
 
@@ -432,10 +426,8 @@ mod tests {
         }
         // Use a per-test temp path so two `cargo test` workers can run
         // export tests in parallel without colliding.
-        let path = std::env::temp_dir().join(format!(
-            "anima-perf-test-{}.json",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("anima-perf-test-{}.json", std::process::id()));
         export_snapshot_to(&s, &path).expect("export ok");
         let content = std::fs::read_to_string(&path).expect("file readable");
         assert!(content.starts_with(r#"{"traceEvents":["#));
@@ -448,10 +440,8 @@ mod tests {
     #[test]
     fn export_with_empty_history_still_produces_valid_envelope() {
         let s = PerfSampler::new(4);
-        let path = std::env::temp_dir().join(format!(
-            "anima-perf-test-empty-{}.json",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("anima-perf-test-empty-{}.json", std::process::id()));
         export_snapshot_to(&s, &path).expect("export ok");
         let content = std::fs::read_to_string(&path).expect("file readable");
         assert_eq!(content, r#"{"traceEvents":[],"displayTimeUnit":"ms"}"#);

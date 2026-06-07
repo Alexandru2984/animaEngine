@@ -504,9 +504,7 @@ impl<'de> Deserialize<'de> for KeyChord {
 /// One rebindable action. Single source of truth for the dispatch
 /// table and the UI rebind tab. Adding a variant requires updating
 /// `ALL`, `label`, `description`, and `default_chords`.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Action {
     // ── Global / overlay ──
@@ -684,22 +682,34 @@ impl Action {
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('S'))];
     const C_OPEN_CMD_PALETTE: &'static [KeyChord] =
         &[KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('K'))];
-    const C_CYCLE_ENTITY: &'static [KeyChord] =
-        &[KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::Tab))];
+    const C_CYCLE_ENTITY: &'static [KeyChord] = &[KeyChord::new(
+        ModifierMask::NONE,
+        KeyCode::Named(NamedKey::Tab),
+    )];
     const C_DELETE_SELECTED: &'static [KeyChord] = &[
         KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::Delete)),
         KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::Backspace)),
     ];
-    const C_NUDGE_UP: &'static [KeyChord] =
-        &[KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::ArrowUp))];
-    const C_NUDGE_DOWN: &'static [KeyChord] =
-        &[KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::ArrowDown))];
-    const C_NUDGE_LEFT: &'static [KeyChord] =
-        &[KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::ArrowLeft))];
-    const C_NUDGE_RIGHT: &'static [KeyChord] =
-        &[KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::ArrowRight))];
-    const C_CENTER_ON_SCREEN: &'static [KeyChord] =
-        &[KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::Home))];
+    const C_NUDGE_UP: &'static [KeyChord] = &[KeyChord::new(
+        ModifierMask::NONE,
+        KeyCode::Named(NamedKey::ArrowUp),
+    )];
+    const C_NUDGE_DOWN: &'static [KeyChord] = &[KeyChord::new(
+        ModifierMask::NONE,
+        KeyCode::Named(NamedKey::ArrowDown),
+    )];
+    const C_NUDGE_LEFT: &'static [KeyChord] = &[KeyChord::new(
+        ModifierMask::NONE,
+        KeyCode::Named(NamedKey::ArrowLeft),
+    )];
+    const C_NUDGE_RIGHT: &'static [KeyChord] = &[KeyChord::new(
+        ModifierMask::NONE,
+        KeyCode::Named(NamedKey::ArrowRight),
+    )];
+    const C_CENTER_ON_SCREEN: &'static [KeyChord] = &[KeyChord::new(
+        ModifierMask::NONE,
+        KeyCode::Named(NamedKey::Home),
+    )];
     const C_TOGGLE_VISIBLE: &'static [KeyChord] =
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('V'))];
     const C_TOGGLE_GRAVITY: &'static [KeyChord] =
@@ -710,10 +720,14 @@ impl Action {
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('D'))];
     const C_RESET_TRANSFORM: &'static [KeyChord] =
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('R'))];
-    const C_BRING_FORWARD: &'static [KeyChord] =
-        &[KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::PageUp))];
-    const C_SEND_BACKWARD: &'static [KeyChord] =
-        &[KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::PageDown))];
+    const C_BRING_FORWARD: &'static [KeyChord] = &[KeyChord::new(
+        ModifierMask::NONE,
+        KeyCode::Named(NamedKey::PageUp),
+    )];
+    const C_SEND_BACKWARD: &'static [KeyChord] = &[KeyChord::new(
+        ModifierMask::NONE,
+        KeyCode::Named(NamedKey::PageDown),
+    )];
     const C_FPS_UP: &'static [KeyChord] = &[KeyChord::new(
         ModifierMask::NONE,
         KeyCode::Symbol(SymbolKey::BracketRight),
