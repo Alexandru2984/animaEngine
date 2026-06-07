@@ -105,7 +105,14 @@ pub fn show(
 
             // ── Actions ──────────────────────────────────────────────
             ui.horizontal(|ui| {
-                if ui.button("Export snapshot").clicked() {
+                if ui
+                    .button("Export snapshot")
+                    .on_hover_text(
+                        "Writes the ring buffer to ~/.cache/animaEngine/perf-<ts>.json \
+                        in chrome-tracing format. Open in chrome://tracing or perfetto.",
+                    )
+                    .clicked()
+                {
                     export_clicked = true;
                 }
                 ui.label(

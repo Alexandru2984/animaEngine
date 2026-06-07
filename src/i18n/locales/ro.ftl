@@ -64,8 +64,6 @@ monitor-no-monitors-detected = Niciun monitor detectat
 appearance-theme-header = Temă
 appearance-theme-label = Temă
 appearance-language-header = Limbă
-appearance-keyboard-header = Tastatură
-appearance-keyboard-note = Doar pentru citire în 0.2.0 — rebindarea apare într-un release ulterior.
 theme-dark = Întunecat
 theme-light = Luminos
 theme-dark-hc = Întunecat · Contrast ridicat
@@ -171,3 +169,6 @@ appearance-reset-onboarding = Resetează hint-urile de bun venit
 # ── Acțiuni stări goale (D.8) ─────────────────────────────────────────
 scene-empty-action-browse-presets = Răsfoiește preseturi
 library-empty-action-copy-path = Copiază calea
+
+# ── Tooltips (D.9) ────────────────────────────────────────────────────
+appearance-reset-onboarding-hint = Reactivează hint-urile descărcate și panoul "Noutăți".

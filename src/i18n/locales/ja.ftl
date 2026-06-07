@@ -64,8 +64,6 @@ monitor-no-monitors-detected = モニターが検出されません
 appearance-theme-header = テーマ
 appearance-theme-label = テーマ
 appearance-language-header = 言語
-appearance-keyboard-header = キーボード
-appearance-keyboard-note = 0.2.0 では読み取り専用です。リバインドは後続リリースで対応予定。
 theme-dark = ダーク
 theme-light = ライト
 theme-dark-hc = ダーク · ハイコントラスト
@@ -168,3 +166,5 @@ appearance-reset-onboarding = Reset onboarding hints
 
 scene-empty-action-browse-presets = Browse presets
 library-empty-action-copy-path = Copy path to clipboard
+
+appearance-reset-onboarding-hint = Brings back the dismissed progressive hints and the "What's new" panel.

@@ -64,8 +64,6 @@ monitor-no-monitors-detected = Nenhum monitor detectado
 appearance-theme-header = Tema
 appearance-theme-label = Tema
 appearance-language-header = Idioma
-appearance-keyboard-header = Teclado
-appearance-keyboard-note = Apenas leitura em 0.2.0 — rebinding chega em release posterior.
 theme-dark = Escuro
 theme-light = Claro
 theme-dark-hc = Escuro · Alto contraste
@@ -168,3 +166,5 @@ appearance-reset-onboarding = Reset onboarding hints
 
 scene-empty-action-browse-presets = Browse presets
 library-empty-action-copy-path = Copy path to clipboard
+
+appearance-reset-onboarding-hint = Brings back the dismissed progressive hints and the "What's new" panel.

@@ -886,7 +886,11 @@ fn appearance_tab(
     // ── Reset onboarding hints (D.7) ─────────────────────────────────
     // Single button — retakes every progressive hint plus the
     // What's new panel for this version.
-    if ui.button(t("appearance-reset-onboarding")).clicked() {
+    if ui
+        .button(t("appearance-reset-onboarding"))
+        .on_hover_text(t("appearance-reset-onboarding-hint"))
+        .clicked()
+    {
         onboarding.reset();
         *config_dirty = true;
     }
@@ -1243,7 +1247,7 @@ fn entity_inspector(
     // ── Collapsibles ──────────────────────────────────────────────────
     section(
         ui,
-        "Position",
+        &t("inspector-section-position"),
         &mut collapse_state.inspector_position,
         config_dirty,
         |ui| {
@@ -1282,7 +1286,7 @@ fn entity_inspector(
 
     section(
         ui,
-        "Appearance",
+        &t("inspector-section-appearance"),
         &mut collapse_state.inspector_appearance,
         config_dirty,
         |ui| {
@@ -1303,7 +1307,7 @@ fn entity_inspector(
 
     section(
         ui,
-        "Animation",
+        &t("inspector-section-animation"),
         &mut collapse_state.inspector_animation,
         config_dirty,
         |ui| {
@@ -1328,7 +1332,7 @@ fn entity_inspector(
 
     section(
         ui,
-        "Behavior",
+        &t("inspector-section-behavior"),
         &mut collapse_state.inspector_behavior,
         config_dirty,
         |ui| {

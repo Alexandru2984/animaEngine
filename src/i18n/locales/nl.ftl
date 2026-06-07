@@ -64,8 +64,6 @@ monitor-no-monitors-detected = Geen monitors gedetecteerd
 appearance-theme-header = Thema
 appearance-theme-label = Thema
 appearance-language-header = Taal
-appearance-keyboard-header = Toetsenbord
-appearance-keyboard-note = Alleen-lezen in 0.2.0 — opnieuw toewijzen komt in een latere release.
 theme-dark = Donker
 theme-light = Licht
 theme-dark-hc = Donker · Hoog contrast
@@ -168,3 +166,5 @@ appearance-reset-onboarding = Reset onboarding hints
 
 scene-empty-action-browse-presets = Browse presets
 library-empty-action-copy-path = Copy path to clipboard
+
+appearance-reset-onboarding-hint = Brings back the dismissed progressive hints and the "What's new" panel.

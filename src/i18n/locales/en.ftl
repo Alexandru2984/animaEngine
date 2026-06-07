@@ -89,8 +89,6 @@ monitor-no-monitors-detected = No monitors detected
 appearance-theme-header = Theme
 appearance-theme-label = Theme
 appearance-language-header = Language
-appearance-keyboard-header = Keyboard
-appearance-keyboard-note = Read-only for 0.2.0 — rebinding lands in a follow-up release.
 theme-dark = Dark
 theme-light = Light
 theme-dark-hc = Dark · High contrast
@@ -185,3 +183,6 @@ appearance-reset-onboarding = Reset onboarding hints
 # ── Empty-state CTAs (D.8) ────────────────────────────────────────────
 scene-empty-action-browse-presets = Browse presets
 library-empty-action-copy-path = Copy path to clipboard
+
+# ── Tooltips (D.9) ────────────────────────────────────────────────────
+appearance-reset-onboarding-hint = Brings back the dismissed progressive hints and the "What's new" panel.

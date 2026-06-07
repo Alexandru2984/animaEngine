@@ -64,8 +64,6 @@ monitor-no-monitors-detected = Keine Monitore erkannt
 appearance-theme-header = Theme
 appearance-theme-label = Theme
 appearance-language-header = Sprache
-appearance-keyboard-header = Tastatur
-appearance-keyboard-note = Nur lesbar in 0.2.0 — die Neubindung folgt in einer späteren Version.
 theme-dark = Dunkel
 theme-light = Hell
 theme-dark-hc = Dunkel · Hoher Kontrast
@@ -168,3 +166,5 @@ appearance-reset-onboarding = Reset onboarding hints
 
 scene-empty-action-browse-presets = Browse presets
 library-empty-action-copy-path = Copy path to clipboard
+
+appearance-reset-onboarding-hint = Brings back the dismissed progressive hints and the "What's new" panel.
