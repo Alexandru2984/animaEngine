@@ -26,6 +26,7 @@
 
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::error::{AnimaError, Result};
+use crate::keybindings::{Action, KeyBindings, KeyChord};
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
 use crate::wayland::layer_window::{InputRect, LayerWindow};
@@ -37,8 +38,8 @@ use std::time::Duration;
 /// globals, wgpu surface creation refused, …). The caller falls back to
 /// the X11 path on error. A successful return means the user closed
 /// the layer surface (or the compositor disconnected).
-#[tracing::instrument(skip(scene))]
-pub fn run_native(mut scene: Scene) -> Result<()> {
+#[tracing::instrument(skip(scene, keybindings))]
+pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
     let mut layer = LayerWindow::try_create()?;
     let (width, height) = layer
         .size
@@ -102,10 +103,39 @@ pub fn run_native(mut scene: Scene) -> Result<()> {
             }
         }
 
-        // Pointer events are translated but ignored on this path — egui
-        // UI integration is a follow-up. Drain so the buffer doesn't
-        // grow unbounded.
-        let _events = layer.drain_egui_events();
+        // Drain pointer + keyboard events. Until egui paint lands
+        // (E.4) we don't have a UI consumer, but we already need to
+        // detect the `Action::ToggleEditMode` chord so click-through
+        // can flip in lock-step. Scan key-press events, match against
+        // the user's bindings, dispatch the few actions that make
+        // sense without a UI thread (just edit mode for now).
+        let events = layer.drain_egui_events();
+        for event in &events {
+            let egui::Event::Key {
+                key,
+                pressed: true,
+                modifiers,
+                ..
+            } = event
+            else {
+                continue;
+            };
+            let Some(chord) = KeyChord::from_egui(*key, *modifiers) else {
+                continue;
+            };
+            if let Some(Action::ToggleEditMode) = keybindings.lookup(chord) {
+                let new_mode = !layer.state.edit_mode;
+                match layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
+                    Ok(()) => tracing::info!(
+                        "Edit mode {} (Wayland)",
+                        if new_mode { "on" } else { "off" }
+                    ),
+                    Err(e) => {
+                        tracing::warn!("Failed to flip input region on edit toggle: {e}")
+                    }
+                }
+            }
+        }
 
         // Tick the simulation. screen_w / screen_h match the surface so
         // walk-around behaviors stay inside the visible area.

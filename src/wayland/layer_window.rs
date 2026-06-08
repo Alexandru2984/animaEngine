@@ -141,6 +141,7 @@ impl LayerWindow {
             cursor_pos: None,
             pending_egui_events: Vec::new(),
             close_requested: false,
+            edit_mode: false,
         };
 
         // Round-trip so the compositor sends us its first `configure`
@@ -240,6 +241,12 @@ pub struct WaylandState {
     /// True after a layer-surface `closed` event. Caller polls this to
     /// know when to tear down.
     pub close_requested: bool,
+    /// Whether the overlay is currently interactive (full-surface input
+    /// region) or pass-through (only the ⚙ corner takes clicks). Owned
+    /// by `LayerWindow::set_edit_mode`; the caller never mutates it
+    /// directly so the input-region commit stays in lock-step with the
+    /// flag.
+    pub edit_mode: bool,
 }
 
 impl LayerWindow {
@@ -247,6 +254,31 @@ impl LayerWindow {
     /// callbacks invoke this and feed the result into egui.
     pub fn drain_egui_events(&mut self) -> Vec<egui::Event> {
         std::mem::take(&mut self.state.pending_egui_events)
+    }
+
+    /// Swap the click-through region in lock-step with the edit-mode
+    /// flag: edit-mode on → whole surface receives clicks; off → only
+    /// the top-right ⚙ button corner does. Idempotent — calling with
+    /// the current value is a no-op so the dispatch loop can call this
+    /// every time it suspects a flip happened without spamming the
+    /// compositor.
+    pub fn set_edit_mode(&mut self, on: bool, toggle_size: u32) -> Result<()> {
+        if self.state.edit_mode == on {
+            return Ok(());
+        }
+        let Some((w, h)) = self.size else {
+            // No configure yet — defer until first frame.
+            self.state.edit_mode = on;
+            return Ok(());
+        };
+        let rect = if on {
+            InputRect::full(w, h)
+        } else {
+            InputRect::toggle_button_corner(w, toggle_size)
+        };
+        self.set_input_region(Some(rect))?;
+        self.state.edit_mode = on;
+        Ok(())
     }
 
     /// Configure the click-through input region.
@@ -522,7 +554,7 @@ impl PointerHandler for WaylandState {
                                 pos: egui::pos2(x, y),
                                 button: b,
                                 pressed: true,
-                                modifiers: egui::Modifiers::NONE,
+                                modifiers: modifiers_to_egui(self.last_modifiers),
                             });
                         }
                     }
@@ -534,7 +566,7 @@ impl PointerHandler for WaylandState {
                                 pos: egui::pos2(x, y),
                                 button: b,
                                 pressed: false,
-                                modifiers: egui::Modifiers::NONE,
+                                modifiers: modifiers_to_egui(self.last_modifiers),
                             });
                         }
                     }
