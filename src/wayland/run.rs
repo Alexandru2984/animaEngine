@@ -28,14 +28,17 @@
 //! - **Per-monitor placement** — the layer surface attaches to
 //!   whichever output the compositor picks.
 
+use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::error::{AnimaError, Result};
-use crate::keybindings::{Action, KeyBindings, KeyChord};
+use crate::input::selection::SelectionState;
+use crate::keybindings::{Action, KeyChord};
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
-use crate::ui::{panels, theme::Theme};
+use crate::ui::{panels, ToastQueue, Warning};
 use crate::wayland::egui_render::WaylandEguiRenderer;
 use crate::wayland::layer_window::{InputRect, LayerWindow};
+use std::collections::BTreeSet;
 use std::time::Duration;
 
 /// Drive a native-Wayland session end-to-end.
@@ -44,8 +47,8 @@ use std::time::Duration;
 /// globals, wgpu surface creation refused, …). The caller falls back to
 /// the X11 path on error. A successful return means the user closed
 /// the layer surface (or the compositor disconnected).
-#[tracing::instrument(skip(scene, keybindings))]
-pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
+#[tracing::instrument(skip(scene, config))]
+pub fn run_native(mut scene: Scene, mut config: AppConfig) -> Result<()> {
     let mut layer = LayerWindow::try_create()?;
     let (width, height) = layer
         .size
@@ -65,8 +68,20 @@ pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
         .take()
         .ok_or_else(|| AnimaError::other("LayerWindow missing wgpu surface"))?;
     let mut renderer = WgpuRenderer::from_instance_surface(instance, surface, width, height)?;
-    let mut egui_renderer =
-        WaylandEguiRenderer::new(&renderer.device, renderer.config.format, Theme::default());
+    let mut egui_renderer = WaylandEguiRenderer::new(
+        &renderer.device,
+        renderer.config.format,
+        config.global.theme,
+    );
+    let mut selection = SelectionState::new();
+    let mut toasts = ToastQueue::default();
+    let mut config_dirty = false;
+    // wlroots compositors don't expose multi-monitor info to a single
+    // surface yet on this path — pass an empty slice so the inspector's
+    // monitor picker degrades gracefully. Full wl_output enumeration is
+    // queued for the multi-monitor sub-phase.
+    let monitors: Vec<crate::monitor::MonitorInfo> = Vec::new();
+    let warnings: BTreeSet<Warning> = BTreeSet::new();
     tracing::info!("Native Wayland renderer initialized ({width}×{height})");
 
     // Start in pass-through mode with the ⚙ button cutout — same default
@@ -156,7 +171,7 @@ pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
             let Some(chord) = KeyChord::from_egui(*key, *modifiers) else {
                 continue;
             };
-            if let Some(Action::ToggleEditMode) = keybindings.lookup(chord) {
+            if let Some(Action::ToggleEditMode) = config.keybindings.lookup(chord) {
                 let new_mode = !layer.state.edit_mode;
                 match layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
                     Ok(()) => tracing::info!(
@@ -186,22 +201,45 @@ pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
             }
         }
 
-        // Render the scene. We don't have a selection model on this
-        // path yet — pass `selected_id = None` and let the sprite
-        // pipeline run pass-through visuals.
+        // Render the scene. Pass `selected_id` so the highlight ring
+        // appears in edit mode for the entity the user clicked.
+        let selected_id = selection
+            .selected_index()
+            .and_then(|idx| scene.entities.get(idx).map(|e| e.id.clone()));
         let visible = scene.visible_entities();
-        match renderer.render(&visible, layer.state.edit_mode, None) {
+        toasts.prune();
+        egui_renderer.ensure_theme(config.global.theme);
+        match renderer.render(&visible, layer.state.edit_mode, selected_id.as_deref()) {
             Ok(output) => {
-                // Paint egui on top of the sprite layer. The toggle
-                // button is the only UI surface here; the full settings
-                // panel parity lands in E.5.
                 let view = output
                     .texture
                     .create_view(&wgpu::TextureViewDescriptor::default());
                 let size = [renderer.window_width, renderer.window_height];
                 let edit_mode_snapshot = layer.state.edit_mode;
+                // Snapshot the AccessKit flag BEFORE taking its mutable
+                // borrow, same trick as the X11 path uses.
+                let accesskit_snapshot = config.global.accesskit_enabled;
                 let mut toggle_requested = false;
+                let mut palette_outcome: Option<panels::PaletteOutcome> = None;
+                let mut library_outcome: Option<panels::LibraryOutcome> = None;
+                // Disjoint mut borrows for the closure.
+                let scene_mut = &mut scene;
+                let selection_mut = &mut selection;
+                let config_dirty_mut = &mut config_dirty;
+                let theme_mut = &mut config.global.theme;
+                let locale_mut = &mut config.global.locale;
+                let onboarding_mut = &mut config.global.onboarding;
+                let monitor_mode_mut = &mut config.global.monitor_mode;
+                let accesskit_mut = &mut config.global.accesskit_enabled;
+                let keybindings_mut = &mut config.keybindings;
+                let collapse_state_mut = &mut config.collapse_state;
+                let last_seen_whats_new_mut = &mut config.global.last_seen_whats_new;
+                let warnings_ref = &warnings;
+                let monitors_ref = monitors.as_slice();
+                let toasts_ref = &toasts;
                 let toggle_requested_ref = &mut toggle_requested;
+                let palette_ref = &mut palette_outcome;
+                let library_ref = &mut library_outcome;
                 egui_renderer.render(
                     &renderer.device,
                     &renderer.queue,
@@ -209,8 +247,35 @@ pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
                     size,
                     events,
                     |ctx| {
+                        if accesskit_snapshot {
+                            ctx.enable_accesskit();
+                        } else {
+                            ctx.disable_accesskit();
+                        }
                         if panels::toggle_button(ctx, edit_mode_snapshot) {
                             *toggle_requested_ref = true;
+                        }
+                        if edit_mode_snapshot {
+                            panels::settings(
+                                ctx,
+                                scene_mut,
+                                selection_mut,
+                                config_dirty_mut,
+                                theme_mut,
+                                locale_mut,
+                                onboarding_mut,
+                                monitor_mode_mut,
+                                monitors_ref,
+                                None, // library index — not wired on Wayland yet
+                                library_ref,
+                                keybindings_mut,
+                                collapse_state_mut,
+                                accesskit_mut,
+                                warnings_ref,
+                                last_seen_whats_new_mut,
+                            );
+                            *palette_ref = panels::command_palette(ctx);
+                            panels::toasts(ctx, toasts_ref);
                         }
                     },
                 );
@@ -224,7 +289,31 @@ pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
                             "Edit mode {} (Wayland, toggle button)",
                             if new_mode { "on" } else { "off" }
                         );
+                        // Exiting edit mode + dirty → persist now so
+                        // hot-reload picks the fresh state up next
+                        // session.
+                        if !new_mode && config_dirty {
+                            if let Err(e) = config.save() {
+                                tracing::warn!("Config save failed: {e}");
+                            } else {
+                                config_dirty = false;
+                            }
+                        }
                     }
+                }
+                // Palette / library outcomes apply outside the egui
+                // closure where we can take &mut renderer + &mut toasts
+                // without conflicting.
+                if let Some(out) = palette_outcome {
+                    handle_palette_outcome(out, &mut scene, &mut config, &mut toasts);
+                    config_dirty = true;
+                }
+                if let Some(out) = library_outcome {
+                    // No asset library index on this path yet; surface
+                    // a toast so the user knows the click was seen but
+                    // not actionable.
+                    let _ = out;
+                    toasts.warn("Asset library not wired on the Wayland path yet");
                 }
             }
             Err(wgpu::SurfaceError::Lost) => {
@@ -244,7 +333,54 @@ pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
 
     // Renderer is dropped here before `layer` — wgpu surface releases
     // its handle while the underlying wl_surface is still alive.
+    // Persist any unsaved edits on clean shutdown so a Ctrl+C / window
+    // close doesn't lose the last toggle.
+    if config_dirty {
+        if let Err(e) = config.save() {
+            tracing::warn!("Final config save failed: {e}");
+        }
+    }
+
     drop(renderer);
     drop(layer);
     Ok(())
+}
+
+/// Apply a command-palette outcome to scene + config + toast queue.
+/// Mirrors the X11 path in `app.rs::handle_palette_outcome` but with
+/// loose-typed handles since the Wayland loop doesn't go through `App`.
+fn handle_palette_outcome(
+    outcome: panels::PaletteOutcome,
+    scene: &mut Scene,
+    config: &mut AppConfig,
+    toasts: &mut ToastQueue,
+) {
+    use crate::presets::{self, Preset};
+    match outcome {
+        panels::PaletteOutcome::SwitchTheme(theme) => {
+            config.global.theme = theme;
+            toasts.success(format!("Theme: {}", theme.label()));
+        }
+        panels::PaletteOutcome::ApplyPreset(id, mode) => {
+            let preset = Preset::for_id(id);
+            let existing = scene.to_character_configs();
+            let new = presets::apply_to_scene(existing, &preset, mode);
+            match mode {
+                presets::ApplyMode::Replace => {
+                    scene.reset_to_configs(&new);
+                }
+                presets::ApplyMode::Append => {
+                    let already: std::collections::HashSet<String> =
+                        scene.entities.iter().map(|e| e.id.clone()).collect();
+                    for cfg in new.iter().filter(|c| !already.contains(&c.id)) {
+                        if let Err(e) = scene.append_character_config(cfg) {
+                            tracing::warn!("Palette preset append failed: {e}");
+                            toasts.warn(format!("Couldn't add preset entry: {e}"));
+                        }
+                    }
+                }
+            }
+            toasts.success(format!("Loaded preset: {}", preset.name));
+        }
+    }
 }

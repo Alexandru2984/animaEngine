@@ -109,7 +109,7 @@ fn main() {
     // continue with winit + XWayland as if the flag weren't set.
     if wayland_caps.layer_shell && std::env::var_os("ANIMA_USE_WAYLAND_NATIVE").is_some() {
         tracing::info!("ANIMA_USE_WAYLAND_NATIVE=1 set — trying native layer-shell path");
-        match wayland::run_native(scene, config.keybindings.clone()) {
+        match wayland::run_native(scene, config.clone()) {
             Ok(()) => {
                 tracing::info!("Native Wayland session ended cleanly.");
                 return;
