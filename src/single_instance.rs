@@ -80,23 +80,41 @@ struct WaylandActivationService {
 #[interface(name = "org.animaengine.Anima")]
 impl WaylandActivationService {
     async fn activate(&self) {
-        let _ = self.tx.try_send(AnimaEvent::RaiseWindow);
+        Self::dispatch(&self.tx, AnimaEvent::RaiseWindow, "Activate");
     }
 
     async fn toggle_edit_mode(&self) {
-        let _ = self.tx.try_send(AnimaEvent::ToggleEditMode);
+        Self::dispatch(&self.tx, AnimaEvent::ToggleEditMode, "ToggleEditMode");
     }
 
     async fn hide_overlay(&self) {
-        let _ = self.tx.try_send(AnimaEvent::HideOverlay);
+        Self::dispatch(&self.tx, AnimaEvent::HideOverlay, "HideOverlay");
     }
 
     async fn show_overlay(&self) {
-        let _ = self.tx.try_send(AnimaEvent::ShowOverlay);
+        Self::dispatch(&self.tx, AnimaEvent::ShowOverlay, "ShowOverlay");
     }
 
     async fn toggle_global_playback(&self) {
-        let _ = self.tx.try_send(AnimaEvent::ToggleGlobalPlayback);
+        Self::dispatch(
+            &self.tx,
+            AnimaEvent::ToggleGlobalPlayback,
+            "ToggleGlobalPlayback",
+        );
+    }
+}
+
+impl WaylandActivationService {
+    /// Centralised try-send so each method has identical drop-on-full
+    /// behaviour and a debug log when overflow happens. G.6 (0.5.3)
+    /// added the log so a deluged operator can see in trace output why
+    /// their `gdbus` calls aren't taking effect — without escalating
+    /// to `warn` (that would let an attacker amplify their flood into
+    /// our own log volume).
+    fn dispatch(tx: &std::sync::mpsc::SyncSender<AnimaEvent>, ev: AnimaEvent, name: &'static str) {
+        if let Err(e) = tx.try_send(ev) {
+            tracing::debug!("D-Bus `{name}` dropped (queue full): {e}");
+        }
     }
 }
 
