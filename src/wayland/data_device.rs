@@ -17,6 +17,14 @@ use std::path::PathBuf;
 /// reliably points at on-disk files across GTK/Qt/file managers.
 pub const URI_LIST_MIME: &str = "text/uri-list";
 
+/// Cap on how many paths a single drag may produce (F.5, 0.5.1).
+/// Real drag-and-drop sessions are a handful of files — the
+/// upstream X11 path already short-circuits any drag with > a few
+/// dozen entries. A million-line uri-list is either a corrupt or an
+/// adversarial payload; capping at 256 forecloses the unbounded
+/// `Vec<PathBuf>` allocation the pre-fix parser would have produced.
+pub const MAX_URI_LIST_PATHS: usize = 256;
+
 /// Parse the `text/uri-list` payload received over `wl_data_offer`
 /// and return the file paths it carries. Non-`file://` URIs (http://,
 /// data:, etc.) are silently ignored — the overlay only consumes
@@ -32,6 +40,7 @@ pub fn parse_uri_list(payload: &[u8]) -> Vec<PathBuf> {
         .map(|line| line.trim_end_matches('\r').trim())
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .filter_map(file_uri_to_path)
+        .take(MAX_URI_LIST_PATHS)
         .collect()
 }
 
@@ -138,6 +147,16 @@ mod tests {
             paths,
             vec![PathBuf::from("/tmp/a.png"), PathBuf::from("/tmp/b.png")]
         );
+    }
+
+    #[test]
+    fn payload_with_excess_paths_is_capped() {
+        let mut payload = String::new();
+        for i in 0..(MAX_URI_LIST_PATHS * 4) {
+            payload.push_str(&format!("file:///tmp/x{i}.png\r\n"));
+        }
+        let paths = parse_uri_list(payload.as_bytes());
+        assert_eq!(paths.len(), MAX_URI_LIST_PATHS);
     }
 
     #[test]
