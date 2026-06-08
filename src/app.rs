@@ -1,6 +1,6 @@
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
-use crate::drop_validate::{pre_validate_dropped_file, resolve_library_asset};
+use crate::drop_validate::{pre_validate_dropped_file, redact_path, resolve_library_asset};
 use crate::event::AnimaEvent;
 use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
@@ -686,7 +686,11 @@ impl App {
         // The shared stat/whitelist gate still applies — a path that
         // stays inside the root can still be the wrong shape.
         if let Err(reason) = pre_validate_dropped_file(&abs_path) {
-            tracing::warn!("Library asset {} rejected: {reason}", abs_path.display());
+            tracing::warn!(
+                "Library asset {} rejected: {reason}",
+                redact_path(&abs_path)
+            );
+            tracing::debug!("Rejected library full path: {}", abs_path.display());
             self.toasts.warn(format!("Rejected: {reason}"));
             return;
         }
@@ -1610,14 +1614,17 @@ impl ApplicationHandler<AnimaEvent> for App {
 
             // --- Drag and drop: add new assets ---
             WindowEvent::DroppedFile(path) => {
-                tracing::info!("File dropped: {}", path.display());
+                let label = redact_path(&path);
+                tracing::info!("File dropped: {label}");
+                tracing::debug!("Dropped full path: {}", path.display());
 
                 // Pre-validate before we hand the path to the decoders.
                 // Catches the obvious bad cases (wrong extension, huge
                 // file) with a fast, clear error toast instead of letting
                 // the decoder spin up and fail somewhere deeper.
                 if let Err(reason) = pre_validate_dropped_file(&path) {
-                    tracing::warn!("Rejecting dropped file {}: {reason}", path.display());
+                    tracing::warn!("Rejecting dropped file {label}: {reason}");
+                    tracing::debug!("Rejected full path: {}", path.display());
                     self.toasts.error(format!("Rejected: {reason}"));
                     return;
                 }

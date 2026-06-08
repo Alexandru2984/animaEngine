@@ -30,6 +30,20 @@
 use crate::constants::MAX_ASSET_FILE_BYTES;
 use std::path::Path;
 
+/// Render a filesystem path for `tracing::info!` without exposing the
+/// full absolute path (M4 hardening, 0.5.2). The previous direct
+/// `path.display()` in info logs leaked the entire path — including
+/// the user's home directory and any private directory names along
+/// the way — into journald / syslog where other users with read
+/// access could see them. The redacted form keeps just the file
+/// name; `debug!` paths can still log the full string when the user
+/// has opted into verbose tracing.
+pub fn redact_path(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "<no filename>".to_string())
+}
+
 /// Extensions we know how to load. Matched against the path the user
 /// dropped (or the library entry being added) so we reject obviously-
 /// wrong types up front.

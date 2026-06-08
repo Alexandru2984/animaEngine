@@ -30,7 +30,7 @@
 
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
-use crate::drop_validate::pre_validate_dropped_file;
+use crate::drop_validate::{pre_validate_dropped_file, redact_path};
 use crate::error::{AnimaError, Result};
 use crate::event::AnimaEvent;
 use crate::input::selection::SelectionState;
@@ -144,8 +144,10 @@ pub fn run_native(
             // uses (size cap + extension whitelist + regular-file
             // check). Pre-0.5.1 this was skipped on the Wayland path,
             // so a `.png` of arbitrary size could reach the decoder.
+            let label = redact_path(&path);
             if let Err(reason) = pre_validate_dropped_file(&path) {
-                tracing::warn!("Drop rejected for {}: {reason}", path.display());
+                tracing::warn!("Drop rejected for {label}: {reason}");
+                tracing::debug!("Rejected drop full path: {}", path.display());
                 toasts.warn(format!("Rejected: {reason}"));
                 continue;
             }
@@ -157,13 +159,12 @@ pub fn run_native(
                 Ok(idx) => {
                     renderer.ensure_texture(&scene.entities[idx]);
                     scene.entities[idx].texture_dirty = false;
-                    tracing::info!(
-                        "Spawned entity from drop: {} at ({x:.0}, {y:.0})",
-                        path.display()
-                    );
+                    tracing::info!("Spawned entity from drop: {label} at ({x:.0}, {y:.0})");
+                    tracing::debug!("Drop full path: {}", path.display());
                 }
                 Err(e) => {
-                    tracing::warn!("Drop rejected for {}: {e}", path.display());
+                    tracing::warn!("Drop rejected for {label}: {e}");
+                    tracing::debug!("Rejected drop full path: {}", path.display());
                 }
             }
         }
