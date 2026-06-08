@@ -55,6 +55,7 @@ use smithay_client_toolkit::{
 };
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 use wayland_client::{
@@ -101,10 +102,11 @@ impl LayerWindow {
         // Bind required globals up front so we know we can succeed before
         // we touch wgpu.
         let registry_state = RegistryState::new(&globals);
-        // Bounded channel could lose drops under load; unbounded is fine
-        // here because each drop produces O(N) paths and they're consumed
-        // every frame.
-        let (drop_tx, drop_rx) = mpsc::channel::<Vec<PathBuf>>();
+        // Bounded channel — `sync_channel(DROP_RESULT_QUEUE_CAP)` —
+        // so a malicious source spamming drops can't grow memory
+        // without bound between two frames of the event loop. F.2
+        // (0.5.1) hardening.
+        let (drop_tx, drop_rx) = mpsc::sync_channel::<Vec<PathBuf>>(DROP_RESULT_QUEUE_CAP);
         let output_state = OutputState::new(&globals, &qh);
         let seat_state = SeatState::new(&globals, &qh);
         let data_device_manager = DataDeviceManagerState::bind(&globals, &qh).map_err(|e| {
@@ -169,6 +171,7 @@ impl LayerWindow {
             last_drag_pos: None,
             drop_tx,
             drop_rx,
+            active_drop_workers: Arc::new(AtomicUsize::new(0)),
         };
 
         // Round-trip so the compositor sends us its first `configure`
@@ -283,8 +286,46 @@ pub struct WaylandState {
     pub data_device_manager: DataDeviceManagerState,
     pub data_device: Option<DataDevice>,
     pub last_drag_pos: Option<(f32, f32)>,
-    pub drop_tx: mpsc::Sender<Vec<PathBuf>>,
+    pub drop_tx: mpsc::SyncSender<Vec<PathBuf>>,
     pub drop_rx: mpsc::Receiver<Vec<PathBuf>>,
+    /// Number of drop-reader worker threads currently in flight (F.2,
+    /// 0.5.1). Bounds the per-drop `std::thread::spawn` so a tight
+    /// loop of drag events from a hostile source can't exhaust
+    /// RLIMIT_NPROC. Decremented by each worker on exit through a
+    /// `DropCounterGuard` so the counter stays honest even if the
+    /// worker panics mid-read.
+    pub active_drop_workers: Arc<AtomicUsize>,
+}
+
+/// Cap on the size of one `text/uri-list` payload (F.2). 64 KiB is
+/// well past any legitimate drag — a hundred 600-byte paths fits
+/// comfortably — and forecloses the previous unbounded `read_to_end`
+/// against a malicious source that streams gigabytes through the
+/// pipe.
+const MAX_URI_LIST_BYTES: u64 = 64 * 1024;
+
+/// Cap on concurrent drop-reader worker threads (F.2). A
+/// drag-and-drop is a brief user gesture; if we see more than this
+/// in flight we're being attacked and refuse to start a new one.
+const MAX_CONCURRENT_DROPS: usize = 4;
+
+/// Cap on the in-memory drop-result queue (F.2). The wayland event
+/// loop drains it once per frame; under sustained pressure the
+/// bounded sender just drops the newest extra batches with a
+/// warning rather than letting the channel grow without bound.
+const DROP_RESULT_QUEUE_CAP: usize = 16;
+
+/// RAII guard decrementing the `active_drop_workers` counter on
+/// thread exit. Centralised so panic-induced unwinds still keep the
+/// counter accurate.
+struct DropCounterGuard {
+    counter: Arc<AtomicUsize>,
+}
+
+impl Drop for DropCounterGuard {
+    fn drop(&mut self) {
+        self.counter.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 impl LayerWindow {
@@ -914,30 +955,53 @@ impl DataDeviceHandler for WaylandState {
         let Some(offer) = device.data().drag_offer() else {
             return;
         };
+        // F.2: refuse new readers when MAX_CONCURRENT_DROPS workers
+        // are already in flight. A malicious source can't spawn an
+        // unbounded number of background threads on us this way.
+        let prev = self.active_drop_workers.fetch_add(1, Ordering::AcqRel);
+        if prev >= MAX_CONCURRENT_DROPS {
+            self.active_drop_workers.fetch_sub(1, Ordering::AcqRel);
+            tracing::warn!(
+                "Drop refused: {prev} drop workers already in flight (cap {})",
+                MAX_CONCURRENT_DROPS
+            );
+            return;
+        }
         let pipe = match offer.receive(URI_LIST_MIME.to_string()) {
             Ok(p) => p,
             Err(e) => {
+                self.active_drop_workers.fetch_sub(1, Ordering::AcqRel);
                 tracing::warn!("Drop: receive(text/uri-list) failed: {e}");
                 return;
             }
         };
-        // Worker thread does the blocking read so the wayland event
-        // queue keeps dispatching. The sender clone is cheap; the
-        // receiving end stays on `WaylandState`.
         let tx = self.drop_tx.clone();
+        let guard = DropCounterGuard {
+            counter: self.active_drop_workers.clone(),
+        };
         std::thread::spawn(move || {
-            let mut pipe = pipe;
+            // Hold the guard for the whole closure so the counter
+            // decrements regardless of how we exit (success, error,
+            // or panic during read_to_end).
+            let _guard = guard;
+            // F.2: cap the payload via `Read::take` so the previous
+            // unbounded `read_to_end` can't be exploited by a source
+            // that streams gigabytes. 64 KiB covers every legitimate
+            // drag (hundreds of paths fit comfortably).
+            let mut capped = pipe.take(MAX_URI_LIST_BYTES);
             let mut buf = Vec::with_capacity(512);
-            if let Err(e) = pipe.read_to_end(&mut buf) {
+            if let Err(e) = capped.read_to_end(&mut buf) {
                 tracing::warn!("Drop: read pipe failed: {e}");
                 return;
             }
             let paths = parse_uri_list(&buf);
-            // Finish + destroy the offer here? sctk's DragOffer doesn't
-            // expose finish() directly on this handle; the source will
-            // see EOF on the pipe and complete the action.
             if !paths.is_empty() {
-                let _ = tx.send(paths);
+                // `try_send` so a stuck consumer (main loop) can't
+                // make us block here; bounded channel = bounded
+                // memory.
+                if let Err(e) = tx.try_send(paths) {
+                    tracing::warn!("Drop: result queue full, dropping batch: {e}");
+                }
             }
         });
     }
