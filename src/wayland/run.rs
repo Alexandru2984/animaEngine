@@ -31,6 +31,7 @@
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::error::{AnimaError, Result};
+use crate::event::AnimaEvent;
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyChord};
 use crate::renderer::wgpu_renderer::WgpuRenderer;
@@ -39,6 +40,7 @@ use crate::ui::{panels, ToastQueue, Warning};
 use crate::wayland::egui_render::WaylandEguiRenderer;
 use crate::wayland::layer_window::{InputRect, LayerWindow};
 use std::collections::BTreeSet;
+use std::sync::mpsc;
 use std::time::Duration;
 
 /// Drive a native-Wayland session end-to-end.
@@ -47,8 +49,12 @@ use std::time::Duration;
 /// globals, wgpu surface creation refused, …). The caller falls back to
 /// the X11 path on error. A successful return means the user closed
 /// the layer surface (or the compositor disconnected).
-#[tracing::instrument(skip(scene, config))]
-pub fn run_native(mut scene: Scene, mut config: AppConfig) -> Result<()> {
+#[tracing::instrument(skip(scene, config, dbus_rx))]
+pub fn run_native(
+    mut scene: Scene,
+    mut config: AppConfig,
+    dbus_rx: Option<mpsc::Receiver<AnimaEvent>>,
+) -> Result<()> {
     let mut layer = LayerWindow::try_create()?;
     let (width, height) = layer
         .size
@@ -153,6 +159,51 @@ pub fn run_native(mut scene: Scene, mut config: AppConfig) -> Result<()> {
                 }
                 Err(e) => {
                     tracing::warn!("Drop rejected for {}: {e}", path.display());
+                }
+            }
+        }
+
+        // Drain any D-Bus actions arriving from compositor bindings
+        // (E.6). Each event maps onto the same surface the X11 path's
+        // global hotkeys produce, so a `gdbus call … ToggleEditMode`
+        // invoked from sway is indistinguishable from clicking the ⚙
+        // button.
+        if let Some(rx) = &dbus_rx {
+            while let Ok(ev) = rx.try_recv() {
+                match ev {
+                    AnimaEvent::ToggleEditMode => {
+                        let new_mode = !layer.state.edit_mode;
+                        if let Err(e) = layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
+                            tracing::warn!("dbus toggle: {e}");
+                        }
+                    }
+                    AnimaEvent::HideOverlay => {
+                        if let Err(e) =
+                            layer.set_input_region(Some(InputRect::toggle_button_corner(
+                                renderer.window_width,
+                                TOGGLE_BUTTON_SIZE,
+                            )))
+                        {
+                            tracing::warn!("dbus hide: {e}");
+                        }
+                    }
+                    AnimaEvent::ShowOverlay => {
+                        // No-op: the layer surface is always present
+                        // on this path; the closest "show" is to drop
+                        // back into pass-through which we already are
+                        // unless edit-mode is on.
+                    }
+                    AnimaEvent::ToggleGlobalPlayback => {
+                        scene.toggle_global_playback();
+                        config_dirty = true;
+                    }
+                    AnimaEvent::RaiseWindow => {
+                        // No raise concept on a layer surface — it's
+                        // always at the Overlay layer.
+                    }
+                    AnimaEvent::Quit => {
+                        layer.state.close_requested = true;
+                    }
                 }
             }
         }

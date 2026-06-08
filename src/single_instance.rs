@@ -42,6 +42,59 @@ impl ActivationService {
     async fn activate(&self) {
         let _ = self.proxy.send_event(AnimaEvent::RaiseWindow);
     }
+
+    /// Toggle edit-mode click-through. Mapped to the X11 path's
+    /// `Ctrl+Shift+A` global hotkey; on Wayland-native sessions a
+    /// compositor binding can call this via `gdbus`.
+    async fn toggle_edit_mode(&self) {
+        let _ = self.proxy.send_event(AnimaEvent::ToggleEditMode);
+    }
+
+    /// Hide the whole overlay. Pairs with [`show_overlay`].
+    async fn hide_overlay(&self) {
+        let _ = self.proxy.send_event(AnimaEvent::HideOverlay);
+    }
+
+    /// Show a previously hidden overlay.
+    async fn show_overlay(&self) {
+        let _ = self.proxy.send_event(AnimaEvent::ShowOverlay);
+    }
+
+    /// Pause / resume every animation in the scene.
+    async fn toggle_global_playback(&self) {
+        let _ = self.proxy.send_event(AnimaEvent::ToggleGlobalPlayback);
+    }
+}
+
+/// Wayland-flavoured twin of `ActivationService`. The native Wayland
+/// run-loop doesn't go through winit's event loop, so the dispatch
+/// target is an [`std::sync::mpsc::Sender<AnimaEvent>`] the main
+/// thread polls each frame.
+struct WaylandActivationService {
+    tx: std::sync::mpsc::Sender<AnimaEvent>,
+}
+
+#[interface(name = "org.animaengine.Anima")]
+impl WaylandActivationService {
+    async fn activate(&self) {
+        let _ = self.tx.send(AnimaEvent::RaiseWindow);
+    }
+
+    async fn toggle_edit_mode(&self) {
+        let _ = self.tx.send(AnimaEvent::ToggleEditMode);
+    }
+
+    async fn hide_overlay(&self) {
+        let _ = self.tx.send(AnimaEvent::HideOverlay);
+    }
+
+    async fn show_overlay(&self) {
+        let _ = self.tx.send(AnimaEvent::ShowOverlay);
+    }
+
+    async fn toggle_global_playback(&self) {
+        let _ = self.tx.send(AnimaEvent::ToggleGlobalPlayback);
+    }
 }
 
 /// Try to grab the single-instance lock. Synchronous wrapper around the
@@ -91,6 +144,31 @@ pub fn try_acquire() -> AcquireOutcome {
             }
         }
     })
+}
+
+/// Mount the activation service for the native Wayland path. Returns
+/// the receiver the run-loop polls each frame to consume action
+/// events. The thread holds the connection alive so the service stays
+/// reachable for `gdbus call` invocations from compositor bindings.
+pub fn install_wayland_service(
+    connection: zbus::Connection,
+) -> std::sync::mpsc::Receiver<AnimaEvent> {
+    let (tx, rx) = std::sync::mpsc::channel::<AnimaEvent>();
+    std::thread::Builder::new()
+        .name("anima-instance-wayland".into())
+        .spawn(move || {
+            async_io::block_on(async move {
+                let service = WaylandActivationService { tx };
+                if let Err(e) = connection.object_server().at(OBJECT_PATH, service).await {
+                    tracing::warn!("Failed to publish Wayland activation service: {e}");
+                    return;
+                }
+                let _conn = connection;
+                std::future::pending::<()>().await;
+            });
+        })
+        .expect("spawn wayland instance thread");
+    rx
 }
 
 /// Mount the `Activate` method onto the connection and keep it alive on a

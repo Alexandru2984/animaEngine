@@ -62,7 +62,7 @@ fn main() {
 
     // Single-instance handshake — must happen before any work, otherwise
     // a redundant launch would do all the setup just to hand off.
-    let dbus_connection = match single_instance::try_acquire() {
+    let mut dbus_connection = match single_instance::try_acquire() {
         AcquireOutcome::Claimed(conn) => conn,
         AcquireOutcome::HandedOff => {
             tracing::info!("Another instance is already running. Asked it to raise.");
@@ -109,7 +109,13 @@ fn main() {
     // continue with winit + XWayland as if the flag weren't set.
     if wayland_caps.layer_shell && std::env::var_os("ANIMA_USE_WAYLAND_NATIVE").is_some() {
         tracing::info!("ANIMA_USE_WAYLAND_NATIVE=1 set — trying native layer-shell path");
-        match wayland::run_native(scene, config.clone()) {
+        // Wire the D-Bus activation service for the Wayland path so
+        // compositor bindings (sway/Hyprland) can dispatch the same
+        // actions the X11 path's global hotkeys produce.
+        let dbus_rx = dbus_connection
+            .take()
+            .map(single_instance::install_wayland_service);
+        match wayland::run_native(scene, config.clone(), dbus_rx) {
             Ok(()) => {
                 tracing::info!("Native Wayland session ended cleanly.");
                 return;
