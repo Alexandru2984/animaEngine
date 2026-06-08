@@ -21,8 +21,15 @@
 //!   Edit mode toggling is currently only accessible through the tray /
 //!   `Ctrl+Shift+A`. Pointer + keyboard events are buffered but discarded
 //!   until the egui paint integration lands (E.4).
-//! - **No drag-and-drop** of asset files from a file manager. Wayland
-//!   data-device protocol lands in E.3.
+//! ## Drag-and-drop (E.3)
+//!
+//! Files dragged onto the overlay from a file manager are accepted
+//! via `wl_data_device` + `wl_data_offer`. The `text/uri-list` mime
+//! type is the canonical "here are file paths" payload across
+//! GTK/Qt/Nautilus/Nemo/etc. A worker thread drains the receive-pipe
+//! and pushes parsed `PathBuf`s back to the main loop, which routes
+//! each through `Scene::add_entity_from_path` — the same validation
+//! gate the X11 path uses.
 
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::error::{AnimaError, Result};
@@ -109,6 +116,31 @@ pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
         // can flip in lock-step. Scan key-press events, match against
         // the user's bindings, dispatch the few actions that make
         // sense without a UI thread (just edit mode for now).
+        // Process any files dropped over the surface (E.3). Each path
+        // routes through the same `add_entity_from_path` validation
+        // gate as the X11 drag-drop path, so frame caps + extension
+        // whitelist still apply.
+        let drop_pos = layer.last_drag_pos();
+        for path in layer.drain_dropped_files() {
+            let (x, y) = drop_pos.unwrap_or((
+                renderer.window_width as f32 / 2.0,
+                renderer.window_height as f32 / 2.0,
+            ));
+            match scene.add_entity_from_path(&path, x, y) {
+                Ok(idx) => {
+                    renderer.ensure_texture(&scene.entities[idx]);
+                    scene.entities[idx].texture_dirty = false;
+                    tracing::info!(
+                        "Spawned entity from drop: {} at ({x:.0}, {y:.0})",
+                        path.display()
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!("Drop rejected for {}: {e}", path.display());
+                }
+            }
+        }
+
         let events = layer.drain_egui_events();
         for event in &events {
             let egui::Event::Key {

@@ -25,11 +25,18 @@
 //! 3. Dropping `LayerWindow` releases the layer surface and disconnects.
 
 use crate::error::{AnimaError, Result};
+use crate::wayland::data_device::{parse_uri_list, URI_LIST_MIME};
 use crate::wayland::keyboard::{keysym_to_egui_key, modifiers_to_egui};
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
-    delegate_compositor, delegate_keyboard, delegate_layer, delegate_output, delegate_pointer,
-    delegate_registry, delegate_seat,
+    data_device_manager::{
+        data_device::{DataDevice, DataDeviceHandler},
+        data_offer::{DataOfferHandler, DragOffer},
+        data_source::DataSourceHandler,
+        DataDeviceManagerState, WritePipe,
+    },
+    delegate_compositor, delegate_data_device, delegate_keyboard, delegate_layer, delegate_output,
+    delegate_pointer, delegate_registry, delegate_seat,
     output::{OutputHandler, OutputState},
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
@@ -46,10 +53,16 @@ use smithay_client_toolkit::{
         WaylandSurface,
     },
 };
+use std::io::Read;
+use std::path::PathBuf;
+use std::sync::mpsc;
 use std::sync::Arc;
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{wl_keyboard, wl_output, wl_pointer, wl_region, wl_seat, wl_surface},
+    protocol::{
+        wl_data_device_manager::DndAction, wl_keyboard, wl_output, wl_pointer, wl_region, wl_seat,
+        wl_surface,
+    },
     Connection, Dispatch, EventQueue, QueueHandle,
 };
 
@@ -88,8 +101,17 @@ impl LayerWindow {
         // Bind required globals up front so we know we can succeed before
         // we touch wgpu.
         let registry_state = RegistryState::new(&globals);
+        // Bounded channel could lose drops under load; unbounded is fine
+        // here because each drop produces O(N) paths and they're consumed
+        // every frame.
+        let (drop_tx, drop_rx) = mpsc::channel::<Vec<PathBuf>>();
         let output_state = OutputState::new(&globals, &qh);
         let seat_state = SeatState::new(&globals, &qh);
+        let data_device_manager = DataDeviceManagerState::bind(&globals, &qh).map_err(|e| {
+            AnimaError::other(format!(
+                "wl_data_device_manager missing — drag-drop disabled: {e}"
+            ))
+        })?;
         let compositor = CompositorState::bind(&globals, &qh)
             .map_err(|e| AnimaError::other(format!("no wl_compositor: {e}")))?;
         let layer_shell = LayerShell::bind(&globals, &qh)
@@ -142,6 +164,11 @@ impl LayerWindow {
             pending_egui_events: Vec::new(),
             close_requested: false,
             edit_mode: false,
+            data_device_manager,
+            data_device: None,
+            last_drag_pos: None,
+            drop_tx,
+            drop_rx,
         };
 
         // Round-trip so the compositor sends us its first `configure`
@@ -247,6 +274,17 @@ pub struct WaylandState {
     /// directly so the input-region commit stays in lock-step with the
     /// flag.
     pub edit_mode: bool,
+    /// Drag-and-drop wiring (E.3). `data_device_manager` is the global
+    /// once bound; `data_device` is the per-seat handle we set actions /
+    /// accept mime on. `last_drag_pos` follows the latest motion event
+    /// during a drag so the drop landing coordinate matches what the
+    /// user sees. `drop_rx` carries parsed file paths from the worker
+    /// thread that drains the receive-pipe back to the main loop.
+    pub data_device_manager: DataDeviceManagerState,
+    pub data_device: Option<DataDevice>,
+    pub last_drag_pos: Option<(f32, f32)>,
+    pub drop_tx: mpsc::Sender<Vec<PathBuf>>,
+    pub drop_rx: mpsc::Receiver<Vec<PathBuf>>,
 }
 
 impl LayerWindow {
@@ -254,6 +292,25 @@ impl LayerWindow {
     /// callbacks invoke this and feed the result into egui.
     pub fn drain_egui_events(&mut self) -> Vec<egui::Event> {
         std::mem::take(&mut self.state.pending_egui_events)
+    }
+
+    /// Drain any file paths the drag-drop worker thread parsed since
+    /// the last call (E.3). Each call returns ownership of the paths
+    /// alongside the last drag position, so the caller can spawn
+    /// entities at the cursor's landing coordinate.
+    pub fn drain_dropped_files(&mut self) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        while let Ok(batch) = self.state.drop_rx.try_recv() {
+            out.extend(batch);
+        }
+        out
+    }
+
+    /// Last surface-local position the drag cursor reported. Returns
+    /// `None` once the drag leaves or completes; call this right after
+    /// `drain_dropped_files` to anchor newly-spawned entities.
+    pub fn last_drag_pos(&self) -> Option<(f32, f32)> {
+        self.state.last_drag_pos
     }
 
     /// Swap the click-through region in lock-step with the edit-mode
@@ -464,7 +521,14 @@ impl SeatHandler for WaylandState {
         &mut self.seat_state
     }
 
-    fn new_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {}
+    fn new_seat(&mut self, _conn: &Connection, qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
+        // One DataDevice per seat; overlay is single-seat in practice so
+        // we keep just the first. The handle stays alive for the seat's
+        // lifetime — drop happens in `remove_seat`.
+        if self.data_device.is_none() {
+            self.data_device = Some(self.data_device_manager.get_data_device(qh, &seat));
+        }
+    }
 
     fn new_capability(
         &mut self,
@@ -514,6 +578,10 @@ impl SeatHandler for WaylandState {
     }
 
     fn remove_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {
+        // Drop the DataDevice — its `Drop` impl releases the wayland
+        // resource. Single-seat overlay means there's nothing else to
+        // attach to.
+        self.data_device = None;
     }
 }
 
@@ -723,7 +791,197 @@ impl KeyboardHandler for WaylandState {
     }
 }
 
+/// Accept dropped files via `wl_data_device`. The flow is:
+///
+/// 1. `enter`: compositor advertises the drag entry; we accept the
+///    `text/uri-list` mime type so the source knows we'll consume it,
+///    and set `DndAction::Copy` as our preferred action (overlay
+///    doesn't move source files — it spawns sprites from copies).
+/// 2. `motion`: cache the latest surface-local position so the drop
+///    coordinate matches what the user sees.
+/// 3. `drop_performed`: pull the receive-pipe out of the drag offer,
+///    hand it off to a worker thread that reads + parses, and pushes
+///    the resulting `Vec<PathBuf>` back over `drop_tx`. The main loop
+///    drains `drop_rx` each frame.
+impl DataDeviceHandler for WaylandState {
+    fn enter(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _data_device: &wayland_client::protocol::wl_data_device::WlDataDevice,
+        x: f64,
+        y: f64,
+        _surface: &wl_surface::WlSurface,
+    ) {
+        self.last_drag_pos = Some((x as f32, y as f32));
+        let Some(device) = self.data_device.as_ref() else {
+            return;
+        };
+        let Some(offer) = device.data().drag_offer() else {
+            return;
+        };
+        // Tell the source we'll accept its files as a copy. set_actions
+        // is required before the source decides whether to even
+        // transmit the payload.
+        offer.set_actions(DndAction::Copy, DndAction::Copy);
+        offer.accept_mime_type(offer.serial, Some(URI_LIST_MIME.to_string()));
+    }
+
+    fn motion(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _data_device: &wayland_client::protocol::wl_data_device::WlDataDevice,
+        x: f64,
+        y: f64,
+    ) {
+        self.last_drag_pos = Some((x as f32, y as f32));
+    }
+
+    fn leave(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _data_device: &wayland_client::protocol::wl_data_device::WlDataDevice,
+    ) {
+        self.last_drag_pos = None;
+    }
+
+    fn selection(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _data_device: &wayland_client::protocol::wl_data_device::WlDataDevice,
+    ) {
+        // Clipboard selection — not a drop. Overlay doesn't consume
+        // clipboard, so ignored.
+    }
+
+    fn drop_performed(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _data_device: &wayland_client::protocol::wl_data_device::WlDataDevice,
+    ) {
+        let Some(device) = self.data_device.as_ref() else {
+            return;
+        };
+        let Some(offer) = device.data().drag_offer() else {
+            return;
+        };
+        let pipe = match offer.receive(URI_LIST_MIME.to_string()) {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::warn!("Drop: receive(text/uri-list) failed: {e}");
+                return;
+            }
+        };
+        // Worker thread does the blocking read so the wayland event
+        // queue keeps dispatching. The sender clone is cheap; the
+        // receiving end stays on `WaylandState`.
+        let tx = self.drop_tx.clone();
+        std::thread::spawn(move || {
+            let mut pipe = pipe;
+            let mut buf = Vec::with_capacity(512);
+            if let Err(e) = pipe.read_to_end(&mut buf) {
+                tracing::warn!("Drop: read pipe failed: {e}");
+                return;
+            }
+            let paths = parse_uri_list(&buf);
+            // Finish + destroy the offer here? sctk's DragOffer doesn't
+            // expose finish() directly on this handle; the source will
+            // see EOF on the pipe and complete the action.
+            if !paths.is_empty() {
+                let _ = tx.send(paths);
+            }
+        });
+    }
+}
+
+/// We never start outgoing drags from the overlay (no
+/// `create_drag_and_drop_source` call site). The trait is required by
+/// `delegate_data_device!` since the manager handles WlDataSource
+/// dispatch too — every method here is a no-op.
+impl DataSourceHandler for WaylandState {
+    fn accept_mime(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _source: &wayland_client::protocol::wl_data_source::WlDataSource,
+        _mime: Option<String>,
+    ) {
+    }
+
+    fn send_request(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _source: &wayland_client::protocol::wl_data_source::WlDataSource,
+        _mime: String,
+        _fd: WritePipe,
+    ) {
+    }
+
+    fn cancelled(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _source: &wayland_client::protocol::wl_data_source::WlDataSource,
+    ) {
+    }
+
+    fn dnd_dropped(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _source: &wayland_client::protocol::wl_data_source::WlDataSource,
+    ) {
+    }
+
+    fn dnd_finished(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _source: &wayland_client::protocol::wl_data_source::WlDataSource,
+    ) {
+    }
+
+    fn action(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _source: &wayland_client::protocol::wl_data_source::WlDataSource,
+        _action: DndAction,
+    ) {
+    }
+}
+
+impl DataOfferHandler for WaylandState {
+    fn source_actions(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        offer: &mut DragOffer,
+        _actions: DndAction,
+    ) {
+        // Always prefer Copy — overlay doesn't move source files.
+        offer.set_actions(DndAction::Copy, DndAction::Copy);
+    }
+
+    fn selected_action(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _offer: &mut DragOffer,
+        _actions: DndAction,
+    ) {
+        // The compositor picked an action; we don't need to react —
+        // the source will send the payload on receive().
+    }
+}
+
 delegate_compositor!(WaylandState);
+delegate_data_device!(WaylandState);
 delegate_keyboard!(WaylandState);
 delegate_layer!(WaylandState);
 delegate_output!(WaylandState);

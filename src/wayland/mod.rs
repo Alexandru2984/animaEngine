@@ -13,6 +13,7 @@
 //! 5. ⏳ App integration — `run` picks the backend at startup based on
 //!    `probe::detect`.
 
+pub mod data_device;
 pub mod keyboard;
 pub mod layer_window;
 pub mod probe;
