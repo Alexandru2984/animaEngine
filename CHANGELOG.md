@@ -6,6 +6,97 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-06-08
+
+Faza E — platform reach (Linux-first half). The native Wayland
+backend reaches feature parity with the X11 path on wlroots
+compositors; a small `cargo-fuzz` harness covers the parsers that
+sit closest to untrusted input. macOS and FreeBSD ports are
+explicitly **out of scope for 0.5** — without hardware to verify
+on, scaffolding those would be promising support we can't honour.
+
+### Added — native Wayland backend (`ANIMA_USE_WAYLAND_NATIVE=1`)
+
+- **Keyboard input** via sctk's `xkbcommon` feature — full keysym
+  decoding, UTF-8 composition through xkb dead-key engine,
+  modifier tracking. Letters, digits, named keys we dispatch on,
+  and the five punctuation symbols animaEngine binds all map onto
+  `egui::Key`. Bare-letter chords stay in-app (the X11
+  `XGrabKey` global path doesn't exist on Wayland).
+- **Pointer input** wired all the way through to egui with the
+  cached modifier mask, so `Shift+Click` etc. work.
+- **Click-through input region** flips in lock-step with edit-mode
+  (`Action::ToggleEditMode`) — pass-through reveals only the ⚙
+  corner, edit-mode opens the whole surface.
+- **Drag-drop** via `wl_data_device` accepting `text/uri-list` from
+  any GTK/Qt/Nautilus/Nemo source. A worker thread drains the
+  receive pipe so the wayland event queue doesn't block; the parsed
+  paths route through the same `Scene::add_entity_from_path`
+  validation gate as the X11 path.
+- **Egui paint integration** on top of the sprite layer. New
+  `WaylandEguiRenderer` wires `egui::Context` + `egui_wgpu::Renderer`
+  to the layer surface; settings panel, command palette, toasts,
+  context menu — all painted.
+- **Settings panel parity** with the X11 path: Inspector, Scene,
+  Library (display only — index population deferred), Appearance,
+  Keybindings tabs all available. The Ctrl+K command palette works,
+  toasts render, banners appear.
+- **D-Bus global-shortcut bridge** — `org.animaengine.Anima`
+  exposes `ToggleEditMode`, `HideOverlay`, `ShowOverlay`,
+  `ToggleGlobalPlayback`, `Activate`. Compositor bindings (sway /
+  Hyprland / river) call these via `gdbus` to mimic X11 global
+  hotkeys. See [docs/wayland.md](docs/wayland.md) for snippets.
+- **Multi-monitor info** via `wl_output` enumeration (logical
+  position / size / scale). The inspector's monitor picker shows
+  the live list; per-monitor placement on the layer surface itself
+  is queued for a later release.
+- **HiDPI**: egui's `pixels_per_point` follows the largest
+  compositor scale advertised among bound outputs.
+
+### Added — infrastructure
+
+- **`cargo-fuzz` harness** under [`fuzz/`](fuzz/) with three
+  initial targets: chord-string parser, drag-drop URI list parser,
+  asset-type detector. Invariant: never panic on adversarial input.
+  Runtime requires nightly; see [docs/fuzzing.md](docs/fuzzing.md)
+  for the CI snippet.
+
+### Docs
+
+- [docs/wayland.md](docs/wayland.md) — when to prefer the native
+  backend, full feature matrix, compositor binding examples for
+  sway / Hyprland / river, compatibility list.
+- [docs/fuzzing.md](docs/fuzzing.md) — running and extending the
+  fuzz harness.
+- [docs/accessibility.md](docs/accessibility.md) §4 — AT-SPI gap
+  on the native Wayland path (still flagged as something to revisit
+  upstream of egui-winit).
+
+### Explicit non-goals for 0.5
+
+- **No macOS or FreeBSD port.** The maintainer has only Linux
+  hardware; advertising those targets without verification would
+  ship broken claims. PRs welcome from contributors with the
+  matching boxes.
+
+### Upgrade notes
+
+`config.toml` files saved by 0.4 decode unchanged. The Wayland
+backend stays **opt-in via `ANIMA_USE_WAYLAND_NATIVE=1`** —
+defaults haven't moved. If the probe finds no `zwlr_layer_shell_v1`
+(GNOME Mutter, KWin), the binary silently falls back to the X11
+path, same as before.
+
+```bash
+# Debian / Ubuntu
+sudo apt install ./anima-engine_0.5.0-1_amd64.deb
+ANIMA_USE_WAYLAND_NATIVE=1 anima-engine     # opt-in native Wayland
+
+# AppImage
+chmod +x animaEngine-0.5.0-x86_64.AppImage
+./animaEngine-0.5.0-x86_64.AppImage
+```
+
 ## [0.4.0] — 2026-06-07
 
 Faza D — UX completion. Ten sub-phases focused on giving every UX
