@@ -241,7 +241,23 @@ pub fn discover_asset_root() -> Option<PathBuf> {
 /// entry.
 pub fn scan(root: &Path) -> Vec<LibraryAsset> {
     let mut out = Vec::new();
-    walk(root, root, 0, &mut out);
+    // G.7 (0.5.3): canonicalise the root once up front so the
+    // per-file containment check inside `walk` can compare against an
+    // absolute, symlink-resolved path. A symlink under the library
+    // tree pointing at `/etc` used to surface those files in the UI
+    // (resolve_library_asset rejected them at "Add to scene", but the
+    // listing leak itself was avoidable).
+    let canonical_root = match root.canonicalize() {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(
+                "Asset library root {} unreachable: {e}",
+                crate::drop_validate::redact_path(root)
+            );
+            return out;
+        }
+    };
+    walk(&canonical_root, &canonical_root, 0, &mut out);
     out
 }
 
@@ -282,7 +298,19 @@ fn walk(root: &Path, current: &Path, depth: usize, out: &mut Vec<LibraryAsset>) 
         if !metadata.is_file() {
             continue;
         }
-        let Some(rel) = path.strip_prefix(root).ok().and_then(|p| p.to_str()) else {
+        // G.7 (0.5.3): canonicalise the candidate and confirm it
+        // resolves to a path inside the (already-canonical) root.
+        // Drops entries reached through symlinks that point outside
+        // the library tree, so the listing UI doesn't surface
+        // unrelated files even if the "Add to scene" gate would
+        // refuse them later anyway.
+        let Ok(canonical) = path.canonicalize() else {
+            continue;
+        };
+        if !canonical.starts_with(root) {
+            continue;
+        }
+        let Some(rel) = canonical.strip_prefix(root).ok().and_then(|p| p.to_str()) else {
             continue;
         };
         // Normalize separators for cross-platform round-trip of the
