@@ -315,6 +315,33 @@ const MAX_CONCURRENT_DROPS: usize = 4;
 /// warning rather than letting the channel grow without bound.
 const DROP_RESULT_QUEUE_CAP: usize = 16;
 
+/// Predicate matching characters we refuse to deliver to egui
+/// `TextEdit` widgets via `egui::Event::Text`. Covers:
+///
+/// - C0 / C1 / DEL controls (`is_control()` → catches Ctrl+key
+///   keysyms like `\x01` that xkbcommon emits when composition stays
+///   active).
+/// - Unicode "Format" category Cf members the audit (G.3) flagged
+///   as dangerous to store: zero-width chars, RTL override, BOM,
+///   soft hyphen, invisible separators (U+2060-U+206F).
+///
+/// Kept as a free function so `wayland::keyboard::press_key` can
+/// import it cleanly and so the rule is testable without spinning
+/// up a full xkbcommon mock.
+fn is_unsafe_text_char(c: char) -> bool {
+    if c.is_control() {
+        return true;
+    }
+    matches!(
+        c,
+        '\u{00AD}'                  // soft hyphen
+        | '\u{200B}'..='\u{200F}'   // zero-width joiners + LRM/RLM
+        | '\u{202A}'..='\u{202E}'   // bidi embedding / override
+        | '\u{2060}'..='\u{206F}'   // invisible operators + format codes
+        | '\u{FEFF}'                // BOM / ZWNBSP
+    )
+}
+
 /// RAII guard decrementing the `active_drop_workers` counter on
 /// thread exit. Centralised so panic-induced unwinds still keep the
 /// counter accurate.
@@ -822,17 +849,22 @@ impl KeyboardHandler for WaylandState {
         // separate Text event so text widgets get the character; chord
         // dispatch above already fired for shortcut-key combos.
         //
-        // F.7 (0.5.1): strip C0 control characters before pushing.
-        // xkbcommon happily produces e.g. "\x01" for Ctrl+A even with
-        // composition active; pushing those into an egui TextEdit
-        // would store them in user-visible state.
+        // F.7 (0.5.1) + G.3 (0.5.3): strip C0 control characters and
+        // the Unicode "Format" category (Cf) before pushing. The
+        // initial F.7 pass only caught `is_control()` which covers
+        // Cc (C0 / C1 / DEL) — xkbcommon producing `\x01` for Ctrl+A.
+        // The audit re-check flagged that Cf characters (zero-width
+        // joiners U+200B-U+200F, RTL-override U+202E, BOM U+FEFF,
+        // soft hyphen U+00AD, U+2060-U+206F) sneak through and let
+        // a user store invisible / display-reversing strings in
+        // TextEdit widgets (preset names, library tags).
         if let Some(s) = event.utf8 {
             if !s.is_empty()
                 && !self.last_modifiers.ctrl
                 && !self.last_modifiers.alt
                 && !self.last_modifiers.logo
             {
-                let filtered: String = s.chars().filter(|c| !c.is_control()).collect();
+                let filtered: String = s.chars().filter(|c| !is_unsafe_text_char(*c)).collect();
                 if !filtered.is_empty() {
                     self.pending_egui_events.push(egui::Event::Text(filtered));
                 }
