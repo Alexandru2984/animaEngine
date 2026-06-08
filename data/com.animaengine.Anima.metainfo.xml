@@ -73,7 +73,7 @@
     </release>
     <release version="0.5.0" date="2026-06-08">
       <description>
-        <p>Faza E — platform reach (Linux half). The native Wayland backend reaches feature parity with the X11 path on wlroots compositors. macOS and FreeBSD remain out of scope for 0.5 — without hardware to test on, scaffolding those would be promising support we can't honour.</p>
+        <p>Phase E — platform reach (Linux half). The native Wayland backend reaches feature parity with the X11 path on wlroots compositors. macOS and FreeBSD remain out of scope for 0.5 — without hardware to test on, scaffolding those would be promising support we can't honour.</p>
         <ul>
           <li>Native Wayland keyboard via sctk's xkbcommon feature — keysym decoding, UTF-8 composition, modifier tracking.</li>
           <li>Pointer + drag-drop (text/uri-list) wired end-to-end on the wlr-layer-shell path.</li>
@@ -87,7 +87,7 @@
     </release>
     <release version="0.4.0" date="2026-06-07">
       <description>
-        <p>Faza D — UX completion. Ten sub-phases across rebindable keyboard map, persistent panel state, runtime AccessKit toggle, locale review pipeline, surfaced failure paths, live perf overlay, onboarding polish, empty-state CTAs, and a consistency sweep.</p>
+        <p>Phase D — UX completion. Ten sub-phases across rebindable keyboard map, persistent panel state, runtime AccessKit toggle, locale review pipeline, surfaced failure paths, live perf overlay, onboarding polish, empty-state CTAs, and a consistency sweep.</p>
         <ul>
           <li>Rebindable keyboard map: 27 actions in a dedicated Keybindings tab with record / conflict-detect / reset; chord set persists in config.toml and the global hotkeys read from it.</li>
           <li>Persistent collapse state for inspector sections + preset gallery so users don't re-collapse the same surfaces after every restart.</li>
@@ -121,7 +121,7 @@
     </release>
     <release version="0.3.0" date="2026-06-03">
       <description>
-        <p>Faza C — engine polish. Ten sub-phases across multi-monitor, multi-window data, asset library, behavior expansion, animation curves, and sprite groups.</p>
+        <p>Phase C — engine polish. Ten sub-phases across multi-monitor, multi-window data, asset library, behavior expansion, animation curves, and sprite groups.</p>
         <ul>
           <li>Multi-monitor distribution modes (PerMonitor / Span / Single-by-name) with per-entity pin and Ctrl+M cycle hotkey.</li>
           <li>Multi-window data layer — WindowConfig with backwards-compat migration.</li>

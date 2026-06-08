@@ -1,7 +1,7 @@
 # Locale audit — Nederlands (`nl`)
 
 **Status:** partial. Pre-D.1 strings translated previously; D.1.6, D.1.7, D.3 keys carry English placeholder.
-**AI cross-check confidence:** medium. Claude can produce reasonable surface-level Dutch but cannot reliably distinguish between formal Algemeen Beschaafd Nederlands and informal register. Native review essential before merging the suggestions below.
+**AI cross-check confidence:** medium. An LLM can produce reasonable surface-level Dutch but cannot reliably distinguish between formal Algemeen Beschaafd Nederlands and informal register. Native review essential before merging the suggestions below.
 
 ## Glossary
 

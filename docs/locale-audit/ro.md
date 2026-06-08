@@ -1,7 +1,7 @@
 # Locale audit — Română (`ro`)
 
 **Status:** maintainer-native, full coverage. No placeholder strings.
-**Last AI cross-check:** 2026-06-05 (Claude). Maintainer is native Romanian, so the audit role here is "fresh eye spot check," not gap-fill.
+**Last AI cross-check:** 2026-06-05 (automated). Maintainer is native Romanian, so the audit role here is "fresh eye spot check," not gap-fill.
 
 ## Glossary (locale-specific anchors)
 

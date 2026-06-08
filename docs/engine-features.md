@@ -1,4 +1,4 @@
-# Engine features spec — Faza C / 0.3
+# Engine features spec — Phase C / 0.3
 
 Single source of truth for the engine work in 0.3. Sub-phases C.1
 through C.9 implement what's described here; if you find yourself
@@ -6,7 +6,7 @@ inventing a new data shape mid-implementation, update this doc
 first, then the code.
 
 The goal isn't novelty — it's giving the existing engine more reach
-without breaking the invariants Faza B locked in (asset caps, atomic
+without breaking the invariants Phase B locked in (asset caps, atomic
 writes, drag-drop validation, single-method D-Bus).
 
 ---
@@ -237,7 +237,7 @@ Originally scoped for C.6. Implementing sprite rotation requires a
 per-quad transform matrix in the vertex shader and a `rotation: f32`
 field on `Entity`; both are clean changes but they cross the
 behavior / renderer boundary cleanly enough that they deserve their
-own sub-phase. Moved to 0.4 / Faza D where the AccessKit-runtime-
+own sub-phase. Moved to 0.4 / Phase D where the AccessKit-runtime-
 toggle and rebindable-keymap refactors also touch wider surfaces.
 The shape stays as originally specified:
 

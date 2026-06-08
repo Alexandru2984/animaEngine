@@ -149,7 +149,7 @@ nothing more.
 
 ### D-Bus accessibility tree (AT-SPI) — opt-out only
 
-Since 0.2.0 (Faza A.9) we enable the `accesskit` feature on
+Since 0.2.0 (Phase A.9) we enable the `accesskit` feature on
 `egui-winit`, which makes Linux screen readers like Orca work without
 extra plumbing. The mechanism is `accesskit_unix` registering an
 `org.a11y.atspi.*` object on the session bus. **Every egui widget

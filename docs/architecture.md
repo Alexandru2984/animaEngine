@@ -53,7 +53,7 @@ Panels (src/ui/panels.rs)
   ├─ toasts()           — bottom-right notification stack
   └─ toggle_button()    — the ⚙ widget in pass-through mode
 
-Token + helper modules (Faza A):
+Token + helper modules (Phase A):
   ├─ theme.rs        — Palette, 4 themes (Dark/Light + HC pairs), apply()
   ├─ icons.rs        — Phosphor glyph constants by domain
   ├─ states.rs       — empty / error / spinner reusable cards
@@ -101,14 +101,14 @@ Asset on disk
    ↓
 animation::loader::load_asset()           src/animation/loader.rs
    ├─ validate_image_dimensions()         decompression-bomb guard
-   ├─ cache::try_load()                   on-disk RGBA cache, Faza 2.4
+   ├─ cache::try_load()                   on-disk RGBA cache, Phase 2.4
    └─ format dispatch:
          PngSequence   → png_sequence::load_png_sequence() (parallel, rayon)
          PngStatic     → png_sequence::load_single_png()
          Gif           → gif_loader
          WebpAnimated  → webp_loader
-         Spritesheet   → spritesheet (row-stride memcpy, Faza 2.5)
-         Video         → video_loader (mp4 + openh264, Faza 5.1)
+         Spritesheet   → spritesheet (row-stride memcpy, Phase 2.5)
+         Video         → video_loader (mp4 + openh264, Phase 5.1)
    ↓
 Vec<Frame> { rgba: Vec<u8>, width, height, delay_ms? }
    ↓
@@ -189,7 +189,7 @@ region in edit mode.
 | Window creation | winit + EWMH hints | sctk + wlr-layer-shell |
 | Click-through | XShape | set_input_region |
 | Sprite rendering | ✅ | ✅ |
-| Pointer events | ✅ via winit | ✅ via sctk (Faza 7.3) |
+| Pointer events | ✅ via winit | ✅ via sctk (Phase 7.3) |
 | Keyboard events | ✅ via winit | ❌ (sctk keyboard needs libxkbcommon-dev) |
 | egui UI | ✅ | ❌ (events buffered, not consumed) |
 | Drag-and-drop | ✅ | ❌ (no data-device handling) |
@@ -217,7 +217,7 @@ No shared mutable state outside `mpsc` channels.
 
 Three formats, all built from one source of truth (`make install` rules):
 
-| Format | Builder | Output | Faza |
+| Format | Builder | Output | Phase |
 |--------|---------|--------|------|
 | `.deb` | `cargo-deb` (reads `[package.metadata.deb]`) | ~5.4 MB | 8.3 |
 | AppImage | `linuxdeploy` | ~7.2 MB | 8.2 |

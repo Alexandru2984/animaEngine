@@ -1,7 +1,7 @@
 # Locale audit — Polski (`pl`)
 
 **Status:** partial. Pre-D.1 strings translated previously; D.1.6, D.1.7, D.3 keys carry English placeholder.
-**AI cross-check confidence:** low-medium. Polish grammar (especially case agreement for verbs of motion and prefixed perfective/imperfective pairs) is hard for Claude to get right in idiomatic UI register. The suggestions below are a starting point for a native speaker, not a finished draft.
+**AI cross-check confidence:** low-medium. Polish grammar (especially case agreement for verbs of motion and prefixed perfective/imperfective pairs) is hard for the LLM to get right in idiomatic UI register. The suggestions below are a starting point for a native speaker, not a finished draft.
 
 ## Glossary
 

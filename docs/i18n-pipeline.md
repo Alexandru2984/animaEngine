@@ -81,9 +81,9 @@ locale-audit/). Each file lists, for one locale:
 - Suggested fixes, when the reviewer is confident.
 
 The audits are **advisory** — a native speaker reading the doc
-decides what to commit. Cross-check by an LLM (current pass:
-Claude) gives a starting point but is explicitly *not* authoritative
-on idiom or register; treat it as a sniff test.
+decides what to commit. Cross-check by an LLM gives a starting
+point but is explicitly *not* authoritative on idiom or register;
+treat it as a sniff test.
 
 ### Workflow for a native speaker
 

@@ -1,7 +1,7 @@
 # Locale audit — Português brasileiro (`pt-BR`)
 
 **Status:** partial. Pre-D.1 strings translated previously; D.1.6, D.1.7, D.3 keys carry English placeholder.
-**AI cross-check confidence:** medium-high. Claude has decent BR-Portuguese coverage for technical UI; spelling and register are mostly safe but native review should verify casual vs formal tone consistency.
+**AI cross-check confidence:** medium-high. An automated cross-check has decent BR-Portuguese coverage for technical UI; spelling and register are mostly safe but native review should verify casual vs formal tone consistency.
 
 ## Glossary
 

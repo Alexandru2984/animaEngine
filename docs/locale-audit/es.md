@@ -1,7 +1,7 @@
 # Locale audit — Español (`es`)
 
 **Status:** partial. Pre-D.1 strings translated previously; D.1.6, D.1.7, D.3 keys carry English placeholder.
-**AI cross-check confidence:** high (Claude has solid Spanish technical-UI familiarity; regional register defaults to neutral Iberian Spanish — Latin American reviewers should flag any divergence).
+**AI cross-check confidence:** high (the model has solid Spanish technical-UI familiarity for surface-level translation; regional register and idiom still need a human pass).
 
 ## Glossary
 

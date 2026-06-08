@@ -1,7 +1,7 @@
 # Locale audit — Deutsch (`de`)
 
 **Status:** partial. Pre-D.1 strings translated by previous pass; D.1.6, D.1.7, D.3 keys carry English placeholder.
-**AI cross-check confidence:** medium-high (Claude has solid German technical-UI familiarity but cannot judge regional register).
+**AI cross-check confidence:** medium-high (the model has solid German technical-UI familiarity for surface-level translation; regional register and idiom still need a human pass).
 
 ## Glossary (locale-specific anchors)
 
@@ -86,7 +86,7 @@ appearance-accesskit-hint = Versorgt AT-SPI-Screenreader (Orca etc.). Aktiv lass
 
 ## Suspected issues in already-translated strings
 
-(Pending native-speaker review — Claude's confidence here is "this looks reasonable" not "this is idiomatic.")
+(Pending native-speaker review — the model's confidence here is "this looks reasonable" not "this is idiomatic.")
 
 ### `behavior-wander` translation drift risk
 

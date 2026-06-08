@@ -35,8 +35,8 @@ Quick version:
 
 ## AI confidence — what the audits are and aren't
 
-Initial sweep was done by Claude (the AI assistant working with the
-maintainer). Confidence varies by language:
+Initial sweep was an automated AI cross-check. Confidence varies
+by language:
 
 - **High confidence** (de, es, fr, it, pt-BR): the suggestions are
   reasonable starting points; native review still needed for tone

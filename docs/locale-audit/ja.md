@@ -1,7 +1,7 @@
 # Locale audit — 日本語 (`ja`)
 
 **Status:** partial. Pre-D.1 strings translated previously; D.1.6, D.1.7, D.3 keys carry English placeholder.
-**AI cross-check confidence:** low. Claude can produce grammatical Japanese for technical UI but cannot reliably judge politeness level (です/ます-form for UI labels is conventional; ない/する dictionary-form for button verbs varies by product). Particle choice (は / が / を / に) for short imperative labels can also drift. **Native review essential before merging.**
+**AI cross-check confidence:** low. An LLM can produce grammatical Japanese for technical UI but cannot reliably judge politeness level (です/ます-form for UI labels is conventional; ない/する dictionary-form for button verbs varies by product). Particle choice (は / が / を / に) for short imperative labels can also drift. **Native review essential before merging.**
 
 ## Glossary
 

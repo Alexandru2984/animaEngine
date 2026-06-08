@@ -1,7 +1,7 @@
 //! Asset library — directory scan + persistent index, the data layer
 //! beneath `docs/engine-features.md` §3.
 //!
-//! Faza C.4 (this commit) ships:
+//! Phase C.4 (this commit) ships:
 //! - directory discovery (env override → XDG_DATA_HOME → exe-relative)
 //! - extension whitelist matching the drag-drop pre-validation in
 //!   `crate::app::pre_validate_dropped_file` (audit invariant L2)

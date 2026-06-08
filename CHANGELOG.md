@@ -74,7 +74,7 @@ Test suite: 228 lib + 25 integration + 1 demo = 254 pass.
 
 ## [0.5.0] — 2026-06-08
 
-Faza E — platform reach (Linux-first half). The native Wayland
+Phase E — platform reach (Linux-first half). The native Wayland
 backend reaches feature parity with the X11 path on wlroots
 compositors; a small `cargo-fuzz` harness covers the parsers that
 sit closest to untrusted input. macOS and FreeBSD ports are
@@ -165,7 +165,7 @@ chmod +x animaEngine-0.5.0-x86_64.AppImage
 
 ## [0.4.0] — 2026-06-07
 
-Faza D — UX completion. Ten sub-phases focused on giving every UX
+Phase D — UX completion. Ten sub-phases focused on giving every UX
 surface a coherent story: rebindable shortcuts, persistent panel
 state, runtime accessibility control, native-speaker review
 pipeline, surfaced failure paths, live perf instrumentation,
@@ -220,7 +220,7 @@ sweep.
   `~/.cache/animaEngine/perf-<ts>.json` openable in
   `chrome://tracing` or Perfetto.
 - **Onboarding 2.0** (D.7): retains the progressive-tooltip
-  concept from Faza A; adds the "What's new in 0.4" highlight
+  concept from Phase A; adds the "What's new in 0.4" highlight
   panel anchored by `WHATS_NEW_VERSION = "0.4.0"` (one-shot per
   minor bump), two new hint sites (Keybindings tab,
   perf overlay), and an Appearance → "Reset onboarding hints"
@@ -348,7 +348,7 @@ sudo apt install ./anima-engine_0.3.1-1_amd64.deb
 
 ## [0.3.0] — 2026-06-03
 
-Faza C — **engine polish**. Ten sub-phases across multi-monitor,
+Phase C — **engine polish**. Ten sub-phases across multi-monitor,
 multi-window, asset library, behavior expansion, animation curves,
 and sprite groups. The renderer pipeline still draws the same way
 it did in 0.2 — the engine got a wider model around it instead of
@@ -378,7 +378,7 @@ a faster one.
 - `AppConfig::windows_normalised()` synthesises a default window
   from top-level `characters` when no explicit windows exist
 - Render-side multi-window dispatch (one winit::Window per entry)
-  deferred to 0.4 / Faza D
+  deferred to 0.4 / Phase D
 
 **Asset library (C.4, C.5):**
 - `src/asset_library/` module: directory discovery (env override →
@@ -493,7 +493,7 @@ already pull in `libxkbcommon-x11-0` transitively.
   `build`, and `smoke` jobs so the smoke test under Xvfb actually
   reaches the event loop.
 
-### Security hardening (from the post-Faza A audit)
+### Security hardening (from the post-Phase A audit)
 
 - **AT-SPI exposure documented** in [`docs/threat-model.md`](
   docs/threat-model.md). The AccessKit bridge enabled in 0.2.0
@@ -509,7 +509,7 @@ already pull in `libxkbcommon-x11-0` transitively.
   and `Scene::append_character_config` documenting that callers
   must pre-validate `asset_path` if it comes from outside the
   hardcoded preset set. No code change — preserves the
-  drag-drop-validation invariant from 0.1.0's Faza B.
+  drag-drop-validation invariant from 0.1.0's Phase B.
 - **AppImage reproducibility envelope** documented and a pinned
   build container shipped at
   [`packaging/Dockerfile.appimage-builder`](
@@ -528,20 +528,20 @@ download 0.2.1.
 
 ## [0.2.0] — 2026-06-02
 
-UI/UX polish release. Faza A (A.0-A.11) landed on top of the 0.1.0 +
+UI/UX polish release. Phase A (A.0-A.11) landed on top of the 0.1.0 +
 B series — twelve sub-phases focused on coherence, accessibility,
 and localisation rather than new sprite features. The engine renders
 the same content; the chrome around it is dramatically nicer.
 
 ### Added
 
-**Design system (Faza A.0):**
+**Design system (Phase A.0):**
 - `docs/design-system.md` — single source of truth for colours,
   typography, spacing, radii, icons, motion, and component patterns
 - Every panel now references token constants instead of hardcoded
   hex values / magic numbers
 
-**Theme system (Faza A.1, A.9):**
+**Theme system (Phase A.1, A.9):**
 - Four themes: Dark, Light, Dark · High contrast, Light · High contrast
 - Theme persisted in `GlobalConfig.theme`
 - HC variants clear WCAG AAA (≥ 7:1) on every text tier, thicken
@@ -549,59 +549,59 @@ the same content; the chrome around it is dramatically nicer.
   motion-sensitive users
 - CI enforces contrast thresholds via unit tests
 
-**Iconography (Faza A.2):**
+**Iconography (Phase A.2):**
 - `egui-phosphor` icon font wired through `src/ui/icons.rs` — every
   in-app glyph is a named constant for grep-ability
 - New "Ghost Mascot" app icon ([data/anima-engine.svg](data/anima-engine.svg))
   selected from three exploratory variants in
   [packaging/icon-variants/](packaging/icon-variants/)
 
-**Settings sidebar redesign (Faza A.3):**
+**Settings sidebar redesign (Phase A.3):**
 - Three tabs (Inspector / Scene / Appearance) with sticky header,
   scrollable body, entity-count footer
 - Inspector has collapsible sections (Position / Appearance /
   Animation / Behavior) and quick-toggle row for Visible/Gravity
 - Tab selection persists through `egui::Memory`
 
-**Empty / error / loading states (Faza A.4):**
+**Empty / error / loading states (Phase A.4):**
 - `src/ui/states.rs` with reusable `empty`, `error`, `spinner`
   helpers
 - Toasts redesigned per design-system §7.8: bg.elevated surface,
   semantic-coloured severity icons, radius_lg, theme-aware
 
-**Micro-animations (Faza A.5):**
+**Micro-animations (Phase A.5):**
 - `src/ui/anim.rs` with `ease_in_quad` / `ease_out_quad` / `lerp`
 - Toast slide-in (200 ms ease-out-quad) + fade-out
   (300 ms ease-in-quad) computed off `Toast::age()`
 - Tab cross-fade (100 ms) via `ctx.animate_value_with_time`
 - Hover and focus transitions ride egui's built-in animation_time
 
-**Onboarding (Faza A.6):**
+**Onboarding (Phase A.6):**
 - Three dismissible inline hints for fresh users (tabs, V/G shortcuts,
   theme instant-apply)
 - Existing users (configs pre-A.6) skip all hints via `#[serde(default = ...)]`
 
-**Preset library (Faza A.7):**
+**Preset library (Phase A.7):**
 - Six curated presets using only the shipped demo assets:
   Cozy Companion, Productivity Zen, Halloween Party,
   Birthday Confetti, Studio Session, Cursor Follower
 - Append / Replace modes; Append suffixes IDs with `_a/_b/...` to
   avoid collisions
 
-**Keyboard map + command palette (Faza A.8):**
+**Keyboard map + command palette (Phase A.8):**
 - `src/ui/keyboard.rs` Action enum with label + description +
   default combo (21 actions)
 - Read-only keyboard reference table in the Appearance tab
 - **Ctrl+K command palette** — fuzzy search across themes and
   presets, executes via `PaletteOutcome` back into `App`
 
-**Accessibility (Faza A.9):**
+**Accessibility (Phase A.9):**
 - AccessKit bridge enabled via egui-winit feature → AT-SPI events
   on Linux for every egui widget
 - High-contrast theme variants (see Theme system above)
 - `docs/accessibility.md` documenting commitments and non-goals
 
-**Internationalisation (Faza A.10):**
+**Internationalisation (Phase A.10):**
 - `fluent-rs` backend with `OnceLock<RwLock<State>>` for constant-time
   locale switching
 - Ten locales shipped (`en`, `ro`, `es`, `de`, `fr`, `it`, `pt-BR`,
@@ -611,7 +611,7 @@ the same content; the chrome around it is dramatically nicer.
 - Language picker in Appearance tab with autonyms (Română, 日本語, …)
 - Explicit selection persists in `GlobalConfig.locale`
 
-**Polish (Faza A.11):**
+**Polish (Phase A.11):**
 - Selection pulse on the active scene-list row (2 s sine, low
   amplitude, accent-coloured left stripe)
 - Hardcoded values from earlier sub-phases swept into token
@@ -640,7 +640,7 @@ native Wayland path.
 
 ### Added
 
-**Foundation (Faza 0-1):**
+**Foundation (Phase 0-1):**
 - Typed `AnimaError` (`thiserror`) — no more `Box<dyn Error>`
 - CI: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`,
   smoke test under Xvfb
@@ -657,43 +657,43 @@ native Wayland path.
 - **Recursive dimension validation** on PNG sequences
 - **Input-shape re-apply** on focus regain and unocclude
 
-**Performance (Faza 2):**
+**Performance (Phase 2):**
 - Parallel PNG-sequence decode via rayon
 - Cached visibility/z-order (filter + sort runs only on invalidation)
 - On-disk RGBA cache at `~/.cache/animaEngine/textures/`
 - Spritesheet slicing uses row-stride memcpy
 
-**UI (Faza 3):**
+**UI (Phase 3):**
 - egui integration via `egui-wgpu`; ⚙ button is now an egui widget
 - Right-side settings panel: inspector + scene list
 - Right-click context menu (Duplicate / Reset / Gravity / Z-order /
   Delete)
 - Toast notifications for save / add / delete / hot-reload
 
-**Behaviors (Faza 4):**
+**Behaviors (Phase 4):**
 - `Idle` (default), `WalkAround`, `FollowCursor`, `BoundedWander`
 - `TickContext` struct, per-entity `BehaviorState`, deterministic
   per-id PRNG seed for bounded wander
 
-**Asset ecosystem (Faza 5):**
+**Asset ecosystem (Phase 5):**
 - H.264 MP4 video loader (`mp4` + `openh264`, no system deps,
   capped at 20 s / 600 frames)
 - Sample pack: ghost, slime, heart, star, cat (all procedural)
 
-**System integration (Faza 6):**
+**System integration (Phase 6):**
 - System tray via `ksni` (StatusNotifierItem, no libappindicator)
 - Global hotkeys `Ctrl+Shift+A/H/P` via `global-hotkey`
 - Single-instance D-Bus handshake (`com.animaengine.Anima`); a second
   launch raises the existing window
 
-**Native Wayland (Faza 7, opt-in):**
+**Native Wayland (Phase 7, opt-in):**
 - Compositor probe (logs whether `zwlr_layer_shell_v1` is available)
 - `sctk`-driven layer surface + wgpu bridge
 - Pointer events translated to `egui::Event` (keyboard deferred)
 - `wl_surface::set_input_region` click-through, matching the X11 path
 - `ANIMA_USE_WAYLAND_NATIVE=1` to opt in
 
-**Packaging (Faza 8):**
+**Packaging (Phase 8):**
 - `.desktop` + scalable SVG icon + AppStream metainfo
 - `make install` with `DESTDIR` / `PREFIX` support
 - AppImage build via `linuxdeploy` (`make appimage` ≈ 7 MB output)
@@ -701,13 +701,13 @@ native Wayland path.
 - Flatpak manifest at `flatpak/com.animaengine.Anima.yml` plus
   `make flatpak`
 
-**Docs + recovery (Faza 9):**
+**Docs + recovery (Phase 9):**
 - README rewritten; `CONTRIBUTING.md`, `docs/architecture.md`,
   `docs/config.md` added
 - Panic hook + `--recover` flag — last clean config snapshot survives
   a crash; restore copies it back over the live config
 
-### Hardening (Faza B, audit response)
+### Hardening (Phase B, audit response)
 
 - **`MAX_ANIMATION_FRAMES`**, **`MAX_SEQUENCE_FILES`**,
   **`MAX_DECODED_ASSET_BYTES`**, **`MAX_ASSET_FILE_BYTES`** added to
