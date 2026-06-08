@@ -173,15 +173,40 @@ pub fn run_native(
         // global hotkeys produce, so a `gdbus call … ToggleEditMode`
         // invoked from sway is indistinguishable from clicking the ⚙
         // button.
+        //
+        // F.3: coalesce idempotent toggle events so a spammy caller
+        // (a thousand `ToggleEditMode` calls between two frames =
+        // odd parity → noop = even parity → toggle) doesn't bounce
+        // the input region a thousand times — we apply each toggle
+        // class at most once per frame. ShowOverlay / HideOverlay are
+        // distinct because the user might want either intent.
         if let Some(rx) = &dbus_rx {
+            let mut toggle_edit_xor = false;
+            let mut toggle_playback_xor = false;
+            let mut last_visibility: Option<AnimaEvent> = None;
+            let mut quit = false;
             while let Ok(ev) = rx.try_recv() {
                 match ev {
-                    AnimaEvent::ToggleEditMode => {
-                        let new_mode = !layer.state.edit_mode;
-                        if let Err(e) = layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
-                            tracing::warn!("dbus toggle: {e}");
-                        }
-                    }
+                    AnimaEvent::ToggleEditMode => toggle_edit_xor ^= true,
+                    AnimaEvent::ToggleGlobalPlayback => toggle_playback_xor ^= true,
+                    AnimaEvent::HideOverlay => last_visibility = Some(AnimaEvent::HideOverlay),
+                    AnimaEvent::ShowOverlay => last_visibility = Some(AnimaEvent::ShowOverlay),
+                    AnimaEvent::Quit => quit = true,
+                    AnimaEvent::RaiseWindow => {}
+                }
+            }
+            if toggle_edit_xor {
+                let new_mode = !layer.state.edit_mode;
+                if let Err(e) = layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
+                    tracing::warn!("dbus toggle: {e}");
+                }
+            }
+            if toggle_playback_xor {
+                scene.toggle_global_playback();
+                config_dirty = true;
+            }
+            if let Some(vis) = last_visibility {
+                match vis {
                     AnimaEvent::HideOverlay => {
                         if let Err(e) =
                             layer.set_input_region(Some(InputRect::toggle_button_corner(
@@ -193,23 +218,13 @@ pub fn run_native(
                         }
                     }
                     AnimaEvent::ShowOverlay => {
-                        // No-op: the layer surface is always present
-                        // on this path; the closest "show" is to drop
-                        // back into pass-through which we already are
-                        // unless edit-mode is on.
+                        // No-op on a layer surface (always present).
                     }
-                    AnimaEvent::ToggleGlobalPlayback => {
-                        scene.toggle_global_playback();
-                        config_dirty = true;
-                    }
-                    AnimaEvent::RaiseWindow => {
-                        // No raise concept on a layer surface — it's
-                        // always at the Overlay layer.
-                    }
-                    AnimaEvent::Quit => {
-                        layer.state.close_requested = true;
-                    }
+                    _ => {}
                 }
+            }
+            if quit {
+                layer.state.close_requested = true;
             }
         }
 

@@ -68,32 +68,35 @@ impl ActivationService {
 
 /// Wayland-flavoured twin of `ActivationService`. The native Wayland
 /// run-loop doesn't go through winit's event loop, so the dispatch
-/// target is an [`std::sync::mpsc::Sender<AnimaEvent>`] the main
-/// thread polls each frame.
+/// target is an [`std::sync::mpsc::SyncSender<AnimaEvent>`] (bounded;
+/// see [`DBUS_QUEUE_CAP`]) the main thread polls each frame. F.3
+/// (0.5.1) replaced an unbounded channel + `send` with the bounded
+/// pair + `try_send` so a spammy caller drops overflow events
+/// instead of growing memory.
 struct WaylandActivationService {
-    tx: std::sync::mpsc::Sender<AnimaEvent>,
+    tx: std::sync::mpsc::SyncSender<AnimaEvent>,
 }
 
 #[interface(name = "org.animaengine.Anima")]
 impl WaylandActivationService {
     async fn activate(&self) {
-        let _ = self.tx.send(AnimaEvent::RaiseWindow);
+        let _ = self.tx.try_send(AnimaEvent::RaiseWindow);
     }
 
     async fn toggle_edit_mode(&self) {
-        let _ = self.tx.send(AnimaEvent::ToggleEditMode);
+        let _ = self.tx.try_send(AnimaEvent::ToggleEditMode);
     }
 
     async fn hide_overlay(&self) {
-        let _ = self.tx.send(AnimaEvent::HideOverlay);
+        let _ = self.tx.try_send(AnimaEvent::HideOverlay);
     }
 
     async fn show_overlay(&self) {
-        let _ = self.tx.send(AnimaEvent::ShowOverlay);
+        let _ = self.tx.try_send(AnimaEvent::ShowOverlay);
     }
 
     async fn toggle_global_playback(&self) {
-        let _ = self.tx.send(AnimaEvent::ToggleGlobalPlayback);
+        let _ = self.tx.try_send(AnimaEvent::ToggleGlobalPlayback);
     }
 }
 
@@ -146,6 +149,15 @@ pub fn try_acquire() -> AcquireOutcome {
     })
 }
 
+/// Cap on the in-flight D-Bus action queue (F.3, 0.5.1). Pre-fix the
+/// channel was unbounded; a malicious local process could call
+/// `ToggleEditMode` in a tight loop and grow memory until the main
+/// loop drained it next frame. With `sync_channel(64)` the sender's
+/// `try_send` drops overflow events instead of blocking. 64 is an
+/// order of magnitude past anything a real user produces in one
+/// frame at 60 Hz.
+const DBUS_QUEUE_CAP: usize = 64;
+
 /// Mount the activation service for the native Wayland path. Returns
 /// the receiver the run-loop polls each frame to consume action
 /// events. The thread holds the connection alive so the service stays
@@ -153,7 +165,7 @@ pub fn try_acquire() -> AcquireOutcome {
 pub fn install_wayland_service(
     connection: zbus::Connection,
 ) -> std::sync::mpsc::Receiver<AnimaEvent> {
-    let (tx, rx) = std::sync::mpsc::channel::<AnimaEvent>();
+    let (tx, rx) = std::sync::mpsc::sync_channel::<AnimaEvent>(DBUS_QUEUE_CAP);
     std::thread::Builder::new()
         .name("anima-instance-wayland".into())
         .spawn(move || {
