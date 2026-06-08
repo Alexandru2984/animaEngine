@@ -65,6 +65,7 @@ impl WaylandEguiRenderer {
     /// is the compositor's reported scale (1.0 on single-DPI displays,
     /// 2.0 on most "Retina"-grade panels, etc.). Egui's layout snaps
     /// to this scale so glyphs stay crisp.
+    #[allow(clippy::too_many_arguments)]
     pub fn render<F>(
         &mut self,
         device: &wgpu::Device,
