@@ -157,17 +157,18 @@ so subsequent starts are limited by disk read speed. Set
 
 The default code path uses **winit + X11** (XWayland on Wayland systems)
 — stable, supports every Linux desktop. An **opt-in native Wayland
-backend** with `wlr-layer-shell-unstable-v1` exists for wlroots
-compositors (sway / Hyprland / river):
+backend** with `wlr-layer-shell-unstable-v1` ships with full feature
+parity (settings panel, drag-drop, keyboard, perf overlay) for wlroots
+compositors (sway / Hyprland / river / Wayfire):
 
 ```bash
 ANIMA_USE_WAYLAND_NATIVE=1 anima-engine
 ```
 
-The native path currently renders sprites only — no egui UI, keyboard,
-or drag-drop yet. Use the tray + `Ctrl+Shift+A` to control it. See
-[docs/architecture.md](docs/architecture.md#native-wayland-status) for
-the full status matrix.
+Global shortcuts on the native path go through `org.animaengine.Anima`
+D-Bus methods that compositor bindings call via `gdbus` — see
+[docs/wayland.md](docs/wayland.md) for sway / Hyprland / river config
+snippets and the full feature matrix.
 
 ## Security & trust
 
