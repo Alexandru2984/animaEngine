@@ -189,6 +189,7 @@ dependencies = [
  "global-hotkey",
  "image",
  "ksni",
+ "libc",
  "mp4",
  "openh264",
  "pollster",

@@ -337,20 +337,24 @@ pub fn thumbnail_is_fresh(source: &Path, cached: &Path) -> bool {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
+// M3 hardening (0.5.2): both fallbacks below previously honoured
+// `$HOME` (with `.` as default), which let a malicious wrapper
+// script redirect writes to arbitrary locations. Use a uid-scoped
+// tmpdir so the fallback path stays absolute regardless of env.
 fn xdg_data_dir() -> PathBuf {
     if let Some(dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
         return dirs.data_dir().to_path_buf();
     }
-    PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))
-        .join(".local/share/animaEngine")
+    let uid = unsafe { libc::getuid() };
+    std::env::temp_dir().join(format!("animaEngine-{uid}"))
 }
 
 fn xdg_cache_dir() -> PathBuf {
     if let Some(dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
         return dirs.cache_dir().to_path_buf();
     }
-    PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))
-        .join(".cache/animaEngine")
+    let uid = unsafe { libc::getuid() };
+    std::env::temp_dir().join(format!("animaEngine-{uid}-cache"))
 }
 
 /// FNV-1a 64-bit. Low 48 bits formatted as 12 hex chars give us

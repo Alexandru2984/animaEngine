@@ -332,10 +332,16 @@ fn cache_dir() -> PathBuf {
     if let Some(proj) = directories::ProjectDirs::from("", "", "animaEngine") {
         return proj.cache_dir().to_path_buf();
     }
-    // Fallback when XDG isn't reachable — won't normally trigger on
-    // Linux but keeps the function infallible at the path-build step.
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".cache").join("animaEngine")
+    // M3 hardening (0.5.2): the previous fallback was
+    // `$HOME/.cache/animaEngine` with `HOME` defaulting to `.` when
+    // unset, which let a wrapper script `HOME=/etc/cron.d anima-engine`
+    // direct cache writes anywhere. Prefer an absolute, uid-scoped
+    // tmpdir so the fallback path always lands inside `/tmp` no
+    // matter the env. `std::env::temp_dir` honours `TMPDIR` but
+    // still resolves to an absolute path; combined with the uid
+    // suffix two users on a shared host don't collide.
+    let uid = unsafe { libc::getuid() };
+    std::env::temp_dir().join(format!("animaEngine-{uid}"))
 }
 
 /// RAII guard that adds its elapsed lifetime to the sampler under

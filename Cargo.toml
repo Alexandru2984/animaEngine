@@ -55,6 +55,12 @@ assets = [
 ]
 
 [dependencies]
+# libc — only used for `getuid()` to scope fallback cache / data
+# tmpdirs by user id when XDG dirs aren't reachable. Already in the
+# tree as a transitive dep of nearly everything; promoted to a direct
+# dependency in 0.5.2 (M3 hardening).
+libc = "0.2"
+
 # Windowing
 winit = { version = "0.30", features = ["x11", "wayland"] }
 
