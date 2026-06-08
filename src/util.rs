@@ -40,11 +40,15 @@ pub fn atomic_write_bytes(path: &Path, contents: &[u8]) -> std::io::Result<()> {
     }
 }
 
-/// `<path>.anima.tmp` — kept verbose so we never collide with a real
-/// asset called e.g. `config.tmp`.
+/// `<path>.<pid>.anima.tmp` — kept verbose so we never collide with a
+/// real asset called e.g. `config.tmp`, and include the process id so
+/// two animaEngine instances racing through a missed single-instance
+/// lock can't truncate each other's temp files mid-write (M5
+/// hardening, 0.5.2). The rename target stays the unchanged final
+/// path, so atomicity guarantees aren't affected.
 fn tmp_sibling(path: &Path) -> PathBuf {
     let mut name: OsString = path.as_os_str().to_owned();
-    name.push(".anima.tmp");
+    name.push(format!(".{}.anima.tmp", std::process::id()));
     PathBuf::from(name)
 }
 
