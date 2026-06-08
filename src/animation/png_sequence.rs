@@ -4,6 +4,7 @@ use crate::error::{AnimaError, Result};
 use rayon::prelude::*;
 use std::fs;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// Load a PNG sequence from a directory.
 /// Files are sorted alphabetically — name them frame_001.png, frame_002.png, etc.
@@ -58,35 +59,51 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
         crate::drop_validate::redact_path(dir_path)
     );
 
-    let decoded: Vec<Frame> = entries
+    // G.4 (0.5.3): apply `MAX_DECODED_ASSET_BYTES` *during* the
+    // parallel decode rather than after. The previous pass collected
+    // every frame into memory and only then truncated, so a 1000-file
+    // sequence of 4 K RGBA produced ~33 GB peak transient before the
+    // post-hoc cap kicked in — a self-DoS path for a library scan.
+    // Worker threads check the shared running total before pushing
+    // their decoded frame and bail out once the cap would be crossed.
+    let total_bytes = AtomicUsize::new(0);
+    let truncated_for_bytes = AtomicBool::new(false);
+    let decoded: Vec<Option<Frame>> = entries
         .par_iter()
-        .filter_map(|path| match load_single_png(path) {
-            Ok(frame) => Some(frame),
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to load PNG {}: {}",
-                    crate::drop_validate::redact_path(path),
-                    e
-                );
-                None
+        .map(|path| {
+            if truncated_for_bytes.load(Ordering::Acquire) {
+                return None;
             }
+            let frame = match load_single_png(path) {
+                Ok(f) => f,
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to load PNG {}: {}",
+                        crate::drop_validate::redact_path(path),
+                        e
+                    );
+                    return None;
+                }
+            };
+            let want = frame.rgba.len();
+            // Reserve our slice of the budget atomically. If the
+            // reservation crosses the cap, mark the run truncated and
+            // discard this frame (preserving ordering of the kept
+            // prefix — par_iter().collect() honours source order, so
+            // the trailing `None`s end up after any kept frame).
+            let prev = total_bytes.fetch_add(want, Ordering::AcqRel);
+            if prev.saturating_add(want) > MAX_DECODED_ASSET_BYTES {
+                total_bytes.fetch_sub(want, Ordering::AcqRel);
+                truncated_for_bytes.store(true, Ordering::Release);
+                return None;
+            }
+            Some(frame)
         })
         .collect();
-
-    // Apply the decoded-bytes cap sequentially after parallel decode.
-    // Truncating during par_iter would race the running total.
-    let mut frames: Vec<Frame> = Vec::with_capacity(decoded.len());
-    let mut total_bytes: usize = 0;
-    let mut truncated_for_bytes = false;
-    for frame in decoded {
-        if total_bytes.saturating_add(frame.rgba.len()) > MAX_DECODED_ASSET_BYTES {
-            truncated_for_bytes = true;
-            break;
-        }
-        total_bytes += frame.rgba.len();
-        frames.push(frame);
-    }
-    if truncated_for_bytes {
+    // Keep the contiguous prefix of decoded frames so the animation
+    // doesn't gain holes when one worker beats another to the cap.
+    let frames: Vec<Frame> = decoded.into_iter().flatten().collect();
+    if truncated_for_bytes.load(Ordering::Acquire) {
         tracing::warn!(
             "PNG sequence {} truncated at MAX_DECODED_ASSET_BYTES = {} MB ({} frames kept)",
             crate::drop_validate::redact_path(dir_path),
