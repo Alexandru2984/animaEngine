@@ -57,6 +57,20 @@
   </recommends>
 
   <releases>
+    <release version="0.5.3" date="2026-06-08">
+      <description>
+        <p>Re-audit follow-up to 0.5.2. Zero regressions found from the previous patches; two medium and four low audit findings addressed.</p>
+        <ul>
+          <li>Finish the path-redaction sweep across 11 remaining info-level traces.</li>
+          <li>Filter Unicode Cf characters (zero-width / bidi-override / format codes) from text events on the Wayland path.</li>
+          <li>PNG sequence loader applies the decoded-bytes cap during parallel decode to avoid transient peak memory.</li>
+          <li>Search-box TextEdit widgets gain char_limit(256).</li>
+          <li>D-Bus try_send overflow logs at debug level with method name and error.</li>
+          <li>Asset library scanner canonicalises entries and drops anything escaping the library root.</li>
+          <li>SAFETY comments added to libc::getuid call sites introduced in 0.5.2.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.2" date="2026-06-08">
       <description>
         <p>Follow-up to 0.5.1. Closes the four medium-severity audit findings (path-traversal hardening on the library, safer XDG fallback when ProjectDirs unreachable, redacted paths in info logs, pid-scoped atomic-write temp files) plus a documentation language sweep.</p>

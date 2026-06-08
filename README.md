@@ -62,11 +62,11 @@ via `make appimage` / `make deb` / `make flatpak`):
 
 ```bash
 # Debian / Ubuntu (.deb)
-sudo apt install ./anima-engine_0.5.2-1_amd64.deb
+sudo apt install ./anima-engine_0.5.3-1_amd64.deb
 
 # AppImage (any distro)
-chmod +x animaEngine-0.5.2-x86_64.AppImage
-./animaEngine-0.5.2-x86_64.AppImage
+chmod +x animaEngine-0.5.3-x86_64.AppImage
+./animaEngine-0.5.3-x86_64.AppImage
 
 # Flatpak
 flatpak install --user com.animaengine.Anima.flatpak

@@ -6,6 +6,64 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-06-08
+
+Follow-up to the 0.5.2 release after a re-audit that scrutinised
+the F.x / M.x fixes themselves and swept the parts of the codebase
+that hadn't been touched recently. Re-audit verdict: zero
+regressions introduced, zero new critical / high. Two medium and
+four low findings; all addressed here.
+
+### Fixed
+
+- **G.1** — completes the M4 path-redaction sweep. The first pass
+  in 0.5.2 covered the drop / library / Wayland paths but left
+  11 more info-level traces leaking absolute paths (`config.rs`
+  load + save, `main.rs` startup banner, `scene.rs` instrument
+  macro, every `loader.rs` info!, `png_sequence.rs` warnings).
+  All now go through `drop_validate::redact_path`; the full path
+  is available at `RUST_LOG=anima_engine=debug`.
+- **G.3** — extends the F.7 control-character filter on the
+  Wayland `egui::Event::Text` path to also strip Unicode
+  category Cf (zero-width chars U+200B–U+200F + U+FEFF, the
+  bidi-override block U+202A–U+202E, soft hyphen U+00AD, and the
+  invisible-format range U+2060–U+206F). Same threat model as the
+  original F.7: prevents a process simulating keystrokes from
+  storing display-spoofing or invisible characters in
+  `TextEdit` widgets (preset names, library tags, search field).
+- **G.4** — PNG sequence loader applies `MAX_DECODED_ASSET_BYTES`
+  *during* the parallel decode (`AtomicUsize` running total +
+  per-frame reservation) instead of after. Pre-fix, a hostile
+  asset directory of 1 000 × 4 K PNGs could push transient
+  decode memory to ~33 GB before the post-hoc cap kicked in.
+- **G.5** — search-box `TextEdit` widgets (library tab, command
+  palette) gain `char_limit(256)`. Caps an otherwise unbounded
+  buffer if a clipboard inject pastes a huge string.
+- **G.6** — D-Bus `try_send` overflow drops on the Wayland
+  service path now log at `debug!` with the method name and the
+  channel error, so a deluged operator sees in trace output why
+  their `gdbus` calls aren't taking effect. Kept at `debug` (not
+  `info` / `warn`) so a flood attacker can't amplify their volume
+  into our own log.
+- **G.7** — asset library scanner canonicalises both root and
+  each candidate before recording `LibraryAsset.path`, and drops
+  entries whose canonical form escapes the canonical root.
+  Library tree containing a symlink to `/etc/` now ignores those
+  files at scan time instead of listing them in the UI (the
+  M2 "Add to scene" gate already rejected them at decode time).
+
+### Hygiene
+
+- **G.2** — `// SAFETY:` comments added to the three
+  `unsafe { libc::getuid() }` blocks introduced in 0.5.2
+  (`perf.rs`, `asset_library/mod.rs` ×2) so the codebase's
+  unsafe-block convention is honoured uniformly.
+
+### Tests
+
+- 231 lib + 25 integration + 1 demo = 257 pass. Existing PNG
+  sequence tests cover the new par-iter early-bail path.
+
 ## [0.5.2] — 2026-06-08
 
 Follow-up to the 0.5.1 security patch. Closes the four medium-severity
