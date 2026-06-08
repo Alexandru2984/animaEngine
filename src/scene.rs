@@ -222,7 +222,7 @@ impl Scene {
     /// Add a new entity by loading an asset from a file path.
     /// Auto-detects the asset type from the extension.
     /// Returns the index of the new entity, or an error if loading fails.
-    #[tracing::instrument(skip(self), fields(path = %path.display()))]
+    #[tracing::instrument(skip(self), fields(path = %crate::drop_validate::redact_path(path)))]
     pub fn add_entity_from_path(
         &mut self,
         path: &std::path::Path,

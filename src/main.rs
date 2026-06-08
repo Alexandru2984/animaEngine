@@ -213,7 +213,11 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
     tracing::info!("    S           — Save config");
     tracing::info!("    Q           — Save and quit");
     tracing::info!("");
-    tracing::info!("  Config: {}", AppConfig::config_path().display());
+    tracing::info!(
+        "  Config: {}",
+        anima_engine::drop_validate::redact_path(&AppConfig::config_path())
+    );
+    tracing::debug!("  Config (full): {}", AppConfig::config_path().display());
     tracing::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     if let Err(e) = event_loop.run_app(&mut app) {

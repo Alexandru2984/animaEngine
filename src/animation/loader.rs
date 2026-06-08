@@ -101,7 +101,10 @@ fn validate_directory(dir: &Path) -> Result<()> {
 
 /// Load animation frames based on asset type and path.
 /// Returns a Vec of Frame on success.
-#[tracing::instrument(skip(spritesheet_columns, spritesheet_rows), fields(path = %asset_path.display()))]
+#[tracing::instrument(
+    skip(spritesheet_columns, spritesheet_rows),
+    fields(path = %crate::drop_validate::redact_path(asset_path))
+)]
 pub fn load_asset(
     asset_type: &AssetType,
     asset_path: &Path,
@@ -116,7 +119,7 @@ pub fn load_asset(
     if let Some(frames) = cache::try_load(asset_path) {
         tracing::info!(
             "Asset cache hit ({}): {} frames",
-            asset_path.display(),
+            crate::drop_validate::redact_path(asset_path),
             frames.len()
         );
         return Ok(frames);
@@ -124,23 +127,38 @@ pub fn load_asset(
 
     let frames = match asset_type {
         AssetType::PngSequence => {
-            tracing::info!("Loading PNG sequence from: {}", asset_path.display());
+            tracing::info!(
+                "Loading PNG sequence from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
             png_sequence::load_png_sequence(asset_path)?
         }
         AssetType::PngStatic => {
-            tracing::info!("Loading static image from: {}", asset_path.display());
+            tracing::info!(
+                "Loading static image from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
             vec![png_sequence::load_single_png(asset_path)?]
         }
         AssetType::Gif => {
-            tracing::info!("Loading GIF from: {}", asset_path.display());
+            tracing::info!(
+                "Loading GIF from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
             gif_loader::load_gif(asset_path)?
         }
         AssetType::WebpAnimated => {
-            tracing::info!("Loading animated WebP from: {}", asset_path.display());
+            tracing::info!(
+                "Loading animated WebP from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
             webp_loader::load_webp(asset_path)?
         }
         AssetType::WebpStatic => {
-            tracing::info!("Loading static WebP from: {}", asset_path.display());
+            tracing::info!(
+                "Loading static WebP from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
             webp_loader::load_static_webp(asset_path)?
         }
         AssetType::Spritesheet => {
@@ -148,14 +166,17 @@ pub fn load_asset(
             let rows = spritesheet_rows.unwrap_or(1);
             tracing::info!(
                 "Loading spritesheet from: {} ({}x{} grid)",
-                asset_path.display(),
+                crate::drop_validate::redact_path(asset_path),
                 cols,
                 rows
             );
             spritesheet::load_spritesheet(asset_path, cols, rows)?
         }
         AssetType::Video => {
-            tracing::info!("Loading MP4 video from: {}", asset_path.display());
+            tracing::info!(
+                "Loading MP4 video from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
             video_loader::load_video(asset_path)?
         }
     };
@@ -164,7 +185,7 @@ pub fn load_asset(
     if let Err(e) = cache::try_save(asset_path, &frames) {
         tracing::warn!(
             "Failed to write asset cache for {}: {}",
-            asset_path.display(),
+            crate::drop_validate::redact_path(asset_path),
             e
         );
     }

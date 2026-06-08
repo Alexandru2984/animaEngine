@@ -389,7 +389,8 @@ impl AppConfig {
     /// Load config from disk, or create default if not found
     pub fn load() -> Self {
         let path = Self::config_path();
-        tracing::info!("Config path: {}", path.display());
+        tracing::info!("Config path: {}", crate::drop_validate::redact_path(&path));
+        tracing::debug!("Config path (full): {}", path.display());
 
         if path.exists() {
             match fs::read_to_string(&path) {
@@ -433,7 +434,11 @@ impl AppConfig {
         let path = Self::config_path();
         let toml_string = toml::to_string_pretty(self)?;
         crate::util::atomic_write_bytes(&path, toml_string.as_bytes())?;
-        tracing::info!("Config saved to {}", path.display());
+        tracing::info!(
+            "Config saved to {}",
+            crate::drop_validate::redact_path(&path)
+        );
+        tracing::debug!("Config saved (full path): {}", path.display());
         Ok(())
     }
 

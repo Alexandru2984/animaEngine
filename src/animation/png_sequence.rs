@@ -45,7 +45,7 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
     if truncated_for_file_count {
         tracing::warn!(
             "PNG sequence {} has {} files; capping at MAX_SEQUENCE_FILES = {}",
-            dir_path.display(),
+            crate::drop_validate::redact_path(dir_path),
             entries.len(),
             MAX_SEQUENCE_FILES
         );
@@ -55,7 +55,7 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
     tracing::info!(
         "Loading PNG sequence: {} frames from {} (parallel decode)",
         entries.len(),
-        dir_path.display()
+        crate::drop_validate::redact_path(dir_path)
     );
 
     let decoded: Vec<Frame> = entries
@@ -63,7 +63,11 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
         .filter_map(|path| match load_single_png(path) {
             Ok(frame) => Some(frame),
             Err(e) => {
-                tracing::warn!("Failed to load PNG {}: {}", path.display(), e);
+                tracing::warn!(
+                    "Failed to load PNG {}: {}",
+                    crate::drop_validate::redact_path(path),
+                    e
+                );
                 None
             }
         })
@@ -85,7 +89,7 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
     if truncated_for_bytes {
         tracing::warn!(
             "PNG sequence {} truncated at MAX_DECODED_ASSET_BYTES = {} MB ({} frames kept)",
-            dir_path.display(),
+            crate::drop_validate::redact_path(dir_path),
             MAX_DECODED_ASSET_BYTES / (1024 * 1024),
             frames.len()
         );
