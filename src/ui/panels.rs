@@ -736,10 +736,14 @@ fn library_tab(
 
     ui.horizontal(|ui| {
         ui.label(icons::SEARCH);
+        // G.5 (0.5.3): cap the search query at 256 chars. Without it
+        // a programmatic clipboard inject could grow the egui text
+        // buffer without bound.
         ui.add(
             egui::TextEdit::singleline(&mut query)
                 .hint_text(t("library-search-placeholder"))
-                .desired_width(ui.available_width()),
+                .desired_width(ui.available_width())
+                .char_limit(256),
         );
     });
     ui.memory_mut(|m| m.data.insert_temp(query_id, query.clone()));
@@ -1857,10 +1861,12 @@ pub fn command_palette(ctx: &egui::Context) -> Option<PaletteOutcome> {
 
                 ui.horizontal(|ui| {
                     ui.label(icons::SETTINGS);
+                    // G.5 (0.5.3): same cap as the library search box.
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut query)
                             .hint_text("Type to search themes / presets…")
-                            .desired_width(380.0),
+                            .desired_width(380.0)
+                            .char_limit(256),
                     );
                     response.request_focus();
                     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
