@@ -821,13 +821,21 @@ impl KeyboardHandler for WaylandState {
         // UTF-8 text — already composed by xkbcommon. Push as a
         // separate Text event so text widgets get the character; chord
         // dispatch above already fired for shortcut-key combos.
+        //
+        // F.7 (0.5.1): strip C0 control characters before pushing.
+        // xkbcommon happily produces e.g. "\x01" for Ctrl+A even with
+        // composition active; pushing those into an egui TextEdit
+        // would store them in user-visible state.
         if let Some(s) = event.utf8 {
             if !s.is_empty()
                 && !self.last_modifiers.ctrl
                 && !self.last_modifiers.alt
                 && !self.last_modifiers.logo
             {
-                self.pending_egui_events.push(egui::Event::Text(s));
+                let filtered: String = s.chars().filter(|c| !c.is_control()).collect();
+                if !filtered.is_empty() {
+                    self.pending_egui_events.push(egui::Event::Text(filtered));
+                }
             }
         }
     }
