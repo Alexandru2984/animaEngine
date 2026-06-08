@@ -313,6 +313,51 @@ impl LayerWindow {
         self.state.last_drag_pos
     }
 
+    /// Snapshot every `wl_output` the compositor has advertised so far
+    /// (E.7), projected onto the engine's neutral
+    /// [`MonitorInfo`](crate::monitor::MonitorInfo) shape. Cheap to call
+    /// once per frame — OutputState already caches the per-output state
+    /// and we copy a few fields per output. Empty when nothing has been
+    /// bound yet (the compositor sends globals before the first
+    /// configure round-trip).
+    pub fn monitors(&self) -> Vec<crate::monitor::MonitorInfo> {
+        let mut out = Vec::new();
+        for output in self.state.output_state.outputs() {
+            let Some(info) = self.state.output_state.info(&output) else {
+                continue;
+            };
+            let name = info
+                .name
+                .clone()
+                .unwrap_or_else(|| format!("wl_output #{}", info.id));
+            // Prefer the logical position/size when the compositor
+            // supplies them (xdg-output extension); fall back to the
+            // physical mode otherwise so single-DPI users still get a
+            // sensible monitor entry.
+            let (x, y) = info.logical_position.unwrap_or(info.location);
+            let (w, h) = info.logical_size.unwrap_or_else(|| {
+                info.modes
+                    .iter()
+                    .find(|m| m.current)
+                    .map(|m| m.dimensions)
+                    .unwrap_or((0, 0))
+            });
+            out.push(crate::monitor::MonitorInfo {
+                name,
+                x,
+                y,
+                width: w.max(0) as u32,
+                height: h.max(0) as u32,
+                scale_factor: info.scale_factor as f64,
+                // wl_output protocol has no "primary" notion; the
+                // compositor decides placement. Mark none — picker UI
+                // shows them in advertised order.
+                is_primary: false,
+            });
+        }
+        out
+    }
+
     /// Swap the click-through region in lock-step with the edit-mode
     /// flag: edit-mode on → whole surface receives clicks; off → only
     /// the top-right ⚙ button corner does. Idempotent — calling with

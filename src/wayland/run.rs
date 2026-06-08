@@ -82,11 +82,6 @@ pub fn run_native(
     let mut selection = SelectionState::new();
     let mut toasts = ToastQueue::default();
     let mut config_dirty = false;
-    // wlroots compositors don't expose multi-monitor info to a single
-    // surface yet on this path — pass an empty slice so the inspector's
-    // monitor picker degrades gracefully. Full wl_output enumeration is
-    // queued for the multi-monitor sub-phase.
-    let monitors: Vec<crate::monitor::MonitorInfo> = Vec::new();
     let warnings: BTreeSet<Warning> = BTreeSet::new();
     tracing::info!("Native Wayland renderer initialized ({width}×{height})");
 
@@ -254,6 +249,9 @@ pub fn run_native(
 
         // Render the scene. Pass `selected_id` so the highlight ring
         // appears in edit mode for the entity the user clicked.
+        // Refresh the monitor snapshot every frame so the inspector's
+        // picker shows a hot-plug straight away.
+        let monitors = layer.monitors();
         let selected_id = selection
             .selected_index()
             .and_then(|idx| scene.entities.get(idx).map(|e| e.id.clone()));
