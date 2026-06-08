@@ -6,6 +6,54 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-06-08
+
+Follow-up to the 0.5.1 security patch. Closes the four medium-severity
+audit findings that were filed as "accepted / deferred" in 0.5.1 plus
+a documentation cleanup. All fixes target small information-disclosure
+or race-window surfaces that didn't rise to the urgency of 0.5.1's
+critical bundle.
+
+### Fixed
+
+- **M2** — `Path::join` in the asset-library "Add to scene" path
+  could lift the resolved target out of `library_root` when a
+  hand-edited `library.toml` carried an absolute path or a `../`
+  segment. New `resolve_library_asset` helper canonicalises both
+  sides and rejects anything that escapes; reachable from
+  `app.rs::handle_library_outcome`.
+- **M3** — fallback when `directories::ProjectDirs` is unreachable
+  no longer honours `$HOME`. The new fallback is
+  `std::env::temp_dir().join("animaEngine-<uid>")`, so a wrapper
+  script like `HOME=/etc/cron.d anima-engine` can't redirect writes.
+  Applies to perf-snapshot exports and the asset-library data/cache
+  paths.
+- **M4** — info-level traces for drag-drop, asset spawn, and
+  library reject paths now log just the file name; the full absolute
+  path is downgraded to `debug!` (off by default). Reduces home
+  directory + private dir leakage into journald / syslog.
+- **M5** — `util::tmp_sibling` now embeds `std::process::id()` so two
+  animaEngine instances that race past a missed single-instance lock
+  can't truncate each other's temp files mid-write.
+
+### Changed
+
+- Documentation sweep: "Faza X" replaced with "Phase X" in all
+  English-language docs (CHANGELOG, release notes, threat model,
+  architecture, AppStream metainfo). Stray "Claude" mentions in the
+  D.4 locale-audit docs replaced with neutral "automated AI
+  cross-check" / "the LLM" language; the audits' methodology is
+  unchanged, just the framing.
+- `Cargo.toml` promotes `libc` to a direct dependency. It was
+  already transitive everywhere; the direct declaration makes the
+  `getuid()` call in the M3 fallback honest.
+
+### Tests
+
+- 3 new unit tests in `drop_validate`: library-resolve accepts
+  in-root, rejects absolute outside root, rejects `../` escape.
+- 231 lib + 25 integration + 1 demo = 257 pass.
+
 ## [0.5.1] — 2026-06-08
 
 Security patch following an audit of the 0.5.0 native Wayland

@@ -57,6 +57,18 @@
   </recommends>
 
   <releases>
+    <release version="0.5.2" date="2026-06-08">
+      <description>
+        <p>Follow-up to 0.5.1. Closes the four medium-severity audit findings (path-traversal hardening on the library, safer XDG fallback when ProjectDirs unreachable, redacted paths in info logs, pid-scoped atomic-write temp files) plus a documentation language sweep.</p>
+        <ul>
+          <li>Library asset paths now canonicalised and rejected when they escape library_root.</li>
+          <li>XDG fallback uses uid-scoped tmpdir instead of honouring $HOME blindly.</li>
+          <li>Info-level traces log file names only; full paths moved to debug.</li>
+          <li>util::tmp_sibling includes pid so racing instances can't truncate each other's tmp files.</li>
+          <li>Documentation sweep: anglicised phase labels, removed lingering model-name references.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.1" date="2026-06-08">
       <description>
         <p>Security patch for the opt-in native Wayland backend. Eight findings from a 0.5.0 audit addressed — three critical, four high, one informational. The default X11 backend is unaffected; users running ANIMA_USE_WAYLAND_NATIVE=1 should upgrade promptly.</p>
