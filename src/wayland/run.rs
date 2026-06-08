@@ -8,34 +8,33 @@
 //!
 //! - Fullscreen overlay on wlroots compositors (sway, Hyprland, river, …).
 //! - Animated sprite rendering for every entity in `Scene`.
-//! - Pointer events are collected (`drain_egui_events` returns them).
-//! - **Keyboard events** with xkbcommon-decoded keysyms + modifier
-//!   tracking (E.1, 0.5). UTF-8 text already composed via xkb's dead-key
-//!   engine arrives as `egui::Event::Text` for widget input later.
-//! - `Ctrl+Shift+A/H/P` global hotkeys and the tray still work — they
-//!   don't depend on winit.
+//! - Pointer events translated and consumed by egui through the
+//!   `WaylandEguiRenderer` (the ⚙ toggle button is the active UI
+//!   surface here; the full settings panel parity lands next).
+//! - Keyboard events with xkbcommon-decoded keysyms + modifier
+//!   tracking. UTF-8 text already composed via xkb's dead-key engine
+//!   arrives as `egui::Event::Text` for widget input.
+//! - File drops via `wl_data_device` (`text/uri-list`) — a worker
+//!   thread drains the receive pipe and the main loop routes each
+//!   path through the same `Scene::add_entity_from_path` validation
+//!   the X11 path uses.
+//! - Edit-mode toggle: bound chord (`Action::ToggleEditMode`) flips
+//!   the click-through input region in lock-step.
 //!
 //! ## What doesn't (yet)
 //!
-//! - **No egui UI** — settings panel, context menu, toasts, the ⚙ button.
-//!   Edit mode toggling is currently only accessible through the tray /
-//!   `Ctrl+Shift+A`. Pointer + keyboard events are buffered but discarded
-//!   until the egui paint integration lands (E.4).
-//! ## Drag-and-drop (E.3)
-//!
-//! Files dragged onto the overlay from a file manager are accepted
-//! via `wl_data_device` + `wl_data_offer`. The `text/uri-list` mime
-//! type is the canonical "here are file paths" payload across
-//! GTK/Qt/Nautilus/Nemo/etc. A worker thread drains the receive-pipe
-//! and pushes parsed `PathBuf`s back to the main loop, which routes
-//! each through `Scene::add_entity_from_path` — the same validation
-//! gate the X11 path uses.
+//! - **Settings panel + context menu + toasts** — only the ⚙ button is
+//!   wired; the full UI surface ships in the next sub-phase.
+//! - **Per-monitor placement** — the layer surface attaches to
+//!   whichever output the compositor picks.
 
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::error::{AnimaError, Result};
 use crate::keybindings::{Action, KeyBindings, KeyChord};
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
+use crate::ui::{panels, theme::Theme};
+use crate::wayland::egui_render::WaylandEguiRenderer;
 use crate::wayland::layer_window::{InputRect, LayerWindow};
 use std::time::Duration;
 
@@ -66,6 +65,8 @@ pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
         .take()
         .ok_or_else(|| AnimaError::other("LayerWindow missing wgpu surface"))?;
     let mut renderer = WgpuRenderer::from_instance_surface(instance, surface, width, height)?;
+    let mut egui_renderer =
+        WaylandEguiRenderer::new(&renderer.device, renderer.config.format, Theme::default());
     tracing::info!("Native Wayland renderer initialized ({width}×{height})");
 
     // Start in pass-through mode with the ⚙ button cutout — same default
@@ -185,11 +186,47 @@ pub fn run_native(mut scene: Scene, keybindings: KeyBindings) -> Result<()> {
             }
         }
 
-        // Render the scene. We don't have an edit mode toggle on this
-        // path yet so always render in pass-through visuals.
+        // Render the scene. We don't have a selection model on this
+        // path yet — pass `selected_id = None` and let the sprite
+        // pipeline run pass-through visuals.
         let visible = scene.visible_entities();
-        match renderer.render(&visible, false, None) {
-            Ok(output) => output.present(),
+        match renderer.render(&visible, layer.state.edit_mode, None) {
+            Ok(output) => {
+                // Paint egui on top of the sprite layer. The toggle
+                // button is the only UI surface here; the full settings
+                // panel parity lands in E.5.
+                let view = output
+                    .texture
+                    .create_view(&wgpu::TextureViewDescriptor::default());
+                let size = [renderer.window_width, renderer.window_height];
+                let edit_mode_snapshot = layer.state.edit_mode;
+                let mut toggle_requested = false;
+                let toggle_requested_ref = &mut toggle_requested;
+                egui_renderer.render(
+                    &renderer.device,
+                    &renderer.queue,
+                    &view,
+                    size,
+                    events,
+                    |ctx| {
+                        if panels::toggle_button(ctx, edit_mode_snapshot) {
+                            *toggle_requested_ref = true;
+                        }
+                    },
+                );
+                output.present();
+                if toggle_requested {
+                    let new_mode = !layer.state.edit_mode;
+                    if let Err(e) = layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
+                        tracing::warn!("Failed to flip input region on toggle: {e}");
+                    } else {
+                        tracing::info!(
+                            "Edit mode {} (Wayland, toggle button)",
+                            if new_mode { "on" } else { "off" }
+                        );
+                    }
+                }
+            }
             Err(wgpu::SurfaceError::Lost) => {
                 renderer.resize(renderer.window_width, renderer.window_height);
             }

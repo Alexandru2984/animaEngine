@@ -14,6 +14,7 @@
 //!    `probe::detect`.
 
 pub mod data_device;
+pub mod egui_render;
 pub mod keyboard;
 pub mod layer_window;
 pub mod probe;
