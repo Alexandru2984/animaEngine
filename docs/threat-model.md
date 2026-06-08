@@ -92,17 +92,60 @@ WebP with a header claiming dimensions larger than `MAX_IMAGE_DIM`
 is rejected without allocating the pixel buffer. Same check applied
 to video frames coming out of openh264.
 
-### D-Bus single-instance handshake
+### D-Bus interface — `com.animaengine.Anima`
 
-The single-instance service exposes **exactly one** method:
-`Activate()`, which posts `AnimaEvent::RaiseWindow` to the event loop.
-That's it. No load-asset, no eval-config, no quit-remote.
+The X11 / single-instance flavour exposes one method: `Activate()`,
+which posts `AnimaEvent::RaiseWindow`.
 
-**Invariant (intentional):** new methods on `com.animaengine.Anima`
-must not be added without explicit threat-model review. Every method
-is a piece of attack surface the way `Activate` is small. If something
-needs to be richer, design it as a separate object path with
-authentication.
+The native Wayland flavour (E.6 in 0.5.0, hardened in F.4 in 0.5.1)
+exposes four more — `ToggleEditMode`, `HideOverlay`, `ShowOverlay`,
+`ToggleGlobalPlayback` — because Wayland has no `XGrabKey`
+equivalent and these are the substitute that compositor bindings
+call via `gdbus`. The pre-0.5.0 "single-method invariant" no longer
+holds; this section documents the new surface and the mitigations
+applied.
+
+**What every method does:** flips an in-memory bool / forwards to
+the scene's playback toggle. No file IO. No process spawn. No
+clipboard read. Each call is one atomic state mutation per frame —
+nothing more.
+
+**Threats accepted by design:**
+
+1. **Same-user processes can spam any method.** The session bus has
+   no per-process ACL; any code running as the user can call these.
+   We don't try to authenticate the caller (the right tool for that
+   is xdg-portals, which is its own project). Mitigations bound the
+   blast radius rather than block the call:
+   - Idempotent toggles (`ToggleEditMode`, `ToggleGlobalPlayback`)
+     are **coalesced per frame** in the Wayland run loop. A million
+     `ToggleEditMode` calls between two frames apply the parity
+     XOR once (i.e. either no flip or one flip), not a million
+     flips.
+   - The D-Bus → main-loop channel is a **bounded `sync_channel(64)`**;
+     overflow is dropped at the sender with a warning rather than
+     letting memory grow without bound between frames.
+   - Visibility events (`HideOverlay` / `ShowOverlay`) keep only the
+     last intent.
+
+2. **Activate is unchanged in semantics** — posts `RaiseWindow`. On
+   Wayland this is a no-op (the layer surface is always present at
+   the Overlay layer).
+
+**Invariants going forward:**
+
+- New methods need a threat-model review entry (PR template
+  should ask). Every method is attack surface.
+- Any new method must be idempotent or otherwise bounded — no
+  unbounded queue-growth events.
+- Rate-limit / coalesce in the consumer, not the publisher. The
+  D-Bus service shouldn't drop calls silently from inside the
+  service handler (that's the caller's signal).
+- Don't add methods that take asset paths, exec strings, eval
+  expressions, or other rich payloads. If a feature like that ever
+  lands, design it as a separate object path with peer
+  authentication (`org.freedesktop.DBus.GetConnectionUnixUser`)
+  and a whitelist.
 
 ### D-Bus accessibility tree (AT-SPI) — opt-out only
 
@@ -123,8 +166,9 @@ What this widens, vs. pre-0.2.0:
 
 What it does *not* widen:
 
-- The single-method invariant above still holds — `com.animaengine.Anima`
-  has only `Activate`. AT-SPI is a separate, standards-required surface
+- The `com.animaengine.Anima` surface stays minimal — five methods
+  total post-0.5.0, all bounded and coalesced. AT-SPI is a
+  separate, standards-required surface
   registered under `org.a11y.atspi.*` by AccessKit, not by us.
 - Same-UID processes were already in the trust boundary (see "Trusted
   local user" below). AT-SPI does not extend access to a different UID.
