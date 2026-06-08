@@ -8,23 +8,21 @@
 //!
 //! - Fullscreen overlay on wlroots compositors (sway, Hyprland, river, …).
 //! - Animated sprite rendering for every entity in `Scene`.
-//! - Pointer events are collected (`drain_egui_events` returns them) —
-//!   we just don't drive any egui UI on this path yet.
-//! - `Ctrl+Shift+A/H/P` global hotkeys (Faza 6.2) and the tray (Faza 6.1)
-//!   still work — they don't depend on winit.
+//! - Pointer events are collected (`drain_egui_events` returns them).
+//! - **Keyboard events** with xkbcommon-decoded keysyms + modifier
+//!   tracking (E.1, 0.5). UTF-8 text already composed via xkb's dead-key
+//!   engine arrives as `egui::Event::Text` for widget input later.
+//! - `Ctrl+Shift+A/H/P` global hotkeys and the tray still work — they
+//!   don't depend on winit.
 //!
 //! ## What doesn't (yet)
 //!
 //! - **No egui UI** — settings panel, context menu, toasts, the ⚙ button.
 //!   Edit mode toggling is currently only accessible through the tray /
-//!   `Ctrl+Shift+A`. Pointer events are buffered but discarded.
-//! - **No keyboard** — sctk's keyboard module requires libxkbcommon-dev.
-//!   Shortcuts continue to flow through the global-hotkey path.
+//!   `Ctrl+Shift+A`. Pointer + keyboard events are buffered but discarded
+//!   until the egui paint integration lands (E.4).
 //! - **No drag-and-drop** of asset files from a file manager. Wayland
-//!   data-device protocol lands in a later iteration.
-//!
-//! All of these are tracked as follow-ups; the goal of 7.5 is "binary
-//! that actually renders an overlay through layer-shell on sway".
+//!   data-device protocol lands in E.3.
 
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::error::{AnimaError, Result};

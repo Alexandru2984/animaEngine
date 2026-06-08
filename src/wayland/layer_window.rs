@@ -25,14 +25,16 @@
 //! 3. Dropping `LayerWindow` releases the layer surface and disconnects.
 
 use crate::error::{AnimaError, Result};
+use crate::wayland::keyboard::{keysym_to_egui_key, modifiers_to_egui};
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
-    delegate_compositor, delegate_layer, delegate_output, delegate_pointer, delegate_registry,
-    delegate_seat,
+    delegate_compositor, delegate_keyboard, delegate_layer, delegate_output, delegate_pointer,
+    delegate_registry, delegate_seat,
     output::{OutputHandler, OutputState},
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::{
+        keyboard::{KeyEvent, KeyboardHandler, Keymap, Keysym, Modifiers as SctkModifiers},
         pointer::{PointerData, PointerEvent, PointerEventKind, PointerHandler},
         Capability, SeatHandler, SeatState,
     },
@@ -47,7 +49,7 @@ use smithay_client_toolkit::{
 use std::sync::Arc;
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{wl_output, wl_pointer, wl_region, wl_seat, wl_surface},
+    protocol::{wl_keyboard, wl_output, wl_pointer, wl_region, wl_seat, wl_surface},
     Connection, Dispatch, EventQueue, QueueHandle,
 };
 
@@ -133,6 +135,8 @@ impl LayerWindow {
             _layer_shell: layer_shell,
             layer,
             pointer: None,
+            keyboard: None,
+            last_modifiers: SctkModifiers::default(),
             pending_size: None,
             cursor_pos: None,
             pending_egui_events: Vec::new(),
@@ -214,17 +218,24 @@ pub struct WaylandState {
     /// reference even on multi-seat setups (overlays don't usually need
     /// per-seat cursors).
     pub pointer: Option<wl_pointer::WlPointer>,
+    /// Active keyboard once a seat advertises the capability. Same
+    /// rationale as the pointer — multi-seat is rare for an overlay.
+    /// Decoded via sctk's `xkbcommon` feature (E.1).
+    pub keyboard: Option<wl_keyboard::WlKeyboard>,
+    /// Most-recent modifier state delivered by `KeyboardHandler::
+    /// update_modifiers`. Attached to every synthesised egui::Event::Key
+    /// so chord lookup in `KeyBindings::lookup` matches what the user
+    /// pressed.
+    pub last_modifiers: SctkModifiers,
     /// Last size we got from a `configure` event — drives wgpu resize.
     pub pending_size: Option<(u32, u32)>,
     /// Current cursor position in surface-local logical pixels.
     pub cursor_pos: Option<(f32, f32)>,
-    /// Pointer events translated into egui's vocabulary, buffered until
-    /// `LayerWindow::drain_egui_events` is called once per frame.
-    ///
-    /// Keyboard events are intentionally absent — without `xkbcommon` we
-    /// can't decode keymap data, and our actual shortcut surface is
-    /// covered by global hotkeys (Faza 6.2) + tray menu. Text input in
-    /// egui widgets degrades to "click only" on native Wayland for now.
+    /// Pointer + keyboard events translated into egui's vocabulary,
+    /// buffered until `LayerWindow::drain_egui_events` is called once
+    /// per frame. Text events (`egui::Event::Text`) come from sctk's
+    /// `KeyEvent::utf8` — xkbcommon has already composed dead-keys /
+    /// IME by then, so widget text input is correct without extra work.
     pub pending_egui_events: Vec<egui::Event>,
     /// True after a layer-surface `closed` event. Caller polls this to
     /// know when to tear down.
@@ -439,6 +450,16 @@ impl SeatHandler for WaylandState {
                 Err(e) => tracing::warn!("Failed to bind wl_pointer: {e}"),
             }
         }
+        if capability == Capability::Keyboard && self.keyboard.is_none() {
+            // No repeat info: we let xkbcommon's update_modifiers drive
+            // chord matching directly; per-press semantics are enough
+            // for shortcut dispatch and text widgets compose their own
+            // repeat via egui's input layer once it's wired in E.4.
+            match self.seat_state.get_keyboard(qh, &seat, None) {
+                Ok(k) => self.keyboard = Some(k),
+                Err(e) => tracing::warn!("Failed to bind wl_keyboard: {e}"),
+            }
+        }
     }
 
     fn remove_capability(
@@ -451,6 +472,11 @@ impl SeatHandler for WaylandState {
         if capability == Capability::Pointer {
             if let Some(p) = self.pointer.take() {
                 p.release();
+            }
+        }
+        if capability == Capability::Keyboard {
+            if let Some(k) = self.keyboard.take() {
+                k.release();
             }
         }
     }
@@ -554,7 +580,119 @@ impl ProvidesRegistryState for WaylandState {
     registry_handlers![OutputState, SeatState];
 }
 
+/// Translate xkb key events into egui's vocabulary. Modifier tracking
+/// is split off into `update_modifiers` per sctk's protocol — we cache
+/// the latest snapshot on `WaylandState` so every press / release
+/// already carries the active modifier mask when egui processes it.
+impl KeyboardHandler for WaylandState {
+    fn enter(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _surface: &wl_surface::WlSurface,
+        _serial: u32,
+        _raw: &[u32],
+        _keysyms: &[Keysym],
+    ) {
+        // Pre-pressed keys at focus enter are deliberately ignored —
+        // synthesising press events for them would fire shortcuts the
+        // user didn't intend (e.g. holding Tab while alt-tabbing into
+        // the overlay would cycle entities).
+    }
+
+    fn leave(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _surface: &wl_surface::WlSurface,
+        _serial: u32,
+    ) {
+        // Reset modifiers so a key released elsewhere doesn't leave us
+        // thinking Ctrl is still down on the next focus.
+        self.last_modifiers = SctkModifiers::default();
+    }
+
+    fn press_key(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _serial: u32,
+        event: KeyEvent,
+    ) {
+        if let Some(key) = keysym_to_egui_key(event.keysym) {
+            let modifiers = modifiers_to_egui(self.last_modifiers);
+            self.pending_egui_events.push(egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            });
+        }
+        // UTF-8 text — already composed by xkbcommon. Push as a
+        // separate Text event so text widgets get the character; chord
+        // dispatch above already fired for shortcut-key combos.
+        if let Some(s) = event.utf8 {
+            if !s.is_empty()
+                && !self.last_modifiers.ctrl
+                && !self.last_modifiers.alt
+                && !self.last_modifiers.logo
+            {
+                self.pending_egui_events.push(egui::Event::Text(s));
+            }
+        }
+    }
+
+    fn release_key(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _serial: u32,
+        event: KeyEvent,
+    ) {
+        if let Some(key) = keysym_to_egui_key(event.keysym) {
+            let modifiers = modifiers_to_egui(self.last_modifiers);
+            self.pending_egui_events.push(egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: false,
+                repeat: false,
+                modifiers,
+            });
+        }
+    }
+
+    fn update_modifiers(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _serial: u32,
+        modifiers: SctkModifiers,
+        _layout: u32,
+    ) {
+        self.last_modifiers = modifiers;
+    }
+
+    fn update_keymap(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _keymap: Keymap<'_>,
+    ) {
+        // sctk's default handler already builds the in-memory keymap;
+        // we only ever read decoded keysyms from `KeyEvent`, so this
+        // hook is a no-op placeholder for future locale-switch logic.
+    }
+}
+
 delegate_compositor!(WaylandState);
+delegate_keyboard!(WaylandState);
 delegate_layer!(WaylandState);
 delegate_output!(WaylandState);
 delegate_pointer!(WaylandState);
