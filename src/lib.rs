@@ -7,6 +7,7 @@ pub mod config;
 pub mod constants;
 pub mod crash;
 pub mod demo;
+pub mod drop_validate;
 pub mod entity;
 pub mod error;
 pub mod event;

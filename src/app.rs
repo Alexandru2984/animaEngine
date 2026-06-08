@@ -1,5 +1,6 @@
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
+use crate::drop_validate::pre_validate_dropped_file;
 use crate::event::AnimaEvent;
 use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
@@ -670,6 +671,17 @@ impl App {
             return;
         };
         let abs_path = root.join(&outcome.relative_path);
+        // F.1 fix: run the cheap stat/whitelist gate before touching
+        // the decoder. The library scanner only sees files that
+        // matched its own filter at scan time, but a hand-edited
+        // `library.toml` (or a symlink placed after scan) could point
+        // anywhere on disk; the X11/Wayland drag-drop paths already
+        // run this gate.
+        if let Err(reason) = pre_validate_dropped_file(&abs_path) {
+            tracing::warn!("Library asset {} rejected: {reason}", abs_path.display());
+            self.toasts.warn(format!("Rejected: {reason}"));
+            return;
+        }
         // Drop in the middle of the visible viewport, falling back to
         // a sensible default when the window isn't fully wired yet.
         let (x, y) = self
@@ -1653,91 +1665,5 @@ impl ApplicationHandler<AnimaEvent> for App {
 
             _ => {}
         }
-    }
-}
-
-/// Extensions we know how to load. Matched against the path the user
-/// dropped so we reject obviously-wrong types up front.
-const DROP_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "mp4", "m4v", "mov"];
-
-/// Sanity-check a dropped file before invoking the decoder. Returns the
-/// reason string when the file should be rejected, or `Ok(())` when it
-/// looks plausible.
-fn pre_validate_dropped_file(path: &std::path::Path) -> std::result::Result<(), String> {
-    use crate::constants::MAX_ASSET_FILE_BYTES;
-
-    let meta = std::fs::metadata(path).map_err(|e| format!("can't stat file: {e}"))?;
-    if !meta.is_file() {
-        return Err("not a regular file".into());
-    }
-    if meta.len() > MAX_ASSET_FILE_BYTES {
-        return Err(format!(
-            "file is {} MB; cap is {} MB",
-            meta.len() / (1024 * 1024),
-            MAX_ASSET_FILE_BYTES / (1024 * 1024)
-        ));
-    }
-
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase());
-    match ext.as_deref() {
-        Some(e) if DROP_EXTENSIONS.contains(&e) => Ok(()),
-        Some(e) => Err(format!("unsupported file type: .{e}")),
-        None => Err("file has no extension".into()),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::pre_validate_dropped_file;
-    use std::path::PathBuf;
-
-    fn workspace_tmp(name: &str) -> PathBuf {
-        let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("target")
-            .join("app_tests")
-            .join(name);
-        let _ = std::fs::remove_dir_all(&p);
-        std::fs::create_dir_all(&p).unwrap();
-        p
-    }
-
-    #[test]
-    fn drop_rejects_unsupported_extension() {
-        let dir = workspace_tmp("drop_bad_ext");
-        let path = dir.join("evil.exe");
-        std::fs::write(&path, b"x").unwrap();
-        let err = pre_validate_dropped_file(&path).unwrap_err();
-        assert!(err.contains("unsupported"));
-    }
-
-    #[test]
-    fn drop_rejects_oversized_file() {
-        // A 1-byte file with our cap reduced — we can't reduce the const
-        // at test time, so synthesize a file just over the limit instead.
-        // (200 MB would be slow; we use a tiny stub with an inverted
-        // assertion: file under the limit must be accepted.)
-        let dir = workspace_tmp("drop_size_ok");
-        let path = dir.join("tiny.png");
-        std::fs::write(&path, b"x").unwrap();
-        assert!(pre_validate_dropped_file(&path).is_ok());
-    }
-
-    #[test]
-    fn drop_rejects_directory() {
-        let dir = workspace_tmp("drop_is_dir");
-        let err = pre_validate_dropped_file(&dir).unwrap_err();
-        assert!(err.contains("not a regular file"));
-    }
-
-    #[test]
-    fn drop_rejects_missing_extension() {
-        let dir = workspace_tmp("drop_no_ext");
-        let path = dir.join("noext");
-        std::fs::write(&path, b"x").unwrap();
-        let err = pre_validate_dropped_file(&path).unwrap_err();
-        assert!(err.contains("no extension"));
     }
 }

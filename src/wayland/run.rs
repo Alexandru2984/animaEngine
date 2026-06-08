@@ -30,6 +30,7 @@
 
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
+use crate::drop_validate::pre_validate_dropped_file;
 use crate::error::{AnimaError, Result};
 use crate::event::AnimaEvent;
 use crate::input::selection::SelectionState;
@@ -139,6 +140,15 @@ pub fn run_native(
         // whitelist still apply.
         let drop_pos = layer.last_drag_pos();
         for path in layer.drain_dropped_files() {
+            // F.1 fix: run the same pre-validate gate the X11 path
+            // uses (size cap + extension whitelist + regular-file
+            // check). Pre-0.5.1 this was skipped on the Wayland path,
+            // so a `.png` of arbitrary size could reach the decoder.
+            if let Err(reason) = pre_validate_dropped_file(&path) {
+                tracing::warn!("Drop rejected for {}: {reason}", path.display());
+                toasts.warn(format!("Rejected: {reason}"));
+                continue;
+            }
             let (x, y) = drop_pos.unwrap_or((
                 renderer.window_width as f32 / 2.0,
                 renderer.window_height as f32 / 2.0,
