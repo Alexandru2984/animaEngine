@@ -57,6 +57,20 @@
   </recommends>
 
   <releases>
+    <release version="0.5.1" date="2026-06-08">
+      <description>
+        <p>Security patch for the opt-in native Wayland backend. Eight findings from a 0.5.0 audit addressed — three critical, four high, one informational. The default X11 backend is unaffected; users running ANIMA_USE_WAYLAND_NATIVE=1 should upgrade promptly.</p>
+        <ul>
+          <li>Wayland drop now runs the X11 path's pre-validate gate (size cap + extension whitelist + regular-file check).</li>
+          <li>Drop reader thread bounded: 64 KiB read cap, max 4 concurrent workers, bounded result channel.</li>
+          <li>D-Bus action queue switched to sync_channel(64) with per-frame coalescing of idempotent toggles.</li>
+          <li>URI-list parser capped at 256 paths to foreclose unbounded Vec allocation.</li>
+          <li>percent_decode reconstructs UTF-8 properly; files with diacritics in their names now drop correctly.</li>
+          <li>Control characters from xkbcommon utf8 stripped before egui Text dispatch.</li>
+          <li>threat-model.md documents the expanded D-Bus surface and the coalescing mitigations.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-06-08">
       <description>
         <p>Faza E — platform reach (Linux half). The native Wayland backend reaches feature parity with the X11 path on wlroots compositors. macOS and FreeBSD remain out of scope for 0.5 — without hardware to test on, scaffolding those would be promising support we can't honour.</p>

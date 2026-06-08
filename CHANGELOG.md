@@ -6,6 +6,72 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-06-08
+
+Security patch following an audit of the 0.5.0 native Wayland
+backend. Eight findings addressed — three critical, four high,
+one informational. All issues are specific to the opt-in
+`ANIMA_USE_WAYLAND_NATIVE=1` path; the default X11 backend is
+unaffected.
+
+Users on the default X11 backend can take this update at their
+leisure. **Users running `ANIMA_USE_WAYLAND_NATIVE=1` should
+upgrade promptly** — three of the fixes close DoS / unbounded-
+allocation paths reachable by other local processes.
+
+### Fixed
+
+- **C1 (critical)** — Wayland drag-drop now runs the same
+  `pre_validate_dropped_file` gate as the X11 path: 200 MB size
+  cap, extension whitelist, regular-file check. Pre-0.5.1 the
+  Wayland path skipped this gate, so an oversized file with a
+  whitelisted extension could reach the decoder.
+- **C2 (critical)** — drop-reader worker thread bounded: payload
+  capped at 64 KiB via `Read::take`, at most 4 concurrent worker
+  threads (enforced by an `AtomicUsize` counter with a RAII
+  decrement guard), and the result channel switched from
+  `mpsc::channel` (unbounded) to `mpsc::sync_channel(16)` with
+  `try_send` so a stuck consumer can't grow memory.
+- **C3 (critical)** — D-Bus `org.animaengine.Anima` queue on the
+  Wayland path switched from unbounded to `sync_channel(64)`,
+  with `try_send` at the publisher and idempotent-toggle
+  coalescing at the consumer. A spammy session-bus peer
+  (`gdbus call … ToggleEditMode` in a tight loop) drops overflow
+  events instead of growing memory between frames.
+- **H2 (high)** — URI-list parser caps paths at `MAX_URI_LIST_PATHS
+  = 256`. Previously a payload of arbitrary-many `file://` lines
+  produced an arbitrary-large `Vec<PathBuf>`.
+- **H3 (high)** — `percent_decode` on the Wayland drag-drop path
+  now reconstructs UTF-8 properly instead of folding each escaped
+  byte into a Latin-1 codepoint. Files with diacritics in their
+  names (`anima%C8%9Bie.png` → `animație.png`) now drop correctly;
+  pre-fix they silently failed. Strict UTF-8 — malformed sequences
+  are rejected rather than substituted.
+- **L1 (informational)** — control characters from xkbcommon's
+  `KeyEvent::utf8` are filtered out before `egui::Event::Text` so
+  a `TextEdit` doesn't store `\x01` etc.
+
+### Documentation
+
+- **H1** — `docs/threat-model.md` updated for the expanded D-Bus
+  surface. The pre-0.5.0 "single-method invariant" is replaced by
+  an explicit accepted-threat section documenting that
+  same-user processes can spam any method, the per-frame
+  coalescing + bounded queue together bound the blast radius,
+  and any future method needs a threat-model review entry.
+
+### Tests
+
+- New unit tests in `wayland::data_device`: cap-at-256, multi-byte
+  UTF-8 round-trip, invalid-UTF-8 rejection.
+- New unit tests in `drop_validate`: regular-file / extension /
+  size / missing-extension cases (moved + expanded from app.rs).
+- Fuzz harness upgraded — `uri_list_parse` now asserts the output
+  bound; `keychord_parse` now asserts canonical-string round-trip.
+
+Test suite: 228 lib + 25 integration + 1 demo = 254 pass.
+`cargo clippy --all-targets -- -D warnings` clean.
+
 ## [0.5.0] — 2026-06-08
 
 Faza E — platform reach (Linux-first half). The native Wayland
