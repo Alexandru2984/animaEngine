@@ -264,6 +264,15 @@ pub fn run_native(
                     .texture
                     .create_view(&wgpu::TextureViewDescriptor::default());
                 let size = [renderer.window_width, renderer.window_height];
+                // Pick up the largest scale among all outputs the
+                // surface might be on — undershooting blurs text on
+                // HiDPI; overshooting just makes glyphs bigger than
+                // necessary on standard DPI, which is the kinder
+                // failure mode.
+                let pixels_per_point = monitors
+                    .iter()
+                    .map(|m| m.scale_factor as f32)
+                    .fold(1.0_f32, f32::max);
                 let edit_mode_snapshot = layer.state.edit_mode;
                 // Snapshot the AccessKit flag BEFORE taking its mutable
                 // borrow, same trick as the X11 path uses.
@@ -294,6 +303,7 @@ pub fn run_native(
                     &renderer.queue,
                     &view,
                     size,
+                    pixels_per_point,
                     events,
                     |ctx| {
                         if accesskit_snapshot {

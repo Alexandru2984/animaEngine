@@ -61,20 +61,23 @@ impl WaylandEguiRenderer {
     ///
     /// `events` is consumed in place — every drained event from the
     /// layer-window's translator goes in unchanged. `size_in_pixels`
-    /// must match the surface's current dimensions; the modulation by
-    /// `pixels_per_point` happens internally.
+    /// must match the surface's current dimensions; `pixels_per_point`
+    /// is the compositor's reported scale (1.0 on single-DPI displays,
+    /// 2.0 on most "Retina"-grade panels, etc.). Egui's layout snaps
+    /// to this scale so glyphs stay crisp.
     pub fn render<F>(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         view: &wgpu::TextureView,
         size_in_pixels: [u32; 2],
+        pixels_per_point: f32,
         events: Vec<egui::Event>,
         build_ui: F,
     ) where
         F: FnMut(&egui::Context),
     {
-        let pixels_per_point = 1.0_f32;
+        let pixels_per_point = pixels_per_point.max(0.5);
         let logical_size = egui::vec2(
             size_in_pixels[0] as f32 / pixels_per_point,
             size_in_pixels[1] as f32 / pixels_per_point,
