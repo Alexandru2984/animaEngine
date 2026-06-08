@@ -66,10 +66,40 @@ pub fn pre_validate_dropped_file(path: &Path) -> Result<(), String> {
     }
 }
 
+/// Resolve a library-relative asset path against its root and verify
+/// the canonical form stays under that root (M2 hardening, 0.5.2).
+///
+/// `Path::join` returns the right-hand side as-is when it's absolute,
+/// and lets `..` segments climb above the prefix. Neither shape is
+/// what an honest library entry produces, but a hand-edited
+/// `library.toml` could include them — without this gate a malformed
+/// entry could point the engine at any file the user can read, with
+/// the error reply itself doubling as a probe for which files exist.
+///
+/// Returns the canonical absolute path on success, or a descriptive
+/// error when the resolved target escapes `root`, doesn't exist, or
+/// the OS refuses to canonicalize either side.
+pub fn resolve_library_asset(root: &Path, relative: &Path) -> Result<std::path::PathBuf, String> {
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|e| format!("library root unreachable: {e}"))?;
+    let joined = canonical_root.join(relative);
+    let canonical_target = joined
+        .canonicalize()
+        .map_err(|e| format!("asset path unreachable: {e}"))?;
+    if !canonical_target.starts_with(&canonical_root) {
+        return Err(format!(
+            "asset path escapes library root ({})",
+            canonical_root.display()
+        ));
+    }
+    Ok(canonical_target)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::pre_validate_dropped_file;
-    use std::path::PathBuf;
+    use super::{pre_validate_dropped_file, resolve_library_asset};
+    use std::path::{Path, PathBuf};
 
     fn workspace_tmp(name: &str) -> PathBuf {
         let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -112,6 +142,38 @@ mod tests {
         std::fs::write(&path, b"x").unwrap();
         let err = pre_validate_dropped_file(&path).unwrap_err();
         assert!(err.contains("no extension"));
+    }
+
+    #[test]
+    fn library_resolve_accepts_in_root() {
+        let dir = workspace_tmp("lib_in_root");
+        let asset = dir.join("ghost.png");
+        std::fs::write(&asset, b"x").unwrap();
+        let resolved = resolve_library_asset(&dir, Path::new("ghost.png")).unwrap();
+        assert_eq!(resolved, asset.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn library_resolve_rejects_absolute_outside_root() {
+        let dir = workspace_tmp("lib_abs_escape");
+        let escape = resolve_library_asset(&dir, Path::new("/etc/hostname"));
+        let err = escape.unwrap_err();
+        assert!(
+            err.contains("escapes") || err.contains("unreachable"),
+            "want escape/unreachable, got: {err}",
+        );
+    }
+
+    #[test]
+    fn library_resolve_rejects_dotdot_escape() {
+        let parent = workspace_tmp("lib_dotdot");
+        let root = parent.join("inner");
+        std::fs::create_dir_all(&root).unwrap();
+        let neighbour = parent.join("secret.png");
+        std::fs::write(&neighbour, b"x").unwrap();
+        let escape = resolve_library_asset(&root, Path::new("../secret.png"));
+        let err = escape.unwrap_err();
+        assert!(err.contains("escapes"), "want escape, got: {err}");
     }
 
     #[test]

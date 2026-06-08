@@ -1,6 +1,6 @@
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
-use crate::drop_validate::pre_validate_dropped_file;
+use crate::drop_validate::{pre_validate_dropped_file, resolve_library_asset};
 use crate::event::AnimaEvent;
 use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
@@ -670,13 +670,21 @@ impl App {
             tracing::warn!("Library outcome received but no library_root is set; ignoring.");
             return;
         };
-        let abs_path = root.join(&outcome.relative_path);
-        // F.1 fix: run the cheap stat/whitelist gate before touching
-        // the decoder. The library scanner only sees files that
-        // matched its own filter at scan time, but a hand-edited
-        // `library.toml` (or a symlink placed after scan) could point
-        // anywhere on disk; the X11/Wayland drag-drop paths already
-        // run this gate.
+        // M2 hardening (0.5.2): a hand-edited `library.toml` could
+        // carry an absolute path or `../` segment that lifts the
+        // resolved target out of the asset root. `resolve_library_asset`
+        // canonicalises both sides and rejects anything that escapes.
+        let abs_path =
+            match resolve_library_asset(root, std::path::Path::new(&outcome.relative_path)) {
+                Ok(p) => p,
+                Err(reason) => {
+                    tracing::warn!("Library asset {} rejected: {reason}", outcome.relative_path,);
+                    self.toasts.warn(format!("Rejected: {reason}"));
+                    return;
+                }
+            };
+        // The shared stat/whitelist gate still applies — a path that
+        // stays inside the root can still be the wrong shape.
         if let Err(reason) = pre_validate_dropped_file(&abs_path) {
             tracing::warn!("Library asset {} rejected: {reason}", abs_path.display());
             self.toasts.warn(format!("Rejected: {reason}"));
