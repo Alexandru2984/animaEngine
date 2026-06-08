@@ -46,7 +46,10 @@ pub fn parse_uri_list(payload: &[u8]) -> Vec<PathBuf> {
 
 /// Decode a single `file://...` URI into a filesystem path. Returns
 /// `None` for any other scheme so the caller can skip without
-/// special-casing.
+/// special-casing. Returns `None` when the decoded bytes don't form
+/// valid UTF-8 either — Unix paths are byte sequences, but
+/// `PathBuf::from(String)` here keeps us aligned with the rest of
+/// the engine which assumes UTF-8 throughout.
 fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
     let path_with_host = uri.strip_prefix("file://")?;
     // `file:///abs/path` → host is empty, path starts after the third
@@ -56,31 +59,38 @@ fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
         Some(idx) => &path_with_host[idx..],
         None => path_with_host,
     };
-    Some(PathBuf::from(percent_decode(path)))
+    let decoded = percent_decode_to_string(path)?;
+    Some(PathBuf::from(decoded))
 }
 
-/// Minimal `%XX` percent-decoder — file URIs carry spaces as `%20`
-/// and other punctuation similarly. We avoid pulling `percent-encoding`
-/// just for this one call site; the inputs are short (file paths) and
-/// only the standard ASCII-printable escapes appear in practice.
-fn percent_decode(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
+/// Decode `%XX` escapes back into the underlying byte sequence and
+/// then reinterpret as UTF-8. F.6 (0.5.1) fix: the previous
+/// `percent_decode` ran `out.push((h*16 + l) as char)`, which
+/// interpreted each escaped byte as a Latin-1 codepoint instead of
+/// part of a multi-byte UTF-8 sequence. A file named `animaţie.png`
+/// (the `ţ` is `0xC4 0x83` in UTF-8, encoded as `%C4%83`) used to
+/// produce the wrong filename and the drop silently failed.
+///
+/// Returns `None` when the recovered byte sequence isn't valid
+/// UTF-8 — file managers never produce that legitimately; rejecting
+/// keeps us from feeding malformed strings into the rest of the
+/// pipeline.
+fn percent_decode_to_string(s: &str) -> Option<String> {
     let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            let hi = hex_digit(bytes[i + 1]);
-            let lo = hex_digit(bytes[i + 2]);
-            if let (Some(h), Some(l)) = (hi, lo) {
-                out.push((h * 16 + l) as char);
+            if let (Some(h), Some(l)) = (hex_digit(bytes[i + 1]), hex_digit(bytes[i + 2])) {
+                out.push(h * 16 + l);
                 i += 3;
                 continue;
             }
         }
-        out.push(bytes[i] as char);
+        out.push(bytes[i]);
         i += 1;
     }
-    out
+    String::from_utf8(out).ok()
 }
 
 const fn hex_digit(b: u8) -> Option<u8> {
@@ -121,6 +131,26 @@ mod tests {
             paths,
             vec![PathBuf::from("/home/user/My Pictures/ghost (1).png")]
         );
+    }
+
+    #[test]
+    fn multi_byte_utf8_percent_encoded_path_decodes() {
+        // F.6 regression: filenames with diacritics encoded byte-by-
+        // byte (e.g. `ţ` = U+0163 = `0xC4 0x83` in UTF-8 = `%C4%83`)
+        // used to fold each byte into a Latin-1 codepoint, producing
+        // `Ä<padding>` instead of `ţ` and losing the file.
+        let payload = b"file:///tmp/anima%C8%9Bie.png\r\n";
+        let paths = parse_uri_list(payload);
+        assert_eq!(paths, vec![PathBuf::from("/tmp/animație.png")]);
+    }
+
+    #[test]
+    fn invalid_utf8_percent_encoded_path_returns_empty() {
+        // Stray byte 0xC0 isn't a valid UTF-8 lead. The strict parser
+        // rejects rather than panicking or producing garbled text.
+        let payload = b"file:///tmp/%C0%C0.png\r\n";
+        let paths = parse_uri_list(payload);
+        assert!(paths.is_empty());
     }
 
     #[test]
