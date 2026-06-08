@@ -345,6 +345,8 @@ fn xdg_data_dir() -> PathBuf {
     if let Some(dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
         return dirs.data_dir().to_path_buf();
     }
+    // SAFETY: libc::getuid is a POSIX syscall with no preconditions
+    // and no failure modes; returns the calling process's real UID.
     let uid = unsafe { libc::getuid() };
     std::env::temp_dir().join(format!("animaEngine-{uid}"))
 }
@@ -353,6 +355,7 @@ fn xdg_cache_dir() -> PathBuf {
     if let Some(dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
         return dirs.cache_dir().to_path_buf();
     }
+    // SAFETY: see `xdg_data_dir` above — same guarantees from POSIX.
     let uid = unsafe { libc::getuid() };
     std::env::temp_dir().join(format!("animaEngine-{uid}-cache"))
 }

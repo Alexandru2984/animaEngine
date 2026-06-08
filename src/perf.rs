@@ -340,6 +340,9 @@ fn cache_dir() -> PathBuf {
     // matter the env. `std::env::temp_dir` honours `TMPDIR` but
     // still resolves to an absolute path; combined with the uid
     // suffix two users on a shared host don't collide.
+    // SAFETY: libc::getuid is a POSIX syscall with no preconditions
+    // and no failure modes; it returns the calling process's real UID
+    // and has no FFI safety obligations.
     let uid = unsafe { libc::getuid() };
     std::env::temp_dir().join(format!("animaEngine-{uid}"))
 }
