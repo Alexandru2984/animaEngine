@@ -8,7 +8,7 @@
 //! Behavior dropdown rebuilds each variant from sensible defaults on
 //! switch so users can fiddle without first reading the data sheet.
 
-use super::entity_monitor_picker;
+use super::monitor::entity_monitor_picker;
 use crate::behavior::Behavior;
 use crate::i18n::t;
 use crate::input::selection::SelectionState;
