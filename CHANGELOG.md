@@ -6,6 +6,68 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.4] — 2026-06-09
+
+Follow-up patch after a third-round security audit that ran against
+the codebase post-refactor (the `app.rs` / `panels.rs` /
+`keybindings.rs` / `layer_window.rs` modules each became a directory
+with focused sub-files). The refactor itself introduced no
+regressions; the audit caught two HIGH and two MEDIUM gaps that had
+been latent since earlier releases and that the prior passes missed,
+plus two LOW items found during manual review. Take this update at
+your leisure; nothing here is an exploitable hot patch.
+
+### Fixed
+
+- **H1** — `AppConfig::config_path()` had kept the original
+  `HOME=.` fallback that the **M3** (0.5.2) pass closed in
+  `perf.rs` and `asset_library/mod.rs` but missed in `config.rs`.
+  A wrapper script like `HOME=/etc/cron.d anima-engine` could
+  therefore still redirect `atomic_write_bytes` on `config.toml`
+  into an attacker-chosen directory whenever
+  `directories::ProjectDirs` returned `None` (rare but reachable
+  in minimal containers / broken envs). Fallback now matches the
+  rest of the codebase: `std::env::temp_dir().join("animaEngine-<uid>")`.
+- **H2** — runtime entity push paths bypassed `MAX_ENTITIES`.
+  The cap was only enforced in `AppConfig::load()`; drag-drop,
+  library "Add to scene", duplicate, preset Append, and
+  context-menu duplicate all reached `Scene::add_entity_from_path`
+  / `Scene::append_character_config` directly. Both functions now
+  gate the push against `MAX_ENTITIES` and return an error
+  toast when the cap is hit, foreclosing a sustained drop-flood
+  scenario from spawning arbitrary entities until OOM.
+- **M1** — the **M4** (0.5.2) redaction sweep + **G.1** (0.5.3)
+  follow-up missed three info-level traces newly visible after
+  the refactor: `scene.rs::add_entity_from_path`,
+  `app/lifecycle.rs` asset-library scan summary, and
+  `app/render_loop.rs` perf-snapshot export. All three now go
+  through `crate::drop_validate::redact_path` at `info!`; full
+  paths remain at `debug!`. The perf-snapshot toast still shows
+  the full path because the user just requested the export.
+- **M2** — `i18n::t()` / `set_locale()` used `.expect("i18n state
+  poisoned")` on the inner `RwLock`. `t()` runs on every frame
+  from every panel, so a poisoned lock would take the render
+  thread down on the next translation. Today no writer can
+  poison the lock (only `set_locale` is a writer and it can't
+  panic mid-write), but the risk was latent and the inner state
+  is trivially recoverable — bundles are immutable `Arc`s. Both
+  call sites now recover via `unwrap_or_else(|poisoned|
+  poisoned.into_inner())`.
+- **L2** — library "Add to scene" log lines used
+  `outcome.relative_path` directly. A hand-edited `library.toml`
+  with RTL-override or zero-width chars could plant visually
+  reversed strings in journald. Same threat model as **G.3**
+  but on the log side instead of egui input; redact + downgrade
+  to `debug!` for the raw form.
+- **L3** — `KeyCode::from_str` had two `.unwrap()` calls whose
+  preconditions were enforced by surrounding `if` and match-arm
+  guards. Sound today but a refactoring trap; replaced with
+  `.expect("…")` strings that name the invariant explicitly.
+
+### Tests
+
+- 231 lib + 25 integration + 1 demo = 257 pass.
+
 ## [0.5.3] — 2026-06-08
 
 Follow-up to the 0.5.2 release after a re-audit that scrutinised
