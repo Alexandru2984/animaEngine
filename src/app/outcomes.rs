@@ -31,15 +31,20 @@ impl App {
         // carry an absolute path or `../` segment that lifts the
         // resolved target out of the asset root. `resolve_library_asset`
         // canonicalises both sides and rejects anything that escapes.
-        let abs_path =
-            match resolve_library_asset(root, std::path::Path::new(&outcome.relative_path)) {
-                Ok(p) => p,
-                Err(reason) => {
-                    tracing::warn!("Library asset {} rejected: {reason}", outcome.relative_path,);
-                    self.toasts.warn(format!("Rejected: {reason}"));
-                    return;
-                }
-            };
+        let rel_path = std::path::Path::new(&outcome.relative_path);
+        let abs_path = match resolve_library_asset(root, rel_path) {
+            Ok(p) => p,
+            Err(reason) => {
+                // Redact: `relative_path` comes from library.toml which
+                // a determined user can hand-edit with Cf chars (RTL
+                // override, zero-width, BOM) that would flip journald
+                // entries visually.
+                tracing::warn!("Library asset {} rejected: {reason}", redact_path(rel_path));
+                tracing::debug!("Rejected library relative path: {}", outcome.relative_path);
+                self.toasts.warn(format!("Rejected: {reason}"));
+                return;
+            }
+        };
         // The shared stat/whitelist gate still applies — a path that
         // stays inside the root can still be the wrong shape.
         if let Err(reason) = pre_validate_dropped_file(&abs_path) {
@@ -85,7 +90,11 @@ impl App {
                 self.config_dirty = true;
             }
             Err(e) => {
-                tracing::warn!("Library add failed for {}: {e}", outcome.relative_path);
+                tracing::warn!(
+                    "Library add failed for {}: {e}",
+                    redact_path(std::path::Path::new(&outcome.relative_path))
+                );
+                tracing::debug!("Failed relative path: {}", outcome.relative_path);
                 let mut args = fluent::FluentArgs::new();
                 args.set("name", outcome.display_name);
                 self.toasts

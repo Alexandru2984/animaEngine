@@ -335,11 +335,18 @@ impl FromStr for KeyCode {
         // punctuation symbols we bind. Avoids ambiguity with multi-char
         // named-key aliases like `Esc`.
         if s.chars().count() == 1 {
-            let c = s.chars().next().unwrap();
+            let c = s
+                .chars()
+                .next()
+                .expect("count==1 guard checked above guarantees one char");
             return Ok(match c {
                 'a'..='z' => Self::Letter(c.to_ascii_uppercase()),
                 'A'..='Z' => Self::Letter(c),
-                '0'..='9' => Self::Digit(c.to_digit(10).unwrap() as u8),
+                '0'..='9' => Self::Digit(
+                    c.to_digit(10)
+                        .expect("'0'..='9' match arm guarantees to_digit(10) returns Some")
+                        as u8,
+                ),
                 '+' => Self::Symbol(SymbolKey::Plus),
                 '-' => Self::Symbol(SymbolKey::Minus),
                 '=' => Self::Symbol(SymbolKey::Equal),
