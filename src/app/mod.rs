@@ -1,6 +1,7 @@
 mod dispatch;
 mod hot_reload;
 mod input;
+mod lifecycle;
 mod outcomes;
 mod render_loop;
 
@@ -21,19 +22,7 @@ use std::time::{Instant, SystemTime};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{Window, WindowId, WindowLevel};
-
-// X11-specific: set window type. We use Normal (NOT Dock) because DOCK windows
-// on XWayland/Mutter don't receive mouse events. EWMH hints handle always-on-top.
-#[cfg(target_os = "linux")]
-use winit::platform::x11::{WindowAttributesExtX11, WindowType};
-
-// Wayland-specific: set app_id so the compositor (Mutter, KWin, sway) maps
-// the window to the .desktop / launcher entry. Must match StartupWMClass
-// in data/com.animaengine.Anima.desktop — otherwise the dock picks up the
-// window as a separate, no-icon entry alongside the pinned one.
-#[cfg(target_os = "linux")]
-use winit::platform::wayland::WindowAttributesExtWayland;
+use winit::window::{Window, WindowId};
 
 /// Main application state — implements winit's ApplicationHandler.
 ///
@@ -356,188 +345,8 @@ impl ApplicationHandler<AnimaEvent> for App {
     }
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_some() {
-            return; // Already created
-        }
-
-        tracing::info!("Creating window...");
-
-        // Snapshot the monitor topology once so the rest of the engine
-        // can use the renderer-agnostic MonitorInfo instead of holding
-        // a borrow on the event loop. The picker UI in C.2 will read
-        // this list; for now we log it and keep the data ready.
-        let monitors: Vec<crate::monitor::MonitorInfo> = {
-            let primary = event_loop.primary_monitor();
-            event_loop
-                .available_monitors()
-                .map(|m| {
-                    let size = m.size();
-                    let pos = m.position();
-                    let is_primary = primary
-                        .as_ref()
-                        .is_some_and(|p| p.name() == m.name() && p.size() == size);
-                    let name = m
-                        .name()
-                        .unwrap_or_else(|| format!("Display {}", self.monitors.len()));
-                    crate::monitor::MonitorInfo {
-                        name,
-                        x: pos.x,
-                        y: pos.y,
-                        width: size.width,
-                        height: size.height,
-                        scale_factor: m.scale_factor(),
-                        is_primary,
-                    }
-                })
-                .collect()
-        };
-        crate::monitor::log_topology(&monitors);
-        self.monitors = monitors;
-
-        // Discover + load + merge-scan the asset library. Errors are
-        // logged but never fatal — an empty library is fine.
-        if let Some(root) = crate::asset_library::discover_asset_root() {
-            let index_path = crate::asset_library::LibraryIndex::default_path();
-            let mut idx = crate::asset_library::LibraryIndex::load(&index_path);
-            let scanned = crate::asset_library::scan(&root);
-            let scanned_count = scanned.len();
-            idx.merge_scan(scanned);
-            if let Err(e) = idx.save(&index_path) {
-                tracing::warn!("Failed to persist library.toml: {e}");
-            }
-            tracing::info!(
-                "Asset library at {}: {} indexed ({} from this scan)",
-                root.display(),
-                idx.assets.len(),
-                scanned_count,
-            );
-            self.library = Some(idx);
-            self.library_root = Some(root);
-        } else {
-            tracing::info!("No asset library root found; Library tab will show empty state.");
-        }
-
-        // Auto-detect screen resolution if config values are 0
-        let (win_w, win_h) = if self.config.global.window_width == 0
-            || self.config.global.window_height == 0
-        {
-            if let Some(monitor) = event_loop
-                .primary_monitor()
-                .or_else(|| event_loop.available_monitors().next())
-            {
-                let size = monitor.size();
-                tracing::info!(
-                    "Auto-detected monitor resolution: {}x{}",
-                    size.width,
-                    size.height
-                );
-                (size.width, size.height)
-            } else {
-                tracing::warn!("Could not detect monitor resolution, falling back to 1920x1080");
-                (1920u32, 1080u32)
-            }
-        } else {
-            (
-                self.config.global.window_width,
-                self.config.global.window_height,
-            )
-        };
-
-        // Build window attributes: transparent, borderless, always-on-top
-        let window_attrs = Window::default_attributes()
-            .with_title("animaEngine")
-            .with_transparent(true)
-            .with_decorations(false)
-            .with_window_level(WindowLevel::AlwaysOnTop)
-            .with_inner_size(winit::dpi::LogicalSize::new(win_w, win_h));
-
-        // X11-specific: Use Normal type (NOT Dock).
-        // Dock windows on XWayland/Mutter don't receive mouse events.
-        // EWMH hints (ABOVE, SKIP_TASKBAR, etc.) are applied by X11InputManager.
-        //
-        // Plus: set X11 WM_CLASS *and* Wayland app_id to "animaEngine" so
-        // the launcher entry (StartupWMClass=animaEngine in the .desktop)
-        // matches the runtime window — without this, the dock shows a
-        // separate "running" entry next to the pinned one with a
-        // placeholder icon. Both APIs accept the same identifier; we
-        // pass it identically to keep X11 and Wayland behaviour aligned.
-        #[cfg(target_os = "linux")]
-        let window_attrs = {
-            // Disambiguated explicitly because both X11 and Wayland
-            // extension traits provide a `with_name`-style API; using
-            // UFCS keeps the intent clear and stops rustc from picking
-            // the wrong one.
-            let attrs = WindowAttributesExtX11::with_name(
-                window_attrs.with_x11_window_type(vec![WindowType::Normal]),
-                "animaEngine",
-                "animaEngine",
-            );
-            WindowAttributesExtWayland::with_name(attrs, "animaEngine", "animaEngine")
-        };
-
-        match event_loop.create_window(window_attrs) {
-            Ok(window) => {
-                let window = Arc::new(window);
-                tracing::info!(
-                    "Window created: {:?} ({}x{})",
-                    window.id(),
-                    window.inner_size().width,
-                    window.inner_size().height
-                );
-
-                // Create pooled X11 input manager (single connection)
-                let mut x11_mgr = X11InputManager::new(&window);
-                if let Some(ref mut mgr) = x11_mgr {
-                    // Set initial input shape: click-through except toggle button
-                    if let Err(e) = mgr.set_passthrough_with_button(TOGGLE_BUTTON_SIZE) {
-                        tracing::warn!("Failed to set initial input shape: {}", e);
-                        let _ = window.set_cursor_hittest(false);
-                    }
-                } else {
-                    tracing::warn!(
-                        "X11InputManager not available. Falling back to set_cursor_hittest."
-                    );
-                    let _ = window.set_cursor_hittest(false);
-                }
-                self.x11_input = x11_mgr;
-
-                // Initialize wgpu renderer
-                match WgpuRenderer::new(window.clone()) {
-                    Ok(mut renderer) => {
-                        // Create initial textures for all entities
-                        for entity in &self.scene.entities {
-                            renderer.ensure_texture(entity);
-                        }
-                        // Clear texture_dirty flags after initial upload
-                        for entity in &mut self.scene.entities {
-                            entity.texture_dirty = false;
-                        }
-
-                        // egui wraps the existing wgpu device + queue.
-                        let ui = EguiRenderer::new(
-                            &renderer.device,
-                            renderer.config.format,
-                            window.clone(),
-                            self.config.global.theme,
-                        );
-                        self.ui = Some(ui);
-                        self.renderer = Some(renderer);
-                        tracing::info!("wgpu + egui renderers initialized");
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to initialize wgpu renderer: {}", e);
-                        event_loop.exit();
-                        return;
-                    }
-                }
-
-                self.window = Some(window);
-            }
-            Err(e) => {
-                tracing::error!("Failed to create window: {}", e);
-                event_loop.exit();
-            }
-        }
+        // Init body extracted to src/app/lifecycle.rs (H.5).
+        self.handle_resumed(event_loop);
     }
 
     fn window_event(
