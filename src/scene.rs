@@ -1,9 +1,9 @@
 use crate::animation::loader::{generate_fallback_frame, load_asset};
 use crate::animation::Animation;
 use crate::config::{AppConfig, CharacterConfig};
-use crate::constants::MAX_DROP_SIZE;
+use crate::constants::{MAX_DROP_SIZE, MAX_ENTITIES};
 use crate::entity::Entity;
-use crate::error::Result;
+use crate::error::{AnimaError, Result};
 use std::cell::RefCell;
 use std::time::Instant;
 
@@ -231,6 +231,17 @@ impl Scene {
     ) -> Result<usize> {
         use crate::animation::loader::detect_asset_type;
 
+        // Cap total entities at MAX_ENTITIES at every runtime push site —
+        // `AppConfig::load` enforces this on disk-load but drag-drop,
+        // library add, and duplicate ultimately reach here and used to
+        // bypass the cap. A drag-flood from a hostile compositor could
+        // otherwise spawn arbitrary entities until OOM.
+        if self.entities.len() >= MAX_ENTITIES {
+            return Err(AnimaError::other(format!(
+                "entity limit reached ({MAX_ENTITIES}); remove some before adding more"
+            )));
+        }
+
         let (asset_type, type_desc) = detect_asset_type(path);
 
         // Generate a unique ID from the filename
@@ -374,6 +385,11 @@ impl Scene {
     /// `cfg.asset_path` is loaded as-is, with no whitelist or size
     /// pre-check. Today every caller passes a hardcoded preset config.
     pub fn append_character_config(&mut self, cfg: &CharacterConfig) -> Result<()> {
+        if self.entities.len() >= MAX_ENTITIES {
+            return Err(AnimaError::other(format!(
+                "entity limit reached ({MAX_ENTITIES}); remove some before adding more"
+            )));
+        }
         let entity = Self::load_entity(cfg)?;
         self.entities.push(entity);
         self.mark_visible_dirty();
