@@ -24,13 +24,14 @@
 //!    queue. The caller drives both per frame.
 //! 3. Dropping `LayerWindow` releases the layer surface and disconnects.
 
+mod keyboard_handler;
 mod state;
 
 pub use state::{InputRect, WaylandState};
 
 use crate::error::{AnimaError, Result};
 use crate::wayland::data_device::{parse_uri_list, URI_LIST_MIME};
-use crate::wayland::keyboard::{keysym_to_egui_key, modifiers_to_egui};
+use crate::wayland::keyboard::modifiers_to_egui;
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
     data_device_manager::{
@@ -45,7 +46,7 @@ use smithay_client_toolkit::{
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::{
-        keyboard::{KeyEvent, KeyboardHandler, Keymap, Keysym, Modifiers as SctkModifiers},
+        keyboard::Modifiers as SctkModifiers,
         pointer::{PointerData, PointerEvent, PointerEventKind, PointerHandler},
         Capability, SeatHandler, SeatState,
     },
@@ -64,9 +65,7 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{
-        wl_data_device_manager::DndAction, wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface,
-    },
+    protocol::{wl_data_device_manager::DndAction, wl_output, wl_pointer, wl_seat, wl_surface},
     Connection, EventQueue, QueueHandle,
 };
 
@@ -256,33 +255,6 @@ const MAX_CONCURRENT_DROPS: usize = 4;
 /// bounded sender just drops the newest extra batches with a
 /// warning rather than letting the channel grow without bound.
 const DROP_RESULT_QUEUE_CAP: usize = 16;
-
-/// Predicate matching characters we refuse to deliver to egui
-/// `TextEdit` widgets via `egui::Event::Text`. Covers:
-///
-/// - C0 / C1 / DEL controls (`is_control()` → catches Ctrl+key
-///   keysyms like `\x01` that xkbcommon emits when composition stays
-///   active).
-/// - Unicode "Format" category Cf members the audit (G.3) flagged
-///   as dangerous to store: zero-width chars, RTL override, BOM,
-///   soft hyphen, invisible separators (U+2060-U+206F).
-///
-/// Kept as a free function so `wayland::keyboard::press_key` can
-/// import it cleanly and so the rule is testable without spinning
-/// up a full xkbcommon mock.
-fn is_unsafe_text_char(c: char) -> bool {
-    if c.is_control() {
-        return true;
-    }
-    matches!(
-        c,
-        '\u{00AD}'                  // soft hyphen
-        | '\u{200B}'..='\u{200F}'   // zero-width joiners + LRM/RLM
-        | '\u{202A}'..='\u{202E}'   // bidi embedding / override
-        | '\u{2060}'..='\u{206F}'   // invisible operators + format codes
-        | '\u{FEFF}'                // BOM / ZWNBSP
-    )
-}
 
 /// RAII guard decrementing the `active_drop_workers` counter on
 /// thread exit. Centralised so panic-induced unwinds still keep the
@@ -689,130 +661,6 @@ impl ProvidesRegistryState for WaylandState {
         &mut self.registry_state
     }
     registry_handlers![OutputState, SeatState];
-}
-
-/// Translate xkb key events into egui's vocabulary. Modifier tracking
-/// is split off into `update_modifiers` per sctk's protocol — we cache
-/// the latest snapshot on `WaylandState` so every press / release
-/// already carries the active modifier mask when egui processes it.
-impl KeyboardHandler for WaylandState {
-    fn enter(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _keyboard: &wl_keyboard::WlKeyboard,
-        _surface: &wl_surface::WlSurface,
-        _serial: u32,
-        _raw: &[u32],
-        _keysyms: &[Keysym],
-    ) {
-        // Pre-pressed keys at focus enter are deliberately ignored —
-        // synthesising press events for them would fire shortcuts the
-        // user didn't intend (e.g. holding Tab while alt-tabbing into
-        // the overlay would cycle entities).
-    }
-
-    fn leave(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _keyboard: &wl_keyboard::WlKeyboard,
-        _surface: &wl_surface::WlSurface,
-        _serial: u32,
-    ) {
-        // Reset modifiers so a key released elsewhere doesn't leave us
-        // thinking Ctrl is still down on the next focus.
-        self.last_modifiers = SctkModifiers::default();
-    }
-
-    fn press_key(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _keyboard: &wl_keyboard::WlKeyboard,
-        _serial: u32,
-        event: KeyEvent,
-    ) {
-        if let Some(key) = keysym_to_egui_key(event.keysym) {
-            let modifiers = modifiers_to_egui(self.last_modifiers);
-            self.pending_egui_events.push(egui::Event::Key {
-                key,
-                physical_key: None,
-                pressed: true,
-                repeat: false,
-                modifiers,
-            });
-        }
-        // UTF-8 text — already composed by xkbcommon. Push as a
-        // separate Text event so text widgets get the character; chord
-        // dispatch above already fired for shortcut-key combos.
-        //
-        // F.7 (0.5.1) + G.3 (0.5.3): strip C0 control characters and
-        // the Unicode "Format" category (Cf) before pushing. The
-        // initial F.7 pass only caught `is_control()` which covers
-        // Cc (C0 / C1 / DEL) — xkbcommon producing `\x01` for Ctrl+A.
-        // The audit re-check flagged that Cf characters (zero-width
-        // joiners U+200B-U+200F, RTL-override U+202E, BOM U+FEFF,
-        // soft hyphen U+00AD, U+2060-U+206F) sneak through and let
-        // a user store invisible / display-reversing strings in
-        // TextEdit widgets (preset names, library tags).
-        if let Some(s) = event.utf8 {
-            if !s.is_empty()
-                && !self.last_modifiers.ctrl
-                && !self.last_modifiers.alt
-                && !self.last_modifiers.logo
-            {
-                let filtered: String = s.chars().filter(|c| !is_unsafe_text_char(*c)).collect();
-                if !filtered.is_empty() {
-                    self.pending_egui_events.push(egui::Event::Text(filtered));
-                }
-            }
-        }
-    }
-
-    fn release_key(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _keyboard: &wl_keyboard::WlKeyboard,
-        _serial: u32,
-        event: KeyEvent,
-    ) {
-        if let Some(key) = keysym_to_egui_key(event.keysym) {
-            let modifiers = modifiers_to_egui(self.last_modifiers);
-            self.pending_egui_events.push(egui::Event::Key {
-                key,
-                physical_key: None,
-                pressed: false,
-                repeat: false,
-                modifiers,
-            });
-        }
-    }
-
-    fn update_modifiers(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _keyboard: &wl_keyboard::WlKeyboard,
-        _serial: u32,
-        modifiers: SctkModifiers,
-        _layout: u32,
-    ) {
-        self.last_modifiers = modifiers;
-    }
-
-    fn update_keymap(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _keyboard: &wl_keyboard::WlKeyboard,
-        _keymap: Keymap<'_>,
-    ) {
-        // sctk's default handler already builds the in-memory keymap;
-        // we only ever read decoded keysyms from `KeyEvent`, so this
-        // hook is a no-op placeholder for future locale-switch logic.
-    }
 }
 
 /// Accept dropped files via `wl_data_device`. The flow is:
