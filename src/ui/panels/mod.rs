@@ -4,7 +4,10 @@
 //! This keeps `App` borrow-safe: the caller passes disjoint `&mut` references
 //! to scene / selection / dirty flag instead of `&mut self`.
 
-use crate::anim;
+mod toasts;
+
+pub use toasts::toasts;
+
 use crate::app::ContextMenuState;
 use crate::asset_library::{LibraryAsset, LibraryIndex, LibraryKind};
 use crate::behavior::Behavior;
@@ -21,7 +24,6 @@ use crate::ui::icons;
 use crate::ui::onboarding::{self, OnboardingProgress};
 use crate::ui::states;
 use crate::ui::theme::{self, h2, Theme, SPACE_2XL, SPACE_L, SPACE_M, SPACE_S, SPACE_XS};
-use crate::ui::toasts::{Toast, ToastKind, ToastQueue};
 
 /// Entity-targeted action requested from the right-click context menu.
 /// `App` applies it after `EguiRenderer::render` returns so it can grab a
@@ -1737,77 +1739,6 @@ pub(crate) fn context_menu(ctx: &egui::Context, state: &ContextMenuState) -> Con
 /// docs/design-system.md §7.8: `bg.elevated` surface, leading severity
 /// icon coloured by `semantic.*`, body text in `fg.primary`, radius
 /// `lg`, `elev.mid` shadow, stack gap `space.s`.
-pub fn toasts(ctx: &egui::Context, queue: &ToastQueue) {
-    if queue.is_empty() {
-        return;
-    }
-
-    // While there are visible toasts, drive continuous repaints so they
-    // disappear at the moment they expire (without waiting for the next
-    // input event).
-    ctx.request_repaint();
-
-    egui::Area::new(egui::Id::new("anima_toasts"))
-        .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-SPACE_L, -SPACE_L))
-        .order(egui::Order::Foreground)
-        .show(ctx, |ui| {
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
-                for toast in queue.iter() {
-                    toast_card(ui, toast);
-                    ui.add_space(SPACE_S);
-                }
-            });
-        });
-}
-
-fn toast_card(ui: &mut egui::Ui, toast: &Toast) {
-    // ── Per design-system §6 micro-animation timings ─────────────────
-    // - Slide-in fade:  200 ms, ease-out-quad
-    // - Fade-out:       300 ms, ease-in-quad (trailing window before expiry)
-    const SLIDE_IN: f32 = 0.200;
-    const FADE_OUT: f32 = 0.300;
-    let age = toast.age().as_secs_f32();
-    let remaining = toast.remaining().as_secs_f32();
-    let in_alpha = anim::ease_out_quad((age / SLIDE_IN).min(1.0));
-    let out_alpha = if remaining < FADE_OUT {
-        1.0 - anim::ease_in_quad(((FADE_OUT - remaining) / FADE_OUT).clamp(0.0, 1.0))
-    } else {
-        1.0
-    };
-    let alpha = (in_alpha * out_alpha).clamp(0.0, 1.0);
-
-    let visuals = ui.visuals();
-    let bg = visuals.faint_bg_color; // bg.elevated per theme
-    let body_fg = visuals.text_color(); // fg.primary
-    let severity_fg = match toast.kind {
-        ToastKind::Info => visuals.hyperlink_color, // info / accent tone
-        ToastKind::Success => egui::Color32::from_rgb(0x5B, 0xCB, 0x7B),
-        ToastKind::Warn => visuals.warn_fg_color,
-        ToastKind::Error => visuals.error_fg_color,
-    };
-    let icon = match toast.kind {
-        ToastKind::Info => icons::INFO,
-        ToastKind::Success => icons::SUCCESS,
-        ToastKind::Warn => icons::WARN,
-        ToastKind::Error => icons::ERROR,
-    };
-
-    ui.scope(|ui| {
-        ui.set_opacity(alpha);
-        egui::Frame::new()
-            .fill(bg)
-            .corner_radius(theme::RADIUS_LG)
-            .inner_margin(egui::Margin::symmetric(SPACE_L as i8, SPACE_M as i8))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(icon).size(18.0).color(severity_fg));
-                    ui.add_space(SPACE_S);
-                    ui.colored_label(body_fg, &toast.message);
-                });
-            });
-    });
-}
-
 /// One-shot intent emitted by the command palette so the caller can
 /// apply it after `EguiRenderer::render` returns — same pattern as
 /// [`ContextMenuOutcome`].
