@@ -4,13 +4,14 @@
 //! This keeps `App` borrow-safe: the caller passes disjoint `&mut` references
 //! to scene / selection / dirty flag instead of `&mut self`.
 
+mod context_menu;
 mod toasts;
 mod toggle_button;
 
+pub(crate) use context_menu::context_menu;
 pub use toasts::toasts;
 pub use toggle_button::toggle_button;
 
-use crate::app::ContextMenuState;
 use crate::asset_library::{LibraryAsset, LibraryIndex, LibraryKind};
 use crate::behavior::Behavior;
 use crate::i18n::{t, t_args};
@@ -1658,81 +1659,6 @@ fn scene_list(
 enum ListAction {
     Select(usize),
     Delete(usize),
-}
-
-/// Floating right-click context menu anchored at `state.pos`. Caller
-/// owns the `ContextMenuState`; this function only inspects it and
-/// reports back via `ContextMenuOutcome`.
-pub(crate) fn context_menu(ctx: &egui::Context, state: &ContextMenuState) -> ContextMenuOutcome {
-    let idx = state.entity_idx;
-    let mut picked: Option<MenuAction> = None;
-
-    let area = egui::Area::new(egui::Id::new("anima_entity_context_menu"))
-        .fixed_pos(state.pos)
-        .order(egui::Order::Foreground)
-        .show(ctx, |ui| {
-            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.set_min_width(160.0);
-
-                if ui.button(format!("{}  Duplicate", icons::COPY)).clicked() {
-                    picked = Some(MenuAction::Duplicate(idx));
-                }
-                if ui
-                    .button(format!("{}  Reset transform", icons::RESET))
-                    .clicked()
-                {
-                    picked = Some(MenuAction::ResetTransform(idx));
-                }
-                if ui
-                    .button(format!("{}  Toggle gravity", icons::GRAVITY))
-                    .clicked()
-                {
-                    picked = Some(MenuAction::ToggleGravity(idx));
-                }
-                ui.separator();
-                if ui
-                    .button(format!("{}  Bring forward", icons::BRING_FORWARD))
-                    .clicked()
-                {
-                    picked = Some(MenuAction::BringForward(idx));
-                }
-                if ui
-                    .button(format!("{}  Send backward", icons::SEND_BACKWARD))
-                    .clicked()
-                {
-                    picked = Some(MenuAction::SendBackward(idx));
-                }
-                ui.separator();
-                let error_color = ui.visuals().error_fg_color;
-                if ui
-                    .button(
-                        egui::RichText::new(format!("{}  Delete", icons::TRASH)).color(error_color),
-                    )
-                    .clicked()
-                {
-                    picked = Some(MenuAction::Delete(idx));
-                }
-            });
-        });
-
-    if let Some(action) = picked {
-        return ContextMenuOutcome::Action(action);
-    }
-
-    // Dismiss when the user clicks anywhere that isn't the menu itself, or
-    // presses Escape. We deliberately check `any_click` (not `pressed`) so
-    // a release that ended on a button still counts as "clicked the menu".
-    let dismissed = ctx.input(|i| {
-        let escape = i.key_pressed(egui::Key::Escape);
-        let outside_click = i.pointer.any_click() && !area.response.contains_pointer();
-        escape || outside_click
-    });
-
-    if dismissed {
-        ContextMenuOutcome::Close
-    } else {
-        ContextMenuOutcome::Open
-    }
 }
 
 /// Stack of toast notifications anchored to the bottom-right corner.
