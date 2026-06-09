@@ -130,7 +130,14 @@ fn t_with(key: &str, args: Option<&FluentArgs<'_>>) -> String {
         // render something and the bug is obvious.
         return format!("?{key}?");
     };
-    let guard = state.read().expect("i18n state poisoned");
+    // Recover from a poisoned lock instead of panicking. `t` runs on
+    // every frame from every panel, so a panic here would take the
+    // render thread down. The locked data is just three Arcs; the
+    // bundles themselves are immutable once built and a poisoned
+    // reader holds valid bundle Arcs — safe to read through.
+    let guard = state
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some(formatted) = format_in(&guard.active_bundle, key, args) {
         return formatted;
     }
@@ -173,7 +180,12 @@ pub fn set_locale(code: &str) {
         return;
     }
     let Some(state) = STATE.get() else { return };
-    let mut guard = state.write().expect("i18n state poisoned");
+    // Recover from a poisoned lock — symmetric with `t()` above.
+    // Bundles are rebuildable so even a previously-poisoned writer
+    // can't have left the inner state inconsistent.
+    let mut guard = state
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     if guard.active == code {
         return;
     }
