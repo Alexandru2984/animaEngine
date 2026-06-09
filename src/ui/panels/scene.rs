@@ -4,7 +4,8 @@
 //! The `scene_list` selection pulse and the read-only groups summary
 //! live here too since they're only used by this tab.
 
-use super::{monitor_mode_picker, preset_gallery, pulse_alpha_at};
+use super::presets::preset_gallery;
+use super::{monitor_mode_picker, pulse_alpha_at};
 use crate::i18n::t;
 use crate::input::selection::SelectionState;
 use crate::monitor::{MonitorInfo, MonitorMode};
