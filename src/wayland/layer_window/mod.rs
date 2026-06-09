@@ -25,6 +25,7 @@
 //! 3. Dropping `LayerWindow` releases the layer surface and disconnects.
 
 mod drag_drop;
+mod handlers;
 mod keyboard_handler;
 mod pointer_handler;
 mod state;
@@ -33,22 +34,15 @@ pub use state::{InputRect, WaylandState};
 
 use crate::error::{AnimaError, Result};
 use smithay_client_toolkit::{
-    compositor::{CompositorHandler, CompositorState},
+    compositor::CompositorState,
     data_device_manager::DataDeviceManagerState,
     delegate_compositor, delegate_data_device, delegate_keyboard, delegate_layer, delegate_output,
     delegate_pointer, delegate_registry, delegate_seat,
-    output::{OutputHandler, OutputState},
-    registry::{ProvidesRegistryState, RegistryState},
-    registry_handlers,
-    seat::{
-        keyboard::Modifiers as SctkModifiers, pointer::PointerData, Capability, SeatHandler,
-        SeatState,
-    },
+    output::OutputState,
+    registry::RegistryState,
+    seat::{keyboard::Modifiers as SctkModifiers, SeatState},
     shell::{
-        wlr_layer::{
-            Anchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface,
-            LayerSurfaceConfigure,
-        },
+        wlr_layer::{Anchor, KeyboardInteractivity, Layer, LayerShell},
         WaylandSurface,
     },
 };
@@ -56,11 +50,7 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc;
 use std::sync::Arc;
-use wayland_client::{
-    globals::registry_queue_init,
-    protocol::{wl_output, wl_seat, wl_surface},
-    Connection, EventQueue, QueueHandle,
-};
+use wayland_client::{globals::registry_queue_init, protocol::wl_surface, Connection, EventQueue};
 
 /// What `try_create` produces. The caller stores it and drives the event
 /// loop manually (we don't spawn anything internally).
@@ -355,187 +345,6 @@ impl LayerWindow {
         region.destroy();
         Ok(())
     }
-}
-
-// ──────────────────────────────────────────────────────────────────────
-//  sctk handler impls. Most of these are pure plumbing — sctk requires
-//  every protocol it manages to have a handler even when we don't react
-//  to its events.
-// ──────────────────────────────────────────────────────────────────────
-
-impl LayerShellHandler for WaylandState {
-    fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _layer: &LayerSurface) {
-        self.close_requested = true;
-    }
-
-    fn configure(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _layer: &LayerSurface,
-        configure: LayerSurfaceConfigure,
-        _serial: u32,
-    ) {
-        let (w, h) = configure.new_size;
-        if w > 0 && h > 0 {
-            self.pending_size = Some((w, h));
-        }
-    }
-}
-
-impl CompositorHandler for WaylandState {
-    fn scale_factor_changed(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _new_factor: i32,
-    ) {
-        // Hi-DPI handling lands in a later sub-phase.
-    }
-
-    fn transform_changed(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _new_transform: wl_output::Transform,
-    ) {
-    }
-
-    fn frame(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _time: u32,
-    ) {
-        // Frame callbacks drive the render loop in 7.3.
-    }
-
-    fn surface_enter(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _output: &wl_output::WlOutput,
-    ) {
-    }
-
-    fn surface_leave(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _output: &wl_output::WlOutput,
-    ) {
-    }
-}
-
-impl OutputHandler for WaylandState {
-    fn output_state(&mut self) -> &mut OutputState {
-        &mut self.output_state
-    }
-
-    fn new_output(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _output: wl_output::WlOutput,
-    ) {
-    }
-
-    fn update_output(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _output: wl_output::WlOutput,
-    ) {
-    }
-
-    fn output_destroyed(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _output: wl_output::WlOutput,
-    ) {
-    }
-}
-
-impl SeatHandler for WaylandState {
-    fn seat_state(&mut self) -> &mut SeatState {
-        &mut self.seat_state
-    }
-
-    fn new_seat(&mut self, _conn: &Connection, qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
-        // One DataDevice per seat; overlay is single-seat in practice so
-        // we keep just the first. The handle stays alive for the seat's
-        // lifetime — drop happens in `remove_seat`.
-        if self.data_device.is_none() {
-            self.data_device = Some(self.data_device_manager.get_data_device(qh, &seat));
-        }
-    }
-
-    fn new_capability(
-        &mut self,
-        _conn: &Connection,
-        qh: &QueueHandle<Self>,
-        seat: wl_seat::WlSeat,
-        capability: Capability,
-    ) {
-        if capability == Capability::Pointer && self.pointer.is_none() {
-            match self
-                .seat_state
-                .get_pointer_with_data(qh, &seat, PointerData::new(seat.clone()))
-            {
-                Ok(p) => self.pointer = Some(p),
-                Err(e) => tracing::warn!("Failed to bind wl_pointer: {e}"),
-            }
-        }
-        if capability == Capability::Keyboard && self.keyboard.is_none() {
-            // No repeat info: we let xkbcommon's update_modifiers drive
-            // chord matching directly; per-press semantics are enough
-            // for shortcut dispatch and text widgets compose their own
-            // repeat via egui's input layer once it's wired in E.4.
-            match self.seat_state.get_keyboard(qh, &seat, None) {
-                Ok(k) => self.keyboard = Some(k),
-                Err(e) => tracing::warn!("Failed to bind wl_keyboard: {e}"),
-            }
-        }
-    }
-
-    fn remove_capability(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _seat: wl_seat::WlSeat,
-        capability: Capability,
-    ) {
-        if capability == Capability::Pointer {
-            if let Some(p) = self.pointer.take() {
-                p.release();
-            }
-        }
-        if capability == Capability::Keyboard {
-            if let Some(k) = self.keyboard.take() {
-                k.release();
-            }
-        }
-    }
-
-    fn remove_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {
-        // Drop the DataDevice — its `Drop` impl releases the wayland
-        // resource. Single-seat overlay means there's nothing else to
-        // attach to.
-        self.data_device = None;
-    }
-}
-
-impl ProvidesRegistryState for WaylandState {
-    fn registry(&mut self) -> &mut RegistryState {
-        &mut self.registry_state
-    }
-    registry_handlers![OutputState, SeatState];
 }
 
 delegate_compositor!(WaylandState);
