@@ -375,15 +375,21 @@ impl AppConfig {
     /// Get the config file path: ~/.config/animaEngine/config.toml
     pub fn config_path() -> PathBuf {
         if let Some(proj_dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
-            proj_dirs.config_dir().to_path_buf().join("config.toml")
-        } else {
-            // Fallback if XDG dirs not available
-            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-            PathBuf::from(home)
-                .join(".config")
-                .join("animaEngine")
-                .join("config.toml")
+            return proj_dirs.config_dir().to_path_buf().join("config.toml");
         }
+        // Fallback when XDG resolution fails (minimal containers, broken
+        // env, etc.). The previous `HOME=.` fallback let a wrapper script
+        // `HOME=/etc/cron.d` redirect atomic writes to attacker-chosen
+        // directories — same hardening pattern as M3 (perf.rs / asset_library)
+        // closed in 0.5.2 but missed `config_path`. Sticking to a
+        // uid-suffixed subdir of $TMPDIR matches those siblings.
+        //
+        // SAFETY: libc::getuid is a POSIX syscall with no preconditions,
+        // no failure modes, no FFI safety obligations.
+        let uid = unsafe { libc::getuid() };
+        std::env::temp_dir()
+            .join(format!("animaEngine-{uid}"))
+            .join("config.toml")
     }
 
     /// Load config from disk, or create default if not found
