@@ -75,10 +75,11 @@ impl App {
             }
             tracing::info!(
                 "Asset library at {}: {} indexed ({} from this scan)",
-                root.display(),
+                crate::drop_validate::redact_path(&root),
                 idx.assets.len(),
                 scanned_count,
             );
+            tracing::debug!("Asset library full root: {}", root.display());
             self.library = Some(idx);
             self.library_root = Some(root);
         } else {

@@ -223,7 +223,15 @@ impl App {
                         if perf_export_request {
                             match crate::perf::export_snapshot(&self.perf_sampler) {
                                 Ok(path) => {
-                                    tracing::info!("Perf snapshot written: {}", path.display());
+                                    // Toast shows full path (user requested
+                                    // the export, they want to find the
+                                    // file). Log redacts so journald
+                                    // doesn't leak HOME directories.
+                                    tracing::info!(
+                                        "Perf snapshot written: {}",
+                                        crate::drop_validate::redact_path(&path)
+                                    );
+                                    tracing::debug!("Perf snapshot full path: {}", path.display());
                                     self.toasts
                                         .success(format!("Perf snapshot: {}", path.display()));
                                 }

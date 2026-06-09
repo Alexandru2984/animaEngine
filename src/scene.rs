@@ -263,9 +263,10 @@ impl Scene {
         tracing::info!(
             "Adding entity '{}' from {} ({})",
             name,
-            asset_path_str,
+            crate::drop_validate::redact_path(&abs_path),
             type_desc
         );
+        tracing::debug!("Entity asset full path: {asset_path_str}");
 
         // Build a config for this entity
         let char_config = CharacterConfig {
