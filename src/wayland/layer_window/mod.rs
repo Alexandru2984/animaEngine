@@ -25,13 +25,13 @@
 //! 3. Dropping `LayerWindow` releases the layer surface and disconnects.
 
 mod keyboard_handler;
+mod pointer_handler;
 mod state;
 
 pub use state::{InputRect, WaylandState};
 
 use crate::error::{AnimaError, Result};
 use crate::wayland::data_device::{parse_uri_list, URI_LIST_MIME};
-use crate::wayland::keyboard::modifiers_to_egui;
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
     data_device_manager::{
@@ -46,9 +46,8 @@ use smithay_client_toolkit::{
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::{
-        keyboard::Modifiers as SctkModifiers,
-        pointer::{PointerData, PointerEvent, PointerEventKind, PointerHandler},
-        Capability, SeatHandler, SeatState,
+        keyboard::Modifiers as SctkModifiers, pointer::PointerData, Capability, SeatHandler,
+        SeatState,
     },
     shell::{
         wlr_layer::{
@@ -65,7 +64,7 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{wl_data_device_manager::DndAction, wl_output, wl_pointer, wl_seat, wl_surface},
+    protocol::{wl_data_device_manager::DndAction, wl_output, wl_seat, wl_surface},
     Connection, EventQueue, QueueHandle,
 };
 
@@ -565,94 +564,6 @@ impl SeatHandler for WaylandState {
         // resource. Single-seat overlay means there's nothing else to
         // attach to.
         self.data_device = None;
-    }
-}
-
-impl PointerHandler for WaylandState {
-    fn pointer_frame(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _pointer: &wl_pointer::WlPointer,
-        events: &[PointerEvent],
-    ) {
-        for event in events {
-            match &event.kind {
-                PointerEventKind::Enter { .. } => {
-                    self.cursor_pos = Some((event.position.0 as f32, event.position.1 as f32));
-                    self.pending_egui_events
-                        .push(egui::Event::PointerMoved(egui::pos2(
-                            event.position.0 as f32,
-                            event.position.1 as f32,
-                        )));
-                }
-                PointerEventKind::Leave { .. } => {
-                    self.cursor_pos = None;
-                    self.pending_egui_events.push(egui::Event::PointerGone);
-                }
-                PointerEventKind::Motion { .. } => {
-                    self.cursor_pos = Some((event.position.0 as f32, event.position.1 as f32));
-                    self.pending_egui_events
-                        .push(egui::Event::PointerMoved(egui::pos2(
-                            event.position.0 as f32,
-                            event.position.1 as f32,
-                        )));
-                }
-                PointerEventKind::Press { button, .. } => {
-                    if let Some(b) = linux_button_to_egui(*button) {
-                        if let Some((x, y)) = self.cursor_pos {
-                            self.pending_egui_events.push(egui::Event::PointerButton {
-                                pos: egui::pos2(x, y),
-                                button: b,
-                                pressed: true,
-                                modifiers: modifiers_to_egui(self.last_modifiers),
-                            });
-                        }
-                    }
-                }
-                PointerEventKind::Release { button, .. } => {
-                    if let Some(b) = linux_button_to_egui(*button) {
-                        if let Some((x, y)) = self.cursor_pos {
-                            self.pending_egui_events.push(egui::Event::PointerButton {
-                                pos: egui::pos2(x, y),
-                                button: b,
-                                pressed: false,
-                                modifiers: modifiers_to_egui(self.last_modifiers),
-                            });
-                        }
-                    }
-                }
-                PointerEventKind::Axis {
-                    horizontal,
-                    vertical,
-                    ..
-                } => {
-                    // Wayland reports scroll in "discrete steps" (mouse
-                    // wheel) and "absolute" (touchpad). Use `absolute`
-                    // for fidelity; egui expects pixels per second-ish.
-                    let dx = -horizontal.absolute as f32;
-                    let dy = -vertical.absolute as f32;
-                    if dx != 0.0 || dy != 0.0 {
-                        self.pending_egui_events.push(egui::Event::MouseWheel {
-                            unit: egui::MouseWheelUnit::Point,
-                            delta: egui::vec2(dx, dy),
-                            modifiers: egui::Modifiers::NONE,
-                        });
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Linux input event button codes (from `linux/input-event-codes.h`).
-/// We only translate the three buttons egui actually handles.
-fn linux_button_to_egui(code: u32) -> Option<egui::PointerButton> {
-    match code {
-        0x110 => Some(egui::PointerButton::Primary), // BTN_LEFT
-        0x111 => Some(egui::PointerButton::Secondary), // BTN_RIGHT
-        0x112 => Some(egui::PointerButton::Middle),  // BTN_MIDDLE
-        _ => None,
     }
 }
 
