@@ -147,7 +147,7 @@ action-show-help = Arată ajutor pentru taste
 # ── Secțiune accesibilitate în tab-ul Aspect (D.3) ────────────────────
 appearance-accessibility-header = Accesibilitate
 appearance-accesskit-label = Generează actualizări AccessKit
-appearance-accesskit-hint = Alimentează cititoarele de ecran AT-SPI (Orca etc.). Lasă activ dacă nu vrei să reduci consumul sau dacă desktop-ul tău nu rulează un bus AT-SPI.
+appearance-accesskit-hint = Alimentează cititoarele de ecran AT-SPI (Orca etc.). Lasă activ dacă nu vrei să reduci consumul sau dacă desktop-ul tău nu rulează un bus AT-SPI. Notă: textul tastat în panouri apare și pe magistrala AT-SPI, unde orice proces care rulează ca utilizatorul tău îl poate citi.
 
 # ── Avertismente persistente (D.5) ────────────────────────────────────
 warning-global-hotkeys-unavailable = Comenzile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.
