@@ -1,18 +1,17 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Variant 3 — "Frame Stack"
-
-  Reads as: "frame-by-frame animation"
-  Mood:     clear technical metaphor, approachable, recognizable in any
-            launcher list because the silhouette is instantly different
-            from neighbouring app icons
-  Palette:  solid accent background with white frames + a single warm
-            highlight dot for personality
-  Hook:     three sprite-sheet-style frames offset diagonally, with a
-            play-triangle on the topmost frame and a small motion dot
-            trailing — communicates the engine's purpose literally
--->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    Variant 3 — "Frame Stack"
+  
+    Reads as: "frame-by-frame animation"
+    Mood:     clear technical metaphor, approachable, recognizable in any
+              launcher list because the silhouette is instantly different
+              from neighbouring app icons
+    Palette:  solid accent background with white frames + a single warm
+              highlight dot for personality
+    Hook:     three sprite-sheet-style frames offset diagonally, with a
+              play-triangle on the topmost frame and a small motion dot
+              trailing — communicates the engine's purpose literally
+  -->
   <title>animaEngine — Frame Stack</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">

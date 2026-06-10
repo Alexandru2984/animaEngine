@@ -1,15 +1,14 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Variant 1 — "Ghost Mascot"
-
-  Reads as: "the friendly desktop pet"
-  Mood:     warm, character-driven, memorable at small sizes
-  Palette:  accent gradient from the design system (Dark+Light theme accents)
-  Hook:     the demo asset called "ghost" is the de-facto mascot already;
-            this leans into it. The wavy hem + tiny motion dots tell the
-            user this is *animated*, not static.
--->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    Variant 1 — "Ghost Mascot"
+  
+    Reads as: "the friendly desktop pet"
+    Mood:     warm, character-driven, memorable at small sizes
+    Palette:  accent gradient from the design system (Dark+Light theme accents)
+    Hook:     the demo asset called "ghost" is the de-facto mascot already;
+              this leans into it. The wavy hem + tiny motion dots tell the
+              user this is *animated*, not static.
+  -->
   <title>animaEngine — Ghost Mascot</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">

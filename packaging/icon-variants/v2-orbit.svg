@@ -1,17 +1,16 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Variant 2 — "Orbit"
-
-  Reads as: "engine that moves things on a path"
-  Mood:     abstract, technical, serious — for a product positioning
-  Palette:  dark base from the design system, accent for the moving sprite
-  Hook:     three particles on a path with motion trails. Speaks
-            directly to the engine's job (animating entities along a
-            trajectory) without leaning on cartoon language. Works
-            equally well on dark and light desktops because the
-            outer ring carries the silhouette.
--->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    Variant 2 — "Orbit"
+  
+    Reads as: "engine that moves things on a path"
+    Mood:     abstract, technical, serious — for a product positioning
+    Palette:  dark base from the design system, accent for the moving sprite
+    Hook:     three particles on a path with motion trails. Speaks
+              directly to the engine's job (animating entities along a
+              trajectory) without leaning on cartoon language. Works
+              equally well on dark and light desktops because the
+              outer ring carries the silhouette.
+  -->
   <title>animaEngine — Orbit</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
