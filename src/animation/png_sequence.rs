@@ -100,8 +100,15 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
             Some(frame)
         })
         .collect();
-    // Keep the contiguous prefix of decoded frames so the animation
-    // doesn't gain holes when one worker beats another to the cap.
+    // Collapse the per-file results, preserving source order (rayon's
+    // collect maps results back to input positions). `None`s are
+    // dropped wherever they sit: a corrupt file mid-sequence is
+    // *skipped* (deliberate — one bad frame shouldn't kill the whole
+    // sequence), and budget-truncated frames usually form a suffix but
+    // aren't guaranteed to — workers race for the byte reservation, so
+    // a later frame can occasionally win over an earlier one near the
+    // cap. Truncation is already a degraded state; we accept the
+    // possible mid-sequence gap rather than serialise the decode.
     let frames: Vec<Frame> = decoded.into_iter().flatten().collect();
     if truncated_for_bytes.load(Ordering::Acquire) {
         tracing::warn!(
