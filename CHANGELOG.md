@@ -6,6 +6,78 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.5] — 2026-06-10
+
+Docs refresh + hardening sweep prompted by a third-party review of the
+post-0.5.4 tree. The reviewer flagged stale wording in README /
+architecture docs (Wayland status claims pre-dated the E.1–E.5 work),
+soft-fail supply-chain checks in CI, a cache key with second-level
+granularity that could mask same-second edits, and a missing
+*aggregate* memory budget on top of the per-asset cap. None of these
+were exploitable on a cold start; this release closes them so the
+codebase stops contradicting itself and so the per-asset caps stop
+being the only line of defence against a hostile config.
+
+### Documentation
+
+- README now declares **Status: 0.5.4**, all `.deb` / AppImage example
+  commands use the matching filenames, and the Wayland section ships
+  a canonical Feature × Backend table marking the X11/XWayland path
+  as stable and the native Wayland path as opt-in beta with explicit
+  notes about wlroots coverage and XWayland fallback on GNOME/KDE.
+- `docs/architecture.md` Native-Wayland status table now reflects
+  E.1 (keyboard) / E.4 (drag-drop) / E.5 (egui events) shipping, and
+  flips global hotkeys from `❌` to `⚠ via D-Bus + compositor binding`
+  with the rationale (Wayland refuses raw `XGrabKey`-style grabs).
+- New `SECURITY.md` documents the reporting channel (private GitHub
+  advisory), the supported-version policy (latest minor only), the
+  link to the threat model, and the disclosure timeline.
+- New `ROADMAP.md` enumerates shipped releases by theme (0.1 →
+  0.5.4), the in-flight 0.5.5 hardening, and the 0.6 candidates
+  under consideration (renderer polish / portal hotkeys / plugin
+  behaviors), plus an explicit non-goals list (macOS / FreeBSD,
+  network features, bundled assets).
+
+### Fixed
+
+- **Cache key collisions on same-second edits** — the on-disk asset
+  cache hashed `canonical_path + mtime_seconds`, which collapsed
+  every sub-second mtime into the same key. A `cargo build && edit
+  asset && cargo build` cycle inside one second could load stale
+  RGBA on the second run. Key now hashes
+  `canonical_path + mtime_nanos + size + child_count`: nanoseconds
+  for ext4 / btrfs / xfs / APFS resolution; size to disambiguate
+  FAT32 / SMB mtime flooring; child count to catch add / remove of
+  a frame in a PNG sequence even when neither mtime nor total size
+  moves measurably. Existing cache files become orphans on first
+  upgrade and the next decode rebuilds them — no user action needed.
+- **Supply-chain checks soft-failed in CI** — `audit` and `deny`
+  jobs carried `continue-on-error: true` from the days when the
+  exception policy was still being settled. Both now hard-fail; an
+  explicit exception policy lives in `docs/threat-model.md`
+  §"Supply chain" and `deny.toml`'s `advisories.ignore` list. The
+  existing inline ignore for `RUSTSEC-2024-0436` (`paste`
+  unmaintained, transitive through wgpu macOS metal + accesskit
+  Windows AT bridge, no exposure on Linux X11/Wayland) stays in
+  place with the rationale documented inline.
+
+### Added
+
+- **Global decoded-RGBA memory budget** — the per-asset cap
+  (`MAX_DECODED_ASSET_BYTES = 512 MB`) multiplied by
+  `MAX_ENTITIES = 64` allowed a 32 GB worst case when a hostile
+  config (or accidental mass-drop) loaded the maximum on every
+  slot. A new aggregate cap defaults to **1 GB total** across the
+  scene; `Scene::add_entity_from_path` and
+  `Scene::append_character_config` reject loads that would push
+  the running total above the cap and surface an error toast.
+  Override at startup with `ANIMA_MEMORY_BUDGET_MB=<int>` (for
+  high-RAM machines that want headroom for many small assets); the
+  variable is read once per push and validated for non-zero
+  positive parses, falling back to the default on anything
+  malformed. New helper `Scene::total_decoded_bytes()` reports the
+  current running total for future perf-overlay surfacing.
+
 ## [0.5.4] — 2026-06-09
 
 Follow-up patch after a third-round security audit that ran against

@@ -1,6 +1,6 @@
 [package]
 name = "anima_engine"
-version = "0.5.4"
+version = "0.5.5"
 edition = "2021"
 description = "Linux-first animated desktop overlay engine — render multiple animated characters over your desktop"
 license = "MIT"
