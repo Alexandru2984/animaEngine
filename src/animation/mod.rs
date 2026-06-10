@@ -55,26 +55,47 @@ impl Animation {
 
     /// Advance the animation based on elapsed time.
     /// Returns true if the frame changed (texture needs update).
+    ///
+    /// Skipped frames are walked one at a time, each consuming its
+    /// *own* duration — per-frame GIF/WebP delays and easing-distorted
+    /// intervals vary per frame, so dividing the whole elapsed span by
+    /// the current frame's duration (the pre-0.5.5 behaviour) lands on
+    /// the wrong frame whenever durations differ. The walk is bounded
+    /// at two full loops; beyond that (system suspend, debugger pause)
+    /// we resync the clock instead of replaying the backlog.
     pub fn tick(&mut self) -> bool {
         if !self.playing || self.frames.len() <= 1 {
             return false;
         }
 
-        let frame_duration = self.current_frame_duration();
-        let elapsed = self.last_frame_time.elapsed();
+        let mut advanced = false;
+        let max_steps = self.frames.len() * 2;
+        let mut steps = 0;
 
-        if elapsed >= frame_duration {
-            // Advance frame(s) — handles cases where multiple frames should be skipped
-            let frames_to_advance = (elapsed.as_secs_f32() / frame_duration.as_secs_f32()) as usize;
-            let frames_to_advance = frames_to_advance.max(1);
-
-            self.current_frame = (self.current_frame + frames_to_advance) % self.frames.len();
-            // Accumulate instead of resetting: preserves fractional time
-            self.last_frame_time += frame_duration * frames_to_advance as u32;
-            return true;
+        loop {
+            let frame_duration = self.current_frame_duration();
+            if self.last_frame_time.elapsed() < frame_duration {
+                break;
+            }
+            self.current_frame = (self.current_frame + 1) % self.frames.len();
+            // Accumulate instead of resetting: preserves fractional time.
+            self.last_frame_time += frame_duration;
+            advanced = true;
+            steps += 1;
+            if steps >= max_steps {
+                self.last_frame_time = Instant::now();
+                break;
+            }
         }
 
-        false
+        advanced
+    }
+
+    /// Pull `last_frame_time` into the past so tests can simulate
+    /// elapsed wall-clock time without sleeping.
+    #[cfg(test)]
+    fn rewind(&mut self, by: std::time::Duration) {
+        self.last_frame_time -= by;
     }
 
     /// Get the duration for the current frame.
@@ -139,5 +160,100 @@ impl Animation {
             .iter()
             .map(|f| f.rgba.len())
             .fold(0usize, |acc, n| acc.saturating_add(n))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    /// 1×1 frame carrying a per-frame delay, GIF-style.
+    fn delayed_frame(delay_ms: u32) -> Frame {
+        Frame::with_delay(vec![0u8; 4], 1, 1, delay_ms)
+    }
+
+    // Delays below are tens of seconds so the margin between the
+    // rewound clock and the next frame boundary dwarfs any scheduling
+    // stall the parallel test runner can introduce.
+
+    #[test]
+    fn tick_advances_one_frame_after_its_own_delay() {
+        let mut anim = Animation::new(
+            vec![delayed_frame(10_000), delayed_frame(50_000)],
+            10.0,
+            true,
+        );
+        anim.rewind(Duration::from_millis(15_000));
+        assert!(anim.tick());
+        // 10s consumed; remaining 5s < the 50s of frame 1.
+        assert_eq!(anim.current_frame, 1);
+    }
+
+    #[test]
+    fn tick_walks_variable_delays_not_current_duration() {
+        // Delays 10 / 30 / 60 s. After 45s the walk consumes
+        // 10 (→1) + 30 (→2) and stops: 5s < 60s.
+        // The pre-0.5.5 division-based skip computed 45/10 = 4
+        // steps → frame 1 — wrong frame *and* wrong clock.
+        let mut anim = Animation::new(
+            vec![
+                delayed_frame(10_000),
+                delayed_frame(30_000),
+                delayed_frame(60_000),
+            ],
+            10.0,
+            true,
+        );
+        anim.rewind(Duration::from_millis(45_000));
+        assert!(anim.tick());
+        assert_eq!(anim.current_frame, 2);
+        // Clock was advanced by exactly 40s — immediate re-tick
+        // must not advance again (5s of margin).
+        assert!(!anim.tick());
+        assert_eq!(anim.current_frame, 2);
+    }
+
+    #[test]
+    fn tick_resyncs_after_long_stall_instead_of_replaying() {
+        let mut anim = Animation::new(
+            vec![
+                delayed_frame(10_000),
+                delayed_frame(10_000),
+                delayed_frame(10_000),
+            ],
+            10.0,
+            true,
+        );
+        // Simulate a ~17min suspend — 100 frames of backlog. The walk
+        // must cap at two loops (6 steps) and resync, not replay 100.
+        anim.rewind(Duration::from_secs(1_000));
+        assert!(anim.tick());
+        // After resync the clock is fresh: no re-advance for another
+        // 10s — far beyond any test-runner stall.
+        assert!(!anim.tick());
+    }
+
+    #[test]
+    fn tick_does_not_advance_when_paused_or_single_frame() {
+        let mut paused = Animation::new(vec![delayed_frame(10), delayed_frame(10)], 10.0, false);
+        paused.rewind(Duration::from_secs(1));
+        assert!(!paused.tick());
+
+        let mut single = Animation::new(vec![delayed_frame(10)], 10.0, true);
+        single.rewind(Duration::from_secs(1));
+        assert!(!single.tick());
+    }
+
+    #[test]
+    fn tick_fixed_fps_advances_by_elapsed_over_interval() {
+        // No per-frame delays → global FPS path. 0.1 fps = 10s per
+        // frame; 35s of backlog advances exactly 3 frames (5s margin).
+        let frames: Vec<Frame> = (0..5).map(|_| Frame::new(vec![0u8; 4], 1, 1)).collect();
+        let mut anim = Animation::new(frames, 0.1, true);
+        anim.rewind(Duration::from_millis(35_000));
+        assert!(anim.tick());
+        assert_eq!(anim.current_frame, 3);
+        assert!(!anim.tick());
     }
 }
