@@ -21,7 +21,7 @@ parallel feature tracks.
 
 | Release | Theme | Status |
 |---------|-------|--------|
-| 0.5.5 (current) | Post-audit doc + hardening | README/architecture refresh, cache key hardening (size + nanos), global memory budget, CI audit/deny hard-fail |
+| 0.5.5 (current) | Post-audit doc + hardening + engine correctness | README/architecture refresh, cache key hardening (size + nanos), global memory budget, CI audit/deny hard-fail, idle-aware frame pacing, animation-timing fixes (per-frame delay walk, BounceOut), quad-budget + GPU-texture-leak fixes, tmpdir fallback ownership verification |
 
 ## Planned
 

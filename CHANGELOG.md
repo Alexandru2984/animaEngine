@@ -8,15 +8,88 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.5.5] — 2026-06-10
 
-Docs refresh + hardening sweep prompted by a third-party review of the
-post-0.5.4 tree. The reviewer flagged stale wording in README /
-architecture docs (Wayland status claims pre-dated the E.1–E.5 work),
-soft-fail supply-chain checks in CI, a cache key with second-level
-granularity that could mask same-second edits, and a missing
-*aggregate* memory budget on top of the per-asset cap. None of these
-were exploitable on a cold start; this release closes them so the
-codebase stops contradicting itself and so the per-asset caps stop
-being the only line of defence against a hostile config.
+Docs refresh + hardening sweep prompted by two external reviews of the
+post-0.5.4 tree, plus an engine-correctness pass that came out of
+verifying their claims against the code. The first review flagged
+stale wording in README / architecture docs (Wayland status claims
+pre-dated the E.1–E.5 work), soft-fail supply-chain checks in CI, a
+cache key with second-level granularity that could mask same-second
+edits, and a missing *aggregate* memory budget on top of the per-asset
+cap. The second caught two subtle animation-timing bugs (multi-frame
+skip with per-frame delays; non-monotonic BounceOut producing negative
+frame intervals) and the world-writable-`/tmp` weakness in the XDG
+fallback dirs. Auditing those claims surfaced three more issues the
+reviews missed: a quad-budget off-by-two that silently dropped sprites
+from a full 64-entity scene, GPU textures leaking on preset Replace,
+and the render loop redrawing at 60 Hz around the clock even for a
+fully static overlay. None of these were exploitable on a cold start.
+
+### Performance
+
+- **Idle-aware frame pacing** — the render loop previously requested
+  a new frame unconditionally, so the overlay re-rendered an
+  unchanged scene at display refresh 24/7. Scheduling is now derived
+  from live state each frame: display-refresh only while something
+  animates per-tick (edit mode, toasts, autonomous behaviors,
+  physics, perf overlay), deadline-based for playing sprite
+  animations (an 8 fps sprite wakes the loop 8×/s instead of 60×/s),
+  and a 2 s hot-reload heartbeat when the scene is fully static —
+  zero GPU work between heartbeats. Input events (mouse, keyboard,
+  drag-drop, tray actions, egui interactions) wake the loop
+  immediately, and config hot-reload keeps applying while the
+  overlay is hidden.
+
+### Fixed
+
+- **Frame skip ignored per-frame GIF/WebP delays** —
+  `Animation::tick` computed how many frames to skip by dividing the
+  whole elapsed span by the *current* frame's duration, then advanced
+  the clock by that same duration × count. Correct for fixed-FPS
+  assets; wrong for GIF/WebP per-frame delays (and easing-distorted
+  intervals), where a stall could land on the wrong frame with a
+  desynced clock. Skipped frames are now walked one at a time, each
+  consuming its own duration, bounded at two full loops — beyond that
+  (system suspend) the clock resyncs instead of replaying backlog.
+- **BounceOut easing shortened the loop** — `bounce_out` is not
+  monotonic (the ball descends between bounces), so raw boundary
+  deltas in `frame_interval` went negative on descending segments and
+  the animation layer clamped them to 1 ms, silently shortening the
+  loop below `n / fps`. Intervals are now |delta| normalised by the
+  loop's total |delta|: every interval non-negative, sum exactly
+  `total`, monotonic curves bit-identical to before.
+- **Full scene dropped sprites at the quad cap** — `MAX_QUADS` (64)
+  equalled `MAX_ENTITIES`, but the renderer reserves two slots for UI
+  overlays mid-loop, so a legal 64-entity scene silently dropped the
+  last sprites and logged a warning **every frame** (60 lines/s in
+  journald). `MAX_QUADS` is now `MAX_ENTITIES + 3` (worst case: 64
+  sprites + selection ring + edit bar with the conservative in-loop
+  reservation) and the overflow warning fires once per episode.
+- **GPU textures leaked on preset Replace** — `reset_to_configs` (
+  preset gallery Replace, palette Replace) swaps the entity list
+  wholesale, but none of its three call sites dropped the old
+  entities' GPU textures, so VRAM grew on every Replace. Both render
+  loops now run `prune_stale_textures` — a two-integer-compare no-op
+  in steady state that retains only textures whose entity still
+  exists.
+- **Stale-index panic trap in action dispatch** — selection-driven
+  keyboard actions indexed `entities[idx]` directly; the
+  deselect-on-removal invariant holds everywhere today, but any
+  future removal path that forgets it would turn a keypress into a
+  panic. All dispatch arms now go through `get`/`get_mut` and no-op
+  on a stale index.
+- **`/tmp` fallback dirs could be pre-created by another local
+  user** — when XDG resolution fails, config/cache/data fell back to
+  `$TMPDIR/animaEngine-<uid>`; `/tmp` being world-writable (sticky
+  bit), another local user could pre-create that exact path and own
+  it, landing every atomic write in a directory they control. The
+  fallback now prefers `$XDG_RUNTIME_DIR` (0700 + uid-owned by spec)
+  and otherwise creates the tmpdir with mode 0700 and verifies it
+  (real directory, not a symlink, owned by our uid, no group/other
+  bits) before trusting it, retrying once with a pid-suffixed
+  sibling on failure.
+- **Video loader logged full asset paths** — three `warn!`/`info!`
+  lines in `video_loader.rs` missed the M4/G.1 redaction sweep; they
+  now log the redacted filename with the full path at `debug!`.
 
 ### Documentation
 
