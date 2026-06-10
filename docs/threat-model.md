@@ -245,17 +245,23 @@ correctness preview, not a hardened production target.
 - `Cargo.lock` is **committed** so reproducible builds match what CI
   runs.
 - CI runs `cargo audit` (RustSec advisory DB) and `cargo deny check`
-  (advisories + licenses + bans + sources). Both are
-  `continue-on-error: true` for now so a freshly-disclosed advisory
-  on a transitive dep doesn't break PRs that touched nothing related;
-  flip that to `false` once we settle on an exception policy.
+  (advisories + licenses + bans + sources). Both are **hard-fail**:
+  a new advisory or a license drift in a transitive dep breaks the
+  build. The exception policy is explicit:
+  - Advisories without a fix yet land in `deny.toml`
+    (`advisories.ignore`) with a comment naming the upstream tracking
+    issue and the runtime-exposure rationale.
+  - `cargo audit` also takes inline `--ignore RUSTSEC-XXXX-XXXX`
+    flags in `.github/workflows/ci.yml`; same documentation rule.
+  - Both exceptions are reviewed each minor release.
 - `deny.toml` license allowlist is narrow on purpose — bumping a dep
   that pulls a new SPDX expression fails CI and forces a deliberate
   choice rather than silent license drift.
-- We don't run `cargo fuzz` yet. The decoders most worth fuzzing are
+- `cargo fuzz` ships three targets (`keychord_parse`,
+  `uri_list_parse`, `asset_type_detect`); see [docs/fuzzing.md](
+  fuzzing.md). The decoders most worth covering next are
   `cache::deserialize_frames`, `video_loader::avcc_to_annex_b`, and
-  the `image` crate's GIF/WebP paths. Targets are tracked as a
-  post-0.1.0 task.
+  the `image` crate's GIF/WebP paths.
 
 ## Build reproducibility
 

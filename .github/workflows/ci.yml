@@ -112,16 +112,16 @@ jobs:
           echo "Smoke test passed."
 
   # ── Supply-chain checks ─────────────────────────────────────────────
-  # Both jobs run against the committed Cargo.lock. Failures don't have
-  # to gate the whole CI; we mark them as soft for now (continue-on-error)
-  # because a freshly-disclosed advisory can break PRs that touched
-  # nothing related. Flip continue-on-error to `false` once we settle on
-  # an exception policy.
+  # Both jobs run against the committed Cargo.lock and gate the build.
+  # A new RustSec advisory or a license drift in a transitive dep breaks
+  # the next push; the fix is either bumping the dep, replacing it, or
+  # adding an explicit ignore with a comment that explains why. See
+  # docs/threat-model.md §"Supply chain" for the policy and the current
+  # exception list lives in `deny.toml` (advisories.ignore).
 
   audit:
     name: cargo audit (RustSec)
     runs-on: ubuntu-24.04
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -138,7 +138,6 @@ jobs:
   deny:
     name: cargo deny check
     runs-on: ubuntu-24.04
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
