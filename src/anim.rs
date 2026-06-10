@@ -151,8 +151,16 @@ impl EasingCurve {
     /// - Under curve `f`, the boundary times are
     ///   `f(0), f(1/n), f(2/n), …, f(n/n) = 1`, scaled by
     ///   `total_duration`.
-    /// - The `i`-th interval is the gap between consecutive boundaries:
-    ///   `(f((i+1)/n) - f(i/n)) * total_duration`.
+    /// - The `i`-th interval is `|f((i+1)/n) - f(i/n)|`, normalised by
+    ///   the sum of all `n` absolute deltas, times `total_duration`.
+    ///
+    /// The absolute value + normalisation matter for `BounceOut`: the
+    /// curve is **not monotonic** (the ball drops between bounces), so
+    /// raw deltas go negative on the descending segments. Without the
+    /// normalisation those intervals would clamp to ~0 downstream and
+    /// the loop would run shorter than `total_duration`. For monotonic
+    /// curves the deltas are already positive and sum to exactly
+    /// `f(1) - f(0) = 1`, so this reduces to the raw-delta formula.
     pub fn frame_interval(self, frame_index: usize, frame_count: usize, total: f32) -> f32 {
         if frame_count == 0 {
             return total;
@@ -161,8 +169,21 @@ impl EasingCurve {
         let i = frame_index as f32;
         let t0 = (i / n).clamp(0.0, 1.0);
         let t1 = ((i + 1.0) / n).clamp(0.0, 1.0);
-        let delta = self.apply(t1) - self.apply(t0);
-        delta * total
+        let delta = (self.apply(t1) - self.apply(t0)).abs();
+
+        let abs_sum: f32 = (0..frame_count)
+            .map(|k| {
+                let a = (k as f32 / n).clamp(0.0, 1.0);
+                let b = ((k as f32 + 1.0) / n).clamp(0.0, 1.0);
+                (self.apply(b) - self.apply(a)).abs()
+            })
+            .sum();
+        // Degenerate flat curve — split the loop evenly rather than
+        // dividing by zero.
+        if abs_sum <= f32::EPSILON {
+            return total / n;
+        }
+        delta / abs_sum * total
     }
 }
 
@@ -356,5 +377,43 @@ mod tests {
         let dt = EasingCurve::Linear.frame_interval(0, 0, 0.5);
         // Defensive: return `total` so the caller can fall back.
         assert!((dt - 0.5).abs() < 1e-6);
+    }
+
+    /// Every interval is non-negative under every curve. BounceOut is
+    /// the curve this guards: it is not monotonic (the ball descends
+    /// between bounces), so raw boundary deltas go negative there —
+    /// the |delta| normalisation must absorb that without breaking
+    /// the sum-to-total invariant (checked separately above).
+    #[test]
+    fn frame_intervals_are_non_negative_for_every_curve() {
+        let total = 2.0;
+        for &c in EasingCurve::ALL {
+            // Small frame counts stress the bounce segments hardest.
+            for n in [2usize, 3, 5, 12, 60] {
+                for i in 0..n {
+                    let dt = c.frame_interval(i, n, total);
+                    assert!(dt >= 0.0, "{c:?} n={n} i={i}: negative interval {dt}",);
+                }
+            }
+        }
+    }
+
+    /// BounceOut specifically: the descending bounce segments used to
+    /// produce negative intervals that the animation layer clamped to
+    /// 1 ms, silently shortening the loop. With |delta| normalisation
+    /// the sum must stay exact even at frame counts that straddle the
+    /// bounce inflection points.
+    #[test]
+    fn bounce_out_sum_stays_total_at_awkward_frame_counts() {
+        let total = 1.0;
+        for n in [2usize, 3, 4, 7, 11] {
+            let sum: f32 = (0..n)
+                .map(|i| EasingCurve::BounceOut.frame_interval(i, n, total))
+                .sum();
+            assert!(
+                (sum - total).abs() < 1e-3,
+                "BounceOut n={n}: sum {sum} != {total}",
+            );
+        }
     }
 }
