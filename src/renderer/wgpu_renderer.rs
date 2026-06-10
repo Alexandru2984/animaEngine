@@ -35,6 +35,10 @@ pub struct WgpuRenderer {
     /// Pre-allocated vertex buffer for dynamic quad drawing.
     /// Reused every frame via `queue.write_buffer()` to avoid per-frame allocations.
     dynamic_vertex_buffer: wgpu::Buffer,
+    /// `true` while the scene is over the quad cap — gates the overflow
+    /// warning to once per episode instead of once per frame (60 Hz of
+    /// identical journald lines otherwise).
+    quad_overflow_logged: bool,
 }
 
 /// Generate a selection highlight frame — a rounded rectangle border with glow.
@@ -363,6 +367,7 @@ impl WgpuRenderer {
             edit_bar_tex,
             selection_tex,
             dynamic_vertex_buffer,
+            quad_overflow_logged: false,
         })
     }
 
@@ -478,13 +483,19 @@ impl WgpuRenderer {
 
         let mut draws: Vec<DrawCmd> = Vec::with_capacity(entities.len() + 2);
 
+        let mut overflowed = false;
         for entity in entities {
             if quad_idx >= MAX_QUADS - 2 {
-                // Reserve 2 quads for UI (edit bar + selection highlight)
-                tracing::warn!(
-                    "MAX_QUADS ({}) reached, skipping remaining entities",
-                    MAX_QUADS
-                );
+                // Reserve 2 quads for UI (edit bar + selection highlight).
+                // MAX_QUADS = MAX_ENTITIES + 2, so a legal scene never
+                // lands here; reaching it means an internal accounting bug.
+                overflowed = true;
+                if !self.quad_overflow_logged {
+                    tracing::warn!(
+                        "MAX_QUADS ({}) reached, skipping remaining entities",
+                        MAX_QUADS
+                    );
+                }
                 break;
             }
 
@@ -524,6 +535,8 @@ impl WgpuRenderer {
                 }
             }
         }
+
+        self.quad_overflow_logged = overflowed;
 
         // Edit mode indicator bar
         if edit_mode {

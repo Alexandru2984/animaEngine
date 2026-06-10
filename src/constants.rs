@@ -13,9 +13,15 @@ pub const MAX_DROP_SIZE: u32 = 256;
 /// exhaustion from a malicious or runaway config.
 pub const MAX_ENTITIES: usize = 64;
 
-/// Maximum number of quads the renderer can batch in one frame
-/// (entities + UI elements like the toggle button, edit bar, selection).
-pub const MAX_QUADS: usize = 64;
+/// Maximum number of quads the renderer can batch in one frame.
+/// Sized so a full scene of [`MAX_ENTITIES`] sprites still draws every
+/// entity plus both UI overlays (selection highlight + edit bar).
+/// The renderer's in-loop cap check conservatively reserves 2 slots
+/// *before* knowing whether the selection quad was already emitted, so
+/// the worst case (all 64 entities drawn, one selected, edit mode on)
+/// needs `MAX_ENTITIES + 3` slots for the check to pass on the last
+/// entity. Anything smaller silently drops legal entities.
+pub const MAX_QUADS: usize = MAX_ENTITIES + 3;
 
 /// Size (px) of the clickable toggle button in the top-right corner.
 /// In pass-through mode this is the only area that receives mouse input.
