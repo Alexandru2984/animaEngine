@@ -1,7 +1,7 @@
 use crate::animation::loader::{generate_fallback_frame, load_asset};
 use crate::animation::Animation;
 use crate::config::{AppConfig, CharacterConfig};
-use crate::constants::{MAX_DROP_SIZE, MAX_ENTITIES};
+use crate::constants::{max_total_decoded_bytes, MAX_DROP_SIZE, MAX_ENTITIES};
 use crate::entity::Entity;
 use crate::error::{AnimaError, Result};
 use std::cell::RefCell;
@@ -309,6 +309,17 @@ impl Scene {
 
         let animation = Animation::new(frames, char_config.fps, char_config.playing);
         let entity = Entity::from_config(&char_config, animation);
+
+        // Aggregate memory budget — per-asset cap × MAX_ENTITIES is a
+        // 32 GB worst case, so we also gate the total here. Decoded
+        // frames go out of scope on early-return and free their RGBA
+        // buffers; no leak.
+        check_budget(
+            self.total_decoded_bytes(),
+            entity.animation.decoded_bytes(),
+            max_total_decoded_bytes(),
+        )?;
+
         tracing::info!(
             "Entity '{}' loaded: {} frames (max {}px)",
             entity.id,
@@ -320,6 +331,15 @@ impl Scene {
         self.mark_visible_dirty();
         let idx = self.entities.len() - 1;
         Ok(idx)
+    }
+
+    /// Sum of decoded-RGBA bytes across every loaded entity. Used by the
+    /// aggregate memory-budget check on every runtime push.
+    pub fn total_decoded_bytes(&self) -> usize {
+        self.entities
+            .iter()
+            .map(|e| e.animation.decoded_bytes())
+            .fold(0usize, |acc, n| acc.saturating_add(n))
     }
 
     /// Remove an entity by index. Returns the removed entity's ID.
@@ -392,10 +412,33 @@ impl Scene {
             )));
         }
         let entity = Self::load_entity(cfg)?;
+
+        check_budget(
+            self.total_decoded_bytes(),
+            entity.animation.decoded_bytes(),
+            max_total_decoded_bytes(),
+        )?;
+
         self.entities.push(entity);
         self.mark_visible_dirty();
         Ok(())
     }
+}
+
+/// Enforce the aggregate decoded-RGBA budget. Pure function so call
+/// sites can pass a synthetic budget in tests without touching the
+/// `ANIMA_MEMORY_BUDGET_MB` env var.
+fn check_budget(current: usize, incoming: usize, budget: usize) -> Result<()> {
+    if current.saturating_add(incoming) > budget {
+        return Err(AnimaError::other(format!(
+            "memory budget exceeded ({} MB used + {} MB incoming > {} MB cap); \
+             set ANIMA_MEMORY_BUDGET_MB to raise",
+            current / (1024 * 1024),
+            incoming / (1024 * 1024),
+            budget / (1024 * 1024),
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -485,6 +528,48 @@ mod tests {
         scene.entities.push(make_entity("b", 5, true));
         scene.mark_visible_dirty();
         assert!(!scene.visible_cache.borrow().valid);
+    }
+
+    #[test]
+    fn total_decoded_bytes_empty_scene_is_zero() {
+        let scene = empty_scene();
+        assert_eq!(scene.total_decoded_bytes(), 0);
+    }
+
+    #[test]
+    fn total_decoded_bytes_sums_across_entities() {
+        // make_entity ships one 1×1 RGBA frame = 4 bytes.
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("a", 0, true));
+        scene.entities.push(make_entity("b", 0, true));
+        scene.entities.push(make_entity("c", 0, true));
+        assert_eq!(scene.total_decoded_bytes(), 12);
+    }
+
+    #[test]
+    fn check_budget_accepts_under_cap() {
+        assert!(check_budget(100, 200, 1000).is_ok());
+    }
+
+    #[test]
+    fn check_budget_accepts_exact_cap() {
+        // Boundary: hitting the cap exactly is fine; only strict
+        // overflow is rejected.
+        assert!(check_budget(600, 400, 1000).is_ok());
+    }
+
+    #[test]
+    fn check_budget_rejects_over_cap() {
+        let err = check_budget(700, 400, 1000).unwrap_err();
+        assert!(err.to_string().contains("memory budget"), "got: {err}",);
+    }
+
+    #[test]
+    fn check_budget_handles_overflow_safely() {
+        // Saturating add must not wrap to 0 and let this slide; the
+        // strict > check then catches it.
+        let err = check_budget(usize::MAX - 10, 20, 1000).unwrap_err();
+        assert!(err.to_string().contains("memory budget"));
     }
 
     #[test]

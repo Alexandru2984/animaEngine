@@ -47,3 +47,26 @@ pub const MAX_DECODED_ASSET_BYTES: usize = 512 * 1024 * 1024;
 /// 200 MB — plenty for any reasonable GIF or short MP4, while still
 /// keeping a misclick on a multi-GB video from running OOM on parse.
 pub const MAX_ASSET_FILE_BYTES: u64 = 200 * 1024 * 1024;
+
+/// Hard cap on the *aggregate* decoded-RGBA size across all entities
+/// loaded into a scene. The per-asset cap [`MAX_DECODED_ASSET_BYTES`]
+/// alone allows a worst case of 64 × 512 MB = 32 GB — fine for one
+/// hostile asset, catastrophic for a hostile config full of them. The
+/// runtime budget defaults to 1 GB, overridable at startup with
+/// `ANIMA_MEMORY_BUDGET_MB=<int>` so high-RAM machines can opt in.
+/// Resolved lazily from [`max_total_decoded_bytes`].
+pub const DEFAULT_MAX_TOTAL_DECODED_BYTES: usize = 1024 * 1024 * 1024;
+
+/// Resolve the runtime aggregate-memory budget.
+///
+/// Reads `ANIMA_MEMORY_BUDGET_MB` once per call and falls back to
+/// [`DEFAULT_MAX_TOTAL_DECODED_BYTES`] when the variable is missing,
+/// unparseable, zero, or would saturate `usize`.
+pub fn max_total_decoded_bytes() -> usize {
+    std::env::var("ANIMA_MEMORY_BUDGET_MB")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .filter(|&mb| mb > 0)
+        .and_then(|mb| mb.checked_mul(1024 * 1024))
+        .unwrap_or(DEFAULT_MAX_TOTAL_DECODED_BYTES)
+}

@@ -129,4 +129,15 @@ impl Animation {
     pub fn frame_count(&self) -> usize {
         self.frames.len()
     }
+
+    /// Total decoded-RGBA bytes held by this animation. Used by the
+    /// scene-level aggregate memory budget; saturates on overflow so a
+    /// pathological corrupt frame can never wrap to a small number that
+    /// would let the budget check pass spuriously.
+    pub fn decoded_bytes(&self) -> usize {
+        self.frames
+            .iter()
+            .map(|f| f.rgba.len())
+            .fold(0usize, |acc, n| acc.saturating_add(n))
+    }
 }
