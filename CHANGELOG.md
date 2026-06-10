@@ -90,6 +90,17 @@ fully static overlay. None of these were exploitable on a cold start.
 - **Video loader logged full asset paths** — three `warn!`/`info!`
   lines in `video_loader.rs` missed the M4/G.1 redaction sweep; they
   now log the redacted filename with the full path at `debug!`.
+- **Launcher icon rendered as a blank tile since 0.2.0** — the app
+  SVG started with an XML prolog + a long design comment, and
+  gdk-pixbuf (the pipeline GNOME Shell renders launcher icons
+  through) detects format by sniffing the first bytes of the file:
+  librsvg's loader signature is anchored at the start and never saw
+  `<svg`. Every previous verification used `rsvg-convert` / Inkscape
+  / image viewers — all of which parse the XML properly and rendered
+  the icon fine, masking the bug. The SVG now starts with the literal
+  bytes `<svg` (design notes moved inside the element), the packaged
+  icon variants got the same treatment, and the constraint is
+  documented in `packaging/icon-variants/README.md`.
 
 ### Documentation
 
