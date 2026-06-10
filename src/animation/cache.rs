@@ -6,10 +6,13 @@
 //! starts are limited only by disk read speed.
 //!
 //! ## Cache key
-//! `hash(canonical_path + latest_mtime_inside)` — any edit to the asset
-//! produces a new key, so stale data is impossible without breaking the
-//! filesystem semantics. Orphan files from previous keys leak on disk; a
-//! sweep is left for the packaging phase.
+//! `hash(canonical_path + mtime_nanos + size + child_count)` — any edit
+//! to the asset produces a new key, so stale data is impossible without
+//! breaking the filesystem semantics. mtime is read in nanoseconds (not
+//! seconds) so two saves within the same second still invalidate; size
+//! and child count cover the corner case where the filesystem floors
+//! mtime to the second on some media (FAT32 / SMB). Orphan files from
+//! previous keys leak on disk; a sweep is left for the packaging phase.
 //!
 //! ## File format (little-endian)
 //! ```text
@@ -54,39 +57,78 @@ fn cache_root() -> Option<PathBuf> {
 fn cache_key(asset_path: &Path) -> Option<PathBuf> {
     let root = cache_root()?;
     let canon = asset_path.canonicalize().ok()?;
-    let mtime = latest_mtime(&canon).ok()?;
+    let fp = path_fingerprint(&canon).ok()?;
 
-    let mut hasher = DefaultHasher::new();
-    canon.hash(&mut hasher);
-    mtime.hash(&mut hasher);
-    let h = hasher.finish();
-
-    Some(root.join(format!("{h:016x}.bin")))
+    Some(root.join(format!("{:016x}.bin", hash_fingerprint(&canon, &fp))))
 }
 
-/// For files, the file's mtime. For directories, the latest mtime among
-/// immediate children — so renaming a frame inside a PNG sequence
-/// triggers a cache miss.
-fn latest_mtime(path: &Path) -> Result<u64> {
+fn hash_fingerprint(canon: &Path, fp: &PathFingerprint) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    canon.hash(&mut hasher);
+    fp.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Stat-derived signature of an asset. Two assets with the same
+/// canonical path and the same fingerprint are treated as identical for
+/// caching; any field changing invalidates the cache.
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+struct PathFingerprint {
+    /// Latest modification time, in nanoseconds since `UNIX_EPOCH`. We
+    /// use nanoseconds (not seconds) so two saves within the same
+    /// second still produce different keys when the filesystem records
+    /// sub-second mtime (ext4 / btrfs / xfs / APFS). Falls back to `0`
+    /// when the platform can't report a mtime.
+    mtime_nanos: u128,
+    /// File size for files; sum of immediate children sizes for
+    /// directories. Disambiguates the rare case where two distinct
+    /// asset versions share an mtime (FAT32 / SMB / restored backups
+    /// that floor the timestamp).
+    size: u64,
+    /// `1` for files; number of immediate children for directories.
+    /// Catches add/remove of a frame in a PNG sequence even when
+    /// neither mtime nor total size moves measurably.
+    count: u32,
+}
+
+/// For files: own mtime + size, count = 1. For directories: max(mtime)
+/// over immediate children + sum(size) + child count. Mirrors how the
+/// PNG-sequence loader walks the directory.
+fn path_fingerprint(path: &Path) -> Result<PathFingerprint> {
     if path.is_dir() {
-        let mut latest = 0u64;
+        let mut mtime_nanos: u128 = 0;
+        let mut size: u64 = 0;
+        let mut count: u32 = 0;
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             if let Ok(meta) = entry.metadata() {
+                size = size.saturating_add(meta.len());
+                count = count.saturating_add(1);
                 if let Ok(mt) = meta.modified() {
                     if let Ok(d) = mt.duration_since(SystemTime::UNIX_EPOCH) {
-                        latest = latest.max(d.as_secs());
+                        mtime_nanos = mtime_nanos.max(d.as_nanos());
                     }
                 }
             }
         }
-        Ok(latest)
+        Ok(PathFingerprint {
+            mtime_nanos,
+            size,
+            count,
+        })
     } else {
-        let mt = fs::metadata(path)?.modified()?;
-        Ok(mt
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0))
+        let meta = fs::metadata(path)?;
+        let mtime_nanos = meta
+            .modified()
+            .ok()
+            .and_then(|mt| mt.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        Ok(PathFingerprint {
+            mtime_nanos,
+            size: meta.len(),
+            count: 1,
+        })
     }
 }
 
@@ -341,5 +383,75 @@ mod tests {
         let bytes = one_frame_cache(MAX_IMAGE_DIM + 1, 32);
         let err = deserialize_frames(&bytes).unwrap_err();
         assert!(matches!(err, AnimaError::ImageTooLarge { .. }));
+    }
+
+    #[test]
+    fn cache_key_distinguishes_size_at_same_mtime() {
+        // Two assets identical in mtime but differing in size — second
+        // saves on FAT32/SMB share the floored mtime; size catches them.
+        let canon = PathBuf::from("/tmp/anima-test/asset");
+        let fp_a = PathFingerprint {
+            mtime_nanos: 1_700_000_000_000_000_000,
+            size: 100,
+            count: 1,
+        };
+        let fp_b = PathFingerprint { size: 200, ..fp_a };
+        assert_ne!(
+            hash_fingerprint(&canon, &fp_a),
+            hash_fingerprint(&canon, &fp_b),
+        );
+    }
+
+    #[test]
+    fn cache_key_distinguishes_nanos_at_same_second() {
+        // Two saves landing in the same wall-clock second — ext4/btrfs
+        // record nanos, so this used to collide under the seconds-only
+        // hash and now does not.
+        let canon = PathBuf::from("/tmp/anima-test/asset");
+        let fp_a = PathFingerprint {
+            mtime_nanos: 1_700_000_000_000_000_000,
+            size: 100,
+            count: 1,
+        };
+        let fp_b = PathFingerprint {
+            mtime_nanos: 1_700_000_000_500_000_000,
+            ..fp_a
+        };
+        assert_ne!(
+            hash_fingerprint(&canon, &fp_a),
+            hash_fingerprint(&canon, &fp_b),
+        );
+    }
+
+    #[test]
+    fn cache_key_distinguishes_child_count() {
+        // PNG sequence: adding a frame leaves the directory mtime moving
+        // by a sub-second, but if the filesystem floors mtime to the
+        // second and the added frame's size equals an existing one's,
+        // size alone could still match. Child count catches that.
+        let canon = PathBuf::from("/tmp/anima-test/sequence");
+        let fp_a = PathFingerprint {
+            mtime_nanos: 1_700_000_000_000_000_000,
+            size: 4096,
+            count: 8,
+        };
+        let fp_b = PathFingerprint { count: 9, ..fp_a };
+        assert_ne!(
+            hash_fingerprint(&canon, &fp_a),
+            hash_fingerprint(&canon, &fp_b),
+        );
+    }
+
+    #[test]
+    fn cache_key_stable_for_identical_fingerprint() {
+        // Same path + same fingerprint → same key. Cache hits depend on
+        // this; regressing here means every cache lookup misses.
+        let canon = PathBuf::from("/tmp/anima-test/asset");
+        let fp = PathFingerprint {
+            mtime_nanos: 1_700_000_000_000_000_000,
+            size: 4096,
+            count: 1,
+        };
+        assert_eq!(hash_fingerprint(&canon, &fp), hash_fingerprint(&canon, &fp),);
     }
 }
