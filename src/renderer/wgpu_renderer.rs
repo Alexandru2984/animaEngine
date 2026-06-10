@@ -428,6 +428,30 @@ impl WgpuRenderer {
         }
     }
 
+    /// Drop GPU textures whose entity no longer exists in the scene.
+    ///
+    /// Scene replacement (preset Replace, palette Replace, hot-reload)
+    /// swaps `Scene::entities` wholesale; without this sweep the old
+    /// entities' textures stay in the cache forever and VRAM grows on
+    /// every Replace. Called once per frame from both render loops —
+    /// the `len` gate keeps the steady-state cost at two integer
+    /// compares (the texture map can never legitimately be larger than
+    /// the entity list, since ids are unique per entity).
+    pub fn prune_stale_textures(&mut self, entities: &[Entity]) {
+        if self.textures.len() <= entities.len() {
+            return;
+        }
+        let live: std::collections::HashSet<&str> =
+            entities.iter().map(|e| e.id.as_str()).collect();
+        let before = self.textures.len();
+        self.textures.retain(|id, _| live.contains(id.as_str()));
+        tracing::debug!(
+            "Pruned {} stale GPU textures ({} live)",
+            before - self.textures.len(),
+            self.textures.len()
+        );
+    }
+
     /// Write quad vertices into the dynamic buffer at the given quad index offset.
     /// Returns the byte offset where the vertices were written.
     fn write_quad(&self, quad_index: usize, x: f32, y: f32, w: f32, h: f32, opacity: f32) -> u64 {

@@ -60,6 +60,10 @@ impl App {
 
         // Update textures for entities with changed frames
         if let Some(renderer) = &mut self.renderer {
+            // Scene replacement paths (preset / palette Replace) swap the
+            // entity list without renderer access; sweep their orphaned
+            // textures here. No-op (two compares) when nothing is stale.
+            renderer.prune_stale_textures(&self.scene.entities);
             for entity in &mut self.scene.entities {
                 if entity.texture_dirty {
                     renderer.ensure_texture(entity);

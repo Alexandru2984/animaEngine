@@ -266,6 +266,9 @@ pub fn run_native(
         );
 
         // Update any dirty textures (animation frame advance).
+        // The prune sweeps textures orphaned by preset Replace — same
+        // rationale as the winit render loop.
+        renderer.prune_stale_textures(&scene.entities);
         for entity in &mut scene.entities {
             if entity.texture_dirty {
                 renderer.ensure_texture(entity);
