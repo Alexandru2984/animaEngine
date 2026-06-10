@@ -184,21 +184,32 @@ region in edit mode.
 
 ## Native Wayland status
 
-| Feature | X11 path | Wayland native (opt-in) |
-|---------|----------|-------------------------|
+| Feature | X11 path | Wayland native (opt-in, beta) |
+|---------|----------|------------------------------|
 | Window creation | winit + EWMH hints | sctk + wlr-layer-shell |
 | Click-through | XShape | set_input_region |
 | Sprite rendering | ✅ | ✅ |
-| Pointer events | ✅ via winit | ✅ via sctk (Phase 7.3) |
-| Keyboard events | ✅ via winit | ❌ (sctk keyboard needs libxkbcommon-dev) |
-| egui UI | ✅ | ❌ (events buffered, not consumed) |
-| Drag-and-drop | ✅ | ❌ (no data-device handling) |
+| Pointer events | ✅ via winit | ✅ via sctk |
+| Keyboard events | ✅ via winit | ✅ via sctk + xkbcommon (E.1) |
+| egui UI | ✅ | ✅ events routed to egui (E.5) |
+| Drag-and-drop | ✅ | ✅ via wl_data_device (E.4) |
 | Tray | ✅ | ✅ (D-Bus, independent of backend) |
-| Global hotkeys | ✅ XGrabKey | ❌ (Wayland sandboxes key grabs) |
+| Global hotkeys | ✅ XGrabKey | ⚠ via `org.animaengine.Anima` D-Bus + compositor binding |
 | Single instance | ✅ | ✅ (D-Bus) |
 
-The native path lands in iterations as the cost-benefit becomes
-favorable. Daily-driver work is best done on the X11 path.
+The X11/XWayland path remains the default and the recommended
+daily-driver. The native path is opt-in via
+`ANIMA_USE_WAYLAND_NATIVE=1` and limited to wlroots compositors
+(sway, Hyprland, river, Wayfire). GNOME and KDE Wayland sessions
+do not implement layer-shell and fall back to XWayland
+automatically — no flag needed.
+
+Global hotkeys on Wayland are intentionally compositor-gated:
+Wayland refuses raw `XGrabKey`-style global grabs, so the native
+backend exposes the same actions as D-Bus methods on
+`org.animaengine.Anima` and ships sample sway / Hyprland / river
+bindings in [docs/wayland.md](wayland.md) that call them through
+`gdbus`.
 
 ## Threads
 
