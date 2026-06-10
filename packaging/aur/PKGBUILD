@@ -1,0 +1,55 @@
+# AUR package for animaEngine. See packaging/aur/README.md for the
+# publish workflow (this file lives in the app repo as the source of
+# truth; the AUR repo mirrors it per release).
+
+pkgname=anima-engine
+pkgver=0.5.5
+pkgrel=1
+pkgdesc="Linux-first animated desktop overlay engine — render animated characters over your desktop"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Alexandru2984/animaEngine"
+license=('MIT')
+depends=('libxkbcommon-x11' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'libxrandr')
+makedepends=('cargo' 'cmake' 'librsvg' 'vulkan-headers' 'libxkbcommon' 'libx11' 'libxcb')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('6fc18051c251ce45b60f2a9882213300b6a83856b083e2758ee902373548ca72')
+
+_srcdir="animaEngine-$pkgver"
+
+prepare() {
+  cd "$_srcdir"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$_srcdir"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release
+  # Rasterize the hicolor PNG set (16…256 px) from the scalable icon.
+  scripts/render-icons.sh
+}
+
+check() {
+  cd "$_srcdir"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --frozen --release --lib
+}
+
+package() {
+  cd "$_srcdir"
+  install -Dm0755 target/release/anima_engine "$pkgdir/usr/bin/anima-engine"
+  install -Dm0644 data/com.animaengine.Anima.desktop \
+    "$pkgdir/usr/share/applications/com.animaengine.Anima.desktop"
+  install -Dm0644 data/anima-engine.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/anima-engine.svg"
+  for size in 16 24 32 48 64 128 256; do
+    install -Dm0644 "build/icons/$size/anima-engine.png" \
+      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/anima-engine.png"
+  done
+  install -Dm0644 data/com.animaengine.Anima.metainfo.xml \
+    "$pkgdir/usr/share/metainfo/com.animaengine.Anima.metainfo.xml"
+  install -Dm0644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm0644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
