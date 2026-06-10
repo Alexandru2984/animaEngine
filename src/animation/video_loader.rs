@@ -79,12 +79,15 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
 
     for sample_id in 1..=sample_count {
         if frames.len() >= MAX_VIDEO_FRAMES {
+            // Redact at warn!, full path at debug! — matches the M4/G.1
+            // log-redaction convention used by the other loaders.
             tracing::warn!(
                 "Video {} truncated at {} frames (cap = {})",
-                path.display(),
+                crate::drop_validate::redact_path(path),
                 frames.len(),
                 MAX_VIDEO_FRAMES
             );
+            tracing::debug!("Truncated video full path: {}", path.display());
             break;
         }
 
@@ -117,10 +120,11 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
                 if total_bytes.saturating_add(frame_bytes) > MAX_DECODED_ASSET_BYTES {
                     tracing::warn!(
                         "Video {} truncated at MAX_DECODED_ASSET_BYTES = {} MB ({} frames kept)",
-                        path.display(),
+                        crate::drop_validate::redact_path(path),
                         MAX_DECODED_ASSET_BYTES / (1024 * 1024),
                         frames.len()
                     );
+                    tracing::debug!("Truncated video full path: {}", path.display());
                     break;
                 }
                 total_bytes += frame_bytes;
@@ -142,12 +146,13 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
 
     tracing::info!(
         "Loaded video {}: {} frames, {}×{}, ~{:.1} fps",
-        path.display(),
+        crate::drop_validate::redact_path(path),
         frames.len(),
         frames[0].width,
         frames[0].height,
         avg_fps
     );
+    tracing::debug!("Loaded video full path: {}", path.display());
     Ok(frames)
 }
 
