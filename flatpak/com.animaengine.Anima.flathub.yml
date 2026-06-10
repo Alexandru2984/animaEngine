@@ -1,0 +1,68 @@
+# Flathub submission manifest for animaEngine.
+#
+# Differences from the local-dev manifest (com.animaengine.Anima.yml):
+#   - builds from the released git tag, not the working tree;
+#   - every crate is pinned by hash in cargo-sources.json (Flathub
+#     forbids network access during build), regenerate with:
+#       python3 flatpak-cargo-generator.py Cargo.lock -o cargo-sources.json
+#     from https://github.com/flatpak/flatpak-builder-tools/tree/master/cargo
+#
+# See FLATHUB.md for the submission checklist.
+
+app-id: com.animaengine.Anima
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: anima-engine
+
+finish-args:
+  # Display servers (both, so the binary picks at runtime).
+  - --share=ipc
+  - --socket=x11
+  - --socket=fallback-x11
+  - --socket=wayland
+  # GPU for wgpu (Vulkan / OpenGL).
+  - --device=dri
+  # System tray via StatusNotifierItem.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  # Single-instance handshake — we own the bus name matching our app-id.
+  - --own-name=com.animaengine.Anima
+  # Drag-and-drop assets from anywhere in the user's home (read-only;
+  # decoded pixels are copied into our own cache).
+  - --filesystem=home:ro
+  # Config + cache at the same XDG paths the native build uses.
+  - --filesystem=xdg-config/animaEngine
+  - --filesystem=xdg-cache/animaEngine
+
+modules:
+  - name: anima-engine
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/anima-engine/cargo
+    build-commands:
+      - cargo --offline fetch --manifest-path Cargo.toml
+      - cargo --offline build --release --locked
+      - install -Dm0755 target/release/anima_engine
+            /app/bin/anima-engine
+      - install -Dm0644 data/com.animaengine.Anima.desktop
+            /app/share/applications/com.animaengine.Anima.desktop
+      - install -Dm0644 data/anima-engine.svg
+            /app/share/icons/hicolor/scalable/apps/com.animaengine.Anima.svg
+      - install -Dm0644 data/com.animaengine.Anima.metainfo.xml
+            /app/share/metainfo/com.animaengine.Anima.metainfo.xml
+      # The .desktop ships Icon=anima-engine for the .deb / AppImage
+      # paths; Flatpak export requires the icon name to equal the
+      # app-id.
+      - sed -i 's/^Icon=.*/Icon=com.animaengine.Anima/'
+            /app/share/applications/com.animaengine.Anima.desktop
+    sources:
+      - type: git
+        url: https://github.com/Alexandru2984/animaEngine.git
+        tag: v0.5.5
+        commit: f91a3b4888338f0705adb31624e1f2f07e07a2be
+      - cargo-sources.json

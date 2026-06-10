@@ -61,7 +61,7 @@ modules:
       - cargo build --release --locked
       - install -Dm0755 target/release/anima_engine
             /app/bin/anima-engine
-      - install -Dm0644 data/anima-engine.desktop
+      - install -Dm0644 data/com.animaengine.Anima.desktop
             /app/share/applications/com.animaengine.Anima.desktop
       - install -Dm0644 data/anima-engine.svg
             /app/share/icons/hicolor/scalable/apps/com.animaengine.Anima.svg

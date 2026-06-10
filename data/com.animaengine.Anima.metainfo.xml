@@ -57,6 +57,31 @@
   </recommends>
 
   <releases>
+    <release version="0.5.5" date="2026-06-10">
+      <description>
+        <p>Performance, correctness and hardening release driven by two external reviews plus the audit that verified them.</p>
+        <ul>
+          <li>Idle-aware frame pacing: the overlay no longer redraws at display refresh around the clock — a static scene sleeps (2 s heartbeat), playing sprites wake the loop at their own frame rate, edit mode stays at full refresh.</li>
+          <li>The launcher icon finally renders: the SVG started with an XML prolog that gdk-pixbuf's format sniffing never recognised, so GNOME Shell drew a blank tile since 0.2.0.</li>
+          <li>Animations with per-frame GIF/WebP delays keep correct timing when frames are skipped; the BounceOut easing no longer shortens the loop.</li>
+          <li>A full 64-entity scene draws every sprite (quad budget off-by-two) and preset Replace no longer leaks GPU textures.</li>
+          <li>Aggregate decoded-memory budget (1 GB default, ANIMA_MEMORY_BUDGET_MB to override) on top of the per-asset cap.</li>
+          <li>Asset cache key includes nanosecond mtime + size, so same-second edits invalidate correctly.</li>
+          <li>XDG fallback directories prefer XDG_RUNTIME_DIR and verify tmpdir ownership before use.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.5.4" date="2026-06-09">
+      <description>
+        <p>Post-refactor audit follow-up: two high and two medium findings closed, none exploitable from a cold start.</p>
+        <ul>
+          <li>The 64-entity cap is enforced on every runtime add path (drag-drop, library, duplicate, presets), not just config load.</li>
+          <li>Config-path fallback hardened to a uid-scoped directory.</li>
+          <li>Redaction sweep over three remaining info-level log lines; library log lines resist hand-edited control characters.</li>
+          <li>Translation lookups recover from a poisoned lock instead of taking the render thread down.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.3" date="2026-06-08">
       <description>
         <p>Re-audit follow-up to 0.5.2. Zero regressions found from the previous patches; two medium and four low audit findings addressed.</p>
