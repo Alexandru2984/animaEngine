@@ -378,18 +378,11 @@ impl AppConfig {
             return proj_dirs.config_dir().to_path_buf().join("config.toml");
         }
         // Fallback when XDG resolution fails (minimal containers, broken
-        // env, etc.). The previous `HOME=.` fallback let a wrapper script
-        // `HOME=/etc/cron.d` redirect atomic writes to attacker-chosen
-        // directories — same hardening pattern as M3 (perf.rs / asset_library)
-        // closed in 0.5.2 but missed `config_path`. Sticking to a
-        // uid-suffixed subdir of $TMPDIR matches those siblings.
-        //
-        // SAFETY: libc::getuid is a POSIX syscall with no preconditions,
-        // no failure modes, no FFI safety obligations.
-        let uid = unsafe { libc::getuid() };
-        std::env::temp_dir()
-            .join(format!("animaEngine-{uid}"))
-            .join("config.toml")
+        // env, etc.). `fallback_scoped_dir` prefers $XDG_RUNTIME_DIR
+        // (0700 + uid-owned by spec) and only then a verified tmpdir —
+        // a plain /tmp subdir could be pre-created by another local
+        // user, landing our atomic writes in a directory they own.
+        crate::util::fallback_scoped_dir("").join("config.toml")
     }
 
     /// Load config from disk, or create default if not found

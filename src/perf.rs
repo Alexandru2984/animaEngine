@@ -332,19 +332,10 @@ fn cache_dir() -> PathBuf {
     if let Some(proj) = directories::ProjectDirs::from("", "", "animaEngine") {
         return proj.cache_dir().to_path_buf();
     }
-    // M3 hardening (0.5.2): the previous fallback was
-    // `$HOME/.cache/animaEngine` with `HOME` defaulting to `.` when
-    // unset, which let a wrapper script `HOME=/etc/cron.d anima-engine`
-    // direct cache writes anywhere. Prefer an absolute, uid-scoped
-    // tmpdir so the fallback path always lands inside `/tmp` no
-    // matter the env. `std::env::temp_dir` honours `TMPDIR` but
-    // still resolves to an absolute path; combined with the uid
-    // suffix two users on a shared host don't collide.
-    // SAFETY: libc::getuid is a POSIX syscall with no preconditions
-    // and no failure modes; it returns the calling process's real UID
-    // and has no FFI safety obligations.
-    let uid = unsafe { libc::getuid() };
-    std::env::temp_dir().join(format!("animaEngine-{uid}"))
+    // Fallback for stripped envs. Prefers $XDG_RUNTIME_DIR, then a
+    // tmpdir whose ownership/mode is verified — see
+    // `util::fallback_scoped_dir` for the threat model.
+    crate::util::fallback_scoped_dir("")
 }
 
 /// RAII guard that adds its elapsed lifetime to the sampler under

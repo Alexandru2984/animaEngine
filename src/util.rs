@@ -52,6 +52,75 @@ fn tmp_sibling(path: &Path) -> PathBuf {
     PathBuf::from(name)
 }
 
+/// uid-scoped fallback directory for when XDG resolution fails
+/// (minimal containers, stripped env). Used by `config_path`,
+/// `perf::snapshot_dir` and the asset-library dirs; never hit on a
+/// normally configured desktop.
+///
+/// Resolution order:
+///
+/// 1. `$XDG_RUNTIME_DIR/animaEngine<suffix>` — the runtime dir is
+///    `0700` and uid-owned **by spec** (pam_systemd creates it), so
+///    another local user can't pre-create or swap entries inside it.
+/// 2. `$TMPDIR/animaEngine-<uid><suffix>` — `/tmp` is world-writable
+///    (sticky bit), so another local user *can* pre-create our entry
+///    and own it; everything we write there would land in a directory
+///    they control. Create with mode `0700` and verify (directory,
+///    not a symlink, owned by our uid, no group/other bits). If the
+///    check fails, retry once with a pid-suffixed sibling — turning
+///    the attacker's cheap pre-creation into a mkdir race they have
+///    to win live — and scream in the log if even that is compromised.
+pub fn fallback_scoped_dir(suffix: &str) -> PathBuf {
+    // SAFETY: libc::getuid is a POSIX syscall with no preconditions
+    // and no failure modes.
+    let uid = unsafe { libc::getuid() };
+
+    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
+        let runtime = PathBuf::from(runtime);
+        if runtime.is_absolute() && runtime.is_dir() {
+            return runtime.join(format!("animaEngine{suffix}"));
+        }
+    }
+
+    let primary = std::env::temp_dir().join(format!("animaEngine-{uid}{suffix}"));
+    if create_and_verify_private_dir(&primary, uid) {
+        return primary;
+    }
+    let fallback = std::env::temp_dir().join(format!(
+        "animaEngine-{uid}-{pid}{suffix}",
+        pid = std::process::id()
+    ));
+    if !create_and_verify_private_dir(&fallback, uid) {
+        tracing::error!(
+            "Fallback dir {} failed ownership/mode verification — writes \
+             there may be readable by other local users",
+            fallback.display()
+        );
+    }
+    fallback
+}
+
+/// mkdir(0700) + lstat verification: the path is a real directory (not
+/// a symlink), owned by `uid`, with no group/other permission bits.
+/// Returns `false` on any failure — the caller picks a different path.
+fn create_and_verify_private_dir(path: &Path, uid: u32) -> bool {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+
+    let mut builder = std::fs::DirBuilder::new();
+    builder.mode(0o700);
+    match builder.create(path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(_) => return false,
+    }
+    // symlink_metadata (lstat) so a symlink planted at the path is seen
+    // as a symlink instead of being followed to wherever it points.
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return false;
+    };
+    meta.is_dir() && meta.uid() == uid && meta.permissions().mode() & 0o077 == 0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,5 +163,53 @@ mod tests {
         let path = dir.join("data.bin");
         atomic_write_bytes(&path, b"x").unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), b"x");
+    }
+
+    fn current_uid() -> u32 {
+        // SAFETY: getuid has no preconditions or failure modes.
+        unsafe { libc::getuid() }
+    }
+
+    #[test]
+    fn private_dir_created_fresh_passes_verification() {
+        let dir = test_dir("private_fresh").join("scoped");
+        assert!(create_and_verify_private_dir(&dir, current_uid()));
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&dir).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o700);
+    }
+
+    #[test]
+    fn private_dir_with_lax_mode_fails_verification() {
+        // Simulates the pre-created-by-attacker case: the dir exists
+        // but with group/other access bits set.
+        let dir = test_dir("private_lax").join("scoped");
+        std::fs::create_dir(&dir).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(!create_and_verify_private_dir(&dir, current_uid()));
+    }
+
+    #[test]
+    fn private_dir_symlink_fails_verification() {
+        // A symlink planted at the path must not be followed.
+        let base = test_dir("private_symlink");
+        let target = base.join("target");
+        std::fs::create_dir(&target).unwrap();
+        let link = base.join("scoped");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        assert!(!create_and_verify_private_dir(&link, current_uid()));
+    }
+
+    #[test]
+    fn private_dir_wrong_owner_fails_verification() {
+        // Can't chown without root, so probe the check from the other
+        // side: verification against a uid that isn't the dir's owner.
+        let dir = test_dir("private_owner").join("scoped");
+        assert!(create_and_verify_private_dir(&dir, current_uid()));
+        assert!(!create_and_verify_private_dir(
+            &dir,
+            current_uid().wrapping_add(1)
+        ));
     }
 }

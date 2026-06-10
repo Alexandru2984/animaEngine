@@ -365,27 +365,22 @@ pub fn thumbnail_is_fresh(source: &Path, cached: &Path) -> bool {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-// M3 hardening (0.5.2): both fallbacks below previously honoured
-// `$HOME` (with `.` as default), which let a malicious wrapper
-// script redirect writes to arbitrary locations. Use a uid-scoped
-// tmpdir so the fallback path stays absolute regardless of env.
+// Fallbacks for stripped envs (no resolvable XDG dirs). Both go
+// through `util::fallback_scoped_dir`, which prefers $XDG_RUNTIME_DIR
+// and verifies tmpdir ownership/mode — a plain /tmp subdir could be
+// pre-created (and thus owned) by another local user.
 fn xdg_data_dir() -> PathBuf {
     if let Some(dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
         return dirs.data_dir().to_path_buf();
     }
-    // SAFETY: libc::getuid is a POSIX syscall with no preconditions
-    // and no failure modes; returns the calling process's real UID.
-    let uid = unsafe { libc::getuid() };
-    std::env::temp_dir().join(format!("animaEngine-{uid}"))
+    crate::util::fallback_scoped_dir("")
 }
 
 fn xdg_cache_dir() -> PathBuf {
     if let Some(dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
         return dirs.cache_dir().to_path_buf();
     }
-    // SAFETY: see `xdg_data_dir` above — same guarantees from POSIX.
-    let uid = unsafe { libc::getuid() };
-    std::env::temp_dir().join(format!("animaEngine-{uid}-cache"))
+    crate::util::fallback_scoped_dir("-cache")
 }
 
 /// FNV-1a 64-bit. Low 48 bits formatted as 12 hex chars give us
