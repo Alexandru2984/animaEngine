@@ -133,6 +133,15 @@ impl Animation {
         self.frames.get(self.current_frame)
     }
 
+    /// When the current frame's hold expires — i.e. the earliest
+    /// instant at which `tick()` would advance. Drives the idle-aware
+    /// frame pacing in the render loop: a static scene sleeps until
+    /// the soonest deadline across visible animations instead of
+    /// redrawing at display refresh.
+    pub fn next_frame_due(&self) -> Instant {
+        self.last_frame_time + self.current_frame_duration()
+    }
+
     /// Toggle play/pause
     pub fn toggle_playback(&mut self) {
         self.playing = !self.playing;

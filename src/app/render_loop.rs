@@ -19,7 +19,26 @@
 
 use super::App;
 use crate::ui::panels;
-use winit::event_loop::ActiveEventLoop;
+use std::time::{Duration, Instant};
+use winit::event_loop::{ActiveEventLoop, ControlFlow};
+
+/// How the render loop schedules its next frame. Computed at the end
+/// of every redraw from the live scene/UI state.
+pub(super) enum RedrawPacing {
+    /// Something animates every tick (edit mode, toasts, behaviors,
+    /// physics, perf overlay) — redraw at display refresh.
+    Continuous,
+    /// Scene is static except for playing animations — sleep until the
+    /// soonest next-frame deadline (an 8 fps sprite wakes 8×/s, not 60×).
+    Deadline(Instant),
+    /// Nothing moves — sleep until the hot-reload heartbeat.
+    Idle,
+}
+
+/// Idle wake-up cadence. Matches the hot-reload mtime poll interval —
+/// the heartbeat exists so config edits still apply while the overlay
+/// sits static.
+pub(super) const IDLE_HEARTBEAT: Duration = Duration::from_secs(2);
 
 impl App {
     pub(super) fn handle_redraw_requested(&mut self, event_loop: &ActiveEventLoop) {
@@ -283,9 +302,62 @@ impl App {
             }
         }
 
-        // Request next frame
-        if let Some(window) = &self.window {
-            window.request_redraw();
+        // Schedule the next frame. Pre-0.5.5 this was an unconditional
+        // request_redraw() — 60 wake-ups/s with the GPU re-rendering an
+        // unchanged scene for an overlay that idles 24/7. Pacing keeps
+        // the loop event-driven: continuous only while something
+        // actually animates, deadline-based for playing sprites, and a
+        // 2 s heartbeat (hot-reload poll) when fully static. Input
+        // events re-trigger redraws from `window_event` / `user_event`.
+        match self.redraw_pacing() {
+            RedrawPacing::Continuous => {
+                event_loop.set_control_flow(ControlFlow::Wait);
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            RedrawPacing::Deadline(due) => {
+                let heartbeat = Instant::now() + IDLE_HEARTBEAT;
+                event_loop.set_control_flow(ControlFlow::WaitUntil(due.min(heartbeat)));
+            }
+            RedrawPacing::Idle => {
+                event_loop
+                    .set_control_flow(ControlFlow::WaitUntil(Instant::now() + IDLE_HEARTBEAT));
+            }
+        }
+    }
+
+    /// Decide how soon the next frame is needed, from the live state.
+    ///
+    /// Continuous wins whenever per-tick motion exists: edit mode
+    /// (egui interactions, drags), visible toasts (slide/fade), the
+    /// perf overlay (live graph), autonomous behaviors or physics on a
+    /// visible entity. Otherwise the soonest animation deadline across
+    /// visible playing sprites; otherwise idle. Hidden entities don't
+    /// hold the loop awake — their behaviors freeze while invisible
+    /// (the 0.1 s dt clamp in `Scene::tick` absorbs the gap when they
+    /// come back).
+    fn redraw_pacing(&self) -> RedrawPacing {
+        if self.edit_mode || self.perf_overlay_visible || !self.toasts.is_empty() {
+            return RedrawPacing::Continuous;
+        }
+        if !self.scene.global_playing {
+            return RedrawPacing::Idle;
+        }
+        let mut deadline: Option<Instant> = None;
+        for entity in self.scene.visible_entities() {
+            if entity.physics.enabled || !matches!(entity.behavior, crate::behavior::Behavior::Idle)
+            {
+                return RedrawPacing::Continuous;
+            }
+            if entity.animation.playing && entity.animation.frame_count() > 1 {
+                let due = entity.animation.next_frame_due();
+                deadline = Some(deadline.map_or(due, |d| d.min(due)));
+            }
+        }
+        match deadline {
+            Some(due) => RedrawPacing::Deadline(due),
+            None => RedrawPacing::Idle,
         }
     }
 }

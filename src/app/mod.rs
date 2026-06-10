@@ -20,8 +20,8 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, WindowEvent};
-use winit::event_loop::ActiveEventLoop;
+use winit::event::{ElementState, StartCause, WindowEvent};
+use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::{Window, WindowId};
 
 /// Main application state — implements winit's ApplicationHandler.
@@ -293,7 +293,36 @@ impl App {
     }
 }
 
+impl App {
+    /// Ask winit for a frame. Cheap and idempotent (winit coalesces);
+    /// called from every input/user-event path so the paced render
+    /// loop wakes up when state changed outside `RedrawRequested`.
+    fn request_redraw(&self) {
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+}
+
 impl ApplicationHandler<AnimaEvent> for App {
+    /// Timer wake-ups from the paced render loop (`ControlFlow::WaitUntil`).
+    ///
+    /// Re-arms the heartbeat *before* requesting the redraw so the
+    /// chain survives even when the compositor suppresses redraw
+    /// delivery for a hidden window; `check_hot_reload` runs here
+    /// directly for the same reason (config edits must apply while
+    /// the overlay is hidden). Both are cheap: the hot-reload check
+    /// self-gates on a 2 s mtime poll.
+    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+        if matches!(cause, StartCause::ResumeTimeReached { .. }) {
+            event_loop.set_control_flow(ControlFlow::WaitUntil(
+                Instant::now() + render_loop::IDLE_HEARTBEAT,
+            ));
+            self.check_hot_reload();
+            self.request_redraw();
+        }
+    }
+
     /// Handle tray / global-hotkey commands routed through the event loop.
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AnimaEvent) {
         match event {
@@ -340,8 +369,12 @@ impl ApplicationHandler<AnimaEvent> for App {
                 self.renderer = None;
                 self.x11_input = None;
                 event_loop.exit();
+                return;
             }
         }
+        // Every non-quit tray/hotkey action mutates visible state
+        // (mode, playback, visibility) — wake the paced render loop.
+        self.request_redraw();
     }
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
@@ -361,6 +394,9 @@ impl ApplicationHandler<AnimaEvent> for App {
         // doesn't also try to drag an entity).
         if let (Some(ui), Some(window)) = (self.ui.as_mut(), self.window.as_ref()) {
             if ui.handle_event(window, &event) {
+                // egui reacted (hover state, button press…) — make sure
+                // a frame shows it even when the paced loop is asleep.
+                window.request_redraw();
                 return;
             }
         }
@@ -384,6 +420,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                 // The input shape mask is sized to the old window dimensions;
                 // re-apply for the new size in whatever mode we're in.
                 self.reapply_input_shape();
+                self.request_redraw();
             }
 
             // Re-apply input shape when the window regains focus.
@@ -391,12 +428,14 @@ impl ApplicationHandler<AnimaEvent> for App {
             // the input shape after a focus loss → restore cycle.
             WindowEvent::Focused(true) => {
                 self.reapply_input_shape();
+                self.request_redraw();
             }
 
             // Re-apply input shape when the window becomes visible again
             // after being occluded (e.g. user pressed Super+H, then restored).
             WindowEvent::Occluded(false) => {
                 self.reapply_input_shape();
+                self.request_redraw();
             }
 
             WindowEvent::RedrawRequested => {
@@ -408,10 +447,12 @@ impl ApplicationHandler<AnimaEvent> for App {
 
             WindowEvent::CursorMoved { position, .. } => {
                 self.handle_cursor_moved(position);
+                self.request_redraw();
             }
 
             WindowEvent::MouseInput { state, button, .. } => {
                 self.handle_mouse_input(state, button);
+                self.request_redraw();
             }
 
             // Edit-mode keyboard dispatch goes through the rebindable
@@ -431,20 +472,24 @@ impl ApplicationHandler<AnimaEvent> for App {
                     let chord = KeyChord::new(self.modifier_mask(), keycode);
                     if let Some(action) = self.config.keybindings.lookup(chord) {
                         self.dispatch_action(action, event_loop);
+                        self.request_redraw();
                     }
                 }
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
                 self.handle_mouse_wheel(delta);
+                self.request_redraw();
             }
 
             WindowEvent::DroppedFile(path) => {
                 self.handle_dropped_file(path);
+                self.request_redraw();
             }
 
             WindowEvent::HoveredFile(path) => {
                 self.handle_hovered_file(path);
+                self.request_redraw();
             }
 
             WindowEvent::ModifiersChanged(modifiers) => {

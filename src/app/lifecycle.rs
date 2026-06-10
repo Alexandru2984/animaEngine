@@ -201,6 +201,12 @@ impl App {
                 }
 
                 self.window = Some(window);
+                // Kick the paced render loop. Most platforms emit an
+                // initial RedrawRequested for a new window, but the
+                // pacing chain must not depend on that courtesy.
+                if let Some(w) = &self.window {
+                    w.request_redraw();
+                }
             }
             Err(e) => {
                 tracing::error!("Failed to create window: {}", e);
