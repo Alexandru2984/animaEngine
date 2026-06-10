@@ -5,10 +5,11 @@ characters or sprites on top of your desktop using transparent,
 always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 + **winit** + **egui** — no Electron, no Chromium, minimal RAM use.
 
-> Status: 0.3 — production-ready packaging (`.deb` / AppImage / Flatpak),
-> X11 + opt-in native Wayland, ten UI locales, multi-monitor distribution,
-> asset library, sprite groups. See [Architecture](docs/architecture.md)
-> for a deeper map; [CONTRIBUTING.md](CONTRIBUTING.md) for how to hack on it.
+> Status: 0.5.4 — production-ready packaging (`.deb` / AppImage / Flatpak),
+> stable X11/XWayland backend, beta native Wayland backend for wlroots,
+> ten UI locales, multi-monitor distribution, asset library, sprite
+> groups. See [Architecture](docs/architecture.md) for a deeper map;
+> [CONTRIBUTING.md](CONTRIBUTING.md) for how to hack on it.
 
 ## What it does
 
@@ -62,11 +63,11 @@ via `make appimage` / `make deb` / `make flatpak`):
 
 ```bash
 # Debian / Ubuntu (.deb)
-sudo apt install ./anima-engine_0.5.3-1_amd64.deb
+sudo apt install ./anima-engine_0.5.4-1_amd64.deb
 
 # AppImage (any distro)
-chmod +x animaEngine-0.5.3-x86_64.AppImage
-./animaEngine-0.5.3-x86_64.AppImage
+chmod +x animaEngine-0.5.4-x86_64.AppImage
+./animaEngine-0.5.4-x86_64.AppImage
 
 # Flatpak
 flatpak install --user com.animaengine.Anima.flatpak
@@ -155,20 +156,38 @@ so subsequent starts are limited by disk read speed. Set
 
 ## Wayland
 
-The default code path uses **winit + X11** (XWayland on Wayland systems)
-— stable, supports every Linux desktop. An **opt-in native Wayland
-backend** with `wlr-layer-shell-unstable-v1` ships with full feature
-parity (settings panel, drag-drop, keyboard, perf overlay) for wlroots
-compositors (sway / Hyprland / river / Wayfire):
+The default code path uses **winit + X11** (XWayland on Wayland
+sessions) — stable, supports every Linux desktop. An **opt-in native
+Wayland backend** built on `wlr-layer-shell-unstable-v1` adds true
+overlay support for wlroots compositors (sway / Hyprland / river /
+Wayfire); it is **beta**, not the default:
 
 ```bash
 ANIMA_USE_WAYLAND_NATIVE=1 anima-engine
 ```
 
+GNOME and KDE Wayland sessions do not implement layer-shell, so the
+overlay falls back to the XWayland code path automatically — no opt-in
+flag needed there.
+
+### Feature matrix
+
+| Feature | X11 / XWayland (default) | Wayland native (opt-in, beta) |
+|---------|-------------------------|------------------------------|
+| Click-through overlay | stable | stable (wlroots) |
+| Tray icon | stable | stable |
+| Drag-and-drop assets | stable | stable |
+| Keyboard input | stable (winit) | stable (sctk + xkbcommon) |
+| egui settings panel | stable | stable |
+| Multi-monitor distribution | stable | stable |
+| Perf overlay | stable | stable |
+| Global hotkeys | stable (XGrabKey) | via D-Bus + compositor binding |
+| Hot-reload | stable | stable |
+
 Global shortcuts on the native path go through `org.animaengine.Anima`
 D-Bus methods that compositor bindings call via `gdbus` — see
 [docs/wayland.md](docs/wayland.md) for sway / Hyprland / river config
-snippets and the full feature matrix.
+snippets.
 
 ## Security & trust
 
