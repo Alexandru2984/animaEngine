@@ -1,4 +1,5 @@
 use super::frame::Frame;
+use crate::constants::MAX_ANIMATION_FRAMES;
 use crate::error::{AnimaError, Result};
 use std::path::Path;
 
@@ -43,10 +44,28 @@ pub fn load_spritesheet(path: &Path, columns: u32, rows: u32) -> Result<Vec<Fram
     let cell_row_bytes = (cell_width as usize) * 4;
     let cell_byte_size = cell_row_bytes * cell_height as usize;
 
-    let mut frames = Vec::with_capacity((columns * rows) as usize);
+    // Cap the slice count *during* the loop, not post-hoc — the same
+    // G.4 rationale as the PNG-sequence loader. The zero-cell check
+    // above bounds the grid at img_width × img_height cells (≤ 4096²
+    // with MAX_IMAGE_DIM), and 16.7 M one-pixel Frame structs is ~1 GB
+    // of transient allocation a hand-edited config could otherwise
+    // request before any post-hoc truncation ran.
+    let grid_cells = (columns as usize) * (rows as usize);
+    let keep = grid_cells.min(MAX_ANIMATION_FRAMES);
+    let mut frames = Vec::with_capacity(keep);
 
-    for row in 0..rows {
+    'slice: for row in 0..rows {
         for col in 0..columns {
+            if frames.len() >= MAX_ANIMATION_FRAMES {
+                tracing::warn!(
+                    "Spritesheet {} truncated at MAX_ANIMATION_FRAMES = {} ({}x{} grid requested)",
+                    crate::drop_validate::redact_path(path),
+                    MAX_ANIMATION_FRAMES,
+                    columns,
+                    rows
+                );
+                break 'slice;
+            }
             let x_offset = (col * cell_width) as usize;
             let y_offset = (row * cell_height) as usize;
 
@@ -68,8 +87,9 @@ pub fn load_spritesheet(path: &Path, columns: u32, rows: u32) -> Result<Vec<Fram
         frames.len(),
         cell_width,
         cell_height,
-        path.display()
+        crate::drop_validate::redact_path(path)
     );
+    tracing::debug!("Spritesheet full path: {}", path.display());
 
     Ok(frames)
 }
@@ -108,6 +128,20 @@ mod tests {
             }
         }
         img.save(path).unwrap();
+    }
+
+    #[test]
+    fn grid_larger_than_frame_cap_truncates_during_slice() {
+        // 64×16 grid of 1×1 cells = 1024 requested frames, well past
+        // MAX_ANIMATION_FRAMES (600). The cap must apply during the
+        // slice loop, bounding transient allocation, not after.
+        let dir = temp_dir("cap_sheet");
+        let path = dir.join("big.png");
+        let img = image::RgbaImage::new(64, 16);
+        img.save(&path).unwrap();
+
+        let frames = load_spritesheet(&path, 64, 16).unwrap();
+        assert_eq!(frames.len(), MAX_ANIMATION_FRAMES);
     }
 
     #[test]
