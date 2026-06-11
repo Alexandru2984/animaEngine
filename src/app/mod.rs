@@ -117,6 +117,11 @@ pub struct App {
     /// path can resolve relative asset paths to absolute without
     /// re-scanning.
     library_root: Option<std::path::PathBuf>,
+    /// Human-readable description of the live global-hotkey backend,
+    /// shown in the Keybindings tab (T.4). Set from `main` after
+    /// strategy resolution; updated when the deferred portal fallback
+    /// fires.
+    hotkey_backend_status: String,
 }
 
 /// Result of an async hot-reload — produced by a worker thread, consumed by
@@ -172,7 +177,14 @@ impl App {
             monitors: Vec::new(),
             library: None,
             library_root: None,
+            hotkey_backend_status: String::new(),
         }
+    }
+
+    /// Record which global-hotkey backend won resolution — purely
+    /// informational, rendered in the Keybindings tab.
+    pub fn set_hotkey_backend_status(&mut self, status: String) {
+        self.hotkey_backend_status = status;
     }
 
     /// Mark a session-lifetime warning. Idempotent — setting the same
@@ -376,10 +388,12 @@ impl ApplicationHandler<AnimaEvent> for App {
                 // fallbacks on a background thread) ended with no
                 // working backend.
                 self.push_warning(Warning::GlobalHotkeysUnavailable);
+                self.hotkey_backend_status = "none (tray + D-Bus methods only)".into();
             }
             AnimaEvent::PortalShortcutsDenied => {
                 self.toasts
                     .warn(crate::i18n::t("portal-denied-x11-fallback-toast"));
+                self.hotkey_backend_status = "X11 XGrabKey (portal declined)".into();
             }
         }
         // Every non-quit tray/hotkey action mutates visible state

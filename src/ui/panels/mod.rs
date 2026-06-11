@@ -123,6 +123,7 @@ pub fn settings(
     accesskit_enabled: &mut bool,
     warnings: &std::collections::BTreeSet<Warning>,
     last_seen_whats_new: &mut Option<String>,
+    hotkey_backend: &str,
 ) {
     egui::SidePanel::right("anima_settings")
         .resizable(false)
@@ -245,7 +246,13 @@ pub fn settings(
                             ) {
                                 *config_dirty = true;
                             }
-                            keybindings_tab::keybindings_tab(ctx, ui, keybindings, config_dirty);
+                            keybindings_tab::keybindings_tab(
+                                ctx,
+                                ui,
+                                keybindings,
+                                config_dirty,
+                                hotkey_backend,
+                            );
                         }
                     }
                 });

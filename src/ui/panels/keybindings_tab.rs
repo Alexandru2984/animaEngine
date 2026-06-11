@@ -17,7 +17,31 @@ pub(super) fn keybindings_tab(
     ui: &mut egui::Ui,
     bindings: &mut KeyBindings,
     config_dirty: &mut bool,
+    hotkey_backend: &str,
 ) {
+    // ── Global-shortcut backend status (T.4) ──────────────────────────
+    // Which mechanism delivers the *global* chords this session —
+    // resolved at startup, updated live if the deferred portal
+    // fallback fires. In-app (edit-mode) chords are unaffected.
+    ui.add_space(SPACE_XS);
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new(t("keybindings-backend-label"))
+                .small()
+                .weak(),
+        );
+        ui.label(egui::RichText::new(hotkey_backend).small().strong())
+            .on_hover_text(t("keybindings-backend-tooltip"));
+    });
+    if hotkey_backend.contains("portal") {
+        ui.label(
+            egui::RichText::new(t("keybindings-portal-restart-hint"))
+                .small()
+                .weak(),
+        );
+    }
+    ui.add_space(SPACE_XS);
+
     let recording_id = egui::Id::new("anima.kb.recording");
     let mut recording_for: Option<Action> = ctx.memory(|m| m.data.get_temp(recording_id));
 

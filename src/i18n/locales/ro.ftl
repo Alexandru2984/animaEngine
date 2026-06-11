@@ -176,3 +176,8 @@ appearance-reset-onboarding-hint = Reactivează hint-urile descărcate și panou
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Permisiunea pentru scurtături a fost refuzată — folosim scurtăturile X11. Reîncearcă din tabul Scurtături.
 portal-denied-native-toast = Permisiunea pentru scurtături a fost refuzată — meniul din tray și bindurile compositorului funcționează în continuare.
+
+# ── Keybindings backend status (T.4) ─────────────────────────────────
+keybindings-backend-label = Scurtături globale prin:
+keybindings-backend-tooltip = Mecanismul care livrează cele trei scurtături globale (edit, ascundere, pauză) cât timp alte aplicații au focus. Stabilit la pornire; scurtăturile din aplicație nu sunt afectate.
+keybindings-portal-restart-hint = Schimbările de combinații se aplică la următoarea pornire (desktop-ul ține minte aprobarea).

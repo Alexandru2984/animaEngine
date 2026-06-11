@@ -60,6 +60,12 @@ pub fn run_native(
     // Tracks the parity of portal HideOverlay toggles — the portal
     // delivers one *action*, the Hide/Show intent derives from state.
     let mut overlay_hidden = false;
+    // Keybindings-tab backend status (T.4), updated by PortalMsg.
+    let mut hotkey_backend_status: String = if portal_rx.is_some() {
+        "portal (awaiting approval)".into()
+    } else {
+        "none (compositor bindings + D-Bus)".into()
+    };
     let mut layer = LayerWindow::try_create()?;
     let (width, height) = layer
         .size
@@ -217,6 +223,7 @@ pub fn run_native(
                     match msg {
                         PortalMsg::Ready => {
                             tracing::info!("Portal shortcuts active (native path)");
+                            hotkey_backend_status = "portal (GlobalShortcuts)".into();
                         }
                         PortalMsg::Failed => {
                             tracing::warn!(
@@ -224,6 +231,7 @@ pub fn run_native(
                                  bindings via D-Bus remain the fallback"
                             );
                             toasts.warn(crate::i18n::t("portal-denied-native-toast"));
+                            hotkey_backend_status = "none (compositor bindings + D-Bus)".into();
                         }
                         PortalMsg::Activated(action) => match action {
                             KbAction::ToggleEditMode => toggle_edit_xor ^= true,
@@ -367,6 +375,7 @@ pub fn run_native(
                 let collapse_state_mut = &mut config.collapse_state;
                 let last_seen_whats_new_mut = &mut config.global.last_seen_whats_new;
                 let warnings_ref = &warnings;
+                let hotkey_backend_ref = hotkey_backend_status.as_str();
                 let monitors_ref = monitors.as_slice();
                 let toasts_ref = &toasts;
                 let toggle_requested_ref = &mut toggle_requested;
@@ -406,6 +415,7 @@ pub fn run_native(
                                 accesskit_mut,
                                 warnings_ref,
                                 last_seen_whats_new_mut,
+                                hotkey_backend_ref,
                             );
                             *palette_ref = panels::command_palette(ctx);
                             panels::toasts(ctx, toasts_ref);

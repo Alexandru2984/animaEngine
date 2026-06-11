@@ -190,3 +190,8 @@ appearance-reset-onboarding-hint = Brings back the dismissed progressive hints a
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Shortcut permission was declined — using X11 hotkeys instead. Retry from the Keybindings tab.
 portal-denied-native-toast = Shortcut permission was declined — the tray menu and compositor bindings still work.
+
+# ── Keybindings backend status (T.4) ─────────────────────────────────
+keybindings-backend-label = Global shortcuts via:
+keybindings-backend-tooltip = Which mechanism delivers the three global chords (toggle edit, hide, pause) while other apps have focus. Resolved at startup; in-app shortcuts are unaffected.
+keybindings-portal-restart-hint = Trigger changes apply at the next launch (the desktop remembers your approval).

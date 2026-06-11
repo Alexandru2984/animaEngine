@@ -245,6 +245,7 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
     }
 
     let mut app = App::new(config, scene);
+    app.set_hotkey_backend_status(strategy.describe());
     if !hotkeys_available {
         // hotkeys::register returned None — typically a native Wayland
         // session without XGrabKey. The tray + ⚙ button still work;
