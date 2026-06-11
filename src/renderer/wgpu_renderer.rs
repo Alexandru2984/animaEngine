@@ -160,7 +160,12 @@ impl WgpuRenderer {
         tracing::info!("Available alpha modes: {:?}", surface_caps.alpha_modes);
         tracing::info!("Available formats: {:?}", surface_caps.formats);
 
-        // Pick the best alpha mode for transparency
+        // Pick the best alpha mode for transparency. A transparent
+        // surface is not a nice-to-have here: with an opaque mode the
+        // overlay paints the whole screen black behind the sprites,
+        // and since it's always-on-top + click-through the user is
+        // left staring at a black desktop they can't interact with.
+        // Refusing to start (with a clear error) is strictly better.
         let alpha_mode = if surface_caps
             .alpha_modes
             .contains(&wgpu::CompositeAlphaMode::PreMultiplied)
@@ -172,12 +177,13 @@ impl WgpuRenderer {
         {
             wgpu::CompositeAlphaMode::PostMultiplied
         } else {
-            tracing::warn!(
-                "No premultiplied/postmultiplied alpha mode available. \
-                 Transparency may not work. Available modes: {:?}",
+            return Err(AnimaError::other(format!(
+                "no transparent alpha mode on this surface (available: {:?}). \
+                 An opaque overlay would cover the desktop with black. \
+                 Make sure a compositor is running (picom on bare X11), \
+                 or try the other backend (ANIMA_USE_WAYLAND_NATIVE=1 / GDK_BACKEND=x11).",
                 surface_caps.alpha_modes
-            );
-            surface_caps.alpha_modes[0]
+            )));
         };
         tracing::info!("Using alpha mode: {:?}", alpha_mode);
 
