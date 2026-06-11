@@ -149,8 +149,49 @@ pub(super) fn library_tab(
     }
 }
 
-/// Render one asset row. Lightweight — no thumbnail decode (lands in
-/// C.9 polish); shows kind icon + name + "Add" button.
+/// Cap on cached thumbnail textures. On overflow the cache resets
+/// wholesale — a rare event (it takes a 256-asset scroll session) and
+/// strictly cheaper than tracking LRU order per frame.
+const THUMB_TEXTURE_CAP: usize = 256;
+
+/// Fetch (or lazily load) the thumbnail texture for an asset (U.6).
+/// Returns `None` while the background generator hasn't produced the
+/// file yet — callers fall back to the kind glyph, and the row picks
+/// the texture up on a later frame without any signalling.
+fn thumbnail_texture(ui: &egui::Ui, asset: &LibraryAsset) -> Option<egui::TextureHandle> {
+    let tex_id = egui::Id::new(("anima.thumb", asset.id.as_str()));
+    if let Some(handle) = ui
+        .ctx()
+        .memory(|m| m.data.get_temp::<egui::TextureHandle>(tex_id))
+    {
+        return Some(handle);
+    }
+    let path = crate::asset_library::thumbnail_cache_dir().join(asset.thumbnail_filename());
+    // Cheap existence probe each frame until the generator catches up.
+    let img = image::open(&path).ok()?;
+    let rgba = img.to_rgba8();
+    let size = [rgba.width() as usize, rgba.height() as usize];
+    let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
+    let handle = ui
+        .ctx()
+        .load_texture(format!("thumb-{}", asset.id), color, Default::default());
+
+    let count_id = egui::Id::new("anima.thumb.count");
+    ui.ctx().memory_mut(|m| {
+        let count: usize = m.data.get_temp(count_id).unwrap_or(0);
+        if count >= THUMB_TEXTURE_CAP {
+            // Wholesale reset; handles drop, egui frees the textures.
+            m.data.clear();
+        }
+        m.data.insert_temp(tex_id, handle.clone());
+        let count: usize = m.data.get_temp(count_id).unwrap_or(0);
+        m.data.insert_temp(count_id, count + 1);
+    });
+    Some(handle)
+}
+
+/// Render one asset row: thumbnail (or kind glyph while it generates),
+/// name + kind, "Add" button.
 fn library_row(ui: &mut egui::Ui, asset: &LibraryAsset, outcome: &mut Option<LibraryOutcome>) {
     let (bg, accent, body_color) = {
         let v = ui.visuals();
@@ -173,7 +214,18 @@ fn library_row(ui: &mut egui::Ui, asset: &LibraryAsset, outcome: &mut Option<Lib
         .inner_margin(egui::Margin::symmetric(SPACE_M as i8, SPACE_S as i8))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(kind_icon).size(18.0).color(accent));
+                match thumbnail_texture(ui, asset) {
+                    Some(tex) => {
+                        ui.add(
+                            egui::Image::new(&tex)
+                                .fit_to_exact_size(egui::vec2(32.0, 32.0))
+                                .corner_radius(theme::RADIUS_SM),
+                        );
+                    }
+                    None => {
+                        ui.label(egui::RichText::new(kind_icon).size(18.0).color(accent));
+                    }
+                }
                 ui.add_space(SPACE_S);
                 ui.vertical(|ui| {
                     // Use the basename for the headline; path is a tooltip.
