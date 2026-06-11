@@ -221,6 +221,14 @@ finding #6 in the project notes.
 bindings and there's no UI to rebind them. Configurable hotkeys are
 planned for the UI/UX polish phase.
 
+**Privacy scope:** the global-hotkey integration registers exactly
+three specific chords via `XGrabKey` — the X server delivers *only
+those chords* to us, never the surrounding keystrokes. animaEngine
+has no global keyboard capture, no event tap, and the native Wayland
+path can't grab keys at all (compositor bindings call our D-Bus
+methods instead). In-app keyboard input (edit mode, panels) reaches
+us only while our window has focus, like any other application.
+
 ### Side-channel / display attacks
 
 If another process on the user's display can see our window contents
