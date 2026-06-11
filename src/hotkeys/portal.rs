@@ -41,17 +41,18 @@ const PORTAL_ACTIONS: &[Action] = &[
     Action::PauseAll,
 ];
 
-/// One shortcut activation, as delivered by the portal.
+/// Messages from the portal thread. The handshake outcome arrives as
+/// `Ready`/`Failed` so the caller can run a *deferred* fallback (the
+/// permission dialog may sit on screen for minutes — nothing blocks
+/// startup waiting for it); activations follow after `Ready`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PortalActivation {
-    pub action: Action,
-}
-
-/// Owns the portal session thread. Dropping it does not close the
-/// session explicitly — the connection drop does, and the portal
-/// remembers bindings per app-id either way.
-pub struct PortalController {
-    _thread: std::thread::JoinHandle<()>,
+pub enum PortalMsg {
+    /// Session created and shortcuts bound.
+    Ready,
+    /// The dance failed (no portal, denial, bus error) — fall back.
+    Failed,
+    /// A bound shortcut fired.
+    Activated(Action),
 }
 
 /// Bounded queue between the portal signal thread and the consumer.
@@ -172,20 +173,18 @@ fn vardict_str(results: &HashMap<String, OwnedValue>, key: &str) -> Option<Strin
     }
 }
 
-/// Spawn the portal client. Returns the controller plus the
-/// activation receiver, or `None` when any step of the dance fails
-/// (no portal, user denied, bus error) — the caller falls back.
+/// Spawn the portal client in the background. Returns the message
+/// receiver immediately — startup never waits on the permission
+/// dialog. The first message is `Ready` or `Failed`; the consumer
+/// runs its fallback on `Failed`.
 ///
 /// `bindings` provides preferred triggers; the portal is free to
 /// override them and the user can re-map in system settings.
-pub fn spawn(
-    bindings: &KeyBindings,
-) -> Option<(PortalController, mpsc::Receiver<PortalActivation>)> {
-    let (tx, rx) = mpsc::sync_channel::<PortalActivation>(PORTAL_QUEUE_CAP);
+pub fn spawn_bg(bindings: &KeyBindings) -> mpsc::Receiver<PortalMsg> {
+    let (tx, rx) = mpsc::sync_channel::<PortalMsg>(PORTAL_QUEUE_CAP);
 
-    // Snapshot the (action, slug, description, trigger) rows on the
-    // caller's thread — KeyBindings isn't Send-cheap and the thread
-    // only needs these strings.
+    // Snapshot the (slug, description, trigger) rows on the caller's
+    // thread — the portal thread only needs these strings.
     let rows: Vec<(String, String, Option<String>)> = PORTAL_ACTIONS
         .iter()
         .filter_map(|&action| {
@@ -202,42 +201,49 @@ pub fn spawn(
         })
         .collect();
 
-    let (ready_tx, ready_rx) = mpsc::sync_channel::<bool>(1);
-
-    let thread = std::thread::Builder::new()
+    let spawned = std::thread::Builder::new()
         .name("anima-portal-shortcuts".into())
         .spawn(move || {
             async_io::block_on(async move {
-                let ok = run_portal_session(rows, tx).await;
-                if let Err(e) = &ok {
+                if let Err(e) = run_portal_session(rows, tx).await {
                     tracing::warn!("GlobalShortcuts portal session failed: {e}");
                 }
-                let _ = ready_tx.try_send(ok.is_ok());
                 // On success run_portal_session only returns when the
-                // signal stream ends (connection dropped at exit).
+                // signal stream ends (connection dropped at exit);
+                // Failed was already sent on the error path inside.
             });
-        })
-        .ok()?;
+        });
+    if spawned.is_err() {
+        tracing::warn!("Couldn't spawn portal thread");
+        // rx with a hung-up sender: consumer sees disconnect == Failed.
+    }
+    rx
+}
 
-    // Wait for the session + bind handshake outcome so the caller can
-    // fall back synchronously. Generous timeout: the user may be
-    // staring at the permission dialog.
-    match ready_rx.recv_timeout(std::time::Duration::from_secs(120)) {
-        Ok(true) => Some((PortalController { _thread: thread }, rx)),
-        Ok(false) => None,
-        Err(_) => {
-            tracing::warn!("GlobalShortcuts portal: no response within timeout");
-            None
+/// The full session dance, then the signal pump. Sends `Ready` once
+/// shortcuts are bound (then `Activated` per press) or `Failed` on
+/// any handshake error; returns `Err` only for logging.
+async fn run_portal_session(
+    rows: Vec<(String, String, Option<String>)>,
+    tx: mpsc::SyncSender<PortalMsg>,
+) -> Result<(), String> {
+    match portal_handshake(&rows).await {
+        Ok((conn, shortcuts_proxy, session_handle)) => {
+            let _ = tx.try_send(PortalMsg::Ready);
+            pump_activations(conn, shortcuts_proxy, session_handle, tx).await
+        }
+        Err(e) => {
+            let _ = tx.try_send(PortalMsg::Failed);
+            Err(e)
         }
     }
 }
 
-/// The full session dance, then the signal pump. Returns `Err` only
-/// before the pump starts; once pumping, runs until the stream ends.
-async fn run_portal_session(
-    rows: Vec<(String, String, Option<String>)>,
-    tx: mpsc::SyncSender<PortalActivation>,
-) -> Result<(), String> {
+/// CreateSession + BindShortcuts. Returns the live connection, the
+/// GlobalShortcuts proxy and the session handle for the signal pump.
+async fn portal_handshake(
+    rows: &[(String, String, Option<String>)],
+) -> Result<(zbus::Connection, zbus::Proxy<'static>, String), String> {
     let conn = zbus::Connection::session()
         .await
         .map_err(|e| format!("session bus: {e}"))?;
@@ -300,7 +306,18 @@ async fn run_portal_session(
         results.len().max(rows.len())
     );
 
-    // ── Signal pump ──────────────────────────────────────────────────
+    Ok((conn, shortcuts_proxy, session_handle))
+}
+
+/// Receive `Activated` signals for our session and forward them as
+/// [`PortalMsg::Activated`] until the stream ends. `_conn` is held so
+/// the bus connection (and therefore the session) stays alive.
+async fn pump_activations(
+    _conn: zbus::Connection,
+    shortcuts_proxy: zbus::Proxy<'static>,
+    session_handle: String,
+    tx: mpsc::SyncSender<PortalMsg>,
+) -> Result<(), String> {
     let mut activated = shortcuts_proxy
         .receive_signal("Activated")
         .await
@@ -324,7 +341,7 @@ async fn run_portal_session(
             tracing::debug!("Portal Activated for unknown id {shortcut_id:?}");
             continue;
         };
-        if tx.try_send(PortalActivation { action }).is_err() {
+        if tx.try_send(PortalMsg::Activated(action)).is_err() {
             tracing::debug!("Portal activation dropped (queue full)");
         }
     }

@@ -371,6 +371,12 @@ impl ApplicationHandler<AnimaEvent> for App {
                 event_loop.exit();
                 return;
             }
+            AnimaEvent::HotkeysUnavailable => {
+                // Deferred hotkey resolution (portal handshake +
+                // fallbacks on a background thread) ended with no
+                // working backend.
+                self.push_warning(Warning::GlobalHotkeysUnavailable);
+            }
         }
         // Every non-quit tray/hotkey action mutates visible state
         // (mode, playback, visibility) — wake the paced render loop.

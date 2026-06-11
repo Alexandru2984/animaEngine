@@ -115,7 +115,21 @@ fn main() {
         let dbus_rx = dbus_connection
             .take()
             .map(single_instance::install_wayland_service);
-        match wayland::run_native(scene, config.clone(), dbus_rx) {
+        // T.2: the portal is the only global-hotkey mechanism that
+        // exists on the native path — XGrabKey has no X server here.
+        let portal_strategy = hotkeys::probe::resolve(
+            config.global.hotkey_backend,
+            hotkeys::probe::portal_version(),
+            false,
+        );
+        tracing::info!("Hotkey strategy (native): {}", portal_strategy.describe());
+        let portal_rx = match portal_strategy {
+            hotkeys::probe::HotkeyStrategy::Portal { .. } => {
+                Some(hotkeys::portal::spawn_bg(&config.keybindings))
+            }
+            _ => None,
+        };
+        match wayland::run_native(scene, config.clone(), dbus_rx, portal_rx) {
             Ok(()) => {
                 tracing::info!("Native Wayland session ended cleanly.");
                 return;
@@ -177,11 +191,14 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
     // the process.
     let _tray_thread = tray::spawn(event_loop.create_proxy());
 
-    // T.0: probe the GlobalShortcuts portal and log which hotkey
-    // strategy this session supports. Informational for now —
-    // registration below still goes through XGrabKey unconditionally;
-    // T.2 turns the strategy into runtime behavior.
-    let strategy = hotkeys::probe::choose(
+    // T.2: resolve the hotkey backend (config preference + portal
+    // probe) and wire whichever mechanism won. The portal handshake
+    // can sit behind a system permission dialog for minutes, so it
+    // runs on a background bridge thread — startup never blocks, and
+    // a handshake failure triggers the *deferred* XGrabKey fallback
+    // (or the warning banner, via AnimaEvent::HotkeysUnavailable).
+    let strategy = hotkeys::probe::resolve(
+        config.global.hotkey_backend,
         hotkeys::probe::portal_version(),
         // The winit path always has an X server (native or XWayland) —
         // the event loop above was just built with the X11 backend.
@@ -189,13 +206,37 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
     );
     tracing::info!("Hotkey strategy: {}", strategy.describe());
 
-    // Register the user's globally-bound chords (ToggleEditMode,
-    // HideOverlay, PauseAll — anything else with a modifier). The
-    // controller must live as long as the app — dropping it
-    // un-registers the bindings.
-    let hotkeys = hotkeys::register(event_loop.create_proxy(), &config.keybindings);
-    let hotkeys_available = hotkeys.is_some();
-    let _hotkeys = hotkeys;
+    let mut hotkeys_available = true;
+    let _hotkeys: Option<hotkeys::HotkeyController> = match strategy {
+        hotkeys::probe::HotkeyStrategy::Portal { .. } => {
+            let rx = hotkeys::portal::spawn_bg(&config.keybindings);
+            let proxy = event_loop.create_proxy();
+            let bindings = config.keybindings.clone();
+            let spawned = std::thread::Builder::new()
+                .name("anima-portal-bridge".into())
+                .spawn(move || portal_bridge(rx, proxy, &bindings));
+            if let Err(e) = spawned {
+                tracing::warn!("Portal bridge thread failed to spawn: {e}");
+                hotkeys_available = false;
+            }
+            // Banner decisions for this branch arrive later through
+            // AnimaEvent::HotkeysUnavailable — assume available now.
+            None
+        }
+        hotkeys::probe::HotkeyStrategy::X11Grab => {
+            // Register the user's globally-bound chords (ToggleEditMode,
+            // HideOverlay, PauseAll — anything else with a modifier).
+            // The controller must live as long as the app — dropping it
+            // un-registers the bindings.
+            let ctrl = hotkeys::register(event_loop.create_proxy(), &config.keybindings);
+            hotkeys_available = ctrl.is_some();
+            ctrl
+        }
+        hotkeys::probe::HotkeyStrategy::DbusOnly => {
+            hotkeys_available = false;
+            None
+        }
+    };
 
     // Now that we have a proxy, install the single-instance service so a
     // future redundant launch can ask us to raise instead of starting up.
@@ -276,4 +317,54 @@ fn init_tracing() {
                 .with_timer(fmt::time::uptime()),
         )
         .init();
+}
+
+/// Bridge the portal message stream onto the winit event loop. First
+/// message decides: `Ready` starts the activation pump; anything else
+/// runs the deferred XGrabKey fallback, and only when that also fails
+/// does the warning banner fire. Runs for the process lifetime.
+fn portal_bridge(
+    rx: std::sync::mpsc::Receiver<hotkeys::portal::PortalMsg>,
+    proxy: winit::event_loop::EventLoopProxy<AnimaEvent>,
+    bindings: &anima_engine::keybindings::KeyBindings,
+) {
+    use hotkeys::portal::PortalMsg;
+    use std::sync::atomic::AtomicBool;
+
+    match rx.recv() {
+        Ok(PortalMsg::Ready) => {
+            tracing::info!("Portal shortcuts active");
+            let visible = AtomicBool::new(true);
+            while let Ok(msg) = rx.recv() {
+                let PortalMsg::Activated(action) = msg else {
+                    continue;
+                };
+                let Some(ev) = hotkeys::action_to_event(action, &visible) else {
+                    continue;
+                };
+                if proxy.send_event(ev).is_err() {
+                    return; // event loop gone — exit with it
+                }
+            }
+            tracing::warn!("Portal channel closed; shortcuts inactive");
+            let _ = proxy.send_event(AnimaEvent::HotkeysUnavailable);
+        }
+        _ => {
+            // Failed or sender already dropped → deferred fallback.
+            tracing::warn!("Portal unavailable; falling back to XGrabKey");
+            match hotkeys::register(proxy.clone(), bindings) {
+                Some(_ctrl) => {
+                    tracing::info!("XGrabKey fallback active");
+                    // The controller un-registers on drop — park this
+                    // thread for the process lifetime to keep it alive.
+                    loop {
+                        std::thread::park();
+                    }
+                }
+                None => {
+                    let _ = proxy.send_event(AnimaEvent::HotkeysUnavailable);
+                }
+            }
+        }
+    }
 }

@@ -50,12 +50,16 @@ use std::time::Duration;
 /// globals, wgpu surface creation refused, …). The caller falls back to
 /// the X11 path on error. A successful return means the user closed
 /// the layer surface (or the compositor disconnected).
-#[tracing::instrument(skip(scene, config, dbus_rx))]
+#[tracing::instrument(skip(scene, config, dbus_rx, portal_rx))]
 pub fn run_native(
     mut scene: Scene,
     mut config: AppConfig,
     dbus_rx: Option<mpsc::Receiver<AnimaEvent>>,
+    portal_rx: Option<mpsc::Receiver<crate::hotkeys::portal::PortalMsg>>,
 ) -> Result<()> {
+    // Tracks the parity of portal HideOverlay toggles — the portal
+    // delivers one *action*, the Hide/Show intent derives from state.
+    let mut overlay_hidden = false;
     let mut layer = LayerWindow::try_create()?;
     let (width, height) = layer
         .size
@@ -181,19 +185,59 @@ pub fn run_native(
         // the input region a thousand times — we apply each toggle
         // class at most once per frame. ShowOverlay / HideOverlay are
         // distinct because the user might want either intent.
-        if let Some(rx) = &dbus_rx {
+        {
             let mut toggle_edit_xor = false;
             let mut toggle_playback_xor = false;
             let mut last_visibility: Option<AnimaEvent> = None;
             let mut quit = false;
-            while let Ok(ev) = rx.try_recv() {
-                match ev {
-                    AnimaEvent::ToggleEditMode => toggle_edit_xor ^= true,
-                    AnimaEvent::ToggleGlobalPlayback => toggle_playback_xor ^= true,
-                    AnimaEvent::HideOverlay => last_visibility = Some(AnimaEvent::HideOverlay),
-                    AnimaEvent::ShowOverlay => last_visibility = Some(AnimaEvent::ShowOverlay),
-                    AnimaEvent::Quit => quit = true,
-                    AnimaEvent::RaiseWindow => {}
+            if let Some(rx) = &dbus_rx {
+                while let Ok(ev) = rx.try_recv() {
+                    match ev {
+                        AnimaEvent::ToggleEditMode => toggle_edit_xor ^= true,
+                        AnimaEvent::ToggleGlobalPlayback => toggle_playback_xor ^= true,
+                        AnimaEvent::HideOverlay => last_visibility = Some(AnimaEvent::HideOverlay),
+                        AnimaEvent::ShowOverlay => last_visibility = Some(AnimaEvent::ShowOverlay),
+                        AnimaEvent::Quit => quit = true,
+                        AnimaEvent::RaiseWindow => {}
+                        // Hotkey resolution events are winit-path UI; the
+                        // native path logs the outcome where it resolves.
+                        AnimaEvent::HotkeysUnavailable => {}
+                    }
+                }
+            }
+            // Portal shortcut activations land in the same per-frame
+            // accumulators as the D-Bus methods — a Ctrl+Shift+A from
+            // the portal is indistinguishable from `gdbus call …
+            // ToggleEditMode`. T.2: the portal is the first mechanism
+            // that gives the *native* path real global hotkeys.
+            if let Some(rx) = &portal_rx {
+                use crate::hotkeys::portal::PortalMsg;
+                use crate::keybindings::Action as KbAction;
+                while let Ok(msg) = rx.try_recv() {
+                    match msg {
+                        PortalMsg::Ready => {
+                            tracing::info!("Portal shortcuts active (native path)");
+                        }
+                        PortalMsg::Failed => {
+                            tracing::warn!(
+                                "Portal shortcuts unavailable — compositor \
+                                 bindings via D-Bus remain the fallback"
+                            );
+                        }
+                        PortalMsg::Activated(action) => match action {
+                            KbAction::ToggleEditMode => toggle_edit_xor ^= true,
+                            KbAction::PauseAll => toggle_playback_xor ^= true,
+                            KbAction::HideOverlay => {
+                                overlay_hidden = !overlay_hidden;
+                                last_visibility = Some(if overlay_hidden {
+                                    AnimaEvent::HideOverlay
+                                } else {
+                                    AnimaEvent::ShowOverlay
+                                });
+                            }
+                            _ => {}
+                        },
+                    }
                 }
             }
             if toggle_edit_xor {

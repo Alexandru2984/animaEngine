@@ -45,6 +45,40 @@ pub fn choose(portal_version: Option<u32>, x11_available: bool) -> HotkeyStrateg
     }
 }
 
+/// User preference for the hotkey backend, persisted in
+/// `config.global.hotkey_backend`. `Auto` (default) trusts
+/// [`choose`]; the explicit values pin a backend for debugging or for
+/// desktops where the probe misjudges.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HotkeyBackend {
+    #[default]
+    Auto,
+    Portal,
+    X11,
+    None,
+}
+
+/// Resolve preference + probe results into the strategy to run.
+/// Explicit preferences are honored even when the probe disagrees —
+/// pinning `portal` on a session without one yields `DbusOnly` after
+/// the portal handshake fails (the deferred-fallback path), and that
+/// is the user's stated intent.
+pub fn resolve(
+    pref: HotkeyBackend,
+    portal_version: Option<u32>,
+    x11_available: bool,
+) -> HotkeyStrategy {
+    match pref {
+        HotkeyBackend::Auto => choose(portal_version, x11_available),
+        HotkeyBackend::Portal => HotkeyStrategy::Portal {
+            version: portal_version.unwrap_or(0),
+        },
+        HotkeyBackend::X11 => HotkeyStrategy::X11Grab,
+        HotkeyBackend::None => HotkeyStrategy::DbusOnly,
+    }
+}
+
 /// Read the GlobalShortcuts portal version from the session bus.
 /// `None` covers every failure mode — no bus, no portal service, no
 /// GlobalShortcuts interface — because the caller treats them all the
@@ -85,6 +119,56 @@ mod tests {
     #[test]
     fn dbus_only_when_neither() {
         assert_eq!(choose(None, false), HotkeyStrategy::DbusOnly);
+    }
+
+    #[test]
+    fn resolve_auto_delegates_to_choose() {
+        assert_eq!(
+            resolve(HotkeyBackend::Auto, Some(2), true),
+            HotkeyStrategy::Portal { version: 2 }
+        );
+        assert_eq!(
+            resolve(HotkeyBackend::Auto, None, true),
+            HotkeyStrategy::X11Grab
+        );
+    }
+
+    #[test]
+    fn resolve_explicit_overrides_probe() {
+        // Pinned x11 ignores an available portal.
+        assert_eq!(
+            resolve(HotkeyBackend::X11, Some(2), true),
+            HotkeyStrategy::X11Grab
+        );
+        // Pinned none disables even with both available.
+        assert_eq!(
+            resolve(HotkeyBackend::None, Some(2), true),
+            HotkeyStrategy::DbusOnly
+        );
+        // Pinned portal without a probe hit still tries the portal —
+        // the handshake failure then runs the deferred fallback.
+        assert_eq!(
+            resolve(HotkeyBackend::Portal, None, false),
+            HotkeyStrategy::Portal { version: 0 }
+        );
+    }
+
+    #[test]
+    fn backend_serde_round_trip() {
+        for (s, v) in [
+            ("auto", HotkeyBackend::Auto),
+            ("portal", HotkeyBackend::Portal),
+            ("x11", HotkeyBackend::X11),
+            ("none", HotkeyBackend::None),
+        ] {
+            let toml_str = format!("backend = \"{s}\"");
+            #[derive(serde::Deserialize)]
+            struct W {
+                backend: HotkeyBackend,
+            }
+            let w: W = toml::from_str(&toml_str).unwrap();
+            assert_eq!(w.backend, v);
+        }
     }
 
     #[test]

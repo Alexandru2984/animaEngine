@@ -49,6 +49,27 @@ const GLOBAL_ACTIONS: &[Action] = &[
     Action::PauseAll,
 ];
 
+/// Map a globally-triggered action onto the event the main loop
+/// consumes. Shared by both backends (XGrabKey handler and the
+/// portal bridge) so HideOverlay's toggle semantics — flip a shared
+/// visibility bit, emit Hide or Show accordingly — stay identical no
+/// matter which mechanism fired.
+pub fn action_to_event(action: Action, visible: &AtomicBool) -> Option<AnimaEvent> {
+    Some(match action {
+        Action::ToggleEditMode => AnimaEvent::ToggleEditMode,
+        Action::HideOverlay => {
+            let was_visible = visible.fetch_xor(true, Ordering::SeqCst);
+            if was_visible {
+                AnimaEvent::HideOverlay
+            } else {
+                AnimaEvent::ShowOverlay
+            }
+        }
+        Action::PauseAll => AnimaEvent::ToggleGlobalPlayback,
+        _ => return None,
+    })
+}
+
 /// Try to register the user's globally-bound chords. Returns `None`
 /// when no chord could be registered — callers treat that as a soft
 /// failure: the app remains fully usable through tray + ⚙ button.
@@ -118,18 +139,8 @@ pub fn register(
         let Some(action) = id_to_action.get(&event.id).copied() else {
             return;
         };
-        let outgoing = match action {
-            Action::ToggleEditMode => AnimaEvent::ToggleEditMode,
-            Action::HideOverlay => {
-                let was_visible = visible.fetch_xor(true, Ordering::SeqCst);
-                if was_visible {
-                    AnimaEvent::HideOverlay
-                } else {
-                    AnimaEvent::ShowOverlay
-                }
-            }
-            Action::PauseAll => AnimaEvent::ToggleGlobalPlayback,
-            _ => return,
+        let Some(outgoing) = action_to_event(action, &visible) else {
+            return;
         };
         if proxy.send_event(outgoing).is_err() {
             // Event loop is closed — nothing left to do.

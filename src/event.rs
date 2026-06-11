@@ -19,4 +19,8 @@ pub enum AnimaEvent {
     RaiseWindow,
     /// Save config and exit cleanly.
     Quit,
+    /// The deferred hotkey resolution (portal handshake + fallbacks)
+    /// finished without a working backend — surface the warning
+    /// banner. Emitted at most once per run.
+    HotkeysUnavailable,
 }
