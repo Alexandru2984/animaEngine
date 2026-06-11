@@ -103,8 +103,10 @@ extension whitelist. Pack-level additions:
 Packs are user content with wildly varying licenses (most are
 fan-made, many derived from copyrighted characters). animaEngine
 never bundles, fetches or recommends packs; the importer only reads
-what the user already has. Fixtures in `tests/fixtures/shimeji/` are
-self-made minimal packs, ours, MIT like the repo.
+what the user already has. Test fixtures are **generated
+programmatically** inside `src/shimeji/mod.rs` tests (tiny PNGs via
+the `image` crate + a constant `actions.xml`) — no binary fixtures
+in the repo at all.
 
 ## Open questions → resolved by fixtures in U.3
 

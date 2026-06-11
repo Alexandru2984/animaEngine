@@ -127,6 +127,13 @@ rayon = "1"
 mp4 = "0.14"
 openh264 = "0.9"
 
+# Shimeji pack import (U.3) — actions.xml parsing. quick-xml does
+# not implement DTD entity expansion at all, which kills the classic
+# XML-bomb class by construction; size/depth caps are enforced on top
+# in src/shimeji/. Default features = UTF-8 only (non-UTF-8 packs are
+# rejected with a clear reason, per docs/shimeji-import.md).
+quick-xml = "0.37"
+
 # Config
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"

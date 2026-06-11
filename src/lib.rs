@@ -22,6 +22,7 @@ pub mod physics;
 pub mod presets;
 pub mod renderer;
 pub mod scene;
+pub mod shimeji;
 pub mod single_instance;
 pub mod tray;
 pub mod ui;
