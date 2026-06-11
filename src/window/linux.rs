@@ -8,47 +8,43 @@
 //! # X11 Always-on-Top
 //! - winit uses EWMH `_NET_WM_STATE_ABOVE` hint
 //! - Should work on most modern window managers
-//!
-//! # Click-Through (TODO for future)
-//! - X11 supports input shape via XShape extension
-//! - Would need x11-dl or xcb crate for direct X11 calls
-//! - Not implemented in MVP
 
-/// Check if a compositor is likely running (heuristic).
+use x11rb::protocol::xproto::ConnectionExt;
+
+/// Log whether a compositor is available for the X11 path.
+///
+/// Informative only — the renderer independently refuses to start
+/// without a transparent alpha mode, which is the authoritative gate.
+/// This probe just makes the failure diagnosable from the log.
 pub fn check_compositor() {
-    // On GNOME/Mutter, compositing is always active
-    if let Ok(desktop) = std::env::var("XDG_CURRENT_DESKTOP") {
-        let desktop_lower = desktop.to_lowercase();
-        if desktop_lower.contains("gnome")
-            || desktop_lower.contains("kde")
-            || desktop_lower.contains("cinnamon")
-            || desktop_lower.contains("mate")
-        {
-            tracing::info!(
-                "Desktop environment '{}' typically includes a compositor",
-                desktop
+    match compositor_selection_owned() {
+        Ok(true) => {
+            tracing::info!("Compositor detected (_NET_WM_CM selection owned)");
+        }
+        Ok(false) => {
+            tracing::warn!(
+                "No compositor owns the _NET_WM_CM selection. Window \
+                 transparency may not work — consider running picom."
             );
-            return;
+        }
+        // No X display reachable (pure Wayland session without
+        // XWayland, headless) — the Wayland path doesn't need this.
+        Err(e) => {
+            tracing::debug!("Compositor probe skipped: {e}");
         }
     }
+}
 
-    // Check for common compositors
-    let compositors = ["picom", "compton", "xcompmgr", "compiz"];
-    for comp in &compositors {
-        if std::process::Command::new("pgrep")
-            .arg("-x")
-            .arg(comp)
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-        {
-            tracing::info!("Compositor detected: {}", comp);
-            return;
-        }
-    }
-
-    tracing::warn!(
-        "No compositor detected. Window transparency may not work. \
-         Consider running a compositor like picom."
-    );
+/// The EWMH-standard compositor check: a running composite manager
+/// owns the `_NET_WM_CM_S<screen>` selection. Querying it through the
+/// protocol replaces the old `pgrep picom/compton/…` heuristic, which
+/// could both false-positive (another user's process, different
+/// display) and false-negative (any compositor not on the hardcoded
+/// list).
+fn compositor_selection_owned() -> Result<bool, Box<dyn std::error::Error>> {
+    let (conn, screen_num) = x11rb::connect(None)?;
+    let atom_name = format!("_NET_WM_CM_S{screen_num}");
+    let atom = conn.intern_atom(false, atom_name.as_bytes())?.reply()?.atom;
+    let owner = conn.get_selection_owner(atom)?.reply()?.owner;
+    Ok(owner != x11rb::NONE)
 }
