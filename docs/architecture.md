@@ -194,7 +194,7 @@ region in edit mode.
 | egui UI | ✅ | ✅ events routed to egui (E.5) |
 | Drag-and-drop | ✅ | ✅ via wl_data_device (E.4) |
 | Tray | ✅ | ✅ (D-Bus, independent of backend) |
-| Global hotkeys | ✅ XGrabKey | ⚠ via `org.animaengine.Anima` D-Bus + compositor binding |
+| Global hotkeys | ✅ XGrabKey (portal preferred when present) | ✅ GlobalShortcuts portal; D-Bus + compositor binding fallback |
 | Single instance | ✅ | ✅ (D-Bus) |
 
 The X11/XWayland path remains the default and the recommended
