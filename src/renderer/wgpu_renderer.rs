@@ -504,6 +504,11 @@ impl SurfaceState {
 
     /// Render the given entities + UI overlay to this window's surface.
     ///
+    /// `origin` is this window's top-left corner in the global desktop
+    /// coordinate system; entity positions (global) are translated to
+    /// window-local by subtracting it. Single-window modes pass
+    /// `(0.0, 0.0)`, which is also the pre-0.6 behaviour.
+    ///
     /// Returns the acquired `SurfaceTexture` **without** calling
     /// `present()` — the caller can paint an egui overlay on top of
     /// the same texture before presenting.
@@ -517,6 +522,7 @@ impl SurfaceState {
         entities: &[&Entity],
         edit_mode: bool,
         selected_entity_id: Option<&str>,
+        origin: (f32, f32),
     ) -> std::result::Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
@@ -561,11 +567,13 @@ impl SurfaceState {
             if let Some(gpu_tex) = shared.textures.get(&entity.id) {
                 let width = gpu_tex.width as f32 * entity.scale;
                 let height = gpu_tex.height as f32 * entity.scale;
+                let local_x = entity.x - origin.0;
+                let local_y = entity.y - origin.1;
 
                 self.write_quad(
                     shared,
                     quad_idx,
-                    (entity.x, entity.y, width, height),
+                    (local_x, local_y, width, height),
                     entity.opacity,
                 );
                 draws.push(DrawCmd {
@@ -584,8 +592,8 @@ impl SurfaceState {
                             shared,
                             quad_idx,
                             (
-                                entity.x - pad,
-                                entity.y - pad,
+                                local_x - pad,
+                                local_y - pad,
                                 width + pad * 2.0,
                                 height + pad * 2.0,
                             ),
@@ -742,8 +750,14 @@ impl WgpuRenderer {
         entities: &[&Entity],
         edit_mode: bool,
         selected_entity_id: Option<&str>,
+        origin: (f32, f32),
     ) -> std::result::Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
-        self.primary
-            .render(&self.shared, entities, edit_mode, selected_entity_id)
+        self.primary.render(
+            &self.shared,
+            entities,
+            edit_mode,
+            selected_entity_id,
+            origin,
+        )
     }
 }

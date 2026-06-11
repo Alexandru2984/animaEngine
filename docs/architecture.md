@@ -235,15 +235,23 @@ x11_input }`).
   windows render sprites + the ⚙ toggle button sprite only.
 - `prune_stale_textures` stays a single sweep over the shared cache.
 
-**Mode mapping** (`MonitorMode`, unchanged in config):
+**Mode mapping** (`MonitorMode`, unchanged in config; the default
+is `PerMonitor` — corrected from an earlier draft of this record
+that claimed Span):
 
-- `Span` (default) — exactly today's single-window path, byte for
-  byte. The multi-window machinery only engages for the other modes,
-  which keeps the default path off the new code until it has soaked.
-- `PerMonitor` — one window per `MonitorInfo`; entities render in
-  the window whose monitor resolves from their position/pin;
-  coordinates translate global → window-local at draw-list build.
-- `Single { name }` — one window, on the named monitor.
+- `Span` — exactly the pre-0.6 single-window path: one window sized
+  to the primary monitor, identity origin.
+- `PerMonitor` (default) — one window per `MonitorInfo`; entities
+  render in the window whose monitor resolves from their
+  position/pin; coordinates translate global → window-local at
+  draw-list build. On a single-monitor machine this degenerates to
+  one window, behaviourally identical to Span — which is why the
+  default changing paths is safe for the typical install. On
+  multi-monitor setups this is the C.3 fix: entities resolved to a
+  secondary monitor were previously distributed by the data layer
+  but never rendered.
+- `Single { name }` — one window, on the named monitor (stale names
+  fall back to primary).
 
 **Input:** every window forwards events tagged by `WindowId`;
 cursor coordinates translate window-local → global before

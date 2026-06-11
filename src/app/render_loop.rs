@@ -59,6 +59,10 @@ impl App {
         // Check for external config changes (hot-reload)
         self.check_hot_reload();
 
+        // Appearance-tab monitor-mode switches rebuild the extra
+        // overlay windows (T.6).
+        self.rebuild_windows_if_mode_changed(event_loop);
+
         // Tick behavior + physics + animation.
         let (screen_w, screen_h) = self
             .window
@@ -76,6 +80,17 @@ impl App {
             let _s = self.perf_sampler.scope(crate::perf::Category::SceneUpdate);
             self.scene.tick(screen_w, screen_h, cursor);
         }
+
+        // Precompute multi-window facts before the renderer borrow —
+        // the methods take &self and would conflict with &mut renderer.
+        let primary_origin = self.primary_origin();
+        let primary_monitor_name: Option<String> = if self.has_extra_windows() {
+            crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors)
+                .primary
+                .map(|m| m.name)
+        } else {
+            None
+        };
 
         // Update textures for entities with changed frames
         if let Some(renderer) = &mut self.renderer {
@@ -107,7 +122,18 @@ impl App {
             let render_result = {
                 let _s = self.perf_sampler.scope(crate::perf::Category::WgpuSubmit);
                 let visible = self.scene.visible_entities();
-                renderer.render(&visible, self.edit_mode, selected_id)
+                // In PerMonitor mode the primary window covers exactly
+                // its monitor: entities live in global desktop coords
+                // and translate by the monitor's origin (T.6). The
+                // single-window modes keep the pre-0.6 identity origin.
+                let drawn: Vec<&crate::entity::Entity> = match &primary_monitor_name {
+                    Some(name) => visible
+                        .into_iter()
+                        .filter(|e| super::windows::entity_on_monitor(&self.monitors, e, name))
+                        .collect(),
+                    None => visible,
+                };
+                renderer.render(&drawn, self.edit_mode, selected_id, primary_origin)
             };
             match render_result {
                 Ok(output) => {
@@ -309,6 +335,11 @@ impl App {
                 }
             }
         }
+
+        // Render the PerMonitor extras inside the same cycle (one
+        // pacing domain for T.6 — per-window pacing is a recorded
+        // follow-up in the architecture notes).
+        self.render_extra_windows();
 
         // Schedule the next frame. Pre-0.5.5 this was an unconditional
         // request_redraw() — 60 wake-ups/s with the GPU re-rendering an

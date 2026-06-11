@@ -190,6 +190,69 @@ pub fn log_topology(monitors: &[MonitorInfo]) {
     }
 }
 
+/// Which windows a monitor mode wants, for a given topology (T.6).
+///
+/// The *primary* overlay window always exists (it hosts egui); the
+/// plan says where it goes and which additional windows to spawn.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WindowPlan {
+    /// Monitor the primary window should cover. `None` keeps the
+    /// pre-0.6 behaviour: sized to the primary monitor, positioned
+    /// wherever the WM puts it (effectively global origin).
+    pub primary: Option<MonitorInfo>,
+    /// Monitors that get an extra (non-egui) overlay window each.
+    pub extras: Vec<MonitorInfo>,
+}
+
+/// Pure planning function — unit-testable without a display.
+///
+/// - `Span` / empty topology → single window, pre-0.6 behaviour.
+/// - `Single { name }` → one window on the named monitor (falling
+///   back to primary, then first, when the name is stale).
+/// - `PerMonitor` → primary window on the primary monitor + one
+///   extra per remaining monitor.
+pub fn plan_windows(mode: &MonitorMode, monitors: &[MonitorInfo]) -> WindowPlan {
+    if monitors.is_empty() {
+        return WindowPlan {
+            primary: None,
+            extras: Vec::new(),
+        };
+    }
+    let primary_monitor = monitors
+        .iter()
+        .find(|m| m.is_primary)
+        .unwrap_or(&monitors[0])
+        .clone();
+    match mode {
+        MonitorMode::Span => WindowPlan {
+            primary: None,
+            extras: Vec::new(),
+        },
+        MonitorMode::Single { name } => {
+            let target = monitors
+                .iter()
+                .find(|m| &m.name == name)
+                .cloned()
+                .unwrap_or(primary_monitor);
+            WindowPlan {
+                primary: Some(target),
+                extras: Vec::new(),
+            }
+        }
+        MonitorMode::PerMonitor => {
+            let extras = monitors
+                .iter()
+                .filter(|m| m.name != primary_monitor.name)
+                .cloned()
+                .collect();
+            WindowPlan {
+                primary: Some(primary_monitor),
+                extras,
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,5 +410,73 @@ mod tests {
         let f = MonitorInfo::fallback_single();
         assert!(f.is_primary);
         assert!(f.width > 0 && f.height > 0);
+    }
+
+    // ── plan_windows (T.6) ───────────────────────────────────────────
+
+    #[test]
+    fn plan_span_is_single_window() {
+        let plan = plan_windows(&MonitorMode::Span, &left_right_setup());
+        assert_eq!(plan.primary, None);
+        assert!(plan.extras.is_empty());
+    }
+
+    #[test]
+    fn plan_per_monitor_spawns_extras_for_non_primary() {
+        let monitors = left_right_setup();
+        let plan = plan_windows(&MonitorMode::PerMonitor, &monitors);
+        assert_eq!(
+            plan.primary.as_ref().map(|m| m.name.as_str()),
+            Some("eDP-1")
+        );
+        assert_eq!(plan.extras.len(), 1);
+        assert_eq!(plan.extras[0].name, "HDMI-A-1");
+    }
+
+    #[test]
+    fn plan_per_monitor_single_monitor_has_no_extras() {
+        let plan = plan_windows(&MonitorMode::PerMonitor, &primary_only());
+        assert_eq!(
+            plan.primary.as_ref().map(|m| m.name.as_str()),
+            Some("eDP-1")
+        );
+        assert!(plan.extras.is_empty());
+    }
+
+    #[test]
+    fn plan_single_targets_named_monitor() {
+        let monitors = left_right_setup();
+        let plan = plan_windows(
+            &MonitorMode::Single {
+                name: "HDMI-A-1".into(),
+            },
+            &monitors,
+        );
+        assert_eq!(
+            plan.primary.as_ref().map(|m| m.name.as_str()),
+            Some("HDMI-A-1")
+        );
+        assert!(plan.extras.is_empty());
+    }
+
+    #[test]
+    fn plan_single_stale_name_falls_back_to_primary() {
+        let plan = plan_windows(
+            &MonitorMode::Single {
+                name: "DP-9".into(),
+            },
+            &left_right_setup(),
+        );
+        assert_eq!(
+            plan.primary.as_ref().map(|m| m.name.as_str()),
+            Some("eDP-1")
+        );
+    }
+
+    #[test]
+    fn plan_empty_topology_degrades_to_single_window() {
+        let plan = plan_windows(&MonitorMode::PerMonitor, &[]);
+        assert_eq!(plan.primary, None);
+        assert!(plan.extras.is_empty());
     }
 }

@@ -201,6 +201,9 @@ impl App {
                 }
 
                 self.window = Some(window);
+                // PerMonitor: spawn the extra overlay windows now that
+                // the shared GPU state exists (T.6).
+                self.rebuild_extra_windows(event_loop);
                 // Kick the paced render loop. Most platforms emit an
                 // initial RedrawRequested for a new window, but the
                 // pacing chain must not depend on that courtesy.

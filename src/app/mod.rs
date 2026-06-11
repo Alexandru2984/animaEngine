@@ -4,6 +4,7 @@ mod input;
 mod lifecycle;
 mod outcomes;
 mod render_loop;
+mod windows;
 
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
@@ -122,6 +123,14 @@ pub struct App {
     /// strategy resolution; updated when the deferred portal fallback
     /// fires.
     hotkey_backend_status: String,
+    /// Extra overlay windows for `MonitorMode::PerMonitor` (T.6) —
+    /// one per non-primary monitor, sprite-only (egui stays on the
+    /// primary). Keyed by `WindowId` for event routing.
+    extra_windows: std::collections::HashMap<WindowId, windows::WindowSlot>,
+    /// Mode snapshot from the last window (re)build — the redraw
+    /// handler compares it against config to catch Appearance-tab
+    /// switches.
+    last_monitor_mode: crate::monitor::MonitorMode,
 }
 
 /// Result of an async hot-reload — produced by a worker thread, consumed by
@@ -147,6 +156,7 @@ pub(crate) struct ContextMenuState {
 
 impl App {
     pub fn new(config: AppConfig, scene: Scene) -> Self {
+        let last_monitor_mode = config.global.monitor_mode.clone();
         Self {
             window: None,
             renderer: None,
@@ -178,6 +188,8 @@ impl App {
             library: None,
             library_root: None,
             hotkey_backend_status: String::new(),
+            extra_windows: std::collections::HashMap::new(),
+            last_monitor_mode,
         }
     }
 
@@ -280,6 +292,10 @@ impl App {
     fn toggle_edit_mode(&mut self) {
         self.edit_mode = !self.edit_mode;
         self.reapply_input_shape();
+        // PerMonitor extras flip their input regions in lockstep —
+        // edit mode is global across every overlay window (T.6).
+        self.reapply_extra_input_shapes();
+        self.request_redraw_all();
 
         if self.edit_mode {
             tracing::info!(
@@ -409,9 +425,36 @@ impl ApplicationHandler<AnimaEvent> for App {
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
-        _window_id: WindowId,
+        window_id: WindowId,
         event: WindowEvent,
     ) {
+        // Events from extra (PerMonitor) windows get a narrow handler:
+        // sprites repaint on expose, surfaces resize, shapes re-apply.
+        // Pointer/keyboard routing for extras lands in T.8 — until
+        // then only the primary window is interactive.
+        let is_primary = self.window.as_ref().is_some_and(|w| w.id() == window_id);
+        if !is_primary {
+            match event {
+                WindowEvent::RedrawRequested => self.render_one_extra(window_id),
+                WindowEvent::Resized(size) => {
+                    if let Some(renderer) = &self.renderer {
+                        if let Some(slot) = self.extra_windows.get_mut(&window_id) {
+                            slot.surface
+                                .resize(&renderer.shared, size.width, size.height);
+                        }
+                    }
+                }
+                WindowEvent::CloseRequested => {
+                    self.extra_windows.remove(&window_id);
+                }
+                WindowEvent::Focused(true) | WindowEvent::Occluded(false) => {
+                    self.reapply_extra_input_shapes();
+                }
+                _ => {}
+            }
+            return;
+        }
+
         // Let egui peek at the event first. The toggle ⚙ button is an egui
         // widget that lives in BOTH modes, so we always forward; a consumed
         // event short-circuits our own handlers (so e.g. clicking the button

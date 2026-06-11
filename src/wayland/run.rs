@@ -340,7 +340,12 @@ pub fn run_native(
         let visible = scene.visible_entities();
         toasts.prune();
         egui_renderer.ensure_theme(config.global.theme);
-        match renderer.render(&visible, layer.state.edit_mode, selected_id.as_deref()) {
+        match renderer.render(
+            &visible,
+            layer.state.edit_mode,
+            selected_id.as_deref(),
+            (0.0, 0.0),
+        ) {
             Ok(output) => {
                 let view = output
                     .texture
