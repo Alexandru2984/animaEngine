@@ -207,3 +207,6 @@ library-import-shimeji-button = Import
 shimeji-imported-toast = Imported { $name } ({ $n } parts skipped — see log)
 shimeji-import-failed-toast = Import failed: { $reason }
 shimeji-no-library-toast = No asset library root — create ~/.local/share/animaEngine/assets/ first.
+
+# ── Group composition hint (C.9) ──────────────────────────────────────
+inspector-group-hint = Composed by group { $group }: { $transform }

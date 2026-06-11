@@ -134,7 +134,13 @@ impl App {
                         .collect(),
                     None => visible,
                 };
-                renderer.render(&drawn, self.edit_mode, selected_id, primary_origin)
+                renderer.render(
+                    &drawn,
+                    &self.scene.groups,
+                    self.edit_mode,
+                    selected_id,
+                    primary_origin,
+                )
             };
             match render_result {
                 Ok(output) => {

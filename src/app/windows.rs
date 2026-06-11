@@ -272,6 +272,7 @@ impl App {
             match slot.surface.render(
                 &renderer.shared,
                 &drawn,
+                &self.scene.groups,
                 self.edit_mode,
                 selected_id.as_deref(),
                 origin,
@@ -312,6 +313,7 @@ impl App {
         if let Ok(output) = slot.surface.render(
             &renderer.shared,
             &drawn,
+            &self.scene.groups,
             self.edit_mode,
             selected_id.as_deref(),
             origin,

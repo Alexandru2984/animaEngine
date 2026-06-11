@@ -29,11 +29,10 @@ pub struct Scene {
     /// Cached visibility/z-order. `RefCell` lets `visible_entities(&self)`
     /// refresh the cache lazily without taking `&mut self`.
     visible_cache: RefCell<VisibleCache>,
-    /// Sprite groups composed at visibility-resolve time (C.8). Empty
-    /// when the user hasn't created any. Mirrors `AppConfig.groups`;
-    /// kept on Scene so visibility folding doesn't need an extra
-    /// argument threaded through every render call site. Offset and
-    /// scale composition land in the renderer in C.9 polish.
+    /// Sprite groups. Empty when the user hasn't created any. Mirrors
+    /// `AppConfig.groups`; kept on Scene so visibility folding (C.8),
+    /// the composed hit-test and the renderer's offset/scale
+    /// composition (C.9, 0.7) all read one source of truth.
     pub groups: Vec<crate::group::GroupConfig>,
 }
 
@@ -237,9 +236,13 @@ impl Scene {
             .collect();
         indices.sort_by(|&a, &b| self.entities[b].z_index.cmp(&self.entities[a].z_index));
 
-        indices
-            .into_iter()
-            .find(|&idx| self.entities[idx].contains_point(x, y))
+        indices.into_iter().find(|&idx| {
+            let e = &self.entities[idx];
+            // C.9: hit-test where the renderer paints — the owning
+            // group's offset/scale shift the visible quad.
+            let (gx, gy, gscale) = crate::group::transform_for_member(&self.groups, &e.id);
+            e.contains_point_composed(x, y, (gx, gy), gscale)
+        })
     }
 
     /// Toggle global playback

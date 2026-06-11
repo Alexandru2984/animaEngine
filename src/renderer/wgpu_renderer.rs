@@ -521,6 +521,7 @@ impl SurfaceState {
         &mut self,
         shared: &GpuShared,
         entities: &[&Entity],
+        groups: &[crate::group::GroupConfig],
         edit_mode: bool,
         selected_entity_id: Option<&str>,
         origin: (f32, f32),
@@ -566,10 +567,14 @@ impl SurfaceState {
             }
 
             if let Some(gpu_tex) = shared.textures.get(&entity.id) {
-                let width = gpu_tex.width as f32 * entity.scale;
-                let height = gpu_tex.height as f32 * entity.scale;
-                let local_x = entity.x - origin.0;
-                let local_y = entity.y - origin.1;
+                // C.9: fold the owning group's offset + scale into the
+                // drawn quad. Identity for ungrouped entities.
+                let (gx, gy, gscale) = crate::group::transform_for_member(groups, &entity.id);
+                let scale = entity.scale * gscale;
+                let width = gpu_tex.width as f32 * scale;
+                let height = gpu_tex.height as f32 * scale;
+                let local_x = entity.x + gx - origin.0;
+                let local_y = entity.y + gy - origin.1;
 
                 self.write_quad(
                     shared,
@@ -752,6 +757,7 @@ impl WgpuRenderer {
     pub fn render(
         &mut self,
         entities: &[&Entity],
+        groups: &[crate::group::GroupConfig],
         edit_mode: bool,
         selected_entity_id: Option<&str>,
         origin: (f32, f32),
@@ -759,6 +765,7 @@ impl WgpuRenderer {
         self.primary.render(
             &self.shared,
             entities,
+            groups,
             edit_mode,
             selected_entity_id,
             origin,

@@ -342,6 +342,7 @@ pub fn run_native(
         egui_renderer.ensure_theme(config.global.theme);
         match renderer.render(
             &visible,
+            &scene.groups,
             layer.state.edit_mode,
             selected_id.as_deref(),
             (0.0, 0.0),

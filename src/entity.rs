@@ -221,6 +221,19 @@ impl Entity {
     /// Falls back to AABB when no frame data is available (e.g. immediately
     /// after construction before the first tick).
     pub fn contains_point(&self, px: f32, py: f32) -> bool {
+        self.contains_point_composed(px, py, (0.0, 0.0), 1.0)
+    }
+
+    /// [`Entity::contains_point`] under a group transform (C.9): the
+    /// drawn quad sits at `pos + offset` with `scale × scale_mul`, so
+    /// the hit test must look where the renderer actually painted.
+    pub fn contains_point_composed(
+        &self,
+        px: f32,
+        py: f32,
+        offset: (f32, f32),
+        scale_mul: f32,
+    ) -> bool {
         /// Pixels with alpha at or below this are treated as non-hittable.
         /// Small but non-zero so anti-aliased edges remain clickable.
         const ALPHA_HIT_THRESHOLD: u8 = 20;
@@ -228,11 +241,14 @@ impl Entity {
         if !self.visible {
             return false;
         }
-        let w = self.scaled_width();
-        let h = self.scaled_height();
+        let eff_x = self.x + offset.0;
+        let eff_y = self.y + offset.1;
+        let eff_scale = self.scale * scale_mul;
+        let w = self.scaled_width() * scale_mul;
+        let h = self.scaled_height() * scale_mul;
 
         // Fast AABB reject.
-        if px < self.x || px > self.x + w || py < self.y || py > self.y + h {
+        if px < eff_x || px > eff_x + w || py < eff_y || py > eff_y + h {
             return false;
         }
 
@@ -240,15 +256,15 @@ impl Entity {
             return true; // No pixel data yet — accept the AABB hit.
         };
 
-        if self.scale <= 0.0 || frame.width == 0 || frame.height == 0 {
+        if eff_scale <= 0.0 || frame.width == 0 || frame.height == 0 {
             return true;
         }
 
         // Map screen-space → texture-space.
-        let tex_x = ((px - self.x) / self.scale)
+        let tex_x = ((px - eff_x) / eff_scale)
             .floor()
             .clamp(0.0, (frame.width - 1) as f32) as u32;
-        let tex_y = ((py - self.y) / self.scale)
+        let tex_y = ((py - eff_y) / eff_scale)
             .floor()
             .clamp(0.0, (frame.height - 1) as f32) as u32;
 

@@ -125,6 +125,20 @@ pub fn visible_for_member(groups: &[GroupConfig], entity_id: &str, member_visibl
 /// `cleanup_after_entity_removal` is called from `Scene::remove_entity`
 /// after the entity has been popped; passing the live groups slice
 /// keeps the data consistent without a second pass.
+/// Composed visual transform contributed by the entity's owning
+/// group: `(offset_x, offset_y, scale_multiplier)`. Identity when the
+/// entity belongs to no group. First owning group wins — the same
+/// tie-break rule as [`visible_for_member`], so visibility and
+/// transform can't disagree about ownership (C.9).
+pub fn transform_for_member(groups: &[GroupConfig], entity_id: &str) -> (f32, f32, f32) {
+    for g in groups {
+        if g.member_ids.iter().any(|m| m == entity_id) {
+            return (g.offset_x, g.offset_y, g.scale);
+        }
+    }
+    (0.0, 0.0, 1.0)
+}
+
 pub fn cleanup_after_entity_removal(groups: &mut [GroupConfig], removed_id: &str) {
     for g in groups {
         g.member_ids.retain(|m| m != removed_id);
@@ -159,6 +173,31 @@ mod tests {
             scale: 1.0,
             visible,
         }
+    }
+
+    #[test]
+    fn transform_identity_for_non_member() {
+        let groups = vec![g("a", "A", &["ghost"], true)];
+        assert_eq!(transform_for_member(&groups, "cat"), (0.0, 0.0, 1.0));
+        assert_eq!(transform_for_member(&[], "ghost"), (0.0, 0.0, 1.0));
+    }
+
+    #[test]
+    fn transform_composes_from_owning_group() {
+        let mut grp = g("a", "A", &["ghost"], true);
+        grp.offset_x = 12.0;
+        grp.offset_y = -30.0;
+        grp.scale = 1.5;
+        assert_eq!(transform_for_member(&[grp], "ghost"), (12.0, -30.0, 1.5));
+    }
+
+    #[test]
+    fn transform_first_owning_group_wins() {
+        let mut g1 = g("a", "A", &["ghost"], true);
+        g1.offset_x = 1.0;
+        let mut g2 = g("b", "B", &["ghost"], true);
+        g2.offset_x = 99.0;
+        assert_eq!(transform_for_member(&[g1, g2], "ghost").0, 1.0);
     }
 
     #[test]

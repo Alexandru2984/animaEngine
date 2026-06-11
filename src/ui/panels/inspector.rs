@@ -30,6 +30,26 @@ pub(super) fn inspector_tab(
     collapse_state: &mut CollapseState,
 ) {
     let selected_idx = selection.selected_index();
+    // C.9: effective-transform hint, computed before the mutable
+    // entity borrow below (both run through `scene`).
+    let group_hint: Option<String> = selected_idx
+        .and_then(|idx| scene.entities.get(idx))
+        .and_then(|e| {
+            scene
+                .groups
+                .iter()
+                .find(|g| g.member_ids.iter().any(|m| m == &e.id))
+        })
+        .filter(|g| g.offset_x != 0.0 || g.offset_y != 0.0 || g.scale != 1.0)
+        .map(|g| {
+            let mut args = fluent::FluentArgs::new();
+            args.set("group", g.name.clone());
+            args.set(
+                "transform",
+                format!("{:+.0},{:+.0} ×{:.2}", g.offset_x, g.offset_y, g.scale),
+            );
+            crate::i18n::t_args("inspector-group-hint", &args)
+        });
     match selected_idx.and_then(|idx| scene.entities.get_mut(idx).map(|e| (idx, e))) {
         Some((_idx, entity)) => {
             // Hint about V / G shortcuts, sitting above the quick-toggle
@@ -41,7 +61,14 @@ pub(super) fn inspector_tab(
             ) {
                 *config_dirty = true;
             }
-            let changed = entity_inspector(ui, entity, monitors, collapse_state, config_dirty);
+            let changed = entity_inspector(
+                ui,
+                entity,
+                monitors,
+                collapse_state,
+                config_dirty,
+                group_hint.as_deref(),
+            );
             if changed.any() {
                 *config_dirty = true;
             }
@@ -78,6 +105,7 @@ fn entity_inspector(
     monitors: &[MonitorInfo],
     collapse_state: &mut CollapseState,
     config_dirty: &mut bool,
+    group_hint: Option<&str>,
 ) -> EntityChange {
     let mut change = EntityChange::default();
 
@@ -146,6 +174,9 @@ fn entity_inspector(
             // conceptually a 3rd axis: x / y / which-screen.
             if entity_monitor_picker(ui, &mut entity.monitor, monitors) {
                 change.any_field = true;
+            }
+            if let Some(hint) = group_hint {
+                ui.label(egui::RichText::new(hint).small().weak());
             }
         },
     );
