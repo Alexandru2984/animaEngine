@@ -17,6 +17,7 @@
 //! are skipped on purpose — `XGrabKey`-ing a plain `Q` would steal
 //! the key from every focused app.
 
+pub mod portal;
 pub mod probe;
 
 use crate::event::AnimaEvent;

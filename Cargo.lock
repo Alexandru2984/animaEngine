@@ -186,6 +186,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "fluent",
+ "futures-lite",
  "global-hotkey",
  "image",
  "ksni",
