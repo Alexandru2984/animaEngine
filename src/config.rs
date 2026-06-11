@@ -157,6 +157,32 @@ pub struct CharacterConfig {
     /// metadata — those are authoritative.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub easing: Option<crate::anim::EasingCurve>,
+    /// Per-state animation sequences (U.1):
+    /// `[characters.animations.walk]` tables keyed by
+    /// [`StateId`](crate::animation::StateId). The legacy top-level
+    /// `asset_path`/`asset_type` always define the `idle` state — an
+    /// `idle` key in this map is ignored with a warning to keep one
+    /// unambiguous source. Absent on every pre-0.7 config (and on
+    /// every config that never uses states), so old files round-trip
+    /// byte-identically.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub animations: std::collections::BTreeMap<crate::animation::StateId, StateSequenceConfig>,
+}
+
+/// One animation state's asset source (U.1). A miniature of the
+/// legacy per-character asset fields; anything omitted inherits from
+/// the character (fps) or the loader defaults.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateSequenceConfig {
+    pub asset_type: AssetType,
+    pub asset_path: String,
+    /// Falls back to the character's `fps` when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fps: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spritesheet_columns: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spritesheet_rows: Option<u32>,
 }
 
 fn is_idle_behavior(b: &Behavior) -> bool {
@@ -285,6 +311,7 @@ impl Default for AppConfig {
                     spritesheet_rows: None,
                     monitor: None,
                     easing: None,
+                    animations: std::collections::BTreeMap::new(),
                 },
                 CharacterConfig {
                     id: "slime".to_string(),
@@ -305,6 +332,7 @@ impl Default for AppConfig {
                     spritesheet_rows: None,
                     monitor: None,
                     easing: None,
+                    animations: std::collections::BTreeMap::new(),
                 },
                 CharacterConfig {
                     id: "heart".to_string(),
@@ -325,6 +353,7 @@ impl Default for AppConfig {
                     spritesheet_rows: None,
                     monitor: None,
                     easing: None,
+                    animations: std::collections::BTreeMap::new(),
                 },
                 CharacterConfig {
                     id: "star".to_string(),
@@ -345,6 +374,7 @@ impl Default for AppConfig {
                     spritesheet_rows: None,
                     monitor: None,
                     easing: None,
+                    animations: std::collections::BTreeMap::new(),
                 },
                 CharacterConfig {
                     id: "cat".to_string(),
@@ -365,6 +395,7 @@ impl Default for AppConfig {
                     spritesheet_rows: None,
                     monitor: None,
                     easing: None,
+                    animations: std::collections::BTreeMap::new(),
                 },
             ],
             // 0.3 fresh installs use the legacy single-window shape;
@@ -532,6 +563,81 @@ mod resolve_path_tests {
 }
 
 #[cfg(test)]
+mod animations_schema_tests {
+    use super::*;
+    use crate::animation::StateId;
+
+    #[test]
+    fn legacy_character_decodes_with_empty_animations() {
+        let toml_str = r#"
+            id = "slime"
+            name = "Slime"
+            asset_type = "png_sequence"
+            asset_path = "assets/demo/slime"
+            x = 1.0
+            y = 2.0
+        "#;
+        let cfg: CharacterConfig = toml::from_str(toml_str).unwrap();
+        assert!(cfg.animations.is_empty());
+        // Round-trip must not introduce the key.
+        let out = toml::to_string(&cfg).unwrap();
+        assert!(!out.contains("animations"), "got: {out}");
+    }
+
+    #[test]
+    fn state_tables_round_trip() {
+        let toml_str = r#"
+            id = "shime"
+            name = "Shime"
+            asset_type = "png_sequence"
+            asset_path = "imported/shime/idle"
+            x = 0.0
+            y = 0.0
+
+            [animations.walk]
+            asset_type = "png_sequence"
+            asset_path = "imported/shime/walk"
+            fps = 10.0
+
+            [animations.fall]
+            asset_type = "gif"
+            asset_path = "imported/shime/fall.gif"
+        "#;
+        let cfg: CharacterConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(cfg.animations.len(), 2);
+        assert_eq!(cfg.animations[&StateId::Walk].fps, Some(10.0));
+        assert!(cfg.animations[&StateId::Fall].fps.is_none());
+
+        let out = toml::to_string(&cfg).unwrap();
+        let back: CharacterConfig = toml::from_str(&out).unwrap();
+        assert_eq!(back.animations.len(), 2);
+        assert_eq!(
+            back.animations[&StateId::Walk].asset_path,
+            "imported/shime/walk"
+        );
+    }
+
+    #[test]
+    fn unknown_state_key_is_rejected() {
+        // Closed StateId enum: a typo'd state name must fail loudly at
+        // parse, not silently vanish.
+        let toml_str = r#"
+            id = "x"
+            name = "x"
+            asset_type = "gif"
+            asset_path = "a.gif"
+            x = 0.0
+            y = 0.0
+
+            [animations.wlak]
+            asset_type = "gif"
+            asset_path = "w.gif"
+        "#;
+        assert!(toml::from_str::<CharacterConfig>(toml_str).is_err());
+    }
+}
+
+#[cfg(test)]
 mod windows_tests {
     use super::*;
     use crate::behavior::Behavior;
@@ -556,6 +662,7 @@ mod windows_tests {
             spritesheet_rows: None,
             monitor: None,
             easing: None,
+            animations: std::collections::BTreeMap::new(),
         }
     }
 

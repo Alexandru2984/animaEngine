@@ -49,8 +49,8 @@ impl Scene {
                     tracing::info!(
                         "Loaded entity '{}' ({} frames, per-frame delays: {})",
                         entity.name,
-                        entity.animation.frame_count(),
-                        entity.animation.has_per_frame_delays
+                        entity.animation().frame_count(),
+                        entity.animation().has_per_frame_delays
                     );
                     entities.push(entity);
                 }
@@ -91,7 +91,11 @@ impl Scene {
         }
     }
 
-    /// Load a single entity from config
+    /// Load a single entity from config. The legacy top-level asset
+    /// fields define the `Idle` state; `[characters.animations.*]`
+    /// tables add further states (U.1). A state that fails to load is
+    /// skipped with a warning — the `Idle` fallback covers it — so a
+    /// missing walk sequence can't take the whole entity down.
     fn load_entity(config: &CharacterConfig) -> Result<Entity> {
         let resolved_path = AppConfig::resolve_asset_path(&config.asset_path);
         let frames = load_asset(
@@ -100,8 +104,40 @@ impl Scene {
             config.spritesheet_columns,
             config.spritesheet_rows,
         )?;
-        let animation = Animation::new(frames, config.fps, config.playing);
-        Ok(Entity::from_config(config, animation))
+        let idle = Animation::new(frames, config.fps, config.playing);
+        let mut set = crate::animation::AnimationSet::single(idle);
+
+        for (state, scfg) in &config.animations {
+            if *state == crate::animation::StateId::Idle {
+                // The legacy fields are the one canonical Idle source.
+                tracing::warn!(
+                    "Entity '{}': `animations.idle` is ignored — the top-level \
+                     asset fields define the idle state",
+                    config.id
+                );
+                continue;
+            }
+            let resolved = AppConfig::resolve_asset_path(&scfg.asset_path);
+            match load_asset(
+                &scfg.asset_type,
+                &resolved,
+                scfg.spritesheet_columns,
+                scfg.spritesheet_rows,
+            ) {
+                Ok(frames) => {
+                    let fps = scfg.fps.unwrap_or(config.fps);
+                    set.insert(*state, Animation::new(frames, fps, config.playing));
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Entity '{}': state {:?} failed to load ({e}); falling back to idle",
+                        config.id,
+                        state
+                    );
+                }
+            }
+        }
+        Ok(Entity::from_config_set(config, set))
     }
 
     /// Create a fallback entity with procedurally generated frame
@@ -288,6 +324,7 @@ impl Scene {
             spritesheet_rows: None,
             monitor: None,
             easing: None,
+            animations: std::collections::BTreeMap::new(),
         };
 
         // Load frames and resize to overlay-friendly dimensions
@@ -316,14 +353,14 @@ impl Scene {
         // buffers; no leak.
         check_budget(
             self.total_decoded_bytes(),
-            entity.animation.decoded_bytes(),
+            entity.animations.decoded_bytes(),
             max_total_decoded_bytes(),
         )?;
 
         tracing::info!(
             "Entity '{}' loaded: {} frames (max {}px)",
             entity.id,
-            entity.animation.frame_count(),
+            entity.animation().frame_count(),
             MAX_DROP_SIZE
         );
 
@@ -338,7 +375,7 @@ impl Scene {
     pub fn total_decoded_bytes(&self) -> usize {
         self.entities
             .iter()
-            .map(|e| e.animation.decoded_bytes())
+            .map(|e| e.animations.decoded_bytes())
             .fold(0usize, |acc, n| acc.saturating_add(n))
     }
 
@@ -415,7 +452,7 @@ impl Scene {
 
         check_budget(
             self.total_decoded_bytes(),
-            entity.animation.decoded_bytes(),
+            entity.animations.decoded_bytes(),
             max_total_decoded_bytes(),
         )?;
 
@@ -469,6 +506,7 @@ mod tests {
             spritesheet_rows: None,
             monitor: None,
             easing: None,
+            animations: std::collections::BTreeMap::new(),
         };
         Entity::from_config(&cfg, anim)
     }

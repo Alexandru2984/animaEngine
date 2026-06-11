@@ -1,4 +1,4 @@
-use crate::animation::Animation;
+use crate::animation::{Animation, AnimationSet};
 use crate::behavior::{Behavior, BehaviorState, TickContext};
 use crate::config::CharacterConfig;
 use crate::physics::PhysicsState;
@@ -22,8 +22,15 @@ pub struct Entity {
     pub z_index: i32,
     /// Whether this entity is visible
     pub visible: bool,
-    /// Animation state
-    pub animation: Animation,
+    /// Per-state animations with one active state (U.1). Single-state
+    /// for everything that isn't a multi-state import; access the
+    /// active sequence through [`Entity::animation`] /
+    /// [`Entity::animation_mut`].
+    pub animations: AnimationSet,
+    /// Passthrough of the config's per-state sources so `to_config`
+    /// round-trips them without the entity re-deriving anything.
+    pub state_configs:
+        std::collections::BTreeMap<crate::animation::StateId, crate::config::StateSequenceConfig>,
     /// Whether the GPU texture needs updating (frame changed)
     pub texture_dirty: bool,
     /// The original asset path (for config saving)
@@ -48,8 +55,15 @@ pub struct Entity {
 }
 
 impl Entity {
-    /// Create an entity from config + loaded animation frames
+    /// Create an entity from config + the idle animation. Convenience
+    /// wrapper over [`Entity::from_config_set`] for the single-state
+    /// callers (drag-drop, presets, every pre-U.1 path).
     pub fn from_config(config: &CharacterConfig, animation: Animation) -> Self {
+        Self::from_config_set(config, AnimationSet::single(animation))
+    }
+
+    /// Create an entity from config + a full animation set (U.1).
+    pub fn from_config_set(config: &CharacterConfig, mut animations: AnimationSet) -> Self {
         // Seed the behavior RNG from the entity id so two BoundedWander
         // characters created from the same template don't trace identical
         // paths. Same-id reloads still get the same seed → deterministic.
@@ -57,8 +71,10 @@ impl Entity {
         std::hash::Hash::hash(&config.id, &mut hasher);
         let seed = std::hash::Hasher::finish(&hasher);
 
-        let mut animation = animation;
-        animation.easing = config.easing;
+        // Easing applies to the active (idle) sequence — per-state
+        // easing is not a thing; GIF/WebP per-frame delays in any
+        // state stay authoritative regardless.
+        animations.current_mut().easing = config.easing;
 
         Self {
             id: config.id.clone(),
@@ -69,7 +85,8 @@ impl Entity {
             opacity: config.opacity,
             z_index: config.z_index,
             visible: config.visible,
-            animation,
+            animations,
+            state_configs: config.animations.clone(),
             texture_dirty: true, // Needs initial texture upload
             asset_path: config.asset_path.clone(),
             asset_type: config.asset_type.clone(),
@@ -80,6 +97,16 @@ impl Entity {
             behavior: config.behavior.clone(),
             behavior_state: BehaviorState::with_seed(seed),
         }
+    }
+
+    /// The active state's animation.
+    pub fn animation(&self) -> &Animation {
+        self.animations.current()
+    }
+
+    /// Mutable access to the active state's animation.
+    pub fn animation_mut(&mut self) -> &mut Animation {
+        self.animations.current_mut()
     }
 
     /// Tick the entity: behavior + physics + animation.
@@ -115,7 +142,7 @@ impl Entity {
         self.y = self.physics.tick(self.y, sprite_h, screen_height, dt);
 
         // Animation frame advance.
-        if self.animation.tick() {
+        if self.animations.current_mut().tick() {
             self.texture_dirty = true;
             return true;
         }
@@ -124,14 +151,14 @@ impl Entity {
 
     /// Get the current frame dimensions (scaled)
     pub fn scaled_width(&self) -> f32 {
-        self.animation
+        self.animation()
             .current_frame_data()
             .map(|f| f.width as f32 * self.scale)
             .unwrap_or(64.0)
     }
 
     pub fn scaled_height(&self) -> f32 {
-        self.animation
+        self.animation()
             .current_frame_data()
             .map(|f| f.height as f32 * self.scale)
             .unwrap_or(64.0)
@@ -162,7 +189,7 @@ impl Entity {
             return false;
         }
 
-        let Some(frame) = self.animation.current_frame_data() else {
+        let Some(frame) = self.animation().current_frame_data() else {
             return true; // No pixel data yet — accept the AABB hit.
         };
 
@@ -196,7 +223,8 @@ impl Entity {
             opacity: 1.0,
             z_index: 0,
             visible: true,
-            animation,
+            animations: AnimationSet::single(animation),
+            state_configs: std::collections::BTreeMap::new(),
             texture_dirty: false,
             asset_path: String::new(),
             asset_type: crate::config::AssetType::PngStatic,
@@ -220,16 +248,17 @@ impl Entity {
             y: self.y,
             scale: self.scale,
             opacity: self.opacity,
-            fps: self.animation.fps,
+            fps: self.animation().fps,
             visible: self.visible,
-            playing: self.animation.playing,
+            playing: self.animation().playing,
             z_index: self.z_index,
             physics_enabled: self.physics.enabled,
             behavior: self.behavior.clone(),
             spritesheet_columns: self.spritesheet_columns,
             spritesheet_rows: self.spritesheet_rows,
             monitor: self.monitor.clone(),
-            easing: self.animation.easing,
+            easing: self.animation().easing,
+            animations: self.state_configs.clone(),
         }
     }
 }

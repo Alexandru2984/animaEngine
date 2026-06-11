@@ -177,20 +177,20 @@ fn entity_inspector(
         &mut collapse_state.inspector_animation,
         config_dirty,
         |ui| {
-            let mut fps = entity.animation.fps;
+            let mut fps = entity.animation().fps;
             if ui
                 .add(egui::Slider::new(&mut fps, 1.0..=60.0).text("FPS"))
                 .changed()
             {
-                entity.animation.set_fps(fps);
+                entity.animation_mut().set_fps(fps);
                 change.any_field = true;
             }
-            let mut playing = entity.animation.playing;
+            let mut playing = entity.animation().playing;
             if ui.checkbox(&mut playing, "Playing").changed() {
-                entity.animation.playing = playing;
+                entity.animation_mut().playing = playing;
                 change.any_field = true;
             }
-            if easing_picker(ui, &mut entity.animation.easing) {
+            if easing_picker(ui, &mut entity.animation_mut().easing) {
                 change.any_field = true;
             }
         },
@@ -255,7 +255,7 @@ fn easing_picker(ui: &mut egui::Ui, easing: &mut Option<crate::anim::EasingCurve
     };
     ui.horizontal(|ui| {
         ui.label(t("animation-easing-label"));
-        egui::ComboBox::from_id_salt("anima.animation.easing")
+        egui::ComboBox::from_id_salt("anima.animation().easing")
             .selected_text(active_label)
             .show_ui(ui, |ui| {
                 let is_linear = easing.is_none() || matches!(easing, Some(EasingCurve::Linear));

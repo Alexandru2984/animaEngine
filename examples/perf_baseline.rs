@@ -121,6 +121,7 @@ fn build_scene(n: usize) -> Scene {
             spritesheet_rows: None,
             monitor: None,
             easing: None,
+            animations: std::collections::BTreeMap::new(),
         };
         // 3 fallback frames so animation tick has something to advance.
         let frames: Vec<_> = (0..3)

@@ -338,7 +338,7 @@ impl GpuShared {
         let needs_create = !self.textures.contains_key(&entity.id);
 
         if needs_create {
-            if let Some(frame) = entity.animation.current_frame_data() {
+            if let Some(frame) = entity.animation().current_frame_data() {
                 let gpu_tex = GpuTexture::from_frame(
                     &self.device,
                     &self.queue,
@@ -349,7 +349,7 @@ impl GpuShared {
                 self.textures.insert(entity.id.clone(), gpu_tex);
             }
         } else if entity.texture_dirty {
-            if let Some(frame) = entity.animation.current_frame_data() {
+            if let Some(frame) = entity.animation().current_frame_data() {
                 if let Some(gpu_tex) = self.textures.get(&entity.id) {
                     // If same size, update in place
                     if gpu_tex.width == frame.width && gpu_tex.height == frame.height {

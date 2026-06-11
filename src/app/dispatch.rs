@@ -187,11 +187,11 @@ impl App {
             Action::TogglePlayback => {
                 if let Some(idx) = self.selection.selected_index() {
                     if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.animation.toggle_playback();
+                        entity.animation_mut().toggle_playback();
                         tracing::info!(
                             "Entity '{}': {}",
                             entity.name,
-                            if entity.animation.playing {
+                            if entity.animation().playing {
                                 "playing"
                             } else {
                                 "paused"
@@ -276,10 +276,9 @@ impl App {
             Action::FpsDown => {
                 if let Some(idx) = self.selection.selected_index() {
                     if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity
-                            .animation
-                            .set_fps((entity.animation.fps - 2.0).max(1.0));
-                        tracing::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
+                        let fps = entity.animation().fps;
+                        entity.animation_mut().set_fps((fps - 2.0).max(1.0));
+                        tracing::info!("FPS: {:.0} ({})", entity.animation().fps, entity.name);
                         self.config_dirty = true;
                     }
                 }
@@ -287,8 +286,9 @@ impl App {
             Action::FpsUp => {
                 if let Some(idx) = self.selection.selected_index() {
                     if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.animation.set_fps(entity.animation.fps + 2.0);
-                        tracing::info!("FPS: {:.0} ({})", entity.animation.fps, entity.name);
+                        let fps = entity.animation().fps;
+                        entity.animation_mut().set_fps(fps + 2.0);
+                        tracing::info!("FPS: {:.0} ({})", entity.animation().fps, entity.name);
                         self.config_dirty = true;
                     }
                 }
@@ -312,9 +312,9 @@ impl App {
                     tracing::info!(
                         "━━━ Entity Info ━━━\n  Name: {}\n  ID: {}\n  Position: ({:.0}, {:.0})\n  Scale: {:.2}\n  Opacity: {:.0}%\n  FPS: {:.0}\n  Frames: {}\n  z-index: {}\n  Visible: {}\n  Playing: {}\n  Asset: {}",
                         e.name, e.id, e.x, e.y, e.scale,
-                        e.opacity * 100.0, e.animation.fps,
-                        e.animation.frame_count(), e.z_index,
-                        e.visible, e.animation.playing, e.asset_path
+                        e.opacity * 100.0, e.animation().fps,
+                        e.animation().frame_count(), e.z_index,
+                        e.visible, e.animation().playing, e.asset_path
                     );
                 }
             }

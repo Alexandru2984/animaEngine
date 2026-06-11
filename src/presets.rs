@@ -148,6 +148,7 @@ fn demo_character(
         spritesheet_rows: None,
         monitor: None,
         easing: None,
+        animations: std::collections::BTreeMap::new(),
     }
 }
 

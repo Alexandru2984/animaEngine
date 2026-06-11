@@ -172,6 +172,122 @@ impl Animation {
     }
 }
 
+/// Animation state an entity can be in (U.1). Closed enum — behavior
+/// wiring matches exhaustively, so a new state can't ship half-wired.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum StateId {
+    /// Default state; the only one guaranteed present.
+    Idle,
+    /// Horizontal locomotion (behavior-driven).
+    Walk,
+    /// Gravity-driven falling.
+    Fall,
+    /// While the user drags the entity.
+    Drag,
+}
+
+/// A set of per-state animations with one active state (U.1).
+///
+/// Invariant: `Idle` is always present — constructors take the idle
+/// animation by value. Lookups for missing states fall back to
+/// `Idle`, so behavior wiring (U.2) can request any state without
+/// caring whether the asset shipped it.
+#[derive(Debug)]
+pub struct AnimationSet {
+    active: StateId,
+    states: std::collections::BTreeMap<StateId, Animation>,
+}
+
+impl AnimationSet {
+    /// Single-state set — exactly the pre-U.1 shape. Every legacy
+    /// config and every plain drag-drop lands here.
+    pub fn single(idle: Animation) -> Self {
+        let mut states = std::collections::BTreeMap::new();
+        states.insert(StateId::Idle, idle);
+        Self {
+            active: StateId::Idle,
+            states,
+        }
+    }
+
+    /// Insert/replace a state's animation. `Idle` may be replaced but
+    /// never removed.
+    pub fn insert(&mut self, state: StateId, animation: Animation) {
+        self.states.insert(state, animation);
+    }
+
+    pub fn active_state(&self) -> StateId {
+        self.active
+    }
+
+    /// `true` if the set carries a dedicated animation for `state`
+    /// (no fallback considered).
+    pub fn has_state(&self, state: StateId) -> bool {
+        self.states.contains_key(&state)
+    }
+
+    /// The animation for the active state. Falls back to `Idle` when
+    /// the active state has no dedicated sequence.
+    pub fn current(&self) -> &Animation {
+        self.states
+            .get(&self.active)
+            .or_else(|| self.states.get(&StateId::Idle))
+            .expect("AnimationSet invariant: Idle always present")
+    }
+
+    pub fn current_mut(&mut self) -> &mut Animation {
+        let key = if self.states.contains_key(&self.active) {
+            self.active
+        } else {
+            StateId::Idle
+        };
+        self.states
+            .get_mut(&key)
+            .expect("AnimationSet invariant: Idle always present")
+    }
+
+    /// Switch the active state. Returns `true` when the *effective*
+    /// animation changed (the caller marks the GPU texture dirty).
+    /// Switching to a missing state falls back to Idle; switching to
+    /// the state already active is a no-op. A real switch rewinds the
+    /// target to frame 0 with a fresh clock so a revisited state
+    /// doesn't resume mid-loop.
+    pub fn switch(&mut self, to: StateId) -> bool {
+        let effective_now = if self.states.contains_key(&self.active) {
+            self.active
+        } else {
+            StateId::Idle
+        };
+        let effective_next = if self.states.contains_key(&to) {
+            to
+        } else {
+            StateId::Idle
+        };
+        self.active = to;
+        if effective_now == effective_next {
+            return false;
+        }
+        let anim = self
+            .states
+            .get_mut(&effective_next)
+            .expect("effective state exists by construction");
+        anim.current_frame = 0;
+        anim.last_frame_time = Instant::now();
+        true
+    }
+
+    /// Total decoded bytes across **all** states — the memory budget
+    /// must count inactive sequences too.
+    pub fn decoded_bytes(&self) -> usize {
+        self.states
+            .values()
+            .fold(0usize, |acc, a| acc.saturating_add(a.decoded_bytes()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -252,6 +368,62 @@ mod tests {
         let mut single = Animation::new(vec![delayed_frame(10)], 10.0, true);
         single.rewind(Duration::from_secs(1));
         assert!(!single.tick());
+    }
+
+    fn one_frame_anim(marker: u8) -> Animation {
+        Animation::new(vec![Frame::new(vec![marker; 4], 1, 1)], 1.0, true)
+    }
+
+    fn two_frame_anim() -> Animation {
+        Animation::new(
+            vec![
+                Frame::new(vec![0u8; 4], 1, 1),
+                Frame::new(vec![1u8; 4], 1, 1),
+            ],
+            1.0,
+            true,
+        )
+    }
+
+    #[test]
+    fn set_single_serves_idle_for_every_state() {
+        let mut set = AnimationSet::single(one_frame_anim(7));
+        assert_eq!(set.active_state(), StateId::Idle);
+        // Switching to a missing state falls back to Idle — and is
+        // NOT an effective change.
+        assert!(!set.switch(StateId::Walk));
+        assert_eq!(set.current().frames[0].rgba[0], 7);
+    }
+
+    #[test]
+    fn set_switch_to_present_state_resets_frame_and_reports_change() {
+        let mut set = AnimationSet::single(one_frame_anim(1));
+        let mut walk = two_frame_anim();
+        walk.current_frame = 1; // dirty runtime state, must reset
+        set.insert(StateId::Walk, walk);
+
+        assert!(set.switch(StateId::Walk));
+        assert_eq!(set.active_state(), StateId::Walk);
+        assert_eq!(set.current().current_frame, 0, "switch rewinds");
+        // Same state again: no-op.
+        assert!(!set.switch(StateId::Walk));
+    }
+
+    #[test]
+    fn set_missing_to_missing_switch_is_noop() {
+        let mut set = AnimationSet::single(one_frame_anim(1));
+        assert!(!set.switch(StateId::Fall));
+        assert!(!set.switch(StateId::Drag));
+        // Falling back to Idle the whole time — and switching BACK to
+        // idle from a fallback is also not a change.
+        assert!(!set.switch(StateId::Idle));
+    }
+
+    #[test]
+    fn set_decoded_bytes_counts_inactive_states() {
+        let mut set = AnimationSet::single(one_frame_anim(1)); // 4 bytes
+        set.insert(StateId::Walk, two_frame_anim()); // 8 bytes
+        assert_eq!(set.decoded_bytes(), 12);
     }
 
     #[test]

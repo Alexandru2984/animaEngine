@@ -390,8 +390,8 @@ impl App {
             {
                 return RedrawPacing::Continuous;
             }
-            if entity.animation.playing && entity.animation.frame_count() > 1 {
-                let due = entity.animation.next_frame_due();
+            if entity.animation().playing && entity.animation().frame_count() > 1 {
+                let due = entity.animation().next_frame_due();
                 deadline = Some(deadline.map_or(due, |d| d.min(due)));
             }
         }
