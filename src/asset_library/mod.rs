@@ -352,6 +352,83 @@ pub fn thumbnail_cache_dir() -> PathBuf {
     xdg_cache_dir().join("thumbs")
 }
 
+/// Maximum thumbnail edge, px. Grid cells render at half this on a
+/// 1× display, so thumbs stay crisp on 2× without a regenerate.
+pub const THUMB_EDGE: u32 = 64;
+
+/// Generate the thumbnail for one asset if missing or stale (source
+/// mtime newer than the thumb's). Returns the thumb path when one
+/// exists after the call.
+///
+/// First frame only; `Video` assets are skipped — decoding H.264 for
+/// a 64 px preview costs more than the glyph fallback is worth (the
+/// UI shows a film icon instead). GIF/WebP decode to their first
+/// frame through `image::open`, which is exactly what we want here.
+pub fn ensure_thumbnail(root: &Path, asset: &LibraryAsset) -> Option<PathBuf> {
+    ensure_thumbnail_at(root, asset, &thumbnail_cache_dir())
+}
+
+/// [`ensure_thumbnail`] with an explicit cache directory — split out
+/// so tests don't write into the real user cache.
+fn ensure_thumbnail_at(root: &Path, asset: &LibraryAsset, thumb_dir: &Path) -> Option<PathBuf> {
+    if matches!(asset.kind, LibraryKind::Video) {
+        return None;
+    }
+    let src = root.join(&asset.path);
+    let thumb = thumb_dir.join(asset.thumbnail_filename());
+
+    let src_mtime = std::fs::metadata(&src).and_then(|m| m.modified()).ok()?;
+    if let Ok(tm) = std::fs::metadata(&thumb).and_then(|m| m.modified()) {
+        if tm >= src_mtime {
+            return Some(thumb); // fresh
+        }
+    }
+
+    let img = match image::open(&src) {
+        Ok(i) => i,
+        Err(e) => {
+            tracing::debug!(
+                "Thumbnail decode failed for {}: {e}",
+                crate::drop_validate::redact_path(&src)
+            );
+            return None;
+        }
+    };
+    // `thumbnail` preserves aspect ratio within the bounding box and
+    // uses a fast integer path for large downscales.
+    let small = img.thumbnail(THUMB_EDGE, THUMB_EDGE);
+    if let Some(parent) = thumb.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    match small.save(&thumb) {
+        Ok(()) => Some(thumb),
+        Err(e) => {
+            tracing::debug!("Thumbnail write failed: {e}");
+            None
+        }
+    }
+}
+
+/// Sequentially generate every missing/stale thumbnail for the index.
+/// Designed to run on one background thread right after the startup
+/// scan — a typical library (≤ a few hundred entries) finishes in
+/// well under a second, and the UI picks thumbs up from disk as they
+/// appear (no channel needed).
+pub fn generate_missing_thumbnails(root: &Path, index: &LibraryIndex) {
+    let started = std::time::Instant::now();
+    let mut made = 0usize;
+    for asset in &index.assets {
+        if ensure_thumbnail(root, asset).is_some() {
+            made += 1;
+        }
+    }
+    tracing::info!(
+        "Thumbnails ready: {made}/{} in {:?}",
+        index.assets.len(),
+        started.elapsed()
+    );
+}
+
 /// Decide whether the cached thumbnail at `cached` is still valid for
 /// `source`. Returns `false` when the source's mtime is newer than the
 /// cache, or when either path is missing. C.5 calls this before
@@ -583,6 +660,54 @@ mod tests {
         fs::write(&src, b"x").unwrap();
         assert!(!thumbnail_is_fresh(&src, &cache));
         fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn thumbnail_generated_and_fits_bounding_box() {
+        let dir = tempdir("thumb_gen");
+        let root = dir.join("root");
+        let thumbs = dir.join("thumbs");
+        fs::create_dir_all(&root).unwrap();
+        // 200×100 source → thumb must fit 64×64 preserving aspect.
+        let img = image::RgbaImage::from_pixel(200, 100, image::Rgba([10, 200, 30, 255]));
+        img.save(root.join("wide.png")).unwrap();
+
+        let asset = LibraryAsset {
+            id: "abc123def456".into(),
+            path: "wide.png".into(),
+            kind: LibraryKind::Image,
+            tags: vec![],
+            added_at: SystemTime::now(),
+            last_used_at: None,
+        };
+        let thumb = ensure_thumbnail_at(&root, &asset, &thumbs).expect("thumb");
+        let t = image::open(&thumb).unwrap();
+        assert!(t.width() <= THUMB_EDGE && t.height() <= THUMB_EDGE);
+        assert_eq!(t.width(), 64);
+        assert_eq!(t.height(), 32, "aspect preserved");
+
+        // Second call is a cache hit (same mtime) — file untouched.
+        let m1 = fs::metadata(&thumb).unwrap().modified().unwrap();
+        let again = ensure_thumbnail_at(&root, &asset, &thumbs).unwrap();
+        assert_eq!(again, thumb);
+        let m2 = fs::metadata(&thumb).unwrap().modified().unwrap();
+        assert_eq!(m1, m2);
+    }
+
+    #[test]
+    fn thumbnail_skips_video_kind() {
+        let dir = tempdir("thumb_video");
+        let root = dir.join("root");
+        fs::create_dir_all(&root).unwrap();
+        let asset = LibraryAsset {
+            id: "video0000000".into(),
+            path: "clip.mp4".into(),
+            kind: LibraryKind::Video,
+            tags: vec![],
+            added_at: SystemTime::now(),
+            last_used_at: None,
+        };
+        assert!(ensure_thumbnail_at(&root, &asset, &dir.join("thumbs")).is_none());
     }
 
     fn tempdir(name: &str) -> PathBuf {

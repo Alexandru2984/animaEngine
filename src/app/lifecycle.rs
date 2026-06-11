@@ -56,6 +56,20 @@ impl App {
                 scanned_count,
             );
             tracing::debug!("Asset library full root: {}", root.display());
+            // U.5: fill the thumbnail cache off-thread; the grid
+            // picks thumbs up from disk as they appear.
+            {
+                let root = root.clone();
+                let index = idx.clone();
+                let spawned = std::thread::Builder::new()
+                    .name("anima-thumbs".into())
+                    .spawn(move || {
+                        crate::asset_library::generate_missing_thumbnails(&root, &index);
+                    });
+                if let Err(e) = spawned {
+                    tracing::warn!("Thumbnail thread failed to spawn: {e}");
+                }
+            }
             self.library = Some(idx);
             self.library_root = Some(root);
         } else {
