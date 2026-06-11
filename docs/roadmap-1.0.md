@@ -2,7 +2,16 @@
 
 Detailed companion to [ROADMAP.md](../ROADMAP.md). Four releases
 separate 0.5.5 from 1.0; each has a single theme, a fixed sub-phase
-list, and a definition of done. Sub-phases are sized S/M/L (hours /
+list, and a definition of done. Each release also has its own
+execution plan with per-sub-phase design notes and acceptance
+criteria (rolling-wave: the next release is fully detailed, later
+ones firm up at phase start):
+
+- [plans/v0.6-platform.md](plans/v0.6-platform.md) — Faza T
+- [plans/v0.7-content.md](plans/v0.7-content.md) — Faza U
+- [plans/v0.8-polish.md](plans/v0.8-polish.md) — Faza V
+- [plans/v0.9-freeze.md](plans/v0.9-freeze.md) — Faza W
+- [plans/v1.0-contract.md](plans/v1.0-contract.md) — Faza X Sub-phases are sized S/M/L (hours /
 day / multi-day), land as one commit each, and every one passes the
 standard gate before merging:
 
