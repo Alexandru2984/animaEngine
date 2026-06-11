@@ -23,4 +23,8 @@ pub enum AnimaEvent {
     /// finished without a working backend — surface the warning
     /// banner. Emitted at most once per run.
     HotkeysUnavailable,
+    /// The portal handshake failed (denied / unavailable) but the
+    /// XGrabKey fallback took over — toast the downgrade so the user
+    /// knows why the system shortcut dialog had no effect.
+    PortalShortcutsDenied,
 }

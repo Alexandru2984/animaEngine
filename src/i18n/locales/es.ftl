@@ -168,3 +168,7 @@ scene-empty-action-browse-presets = Browse presets
 library-empty-action-copy-path = Copy path to clipboard
 
 appearance-reset-onboarding-hint = Brings back the dismissed progressive hints and the "What's new" panel.
+
+# ── Portal shortcuts (T.3) ────────────────────────────────────────────
+portal-denied-x11-fallback-toast = Shortcut permission was declined — using X11 hotkeys instead. Retry from the Keybindings tab.
+portal-denied-native-toast = Shortcut permission was declined — the tray menu and compositor bindings still work.

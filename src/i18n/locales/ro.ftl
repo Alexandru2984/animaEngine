@@ -172,3 +172,7 @@ library-empty-action-copy-path = Copiază calea
 
 # ── Tooltips (D.9) ────────────────────────────────────────────────────
 appearance-reset-onboarding-hint = Reactivează hint-urile descărcate și panoul "Noutăți".
+
+# ── Portal shortcuts (T.3) ────────────────────────────────────────────
+portal-denied-x11-fallback-toast = Permisiunea pentru scurtături a fost refuzată — folosim scurtăturile X11. Reîncearcă din tabul Scurtături.
+portal-denied-native-toast = Permisiunea pentru scurtături a fost refuzată — meniul din tray și bindurile compositorului funcționează în continuare.

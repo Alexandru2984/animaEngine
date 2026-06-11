@@ -54,14 +54,37 @@ set the env var.
 | Settings panel + presets + Keybindings tab | ✓ | ✓ |
 | Perf overlay (`Ctrl+Shift+\``) | ✓ | ✓ |
 | Multi-monitor info | XRandR | `wl_output` enumeration |
-| Global hotkeys | XGrabKey (`Ctrl+Shift+A/H/P`) | **Compositor bindings + D-Bus** (see below) |
+| Global hotkeys | XGrabKey (`Ctrl+Shift+A/H/P`) | **GlobalShortcuts portal** (preferred) or compositor bindings + D-Bus (see below) |
 | Tray icon (StatusNotifierItem) | ✓ | ✓ |
 | AccessKit / AT-SPI | ✓ | toggle still works; native screen-reader pickup compositor-dependent |
 
-## Global shortcuts on Wayland — the D-Bus path
+## Global shortcuts on Wayland — the portal path (preferred)
 
-Wayland has no `XGrabKey` equivalent. The closest portable substitutes
-are compositor-level bindings invoking the **`org.animaengine.Anima`
+Wayland has no `XGrabKey` equivalent. The sanctioned mechanism is the
+**`org.freedesktop.portal.GlobalShortcuts`** desktop portal: at
+startup animaEngine creates a portal session and binds its three
+global actions (`toggle-edit-mode`, `hide-overlay`, `pause-all`) with
+the chords from your Keybindings tab as preferred triggers. The
+desktop shows a one-time approval dialog (GNOME) or a shortcut editor
+(KDE); after that, presses arrive as portal signals — no X server, no
+compositor config, works inside the Flatpak sandbox.
+
+Availability: GNOME ≥ 48, KDE Plasma ≥ 5.27, wlroots compositors with
+a portal backend implementing GlobalShortcuts. On sessions without
+the portal, animaEngine falls back automatically (XGrabKey when an X
+server exists, otherwise the D-Bus path below) — the startup log line
+`Hotkey strategy: …` shows which mechanism won. Pin one explicitly
+with `hotkey_backend = "portal" | "x11" | "none"` under `[global]` in
+config.toml.
+
+If you decline the approval dialog, the overlay stays fully usable:
+a toast explains the downgrade, and the tray menu, the ⚙ button and
+the bindings below keep working.
+
+## Global shortcuts on Wayland — the D-Bus fallback
+
+On wlroots compositors without a GlobalShortcuts portal backend, use
+compositor-level bindings invoking the **`org.animaengine.Anima`
 D-Bus interface**.
 
 animaEngine exposes these methods on `/com/animaengine/Anima` while

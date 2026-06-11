@@ -201,7 +201,7 @@ pub fn run_native(
                         AnimaEvent::RaiseWindow => {}
                         // Hotkey resolution events are winit-path UI; the
                         // native path logs the outcome where it resolves.
-                        AnimaEvent::HotkeysUnavailable => {}
+                        AnimaEvent::HotkeysUnavailable | AnimaEvent::PortalShortcutsDenied => {}
                     }
                 }
             }
@@ -223,6 +223,7 @@ pub fn run_native(
                                 "Portal shortcuts unavailable — compositor \
                                  bindings via D-Bus remain the fallback"
                             );
+                            toasts.warn(crate::i18n::t("portal-denied-native-toast"));
                         }
                         PortalMsg::Activated(action) => match action {
                             KbAction::ToggleEditMode => toggle_edit_xor ^= true,

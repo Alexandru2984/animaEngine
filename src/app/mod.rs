@@ -377,6 +377,10 @@ impl ApplicationHandler<AnimaEvent> for App {
                 // working backend.
                 self.push_warning(Warning::GlobalHotkeysUnavailable);
             }
+            AnimaEvent::PortalShortcutsDenied => {
+                self.toasts
+                    .warn(crate::i18n::t("portal-denied-x11-fallback-toast"));
+            }
         }
         // Every non-quit tray/hotkey action mutates visible state
         // (mode, playback, visibility) — wake the paced render loop.

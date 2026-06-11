@@ -355,6 +355,7 @@ fn portal_bridge(
             match hotkeys::register(proxy.clone(), bindings) {
                 Some(_ctrl) => {
                     tracing::info!("XGrabKey fallback active");
+                    let _ = proxy.send_event(AnimaEvent::PortalShortcutsDenied);
                     // The controller un-registers on drop — park this
                     // thread for the process lifetime to keep it alive.
                     loop {
