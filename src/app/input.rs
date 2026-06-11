@@ -84,9 +84,11 @@ impl App {
                 if let Some(entity_idx) = self.scene.entity_at_point(self.mouse_x, self.mouse_y) {
                     self.selection.select(entity_idx);
 
-                    // Start drag — freeze physics
+                    // Start drag — freeze physics, flag the Drag
+                    // animation state (U.2).
                     let entity = &mut self.scene.entities[entity_idx];
                     entity.physics.freeze();
+                    entity.dragging = true;
                     let offset_x = self.mouse_x - entity.x;
                     let offset_y = self.mouse_y - entity.y;
                     self.drag.start_drag(entity_idx, offset_x, offset_y);
@@ -100,8 +102,9 @@ impl App {
                 // Drop the freeze. Physics remains whatever the user set —
                 // off by default (entity stays put), on if they pressed G.
                 if let Some(idx) = self.drag.dragging_entity() {
-                    if idx < self.scene.entities.len() {
-                        self.scene.entities[idx].physics.unfreeze();
+                    if let Some(entity) = self.scene.entities.get_mut(idx) {
+                        entity.physics.unfreeze();
+                        entity.dragging = false;
                     }
                 }
                 self.drag.end_drag();

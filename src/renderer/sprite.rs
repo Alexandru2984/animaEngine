@@ -47,32 +47,36 @@ pub fn make_quad_vertices(
     width: f32,
     height: f32,
     opacity: f32,
+    flip_x: bool,
 ) -> [SpriteVertex; 4] {
     let color = [1.0, 1.0, 1.0, opacity];
+    // Horizontal mirror = swap the U texture coordinates (U.2). No
+    // texture duplication, no extra pipeline state.
+    let (u_left, u_right) = if flip_x { (1.0, 0.0) } else { (0.0, 1.0) };
 
     [
         // Top-left
         SpriteVertex {
             position: [x, y],
-            tex_coord: [0.0, 0.0],
+            tex_coord: [u_left, 0.0],
             color,
         },
         // Top-right
         SpriteVertex {
             position: [x + width, y],
-            tex_coord: [1.0, 0.0],
+            tex_coord: [u_right, 0.0],
             color,
         },
         // Bottom-left
         SpriteVertex {
             position: [x, y + height],
-            tex_coord: [0.0, 1.0],
+            tex_coord: [u_left, 1.0],
             color,
         },
         // Bottom-right
         SpriteVertex {
             position: [x + width, y + height],
-            tex_coord: [1.0, 1.0],
+            tex_coord: [u_right, 1.0],
             color,
         },
     ]

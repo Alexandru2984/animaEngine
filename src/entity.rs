@@ -1,7 +1,25 @@
-use crate::animation::{Animation, AnimationSet};
+use crate::animation::{Animation, AnimationSet, StateId};
 use crate::behavior::{Behavior, BehaviorState, TickContext};
 use crate::config::CharacterConfig;
 use crate::physics::PhysicsState;
+
+/// Below this horizontal speed (px per tick) an entity counts as
+/// standing still — keeps float jitter from flapping Walk/Idle.
+const FACING_EPSILON: f32 = 0.01;
+
+/// Pick the animation state for this tick (U.2). Pure so the
+/// priority table is unit-testable.
+fn desired_state(dragging: bool, falling: bool, dx: f32) -> StateId {
+    if dragging {
+        StateId::Drag
+    } else if falling {
+        StateId::Fall
+    } else if dx.abs() > FACING_EPSILON {
+        StateId::Walk
+    } else {
+        StateId::Idle
+    }
+}
 
 /// A single animated entity on screen.
 /// Represents one character/asset with its position, appearance, and animation state.
@@ -52,6 +70,14 @@ pub struct Entity {
     pub behavior: Behavior,
     /// Behavior runtime accumulators (direction, timers). Not serialized.
     pub behavior_state: BehaviorState,
+    /// `true` while the user drags this entity (set by the input
+    /// layer). Drives the `Drag` animation state (U.2). Runtime-only.
+    pub dragging: bool,
+    /// Horizontal facing, updated from behavior motion. Persists
+    /// across states so an entity that stops walking left keeps
+    /// facing left. The renderer mirrors the sprite when `true`
+    /// (art is assumed right-facing; importers can pre-flip).
+    pub facing_left: bool,
 }
 
 impl Entity {
@@ -96,6 +122,8 @@ impl Entity {
             physics: PhysicsState::from_enabled(config.physics_enabled),
             behavior: config.behavior.clone(),
             behavior_state: BehaviorState::with_seed(seed),
+            dragging: false,
+            facing_left: false,
         }
     }
 
@@ -134,12 +162,31 @@ impl Entity {
         };
 
         // Behavior — autonomous motion (can affect both X and Y).
+        let x_before = self.x;
         self.behavior
             .tick(&mut self.behavior_state, &mut self.x, &mut self.y, &ctx);
+        let dx = self.x - x_before;
 
         // Physics — gravity / bounce on the vertical axis. When enabled
         // this overrides whatever Y the behavior set.
         self.y = self.physics.tick(self.y, sprite_h, screen_height, dt);
+
+        // Facing follows horizontal motion; standing still keeps the
+        // last direction (U.2).
+        if dx.abs() > FACING_EPSILON {
+            self.facing_left = dx < 0.0;
+        }
+
+        // Animation state selection (U.2). Priority: a drag overrides
+        // everything the entity does on its own; falling overrides
+        // locomotion; horizontal motion plays Walk; otherwise Idle.
+        // Missing states fall back to Idle inside the set, so this is
+        // safe for single-state entities (the switch is then a no-op).
+        let falling = self.physics.enabled && !self.physics.grounded;
+        let desired = desired_state(self.dragging, falling, dx);
+        if self.animations.switch(desired) {
+            self.texture_dirty = true;
+        }
 
         // Animation frame advance.
         if self.animations.current_mut().tick() {
@@ -234,6 +281,8 @@ impl Entity {
             physics: PhysicsState::default(),
             behavior: Behavior::Idle,
             behavior_state: BehaviorState::default(),
+            dragging: false,
+            facing_left: false,
         }
     }
 
@@ -286,6 +335,25 @@ mod tests {
     fn entity_at(x: f32, y: f32) -> Entity {
         let anim = Animation::new(vec![checker_frame()], 1.0, false);
         Entity::for_test(x, y, anim)
+    }
+
+    #[test]
+    fn state_priority_drag_beats_everything() {
+        assert_eq!(desired_state(true, true, 5.0), StateId::Drag);
+        assert_eq!(desired_state(true, false, 0.0), StateId::Drag);
+    }
+
+    #[test]
+    fn state_priority_fall_beats_walk() {
+        assert_eq!(desired_state(false, true, 5.0), StateId::Fall);
+    }
+
+    #[test]
+    fn state_walk_requires_motion_above_epsilon() {
+        assert_eq!(desired_state(false, false, 0.5), StateId::Walk);
+        assert_eq!(desired_state(false, false, -0.5), StateId::Walk);
+        assert_eq!(desired_state(false, false, 0.005), StateId::Idle);
+        assert_eq!(desired_state(false, false, 0.0), StateId::Idle);
     }
 
     #[test]

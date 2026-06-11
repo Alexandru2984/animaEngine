@@ -491,9 +491,10 @@ impl SurfaceState {
         quad_index: usize,
         rect: (f32, f32, f32, f32),
         opacity: f32,
+        flip_x: bool,
     ) {
         let (x, y, w, h) = rect;
-        let vertices = make_quad_vertices(x, y, w, h, opacity);
+        let vertices = make_quad_vertices(x, y, w, h, opacity, flip_x);
         let offset = (quad_index * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
         shared.queue.write_buffer(
             &self.dynamic_vertex_buffer,
@@ -575,6 +576,7 @@ impl SurfaceState {
                     quad_idx,
                     (local_x, local_y, width, height),
                     entity.opacity,
+                    entity.facing_left,
                 );
                 draws.push(DrawCmd {
                     quad_index: quad_idx,
@@ -598,6 +600,7 @@ impl SurfaceState {
                                 height + pad * 2.0,
                             ),
                             0.9,
+                            false,
                         );
                         draws.push(DrawCmd {
                             quad_index: quad_idx,
@@ -620,6 +623,7 @@ impl SurfaceState {
                 quad_idx,
                 (0.0, 0.0, self.window_width as f32, 4.0),
                 1.0,
+                false,
             );
             draws.push(DrawCmd {
                 quad_index: quad_idx,
