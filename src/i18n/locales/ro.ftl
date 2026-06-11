@@ -181,3 +181,7 @@ portal-denied-native-toast = Permisiunea pentru scurtături a fost refuzată —
 keybindings-backend-label = Scurtături globale prin:
 keybindings-backend-tooltip = Mecanismul care livrează cele trei scurtături globale (edit, ascundere, pauză) cât timp alte aplicații au focus. Stabilit la pornire; scurtăturile din aplicație nu sunt afectate.
 keybindings-portal-restart-hint = Schimbările de combinații se aplică la următoarea pornire (desktop-ul ține minte aprobarea).
+
+# ── Monitor hotplug (T.9) ─────────────────────────────────────────────
+monitor-unplugged-toast = Monitorul { $name } a fost deconectat — { $n } entități fixate își urmează acum poziția.
+monitor-plugged-toast = Monitorul { $name } a fost conectat.

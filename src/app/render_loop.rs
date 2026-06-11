@@ -60,8 +60,9 @@ impl App {
         self.check_hot_reload();
 
         // Appearance-tab monitor-mode switches rebuild the extra
-        // overlay windows (T.6).
+        // overlay windows (T.6); topology changes do the same (T.9).
         self.rebuild_windows_if_mode_changed(event_loop);
+        self.check_monitor_topology(event_loop);
 
         // Tick behavior + physics + animation.
         let (screen_w, screen_h) = self

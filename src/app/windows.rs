@@ -25,6 +25,33 @@ use winit::platform::wayland::WindowAttributesExtWayland;
 #[cfg(target_os = "linux")]
 use winit::platform::x11::{WindowAttributesExtX11, WindowType};
 
+/// Snapshot the monitor topology from winit. Shared by startup
+/// (`lifecycle.rs`) and the hotplug check so the two can't drift.
+pub(super) fn snapshot_monitors(event_loop: &ActiveEventLoop) -> Vec<MonitorInfo> {
+    let primary = event_loop.primary_monitor();
+    event_loop
+        .available_monitors()
+        .enumerate()
+        .map(|(i, m)| {
+            let size = m.size();
+            let pos = m.position();
+            let is_primary = primary
+                .as_ref()
+                .is_some_and(|p| p.name() == m.name() && p.size() == size);
+            let name = m.name().unwrap_or_else(|| format!("Display {i}"));
+            MonitorInfo {
+                name,
+                x: pos.x,
+                y: pos.y,
+                width: size.width,
+                height: size.height,
+                scale_factor: m.scale_factor(),
+                is_primary,
+            }
+        })
+        .collect()
+}
+
 /// `true` when the entity's resolved monitor (pin first, then
 /// centroid, with the standard fallbacks) is `target`. The one filter
 /// every per-monitor draw list goes through.
@@ -150,6 +177,58 @@ impl App {
                 },
             );
         }
+    }
+
+    /// Hotplug detection (T.9). winit has no monitor-change event on
+    /// X11, so the redraw cycle re-enumerates on the idle-heartbeat
+    /// cadence and diffs. On change: update the snapshot, clear pins
+    /// naming vanished monitors (they fall back to centroid
+    /// resolution), rebuild the extra windows, toast the summary.
+    pub(super) fn check_monitor_topology(&mut self, event_loop: &ActiveEventLoop) {
+        if self.last_monitor_check.elapsed() < std::time::Duration::from_secs(2) {
+            return;
+        }
+        self.last_monitor_check = std::time::Instant::now();
+
+        let fresh = snapshot_monitors(event_loop);
+        if fresh == self.monitors {
+            return;
+        }
+        let old_names: std::collections::BTreeSet<&str> =
+            self.monitors.iter().map(|m| m.name.as_str()).collect();
+        let new_names: std::collections::BTreeSet<&str> =
+            fresh.iter().map(|m| m.name.as_str()).collect();
+
+        for gone in old_names.difference(&new_names) {
+            let mut cleared = 0usize;
+            for e in &mut self.scene.entities {
+                if e.monitor.as_deref() == Some(*gone) {
+                    e.monitor = None;
+                    cleared += 1;
+                }
+            }
+            if cleared > 0 {
+                self.config_dirty = true;
+            }
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", gone.to_string());
+            args.set("n", cleared as i64);
+            self.toasts
+                .warn(crate::i18n::t_args("monitor-unplugged-toast", &args));
+            tracing::info!("Monitor {gone} disconnected; {cleared} pins cleared");
+        }
+        for added in new_names.difference(&old_names) {
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", added.to_string());
+            self.toasts
+                .info(crate::i18n::t_args("monitor-plugged-toast", &args));
+            tracing::info!("Monitor {added} connected");
+        }
+
+        crate::monitor::log_topology(&fresh);
+        self.monitors = fresh;
+        self.rebuild_extra_windows(event_loop);
+        self.request_redraw_all();
     }
 
     /// Rebuild when the user flipped the monitor mode in Appearance.

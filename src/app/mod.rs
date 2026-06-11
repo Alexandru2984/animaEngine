@@ -131,6 +131,9 @@ pub struct App {
     /// handler compares it against config to catch Appearance-tab
     /// switches.
     last_monitor_mode: crate::monitor::MonitorMode,
+    /// Last hotplug poll — winit has no monitor-change event on X11,
+    /// so the redraw cycle re-enumerates on this cadence (T.9).
+    last_monitor_check: Instant,
 }
 
 /// Result of an async hot-reload — produced by a worker thread, consumed by
@@ -190,6 +193,7 @@ impl App {
             hotkey_backend_status: String::new(),
             extra_windows: std::collections::HashMap::new(),
             last_monitor_mode,
+            last_monitor_check: Instant::now(),
         }
     }
 

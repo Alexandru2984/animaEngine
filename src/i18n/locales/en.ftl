@@ -195,3 +195,7 @@ portal-denied-native-toast = Shortcut permission was declined — the tray menu 
 keybindings-backend-label = Global shortcuts via:
 keybindings-backend-tooltip = Which mechanism delivers the three global chords (toggle edit, hide, pause) while other apps have focus. Resolved at startup; in-app shortcuts are unaffected.
 keybindings-portal-restart-hint = Trigger changes apply at the next launch (the desktop remembers your approval).
+
+# ── Monitor hotplug (T.9) ─────────────────────────────────────────────
+monitor-unplugged-toast = Monitor { $name } disconnected — { $n } pinned entities now follow their position.
+monitor-plugged-toast = Monitor { $name } connected.

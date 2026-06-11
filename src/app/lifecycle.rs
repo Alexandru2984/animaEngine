@@ -34,31 +34,7 @@ impl App {
         // can use the renderer-agnostic MonitorInfo instead of holding
         // a borrow on the event loop. The picker UI in C.2 will read
         // this list; for now we log it and keep the data ready.
-        let monitors: Vec<crate::monitor::MonitorInfo> = {
-            let primary = event_loop.primary_monitor();
-            event_loop
-                .available_monitors()
-                .map(|m| {
-                    let size = m.size();
-                    let pos = m.position();
-                    let is_primary = primary
-                        .as_ref()
-                        .is_some_and(|p| p.name() == m.name() && p.size() == size);
-                    let name = m
-                        .name()
-                        .unwrap_or_else(|| format!("Display {}", self.monitors.len()));
-                    crate::monitor::MonitorInfo {
-                        name,
-                        x: pos.x,
-                        y: pos.y,
-                        width: size.width,
-                        height: size.height,
-                        scale_factor: m.scale_factor(),
-                        is_primary,
-                    }
-                })
-                .collect()
-        };
+        let monitors = super::windows::snapshot_monitors(event_loop);
         crate::monitor::log_topology(&monitors);
         self.monitors = monitors;
 
