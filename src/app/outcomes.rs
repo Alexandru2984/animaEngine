@@ -179,7 +179,7 @@ impl App {
                     .unwrap_or_default();
                 if let Some(renderer) = &mut self.renderer {
                     if let Some(entity) = self.scene.entities.get(idx) {
-                        renderer.textures.remove(&entity.id);
+                        renderer.shared.textures.remove(&entity.id);
                     }
                 }
                 if self.scene.remove_entity(idx).is_some() {

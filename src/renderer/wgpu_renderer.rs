@@ -1,3 +1,21 @@
+//! GPU renderer, split for multi-window (T.7).
+//!
+//! Two halves, per the decision record in `docs/architecture.md`
+//! §"Multi-window rendering":
+//!
+//! - [`GpuShared`] — one per process: instance, device, queue,
+//!   pipeline, bind-group layouts and the **entity texture cache**.
+//!   Entity textures are window-agnostic; an entity moving between
+//!   monitors must never re-upload its frames.
+//! - [`SurfaceState`] — one per overlay window: the surface, its
+//!   configuration, the projection uniform (depends on window size)
+//!   and the per-frame dynamic vertex buffer.
+//!
+//! [`WgpuRenderer`] composes one of each and keeps the pre-split
+//! call-site API for the single-window paths (`Span` mode and the
+//! native Wayland backend). Multi-window callers (T.6) construct
+//! additional [`SurfaceState`]s against the same [`GpuShared`].
+
 use super::sprite::{make_quad_vertices, orthographic_projection, SpriteVertex, QUAD_INDICES};
 use super::texture::GpuTexture;
 use crate::animation::frame::Frame;
@@ -9,36 +27,54 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
-/// The main GPU renderer.
-/// Manages the wgpu device, pipeline, and renders entities to the window surface.
-pub struct WgpuRenderer {
-    pub surface: wgpu::Surface<'static>,
+/// Process-wide GPU state shared by every overlay window.
+pub struct GpuShared {
+    /// Kept alive (and public) so hotplug / mode switches can create
+    /// surfaces for new windows against the same device.
+    pub instance: wgpu::Instance,
+    pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub config: wgpu::SurfaceConfiguration,
     pub render_pipeline: wgpu::RenderPipeline,
     pub uniform_bind_group_layout: wgpu::BindGroupLayout,
     pub texture_bind_group_layout: wgpu::BindGroupLayout,
-    pub uniform_buffer: wgpu::Buffer,
-    pub uniform_bind_group: wgpu::BindGroup,
     pub index_buffer: wgpu::Buffer,
-    /// Cached GPU textures per entity id
+    /// Cached GPU textures per entity id — shared across windows.
     pub textures: HashMap<String, GpuTexture>,
+    /// Surface format the pipeline targets. Every window's surface is
+    /// configured with this same format — capability divergence across
+    /// monitors is not a thing on the Linux backends we ship (Vulkan /
+    /// GL pick formats per adapter, not per output).
+    pub surface_format: wgpu::TextureFormat,
+    /// Alpha mode chosen on the first surface; reused for siblings.
+    pub alpha_mode: wgpu::CompositeAlphaMode,
+    /// UI: edit mode indicator bar texture (1x1 stretched).
+    edit_bar_tex: GpuTexture,
+    /// UI: selection highlight texture (semi-transparent border).
+    selection_tex: GpuTexture,
+}
+
+/// Per-window render state.
+pub struct SurfaceState {
+    pub surface: wgpu::Surface<'static>,
+    pub config: wgpu::SurfaceConfiguration,
     pub window_width: u32,
     pub window_height: u32,
-    /// UI: edit mode indicator bar texture (1x1 stretched).
-    /// Drawn as a sprite so it sits underneath egui — kept native because
-    /// it's a single-pixel stretched stripe, not a real widget.
-    edit_bar_tex: GpuTexture,
-    /// UI: selection highlight texture (semi-transparent border)
-    selection_tex: GpuTexture,
+    uniform_buffer: wgpu::Buffer,
+    uniform_bind_group: wgpu::BindGroup,
     /// Pre-allocated vertex buffer for dynamic quad drawing.
-    /// Reused every frame via `queue.write_buffer()` to avoid per-frame allocations.
+    /// Reused every frame via `queue.write_buffer()`.
     dynamic_vertex_buffer: wgpu::Buffer,
-    /// `true` while the scene is over the quad cap — gates the overflow
-    /// warning to once per episode instead of once per frame (60 Hz of
-    /// identical journald lines otherwise).
+    /// `true` while the scene is over the quad cap — gates the
+    /// overflow warning to once per episode instead of once per frame.
     quad_overflow_logged: bool,
+}
+
+/// The composite the single-window paths use: shared GPU state plus
+/// the primary window's surface.
+pub struct WgpuRenderer {
+    pub shared: GpuShared,
+    pub primary: SurfaceState,
 }
 
 /// Generate a selection highlight frame — a rounded rectangle border with glow.
@@ -99,44 +135,14 @@ fn generate_selection_frame(size: u32) -> Frame {
     Frame::new(rgba, size, size)
 }
 
-impl WgpuRenderer {
-    /// Initialize the wgpu renderer with the given window (winit path).
-    #[tracing::instrument(skip(window))]
-    pub fn new(window: Arc<winit::window::Window>) -> Result<Self> {
-        let size = window.inner_size();
-        let window_width = size.width.max(1);
-        let window_height = size.height.max(1);
-
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
-            ..Default::default()
-        });
-        let surface = instance.create_surface(window.clone())?;
-        Self::from_instance_surface(instance, surface, window_width, window_height)
-    }
-
-    /// Construct from a pre-built `Instance` and `Surface`. This is the
-    /// backend-agnostic entry point — the native Wayland path (and any
-    /// future backend) calls this directly after attaching a surface
-    /// to its own window handle.
-    pub fn from_instance_surface(
-        instance: wgpu::Instance,
-        surface: wgpu::Surface<'static>,
-        window_width: u32,
-        window_height: u32,
-    ) -> Result<Self> {
-        let window_width = window_width.max(1);
-        let window_height = window_height.max(1);
-
-        tracing::info!(
-            "Initializing wgpu renderer ({}x{})",
-            window_width,
-            window_height
-        );
-
+impl GpuShared {
+    /// Build the process-wide GPU state. `surface` is only used for
+    /// adapter compatibility and capability queries — it is not
+    /// consumed; the caller wraps it into a [`SurfaceState`] next.
+    fn new(instance: wgpu::Instance, surface: &wgpu::Surface<'static>) -> Result<Self> {
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
-            compatible_surface: Some(&surface),
+            compatible_surface: Some(surface),
             force_fallback_adapter: false,
         }))
         .ok_or(AnimaError::NoAdapter)?;
@@ -144,7 +150,6 @@ impl WgpuRenderer {
         tracing::info!("GPU adapter: {}", adapter.get_info().name);
         tracing::info!("Backend: {:?}", adapter.get_info().backend);
 
-        // Request device
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: Some("animaEngine Device"),
@@ -155,7 +160,6 @@ impl WgpuRenderer {
             None,
         ))?;
 
-        // Configure surface with transparency
         let surface_caps = surface.get_capabilities(&adapter);
         tracing::info!("Available alpha modes: {:?}", surface_caps.alpha_modes);
         tracing::info!("Available formats: {:?}", surface_caps.formats);
@@ -188,25 +192,13 @@ impl WgpuRenderer {
         tracing::info!("Using alpha mode: {:?}", alpha_mode);
 
         // Prefer sRGB format
-        let format = surface_caps
+        let surface_format = surface_caps
             .formats
             .iter()
             .find(|f| f.is_srgb())
             .copied()
             .unwrap_or(surface_caps.formats[0]);
-        tracing::info!("Using surface format: {:?}", format);
-
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format,
-            width: window_width,
-            height: window_height,
-            present_mode: wgpu::PresentMode::Fifo,
-            alpha_mode,
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
-        surface.configure(&device, &config);
+        tracing::info!("Using surface format: {:?}", surface_format);
 
         // --- Create shader module ---
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -275,7 +267,7 @@ impl WgpuRenderer {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format,
+                    format: surface_format,
                     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -296,44 +288,12 @@ impl WgpuRenderer {
             cache: None,
         });
 
-        // --- Uniform buffer (projection matrix) ---
-        let projection = orthographic_projection(window_width as f32, window_height as f32);
-        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Projection Uniform Buffer"),
-            contents: bytemuck::cast_slice(&projection),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Uniform Bind Group"),
-            layout: &uniform_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-        });
-
         // --- Index buffer (shared for all quads) ---
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Quad Index Buffer"),
             contents: bytemuck::cast_slice(&QUAD_INDICES),
             usage: wgpu::BufferUsages::INDEX,
         });
-
-        // --- Pre-allocated dynamic vertex buffer ---
-        // MAX_QUADS quads × 4 vertices per quad × sizeof(SpriteVertex)
-        let vb_size = (MAX_QUADS * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
-        let dynamic_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Dynamic Vertex Buffer"),
-            size: vb_size,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        tracing::info!(
-            "Dynamic vertex buffer allocated: {} bytes ({} quads max)",
-            vb_size,
-            MAX_QUADS
-        );
 
         // --- UI textures ---
         // Edit bar: solid green semi-transparent, 1x1 stretched
@@ -357,44 +317,20 @@ impl WgpuRenderer {
         );
 
         Ok(Self {
-            surface,
+            instance,
+            adapter,
             device,
             queue,
-            config,
             render_pipeline,
             uniform_bind_group_layout,
             texture_bind_group_layout,
-            uniform_buffer,
-            uniform_bind_group,
             index_buffer,
             textures: HashMap::new(),
-            window_width,
-            window_height,
+            surface_format,
+            alpha_mode,
             edit_bar_tex,
             selection_tex,
-            dynamic_vertex_buffer,
-            quad_overflow_logged: false,
         })
-    }
-
-    /// Handle window resize
-    pub fn resize(&mut self, new_width: u32, new_height: u32) {
-        if new_width == 0 || new_height == 0 {
-            return;
-        }
-
-        self.window_width = new_width;
-        self.window_height = new_height;
-        self.config.width = new_width;
-        self.config.height = new_height;
-        self.surface.configure(&self.device, &self.config);
-
-        // Update projection matrix
-        let projection = orthographic_projection(new_width as f32, new_height as f32);
-        self.queue
-            .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&projection));
-
-        tracing::debug!("Resized to {}x{}", new_width, new_height);
     }
 
     /// Ensure a texture exists for an entity, creating or updating as needed
@@ -457,31 +393,127 @@ impl WgpuRenderer {
             self.textures.len()
         );
     }
+}
+
+impl SurfaceState {
+    /// Configure a surface against the shared device and build its
+    /// per-window buffers. The surface must come from
+    /// `shared.instance` (or the instance handed to
+    /// [`WgpuRenderer::from_instance_surface`]).
+    pub fn new(
+        shared: &GpuShared,
+        surface: wgpu::Surface<'static>,
+        window_width: u32,
+        window_height: u32,
+    ) -> Self {
+        let window_width = window_width.max(1);
+        let window_height = window_height.max(1);
+
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: shared.surface_format,
+            width: window_width,
+            height: window_height,
+            present_mode: wgpu::PresentMode::Fifo,
+            alpha_mode: shared.alpha_mode,
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+        surface.configure(&shared.device, &config);
+
+        // --- Uniform buffer (projection matrix, sized to this window) ---
+        let projection = orthographic_projection(window_width as f32, window_height as f32);
+        let uniform_buffer = shared
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Projection Uniform Buffer"),
+                contents: bytemuck::cast_slice(&projection),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let uniform_bind_group = shared.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Uniform Bind Group"),
+            layout: &shared.uniform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform_buffer.as_entire_binding(),
+            }],
+        });
+
+        // --- Pre-allocated dynamic vertex buffer ---
+        // MAX_QUADS quads × 4 vertices per quad × sizeof(SpriteVertex)
+        let vb_size = (MAX_QUADS * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
+        let dynamic_vertex_buffer = shared.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Dynamic Vertex Buffer"),
+            size: vb_size,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self {
+            surface,
+            config,
+            window_width,
+            window_height,
+            uniform_buffer,
+            uniform_bind_group,
+            dynamic_vertex_buffer,
+            quad_overflow_logged: false,
+        }
+    }
+
+    /// Handle window resize.
+    pub fn resize(&mut self, shared: &GpuShared, new_width: u32, new_height: u32) {
+        if new_width == 0 || new_height == 0 {
+            return;
+        }
+
+        self.window_width = new_width;
+        self.window_height = new_height;
+        self.config.width = new_width;
+        self.config.height = new_height;
+        self.surface.configure(&shared.device, &self.config);
+
+        // Update projection matrix
+        let projection = orthographic_projection(new_width as f32, new_height as f32);
+        shared
+            .queue
+            .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&projection));
+
+        tracing::debug!("Resized to {}x{}", new_width, new_height);
+    }
 
     /// Write quad vertices into the dynamic buffer at the given quad index offset.
-    /// Returns the byte offset where the vertices were written.
-    fn write_quad(&self, quad_index: usize, x: f32, y: f32, w: f32, h: f32, opacity: f32) -> u64 {
+    /// `rect` is `(x, y, w, h)` in window-local pixels.
+    fn write_quad(
+        &self,
+        shared: &GpuShared,
+        quad_index: usize,
+        rect: (f32, f32, f32, f32),
+        opacity: f32,
+    ) {
+        let (x, y, w, h) = rect;
         let vertices = make_quad_vertices(x, y, w, h, opacity);
         let offset = (quad_index * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
-        self.queue.write_buffer(
+        shared.queue.write_buffer(
             &self.dynamic_vertex_buffer,
             offset,
             bytemuck::cast_slice(&vertices),
         );
-        offset
     }
 
-    /// Render all visible entities + UI overlay to the surface.
+    /// Render the given entities + UI overlay to this window's surface.
     ///
-    /// Returns the acquired `SurfaceTexture` **without** calling `present()` —
-    /// the caller can paint an egui overlay on top of the same texture before
-    /// presenting. The caller is responsible for invoking `output.present()`.
+    /// Returns the acquired `SurfaceTexture` **without** calling
+    /// `present()` — the caller can paint an egui overlay on top of
+    /// the same texture before presenting.
     ///
-    /// Returns `wgpu::SurfaceError` directly (not `AnimaError`) because the
-    /// caller needs to match on specific variants like `Lost` and `OutOfMemory`
-    /// to drive recovery and shutdown logic.
+    /// Returns `wgpu::SurfaceError` directly (not `AnimaError`)
+    /// because the caller needs to match on specific variants like
+    /// `Lost` and `OutOfMemory` to drive recovery and shutdown logic.
     pub fn render(
         &mut self,
+        shared: &GpuShared,
         entities: &[&Entity],
         edit_mode: bool,
         selected_entity_id: Option<&str>,
@@ -491,7 +523,7 @@ impl WgpuRenderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder = self
+        let mut encoder = shared
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
@@ -501,9 +533,6 @@ impl WgpuRenderer {
         let mut quad_idx: usize = 0;
 
         // Build a draw list: (quad_index, bind_group reference)
-        // We'll store the info we need, then issue draws in the render pass.
-
-        // Entity quads
         struct DrawCmd {
             quad_index: usize,
             texture_entity_id: Option<String>, // entity ID or special UI element
@@ -517,7 +546,7 @@ impl WgpuRenderer {
         for entity in entities {
             if quad_idx >= MAX_QUADS - 2 {
                 // Reserve 2 quads for UI (edit bar + selection highlight).
-                // MAX_QUADS = MAX_ENTITIES + 2, so a legal scene never
+                // MAX_QUADS = MAX_ENTITIES + 3, so a legal scene never
                 // lands here; reaching it means an internal accounting bug.
                 overflowed = true;
                 if !self.quad_overflow_logged {
@@ -529,11 +558,16 @@ impl WgpuRenderer {
                 break;
             }
 
-            if let Some(gpu_tex) = self.textures.get(&entity.id) {
+            if let Some(gpu_tex) = shared.textures.get(&entity.id) {
                 let width = gpu_tex.width as f32 * entity.scale;
                 let height = gpu_tex.height as f32 * entity.scale;
 
-                self.write_quad(quad_idx, entity.x, entity.y, width, height, entity.opacity);
+                self.write_quad(
+                    shared,
+                    quad_idx,
+                    (entity.x, entity.y, width, height),
+                    entity.opacity,
+                );
                 draws.push(DrawCmd {
                     quad_index: quad_idx,
                     texture_entity_id: Some(entity.id.clone()),
@@ -547,11 +581,14 @@ impl WgpuRenderer {
                     if entity.id == sel_id && edit_mode {
                         let pad = 6.0; // padding around entity
                         self.write_quad(
+                            shared,
                             quad_idx,
-                            entity.x - pad,
-                            entity.y - pad,
-                            width + pad * 2.0,
-                            height + pad * 2.0,
+                            (
+                                entity.x - pad,
+                                entity.y - pad,
+                                width + pad * 2.0,
+                                height + pad * 2.0,
+                            ),
                             0.9,
                         );
                         draws.push(DrawCmd {
@@ -570,7 +607,12 @@ impl WgpuRenderer {
 
         // Edit mode indicator bar
         if edit_mode {
-            self.write_quad(quad_idx, 0.0, 0.0, self.window_width as f32, 4.0, 1.0);
+            self.write_quad(
+                shared,
+                quad_idx,
+                (0.0, 0.0, self.window_width as f32, 4.0),
+                1.0,
+            );
             draws.push(DrawCmd {
                 quad_index: quad_idx,
                 texture_entity_id: None,
@@ -605,19 +647,19 @@ impl WgpuRenderer {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&shared.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.set_index_buffer(shared.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
             // Issue draw calls from the pre-computed list
             for cmd in &draws {
                 // Bind the right texture
                 if cmd.is_edit_bar {
-                    render_pass.set_bind_group(1, &self.edit_bar_tex.bind_group, &[]);
+                    render_pass.set_bind_group(1, &shared.edit_bar_tex.bind_group, &[]);
                 } else if cmd.is_selection {
-                    render_pass.set_bind_group(1, &self.selection_tex.bind_group, &[]);
+                    render_pass.set_bind_group(1, &shared.selection_tex.bind_group, &[]);
                 } else if let Some(ref entity_id) = cmd.texture_entity_id {
-                    if let Some(gpu_tex) = self.textures.get(entity_id) {
+                    if let Some(gpu_tex) = shared.textures.get(entity_id) {
                         render_pass.set_bind_group(1, &gpu_tex.bind_group, &[]);
                     } else {
                         continue;
@@ -635,10 +677,73 @@ impl WgpuRenderer {
             }
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        shared.queue.submit(std::iter::once(encoder.finish()));
 
-        // Hand the texture back to the caller — egui may paint on it before
-        // present() is finally invoked.
+        // Hand the texture back to the caller — egui may paint on it
+        // before present() is finally invoked.
         Ok(output)
+    }
+}
+
+impl WgpuRenderer {
+    /// Initialize the wgpu renderer with the given window (winit path).
+    #[tracing::instrument(skip(window))]
+    pub fn new(window: Arc<winit::window::Window>) -> Result<Self> {
+        let size = window.inner_size();
+        let window_width = size.width.max(1);
+        let window_height = size.height.max(1);
+
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
+            ..Default::default()
+        });
+        let surface = instance.create_surface(window.clone())?;
+        Self::from_instance_surface(instance, surface, window_width, window_height)
+    }
+
+    /// Construct from a pre-built `Instance` and `Surface`. This is the
+    /// backend-agnostic entry point — the native Wayland path (and any
+    /// future backend) calls this directly after attaching a surface
+    /// to its own window handle.
+    pub fn from_instance_surface(
+        instance: wgpu::Instance,
+        surface: wgpu::Surface<'static>,
+        window_width: u32,
+        window_height: u32,
+    ) -> Result<Self> {
+        tracing::info!(
+            "Initializing wgpu renderer ({}x{})",
+            window_width,
+            window_height
+        );
+        let shared = GpuShared::new(instance, &surface)?;
+        let primary = SurfaceState::new(&shared, surface, window_width, window_height);
+        Ok(Self { shared, primary })
+    }
+
+    /// Handle primary-window resize.
+    pub fn resize(&mut self, new_width: u32, new_height: u32) {
+        self.primary.resize(&self.shared, new_width, new_height);
+    }
+
+    /// Ensure a texture exists for an entity (shared cache).
+    pub fn ensure_texture(&mut self, entity: &Entity) {
+        self.shared.ensure_texture(entity);
+    }
+
+    /// See [`GpuShared::prune_stale_textures`].
+    pub fn prune_stale_textures(&mut self, entities: &[Entity]) {
+        self.shared.prune_stale_textures(entities);
+    }
+
+    /// Render to the primary window. See [`SurfaceState::render`].
+    pub fn render(
+        &mut self,
+        entities: &[&Entity],
+        edit_mode: bool,
+        selected_entity_id: Option<&str>,
+    ) -> std::result::Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
+        self.primary
+            .render(&self.shared, entities, edit_mode, selected_entity_id)
     }
 }

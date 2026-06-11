@@ -94,6 +94,7 @@ impl App {
                 .map(|e| e.id.as_str())
                 .collect();
             renderer
+                .shared
                 .textures
                 .retain(|id, _| new_ids.contains(id.as_str()));
         }

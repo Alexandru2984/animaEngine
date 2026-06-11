@@ -86,8 +86,8 @@ pub fn run_native(
         .ok_or_else(|| AnimaError::other("LayerWindow missing wgpu surface"))?;
     let mut renderer = WgpuRenderer::from_instance_surface(instance, surface, width, height)?;
     let mut egui_renderer = WaylandEguiRenderer::new(
-        &renderer.device,
-        renderer.config.format,
+        &renderer.shared.device,
+        renderer.primary.config.format,
         config.global.theme,
     );
     let mut selection = SelectionState::new();
@@ -128,7 +128,7 @@ pub fn run_native(
 
         // Pick up any resize the compositor sent us.
         if let Some((new_w, new_h)) = layer.state.pending_size.take() {
-            if new_w != renderer.window_width || new_h != renderer.window_height {
+            if new_w != renderer.primary.window_width || new_h != renderer.primary.window_height {
                 renderer.resize(new_w, new_h);
                 layer.set_input_region(Some(InputRect::toggle_button_corner(
                     new_w,
@@ -162,8 +162,8 @@ pub fn run_native(
                 continue;
             }
             let (x, y) = drop_pos.unwrap_or((
-                renderer.window_width as f32 / 2.0,
-                renderer.window_height as f32 / 2.0,
+                renderer.primary.window_width as f32 / 2.0,
+                renderer.primary.window_height as f32 / 2.0,
             ));
             match scene.add_entity_from_path(&path, x, y) {
                 Ok(idx) => {
@@ -264,7 +264,7 @@ pub fn run_native(
                     AnimaEvent::HideOverlay => {
                         if let Err(e) =
                             layer.set_input_region(Some(InputRect::toggle_button_corner(
-                                renderer.window_width,
+                                renderer.primary.window_width,
                                 TOGGLE_BUTTON_SIZE,
                             )))
                         {
@@ -313,8 +313,8 @@ pub fn run_native(
         // Tick the simulation. screen_w / screen_h match the surface so
         // walk-around behaviors stay inside the visible area.
         scene.tick(
-            renderer.window_width as f32,
-            renderer.window_height as f32,
+            renderer.primary.window_width as f32,
+            renderer.primary.window_height as f32,
             None, // no cursor on this path until egui is wired in
         );
 
@@ -345,7 +345,10 @@ pub fn run_native(
                 let view = output
                     .texture
                     .create_view(&wgpu::TextureViewDescriptor::default());
-                let size = [renderer.window_width, renderer.window_height];
+                let size = [
+                    renderer.primary.window_width,
+                    renderer.primary.window_height,
+                ];
                 // Pick up the largest scale among all outputs the
                 // surface might be on — undershooting blurs text on
                 // HiDPI; overshooting just makes glyphs bigger than
@@ -382,8 +385,8 @@ pub fn run_native(
                 let palette_ref = &mut palette_outcome;
                 let library_ref = &mut library_outcome;
                 egui_renderer.render(
-                    &renderer.device,
-                    &renderer.queue,
+                    &renderer.shared.device,
+                    &renderer.shared.queue,
                     &view,
                     size,
                     pixels_per_point,
@@ -460,7 +463,10 @@ pub fn run_native(
                 }
             }
             Err(wgpu::SurfaceError::Lost) => {
-                renderer.resize(renderer.window_width, renderer.window_height);
+                renderer.resize(
+                    renderer.primary.window_width,
+                    renderer.primary.window_height,
+                );
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 return Err(AnimaError::other("GPU out of memory"));

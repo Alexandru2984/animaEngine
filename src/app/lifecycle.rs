@@ -184,8 +184,8 @@ impl App {
 
                         // egui wraps the existing wgpu device + queue.
                         let ui = EguiRenderer::new(
-                            &renderer.device,
-                            renderer.config.format,
+                            &renderer.shared.device,
+                            renderer.primary.config.format,
                             window.clone(),
                             self.config.global.theme,
                         );

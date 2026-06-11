@@ -129,7 +129,10 @@ impl App {
                         let view = output
                             .texture
                             .create_view(&wgpu::TextureViewDescriptor::default());
-                        let size = [renderer.window_width, renderer.window_height];
+                        let size = [
+                            renderer.primary.window_width,
+                            renderer.primary.window_height,
+                        ];
 
                         // Disjoint mutable borrows on disjoint fields.
                         let scene_mut = &mut self.scene;
@@ -174,8 +177,8 @@ impl App {
                         let egui_start = std::time::Instant::now();
                         ui.render(
                             window,
-                            &renderer.device,
-                            &renderer.queue,
+                            &renderer.shared.device,
+                            &renderer.shared.queue,
                             &view,
                             size,
                             |ctx| {
@@ -292,7 +295,10 @@ impl App {
                     }
                 }
                 Err(wgpu::SurfaceError::Lost) => {
-                    renderer.resize(renderer.window_width, renderer.window_height);
+                    renderer.resize(
+                        renderer.primary.window_width,
+                        renderer.primary.window_height,
+                    );
                 }
                 Err(wgpu::SurfaceError::OutOfMemory) => {
                     tracing::error!("GPU out of memory!");

@@ -46,7 +46,7 @@ impl App {
                         .unwrap_or_default();
                     if let Some(renderer) = &mut self.renderer {
                         if let Some(entity) = self.scene.entities.get(idx) {
-                            renderer.textures.remove(&entity.id);
+                            renderer.shared.textures.remove(&entity.id);
                         }
                     }
                     if let Some(removed_id) = self.scene.remove_entity(idx) {
