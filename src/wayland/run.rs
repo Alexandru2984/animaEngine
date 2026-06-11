@@ -370,6 +370,7 @@ pub fn run_native(
                 let mut toggle_requested = false;
                 let mut palette_outcome: Option<panels::PaletteOutcome> = None;
                 let mut library_outcome: Option<panels::LibraryOutcome> = None;
+                let mut shimeji_import: Option<String> = None;
                 // Disjoint mut borrows for the closure.
                 let scene_mut = &mut scene;
                 let selection_mut = &mut selection;
@@ -384,6 +385,7 @@ pub fn run_native(
                 let last_seen_whats_new_mut = &mut config.global.last_seen_whats_new;
                 let warnings_ref = &warnings;
                 let hotkey_backend_ref = hotkey_backend_status.as_str();
+                let shimeji_import_ref = &mut shimeji_import;
                 let monitors_ref = monitors.as_slice();
                 let toasts_ref = &toasts;
                 let toggle_requested_ref = &mut toggle_requested;
@@ -424,6 +426,7 @@ pub fn run_native(
                                 warnings_ref,
                                 last_seen_whats_new_mut,
                                 hotkey_backend_ref,
+                                shimeji_import_ref,
                             );
                             *palette_ref = panels::command_palette(ctx);
                             panels::toasts(ctx, toasts_ref);
@@ -455,6 +458,55 @@ pub fn run_native(
                 // Palette / library outcomes apply outside the egui
                 // closure where we can take &mut renderer + &mut toasts
                 // without conflicting.
+                if let Some(path) = shimeji_import {
+                    // Path-paste import on the native path: same
+                    // importer, library root discovered fresh (the
+                    // native loop doesn't hold one).
+                    if let Some(root) = crate::asset_library::discover_asset_root() {
+                        match crate::shimeji::import_pack(
+                            &crate::config::AppConfig::resolve_asset_path(&path),
+                            &root,
+                        ) {
+                            Ok(report) => {
+                                let mut ok = 0usize;
+                                for mut cfg in report.characters {
+                                    cfg.x = 100.0;
+                                    cfg.y = 100.0;
+                                    if scene.entities.iter().any(|e| e.id == cfg.id) {
+                                        cfg.id = format!("{}-{}", cfg.id, scene.entities.len());
+                                    }
+                                    match scene.append_character_config(&cfg) {
+                                        Ok(()) => ok += 1,
+                                        Err(e) => toasts.error(format!("{}: {e}", cfg.name)),
+                                    }
+                                }
+                                for (what, why) in &report.skipped {
+                                    tracing::info!("Shimeji import skip [{what}]: {why}");
+                                }
+                                if ok > 0 {
+                                    let mut args = fluent::FluentArgs::new();
+                                    args.set("name", report.pack_name.clone());
+                                    args.set("n", report.skipped.len() as i64);
+                                    toasts.success(crate::i18n::t_args(
+                                        "shimeji-imported-toast",
+                                        &args,
+                                    ));
+                                    config_dirty = true;
+                                }
+                            }
+                            Err(reason) => {
+                                let mut args = fluent::FluentArgs::new();
+                                args.set("reason", reason);
+                                toasts.error(crate::i18n::t_args(
+                                    "shimeji-import-failed-toast",
+                                    &args,
+                                ));
+                            }
+                        }
+                    } else {
+                        toasts.error(crate::i18n::t("shimeji-no-library-toast"));
+                    }
+                }
                 if let Some(out) = palette_outcome {
                     handle_palette_outcome(out, &mut scene, &mut config, &mut toasts);
                     config_dirty = true;

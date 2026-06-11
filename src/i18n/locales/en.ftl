@@ -199,3 +199,11 @@ keybindings-portal-restart-hint = Trigger changes apply at the next launch (the 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = Monitor { $name } disconnected — { $n } pinned entities now follow their position.
 monitor-plugged-toast = Monitor { $name } connected.
+
+# ── Shimeji import (U.4) ──────────────────────────────────────────────
+library-import-shimeji-header = Import Shimeji pack
+library-import-shimeji-hint = Drop a pack folder onto the overlay, or paste its path here. Sprites are copied into the library.
+library-import-shimeji-button = Import
+shimeji-imported-toast = Imported { $name } ({ $n } parts skipped — see log)
+shimeji-import-failed-toast = Import failed: { $reason }
+shimeji-no-library-toast = No asset library root — create ~/.local/share/animaEngine/assets/ first.

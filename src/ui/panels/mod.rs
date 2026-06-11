@@ -124,6 +124,7 @@ pub fn settings(
     warnings: &std::collections::BTreeSet<Warning>,
     last_seen_whats_new: &mut Option<String>,
     hotkey_backend: &str,
+    shimeji_import: &mut Option<String>,
 ) {
     egui::SidePanel::right("anima_settings")
         .resizable(false)
@@ -225,7 +226,7 @@ pub fn settings(
                             );
                         }
                         SettingsTab::Library => {
-                            library::library_tab(ui, library, library_outcome);
+                            library::library_tab(ui, library, library_outcome, shimeji_import);
                         }
                         SettingsTab::Appearance => {
                             appearance::appearance_tab(

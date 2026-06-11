@@ -185,3 +185,11 @@ keybindings-portal-restart-hint = Schimbările de combinații se aplică la urm�
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = Monitorul { $name } a fost deconectat — { $n } entități fixate își urmează acum poziția.
 monitor-plugged-toast = Monitorul { $name } a fost conectat.
+
+# ── Shimeji import (U.4) ──────────────────────────────────────────────
+library-import-shimeji-header = Importă pachet Shimeji
+library-import-shimeji-hint = Trage un folder de pachet peste overlay sau lipește calea aici. Sprite-urile se copiază în bibliotecă.
+library-import-shimeji-button = Importă
+shimeji-imported-toast = Importat { $name } ({ $n } părți sărite — vezi log-ul)
+shimeji-import-failed-toast = Import eșuat: { $reason }
+shimeji-no-library-toast = Nu există rădăcină de bibliotecă — creează întâi ~/.local/share/animaEngine/assets/.

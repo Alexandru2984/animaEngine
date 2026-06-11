@@ -284,6 +284,15 @@ fn walk(root: &Path, current: &Path, depth: usize, out: &mut Vec<LibraryAsset>) 
             Err(_) => continue,
         };
         if metadata.is_dir() {
+            // `imported/` at the library root is importer-managed
+            // (U.4): it holds per-state frame sequences whose
+            // individual PNGs would otherwise flood the library with
+            // hundreds of meaningless single-frame entries. Imported
+            // characters reach the scene through the import flow, not
+            // the asset grid.
+            if depth == 0 && current == root && path.file_name().is_some_and(|n| n == "imported") {
+                continue;
+            }
             // file_type().is_symlink() vs metadata().is_dir() interplay:
             // metadata() follows symlinks, so a symlinked dir reaches
             // this branch and counts toward the depth budget.

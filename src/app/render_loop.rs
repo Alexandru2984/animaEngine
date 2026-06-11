@@ -146,6 +146,7 @@ impl App {
                     let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
                     let mut palette_outcome: Option<panels::PaletteOutcome> = None;
                     let mut library_outcome: Option<panels::LibraryOutcome> = None;
+                    let mut shimeji_import: Option<String> = None;
                     let mut toggle_requested = false;
 
                     if let (Some(ui), Some(window)) = (self.ui.as_mut(), self.window.as_ref()) {
@@ -247,6 +248,7 @@ impl App {
                                         warnings_ref,
                                         last_seen_whats_new_mut,
                                         hotkey_backend_ref,
+                                        &mut shimeji_import,
                                     );
                                     if let Some(state) = &menu_state {
                                         *menu_outcome_ref = Some(panels::context_menu(ctx, state));
@@ -319,6 +321,10 @@ impl App {
                     }
                     if let Some(outcome) = library_outcome {
                         self.handle_library_outcome(outcome);
+                    }
+                    if let Some(path) = shimeji_import {
+                        let expanded = crate::config::AppConfig::resolve_asset_path(&path);
+                        self.import_shimeji_pack(&expanded);
                     }
                 }
                 Err(wgpu::SurfaceError::Lost) => {

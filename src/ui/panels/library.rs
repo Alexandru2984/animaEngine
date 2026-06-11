@@ -28,7 +28,37 @@ pub(super) fn library_tab(
     ui: &mut egui::Ui,
     library: Option<&LibraryIndex>,
     outcome: &mut Option<LibraryOutcome>,
+    import_request: &mut Option<String>,
 ) {
+    // ── Shimeji pack import (U.4) ─────────────────────────────────────
+    // Path-paste flow; the folder drag-drop equivalent lives in the
+    // drop handler. No file-dialog dependency by design.
+    ui.collapsing(t("library-import-shimeji-header"), |ui| {
+        ui.label(
+            egui::RichText::new(t("library-import-shimeji-hint"))
+                .small()
+                .weak(),
+        );
+        let path_id = egui::Id::new("anima.shimeji.import_path");
+        let mut path: String = ui
+            .ctx()
+            .memory(|m| m.data.get_temp(path_id))
+            .unwrap_or_default();
+        ui.horizontal(|ui| {
+            let edit = egui::TextEdit::singleline(&mut path)
+                .hint_text("~/Downloads/MyMascot")
+                .char_limit(512)
+                .desired_width(200.0);
+            ui.add(edit);
+            if ui.button(t("library-import-shimeji-button")).clicked() && !path.trim().is_empty() {
+                *import_request = Some(path.trim().to_string());
+                path.clear();
+            }
+        });
+        ui.ctx().memory_mut(|m| m.data.insert_temp(path_id, path));
+    });
+    ui.separator();
+
     let Some(library) = library else {
         // D.8: copy the documented path to the clipboard so the user
         // can paste it into a file manager / terminal without typing.

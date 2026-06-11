@@ -138,10 +138,72 @@ impl App {
 
     /// Drag-drop entry point. Runs the validation gate, then enters
     /// edit mode and adds the entity at the current cursor position.
+    /// Import a dropped/typed Shimeji pack directory (U.4): run the
+    /// importer against the asset-library root, spawn the resulting
+    /// characters at the cursor, toast the summary. Skip reasons go
+    /// to the log at info — the toast keeps the count only.
+    pub(super) fn import_shimeji_pack(&mut self, pack: &std::path::Path) {
+        let Some(library_root) = self.library_root.clone() else {
+            self.toasts
+                .error(crate::i18n::t("shimeji-no-library-toast"));
+            return;
+        };
+        match crate::shimeji::import_pack(pack, &library_root) {
+            Ok(report) => {
+                if !self.edit_mode {
+                    self.toggle_edit_mode();
+                }
+                let mut imported_names: Vec<String> = Vec::new();
+                for mut cfg in report.characters {
+                    cfg.x = self.mouse_x.max(50.0);
+                    cfg.y = self.mouse_y.max(50.0);
+                    // Avoid id collisions with an already-imported copy.
+                    if self.scene.entities.iter().any(|e| e.id == cfg.id) {
+                        cfg.id = format!("{}-{}", cfg.id, self.scene.entities.len());
+                    }
+                    match self.scene.append_character_config(&cfg) {
+                        Ok(()) => imported_names.push(cfg.name.clone()),
+                        Err(e) => {
+                            tracing::warn!("Imported character '{}' rejected: {e}", cfg.name);
+                            self.toasts.error(format!("{}: {e}", cfg.name));
+                        }
+                    }
+                }
+                for (what, why) in &report.skipped {
+                    tracing::info!("Shimeji import skip [{what}]: {why}");
+                }
+                if !imported_names.is_empty() {
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("name", report.pack_name.clone());
+                    args.set("n", report.skipped.len() as i64);
+                    self.toasts
+                        .success(crate::i18n::t_args("shimeji-imported-toast", &args));
+                    self.config_dirty = true;
+                    self.save_config_if_needed();
+                }
+            }
+            Err(reason) => {
+                tracing::warn!("Shimeji import failed: {reason}");
+                let mut args = fluent::FluentArgs::new();
+                args.set("reason", reason);
+                self.toasts
+                    .error(crate::i18n::t_args("shimeji-import-failed-toast", &args));
+            }
+        }
+    }
+
     pub(super) fn handle_dropped_file(&mut self, path: PathBuf) {
         let label = redact_path(&path);
         tracing::info!("File dropped: {label}");
         tracing::debug!("Dropped full path: {}", path.display());
+
+        // U.4: a dropped *directory* shaped like a Shimeji pack
+        // (conf/ + img/) routes to the importer instead of the asset
+        // decoders. Any other directory keeps the existing rejection.
+        if path.is_dir() && path.join("conf").is_dir() && path.join("img").is_dir() {
+            self.import_shimeji_pack(&path);
+            return;
+        }
 
         // Pre-validate before we hand the path to the decoders.
         // Catches the obvious bad cases (wrong extension, huge
