@@ -5,6 +5,10 @@
 //! focus. On a native Wayland session XGrabKey is not exposed, so the
 //! hotkeys silently no-op — the tray menu and `⚙` button still work.
 //!
+//! `probe` (T.0) detects whether the session offers the
+//! `GlobalShortcuts` desktop portal — the mechanism that will replace
+//! XGrabKey as the preferred backend on GNOME/KDE Wayland (T.1/T.2).
+//!
 //! The set of globally-registered chords is derived from
 //! [`KeyBindings`](crate::keybindings::KeyBindings) at startup:
 //! whichever chord the user has bound to `ToggleEditMode`,
@@ -12,6 +16,8 @@
 //! modifier (Ctrl / Alt / Super) gets registered. Bare-letter chords
 //! are skipped on purpose — `XGrabKey`-ing a plain `Q` would steal
 //! the key from every focused app.
+
+pub mod probe;
 
 use crate::event::AnimaEvent;
 use crate::keybindings::{

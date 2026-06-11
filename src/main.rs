@@ -177,6 +177,18 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
     // the process.
     let _tray_thread = tray::spawn(event_loop.create_proxy());
 
+    // T.0: probe the GlobalShortcuts portal and log which hotkey
+    // strategy this session supports. Informational for now —
+    // registration below still goes through XGrabKey unconditionally;
+    // T.2 turns the strategy into runtime behavior.
+    let strategy = hotkeys::probe::choose(
+        hotkeys::probe::portal_version(),
+        // The winit path always has an X server (native or XWayland) —
+        // the event loop above was just built with the X11 backend.
+        true,
+    );
+    tracing::info!("Hotkey strategy: {}", strategy.describe());
+
     // Register the user's globally-bound chords (ToggleEditMode,
     // HideOverlay, PauseAll — anything else with a modifier). The
     // controller must live as long as the app — dropping it
