@@ -158,6 +158,12 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
 
 /// Convert one length-prefixed AVCC bitstream (the MP4 sample format) into
 /// Annex-B (start-code prefixed) for openh264.
+///
+/// KNOWN LIMITATION: assumes 4-byte NALU length prefixes. The avcC box's
+/// `lengthSizeMinusOne` field legally allows 1- or 2-byte prefixes too;
+/// such files (rare — every mainstream encoder emits 4) parse as garbage
+/// lengths here, fail the bounds check below, and the frame is skipped.
+/// Safe (no out-of-bounds path), just lossy for exotic encoders.
 fn avcc_to_annex_b(input: &[u8], out: &mut Vec<u8>) {
     let mut cursor = 0;
     while cursor + 4 <= input.len() {

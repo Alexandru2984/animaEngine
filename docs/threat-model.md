@@ -127,6 +127,12 @@ nothing more.
      letting memory grow without bound between frames.
    - Visibility events (`HideOverlay` / `ShowOverlay`) keep only the
      last intent.
+   - Asymmetry note: the **winit path** dispatches through
+     `EventLoopProxy::send_event`, whose queue winit does not let us
+     bound. Drain speed (a field write + coalesced redraw request per
+     event) exceeds any realistic D-Bus delivery rate, and the caller
+     is same-uid (out of scope) — accepted, but new event variants
+     must stay cheap to handle for this to remain true.
 
 2. **Activate is unchanged in semantics** — posts `RaiseWindow`. On
    Wayland this is a no-op (the layer surface is always present at
