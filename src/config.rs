@@ -444,10 +444,13 @@ impl AppConfig {
     /// Resolve an asset path relative to the executable or current directory.
     /// Supports:
     /// - Absolute paths (returned as-is)
-    /// - `~` expansion to home directory
+    /// - `~/` expansion to home directory (bare `~` too; `~user` syntax
+    ///   is NOT supported and passes through untouched — expanding it
+    ///   with our own `$HOME` would silently build a path inside the
+    ///   wrong home directory)
     /// - Relative paths (checked against exe dir, then cwd)
     pub fn resolve_asset_path(asset_path: &str) -> PathBuf {
-        let asset_path = if asset_path.starts_with('~') {
+        let asset_path = if asset_path == "~" || asset_path.starts_with("~/") {
             if let Ok(home) = std::env::var("HOME") {
                 asset_path.replacen('~', &home, 1)
             } else {
@@ -485,6 +488,40 @@ impl AppConfig {
     // Asset-type detection lives in animation::loader::detect_asset_type
     // — see comments there for the canonical extension → AssetType table
     // (it covers JPEG and MP4 / MOV / M4V too).
+}
+
+#[cfg(test)]
+mod resolve_path_tests {
+    use super::*;
+
+    #[test]
+    fn tilde_slash_expands_to_home() {
+        let home = std::env::var("HOME").expect("HOME set in test env");
+        let resolved = AppConfig::resolve_asset_path("~/assets/x.png");
+        assert!(
+            resolved.starts_with(&home),
+            "expected {resolved:?} under {home}"
+        );
+    }
+
+    #[test]
+    fn tilde_user_syntax_passes_through_unexpanded() {
+        // `~alex/x` must NOT become `$HOME + "alex/x"` — that silently
+        // builds a path inside the wrong home. We don't support the
+        // user-tilde form at all; it passes through as a literal.
+        let home = std::env::var("HOME").expect("HOME set in test env");
+        let resolved = AppConfig::resolve_asset_path("~nobody/assets/x.png");
+        assert!(
+            !resolved.starts_with(&home),
+            "user-tilde must not expand against our HOME, got {resolved:?}"
+        );
+    }
+
+    #[test]
+    fn interior_tilde_untouched() {
+        let resolved = AppConfig::resolve_asset_path("/data/backup~old/x.png");
+        assert_eq!(resolved, PathBuf::from("/data/backup~old/x.png"));
+    }
 }
 
 #[cfg(test)]
