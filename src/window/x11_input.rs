@@ -211,6 +211,57 @@ impl X11InputManager {
         Ok(())
     }
 
+    /// Make the entire window click-through — no button cutout. Used
+    /// by the PerMonitor extra windows (T.8): the ⚙ toggle is a
+    /// primary-window affordance, so in pass-through mode the extras
+    /// reserve nothing.
+    pub fn set_passthrough_total(&mut self) -> Result<()> {
+        use x11rb::protocol::shape;
+        let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
+
+        let pixmap = self.conn.generate_id()?;
+        create_pixmap(
+            &self.conn,
+            1,
+            pixmap,
+            self.x11_window,
+            geom.width,
+            geom.height,
+        )?;
+        let gc = self.conn.generate_id()?;
+        create_gc(
+            &self.conn,
+            gc,
+            pixmap,
+            &CreateGCAux::new().foreground(0).background(0),
+        )?;
+        poly_fill_rectangle(
+            &self.conn,
+            pixmap,
+            gc,
+            &[Rectangle {
+                x: 0,
+                y: 0,
+                width: geom.width,
+                height: geom.height,
+            }],
+        )?;
+        shape::mask(
+            &self.conn,
+            shape::SO::SET,
+            shape::SK::INPUT,
+            self.x11_window,
+            0,
+            0,
+            pixmap,
+        )?;
+        free_gc(&self.conn, gc)?;
+        free_pixmap(&self.conn, pixmap)?;
+        self.conn.flush()?;
+        tracing::debug!("X11 input shape: fully click-through");
+        Ok(())
+    }
+
     /// Set the window to receive input on the entire surface (edit mode).
     pub fn set_full_input(&mut self) -> Result<()> {
         let geom = self.conn.get_geometry(self.x11_window)?.reply()?;

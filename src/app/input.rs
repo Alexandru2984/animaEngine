@@ -14,9 +14,18 @@ use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, Modifiers, MouseButton, MouseScrollDelta};
 
 impl App {
+    /// Primary-window wrapper: translate window-local winit coords by
+    /// the primary origin (identity outside PerMonitor) so the stored
+    /// mouse position is always **global desktop** coordinates — the
+    /// same space entity positions live in (T.8).
     pub(super) fn handle_cursor_moved(&mut self, position: PhysicalPosition<f64>) {
-        self.mouse_x = position.x as f32;
-        self.mouse_y = position.y as f32;
+        let origin = self.primary_origin();
+        self.handle_cursor_moved_global(position.x as f32 + origin.0, position.y as f32 + origin.1);
+    }
+
+    pub(super) fn handle_cursor_moved_global(&mut self, gx: f32, gy: f32) {
+        self.mouse_x = gx;
+        self.mouse_y = gy;
 
         // Handle drag in edit mode
         if self.edit_mode {

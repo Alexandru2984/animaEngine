@@ -450,6 +450,48 @@ impl ApplicationHandler<AnimaEvent> for App {
                 WindowEvent::Focused(true) | WindowEvent::Occluded(false) => {
                     self.reapply_extra_input_shapes();
                 }
+                // T.8 — input from extra windows, translated to global
+                // desktop coordinates by the window's monitor origin.
+                // Only reachable in edit mode (pass-through shape on
+                // extras is fully click-through).
+                WindowEvent::CursorMoved { position, .. } => {
+                    if let Some(slot) = self.extra_windows.get(&window_id) {
+                        let (ox, oy) = (slot.monitor.x as f32, slot.monitor.y as f32);
+                        self.handle_cursor_moved_global(
+                            position.x as f32 + ox,
+                            position.y as f32 + oy,
+                        );
+                        self.request_redraw_all();
+                    }
+                }
+                WindowEvent::MouseInput { state, button, .. } => {
+                    self.handle_mouse_input(state, button);
+                    self.request_redraw_all();
+                }
+                WindowEvent::MouseWheel { delta, .. } => {
+                    self.handle_mouse_wheel(delta);
+                    self.request_redraw_all();
+                }
+                WindowEvent::ModifiersChanged(modifiers) => {
+                    self.handle_modifiers_changed(modifiers);
+                }
+                WindowEvent::KeyboardInput {
+                    event:
+                        winit::event::KeyEvent {
+                            state: ElementState::Pressed,
+                            ref logical_key,
+                            ..
+                        },
+                    ..
+                } if self.edit_mode => {
+                    if let Some(keycode) = KeyCode::from_winit(logical_key.as_ref()) {
+                        let chord = KeyChord::new(self.modifier_mask(), keycode);
+                        if let Some(action) = self.config.keybindings.lookup(chord) {
+                            self.dispatch_action(action, event_loop);
+                            self.request_redraw_all();
+                        }
+                    }
+                }
                 _ => {}
             }
             return;

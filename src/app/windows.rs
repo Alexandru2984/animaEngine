@@ -12,7 +12,6 @@
 //! the monitor's origin (see `SurfaceState::render`'s `origin`).
 
 use super::App;
-use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::entity::Entity;
 use crate::monitor::{self, MonitorInfo};
 use crate::renderer::wgpu_renderer::SurfaceState;
@@ -123,7 +122,9 @@ impl App {
 
             let mut x11_input = X11InputManager::new(&window);
             if let Some(mgr) = &mut x11_input {
-                if let Err(e) = mgr.set_passthrough_with_button(TOGGLE_BUTTON_SIZE) {
+                // Fully click-through — the ⚙ toggle is a primary-
+                // window affordance; extras reserve no corner (T.8).
+                if let Err(e) = mgr.set_passthrough_total() {
                     tracing::warn!("Input shape on {} failed: {e}", mon.name);
                     let _ = window.set_cursor_hittest(false);
                 }
@@ -257,7 +258,7 @@ impl App {
                 let result = if edit {
                     mgr.set_full_input()
                 } else {
-                    mgr.set_passthrough_with_button(TOGGLE_BUTTON_SIZE)
+                    mgr.set_passthrough_total()
                 };
                 if let Err(e) = result {
                     tracing::warn!("Input shape on {} failed: {e}", slot.monitor.name);
