@@ -211,6 +211,55 @@ backend exposes the same actions as D-Bus methods on
 bindings in [docs/wayland.md](wayland.md) that call them through
 `gdbus`.
 
+## Multi-window rendering (decision record, T.5)
+
+Decided before the 0.6 implementation (T.6–T.8); recorded so the
+constraints survive the refactor.
+
+**Shape:** one shared `wgpu::Instance` + `Device` + `Queue` +
+pipeline + bind-group layouts + **entity texture cache**, and one
+`Surface` + `SurfaceConfiguration` + dynamic vertex buffer per
+overlay window. `App` owns a `WindowId → WindowSlot` registry
+(`WindowSlot { window, surface_state, monitor: MonitorInfo,
+x11_input }`).
+
+**Why one device, many surfaces:**
+
+- Entity textures are window-agnostic — an entity moving between
+  monitors (or visible on two in a future Span-across-windows mode)
+  must not re-upload its frames.
+- One device = one device-loss domain; recovery handles every
+  window the same way.
+- The egui renderer binds to a single device, and egui runs only on
+  the **primary** window (settings panel, palette, toasts). Other
+  windows render sprites + the ⚙ toggle button sprite only.
+- `prune_stale_textures` stays a single sweep over the shared cache.
+
+**Mode mapping** (`MonitorMode`, unchanged in config):
+
+- `Span` (default) — exactly today's single-window path, byte for
+  byte. The multi-window machinery only engages for the other modes,
+  which keeps the default path off the new code until it has soaked.
+- `PerMonitor` — one window per `MonitorInfo`; entities render in
+  the window whose monitor resolves from their position/pin;
+  coordinates translate global → window-local at draw-list build.
+- `Single { name }` — one window, on the named monitor.
+
+**Input:** every window forwards events tagged by `WindowId`;
+cursor coordinates translate window-local → global before
+hit-testing. Edit mode is global (all windows flip input regions
+together); the settings panel lives on the primary window.
+
+**Pacing:** `RedrawPacing` is computed per window — only entities
+resolved to that window's monitor hold it awake; `request_redraw`
+fans out only to windows whose content changed. The idle heartbeat
+stays a single timer (hot-reload is window-independent).
+
+**Hotplug (T.9):** monitor-set changes diff the registry — spawn
+windows for new monitors, despawn for vanished ones, re-resolve
+entity pins (stale pins fall back to centroid resolution with a
+toast).
+
 ## Threads
 
 | Thread | Purpose | Communication |
