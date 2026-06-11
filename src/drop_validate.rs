@@ -38,10 +38,36 @@ use std::path::Path;
 /// access could see them. The redacted form keeps just the file
 /// name; `debug!` paths can still log the full string when the user
 /// has opted into verbose tracing.
+///
+/// The file name itself is additionally sanitised: control chars and
+/// the Unicode Cf members the G.3 audit flagged (bidi override,
+/// zero-width, BOM) are escaped to `\u{…}` notation. A file named
+/// with an RTL-override char would otherwise flip the visual order
+/// of every journald line it appears in — the filename is exactly
+/// the part of the path an attacker-supplied asset controls.
 pub fn redact_path(path: &Path) -> String {
-    path.file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "<no filename>".to_string())
+    let name = match path.file_name() {
+        Some(n) => n.to_string_lossy(),
+        None => return "<no filename>".to_string(),
+    };
+    name.chars()
+        .flat_map(|c| {
+            let escaped = c.is_control()
+                || matches!(
+                    c,
+                    '\u{00AD}'                  // soft hyphen
+                    | '\u{200B}'..='\u{200F}'   // zero-width + LRM/RLM
+                    | '\u{202A}'..='\u{202E}'   // bidi embedding / override
+                    | '\u{2060}'..='\u{206F}'   // invisible format codes
+                    | '\u{FEFF}'                // BOM / ZWNBSP
+                );
+            if escaped {
+                c.escape_unicode().collect::<Vec<char>>()
+            } else {
+                vec![c]
+            }
+        })
+        .collect()
 }
 
 /// Extensions we know how to load. Matched against the path the user
@@ -112,8 +138,34 @@ pub fn resolve_library_asset(root: &Path, relative: &Path) -> Result<std::path::
 
 #[cfg(test)]
 mod tests {
-    use super::{pre_validate_dropped_file, resolve_library_asset};
+    use super::{pre_validate_dropped_file, redact_path, resolve_library_asset};
     use std::path::{Path, PathBuf};
+
+    #[test]
+    fn redact_keeps_plain_filename() {
+        assert_eq!(redact_path(Path::new("/home/user/ghost.png")), "ghost.png");
+    }
+
+    #[test]
+    fn redact_escapes_bidi_override_in_filename() {
+        // U+202E (RIGHT-TO-LEFT OVERRIDE) — would visually flip the
+        // rest of any journald line it lands in.
+        let name = format!("gnp.{}tsohg", '\u{202E}');
+        let p = PathBuf::from("/tmp").join(&name);
+        let redacted = redact_path(&p);
+        assert!(
+            !redacted.contains('\u{202E}'),
+            "RLO must not survive: {redacted:?}"
+        );
+        assert!(redacted.contains("\\u{202e}"), "got: {redacted:?}");
+    }
+
+    #[test]
+    fn redact_escapes_control_chars() {
+        let p = PathBuf::from("/tmp/evil\nname.png");
+        let redacted = redact_path(&p);
+        assert!(!redacted.contains('\n'), "newline must not survive");
+    }
 
     fn workspace_tmp(name: &str) -> PathBuf {
         let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
