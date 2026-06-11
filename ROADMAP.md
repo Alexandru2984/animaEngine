@@ -23,22 +23,23 @@ parallel feature tracks.
 |---------|-------|--------|
 | 0.5.5 (current) | Post-audit doc + hardening + engine correctness | README/architecture refresh, cache key hardening (size + nanos), global memory budget, CI audit/deny hard-fail, idle-aware frame pacing, animation-timing fixes (per-frame delay walk, BounceOut), quad-budget + GPU-texture-leak fixes, tmpdir fallback ownership verification |
 
-## Planned
+## Planned — the road to 1.0
 
-| Release | Theme | Scope sketch |
-|---------|-------|-------------|
-| 0.6.0   | TBD — candidates below | Pick one focus area, do it well |
+Full engineering plan with sub-phases, sizing, risks and
+definition-of-done per release: [docs/roadmap-1.0.md](docs/roadmap-1.0.md).
 
-Candidates being weighed for 0.6:
+| Release | Theme | Headline |
+|---------|-------|----------|
+| 0.6.0 | Platform completeness | Portal global shortcuts (GNOME/KDE Wayland), real window-per-monitor rendering, hotplug, suspend/resume |
+| 0.7.0 | Content & features | Shimeji pack import, multi-state animations, library thumbnails, group composition |
+| 0.8.0 | UI/UX polish | Audit-driven polish pass: motion, first-run, inspector ergonomics, a11y re-audit |
+| 0.9.0 | Stability freeze | Config versioning + migrations, soak harness, perf HUD completion, fuzz expansion, docs audit |
+| 1.0.0 | The contract | Config stability guarantee, three live install channels, RC bake |
 
-- **Renderer polish** — texture atlas, batched draw calls, GPU-time
-  metrics in the perf overlay, frame pacing. Useful only if scenes
-  grow beyond the current MAX_ENTITIES = 64 cap.
-- **Wayland GNOME/KDE story** — explore portal-based global hotkeys
-  (xdg-desktop-portal `GlobalShortcuts`) so the native path is a
-  first-class citizen on every desktop, not just wlroots.
-- **Plugin behaviors** — sandboxed scripting (WASM or Lua) so users
-  can write their own per-entity behaviors without rebuilding.
+1.0 is a contract, not a number: configs stay compatible across 1.x,
+nothing in the UI is half-built, global shortcuts work natively on
+GNOME, KDE and wlroots, and a documented multi-day soak shows flat
+memory.
 
 ## Non-goals (for now)
 
