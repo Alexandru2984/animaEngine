@@ -78,7 +78,21 @@ pub fn fallback_scoped_dir(suffix: &str) -> PathBuf {
     if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
         let runtime = PathBuf::from(runtime);
         if runtime.is_absolute() && runtime.is_dir() {
-            return runtime.join(format!("animaEngine{suffix}"));
+            let dir = runtime.join(format!("animaEngine{suffix}"));
+            // Trust but verify: the runtime dir is 0700 + uid-owned by
+            // spec, but the value reaches us through an env var that a
+            // wrapper script can point at any world-writable location
+            // (`XDG_RUNTIME_DIR=/tmp anima-engine`) — the same redirect
+            // class M3/H1 closed for $HOME. The create+verify gate
+            // makes a pre-created entry owned by someone else fall
+            // through to the tmp path below instead of being trusted.
+            if create_and_verify_private_dir(&dir, uid) {
+                return dir;
+            }
+            tracing::warn!(
+                "XDG_RUNTIME_DIR subdir failed ownership/mode verification; \
+                 falling back to a uid-scoped tmpdir"
+            );
         }
     }
 
