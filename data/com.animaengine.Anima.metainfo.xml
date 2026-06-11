@@ -57,6 +57,17 @@
   </recommends>
 
   <releases>
+    <release version="0.6.0" date="2026-06-12">
+      <description>
+        <p>Platform completeness: portal-based global shortcuts and true multi-monitor rendering.</p>
+        <ul>
+          <li>Global hotkeys via the GlobalShortcuts desktop portal (GNOME 48+, KDE Plasma 5.27+) — native Wayland sessions get working shortcuts without XWayland; automatic fallback to XGrabKey elsewhere.</li>
+          <li>Per-monitor overlay windows: entities render on the monitor their position or pin resolves to; hotplug rebuilds windows and re-resolves pins with a notification.</li>
+          <li>The Keybindings tab shows which shortcut backend is active.</li>
+          <li>Suspend/resume and stall-recovery test protocol documented.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.5" date="2026-06-10">
       <description>
         <p>Performance, correctness and hardening release driven by two external reviews plus the audit that verified them.</p>

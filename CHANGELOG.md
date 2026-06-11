@@ -6,6 +6,53 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-06-12
+
+Platform completeness (Faza T). The two oldest platform gaps close:
+global shortcuts on GNOME/KDE Wayland sessions via the desktop
+portal, and the multi-monitor data model from 0.3 finally getting a
+render-side implementation. Released without the portal/multi-monitor
+field validations (no compatible test environment available) — see
+"Known limitations" in the release notes; every unvalidated path
+carries an automatic fallback to the previously tested behavior.
+
+### Added
+
+- **GlobalShortcuts portal backend** — on sessions exposing
+  `org.freedesktop.portal.GlobalShortcuts` (GNOME ≥ 48, KDE Plasma ≥
+  5.27), global hotkeys bind through the portal: works on native
+  Wayland, no XWayland needed, survives the Flatpak sandbox. The
+  handshake runs on a background thread (the permission dialog can't
+  block startup); denial falls back to XGrabKey where an X server
+  exists, with a toast explaining the downgrade. Strategy override:
+  `hotkey_backend = "auto" | "portal" | "x11" | "none"` under
+  `[global]`. The Keybindings tab shows the live backend. The native
+  Wayland path gains real global hotkeys for the first time.
+- **Window-per-monitor rendering** (closes C.3) — `MonitorMode::
+  PerMonitor` (the default since 0.3) now spawns one overlay window
+  per monitor: entities render on the monitor their position/pin
+  resolves to, with global-desktop coordinates translated per
+  window. Single-monitor machines degenerate to one window,
+  behaviourally identical to before. `Span` keeps the exact pre-0.6
+  single-window path.
+- **Monitor hotplug** — topology changes are detected on the idle
+  heartbeat; windows rebuild, pins naming vanished monitors fall
+  back to position resolution, toasts summarise the change.
+- **Suspend/resume + stall protocol** (`docs/soak-testing.md`) —
+  including the scripted SIGSTOP/SIGCONT stall test and the
+  documented fact that Linux suspend freezes `CLOCK_MONOTONIC`, so
+  resume creates no animation backlog by construction.
+
+### Changed
+
+- Renderer split into process-wide shared GPU state (device,
+  pipeline, entity texture cache) and per-window surface state — an
+  entity visible on two monitors uploads its frames once.
+- Mouse coordinates are tracked in global desktop space; input from
+  any overlay window routes through one translation point.
+- Extra (non-primary) windows are fully click-through in
+  pass-through mode — the ⚙ toggle is a primary-window affordance.
+
 ## [0.5.5] — 2026-06-10
 
 Docs refresh + hardening sweep prompted by two external reviews of the
