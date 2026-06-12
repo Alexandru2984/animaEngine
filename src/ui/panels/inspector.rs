@@ -123,11 +123,14 @@ fn entity_inspector(
     // booleans users flip most often, so they stay at the top — the
     // collapsibles below host the slider-heavy detail.
     ui.horizontal(|ui| {
-        if ui.checkbox(&mut entity.visible, "Visible").changed() {
+        if ui
+            .checkbox(&mut entity.visible, t("inspector-visible"))
+            .changed()
+        {
             change.touches_visibility_or_z_order = true;
         }
         let mut gravity = entity.physics.enabled;
-        if ui.checkbox(&mut gravity, "Gravity").changed() {
+        if ui.checkbox(&mut gravity, t("inspector-gravity")).changed() {
             if gravity {
                 entity.physics.enable();
             } else {
@@ -254,7 +257,7 @@ fn entity_inspector(
                 change.any_field = true;
             }
             let mut playing = entity.animation().playing;
-            if ui.checkbox(&mut playing, "Playing").changed() {
+            if ui.checkbox(&mut playing, t("inspector-playing")).changed() {
                 entity.animation_mut().playing = playing;
                 change.any_field = true;
             }
@@ -459,7 +462,11 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                 changed = true;
             }
             ui.add_space(SPACE_XS);
-            ui.label(egui::RichText::new("Wander box").small().weak());
+            ui.label(
+                egui::RichText::new(t("inspector-wander-box"))
+                    .small()
+                    .weak(),
+            );
             ui.horizontal(|ui| {
                 ui.label("X");
                 if ui

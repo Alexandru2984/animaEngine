@@ -29,9 +29,9 @@ pub fn toggle_button(ctx: &egui::Context, edit_mode: bool) -> bool {
         (palette.bg_elevated.gamma_multiply(0.85), palette.fg_primary)
     };
     let tooltip = if edit_mode {
-        "Exit edit mode"
+        crate::i18n::t("toggle-exit-edit")
     } else {
-        "Enter edit mode"
+        crate::i18n::t("toggle-enter-edit")
     };
 
     let mut clicked = false;

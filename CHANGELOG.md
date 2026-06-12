@@ -33,6 +33,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Weston smoke — the first automated environment ever to run the
   pure-Wayland fallback path (field-unvalidated since 0.6) — and an
   lcov coverage artifact via cargo-llvm-cov.
+- **The last hardcoded strings are gone (V.6)** — every toast
+  (~20 sites across five files), the entire right-click context menu,
+  the ⚙ tooltips and the remaining inspector labels now flow through
+  fluent. Notable archaeology: a large share of the needed keys had
+  been translated across all 10 locales during the 0.4 locale audit
+  and were never referenced by code — this release finally wires
+  them. Strings new since 0.6 ship in English + Romanian; the other
+  eight locales receive them at the pre-release native-review pass.
 - **High-contrast-aware custom widgets (V.5)** — the toggle button,
   keybinding conflict/recording accents and toast success color were
   inline RGB literals invisible to theme switching; they now read the

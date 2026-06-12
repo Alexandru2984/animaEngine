@@ -165,7 +165,13 @@ impl App {
                         Ok(()) => imported_names.push(cfg.name.clone()),
                         Err(e) => {
                             tracing::warn!("Imported character '{}' rejected: {e}", cfg.name);
-                            self.toasts.error(format!("{}: {e}", cfg.name));
+                            {
+                                let mut args = fluent::FluentArgs::new();
+                                args.set("name", cfg.name.clone());
+                                args.set("error", e.to_string());
+                                self.toasts
+                                    .error(crate::i18n::t_args("toast-entity-load-failed", &args));
+                            }
                         }
                     }
                 }
@@ -212,7 +218,12 @@ impl App {
         if let Err(reason) = pre_validate_dropped_file(&path) {
             tracing::warn!("Rejecting dropped file {label}: {reason}");
             tracing::debug!("Rejected full path: {}", path.display());
-            self.toasts.error(format!("Rejected: {reason}"));
+            {
+                let mut args = fluent::FluentArgs::new();
+                args.set("reason", reason.clone());
+                self.toasts
+                    .error(crate::i18n::t_args("toast-rejected", &args));
+            }
             return;
         }
 
@@ -243,11 +254,21 @@ impl App {
                     self.mouse_x,
                     self.mouse_y
                 );
-                self.toasts.success(format!("Added {added_name}"));
+                {
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("name", added_name.clone());
+                    self.toasts
+                        .success(crate::i18n::t_args("toast-added", &args));
+                }
             }
             Err(e) => {
                 tracing::error!("Failed to load dropped file {}: {}", path.display(), e);
-                self.toasts.error(format!("Load failed: {e}"));
+                {
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("error", e.to_string());
+                    self.toasts
+                        .error(crate::i18n::t_args("toast-load-failed", &args));
+                }
             }
         }
     }

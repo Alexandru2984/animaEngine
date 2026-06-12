@@ -211,3 +211,23 @@ crash-report-found-toast = The previous session crashed. A report was saved at {
 
 # ── Group composition hint (C.9) ──────────────────────────────────────
 inspector-group-hint = Composed by group { $group }: { $transform }
+
+# ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
+toast-config-saved = Config saved
+toast-save-failed = Save failed: { $error }
+toast-rejected = Rejected: { $reason }
+toast-added = Added { $name }
+toast-load-failed = Load failed: { $error }
+toast-entity-load-failed = { $name }: { $error }
+toast-theme-switched = Theme: { $theme }
+toast-preset-entry-failed = Couldn’t add preset entry: { $error }
+toast-preset-loaded = Loaded preset: { $name }
+toast-duplicated = Duplicated { $name }
+toast-duplicate-failed = Duplicate failed: { $error }
+toast-deleted = Deleted { $name }
+toast-playback-resumed = Playback resumed
+toast-playback-paused = Playback paused
+toast-wayland-no-library = Asset library not wired on the Wayland path yet
+inspector-wander-box = Wander box
+toast-perf-snapshot = Perf snapshot: { $path }
+toast-perf-snapshot-failed = Snapshot failed: { $error }

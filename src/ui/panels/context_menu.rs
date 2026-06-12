@@ -20,30 +20,53 @@ pub(crate) fn context_menu(ctx: &egui::Context, state: &ContextMenuState) -> Con
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.set_min_width(160.0);
 
-                if ui.button(format!("{}  Duplicate", icons::COPY)).clicked() {
+                if ui
+                    .button(format!(
+                        "{}  {}",
+                        icons::COPY,
+                        crate::i18n::t("menu-duplicate")
+                    ))
+                    .clicked()
+                {
                     picked = Some(MenuAction::Duplicate(idx));
                 }
                 if ui
-                    .button(format!("{}  Reset transform", icons::RESET))
+                    .button(format!(
+                        "{}  {}",
+                        icons::RESET,
+                        crate::i18n::t("menu-reset-transform")
+                    ))
                     .clicked()
                 {
                     picked = Some(MenuAction::ResetTransform(idx));
                 }
                 if ui
-                    .button(format!("{}  Toggle gravity", icons::GRAVITY))
+                    .button(format!(
+                        "{}  {}",
+                        icons::GRAVITY,
+                        crate::i18n::t("menu-toggle-gravity")
+                    ))
                     .clicked()
                 {
                     picked = Some(MenuAction::ToggleGravity(idx));
                 }
                 ui.separator();
                 if ui
-                    .button(format!("{}  Bring forward", icons::BRING_FORWARD))
+                    .button(format!(
+                        "{}  {}",
+                        icons::BRING_FORWARD,
+                        crate::i18n::t("menu-bring-forward")
+                    ))
                     .clicked()
                 {
                     picked = Some(MenuAction::BringForward(idx));
                 }
                 if ui
-                    .button(format!("{}  Send backward", icons::SEND_BACKWARD))
+                    .button(format!(
+                        "{}  {}",
+                        icons::SEND_BACKWARD,
+                        crate::i18n::t("menu-send-backward")
+                    ))
                     .clicked()
                 {
                     picked = Some(MenuAction::SendBackward(idx));
@@ -52,7 +75,12 @@ pub(crate) fn context_menu(ctx: &egui::Context, state: &ContextMenuState) -> Con
                 let error_color = ui.visuals().error_fg_color;
                 if ui
                     .button(
-                        egui::RichText::new(format!("{}  Delete", icons::TRASH)).color(error_color),
+                        egui::RichText::new(format!(
+                            "{}  {}",
+                            icons::TRASH,
+                            crate::i18n::t("menu-delete")
+                        ))
+                        .color(error_color),
                     )
                     .clicked()
                 {

@@ -41,7 +41,12 @@ impl App {
                 // entries visually.
                 tracing::warn!("Library asset {} rejected: {reason}", redact_path(rel_path));
                 tracing::debug!("Rejected library relative path: {}", outcome.relative_path);
-                self.toasts.warn(format!("Rejected: {reason}"));
+                {
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("reason", reason.clone());
+                    self.toasts
+                        .warn(crate::i18n::t_args("toast-rejected", &args));
+                }
                 return;
             }
         };
@@ -53,7 +58,12 @@ impl App {
                 redact_path(&abs_path)
             );
             tracing::debug!("Rejected library full path: {}", abs_path.display());
-            self.toasts.warn(format!("Rejected: {reason}"));
+            {
+                let mut args = fluent::FluentArgs::new();
+                args.set("reason", reason.clone());
+                self.toasts
+                    .warn(crate::i18n::t_args("toast-rejected", &args));
+            }
             return;
         }
         // Drop in the middle of the visible viewport, falling back to
@@ -109,7 +119,12 @@ impl App {
             panels::PaletteOutcome::SwitchTheme(theme) => {
                 self.config.global.theme = theme;
                 self.config_dirty = true;
-                self.toasts.success(format!("Theme: {}", theme.label()));
+                {
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("theme", theme.label());
+                    self.toasts
+                        .success(crate::i18n::t_args("toast-theme-switched", &args));
+                }
             }
             panels::PaletteOutcome::ApplyPreset(id, mode) => {
                 let preset = Preset::for_id(id);
@@ -126,7 +141,14 @@ impl App {
                         for cfg in new.iter().filter(|c| !already.contains(&c.id)) {
                             if let Err(e) = self.scene.append_character_config(cfg) {
                                 tracing::warn!("Palette preset append failed: {e}");
-                                self.toasts.warn(format!("Couldn't add preset entry: {e}"));
+                                {
+                                    let mut args = fluent::FluentArgs::new();
+                                    args.set("error", e.to_string());
+                                    self.toasts.warn(crate::i18n::t_args(
+                                        "toast-preset-entry-failed",
+                                        &args,
+                                    ));
+                                }
                             }
                         }
                     }
@@ -161,12 +183,22 @@ impl App {
                         }
                         self.selection.select(new_idx);
                         self.config_dirty = true;
-                        self.toasts.success(format!("Duplicated {src_name}"));
+                        {
+                            let mut args = fluent::FluentArgs::new();
+                            args.set("name", src_name.clone());
+                            self.toasts
+                                .success(crate::i18n::t_args("toast-duplicated", &args));
+                        }
                         self.save_config_if_needed();
                     }
                     Err(e) => {
                         tracing::error!("Context menu duplicate failed: {}", e);
-                        self.toasts.error(format!("Duplicate failed: {e}"));
+                        {
+                            let mut args = fluent::FluentArgs::new();
+                            args.set("error", e.to_string());
+                            self.toasts
+                                .error(crate::i18n::t_args("toast-duplicate-failed", &args));
+                        }
                     }
                 }
             }
@@ -185,7 +217,12 @@ impl App {
                 if self.scene.remove_entity(idx).is_some() {
                     self.selection.deselect();
                     self.config_dirty = true;
-                    self.toasts.info(format!("Deleted {removed_name}"));
+                    {
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("name", removed_name.clone());
+                        self.toasts
+                            .info(crate::i18n::t_args("toast-deleted", &args));
+                    }
                     self.save_config_if_needed();
                 }
             }

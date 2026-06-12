@@ -318,12 +318,25 @@ impl App {
                                         crate::drop_validate::redact_path(&path)
                                     );
                                     tracing::debug!("Perf snapshot full path: {}", path.display());
-                                    self.toasts
-                                        .success(format!("Perf snapshot: {}", path.display()));
+                                    {
+                                        let mut args = fluent::FluentArgs::new();
+                                        args.set("path", path.display().to_string());
+                                        self.toasts.success(crate::i18n::t_args(
+                                            "toast-perf-snapshot",
+                                            &args,
+                                        ));
+                                    }
                                 }
                                 Err(e) => {
                                     tracing::error!("Perf snapshot failed: {e}");
-                                    self.toasts.error(format!("Snapshot failed: {e}"));
+                                    {
+                                        let mut args = fluent::FluentArgs::new();
+                                        args.set("error", e.to_string());
+                                        self.toasts.error(crate::i18n::t_args(
+                                            "toast-perf-snapshot-failed",
+                                            &args,
+                                        ));
+                                    }
                                 }
                             }
                         }

@@ -16,10 +16,10 @@ Severity: **blocker** (breaks a core promise — e.g. localized UI),
 
 | # | Surface | Finding | Severity | Verdict |
 |---|---------|---------|----------|---------|
-| F1 | Toasts (app layer) | ~15 hardcoded English toast strings bypass `i18n::t`: "Config saved", "Save failed: …", "Rejected: …", "Added …", "Load failed: …", "Theme: …", "Couldn't add preset entry", "Duplicated …", "Duplicate failed", "Playback resumed/paused" (src/app/mod.rs, input.rs, outcomes.rs), "Asset library not wired…" (wayland/run.rs). A ro/ja/de session shows mixed-language toasts. | blocker | fix (V.6) |
-| F2 | Context menu | Every item hardcoded: "Duplicate", "Reset transform", "Toggle gravity", "Bring forward", "Send backward", + the rest of context_menu.rs. Primary right-click surface. | blocker | fix (V.6) |
-| F3 | Command palette | "Replace" / "Append" buttons and the "Esc to close · Ctrl+K to toggle" footer hint are hardcoded. | blocker | fix (V.6) |
-| F4 | Inspector | `"z-index"`, `"Wander box"` labels hardcoded. (`"X"`/`"Y"` axis labels: universal symbols, exempt.) | paper-cut | fix (V.6); X/Y wontfix (axis symbols) |
+| F1 | Toasts (app layer) | ~15 hardcoded English toast strings bypass `i18n::t`: "Config saved", "Save failed: …", "Rejected: …", "Added …", "Load failed: …", "Theme: …", "Couldn't add preset entry", "Duplicated …", "Duplicate failed", "Playback resumed/paused" (src/app/mod.rs, input.rs, outcomes.rs), "Asset library not wired…" (wayland/run.rs). A ro/ja/de session shows mixed-language toasts. | blocker | fix (V.6, done) |
+| F2 | Context menu | Every item hardcoded: "Duplicate", "Reset transform", "Toggle gravity", "Bring forward", "Send backward", + the rest of context_menu.rs. Primary right-click surface. | blocker | fix (V.6, done — keys existed since D-phase, wired now) |
+| F3 | Command palette | "Replace" / "Append" buttons and the "Esc to close · Ctrl+K to toggle" footer hint are hardcoded. | blocker | fix (V.4+V.6, done) |
+| F4 | Inspector | `"z-index"`, `"Wander box"` labels hardcoded. (`"X"`/`"Y"` axis labels: universal symbols, exempt.) | paper-cut | fix (V.6, done); X/Y wontfix (axis symbols) |
 | F12 | Inspector sliders | Every `Slider::.text(...)` label was a hardcoded English literal — and the **translated keys already existed in all 10 locales** (prepared in the D-phase locale audit, never wired into the code). Missed by the original `ui.label/button` grep; found while implementing V.3. Wired + units added. | blocker | fix (V.3, done) |
 | F5 | Perf overlay | "FPS", "RSS", row labels are raw English. Developer-facing HUD with fixed-width number alignment; translating would break the monospace layout for zero user value. | nice | wontfix (dev surface) |
 
@@ -27,22 +27,22 @@ Severity: **blocker** (breaks a core promise — e.g. localized UI),
 
 | # | Surface | Finding | Severity | Verdict |
 |---|---------|---------|----------|---------|
-| F6 | Toggle button | Colors inline: active green `(40,160,60)`, dim `(50,50,60,200)`, `WHITE` glyph — invisible to the HC theme variants; white-on-green is ~2.1:1 at small sizes. Move to theme palette so HC overrides apply. | paper-cut | fix (V.5) |
-| F7 | Keybindings tab | Inline amber `(220,180,60)` and blue `(100,180,220)` accents bypass the theme; unverified against HC AAA. | paper-cut | fix (V.5) |
+| F6 | Toggle button | Colors inline: active green `(40,160,60)`, dim `(50,50,60,200)`, `WHITE` glyph — invisible to the HC theme variants; white-on-green is ~2.1:1 at small sizes. Move to theme palette so HC overrides apply. | paper-cut | fix (V.5, done) |
+| F7 | Keybindings tab | Inline amber `(220,180,60)` and blue `(100,180,220)` accents bypass the theme; unverified against HC AAA. | paper-cut | fix (V.5, done — semantic_warn/info) |
 
 ### Keyboard & a11y
 
 | # | Surface | Finding | Severity | Verdict |
 |---|---------|---------|----------|---------|
-| F8 | All panels | One `request_focus` call in the whole UI tree — tab order is egui-default everywhere; no visible focus styling on custom widgets (toggle button, palette rows, library grid). Keyboard-only walkthrough almost certainly dead-ends at the context menu (mouse-only by nature) and the library grid. | blocker | fix (V.4) |
-| F9 | Motion | No reduced-motion knob; panel/toast/palette animations are unconditional. Planned. | paper-cut | fix (V.1) |
+| F8 | All panels | One `request_focus` call in the whole UI tree — tab order is egui-default everywhere; no visible focus styling on custom widgets (toggle button, palette rows, library grid). Keyboard-only walkthrough almost certainly dead-ends at the context menu (mouse-only by nature) and the library grid. | blocker | fix (V.4, code-side done; Orca pass manual) |
+| F9 | Motion | No reduced-motion knob; panel/toast/palette animations are unconditional. Planned. | paper-cut | fix (V.1, done) |
 
 ### Design-system discipline
 
 | # | Surface | Finding | Severity | Verdict |
 |---|---------|---------|----------|---------|
-| F10 | Panels | One raw `add_space(N)` literal outside the `SPACE_*` scale; everything else conforms. | nice | fix (V.5) |
-| F11 | Inspector | Sliders lack units in-label (px/%/fps appear inconsistently); no double-click-to-reset. Planned. | paper-cut | fix (V.3) |
+| F10 | Panels | One raw `add_space(N)` literal outside the `SPACE_*` scale; everything else conforms. | nice | fix (V.5, done) |
+| F11 | Inspector | Sliders lack units in-label (px/%/fps appear inconsistently); no double-click-to-reset. Planned. | paper-cut | fix (V.3, done) |
 
 ### Healthy (verified, no action)
 

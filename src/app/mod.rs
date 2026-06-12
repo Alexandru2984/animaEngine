@@ -264,14 +264,19 @@ impl App {
             self.config.global.playback_enabled = self.scene.global_playing;
             match self.config.save() {
                 Ok(()) => {
-                    self.toasts.success("Config saved");
+                    self.toasts.success(crate::i18n::t("toast-config-saved"));
                     // Mirror the clean state into the crash-recovery slot
                     // so the panic hook has something useful to dump.
                     crate::crash::record_known_good(&self.config);
                 }
                 Err(e) => {
                     tracing::warn!("Failed to save config: {}", e);
-                    self.toasts.error(format!("Save failed: {e}"));
+                    {
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("error", e.to_string());
+                        self.toasts
+                            .error(crate::i18n::t_args("toast-save-failed", &args));
+                    }
                 }
             }
             self.config_dirty = false;
@@ -380,9 +385,9 @@ impl ApplicationHandler<AnimaEvent> for App {
                 self.scene.toggle_global_playback();
                 self.config_dirty = true;
                 let label = if self.scene.global_playing {
-                    "Playback resumed"
+                    crate::i18n::t("toast-playback-resumed")
                 } else {
-                    "Playback paused"
+                    crate::i18n::t("toast-playback-paused")
                 };
                 self.toasts.info(label);
             }

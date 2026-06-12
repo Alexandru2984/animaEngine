@@ -215,3 +215,23 @@ crash-report-found-toast = Sesiunea anterioară s-a închis neașteptat. Raportu
 
 # ── Group composition hint (C.9) ──────────────────────────────────────
 inspector-group-hint = Compus de grupul { $group }: { $transform }
+
+# ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
+toast-config-saved = Configurație salvată
+toast-save-failed = Salvarea a eșuat: { $error }
+toast-rejected = Respins: { $reason }
+toast-added = Adăugat { $name }
+toast-load-failed = Încărcarea a eșuat: { $error }
+toast-entity-load-failed = { $name }: { $error }
+toast-theme-switched = Temă: { $theme }
+toast-preset-entry-failed = Nu s-a putut adăuga intrarea din preset: { $error }
+toast-preset-loaded = Preset încărcat: { $name }
+toast-duplicated = Duplicat { $name }
+toast-duplicate-failed = Duplicarea a eșuat: { $error }
+toast-deleted = Șters { $name }
+toast-playback-resumed = Redare reluată
+toast-playback-paused = Redare pe pauză
+toast-wayland-no-library = Biblioteca de asset-uri nu e încă disponibilă pe calea Wayland
+inspector-wander-box = Cutie de hoinăreală
+toast-perf-snapshot = Snapshot de performanță: { $path }
+toast-perf-snapshot-failed = Snapshot-ul a eșuat: { $error }

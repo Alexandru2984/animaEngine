@@ -158,7 +158,11 @@ pub fn run_native(
             if let Err(reason) = pre_validate_dropped_file(&path) {
                 tracing::warn!("Drop rejected for {label}: {reason}");
                 tracing::debug!("Rejected drop full path: {}", path.display());
-                toasts.warn(format!("Rejected: {reason}"));
+                {
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("reason", reason.clone());
+                    toasts.warn(crate::i18n::t_args("toast-rejected", &args));
+                }
                 continue;
             }
             let (x, y) = drop_pos.unwrap_or((
@@ -494,7 +498,15 @@ pub fn run_native(
                                     }
                                     match scene.append_character_config(&cfg) {
                                         Ok(()) => ok += 1,
-                                        Err(e) => toasts.error(format!("{}: {e}", cfg.name)),
+                                        Err(e) => {
+                                            let mut args = fluent::FluentArgs::new();
+                                            args.set("name", cfg.name.clone());
+                                            args.set("error", e.to_string());
+                                            toasts.error(crate::i18n::t_args(
+                                                "toast-entity-load-failed",
+                                                &args,
+                                            ));
+                                        }
                                     }
                                 }
                                 for (what, why) in &report.skipped {
@@ -533,7 +545,7 @@ pub fn run_native(
                     // a toast so the user knows the click was seen but
                     // not actionable.
                     let _ = out;
-                    toasts.warn("Asset library not wired on the Wayland path yet");
+                    toasts.warn(crate::i18n::t("toast-wayland-no-library"));
                 }
             }
             Err(wgpu::SurfaceError::Lost) => {
@@ -582,7 +594,11 @@ fn handle_palette_outcome(
     match outcome {
         panels::PaletteOutcome::SwitchTheme(theme) => {
             config.global.theme = theme;
-            toasts.success(format!("Theme: {}", theme.label()));
+            {
+                let mut args = fluent::FluentArgs::new();
+                args.set("theme", theme.label());
+                toasts.success(crate::i18n::t_args("toast-theme-switched", &args));
+            }
         }
         panels::PaletteOutcome::ApplyPreset(id, mode) => {
             let preset = Preset::for_id(id);
@@ -598,12 +614,21 @@ fn handle_palette_outcome(
                     for cfg in new.iter().filter(|c| !already.contains(&c.id)) {
                         if let Err(e) = scene.append_character_config(cfg) {
                             tracing::warn!("Palette preset append failed: {e}");
-                            toasts.warn(format!("Couldn't add preset entry: {e}"));
+                            {
+                                let mut args = fluent::FluentArgs::new();
+                                args.set("error", e.to_string());
+                                toasts
+                                    .warn(crate::i18n::t_args("toast-preset-entry-failed", &args));
+                            }
                         }
                     }
                 }
             }
-            toasts.success(format!("Loaded preset: {}", preset.name));
+            {
+                let mut args = fluent::FluentArgs::new();
+                args.set("name", preset.name);
+                toasts.success(crate::i18n::t_args("toast-preset-loaded", &args));
+            }
         }
     }
 }

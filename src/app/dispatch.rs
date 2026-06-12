@@ -53,7 +53,12 @@ impl App {
                         tracing::info!("Deleted entity: {}", removed_id);
                         self.selection.deselect();
                         self.config_dirty = true;
-                        self.toasts.info(format!("Deleted {removed_name}"));
+                        {
+                            let mut args = fluent::FluentArgs::new();
+                            args.set("name", removed_name.clone());
+                            self.toasts
+                                .info(crate::i18n::t_args("toast-deleted", &args));
+                        }
                         self.save_config_if_needed();
                     }
                 }
@@ -230,7 +235,12 @@ impl App {
                         }
                         Err(e) => {
                             tracing::error!("Failed to duplicate: {}", e);
-                            self.toasts.error(format!("Duplicate failed: {e}"));
+                            {
+                                let mut args = fluent::FluentArgs::new();
+                                args.set("error", e.to_string());
+                                self.toasts
+                                    .error(crate::i18n::t_args("toast-duplicate-failed", &args));
+                            }
                         }
                     }
                 }
