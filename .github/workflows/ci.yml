@@ -52,10 +52,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: actionlint
-      - run: actionlint
+      # actionlint is a Go tool — taiki-e/install-action can't provide
+      # it (it fell through to cargo-binstall and failed: not a crate).
+      # The official download script fetches a pinned release binary.
+      # shellcheck is preinstalled on the runner, so actionlint's
+      # shellcheck rules are active here — keep that in mind when a
+      # local run (without shellcheck) comes up clean.
+      - name: Install actionlint
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash \
+            -o /tmp/download-actionlint.bash
+          bash /tmp/download-actionlint.bash 1.7.12 /tmp
+      - run: /tmp/actionlint -color
 
   clippy:
     name: clippy
