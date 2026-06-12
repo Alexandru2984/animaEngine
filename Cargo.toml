@@ -2,6 +2,10 @@
 name = "anima_engine"
 version = "0.7.0"
 edition = "2021"
+# Strictest declared requirement in Cargo.lock (image 0.25.10),
+# verified with `cargo +1.88 check --locked --all-targets`; CI gates
+# on it (msrv job). Bump deliberately, not by accident.
+rust-version = "1.88"
 description = "Linux-first animated desktop overlay engine — render multiple animated characters over your desktop"
 license = "MIT"
 resolver = "2"
@@ -102,18 +106,17 @@ zbus = { version = "5", default-features = false, features = ["async-io"] }
 # winit covers X11/XWayland (95 % of Linux desktops); sctk + wlr-layer-shell
 # adds true overlay support on wlroots compositors (sway, Hyprland, river).
 # The compositor probe at startup picks which backend is actually used.
+# All protocol bindings (wayland-protocols / -wlr) are consumed through
+# sctk's re-exports — no direct dependency needed.
 wayland-client = "0.31"
-wayland-protocols = { version = "0.32", features = ["client", "unstable"] }
-wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 # High-level Wayland client conveniences (registry, output, compositor,
-# layer-shell handlers + the calloop event loop they integrate with).
+# layer-shell handlers). Event dispatch uses wayland-client's
+# EventQueue::blocking_dispatch directly — no calloop integration.
 # `xkbcommon` feature enabled in E.1 (0.5) to drive keyboard decoding on
 # the native Wayland path. libxkbcommon-dev is already in README build
 # deps + libxkbcommon0 lands transitively via libxkbcommon-x11-0 in .deb
 # depends, so this isn't a new system requirement.
-smithay-client-toolkit = { version = "0.19", default-features = false, features = ["calloop", "xkbcommon"] }
-calloop = "0.13"
-calloop-wayland-source = "0.3"
+smithay-client-toolkit = { version = "0.19", default-features = false, features = ["xkbcommon"] }
 
 # Image loading
 image = { version = "0.25", default-features = false, features = ["png", "gif", "webp", "jpeg"] }

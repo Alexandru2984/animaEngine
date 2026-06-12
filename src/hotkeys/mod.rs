@@ -10,7 +10,7 @@
 //! XGrabKey as the preferred backend on GNOME/KDE Wayland (T.1/T.2).
 //!
 //! The set of globally-registered chords is derived from
-//! [`KeyBindings`](crate::keybindings::KeyBindings) at startup:
+//! [`KeyBindings`] at startup:
 //! whichever chord the user has bound to `ToggleEditMode`,
 //! `HideOverlay`, or `PauseAll` *and* that carries at least one
 //! modifier (Ctrl / Alt / Super) gets registered. Bare-letter chords

@@ -6,6 +6,30 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **CI hardening** — five new gating jobs: rustdoc with `-D warnings`
+  (broken intra-doc links fail the build), MSRV check on Rust 1.88
+  (now declared as `rust-version` in Cargo.toml), cargo-machete
+  (unused direct dependencies), desktop metadata validation
+  (`desktop-file-validate` + `appstreamcli` — the icon-resolution
+  regression class from 0.3.2 can no longer land silently), and a
+  weekly beta-toolchain canary (schedule-only, never blocks a push).
+  The test job now runs under cargo-nextest with `--retries 1`, so an
+  intermittent failure is reported FLAKY *by name* instead of
+  anonymously failing the run — this pulls the flake-naming harness
+  planned for 0.9 (W.1/W.2) forward. The smoke test runs inside
+  `dbus-run-session`, exercising the single-instance, tray and portal
+  D-Bus paths instead of short-circuiting on "no session bus".
+
+### Changed
+
+- Four unused direct dependencies removed (`wayland-protocols`,
+  `wayland-protocols-wlr`, `calloop`, `calloop-wayland-source` — all
+  consumed through smithay-client-toolkit's re-exports; sctk's
+  `calloop` feature dropped likewise). Doc-comment link fixes
+  surfaced by the new rustdoc gate.
+
 ## [0.7.0] — 2026-06-12
 
 Content & feature completion (Faza U). The release's spine is the

@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Weekly canary run: re-checks the advisory DBs against an unchanged
+  # tree and runs the beta-toolchain job below — upstream breakage gets
+  # caught the week it lands, not the day we happen to push.
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -46,6 +52,26 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets -- -D warnings
 
+  doc:
+    name: rustdoc
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+      - uses: Swatinem/rust-cache@v2
+      # Broken intra-doc links and malformed doc comments fail the
+      # build; private items are documented because the crate is a
+      # binary — the docs are for contributors, not an API surface.
+      - run: cargo doc --no-deps --document-private-items
+        env:
+          RUSTDOCFLAGS: -D warnings
+
   test:
     name: test
     runs-on: ${{ matrix.os }}
@@ -64,7 +90,67 @@ jobs:
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
             libxkbcommon-x11-dev libwayland-dev libxrandr-dev
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-targets --no-fail-fast
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      # `--retries 1`: a test that fails once and passes on retry is
+      # reported as FLAKY *by name* instead of failing the run — this
+      # is the flake-naming harness pre-registered in
+      # docs/plans/v0.9-freeze.md §W.2 (an intermittent single-test
+      # failure surfaced ~3× during 0.6/0.7 and was never identified).
+      # A test that fails twice still fails the job.
+      - run: cargo nextest run --all-targets --retries 1 --no-fail-fast
+      # nextest does not run doctests; keep them covered separately.
+      - run: cargo test --doc
+
+  msrv:
+    name: MSRV (1.88)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          # Keep in sync with `rust-version` in Cargo.toml. Derived
+          # from the strictest requirement in Cargo.lock (image 0.25.10)
+          # and verified with a full `cargo check --all-targets`.
+          toolchain: '1.88'
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --locked --all-targets
+
+  machete:
+    name: unused dependencies
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-machete
+      # Source-scan only (no compilation): a direct dependency that no
+      # `use`/path reaches fails the job. False positives go in
+      # `[package.metadata.cargo-machete] ignored` with a comment.
+      - run: cargo machete
+
+  metadata:
+    name: desktop metadata
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # The same validators `make validate` runs locally — but here
+      # the tools are installed, so "skip" can't hide a regression.
+      # The .desktop ↔ metainfo <id> match is what GNOME Shell keys
+      # icon resolution on (broke silently before 0.3.2).
+      - name: Install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y desktop-file-utils appstream
+      - run: desktop-file-validate data/com.animaengine.Anima.desktop
+      - run: appstreamcli validate --no-net data/com.animaengine.Anima.metainfo.xml
 
   build:
     name: release build
@@ -94,16 +180,20 @@ jobs:
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
             libxkbcommon-x11-dev libwayland-dev libxrandr-dev \
-            xvfb mesa-vulkan-drivers
+            xvfb mesa-vulkan-drivers dbus dbus-daemon
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --locked
-      - name: Run under Xvfb for 5 seconds
+      # dbus-run-session provides a real session bus, so the D-Bus
+      # paths (single-instance name ownership, tray probe, portal
+      # probe) execute instead of short-circuiting on "no bus".
+      - name: Run under Xvfb + session bus for 5 seconds
         run: |
           export DISPLAY=:99
           Xvfb :99 -screen 0 1280x720x24 &
           sleep 2
-          timeout --preserve-status 5s cargo run --quiet || EXIT=$?
+          timeout --preserve-status 5s \
+            dbus-run-session -- cargo run --quiet || EXIT=$?
           # 124 = timeout fired (expected); 0 = clean exit; anything else = failure
           if [ "${EXIT:-0}" != "0" ] && [ "${EXIT:-0}" != "124" ] && [ "${EXIT:-0}" != "143" ]; then
             echo "App exited with non-success/non-timeout code: $EXIT"
@@ -144,3 +234,29 @@ jobs:
       - name: Install cargo-deny
         run: cargo install --locked cargo-deny
       - run: cargo deny check
+
+  # ── Weekly canary (schedule / manual only) ──────────────────────────
+  # Early warning for rustc regressions: next stable's breakage shows
+  # up here weeks before it can break the gating jobs. Failures arrive
+  # as a red scheduled run — they never block a push or a PR.
+
+  beta:
+    name: beta toolchain canary
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@beta
+        with:
+          components: clippy
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo nextest run --all-targets --retries 1 --no-fail-fast

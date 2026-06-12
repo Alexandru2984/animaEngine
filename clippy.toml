@@ -1,2 +1,3 @@
 avoid-breaking-exported-api = false
-msrv = "1.75"
+# msrv intentionally not set here — clippy reads `rust-version` from
+# Cargo.toml, which is the single source of truth (verified + CI-gated).

@@ -371,7 +371,7 @@ mod tests {
         buf.extend_from_slice(&h.to_le_bytes());
         buf.extend_from_slice(&0u32.to_le_bytes()); // delay
         let pixel_len = (w as usize) * (h as usize) * 4;
-        buf.extend(std::iter::repeat(0u8).take(pixel_len));
+        buf.extend(std::iter::repeat_n(0u8, pixel_len));
         buf
     }
 

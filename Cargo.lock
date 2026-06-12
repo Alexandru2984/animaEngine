@@ -178,8 +178,6 @@ version = "0.7.0"
 dependencies = [
  "async-io",
  "bytemuck",
- "calloop",
- "calloop-wayland-source",
  "directories",
  "egui",
  "egui-phosphor",
@@ -205,8 +203,6 @@ dependencies = [
  "tracing-subscriber",
  "unic-langid",
  "wayland-client",
- "wayland-protocols",
- "wayland-protocols-wlr",
  "wgpu",
  "winit",
  "x11rb",

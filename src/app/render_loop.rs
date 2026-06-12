@@ -51,7 +51,7 @@ impl App {
         // cheap but per-frame would still be visible at the
         // microsecond scale the overlay reports.
         const RSS_REFRESH_FRAMES: u32 = 60;
-        if self.perf_frame_counter % RSS_REFRESH_FRAMES == 0 {
+        if self.perf_frame_counter.is_multiple_of(RSS_REFRESH_FRAMES) {
             self.perf_last_rss_kib = crate::perf::read_rss_kib();
         }
         self.perf_frame_counter = self.perf_frame_counter.wrapping_add(1);

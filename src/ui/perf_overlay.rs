@@ -1,6 +1,6 @@
 //! Floating perf-overlay window (D.6).
 //!
-//! Reads the [`PerfSampler`](crate::perf::PerfSampler) and paints
+//! Reads the [`PerfSampler`] and paints
 //! the live frame-time + per-category breakdown. Top-right anchored,
 //! always on top of the rest of the egui UI. Hidden by default;
 //! toggled via `Action::TogglePerfOverlay` (`Ctrl+Shift+\`` default).
@@ -12,7 +12,7 @@
 //! - **Frame avg / p95** — average and 95th-percentile total frame
 //!   time over the last 60 frames, in milliseconds.
 //! - **Per category** — 60-frame rolling average for each of the
-//!   five [`Category`](crate::perf::Category) buckets.
+//!   five [`Category`] buckets.
 //! - **RSS** — resident-set size in MB, when available (Linux only,
 //!   read from `/proc/self/status`).
 //!

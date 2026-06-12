@@ -261,7 +261,7 @@ pub fn read_rss_kib() -> Option<u64> {
 /// Write a chrome-tracing compatible JSON snapshot of the current
 /// history at `~/.cache/animaEngine/perf-<unix-ts>.json`. Returns the
 /// path on success. Format spec:
-/// https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
+/// <https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU>
 ///
 /// One event per category per frame; `ts` and `dur` are microseconds
 /// since the sampler's epoch so durations align across rows. The JSON

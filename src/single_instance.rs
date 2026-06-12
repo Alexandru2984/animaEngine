@@ -50,7 +50,7 @@ impl ActivationService {
         let _ = self.proxy.send_event(AnimaEvent::ToggleEditMode);
     }
 
-    /// Hide the whole overlay. Pairs with [`show_overlay`].
+    /// Hide the whole overlay. Pairs with `show_overlay`.
     async fn hide_overlay(&self) {
         let _ = self.proxy.send_event(AnimaEvent::HideOverlay);
     }
