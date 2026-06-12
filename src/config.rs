@@ -211,7 +211,9 @@ fn default_scale() -> f32 {
 fn default_opacity() -> f32 {
     1.0
 }
-fn default_fps() -> f32 {
+/// Default animation fps — also the double-click-reset target for the
+/// inspector's FPS slider (V.3), hence `pub`.
+pub fn default_fps() -> f32 {
     12.0
 }
 fn default_true() -> bool {

@@ -20,6 +20,7 @@ Severity: **blocker** (breaks a core promise — e.g. localized UI),
 | F2 | Context menu | Every item hardcoded: "Duplicate", "Reset transform", "Toggle gravity", "Bring forward", "Send backward", + the rest of context_menu.rs. Primary right-click surface. | blocker | fix (V.6) |
 | F3 | Command palette | "Replace" / "Append" buttons and the "Esc to close · Ctrl+K to toggle" footer hint are hardcoded. | blocker | fix (V.6) |
 | F4 | Inspector | `"z-index"`, `"Wander box"` labels hardcoded. (`"X"`/`"Y"` axis labels: universal symbols, exempt.) | paper-cut | fix (V.6); X/Y wontfix (axis symbols) |
+| F12 | Inspector sliders | Every `Slider::.text(...)` label was a hardcoded English literal — and the **translated keys already existed in all 10 locales** (prepared in the D-phase locale audit, never wired into the code). Missed by the original `ui.label/button` grep; found while implementing V.3. Wired + units added. | blocker | fix (V.3, done) |
 | F5 | Perf overlay | "FPS", "RSS", row labels are raw English. Developer-facing HUD with fixed-width number alignment; translating would break the monospace layout for zero user value. | nice | wontfix (dev surface) |
 
 ### Theme & contrast
@@ -66,7 +67,7 @@ V.4's Orca walkthrough.
 ## Backlog mapping
 
 - **V.1** ← F9 (reduced motion) + planned transitions
-- **V.3** ← F11 (units, double-click-reset, grouping)
+- **V.3** ← F11 (units, double-click-reset, grouping) + F12 (slider labels)
 - **V.4** ← F8 (focus order, visible focus, Orca)
 - **V.5** ← F6, F7, F10 (theme palette extraction, spacing)
 - **V.6** ← F1–F4 (i18n leak closure + native review of all 0.6–0.8 strings)

@@ -146,19 +146,27 @@ fn entity_inspector(
         config_dirty,
         |ui| {
             if ui
-                .add(egui::Slider::new(&mut entity.x, -200.0..=4000.0).text("X"))
+                .add(
+                    egui::Slider::new(&mut entity.x, -200.0..=4000.0)
+                        .text("X")
+                        .suffix(" px"),
+                )
                 .changed()
             {
                 change.any_field = true;
             }
             if ui
-                .add(egui::Slider::new(&mut entity.y, -200.0..=4000.0).text("Y"))
+                .add(
+                    egui::Slider::new(&mut entity.y, -200.0..=4000.0)
+                        .text("Y")
+                        .suffix(" px"),
+                )
                 .changed()
             {
                 change.any_field = true;
             }
             ui.horizontal(|ui| {
-                ui.label("z-index");
+                ui.label(t("inspector-z-index"));
                 if ui
                     .add(
                         egui::DragValue::new(&mut entity.z_index)
@@ -187,16 +195,38 @@ fn entity_inspector(
         &mut collapse_state.inspector_appearance,
         config_dirty,
         |ui| {
-            if ui
-                .add(egui::Slider::new(&mut entity.scale, 0.1..=5.0).text("Scale"))
-                .changed()
-            {
+            let scale_resp = ui
+                .add(
+                    egui::Slider::new(&mut entity.scale, 0.1..=5.0)
+                        .text(t("inspector-scale"))
+                        .suffix("\u{d7}"),
+                )
+                .on_hover_text(t("inspector-double-click-reset-hint"));
+            if scale_resp.double_clicked() {
+                entity.scale = 1.0;
+                change.any_field = true;
+            } else if scale_resp.changed() {
                 change.any_field = true;
             }
-            if ui
-                .add(egui::Slider::new(&mut entity.opacity, 0.0..=1.0).text("Opacity"))
-                .changed()
-            {
+            // Opacity reads as a percentage; storage stays 0..1.
+            let opacity_resp = ui
+                .add(
+                    egui::Slider::new(&mut entity.opacity, 0.0..=1.0)
+                        .text(t("inspector-opacity"))
+                        .custom_formatter(|v, _| format!("{:.0}%", v * 100.0))
+                        .custom_parser(|s| {
+                            s.trim_end_matches('%')
+                                .trim()
+                                .parse::<f64>()
+                                .ok()
+                                .map(|p| p / 100.0)
+                        }),
+                )
+                .on_hover_text(t("inspector-double-click-reset-hint"));
+            if opacity_resp.double_clicked() {
+                entity.opacity = 1.0;
+                change.any_field = true;
+            } else if opacity_resp.changed() {
                 change.any_field = true;
             }
         },
@@ -209,10 +239,17 @@ fn entity_inspector(
         config_dirty,
         |ui| {
             let mut fps = entity.animation().fps;
-            if ui
-                .add(egui::Slider::new(&mut fps, 1.0..=60.0).text("FPS"))
-                .changed()
-            {
+            let fps_resp = ui
+                .add(
+                    egui::Slider::new(&mut fps, 1.0..=60.0)
+                        .text(t("inspector-fps"))
+                        .suffix(" fps"),
+                )
+                .on_hover_text(t("inspector-double-click-reset-hint"));
+            if fps_resp.double_clicked() {
+                entity.animation_mut().set_fps(crate::config::default_fps());
+                change.any_field = true;
+            } else if fps_resp.changed() {
                 entity.animation_mut().set_fps(fps);
                 change.any_field = true;
             }
@@ -369,7 +406,11 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
         Behavior::Idle => {}
         Behavior::WalkAround { speed } => {
             if ui
-                .add(egui::Slider::new(speed, 10.0..=400.0).text("Speed (px/s)"))
+                .add(
+                    egui::Slider::new(speed, 10.0..=400.0)
+                        .text(t("inspector-behavior-speed"))
+                        .suffix(" px/s"),
+                )
                 .changed()
             {
                 changed = true;
@@ -380,13 +421,21 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
             comfort_distance,
         } => {
             if ui
-                .add(egui::Slider::new(speed, 50.0..=800.0).text("Speed (px/s)"))
+                .add(
+                    egui::Slider::new(speed, 50.0..=800.0)
+                        .text(t("inspector-behavior-speed"))
+                        .suffix(" px/s"),
+                )
                 .changed()
             {
                 changed = true;
             }
             if ui
-                .add(egui::Slider::new(comfort_distance, 0.0..=400.0).text("Comfort distance (px)"))
+                .add(
+                    egui::Slider::new(comfort_distance, 0.0..=400.0)
+                        .text(t("inspector-behavior-comfort"))
+                        .suffix(" px"),
+                )
                 .changed()
             {
                 changed = true;
@@ -400,7 +449,11 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
             speed,
         } => {
             if ui
-                .add(egui::Slider::new(speed, 20.0..=400.0).text("Speed (px/s)"))
+                .add(
+                    egui::Slider::new(speed, 20.0..=400.0)
+                        .text(t("inspector-behavior-speed"))
+                        .suffix(" px/s"),
+                )
                 .changed()
             {
                 changed = true;
@@ -444,13 +497,21 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
             axis,
         } => {
             if ui
-                .add(egui::Slider::new(amplitude_px, 1.0..=200.0).text("Amplitude (px)"))
+                .add(
+                    egui::Slider::new(amplitude_px, 1.0..=200.0)
+                        .text(t("inspector-behavior-amplitude"))
+                        .suffix(" px"),
+                )
                 .changed()
             {
                 changed = true;
             }
             if ui
-                .add(egui::Slider::new(period_sec, 0.1..=10.0).text("Period (s)"))
+                .add(
+                    egui::Slider::new(period_sec, 0.1..=10.0)
+                        .text(t("inspector-behavior-period"))
+                        .suffix(" s"),
+                )
                 .changed()
             {
                 changed = true;
