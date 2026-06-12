@@ -458,7 +458,7 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
             {
                 changed = true;
             }
-            ui.add_space(2.0);
+            ui.add_space(SPACE_XS);
             ui.label(egui::RichText::new("Wander box").small().weak());
             ui.horizontal(|ui| {
                 ui.label("X");

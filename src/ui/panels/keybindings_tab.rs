@@ -101,7 +101,10 @@ pub(super) fn keybindings_tab(
         .show(ui, |ui| {
             let (warn_color, caption_color) = {
                 let v = ui.visuals();
-                (egui::Color32::from_rgb(220, 180, 60), v.weak_text_color())
+                (
+                    crate::ui::theme::palette_of(ui.ctx()).semantic_warn,
+                    v.weak_text_color(),
+                )
             };
             for &action in Action::ALL {
                 // ── Column 1: action label (localized)
@@ -139,7 +142,7 @@ pub(super) fn keybindings_tab(
                         ui.label(
                             egui::RichText::new(t("keybindings-recording"))
                                 .text_style(egui::TextStyle::Small)
-                                .color(egui::Color32::from_rgb(100, 180, 220)),
+                                .color(crate::ui::theme::palette_of(ui.ctx()).semantic_info),
                         );
                     } else if ui
                         .small_button(format!("{}  {}", icons::PLUS, t("keybindings-add")))
@@ -180,7 +183,7 @@ pub(super) fn keybindings_tab(
                 ui.label(
                     egui::RichText::new(format!("{}  {}", icons::WARN, chord.display_str()))
                         .text_style(egui::TextStyle::Monospace)
-                        .color(egui::Color32::from_rgb(220, 180, 60)),
+                        .color(crate::ui::theme::palette_of(ui.ctx()).semantic_warn),
                 );
                 ui.label(
                     egui::RichText::new(t_args("keybindings-conflict", &args))

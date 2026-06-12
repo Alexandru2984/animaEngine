@@ -33,6 +33,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Weston smoke — the first automated environment ever to run the
   pure-Wayland fallback path (field-unvalidated since 0.6) — and an
   lcov coverage artifact via cargo-llvm-cov.
+- **High-contrast-aware custom widgets (V.5)** — the toggle button,
+  keybinding conflict/recording accents and toast success color were
+  inline RGB literals invisible to theme switching; they now read the
+  active palette (`theme::palette_of`), so the HC variants restyle
+  them like everything else. Toggle glyph contrast fixed (dark-on-
+  success instead of white-on-green at ~2.1:1).
 - **Keyboard-first command palette (V.4)** — ↑↓ + Enter navigation
   over a flat result list, one-shot focus grab (the old per-frame
   grab made Tab unusable), Esc unchanged; the footer hint documents

@@ -306,6 +306,18 @@ pub fn apply(ctx: &egui::Context, theme: Theme) {
     let mut style: Style = (*ctx.style()).clone();
     apply_to_style(&mut style, &palette, theme.is_high_contrast());
     ctx.set_style(style);
+    // Stash the palette for custom-painted widgets (toggle button,
+    // keybinding chips, toast severity) — egui's Visuals only carry a
+    // subset of the semantic colors, and inline literals were exactly
+    // the HC-blindness the V.0 audit flagged (F6/F7).
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("anima.theme.palette"), palette));
+}
+
+/// The palette stashed by the last [`apply`]. Falls back to the dark
+/// palette before the first apply (one frame at startup, at most).
+pub fn palette_of(ctx: &egui::Context) -> Palette {
+    ctx.data(|d| d.get_temp(egui::Id::new("anima.theme.palette")))
+        .unwrap_or_else(Palette::dark)
 }
 
 /// Apply a palette to a `Style` in place. Split out from [`apply`] so
@@ -604,6 +616,17 @@ mod tests {
 
     /// Sanity-check the apply path doesn't panic and produces a style
     /// with the expected palette token in the panel fill.
+    #[test]
+    fn palette_of_round_trips_through_apply() {
+        let ctx = egui::Context::default();
+        apply(&ctx, Theme::LightHighContrast);
+        let p = palette_of(&ctx);
+        assert_eq!(p, Theme::LightHighContrast.palette());
+        // And the fallback before any apply:
+        let fresh = egui::Context::default();
+        assert_eq!(palette_of(&fresh), Palette::dark());
+    }
+
     #[test]
     fn apply_to_style_writes_panel_fill() {
         let mut style = Style::default();

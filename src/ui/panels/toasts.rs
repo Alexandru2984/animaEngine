@@ -68,7 +68,7 @@ fn toast_card(ui: &mut egui::Ui, toast: &Toast) {
     let body_fg = visuals.text_color(); // fg.primary
     let severity_fg = match toast.kind {
         ToastKind::Info => visuals.hyperlink_color, // info / accent tone
-        ToastKind::Success => egui::Color32::from_rgb(0x5B, 0xCB, 0x7B),
+        ToastKind::Success => crate::ui::theme::palette_of(ui.ctx()).semantic_success,
         ToastKind::Warn => visuals.warn_fg_color,
         ToastKind::Error => visuals.error_fg_color,
     };

@@ -13,10 +13,20 @@ pub fn toggle_button(ctx: &egui::Context, edit_mode: bool) -> bool {
     let screen = ctx.screen_rect();
     let pos = egui::pos2(screen.right() - size, 0.0);
 
-    let bg = if edit_mode {
-        egui::Color32::from_rgb(40, 160, 60) // active = green
+    // Through the theme palette (V.5/F6): the old inline green/dim
+    // pair was invisible to the high-contrast variants.
+    let palette = crate::ui::theme::palette_of(ctx);
+    let (bg, glyph) = if edit_mode {
+        // Dark text on the success fill clears WCAG in every variant;
+        // the old white-on-green sat at ~2.1:1.
+        let glyph = if palette.is_dark {
+            palette.bg_base
+        } else {
+            palette.fg_primary
+        };
+        (palette.semantic_success, glyph)
     } else {
-        egui::Color32::from_rgba_unmultiplied(50, 50, 60, 200) // pass-through = dim
+        (palette.bg_elevated.gamma_multiply(0.85), palette.fg_primary)
     };
     let tooltip = if edit_mode {
         "Exit edit mode"
@@ -32,13 +42,9 @@ pub fn toggle_button(ctx: &egui::Context, edit_mode: bool) -> bool {
             let response = ui
                 .add_sized(
                     egui::vec2(size, size),
-                    egui::Button::new(
-                        egui::RichText::new(icons::SETTINGS)
-                            .size(28.0)
-                            .color(egui::Color32::WHITE),
-                    )
-                    .fill(bg)
-                    .corner_radius(0.0),
+                    egui::Button::new(egui::RichText::new(icons::SETTINGS).size(28.0).color(glyph))
+                        .fill(bg)
+                        .corner_radius(0.0),
                 )
                 .on_hover_text(tooltip);
             // Visible focus for keyboard users (F8): the custom fill
