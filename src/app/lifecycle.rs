@@ -30,6 +30,17 @@ impl App {
 
         tracing::info!("Creating window...");
 
+        // One-time notice if the previous session left a crash report
+        // behind — launched from a desktop icon the panic text never
+        // reaches a terminal, so this toast is the only breadcrumb.
+        if let Some(report) = crate::crash::unnotified_report() {
+            let mut args = fluent::FluentArgs::new();
+            args.set("path", report.display().to_string());
+            self.toasts
+                .warn(crate::i18n::t_args("crash-report-found-toast", &args));
+            crate::crash::mark_notified(&report);
+        }
+
         // Snapshot the monitor topology once so the rest of the engine
         // can use the renderer-agnostic MonitorInfo instead of holding
         // a borrow on the event loop. The picker UI in C.2 will read

@@ -193,6 +193,7 @@ library-import-shimeji-button = Importă
 shimeji-imported-toast = Importat { $name } ({ $n } părți sărite — vezi log-ul)
 shimeji-import-failed-toast = Import eșuat: { $reason }
 shimeji-no-library-toast = Nu există rădăcină de bibliotecă — creează întâi ~/.local/share/animaEngine/assets/.
+crash-report-found-toast = Sesiunea anterioară s-a închis neașteptat. Raportul a fost salvat la { $path } — atașează-l unui issue pe GitHub.
 
 # ── Group composition hint (C.9) ──────────────────────────────────────
 inspector-group-hint = Compus de grupul { $group }: { $transform }

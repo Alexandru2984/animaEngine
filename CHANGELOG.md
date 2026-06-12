@@ -33,6 +33,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Weston smoke — the first automated environment ever to run the
   pure-Wayland fallback path (field-unvalidated since 0.6) — and an
   lcov coverage artifact via cargo-llvm-cov.
+- **Crash reports** — a panic now writes a local report
+  (`~/.cache/animaEngine/crashes/`, version + message + location +
+  backtrace, newest five kept) in addition to the existing config
+  snapshot; the next launch shows a one-time toast pointing at the
+  file. Reports never leave the machine (zero-telemetry policy
+  unchanged) — without this, a crash of a desktop-launched instance
+  left no trace at all.
 - **Release automation** — pushing a `vX.Y.Z` tag now builds the
   .deb + AppImage in CI, generates checksums, attests build
   provenance (Sigstore via GitHub OIDC — verifiable with

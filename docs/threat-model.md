@@ -188,7 +188,11 @@ config flag.
 
 The binary never makes outbound network connections. No telemetry,
 no crash reporting back home, no update check. The `--recover` flag
-operates strictly on local files. Pin this in your firewall if you
+operates strictly on local files. Crash reports
+(`~/.cache/animaEngine/crashes/`, newest five kept) are written and
+read locally only — panic messages may contain asset paths, which is
+acceptable because the file never leaves the machine unless the user
+attaches it to an issue themselves. Pin this in your firewall if you
 care.
 
 ## What it does NOT try to prevent
