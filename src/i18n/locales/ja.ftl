@@ -23,11 +23,11 @@ inspector-section-behavior = ふるまい
 inspector-visible = 表示
 inspector-gravity = 重力
 inspector-scale = スケール
-inspector-behavior-speed = Speed
-inspector-behavior-comfort = Comfort distance
-inspector-behavior-amplitude = Amplitude
-inspector-behavior-period = Period
-inspector-double-click-reset-hint = Double-click to reset to default.
+inspector-behavior-speed = 速度
+inspector-behavior-comfort = 快適距離
+inspector-behavior-amplitude = 振幅
+inspector-behavior-period = 周期
+inspector-double-click-reset-hint = ダブルクリックで既定値に戻します。
 inspector-opacity = 不透明度
 inspector-fps = FPS
 inspector-playing = 再生中
@@ -60,8 +60,8 @@ monitor-mode-label = 配分
 monitor-mode-per-monitor = モニター毎
 monitor-mode-span = 全モニターにまたがって表示
 monitor-mode-single = 単一モニター
-scene-window-awareness = Land on windows (X11)
-scene-window-awareness-tooltip = Physics-enabled characters land on and walk along the top edges of your open windows. X11 sessions only — Wayland offers no window positions, so this does nothing there.
+scene-window-awareness = ウィンドウに着地（X11）
+scene-window-awareness-tooltip = 物理が有効なキャラクターは、開いているウィンドウの上端に着地して歩きます。X11 セッション限定 — Wayland はウィンドウ位置を公開しないため、そこでは何も起きません。
 monitor-pin-label = モニターに固定
 monitor-pin-auto = 自動 (位置に従う)
 monitor-pinned-toast = エンティティを { $name } に固定しました
@@ -79,15 +79,15 @@ theme-light-hc = ライト · ハイコントラスト
 onboarding-tabs = 設定は 3 つのタブに分かれています — インスペクター・シーン・外観。
 onboarding-quick-toggles = ヒント: V で表示の切替、G で重力の切替 — このパネルを開かずに操作できます。
 onboarding-theme = テーマは即座に適用されます — 再起動は不要です。
-onboarding-coach-step1 = Welcome! Your characters live on the desktop. Click the gear button in the top-right corner to enter edit mode.
-onboarding-coach-step2 = Drop a PNG, GIF, WebP or MP4 anywhere on the screen to add it as a character. The side panel edits everything you select.
-onboarding-coach-step3 = Ctrl+K opens the command palette. Ctrl+Shift+A toggles edit mode from anywhere, Ctrl+Shift+H hides the overlay.
-onboarding-coach-next = Next
-onboarding-coach-skip = Skip tour
-onboarding-coach-done = Got it
-palette-replace-row = Replace scene with: { $preset }
-palette-append-row = Append preset: { $preset }
-palette-footer-hint = Esc to close · Ctrl+K to toggle · ↑↓ + Enter to pick
+onboarding-coach-step1 = ようこそ！キャラクターはデスクトップに住んでいます。右上の歯車ボタンをクリックして編集モードに入りましょう。
+onboarding-coach-step2 = PNG・GIF・WebP・MP4 を画面のどこかにドロップすると、キャラクターとして追加されます。サイドパネルで選択したものを編集できます。
+onboarding-coach-step3 = Ctrl+K でコマンドパレットが開きます。Ctrl+Shift+A はどこからでも編集モードを切り替え、Ctrl+Shift+H はオーバーレイを隠します。
+onboarding-coach-next = 次へ
+onboarding-coach-skip = ツアーをスキップ
+onboarding-coach-done = わかった
+palette-replace-row = シーンを置き換え: { $preset }
+palette-append-row = プリセットを追加: { $preset }
+palette-footer-hint = Esc で閉じる · Ctrl+K で切替 · ↑↓ + Enter で選択
 onboarding-dismiss = 閉じる
 
 menu-duplicate = 複製
@@ -123,111 +123,111 @@ library-asset-add-failed-toast = { $name } を追加できませんでした
 library-count = { $n } 個のアセットがインデックス済み
 
 # ── Keybindings tab (D.1) — placeholder pending D.4 native-speaker audit
-settings-tab-keybindings = Keybindings
-keybindings-unbound = (unbound)
-keybindings-add = Add
-keybindings-recording = Press a chord… (Esc to cancel)
-keybindings-conflict = Conflicts with { $action }
-keybindings-reset-all = Reset all to defaults
-keybindings-help = Custom shortcuts persist in config.toml
+settings-tab-keybindings = ショートカット
+keybindings-unbound = （未割り当て）
+keybindings-add = 追加
+keybindings-recording = キーの組み合わせを押してください…（Esc でキャンセル）
+keybindings-conflict = { $action } と競合しています
+keybindings-reset-all = すべて既定値に戻す
+keybindings-help = カスタムショートカットは config.toml に保存されます
 
 # ── Action labels (D.1.7) — placeholder pending D.4 native-speaker audit
-action-toggle-edit-mode = Toggle edit mode
-action-hide-overlay = Hide / show overlay
-action-pause-all = Pause all animations
-action-quit-with-save = Quit (save config)
-action-save-now = Save config now
-action-open-command-palette = Command palette
-action-cycle-entity = Cycle to next entity
-action-delete-selected = Delete selected entity
-action-nudge-up = Nudge selection up
-action-nudge-down = Nudge selection down
-action-nudge-left = Nudge selection left
-action-nudge-right = Nudge selection right
-action-center-on-screen = Center selection on screen
-action-toggle-visible = Toggle visibility
-action-toggle-gravity = Toggle gravity
-action-toggle-playback = Toggle play/pause
-action-duplicate-selected = Duplicate selection
-action-reset-transform = Reset scale / opacity
-action-bring-forward = Bring selection forward
-action-send-backward = Send selection backward
-action-fps-up = Increase FPS
-action-fps-down = Decrease FPS
-action-opacity-up = Increase opacity
-action-opacity-down = Decrease opacity
-action-cycle-monitor = Cycle entity monitor pin
-action-show-entity-info = Show entity info
-action-show-help = Show keyboard help
+action-toggle-edit-mode = 編集モードを切り替え
+action-hide-overlay = オーバーレイの表示／非表示
+action-pause-all = すべてのアニメーションを一時停止
+action-quit-with-save = 終了（設定を保存）
+action-save-now = 設定を今すぐ保存
+action-open-command-palette = コマンドパレット
+action-cycle-entity = 次のキャラクターへ
+action-delete-selected = 選択したキャラクターを削除
+action-nudge-up = 選択を上へ移動
+action-nudge-down = 選択を下へ移動
+action-nudge-left = 選択を左へ移動
+action-nudge-right = 選択を右へ移動
+action-center-on-screen = 選択を画面中央へ
+action-toggle-visible = 表示を切り替え
+action-toggle-gravity = 重力を切り替え
+action-toggle-playback = 再生／一時停止
+action-duplicate-selected = 選択を複製
+action-reset-transform = 拡大率／不透明度をリセット
+action-bring-forward = 選択を前面へ
+action-send-backward = 選択を背面へ
+action-fps-up = FPS を上げる
+action-fps-down = FPS を下げる
+action-opacity-up = 不透明度を上げる
+action-opacity-down = 不透明度を下げる
+action-cycle-monitor = モニター固定を切り替え
+action-show-entity-info = キャラクター情報を表示
+action-show-help = キーボードヘルプを表示
 
 # ── Accessibility section (D.3) — placeholder pending D.4 native-speaker audit
-appearance-accessibility-header = Accessibility
-appearance-accesskit-label = Generate AccessKit tree updates
-appearance-accesskit-hint = Powers AT-SPI screen readers (Orca etc.). Leave on unless you want a tighter footprint or your desktop doesn't run an AT-SPI bus. Note: text you type in panels also appears on the AT-SPI bus, where any process running as your user can read it.
-appearance-reduced-motion-label = Reduce motion
-appearance-reduced-motion-hint = Skips UI transitions (panel slide, fades, palette pop) and stops decorative bouncing. Animations that convey state still play.
+appearance-accessibility-header = アクセシビリティ
+appearance-accesskit-label = AccessKit ツリー更新を生成
+appearance-accesskit-hint = AT-SPI スクリーンリーダー（Orca など）に情報を提供します。リソースを節約したい場合やデスクトップに AT-SPI バスがない場合を除き、オンのままにしてください。注意：パネルに入力したテキストも AT-SPI バスに流れ、同じユーザーのプロセスなら読み取れます。
+appearance-reduced-motion-label = 動きを減らす
+appearance-reduced-motion-hint = UI のトランジション（パネルのスライド、フェード、パレットのポップ）を省略し、装飾的な揺れを止めます。状態を伝えるアニメーションは動き続けます。
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
-warning-global-hotkeys-unavailable = Global hotkeys couldn't register (typical on a native Wayland session). The tray menu and the ⚙ button still work.
-warning-hot-reload-disconnected = The hot-reload worker stopped unexpectedly; in-flight config edits won't apply until you restart the app.
-action-toggle-perf-overlay = Toggle perf overlay
+warning-global-hotkeys-unavailable = グローバルホットキーを登録できませんでした（ネイティブ Wayland セッションでは一般的）。トレイメニューと ⚙ ボタンは引き続き使えます。
+warning-hot-reload-disconnected = ホットリロードのワーカーが予期せず停止しました。進行中の設定変更はアプリの再起動後に反映されます。
+action-toggle-perf-overlay = パフォーマンス表示を切り替え
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = What's new in 0.4
-whats-new-keybindings = Rebindable keyboard shortcuts — open the new Keybindings tab.
-whats-new-collapse-state = Inspector sections remember their open/closed state across sessions.
-whats-new-error-banners = Failure surfaces (silent before) now toast or banner — you'll see them.
-whats-new-accessibility-toggle = AccessKit can be turned off from Appearance → Accessibility.
-onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.
-onboarding-perf-overlay = Press Ctrl+Shift+` to open the live perf overlay.
-appearance-reset-onboarding = Reset onboarding hints
+whats-new-header = 0.4 の新着情報
+whats-new-keybindings = キーボードショートカットの割り当て変更 — 新しい「ショートカット」タブを開いてください。
+whats-new-collapse-state = インスペクターのセクションは開閉状態をセッションをまたいで記憶します。
+whats-new-error-banners = これまで無音だったエラーは、トーストやバナーで表示されるようになりました。
+whats-new-accessibility-toggle = AccessKit は 外観 → アクセシビリティ からオフにできます。
+onboarding-keybindings = ショートカットをクリックすると削除、キーの組み合わせを押すと新規登録できます。
+onboarding-perf-overlay = Ctrl+Shift+` でライブのパフォーマンス表示を開けます。
+appearance-reset-onboarding = オンボーディングのヒントをリセット
 
-scene-empty-action-browse-presets = Browse presets
-library-empty-action-copy-path = Copy path to clipboard
+scene-empty-action-browse-presets = プリセットを見る
+library-empty-action-copy-path = パスをクリップボードにコピー
 
-appearance-reset-onboarding-hint = Brings back the dismissed progressive hints and the "What's new" panel.
+appearance-reset-onboarding-hint = 閉じたヒントと「新着情報」パネルを復活させます。
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
-portal-denied-x11-fallback-toast = Shortcut permission was declined — using X11 hotkeys instead. Retry from the Keybindings tab.
-portal-denied-native-toast = Shortcut permission was declined — the tray menu and compositor bindings still work.
+portal-denied-x11-fallback-toast = ショートカットの許可が拒否されました — 代わりに X11 ホットキーを使用します。「ショートカット」タブから再試行できます。
+portal-denied-native-toast = ショートカットの許可が拒否されました — トレイメニューとコンポジターのバインドは引き続き使えます。
 
 # ── Keybindings backend status (T.4) ─────────────────────────────────
-keybindings-backend-label = Global shortcuts via:
-keybindings-backend-tooltip = Which mechanism delivers the three global chords (toggle edit, hide, pause) while other apps have focus. Resolved at startup; in-app shortcuts are unaffected.
-keybindings-portal-restart-hint = Trigger changes apply at the next launch (the desktop remembers your approval).
+keybindings-backend-label = グローバルショートカットの方式:
+keybindings-backend-tooltip = 他のアプリにフォーカスがあるとき、3 つのグローバルショートカット（編集・非表示・一時停止）をどの仕組みで届けるか。起動時に決定されます。アプリ内ショートカットには影響しません。
+keybindings-portal-restart-hint = トリガーの変更は次回起動時に反映されます（デスクトップが承認を記憶します）。
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitor { $name } disconnected — { $n } pinned entities now follow their position.
-monitor-plugged-toast = Monitor { $name } connected.
+monitor-unplugged-toast = モニター { $name } が切断されました — 固定中の { $n } 体は位置に従います。
+monitor-plugged-toast = モニター { $name } が接続されました。
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
-library-import-shimeji-header = Import Shimeji pack
-library-import-shimeji-hint = Drop a pack folder onto the overlay, or paste its path here. Sprites are copied into the library.
-library-import-shimeji-button = Import
-shimeji-imported-toast = Imported { $name } ({ $n } parts skipped — see log)
-shimeji-import-failed-toast = Import failed: { $reason }
-shimeji-no-library-toast = No asset library root — create ~/.local/share/animaEngine/assets/ first.
-crash-report-found-toast = The previous session crashed. A report was saved at { $path } — please attach it to a GitHub issue.
+library-import-shimeji-header = Shimeji パックをインポート
+library-import-shimeji-hint = パックのフォルダーをオーバーレイにドロップするか、パスをここに貼り付けてください。スプライトはライブラリにコピーされます。
+library-import-shimeji-button = インポート
+shimeji-imported-toast = { $name } をインポートしました（{ $n } 個の要素をスキップ — ログ参照）
+shimeji-import-failed-toast = インポートに失敗しました: { $reason }
+shimeji-no-library-toast = ライブラリのフォルダーがありません — まず ~/.local/share/animaEngine/assets/ を作成してください。
+crash-report-found-toast = 前回のセッションがクラッシュしました。レポートを { $path } に保存しました — GitHub の issue に添付してください。
 
 # ── Group composition hint (C.9) ──────────────────────────────────────
-inspector-group-hint = Composed by group { $group }: { $transform }
+inspector-group-hint = グループ { $group } による合成: { $transform }
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
-toast-config-saved = Config saved
-toast-save-failed = Save failed: { $error }
-toast-rejected = Rejected: { $reason }
-toast-added = Added { $name }
-toast-load-failed = Load failed: { $error }
+toast-config-saved = 設定を保存しました
+toast-save-failed = 保存に失敗しました: { $error }
+toast-rejected = 拒否されました: { $reason }
+toast-added = { $name } を追加しました
+toast-load-failed = 読み込みに失敗しました: { $error }
 toast-entity-load-failed = { $name }: { $error }
-toast-theme-switched = Theme: { $theme }
-toast-preset-entry-failed = Couldn’t add preset entry: { $error }
-toast-preset-loaded = Loaded preset: { $name }
-toast-duplicated = Duplicated { $name }
-toast-duplicate-failed = Duplicate failed: { $error }
-toast-deleted = Deleted { $name }
-toast-playback-resumed = Playback resumed
-toast-playback-paused = Playback paused
-toast-wayland-no-library = Asset library not wired on the Wayland path yet
-inspector-wander-box = Wander box
-toast-perf-snapshot = Perf snapshot: { $path }
-toast-perf-snapshot-failed = Snapshot failed: { $error }
+toast-theme-switched = テーマ: { $theme }
+toast-preset-entry-failed = プリセット項目を追加できませんでした: { $error }
+toast-preset-loaded = プリセットを読み込みました: { $name }
+toast-duplicated = { $name } を複製しました
+toast-duplicate-failed = 複製に失敗しました: { $error }
+toast-deleted = { $name } を削除しました
+toast-playback-resumed = 再生を再開しました
+toast-playback-paused = 再生を一時停止しました
+toast-wayland-no-library = Wayland 経路ではアセットライブラリはまだ使えません
+inspector-wander-box = 徘徊範囲
+toast-perf-snapshot = パフォーマンススナップショット: { $path }
+toast-perf-snapshot-failed = スナップショットに失敗しました: { $error }

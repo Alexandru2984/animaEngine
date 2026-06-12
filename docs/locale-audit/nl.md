@@ -1,6 +1,6 @@
 # Locale audit — Nederlands (`nl`)
 
-**Status:** partial. Pre-D.1 strings translated previously; D.1.6, D.1.7, D.3 keys carry English placeholder.
+**Status:** complete through 0.8 (2026-06-12 pass — all 0.4–0.8 strings translated; identical-to-EN keys verified as legitimate cognates). Human native review still welcome before 1.0.
 **AI cross-check confidence:** medium. An LLM can produce reasonable surface-level Dutch but cannot reliably distinguish between formal Algemeen Beschaafd Nederlands and informal register. Native review essential before merging the suggestions below.
 
 ## Glossary

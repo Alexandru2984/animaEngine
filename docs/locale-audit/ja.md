@@ -1,6 +1,6 @@
 # Locale audit — 日本語 (`ja`)
 
-**Status:** partial. Pre-D.1 strings translated previously; D.1.6, D.1.7, D.3 keys carry English placeholder.
+**Status:** complete through 0.8 (2026-06-12 pass — all 0.4–0.8 strings translated; identical-to-EN keys verified as legitimate cognates). Human native review still welcome before 1.0.
 **AI cross-check confidence:** low. An LLM can produce grammatical Japanese for technical UI but cannot reliably judge politeness level (です/ます-form for UI labels is conventional; ない/する dictionary-form for button verbs varies by product). Particle choice (は / が / を / に) for short imperative labels can also drift. **Native review essential before merging.**
 
 ## Glossary

@@ -1,6 +1,6 @@
 # Locale audit — Português brasileiro (`pt-BR`)
 
-**Status:** partial. Pre-D.1 strings translated previously; D.1.6, D.1.7, D.3 keys carry English placeholder.
+**Status:** complete through 0.8 (2026-06-12 pass — all 0.4–0.8 strings translated; identical-to-EN keys verified as legitimate cognates). Human native review still welcome before 1.0.
 **AI cross-check confidence:** medium-high. An automated cross-check has decent BR-Portuguese coverage for technical UI; spelling and register are mostly safe but native review should verify casual vs formal tone consistency.
 
 ## Glossary

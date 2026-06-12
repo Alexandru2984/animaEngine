@@ -1,6 +1,6 @@
 # Locale audit — Italiano (`it`)
 
-**Status:** partial. Pre-D.1 strings translated previously; D.1.6, D.1.7, D.3 keys carry English placeholder.
+**Status:** complete through 0.8 (2026-06-12 pass — all 0.4–0.8 strings translated; identical-to-EN keys verified as legitimate cognates). Human native review still welcome before 1.0.
 **AI cross-check confidence:** high (the model has solid Italian technical-UI familiarity for surface-level translation; regional register and idiom still need a human pass).
 
 ## Glossary
