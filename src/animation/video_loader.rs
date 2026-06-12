@@ -71,8 +71,15 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
     let mut decoder =
         Decoder::new().map_err(|e| AnimaError::VideoDecode(format!("openh264 init: {e}")))?;
 
+    // Kept separate from the per-sample buffer: the loop below clears
+    // that buffer every iteration, which used to wipe the primer before
+    // the decoder ever saw it — avcC-only files (no in-band SPS/PPS,
+    // i.e. most of them) decoded zero frames. Caught by
+    // `decode_round_trip_through_real_decoder`.
+    let mut primer = Vec::new();
+    push_sps_pps_from_avcc(&mp4, track_id, &mut primer)?;
+
     let mut annex_b = Vec::with_capacity(64 * 1024);
-    push_sps_pps_from_avcc(&mp4, track_id, &mut annex_b)?;
 
     let mut frames: Vec<Frame> = Vec::new();
     let mut total_bytes: usize = 0;
@@ -99,6 +106,9 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
         };
 
         annex_b.clear();
+        if sample_id == 1 {
+            annex_b.extend_from_slice(&primer);
+        }
         avcc_to_annex_b(&sample.bytes, &mut annex_b);
 
         match decoder.decode(&annex_b) {
@@ -284,5 +294,156 @@ mod tests {
         let mut out = Vec::new();
         avcc_to_annex_b(&input, &mut out);
         assert!(out.is_empty(), "truncated input should produce nothing");
+    }
+
+    /// Split an Annex-B stream into NALUs (3- and 4-byte start codes).
+    fn split_annex_b(stream: &[u8]) -> Vec<&[u8]> {
+        let mut payload_starts = Vec::new();
+        let mut i = 0;
+        while i < stream.len() {
+            if stream[i..].starts_with(&[0, 0, 0, 1]) {
+                payload_starts.push(i + 4);
+                i += 4;
+            } else if stream[i..].starts_with(&[0, 0, 1]) {
+                payload_starts.push(i + 3);
+                i += 3;
+            } else {
+                i += 1;
+            }
+        }
+        let mut nalus = Vec::with_capacity(payload_starts.len());
+        for (idx, &start) in payload_starts.iter().enumerate() {
+            let end = payload_starts
+                .get(idx + 1)
+                .map(|&next| {
+                    next - if stream[next - 4..].starts_with(&[0, 0, 0, 1]) {
+                        4
+                    } else {
+                        3
+                    }
+                })
+                .unwrap_or(stream.len());
+            nalus.push(&stream[start..end]);
+        }
+        nalus
+    }
+
+    /// The one component nothing else exercises: the openh264 *decoder*
+    /// FFI itself. The fixture is built programmatically (repo policy:
+    /// no committed binaries) — solid-color frames through openh264's
+    /// encoder, muxed into a real MP4 by mp4::Mp4Writer, then loaded
+    /// back through the full `load_video` pipeline.
+    #[test]
+    fn decode_round_trip_through_real_decoder() {
+        use mp4::{
+            AvcConfig, MediaConfig, Mp4Config, Mp4Sample, Mp4Writer, TrackConfig, TrackType,
+        };
+        use openh264::encoder::Encoder;
+        use openh264::formats::YUVBuffer;
+
+        const W: usize = 32;
+        const H: usize = 32;
+        // Limited-range BT.601 triples for pure red / green / blue —
+        // the exact inverse of the constants in `yuv_to_rgba`.
+        const YUV_COLORS: [(u8, u8, u8); 3] = [(81, 90, 240), (145, 54, 34), (41, 240, 110)];
+
+        let mut encoder = Encoder::new().expect("openh264 encoder init");
+        let mut sps: Option<Vec<u8>> = None;
+        let mut pps: Option<Vec<u8>> = None;
+        // (avcc_bytes, contains_idr) per encoded frame.
+        let mut samples: Vec<(Vec<u8>, bool)> = Vec::new();
+
+        for &(y, u, v) in &YUV_COLORS {
+            let mut planes = vec![y; W * H];
+            planes.extend(std::iter::repeat_n(u, W * H / 4));
+            planes.extend(std::iter::repeat_n(v, W * H / 4));
+            let bitstream = encoder
+                .encode(&YUVBuffer::from_vec(planes, W, H))
+                .expect("encode frame")
+                .to_vec();
+
+            let mut avcc = Vec::new();
+            let mut is_sync = false;
+            for nalu in split_annex_b(&bitstream) {
+                match nalu.first().map(|b| b & 0x1F) {
+                    Some(7) => sps = Some(nalu.to_vec()),
+                    Some(8) => pps = Some(nalu.to_vec()),
+                    other => {
+                        if other == Some(5) {
+                            is_sync = true;
+                        }
+                        avcc.extend_from_slice(&(nalu.len() as u32).to_be_bytes());
+                        avcc.extend_from_slice(nalu);
+                    }
+                }
+            }
+            samples.push((avcc, is_sync));
+        }
+
+        let dir =
+            std::env::temp_dir().join(format!("anima_video_roundtrip_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("roundtrip.mp4");
+
+        let file = std::fs::File::create(&path).unwrap();
+        let mut writer = Mp4Writer::write_start(
+            file,
+            &Mp4Config {
+                major_brand: "isom".parse().unwrap(),
+                minor_version: 512,
+                compatible_brands: vec!["isom".parse().unwrap(), "avc1".parse().unwrap()],
+                timescale: 1000,
+            },
+        )
+        .unwrap();
+        writer
+            .add_track(&TrackConfig {
+                track_type: TrackType::Video,
+                timescale: 1000,
+                language: "und".into(),
+                media_conf: MediaConfig::AvcConfig(AvcConfig {
+                    width: W as u16,
+                    height: H as u16,
+                    seq_param_set: sps.expect("encoder emitted SPS"),
+                    pic_param_set: pps.expect("encoder emitted PPS"),
+                }),
+            })
+            .unwrap();
+        for (i, (bytes, is_sync)) in samples.into_iter().enumerate() {
+            writer
+                .write_sample(
+                    1,
+                    &Mp4Sample {
+                        start_time: i as u64 * 100,
+                        duration: 100,
+                        rendering_offset: 0,
+                        is_sync,
+                        bytes: mp4::Bytes::from(bytes),
+                    },
+                )
+                .unwrap();
+        }
+        writer.write_end().unwrap();
+
+        let frames = load_video(&path).expect("round-trip decode");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert_eq!(frames.len(), 3, "three frames in, three frames out");
+        // Solid-color H.264 at 4:2:0 decodes near-exactly; the dominant
+        // channel must dominate by a wide margin at the center pixel.
+        let expected_dominant = [0usize, 1, 2]; // R, G, B per frame
+        for (frame, &dom) in frames.iter().zip(&expected_dominant) {
+            assert_eq!((frame.width, frame.height), (W as u32, H as u32));
+            let center = ((H / 2) * W + W / 2) * 4;
+            let px = &frame.rgba[center..center + 4];
+            assert!(px[dom] > 180, "dominant channel {dom} too weak: {px:?}");
+            for ch in 0..3 {
+                if ch != dom {
+                    assert!(px[ch] < 80, "channel {ch} should be near zero: {px:?}");
+                }
+            }
+            assert_eq!(px[3], 255, "alpha must be opaque");
+        }
     }
 }
