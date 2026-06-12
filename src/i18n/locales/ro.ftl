@@ -74,6 +74,12 @@ theme-light-hc = Luminos · Contrast ridicat
 onboarding-tabs = Setările sunt împărțite pe trei tab-uri — Inspector, Scenă, Aspect.
 onboarding-quick-toggles = Sfat: V comută vizibilitatea, G comută gravitația — fără să deschizi acest panou.
 onboarding-theme = Temele se aplică instant — niciun restart necesar.
+onboarding-coach-step1 = Bun venit! Personajele trăiesc pe desktop. Apasă butonul cu rotiță din colțul din dreapta-sus ca să intri în modul de editare.
+onboarding-coach-step2 = Trage un PNG, GIF, WebP sau MP4 oriunde pe ecran ca să-l adaugi ca personaj. Panoul lateral editează tot ce selectezi.
+onboarding-coach-step3 = Ctrl+K deschide paleta de comenzi. Ctrl+Shift+A comută modul de editare de oriunde, Ctrl+Shift+H ascunde overlay-ul.
+onboarding-coach-next = Înainte
+onboarding-coach-skip = Sari peste tur
+onboarding-coach-done = Am înțeles
 onboarding-dismiss = Închide
 
 menu-duplicate = Duplică

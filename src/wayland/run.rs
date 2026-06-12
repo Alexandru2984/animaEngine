@@ -412,6 +412,13 @@ pub fn run_native(
                         if panels::toggle_button(ctx, edit_mode_snapshot) {
                             *toggle_requested_ref = true;
                         }
+                        if crate::ui::onboarding::coach_marks(
+                            ctx,
+                            onboarding_mut,
+                            edit_mode_snapshot,
+                        ) {
+                            *config_dirty_mut = true;
+                        }
                         {
                             panels::settings(
                                 ctx,

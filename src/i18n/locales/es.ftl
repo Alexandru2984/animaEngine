@@ -74,6 +74,12 @@ theme-light-hc = Claro · Alto contraste
 onboarding-tabs = Los ajustes se reparten en tres pestañas — Inspector, Escena, Apariencia.
 onboarding-quick-toggles = Consejo: V alterna la visibilidad, G alterna la gravedad — sin abrir este panel.
 onboarding-theme = Los temas se aplican al instante — no hace falta reiniciar.
+onboarding-coach-step1 = Welcome! Your characters live on the desktop. Click the gear button in the top-right corner to enter edit mode.
+onboarding-coach-step2 = Drop a PNG, GIF, WebP or MP4 anywhere on the screen to add it as a character. The side panel edits everything you select.
+onboarding-coach-step3 = Ctrl+K opens the command palette. Ctrl+Shift+A toggles edit mode from anywhere, Ctrl+Shift+H hides the overlay.
+onboarding-coach-next = Next
+onboarding-coach-skip = Skip tour
+onboarding-coach-done = Got it
 onboarding-dismiss = Cerrar
 
 menu-duplicate = Duplicar

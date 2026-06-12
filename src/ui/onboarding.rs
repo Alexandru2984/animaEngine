@@ -53,6 +53,24 @@ pub struct OnboardingProgress {
     /// of the Appearance tab (D.7, new in 0.4).
     #[serde(default)]
     pub perf_overlay: bool,
+
+    /// First-run coach-marks (V.2): the 3-step overlay tour (⚙ →
+    /// drag-and-drop → hotkeys). One flag for the whole tour —
+    /// completing or skipping it sets this; "Reset onboarding hints"
+    /// re-arms it like every other hint.
+    ///
+    /// Unlike the chip hints (whose missing-field default is `false`
+    /// so existing users see each new tip once), a *welcome tour* is
+    /// wrong for an upgrading user — the serde default is `true`, so
+    /// only a brand-new install (`Default::default()`) gets it.
+    #[serde(default = "coach_marks_skipped")]
+    pub coach_marks: bool,
+}
+
+/// Serde default for [`OnboardingProgress::coach_marks`] — see the
+/// field docs for why this is `true` (upgraders skip the tour).
+fn coach_marks_skipped() -> bool {
+    true
 }
 
 impl OnboardingProgress {
@@ -66,6 +84,7 @@ impl OnboardingProgress {
             quick_toggles: true,
             keybindings_tab: true,
             perf_overlay: true,
+            coach_marks: true,
         }
     }
 
@@ -141,6 +160,130 @@ pub fn hint(ui: &mut egui::Ui, body: &str, seen: &mut bool) -> bool {
     dismissed
 }
 
+/// First-run coach-marks (V.2): a 3-step tour rendered as floating
+/// bubbles on the overlay itself, because a fresh user's first sight
+/// is the desktop with mascots — not the settings panel.
+///
+/// Input-shape constraint drives the design: in pass-through mode
+/// only the ⚙ button receives clicks, so **step 0 is informational**
+/// (no buttons) and advances when the user actually enters edit mode
+/// — the very action it teaches. Steps 1–2 run in edit mode, where
+/// the whole window accepts input, so they carry Next/Skip buttons.
+///
+/// Returns `true` when `progress.coach_marks` flipped (config dirty).
+pub fn coach_marks(
+    ctx: &egui::Context,
+    progress: &mut OnboardingProgress,
+    edit_mode: bool,
+) -> bool {
+    use crate::i18n::t;
+
+    if progress.coach_marks {
+        return false;
+    }
+
+    let step_id = egui::Id::new("anima.coach.step");
+    let mut step: u8 = ctx.data(|d| d.get_temp(step_id).unwrap_or(0));
+
+    // Step 0 teaches entering edit mode; the moment it happens, the
+    // lesson is learned — advance.
+    if step == 0 && edit_mode {
+        step = 1;
+        ctx.data_mut(|d| d.insert_temp(step_id, step));
+    }
+    // Leaving edit mode mid-tour pauses it at step 0's anchor — the
+    // remaining steps need the panel's input shape to be clickable.
+    if step > 0 && !edit_mode {
+        return false;
+    }
+
+    let mut dirty = false;
+    let alpha = ctx.animate_value_with_time(
+        step_id.with(("fade", step)),
+        1.0,
+        crate::ui::motion::time(ctx, 0.15),
+    );
+
+    let (anchor, offset) = if step == 0 {
+        // Just below the ⚙ toggle (64 px square, top-right corner).
+        (
+            egui::Align2::RIGHT_TOP,
+            egui::vec2(-SPACE_M, 64.0 + SPACE_M),
+        )
+    } else {
+        // Edit-mode steps: top-center, clear of panel and mascots.
+        (egui::Align2::CENTER_TOP, egui::vec2(0.0, 48.0))
+    };
+
+    egui::Area::new(egui::Id::new("anima.coach.area"))
+        .anchor(anchor, offset)
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            ui.set_opacity(alpha);
+            ui.set_max_width(340.0);
+            let (bg, accent, body_color) = {
+                let visuals = ui.visuals();
+                (
+                    visuals.window_fill,
+                    visuals.selection.stroke.color,
+                    visuals.text_color(),
+                )
+            };
+            egui::Frame::new()
+                .fill(bg)
+                .corner_radius(RADIUS_MD)
+                .inner_margin(egui::Margin::same(SPACE_M as i8))
+                .stroke(egui::Stroke::new(1.5, accent))
+                .show(ui, |ui| {
+                    let body_key = match step {
+                        0 => "onboarding-coach-step1",
+                        1 => "onboarding-coach-step2",
+                        _ => "onboarding-coach-step3",
+                    };
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(format!("{}/3", step + 1))
+                                .color(accent)
+                                .strong(),
+                        );
+                        ui.add_space(SPACE_XS);
+                        ui.label(
+                            egui::RichText::new(t(body_key))
+                                .text_style(theme::caption())
+                                .color(body_color),
+                        );
+                    });
+                    // Step 0 is button-free: pass-through mode delivers
+                    // no clicks outside the ⚙ button anyway.
+                    if step > 0 {
+                        ui.add_space(SPACE_S);
+                        ui.horizontal(|ui| {
+                            let last = step >= 2;
+                            let next_label = if last {
+                                t("onboarding-coach-done")
+                            } else {
+                                t("onboarding-coach-next")
+                            };
+                            if ui.button(next_label).clicked() {
+                                if last {
+                                    progress.coach_marks = true;
+                                    dirty = true;
+                                } else {
+                                    ctx.data_mut(|d| d.insert_temp(step_id, step + 1));
+                                }
+                            }
+                            if !last && ui.button(t("onboarding-coach-skip")).clicked() {
+                                progress.coach_marks = true;
+                                dirty = true;
+                            }
+                        });
+                    }
+                });
+        });
+
+    dirty
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,6 +313,7 @@ mod tests {
             quick_toggles: false,
             keybindings_tab: false,
             perf_overlay: false,
+            coach_marks: false,
         };
         assert!(!p.fully_dismissed());
     }
@@ -181,6 +325,8 @@ mod tests {
         assert!(!p.fully_dismissed());
         assert!(!p.tabs);
         assert!(!p.perf_overlay);
+        // V.2: the coach-mark tour re-arms through the same flow.
+        assert!(!p.coach_marks);
     }
 
     /// Existing users (whose config was saved before A.6) deserialize
@@ -209,5 +355,17 @@ mod tests {
         assert!(parsed.tabs);
         assert!(!parsed.theme);
         assert!(!parsed.quick_toggles);
+    }
+
+    /// V.2: a config saved before the tour existed (0.7 and earlier)
+    /// must NOT trigger the welcome tour on upgrade — the missing
+    /// field defaults to `true` (seen), unlike the chip hints.
+    #[test]
+    fn upgrading_config_skips_the_tour() {
+        let parsed: OnboardingProgress =
+            toml::from_str("tabs = true").expect("partial deserialize");
+        assert!(parsed.coach_marks, "upgraders must not see the tour");
+        // Fresh installs do see it.
+        assert!(!OnboardingProgress::default().coach_marks);
     }
 }

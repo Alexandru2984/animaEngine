@@ -74,6 +74,12 @@ theme-light-hc = ライト · ハイコントラスト
 onboarding-tabs = 設定は 3 つのタブに分かれています — インスペクター・シーン・外観。
 onboarding-quick-toggles = ヒント: V で表示の切替、G で重力の切替 — このパネルを開かずに操作できます。
 onboarding-theme = テーマは即座に適用されます — 再起動は不要です。
+onboarding-coach-step1 = Welcome! Your characters live on the desktop. Click the gear button in the top-right corner to enter edit mode.
+onboarding-coach-step2 = Drop a PNG, GIF, WebP or MP4 anywhere on the screen to add it as a character. The side panel edits everything you select.
+onboarding-coach-step3 = Ctrl+K opens the command palette. Ctrl+Shift+A toggles edit mode from anywhere, Ctrl+Shift+H hides the overlay.
+onboarding-coach-next = Next
+onboarding-coach-skip = Skip tour
+onboarding-coach-done = Got it
 onboarding-dismiss = 閉じる
 
 menu-duplicate = 複製

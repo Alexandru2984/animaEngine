@@ -33,6 +33,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Weston smoke — the first automated environment ever to run the
   pure-Wayland fallback path (field-unvalidated since 0.6) — and an
   lcov coverage artifact via cargo-llvm-cov.
+- **First-run tour (V.2)** — three coach-mark bubbles on the overlay
+  itself: the gear button (advances when you enter edit mode — the
+  action it teaches), drag-and-drop, and the hotkey trio. Skippable,
+  one config flag, re-armed by the existing "Reset onboarding hints"
+  button. The contextual chip hints stay for per-surface discovery.
 - **Reduced motion (V.1)** — `reduced_motion` knob in `[global]` +
   Appearance-tab toggle: disables the settings-panel slide, tab
   cross-fade, toast fade/slide, palette pop and decorative Bounce

@@ -240,6 +240,16 @@ impl App {
                                 if panels::toggle_button(ctx, edit_mode) {
                                     *toggle_requested_ref = true;
                                 }
+                                // First-run tour (V.2): floats on the
+                                // overlay in both modes; advances to
+                                // its interactive steps in edit mode.
+                                if crate::ui::onboarding::coach_marks(
+                                    ctx,
+                                    onboarding_mut,
+                                    edit_mode,
+                                ) {
+                                    *config_dirty_mut = true;
+                                }
 
                                 // Unconditional call: `open` drives
                                 // SidePanel::show_animated, so leaving
