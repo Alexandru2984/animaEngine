@@ -115,6 +115,7 @@ pub fn settings(
     locale: &mut Option<String>,
     onboarding: &mut OnboardingProgress,
     monitor_mode: &mut MonitorMode,
+    window_awareness: &mut bool,
     monitors: &[MonitorInfo],
     library: Option<&LibraryIndex>,
     library_outcome: &mut Option<LibraryOutcome>,
@@ -221,6 +222,7 @@ pub fn settings(
                                 selection,
                                 config_dirty,
                                 monitor_mode,
+                                window_awareness,
                                 monitors,
                                 collapse_state,
                             );

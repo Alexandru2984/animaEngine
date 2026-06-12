@@ -33,6 +33,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Weston smoke — the first automated environment ever to run the
   pure-Wayland fallback path (field-unvalidated since 0.6) — and an
   lcov coverage artifact via cargo-llvm-cov.
+- **Window-awareness (X11)** — `window_awareness = true` under
+  `[global]` (or the "Land on windows" toggle in the Scene tab) makes
+  physics-enabled characters land on and walk along the top edges of
+  open windows, falling off at the edges and riding slowly-moved
+  windows — the classic Shimeji trick. EWMH-based (`_NET_CLIENT_LIST`
+  + frame extents, ~300 ms poll), NORMAL windows only, minimized
+  excluded; our own dock-type overlays never qualify. Off by
+  default. On Wayland the toggle is inert — the protocol exposes no
+  global window geometry; the probe runs once and the feature stays
+  silent.
 - **Criterion benchmarks** — seven benches over the per-frame hot
   paths (`Scene::tick` at 10/50/100 entities, visible-list rebuild,
   cache codec, window planning, group transform), all synthetic and

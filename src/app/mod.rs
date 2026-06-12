@@ -109,6 +109,17 @@ pub struct App {
     /// per-monitor render path (C.3); the data layer (this commit /
     /// C.1) only populates and logs it.
     monitors: Vec<crate::monitor::MonitorInfo>,
+    /// EWMH window watcher for window-awareness. `None` until first
+    /// use or when no X server exists; `watcher_probe_done` stops us
+    /// re-attempting the connection every poll on Wayland.
+    window_watcher: Option<crate::window::x11_windows::WindowWatcher>,
+    window_watcher_probe_done: bool,
+    /// Last desktop-window poll — 300 ms cadence, see
+    /// `poll_window_platforms`.
+    last_window_poll: Instant,
+    /// Whether the previous poll pushed a non-empty platform set into
+    /// the scene — lets the disable path clear it exactly once.
+    window_platforms_active: bool,
     /// Asset library index. `None` when no asset root was discovered
     /// at startup (env var unset, XDG dir missing, no exe-relative
     /// fallback). The UI shows an empty state in that case rather
@@ -188,6 +199,10 @@ impl App {
             perf_last_rss_kib: None,
             perf_frame_counter: 0,
             monitors: Vec::new(),
+            window_watcher: None,
+            window_watcher_probe_done: false,
+            last_window_poll: Instant::now(),
+            window_platforms_active: false,
             library: None,
             library_root: None,
             hotkey_backend_status: String::new(),

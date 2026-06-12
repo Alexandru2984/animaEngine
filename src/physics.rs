@@ -56,12 +56,14 @@ impl PhysicsState {
     }
 
     /// Update physics for one frame. Returns the new Y position.
-    pub fn tick(&mut self, y: f32, sprite_height: f32, screen_height: f32, dt: f32) -> f32 {
+    ///
+    /// `floor` is the y the entity's *top* rests at when standing —
+    /// the caller computes it (screen bottom minus sprite height, or
+    /// a window platform top via `platforms::effective_floor`).
+    pub fn tick(&mut self, y: f32, floor: f32, dt: f32) -> f32 {
         if !self.enabled || self.frozen {
             return y;
         }
-
-        let floor = screen_height - sprite_height;
 
         if self.grounded {
             return y.min(floor);
@@ -86,6 +88,19 @@ impl PhysicsState {
         }
 
         new_y
+    }
+
+    /// Un-ground the entity when its floor moved away beneath it —
+    /// walked off a window edge, or the window itself was moved or
+    /// closed. A grounded entity whose floor is now more than a step
+    /// below starts falling again; small drops (sub-pixel jitter from
+    /// the window poll) are absorbed by the grounded `y.min(floor)`.
+    pub fn release_if_floor_dropped(&mut self, y: f32, floor: f32) {
+        const STEP: f32 = 2.0;
+        if self.enabled && self.grounded && floor > y + STEP {
+            self.grounded = false;
+            self.velocity_y = 0.0;
+        }
     }
 
     /// Turn physics on: entity starts falling from its current position.
@@ -139,7 +154,7 @@ mod tests {
         let mut physics = PhysicsState::default();
         assert!(!physics.enabled);
         let y = 100.0;
-        let new_y = physics.tick(y, 64.0, 1080.0, 1.0 / 60.0);
+        let new_y = physics.tick(y, 1080.0 - 64.0, 1.0 / 60.0);
         assert_eq!(new_y, y, "Default (disabled) physics must not move entity");
     }
 
@@ -152,7 +167,7 @@ mod tests {
         let mut y = 100.0;
 
         for _ in 0..60 {
-            y = physics.tick(y, sprite_h, screen_h, 1.0 / 60.0);
+            y = physics.tick(y, screen_h - sprite_h, 1.0 / 60.0);
         }
 
         assert!(y > 200.0, "Entity should fall once enabled: y={}", y);
@@ -168,7 +183,7 @@ mod tests {
         let mut y = 0.0;
 
         for _ in 0..600 {
-            y = physics.tick(y, sprite_h, screen_h, 1.0 / 60.0);
+            y = physics.tick(y, screen_h - sprite_h, 1.0 / 60.0);
         }
 
         assert!(physics.grounded, "Should be grounded after bouncing");
@@ -186,7 +201,7 @@ mod tests {
         physics.enable();
         physics.freeze();
         let y = 100.0;
-        let new_y = physics.tick(y, 64.0, 1080.0, 1.0 / 60.0);
+        let new_y = physics.tick(y, 1080.0 - 64.0, 1.0 / 60.0);
         assert_eq!(y, new_y);
     }
 
@@ -199,11 +214,36 @@ mod tests {
 
         assert!(!physics.enabled, "unfreeze must not turn physics on");
         let y = 100.0;
-        let new_y = physics.tick(y, 64.0, 1080.0, 1.0 / 60.0);
+        let new_y = physics.tick(y, 1080.0 - 64.0, 1.0 / 60.0);
         assert_eq!(
             new_y, y,
             "Entity must stay put after drag if physics was off"
         );
+    }
+
+    #[test]
+    fn release_when_floor_drops_resumes_falling() {
+        let mut physics = PhysicsState::default();
+        physics.enable();
+        // Settle on a floor at 500.
+        let mut y = 480.0;
+        for _ in 0..600 {
+            y = physics.tick(y, 500.0, 1.0 / 60.0);
+        }
+        assert!(physics.grounded);
+
+        // Floor falls away (walked off the edge) → airborne again.
+        physics.release_if_floor_dropped(y, 900.0);
+        assert!(!physics.grounded);
+        let y2 = physics.tick(y, 900.0, 1.0 / 60.0);
+        assert!(y2 >= y, "must start falling toward the new floor");
+
+        // A 1 px dip is jitter, not a cliff.
+        let mut p2 = PhysicsState::default();
+        p2.enable();
+        p2.grounded = true;
+        p2.release_if_floor_dropped(500.0, 501.0);
+        assert!(p2.grounded);
     }
 
     #[test]

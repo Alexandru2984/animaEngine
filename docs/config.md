@@ -13,6 +13,10 @@ transparent = true
 playback_enabled = true     # Space key inverts this
 window_width = 0            # 0 = autodetect from primary monitor
 window_height = 0           # 0 = autodetect from primary monitor
+window_awareness = false    # X11 only: physics characters land on
+                            # window top edges and walk along them.
+                            # No effect on Wayland (the protocol
+                            # exposes no global window geometry).
 ```
 
 ## `[[characters]]`

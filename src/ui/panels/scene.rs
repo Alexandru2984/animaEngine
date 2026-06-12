@@ -15,17 +15,31 @@ use crate::ui::icons;
 use crate::ui::states;
 use crate::ui::theme::{self, h2, SPACE_L, SPACE_M, SPACE_S};
 
+// UI plumbing fans out one settings struct into per-tab params — same
+// allow as `panels::settings` itself.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn scene_tab(
     ui: &mut egui::Ui,
     scene: &mut Scene,
     selection: &mut SelectionState,
     config_dirty: &mut bool,
     monitor_mode: &mut MonitorMode,
+    window_awareness: &mut bool,
     monitors: &[MonitorInfo],
     collapse_state: &mut CollapseState,
 ) {
     // ── Monitor distribution section ─────────────────────────────────
     monitor_mode_picker(ui, monitor_mode, monitors, config_dirty);
+
+    // ── Window awareness (X11) ────────────────────────────────────────
+    ui.add_space(SPACE_S);
+    if ui
+        .checkbox(window_awareness, t("scene-window-awareness"))
+        .on_hover_text(t("scene-window-awareness-tooltip"))
+        .changed()
+    {
+        *config_dirty = true;
+    }
     ui.add_space(SPACE_L);
     ui.separator();
     ui.add_space(SPACE_M);

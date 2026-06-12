@@ -380,6 +380,7 @@ pub fn run_native(
                 let locale_mut = &mut config.global.locale;
                 let onboarding_mut = &mut config.global.onboarding;
                 let monitor_mode_mut = &mut config.global.monitor_mode;
+                let window_awareness_mut = &mut config.global.window_awareness;
                 let accesskit_mut = &mut config.global.accesskit_enabled;
                 let keybindings_mut = &mut config.keybindings;
                 let collapse_state_mut = &mut config.collapse_state;
@@ -418,6 +419,7 @@ pub fn run_native(
                                 locale_mut,
                                 onboarding_mut,
                                 monitor_mode_mut,
+                                window_awareness_mut,
                                 monitors_ref,
                                 None, // library index — not wired on Wayland yet
                                 library_ref,

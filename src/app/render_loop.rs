@@ -63,6 +63,7 @@ impl App {
         // overlay windows (T.6); topology changes do the same (T.9).
         self.rebuild_windows_if_mode_changed(event_loop);
         self.check_monitor_topology(event_loop);
+        self.poll_window_platforms();
 
         // Tick behavior + physics + animation.
         let (screen_w, screen_h) = self
@@ -176,6 +177,7 @@ impl App {
                         let locale_mut = &mut self.config.global.locale;
                         let onboarding_mut = &mut self.config.global.onboarding;
                         let monitor_mode_mut = &mut self.config.global.monitor_mode;
+                        let window_awareness_mut = &mut self.config.global.window_awareness;
                         // Snapshot the AccessKit flag BEFORE taking
                         // its mutable borrow — the render closure
                         // syncs egui's runtime gate from this copy
@@ -245,6 +247,7 @@ impl App {
                                         locale_mut,
                                         onboarding_mut,
                                         monitor_mode_mut,
+                                        window_awareness_mut,
                                         monitors_ref,
                                         library_ref,
                                         library_outcome_ref,

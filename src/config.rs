@@ -44,6 +44,13 @@ pub struct GlobalConfig {
     /// implicit `Span` behaviour of 0.2 can set this explicitly.
     #[serde(default)]
     pub monitor_mode: MonitorMode,
+
+    /// Window-awareness: desktop windows become physics platforms —
+    /// mascots land on and walk along window top edges. X11 sessions
+    /// only (Wayland exposes no global window geometry); silently
+    /// inert elsewhere. Off by default like everything physics.
+    #[serde(default)]
+    pub window_awareness: bool,
     /// Generate AccessKit tree updates (the AT-SPI bridge that drives
     /// screen readers like Orca). On by default — the overhead is
     /// negligible and we want screen-reader users to "just work" out
@@ -86,6 +93,7 @@ impl Default for GlobalConfig {
             // every progressive hint will appear on the first run.
             onboarding: OnboardingProgress::default(),
             monitor_mode: MonitorMode::default(),
+            window_awareness: false,
             accesskit_enabled: true,
             hotkey_backend: crate::hotkeys::probe::HotkeyBackend::Auto,
             last_seen_whats_new: None,

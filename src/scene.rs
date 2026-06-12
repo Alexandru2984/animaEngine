@@ -34,6 +34,12 @@ pub struct Scene {
     /// the composed hit-test and the renderer's offset/scale
     /// composition (C.9, 0.7) all read one source of truth.
     pub groups: Vec<crate::group::GroupConfig>,
+    /// Desktop-window platforms for window-awareness physics. Fed by
+    /// the X11 watcher from the render loop (~300 ms cadence); empty
+    /// when the feature is off or no provider exists (native
+    /// Wayland). Entities treat the rect tops as floors — see
+    /// `crate::platforms`.
+    window_platforms: Vec<crate::platforms::PlatformRect>,
 }
 
 impl Scene {
@@ -87,6 +93,7 @@ impl Scene {
             last_tick: Instant::now(),
             visible_cache: RefCell::default(),
             groups: config.groups.clone(),
+            window_platforms: Vec::new(),
         }
     }
 
@@ -160,6 +167,13 @@ impl Scene {
         Entity::from_config(config, animation)
     }
 
+    /// Replace the desktop-window platform set (window-awareness).
+    /// Called from the render loop after each X11 window poll; pass
+    /// an empty vec to turn the feature's effect off instantly.
+    pub fn set_window_platforms(&mut self, platforms: Vec<crate::platforms::PlatformRect>) {
+        self.window_platforms = platforms;
+    }
+
     /// Tick all entities: behavior + physics + animation.
     /// Screen dimensions bound autonomous motion (walk-around) and gravity.
     /// `cursor` is forwarded to behaviors that track the mouse (FollowCursor);
@@ -177,7 +191,13 @@ impl Scene {
         }
 
         for entity in &mut self.entities {
-            entity.tick(dt, screen_width, screen_height, cursor);
+            entity.tick(
+                dt,
+                screen_width,
+                screen_height,
+                cursor,
+                &self.window_platforms,
+            );
         }
     }
 

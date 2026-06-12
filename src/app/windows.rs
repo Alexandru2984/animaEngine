@@ -350,4 +350,47 @@ impl App {
             }
         }
     }
+
+    /// Window-awareness poll (~300 ms): refresh the desktop-window
+    /// platform set the physics floor resolution reads. Lazy-connects
+    /// the EWMH watcher on first need; on sessions without an X server
+    /// the single failed probe disables further attempts. Disabling
+    /// the config knob clears the platforms exactly once.
+    pub(super) fn poll_window_platforms(&mut self) {
+        const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(300);
+
+        if !self.config.global.window_awareness {
+            if self.window_platforms_active {
+                self.scene.set_window_platforms(Vec::new());
+                self.window_platforms_active = false;
+            }
+            return;
+        }
+
+        if self.last_window_poll.elapsed() < POLL_INTERVAL && self.window_platforms_active {
+            return;
+        }
+        self.last_window_poll = std::time::Instant::now();
+
+        if self.window_watcher.is_none() {
+            if self.window_watcher_probe_done {
+                return;
+            }
+            self.window_watcher_probe_done = true;
+            self.window_watcher = crate::window::x11_windows::WindowWatcher::new();
+            if self.window_watcher.is_none() {
+                tracing::info!(
+                    "window_awareness: no X server reachable — feature inert this session"
+                );
+                return;
+            }
+        }
+
+        if let Some(watcher) = &self.window_watcher {
+            let platforms = watcher.snapshot();
+            tracing::trace!("window_awareness: {} platform(s)", platforms.len());
+            self.scene.set_window_platforms(platforms);
+            self.window_platforms_active = true;
+        }
+    }
 }

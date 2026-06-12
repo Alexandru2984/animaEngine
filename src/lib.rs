@@ -19,6 +19,7 @@ pub mod keybindings;
 pub mod monitor;
 pub mod perf;
 pub mod physics;
+pub mod platforms;
 pub mod presets;
 pub mod renderer;
 pub mod scene;
