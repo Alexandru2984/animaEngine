@@ -1,0 +1,109 @@
+name: Release
+
+# Tag-triggered release pipeline. Pushing a `vX.Y.Z` tag builds the
+# .deb + AppImage with embedded SBOMs (cargo auditable), attests build
+# provenance for both, and opens a **draft** GitHub release with the
+# artifacts attached and the notes from docs/release-notes/. A human
+# reviews the draft and clicks publish — nothing goes public on its
+# own.
+#
+# Guards: the tag must match Cargo.toml's version, the notes file must
+# exist, and the full test suite must pass on the tagged commit.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  # Create the draft release + upload assets.
+  contents: write
+  # Sign build provenance (Sigstore via GitHub OIDC).
+  id-token: write
+  attestations: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # linuxdeploy is itself an AppImage; runners have no FUSE, so let it
+  # self-extract instead.
+  APPIMAGE_EXTRACT_AND_RUN: '1'
+
+jobs:
+  release:
+    name: build, attest, draft
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Guard — tag matches Cargo.toml, notes exist
+        run: |
+          VER="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
+          if [ "$GITHUB_REF_NAME" != "v$VER" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match Cargo.toml version v$VER" >&2
+            exit 1
+          fi
+          if [ ! -f "docs/release-notes/$GITHUB_REF_NAME.md" ]; then
+            echo "Missing docs/release-notes/$GITHUB_REF_NAME.md — write the notes before tagging" >&2
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev \
+            librsvg2-bin desktop-file-utils file
+
+      # Deliberately no build cache on the release path: artifacts are
+      # produced by a from-scratch build of exactly the tagged tree.
+      - name: Install packaging tools
+        run: cargo install --locked cargo-deb cargo-auditable
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - name: Test gate on the tagged commit
+        run: cargo nextest run --locked --all-targets --retries 1 --no-fail-fast
+
+      # Both scripts detect cargo-auditable and embed the SBOM; the
+      # second invocation reuses the first build via the cargo cache.
+      - name: Build .deb
+        run: scripts/build-deb.sh
+      - name: Build AppImage
+        run: scripts/build-appimage.sh
+
+      - name: Checksums
+        run: |
+          cd build
+          sha256sum anima-engine_*.deb animaEngine-*.AppImage \
+            > "SHA256SUMS-$GITHUB_REF_NAME.txt"
+          cat "SHA256SUMS-$GITHUB_REF_NAME.txt"
+
+      # Provenance: cryptographically links each artifact to this
+      # workflow run, repo and commit. Verify with:
+      #   gh attestation verify <file> --repo <owner>/<repo>
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            build/anima-engine_*.deb
+            build/animaEngine-*.AppImage
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="docs/release-notes/$GITHUB_REF_NAME.md"
+          TITLE="$(head -1 "$NOTES" | sed 's/^# *//')"
+          gh release create "$GITHUB_REF_NAME" \
+            --draft \
+            --verify-tag \
+            --title "$TITLE" \
+            --notes-file "$NOTES" \
+            build/anima-engine_*.deb \
+            build/animaEngine-*.AppImage \
+            "build/SHA256SUMS-$GITHUB_REF_NAME.txt"
+          echo "Draft release created — review and publish from the Releases page."

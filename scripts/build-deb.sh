@@ -32,10 +32,22 @@ mkdir -p build
 log "Rendering icon PNGs…"
 "$REPO/scripts/render-icons.sh"
 
-# `cargo deb` rebuilds in release mode and reads
-# [package.metadata.deb] for everything else. Output ends up at
-# target/debian/. We move it to build/ for parity with the AppImage path.
-cargo deb --no-strip
+# Build explicitly (with the embedded-SBOM wrapper when available —
+# see build-appimage.sh for the rationale), then let `cargo deb`
+# package the existing binary via --no-build so the wrapper's work
+# isn't overwritten by a plain rebuild.
+log "Building release binary…"
+if command -v cargo-auditable >/dev/null 2>&1; then
+    cargo auditable build --release --locked
+else
+    log "cargo-auditable not installed — building without embedded SBOM"
+    cargo build --release --locked
+fi
+
+# `cargo deb` reads [package.metadata.deb] for everything else. Output
+# ends up at target/debian/. We move it to build/ for parity with the
+# AppImage path.
+cargo deb --no-strip --no-build
 
 # Find the freshly built .deb (versioned filename) and copy into build/.
 DEB="$(ls -t target/debian/*.deb 2>/dev/null | head -1)"

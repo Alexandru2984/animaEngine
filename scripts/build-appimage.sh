@@ -40,8 +40,19 @@ log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # ── 1) Release build ─────────────────────────────────────────────────
+# `cargo auditable` embeds the full dependency list in an ELF section
+# (readable with `cargo audit bin` / rexray) — when the tool is
+# installed, every shipped binary carries its own SBOM. Without it the
+# build is byte-for-byte the classic one. A repeated invocation with
+# identical flags is a cargo cache hit, so build-deb.sh and this script
+# can both call it cheaply.
 log "Building release binary…"
-cargo build --release --locked
+if command -v cargo-auditable >/dev/null 2>&1; then
+    cargo auditable build --release --locked
+else
+    log "cargo-auditable not installed — building without embedded SBOM"
+    cargo build --release --locked
+fi
 
 if [[ ! -x target/release/anima_engine ]]; then
     die "release binary missing at target/release/anima_engine"

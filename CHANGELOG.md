@@ -33,6 +33,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Weston smoke — the first automated environment ever to run the
   pure-Wayland fallback path (field-unvalidated since 0.6) — and an
   lcov coverage artifact via cargo-llvm-cov.
+- **Release automation** — pushing a `vX.Y.Z` tag now builds the
+  .deb + AppImage in CI, generates checksums, attests build
+  provenance (Sigstore via GitHub OIDC — verifiable with
+  `gh attestation verify`), and opens a *draft* GitHub release with
+  the notes from `docs/release-notes/`; publishing stays a human
+  click. Both packaging scripts embed a full dependency SBOM in the
+  binary when `cargo-auditable` is installed (always, in CI).
 - **Video decode round-trip test** — the openh264 decoder FFI was the
   one component no test executed. A programmatic fixture (frames
   encoded with openh264's encoder, muxed by mp4's Mp4Writer — no
