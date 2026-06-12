@@ -41,6 +41,18 @@ pub fn toggle_button(ctx: &egui::Context, edit_mode: bool) -> bool {
                     .corner_radius(0.0),
                 )
                 .on_hover_text(tooltip);
+            // Visible focus for keyboard users (F8): the custom fill
+            // swallows egui's subtle default, so paint an explicit
+            // ring with the theme's selection stroke (HC-aware).
+            if response.has_focus() {
+                let stroke = ui.visuals().selection.stroke;
+                ui.painter().rect_stroke(
+                    response.rect.shrink(1.5),
+                    0.0,
+                    egui::Stroke::new(2.0, stroke.color),
+                    egui::StrokeKind::Inside,
+                );
+            }
             if response.clicked() {
                 clicked = true;
             }

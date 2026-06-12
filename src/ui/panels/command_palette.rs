@@ -11,6 +11,7 @@ use crate::ui::theme::{self, Theme, SPACE_XS};
 
 /// One-shot intent emitted by the command palette so the caller can
 /// apply it after `EguiRenderer::render` returns.
+#[derive(Clone)]
 pub enum PaletteOutcome {
     /// User picked a preset; apply with the given mode.
     ApplyPreset(PresetId, ApplyMode),
@@ -48,6 +49,10 @@ pub fn command_palette(ctx: &egui::Context) -> Option<PaletteOutcome> {
             // Seed the fresh key at 0 — egui returns the target as-is
             // the first time it sees an id, which would skip the fade.
             ctx.animate_value_with_time(id.with(("pop", g)), 0.0, 0.0);
+            // One-shot focus grab for the query field. Grabbing every
+            // frame (the old behavior) made Tab navigation impossible
+            // — focus snapped back to the text field each frame (F8).
+            ctx.memory_mut(|m| m.data.insert_temp(id.with("focus_pending"), true));
         }
     }
     if !open {
@@ -77,6 +82,82 @@ pub fn command_palette(ctx: &egui::Context) -> Option<PaletteOutcome> {
         screen_rect.top() + screen_rect.height() * 0.25,
     );
 
+    // ── Action rows (flattened, filterable) ───────────────────────
+    // One row = one Enter-able action. Themes first, then per preset
+    // a Replace and an Append row — the old two-buttons-per-row
+    // layout had no keyboard path to the second button (F8).
+    let q = query.to_lowercase();
+    let matches_filter = |s: &str| q.is_empty() || s.to_lowercase().contains(&q);
+
+    struct Row {
+        text: String,
+        hover: Option<&'static str>,
+        outcome: PaletteOutcome,
+    }
+    let mut rows: Vec<Row> = Vec::new();
+    for theme in Theme::ALL {
+        let mut args = fluent::FluentArgs::new();
+        args.set("theme", theme.label());
+        let label = crate::i18n::t_args("palette-switch-theme", &args);
+        if matches_filter(&label) {
+            let icon = match theme {
+                Theme::Dark | Theme::DarkHighContrast => icons::DARK_MODE,
+                Theme::Light | Theme::LightHighContrast => icons::LIGHT_MODE,
+            };
+            rows.push(Row {
+                text: format!("{icon}  {label}"),
+                hover: None,
+                outcome: PaletteOutcome::SwitchTheme(*theme),
+            });
+        }
+    }
+    for pid in PresetId::ALL {
+        let preset = Preset::for_id(*pid);
+        let mut args = fluent::FluentArgs::new();
+        args.set("preset", preset.name);
+        let label_replace = crate::i18n::t_args("palette-replace-row", &args);
+        let label_append = crate::i18n::t_args("palette-append-row", &args);
+        let any = matches_filter(preset.name) || matches_filter(preset.description);
+        if any || matches_filter(&label_replace) {
+            rows.push(Row {
+                text: format!("{}  {label_replace}", preset.icon),
+                hover: Some(preset.description),
+                outcome: PaletteOutcome::ApplyPreset(*pid, ApplyMode::Replace),
+            });
+        }
+        if any || matches_filter(&label_append) {
+            rows.push(Row {
+                text: format!("{}  {label_append}", preset.icon),
+                hover: Some(preset.description),
+                outcome: PaletteOutcome::ApplyPreset(*pid, ApplyMode::Append),
+            });
+        }
+    }
+
+    // ── Keyboard navigation state ─────────────────────────────────
+    let sel_id = id.with("selected");
+    let mut selected: usize = ctx.memory(|m| m.data.get_temp(sel_id).unwrap_or(0));
+    if !rows.is_empty() {
+        selected = selected.min(rows.len() - 1);
+        let (down, up, enter) = ctx.input(|i| {
+            (
+                i.key_pressed(egui::Key::ArrowDown),
+                i.key_pressed(egui::Key::ArrowUp),
+                i.key_pressed(egui::Key::Enter),
+            )
+        });
+        if down {
+            selected = (selected + 1) % rows.len();
+        }
+        if up {
+            selected = selected.checked_sub(1).unwrap_or(rows.len() - 1);
+        }
+        if enter {
+            outcome = Some(rows[selected].outcome.clone());
+            want_close = true;
+        }
+    }
+
     egui::Area::new(id.with("area"))
         .order(egui::Order::Foreground)
         .fixed_pos(center - egui::vec2(220.0, 0.0))
@@ -90,86 +171,39 @@ pub fn command_palette(ctx: &egui::Context) -> Option<PaletteOutcome> {
                     // G.5 (0.5.3): same cap as the library search box.
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut query)
-                            .hint_text("Type to search themes / presets…")
+                            .hint_text(crate::i18n::t("palette-search-placeholder"))
                             .desired_width(380.0)
                             .char_limit(256),
                     );
-                    response.request_focus();
+                    let focus_id = id.with("focus_pending");
+                    if ctx.memory(|m| m.data.get_temp(focus_id).unwrap_or(false)) {
+                        response.request_focus();
+                        ctx.memory_mut(|m| m.data.insert_temp(focus_id, false));
+                    }
+                    if response.changed() {
+                        // New filter → selection back to the top.
+                        ctx.memory_mut(|m| m.data.insert_temp(sel_id, 0usize));
+                    }
                     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                         want_close = true;
                     }
                 });
                 ui.separator();
 
-                let q = query.to_lowercase();
-                let matches_filter = |s: &str| q.is_empty() || s.to_lowercase().contains(&q);
-
-                // Themes
-                for theme in Theme::ALL {
-                    let label = format!("Switch to {} theme", theme.label());
-                    if matches_filter(&label) {
-                        let icon = match theme {
-                            Theme::Dark | Theme::DarkHighContrast => icons::DARK_MODE,
-                            Theme::Light | Theme::LightHighContrast => icons::LIGHT_MODE,
-                        };
-                        if ui.button(format!("{icon}  {label}")).clicked() {
-                            outcome = Some(PaletteOutcome::SwitchTheme(*theme));
-                            want_close = true;
-                        }
+                for (i, row) in rows.iter().enumerate() {
+                    let mut resp = ui.selectable_label(i == selected, &row.text);
+                    if let Some(hover) = row.hover {
+                        resp = resp.on_hover_text(hover);
                     }
-                }
-
-                // Presets
-                for id in PresetId::ALL {
-                    let preset = Preset::for_id(*id);
-                    let label_replace = format!("Replace scene with: {}", preset.name);
-                    let label_append = format!("Append preset: {}", preset.name);
-                    if matches_filter(&label_replace)
-                        || matches_filter(preset.name)
-                        || matches_filter(preset.description)
-                    {
-                        ui.horizontal(|ui| {
-                            ui.label(preset.icon);
-                            ui.label(preset.name);
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    if ui.button("Replace").clicked() {
-                                        outcome = Some(PaletteOutcome::ApplyPreset(
-                                            *id,
-                                            ApplyMode::Replace,
-                                        ));
-                                        want_close = true;
-                                    }
-                                    if ui.button("Append").clicked() {
-                                        outcome = Some(PaletteOutcome::ApplyPreset(
-                                            *id,
-                                            ApplyMode::Append,
-                                        ));
-                                        want_close = true;
-                                    }
-                                },
-                            );
-                        });
-                        ui.add_space(SPACE_XS);
-                        // Show description as caption for the row.
-                        ui.label(
-                            egui::RichText::new(preset.description)
-                                .text_style(theme::caption())
-                                .weak(),
-                        );
-                        if matches_filter(&label_append) {
-                            // (already rendered with both buttons above;
-                            // separate label_append filter ensures both
-                            // verbs hit if the query targets "append")
-                        }
-                        ui.separator();
+                    if resp.clicked() {
+                        outcome = Some(row.outcome.clone());
+                        want_close = true;
                     }
                 }
 
                 ui.add_space(SPACE_XS);
                 ui.label(
-                    egui::RichText::new("Esc to close · Ctrl+K to toggle")
+                    egui::RichText::new(crate::i18n::t("palette-footer-hint"))
                         .text_style(theme::caption())
                         .weak(),
                 );

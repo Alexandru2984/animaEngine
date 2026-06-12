@@ -33,6 +33,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Weston smoke — the first automated environment ever to run the
   pure-Wayland fallback path (field-unvalidated since 0.6) — and an
   lcov coverage artifact via cargo-llvm-cov.
+- **Keyboard-first command palette (V.4)** — ↑↓ + Enter navigation
+  over a flat result list, one-shot focus grab (the old per-frame
+  grab made Tab unusable), Esc unchanged; the footer hint documents
+  the keys. The ⚙ toggle button shows a theme-aware focus ring.
+  Palette strings now flow through i18n.
 - **First-run tour (V.2)** — three coach-mark bubbles on the overlay
   itself: the gear button (advances when you enter edit mode — the
   action it teaches), drag-and-drop, and the hotkey trio. Skippable,

@@ -85,6 +85,9 @@ onboarding-coach-step3 = Ctrl+K deschide paleta de comenzi. Ctrl+Shift+A comută
 onboarding-coach-next = Înainte
 onboarding-coach-skip = Sari peste tur
 onboarding-coach-done = Am înțeles
+palette-replace-row = Înlocuiește scena cu: { $preset }
+palette-append-row = Adaugă preset-ul: { $preset }
+palette-footer-hint = Esc închide · Ctrl+K comută · ↑↓ + Enter alege
 onboarding-dismiss = Închide
 
 menu-duplicate = Duplică

@@ -85,6 +85,9 @@ onboarding-coach-step3 = Ctrl+K opens the command palette. Ctrl+Shift+A toggles 
 onboarding-coach-next = Next
 onboarding-coach-skip = Skip tour
 onboarding-coach-done = Got it
+palette-replace-row = Replace scene with: { $preset }
+palette-append-row = Append preset: { $preset }
+palette-footer-hint = Esc to close · Ctrl+K to toggle · ↑↓ + Enter to pick
 onboarding-dismiss = Zamknij
 
 menu-duplicate = Duplikuj
