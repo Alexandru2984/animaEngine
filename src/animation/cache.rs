@@ -185,7 +185,10 @@ pub fn try_save(asset_path: &Path, frames: &[Frame]) -> Result<()> {
     Ok(())
 }
 
-fn serialize_frames(frames: &[Frame]) -> Vec<u8> {
+/// `pub` (hidden) for the criterion benches and the W.4 fuzz target —
+/// not part of any supported API.
+#[doc(hidden)]
+pub fn serialize_frames(frames: &[Frame]) -> Vec<u8> {
     // Pre-size to avoid reallocs on big sequences.
     let total = HEADER_BYTES
         + frames
@@ -207,7 +210,9 @@ fn serialize_frames(frames: &[Frame]) -> Vec<u8> {
     out
 }
 
-fn deserialize_frames(bytes: &[u8]) -> Result<Vec<Frame>> {
+/// See [`serialize_frames`] on why this is `pub`.
+#[doc(hidden)]
+pub fn deserialize_frames(bytes: &[u8]) -> Result<Vec<Frame>> {
     if bytes.len() < HEADER_BYTES {
         return Err(AnimaError::other("cache header too short"));
     }

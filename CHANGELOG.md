@@ -33,6 +33,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Weston smoke — the first automated environment ever to run the
   pure-Wayland fallback path (field-unvalidated since 0.6) — and an
   lcov coverage artifact via cargo-llvm-cov.
+- **Criterion benchmarks** — seven benches over the per-frame hot
+  paths (`Scene::tick` at 10/50/100 entities, visible-list rebuild,
+  cache codec, window planning, group transform), all synthetic and
+  disk/GPU-free. Current numbers: `scene_tick/100` ≈ 8.5 µs against
+  the 8 ms engine budget. CI compiles them on every push; a weekly
+  canary runs them and archives the criterion history as an artifact.
 - **Crash reports** — a panic now writes a local report
   (`~/.cache/animaEngine/crashes/`, version + message + location +
   backtrace, newest five kept) in addition to the existing config
@@ -55,6 +61,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The recurring CI flake has a name and a fix** —
+  `perf::tests::p95_returns_top_quantile` asserted p95 ≥ mean over
+  100 wall-clock-timed near-zero frames; a single descheduled
+  iteration made the mean exceed p95. The test now injects synthetic
+  frame totals and asserts exact quantile values. (Named by the
+  nextest retry harness on its first occurrence after installation.)
 - **MP4 video loading for avcC-only files** — the SPS/PPS parameter
   sets extracted from the container were wiped by a buffer reuse
   before the decoder ever saw them, so any MP4 without in-band

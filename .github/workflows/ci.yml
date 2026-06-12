@@ -138,6 +138,10 @@ jobs:
       - run: cargo nextest run --locked --all-targets --retries 1 --no-fail-fast
       # nextest does not run doctests; keep them covered separately.
       - run: cargo test --locked --doc
+      # Benches must keep compiling (they're not in --all-targets'
+      # bench-harness set since [lib]/[bin] disable it); execution
+      # happens in the scheduled bench job below.
+      - run: cargo bench --no-run --locked
 
   msrv:
     name: MSRV (1.88)
@@ -364,6 +368,34 @@ jobs:
             exit 1
           fi
           echo "Wayland smoke test passed."
+
+  bench:
+    name: benchmark canary
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+      - uses: Swatinem/rust-cache@v2
+      # Shared-runner numbers are too noisy to gate on; the value is
+      # the trend. criterion keeps its history in target/criterion —
+      # archived weekly so a regression has a paper trail.
+      - run: cargo bench --locked -- --quick 2>&1 | tee bench-output.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-results
+          path: |
+            bench-output.txt
+            target/criterion
+          retention-days: 90
 
   coverage:
     name: coverage (lcov artifact)

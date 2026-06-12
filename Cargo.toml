@@ -155,6 +155,27 @@ egui-phosphor = "0.9"
 fluent = "0.17.0"
 unic-langid = "0.9.6"
 
+# Criterion owns `cargo bench`; the default libtest bench harnesses on
+# the lib/bin targets would otherwise swallow criterion CLI flags like
+# `--quick` and error out.
+[lib]
+bench = false
+
+[[bin]]
+name = "anima_engine"
+path = "src/main.rs"
+bench = false
+
+[dev-dependencies]
+# Benchmarks only (benches/engine.rs). Slim feature set: no plotters
+# HTML reports — text output + saved baselines are enough, and it
+# keeps the dev-dependency tree small.
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "engine"
+harness = false
+
 [profile.dev]
 opt-level = 1
 
