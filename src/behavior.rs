@@ -212,6 +212,10 @@ pub struct TickContext {
     /// it should no-op.
     pub cursor: Option<(f32, f32)>,
     pub dt: f32,
+    /// Reduced-motion preference (V.1): decorative behaviors (Bounce)
+    /// hold their rest position when set. Locomotion (walks, wander)
+    /// is *function*, not decoration — it keeps running.
+    pub reduced_motion: bool,
 }
 
 impl Behavior {
@@ -326,6 +330,15 @@ impl Behavior {
                 }
                 let (rest_x, rest_y) = state.bounce_rest.unwrap();
 
+                // Reduced motion: bobbing is pure decoration — park at
+                // the rest point (and stay re-anchorable via the state
+                // guard above).
+                if ctx.reduced_motion {
+                    *entity_x = rest_x;
+                    *entity_y = rest_y;
+                    return;
+                }
+
                 // Guard against degenerate periods. 50ms is a hard
                 // floor below which the math is fine but the visual
                 // is incoherent.
@@ -366,6 +379,7 @@ mod tests {
             screen_height: 1080.0,
             cursor: None,
             dt,
+            reduced_motion: false,
         }
     }
 
@@ -562,6 +576,7 @@ mod bounce_tests {
             screen_height: 1080.0,
             cursor: None,
             dt,
+            reduced_motion: false,
         }
     }
 

@@ -40,6 +40,10 @@ fn toast_card(ui: &mut egui::Ui, toast: &Toast) {
     // - Fade-out:       300 ms, ease-in-quad (trailing window before expiry)
     const SLIDE_IN: f32 = 0.200;
     const FADE_OUT: f32 = 0.300;
+    /// Vertical travel during slide-in — enough to read as motion,
+    /// small enough to never overlap the card above.
+    const SLIDE_PX: f32 = 8.0;
+    let reduced = crate::ui::motion::reduced(ui.ctx());
     let age = toast.age().as_secs_f32();
     let remaining = toast.remaining().as_secs_f32();
     let in_alpha = anim::ease_out_quad((age / SLIDE_IN).min(1.0));
@@ -48,7 +52,16 @@ fn toast_card(ui: &mut egui::Ui, toast: &Toast) {
     } else {
         1.0
     };
-    let alpha = (in_alpha * out_alpha).clamp(0.0, 1.0);
+    let alpha = if reduced {
+        1.0
+    } else {
+        (in_alpha * out_alpha).clamp(0.0, 1.0)
+    };
+    if !reduced {
+        // Slide up into place while fading in (bottom-up layout, so
+        // leading space pushes the card down → it rises as it fades).
+        ui.add_space(SLIDE_PX * (1.0 - in_alpha));
+    }
 
     let visuals = ui.visuals();
     let bg = visuals.faint_bg_color; // bg.elevated per theme

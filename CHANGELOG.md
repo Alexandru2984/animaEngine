@@ -33,6 +33,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Weston smoke — the first automated environment ever to run the
   pure-Wayland fallback path (field-unvalidated since 0.6) — and an
   lcov coverage artifact via cargo-llvm-cov.
+- **Reduced motion (V.1)** — `reduced_motion` knob in `[global]` +
+  Appearance-tab toggle: disables the settings-panel slide, tab
+  cross-fade, toast fade/slide, palette pop and decorative Bounce
+  bobbing in one switch; egui's built-in animations are zeroed with
+  it. New motion: the settings panel now slides in/out (was a snap),
+  toasts rise 8 px while fading in, the palette pops on every open.
 - **Window-awareness (X11)** — `window_awareness = true` under
   `[global]` (or the "Land on windows" toggle in the Scene tab) makes
   physics-enabled characters land on and walk along the top edges of

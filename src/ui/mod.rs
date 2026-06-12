@@ -14,6 +14,7 @@ pub mod collapse;
 mod egui_renderer;
 pub mod icons;
 pub mod keyboard;
+pub mod motion;
 pub mod onboarding;
 pub mod panels;
 pub mod perf_overlay;

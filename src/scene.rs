@@ -40,6 +40,10 @@ pub struct Scene {
     /// Wayland). Entities treat the rect tops as floors — see
     /// `crate::platforms`.
     window_platforms: Vec<crate::platforms::PlatformRect>,
+    /// Reduced-motion preference (a11y, V.1): forwarded into every
+    /// entity tick so decorative behaviors (Bounce bobbing) idle at
+    /// their rest position instead of animating.
+    reduced_motion: bool,
 }
 
 impl Scene {
@@ -94,6 +98,7 @@ impl Scene {
             visible_cache: RefCell::default(),
             groups: config.groups.clone(),
             window_platforms: Vec::new(),
+            reduced_motion: false,
         }
     }
 
@@ -167,6 +172,11 @@ impl Scene {
         Entity::from_config(config, animation)
     }
 
+    /// Update the reduced-motion preference (cheap, called per frame).
+    pub fn set_reduced_motion(&mut self, reduced: bool) {
+        self.reduced_motion = reduced;
+    }
+
     /// Replace the desktop-window platform set (window-awareness).
     /// Called from the render loop after each X11 window poll; pass
     /// an empty vec to turn the feature's effect off instantly.
@@ -197,6 +207,7 @@ impl Scene {
                 screen_height,
                 cursor,
                 &self.window_platforms,
+                self.reduced_motion,
             );
         }
     }

@@ -312,6 +312,7 @@ pub fn run_native(
 
         // Tick the simulation. screen_w / screen_h match the surface so
         // walk-around behaviors stay inside the visible area.
+        scene.set_reduced_motion(config.global.reduced_motion);
         scene.tick(
             renderer.primary.window_width as f32,
             renderer.primary.window_height as f32,
@@ -381,6 +382,7 @@ pub fn run_native(
                 let onboarding_mut = &mut config.global.onboarding;
                 let monitor_mode_mut = &mut config.global.monitor_mode;
                 let window_awareness_mut = &mut config.global.window_awareness;
+                let reduced_motion_mut = &mut config.global.reduced_motion;
                 let accesskit_mut = &mut config.global.accesskit_enabled;
                 let keybindings_mut = &mut config.keybindings;
                 let collapse_state_mut = &mut config.collapse_state;
@@ -406,12 +408,14 @@ pub fn run_native(
                         } else {
                             ctx.disable_accesskit();
                         }
+                        crate::ui::motion::set_reduced(ctx, *reduced_motion_mut);
                         if panels::toggle_button(ctx, edit_mode_snapshot) {
                             *toggle_requested_ref = true;
                         }
-                        if edit_mode_snapshot {
+                        {
                             panels::settings(
                                 ctx,
+                                edit_mode_snapshot,
                                 scene_mut,
                                 selection_mut,
                                 config_dirty_mut,
@@ -420,6 +424,7 @@ pub fn run_native(
                                 onboarding_mut,
                                 monitor_mode_mut,
                                 window_awareness_mut,
+                                reduced_motion_mut,
                                 monitors_ref,
                                 None, // library index — not wired on Wayland yet
                                 library_ref,
@@ -431,8 +436,10 @@ pub fn run_native(
                                 hotkey_backend_ref,
                                 shimeji_import_ref,
                             );
-                            *palette_ref = panels::command_palette(ctx);
-                            panels::toasts(ctx, toasts_ref);
+                            if edit_mode_snapshot {
+                                *palette_ref = panels::command_palette(ctx);
+                                panels::toasts(ctx, toasts_ref);
+                            }
                         }
                     },
                 );

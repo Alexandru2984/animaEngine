@@ -108,6 +108,7 @@ impl SettingsTab {
 #[allow(clippy::too_many_arguments)]
 pub fn settings(
     ctx: &egui::Context,
+    open: bool,
     scene: &mut Scene,
     selection: &mut SelectionState,
     config_dirty: &mut bool,
@@ -116,6 +117,7 @@ pub fn settings(
     onboarding: &mut OnboardingProgress,
     monitor_mode: &mut MonitorMode,
     window_awareness: &mut bool,
+    reduced_motion: &mut bool,
     monitors: &[MonitorInfo],
     library: Option<&LibraryIndex>,
     library_outcome: &mut Option<LibraryOutcome>,
@@ -127,10 +129,13 @@ pub fn settings(
     hotkey_backend: &str,
     shimeji_import: &mut Option<String>,
 ) {
+    // `show_animated` slides the panel in/out with egui's animation
+    // clock — which `ui::motion::set_reduced` zeroes under reduced
+    // motion, so the slide collapses to an instant show/hide for free.
     egui::SidePanel::right("anima_settings")
         .resizable(false)
         .default_width(320.0)
-        .show(ctx, |ui| {
+        .show_animated(ctx, open, |ui| {
             // ── Sticky header ─────────────────────────────────────────
             ui.add_space(SPACE_S);
             ui.horizontal(|ui| {
@@ -197,7 +202,7 @@ pub fn settings(
             let tab_alpha = ctx.animate_value_with_time(
                 egui::Id::new(("anima.settings.tab.alpha", active_tab)),
                 1.0,
-                0.1,
+                crate::ui::motion::time(ctx, 0.1),
             );
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
@@ -238,6 +243,7 @@ pub fn settings(
                                 config_dirty,
                                 onboarding,
                                 accesskit_enabled,
+                                reduced_motion,
                             );
                         }
                         SettingsTab::Keybindings => {

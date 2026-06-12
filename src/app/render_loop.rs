@@ -80,6 +80,8 @@ impl App {
         let cursor = Some((self.mouse_x, self.mouse_y));
         {
             let _s = self.perf_sampler.scope(crate::perf::Category::SceneUpdate);
+            self.scene
+                .set_reduced_motion(self.config.global.reduced_motion);
             self.scene.tick(screen_w, screen_h, cursor);
         }
 
@@ -178,6 +180,7 @@ impl App {
                         let onboarding_mut = &mut self.config.global.onboarding;
                         let monitor_mode_mut = &mut self.config.global.monitor_mode;
                         let window_awareness_mut = &mut self.config.global.window_awareness;
+                        let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         // Snapshot the AccessKit flag BEFORE taking
                         // its mutable borrow — the render closure
                         // syncs egui's runtime gate from this copy
@@ -230,6 +233,7 @@ impl App {
                                 } else {
                                     ctx.disable_accesskit();
                                 }
+                                crate::ui::motion::set_reduced(ctx, *reduced_motion_mut);
                                 // Toggle button is the only UI in
                                 // pass-through; in edit mode it sits
                                 // on top of everything else.
@@ -237,28 +241,34 @@ impl App {
                                     *toggle_requested_ref = true;
                                 }
 
+                                // Unconditional call: `open` drives
+                                // SidePanel::show_animated, so leaving
+                                // edit mode slides the panel out
+                                // instead of snapping it away.
+                                panels::settings(
+                                    ctx,
+                                    edit_mode,
+                                    scene_mut,
+                                    selection_mut,
+                                    config_dirty_mut,
+                                    theme_mut,
+                                    locale_mut,
+                                    onboarding_mut,
+                                    monitor_mode_mut,
+                                    window_awareness_mut,
+                                    reduced_motion_mut,
+                                    monitors_ref,
+                                    library_ref,
+                                    library_outcome_ref,
+                                    keybindings_mut,
+                                    collapse_state_mut,
+                                    accesskit_mut,
+                                    warnings_ref,
+                                    last_seen_whats_new_mut,
+                                    hotkey_backend_ref,
+                                    &mut shimeji_import,
+                                );
                                 if edit_mode {
-                                    panels::settings(
-                                        ctx,
-                                        scene_mut,
-                                        selection_mut,
-                                        config_dirty_mut,
-                                        theme_mut,
-                                        locale_mut,
-                                        onboarding_mut,
-                                        monitor_mode_mut,
-                                        window_awareness_mut,
-                                        monitors_ref,
-                                        library_ref,
-                                        library_outcome_ref,
-                                        keybindings_mut,
-                                        collapse_state_mut,
-                                        accesskit_mut,
-                                        warnings_ref,
-                                        last_seen_whats_new_mut,
-                                        hotkey_backend_ref,
-                                        &mut shimeji_import,
-                                    );
                                     if let Some(state) = &menu_state {
                                         *menu_outcome_ref = Some(panels::context_menu(ctx, state));
                                     }

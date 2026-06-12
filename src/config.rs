@@ -45,6 +45,13 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub monitor_mode: MonitorMode,
 
+    /// Reduced motion (a11y): disables UI transitions (panel slide,
+    /// tab cross-fade, toast/palette animations) and decorative
+    /// entity bobbing. Plain knob — no desktop portal exposes this
+    /// preference on every DE, so we don't try to auto-detect.
+    #[serde(default)]
+    pub reduced_motion: bool,
+
     /// Window-awareness: desktop windows become physics platforms —
     /// mascots land on and walk along window top edges. X11 sessions
     /// only (Wayland exposes no global window geometry); silently
@@ -93,6 +100,7 @@ impl Default for GlobalConfig {
             // every progressive hint will appear on the first run.
             onboarding: OnboardingProgress::default(),
             monitor_mode: MonitorMode::default(),
+            reduced_motion: false,
             window_awareness: false,
             accesskit_enabled: true,
             hotkey_backend: crate::hotkeys::probe::HotkeyBackend::Auto,

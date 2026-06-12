@@ -30,13 +30,38 @@ pub fn command_palette(ctx: &egui::Context) -> Option<PaletteOutcome> {
     let toggle = ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::K));
     let id = egui::Id::new("anima.palette");
     let mut open: bool = ctx.memory(|m| m.data.get_temp(id).unwrap_or(false));
+    let gen_id = id.with("open_gen");
     if toggle {
         open = !open;
-        ctx.memory_mut(|m| m.data.insert_temp(id, open));
+        let mut new_gen: Option<u32> = None;
+        ctx.memory_mut(|m| {
+            m.data.insert_temp(id, open);
+            if open {
+                // New open → new animation key, so the pop replays on
+                // every open instead of only the first.
+                let g = m.data.get_temp::<u32>(gen_id).unwrap_or(0).wrapping_add(1);
+                m.data.insert_temp(gen_id, g);
+                new_gen = Some(g);
+            }
+        });
+        if let Some(g) = new_gen {
+            // Seed the fresh key at 0 — egui returns the target as-is
+            // the first time it sees an id, which would skip the fade.
+            ctx.animate_value_with_time(id.with(("pop", g)), 0.0, 0.0);
+        }
     }
     if !open {
         return None;
     }
+    // Pop-in: quick fade driven by the per-open generation key. The
+    // duration goes through `motion::time`, so reduced motion makes it
+    // instant.
+    let open_gen: u32 = ctx.memory(|m| m.data.get_temp(gen_id).unwrap_or(0));
+    let pop = ctx.animate_value_with_time(
+        id.with(("pop", open_gen)),
+        1.0,
+        crate::ui::motion::time(ctx, 0.12),
+    );
 
     // ── Query state ───────────────────────────────────────────────
     let query_id = id.with("query");
@@ -56,6 +81,7 @@ pub fn command_palette(ctx: &egui::Context) -> Option<PaletteOutcome> {
         .order(egui::Order::Foreground)
         .fixed_pos(center - egui::vec2(220.0, 0.0))
         .show(ctx, |ui| {
+            ui.set_opacity(pop);
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.set_min_width(440.0);
 

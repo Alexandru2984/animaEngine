@@ -18,6 +18,7 @@ pub(super) fn appearance_tab(
     config_dirty: &mut bool,
     onboarding: &mut OnboardingProgress,
     accesskit_enabled: &mut bool,
+    reduced_motion: &mut bool,
 ) {
     ui.label(egui::RichText::new(t("appearance-theme-header")).text_style(h2()));
     ui.add_space(SPACE_S);
@@ -44,6 +45,14 @@ pub(super) fn appearance_tab(
     if ui
         .checkbox(accesskit_enabled, t("appearance-accesskit-label"))
         .on_hover_text(t("appearance-accesskit-hint"))
+        .changed()
+    {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    if ui
+        .checkbox(reduced_motion, t("appearance-reduced-motion-label"))
+        .on_hover_text(t("appearance-reduced-motion-hint"))
         .changed()
     {
         *config_dirty = true;

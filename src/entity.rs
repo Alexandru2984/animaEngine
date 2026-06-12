@@ -150,6 +150,7 @@ impl Entity {
         screen_height: f32,
         cursor: Option<(f32, f32)>,
         platforms: &[crate::platforms::PlatformRect],
+        reduced_motion: bool,
     ) -> bool {
         let sprite_w = self.scaled_width();
         let sprite_h = self.scaled_height();
@@ -160,6 +161,7 @@ impl Entity {
             screen_height,
             cursor,
             dt,
+            reduced_motion,
         };
 
         // Behavior — autonomous motion (can affect both X and Y).
