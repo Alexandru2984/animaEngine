@@ -178,6 +178,21 @@ impl PerfSampler {
         self.history.push_back(self.current);
     }
 
+    /// Test-only: append a frame with a synthetic `total`, bypassing
+    /// the wall clock. Quantile tests must be deterministic under a
+    /// loaded parallel runner — the wall-clock version of the p95 test
+    /// was the intermittent single-test failure pre-registered in
+    /// docs/plans/v0.9-freeze.md §W.2.
+    #[cfg(test)]
+    fn push_synthetic_total(&mut self, total: Duration) {
+        if self.history.len() == self.capacity {
+            self.history.pop_front();
+        }
+        let mut sample = FrameSample::empty(Duration::ZERO);
+        sample.total = total;
+        self.history.push_back(sample);
+    }
+
     /// Average frame total over the last `n` frames (capped to
     /// history length). Returns `None` when history is empty so the
     /// overlay can render a "warming up" placeholder.
@@ -450,18 +465,18 @@ mod tests {
 
     #[test]
     fn p95_returns_top_quantile() {
+        // Synthetic totals 1..=100 ms — deterministic under any
+        // scheduler load. The previous version timed 100 real
+        // (near-zero) frames and asserted p95 ≥ avg; one descheduled
+        // iteration produced an outlier that dragged the *mean* above
+        // p95 and failed the run. That was the recurring "unnamed
+        // flake" — named by nextest's retry harness on 2026-06-12.
         let mut s = PerfSampler::new(100);
-        for i in 0..100 {
-            s.begin_frame();
-            // Synthesize varying total directly via category sum.
-            s.add(Category::Idle, Duration::from_micros((i * 100) as u64));
-            s.end_frame();
+        for ms in 1..=100u64 {
+            s.push_synthetic_total(Duration::from_millis(ms));
         }
-        // p95 of frame totals — totals come from actual elapsed time,
-        // not the synth bucket, so this only asserts the API returns
-        // *something*. Sanity check: not less than average.
-        let avg = s.recent_avg_total(100).unwrap();
-        let p95 = s.recent_p95_total(100).unwrap();
-        assert!(p95 >= avg, "p95 {p95:?} should be ≥ avg {avg:?}");
+        assert_eq!(s.recent_avg_total(100), Some(Duration::from_micros(50_500)));
+        // idx = floor(100 × 0.95) = 95 → the 96th smallest of 1..=100.
+        assert_eq!(s.recent_p95_total(100), Some(Duration::from_millis(96)));
     }
 }
