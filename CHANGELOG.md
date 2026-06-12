@@ -6,6 +6,55 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-06-12
+
+Content & feature completion (Faza U). The release's spine is the
+multi-state animation engine; on top of it, Shimeji pack import gives
+animaEngine access to an existing ecosystem of thousands of
+community-made desktop mascots. The last two "lands later" promises
+from 0.3 (library thumbnails, group composition) are gone — nothing
+in the UI is stubbed anymore.
+
+### Added
+
+- **Multi-state animations** — entities carry per-state sequences
+  (`idle` / `walk` / `fall` / `drag`) declared as additive
+  `[characters.animations.<state>]` TOML tables; legacy
+  single-sequence configs load byte-identically and never gain the
+  key on save. State selection is behavior-driven with a strict
+  priority (drag > falling > walking > idle); missing states fall
+  back to idle; switches rewind the target sequence and re-upload
+  the texture. Horizontal facing follows motion and persists when
+  the entity stops; the renderer mirrors sprites via UV flip — no
+  texture duplication.
+- **Shimeji pack import** — drop a pack folder (`conf/` + `img/`)
+  onto the overlay, or paste its path in the Library tab. The
+  importer parses `actions.xml` (quick-xml: no DTD expansion by
+  construction; size/depth/attribute caps; image paths
+  canonicalised under the pack root), maps Stay/Move/Fall/Dragged
+  onto the four states, derives walk speed from pose velocities and
+  per-state fps from pose durations, and copies sprites into
+  `<library>/imported/<slug>/` so deleting the source folder can't
+  orphan the scene. Anything unmappable is skipped with a written
+  reason (toast summary + log). Full spec: `docs/shimeji-import.md`.
+- **Library thumbnails** (closes C.5) — generated on a background
+  thread at startup (first frame, 64 px, mtime-stale-checked), shown
+  in the asset rows with a capped texture cache; video assets keep
+  the film glyph by design.
+- **Group composition** (closes C.9) — a group's `offset_x/y` +
+  `scale` now actually transform its members: in the renderer (all
+  three paths), in the hit-test (clicks land where pixels are,
+  including alpha sampling at effective scale), and in the inspector
+  (effective-transform hint).
+
+### Changed
+
+- The library scanner skips the importer-managed `imported/`
+  directory — individual frames of imported sequences don't flood
+  the asset grid.
+- The aggregate memory budget counts every state's frames, not just
+  the active one.
+
 ## [0.6.0] — 2026-06-12
 
 Platform completeness (Faza T). The two oldest platform gaps close:

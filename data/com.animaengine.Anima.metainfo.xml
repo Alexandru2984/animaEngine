@@ -57,6 +57,17 @@
   </recommends>
 
   <releases>
+    <release version="0.7.0" date="2026-06-12">
+      <description>
+        <p>Content and feature completion: multi-state animations and Shimeji pack import.</p>
+        <ul>
+          <li>Entities switch between idle, walk, fall and drag animation sequences automatically, with direction-aware sprite mirroring.</li>
+          <li>Import Shimeji desktop-mascot packs by dropping the pack folder onto the overlay — sprites, states and walk speed map automatically.</li>
+          <li>The asset library shows thumbnails, generated in the background.</li>
+          <li>Sprite groups now apply their offset and scale visually, in the hit-test and in the inspector.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-06-12">
       <description>
         <p>Platform completeness: portal-based global shortcuts and true multi-monitor rendering.</p>

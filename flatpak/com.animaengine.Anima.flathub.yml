@@ -63,6 +63,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/Alexandru2984/animaEngine.git
-        tag: v0.5.5
-        commit: f91a3b4888338f0705adb31624e1f2f07e07a2be
+        tag: v0.7.0
+        # Pin the tag's commit hash here at submission time (see
+        # FLATHUB.md) — it isn't knowable before the release commit
+        # itself lands.
       - cargo-sources.json
