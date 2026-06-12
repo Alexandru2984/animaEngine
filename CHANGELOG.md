@@ -21,6 +21,33 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   planned for 0.9 (W.1/W.2) forward. The smoke test runs inside
   `dbus-run-session`, exercising the single-instance, tray and portal
   D-Bus paths instead of short-circuiting on "no session bus".
+- **CI hardening, round 2** — workflow hygiene: read-only token
+  (`permissions: contents: read`), `concurrency` with
+  cancel-in-progress (stale runs stop costing minutes), no global
+  `RUSTFLAGS: -D warnings` (it leaked into `cargo install` of CI
+  tools), `--locked` on every cargo invocation,
+  `persist-credentials: false` on every checkout, and an actionlint
+  job validating the workflows themselves. The smoke test now runs
+  the *release artifact* handed over from the build job instead of
+  paying for a second debug build. Two new weekly canaries: headless
+  Weston smoke — the first automated environment ever to run the
+  pure-Wayland fallback path (field-unvalidated since 0.6) — and an
+  lcov coverage artifact via cargo-llvm-cov.
+- **Video decode round-trip test** — the openh264 decoder FFI was the
+  one component no test executed. A programmatic fixture (frames
+  encoded with openh264's encoder, muxed by mp4's Mp4Writer — no
+  binary lands in the repo) now drives the full `load_video` pipeline
+  and asserts pixel colors after the YUV→RGBA conversion.
+
+### Fixed
+
+- **MP4 video loading for avcC-only files** — the SPS/PPS parameter
+  sets extracted from the container were wiped by a buffer reuse
+  before the decoder ever saw them, so any MP4 without in-band
+  parameter sets (most of them — mainstream encoders don't repeat
+  SPS/PPS in-stream) decoded zero frames and was rejected as empty.
+  Present since the video loader first shipped; caught immediately by
+  the new round-trip test.
 
 ### Changed
 

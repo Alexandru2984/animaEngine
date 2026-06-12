@@ -6,15 +6,31 @@ on:
   pull_request:
     branches: [main]
   # Weekly canary run: re-checks the advisory DBs against an unchanged
-  # tree and runs the beta-toolchain job below — upstream breakage gets
-  # caught the week it lands, not the day we happen to push.
+  # tree and runs the schedule-only jobs below (beta toolchain, Wayland
+  # smoke, coverage) — upstream breakage gets caught the week it lands,
+  # not the day we happen to push.
   schedule:
     - cron: '17 6 * * 1'
   workflow_dispatch:
 
+# CI only reads the repo; keep the token read-only (least privilege).
+permissions:
+  contents: read
+
+# Rapid-fire pushes supersede each other — cancel the stale run instead
+# of paying for both. Scheduled runs get their own group (a weekly
+# canary must never cancel a push run, or vice versa).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# NOTE: no global `RUSTFLAGS: -D warnings` — it would leak into every
+# cargo invocation in every job, including `cargo install` of CI tools,
+# where a warning in a tool's own dependency tree would fail *our*
+# pipeline. Warnings-as-errors is enforced where it belongs: clippy
+# (explicit -D) and rustdoc (RUSTDOCFLAGS on the doc job).
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
 
 jobs:
   fmt:
@@ -22,10 +38,24 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: actionlint
+      - run: actionlint
 
   clippy:
     name: clippy
@@ -40,6 +70,8 @@ jobs:
         os: [ubuntu-24.04]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -50,13 +82,15 @@ jobs:
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
             libxkbcommon-x11-dev libwayland-dev libxrandr-dev
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --locked --all-targets -- -D warnings
 
   doc:
     name: rustdoc
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Install system deps
         run: |
@@ -68,7 +102,7 @@ jobs:
       # Broken intra-doc links and malformed doc comments fail the
       # build; private items are documented because the crate is a
       # binary — the docs are for contributors, not an API surface.
-      - run: cargo doc --no-deps --document-private-items
+      - run: cargo doc --locked --no-deps --document-private-items
         env:
           RUSTDOCFLAGS: -D warnings
 
@@ -82,6 +116,8 @@ jobs:
         os: [ubuntu-24.04]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Install system deps
         run: |
@@ -99,15 +135,17 @@ jobs:
       # docs/plans/v0.9-freeze.md §W.2 (an intermittent single-test
       # failure surfaced ~3× during 0.6/0.7 and was never identified).
       # A test that fails twice still fails the job.
-      - run: cargo nextest run --all-targets --retries 1 --no-fail-fast
+      - run: cargo nextest run --locked --all-targets --retries 1 --no-fail-fast
       # nextest does not run doctests; keep them covered separately.
-      - run: cargo test --doc
+      - run: cargo test --locked --doc
 
   msrv:
     name: MSRV (1.88)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@master
         with:
           # Keep in sync with `rust-version` in Cargo.toml. Derived
@@ -128,6 +166,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-machete
@@ -141,6 +181,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       # The same validators `make validate` runs locally — but here
       # the tools are installed, so "skip" can't hide a regression.
       # The .desktop ↔ metainfo <id> match is what GNOME Shell keys
@@ -157,6 +199,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Install system deps
         run: |
@@ -166,6 +210,13 @@ jobs:
             libxkbcommon-x11-dev libwayland-dev libxrandr-dev
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked
+      # Hand the binary to the smoke jobs — they exercise *this*
+      # artifact instead of paying for a second (debug) build.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-binary
+          path: target/release/anima_engine
+          retention-days: 1
 
   smoke:
     name: smoke test (Xvfb)
@@ -173,27 +224,32 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+        with:
+          persist-credentials: false
+      # Runtime-only job: no Rust toolchain. The dev packages below
+      # pull in the runtime libraries the release binary links against
+      # (plus the ones dlopen'd at runtime, see Cargo.toml deb notes).
       - name: Install system deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev \
-            xvfb mesa-vulkan-drivers dbus dbus-daemon
-      - uses: Swatinem/rust-cache@v2
-      - name: Build
-        run: cargo build --locked
+            libvulkan1 mesa-vulkan-drivers libgl1 libx11-6 libxcb1 \
+            libxkbcommon0 libxkbcommon-x11-0 libwayland-client0 \
+            libxrandr2 xvfb dbus dbus-daemon
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-binary
+      - run: chmod +x anima_engine
       # dbus-run-session provides a real session bus, so the D-Bus
       # paths (single-instance name ownership, tray probe, portal
       # probe) execute instead of short-circuiting on "no bus".
-      - name: Run under Xvfb + session bus for 5 seconds
+      - name: Run release binary under Xvfb + session bus for 5 seconds
         run: |
           export DISPLAY=:99
           Xvfb :99 -screen 0 1280x720x24 &
           sleep 2
           timeout --preserve-status 5s \
-            dbus-run-session -- cargo run --quiet || EXIT=$?
+            dbus-run-session -- ./anima_engine || EXIT=$?
           # 124 = timeout fired (expected); 0 = clean exit; anything else = failure
           if [ "${EXIT:-0}" != "0" ] && [ "${EXIT:-0}" != "124" ] && [ "${EXIT:-0}" != "143" ]; then
             echo "App exited with non-success/non-timeout code: $EXIT"
@@ -214,6 +270,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-audit
         run: cargo install --locked cargo-audit
@@ -230,15 +288,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-deny
         run: cargo install --locked cargo-deny
       - run: cargo deny check
 
-  # ── Weekly canary (schedule / manual only) ──────────────────────────
-  # Early warning for rustc regressions: next stable's breakage shows
-  # up here weeks before it can break the gating jobs. Failures arrive
-  # as a red scheduled run — they never block a push or a PR.
+  # ── Weekly canaries (schedule / manual only) ────────────────────────
+  # Early-warning jobs: they surface upstream or platform drift as a
+  # red scheduled run, and never block a push or a PR.
 
   beta:
     name: beta toolchain canary
@@ -246,6 +305,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@beta
         with:
           components: clippy
@@ -258,5 +319,78 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo nextest run --all-targets --retries 1 --no-fail-fast
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo nextest run --locked --all-targets --retries 1 --no-fail-fast
+
+  smoke-wayland:
+    name: smoke test (headless Weston)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan1 mesa-vulkan-drivers libgl1 libxkbcommon0 \
+            libxkbcommon-x11-0 libwayland-client0 \
+            weston dbus dbus-daemon
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-binary
+      - run: chmod +x anima_engine
+      # Weston implements no wlr-layer-shell, so this exercises the
+      # documented fallback chain on a pure-Wayland session (no X):
+      # compositor probe → no layer-shell → winit Wayland toplevel.
+      # That path is field-unvalidated since 0.6 (see the 0.6.0 release
+      # notes "Known limitations") — this canary is the first automated
+      # environment that runs it at all.
+      - name: Run release binary under headless Weston for 5 seconds
+        run: |
+          export XDG_RUNTIME_DIR=/tmp/xdg-runtime
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          weston --backend=headless --socket=wayland-ci --idle-time=0 &
+          sleep 3
+          export WAYLAND_DISPLAY=wayland-ci
+          unset DISPLAY
+          timeout --preserve-status 5s \
+            dbus-run-session -- ./anima_engine || EXIT=$?
+          if [ "${EXIT:-0}" != "0" ] && [ "${EXIT:-0}" != "124" ] && [ "${EXIT:-0}" != "143" ]; then
+            echo "App exited with non-success/non-timeout code: $EXIT"
+            exit 1
+          fi
+          echo "Wayland smoke test passed."
+
+  coverage:
+    name: coverage (lcov artifact)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+      - run: cargo llvm-cov nextest --locked --all-targets --lcov --output-path lcov.info
+      # No external coverage service — the lcov file is the artifact;
+      # inspect locally with `genhtml` or an editor extension.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: lcov.info
+          retention-days: 30
