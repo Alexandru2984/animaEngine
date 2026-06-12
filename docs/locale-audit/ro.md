@@ -1,6 +1,6 @@
 # Locale audit — Română (`ro`)
 
-**Status:** complete through 0.8 (2026-06-12 pass — all 0.4–0.8 strings translated; identical-to-EN keys verified as legitimate cognates). Human native review still welcome before 1.0.
+**Status:** complete (maintainer-native locale — translated at source for every release).
 **Last AI cross-check:** 2026-06-05 (automated). Maintainer is native Romanian, so the audit role here is "fresh eye spot check," not gap-fill.
 
 ## Glossary (locale-specific anchors)
