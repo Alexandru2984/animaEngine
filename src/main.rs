@@ -88,6 +88,19 @@ fn main() {
         config.global.playback_enabled
     );
 
+    // Bound the on-disk decoded-frame cache (W.2). Editing or swapping
+    // assets orphans old cache files; this evicts the oldest once the
+    // directory exceeds its cap. Off-thread so a large sweep never
+    // delays the window appearing.
+    if let Err(e) = std::thread::Builder::new()
+        .name("anima-cache-sweep".into())
+        .spawn(|| {
+            anima_engine::animation::cache::sweep();
+        })
+    {
+        tracing::warn!("Cache-sweep thread failed to spawn: {e}");
+    }
+
     // i18n: prefer the explicit setting in config; otherwise detect from
     // the user's environment locale. After this call, anima_engine::i18n::t
     // is available everywhere.

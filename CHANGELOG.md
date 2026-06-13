@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Bounded on-disk decode cache (W.2)** — the content-addressed
+  texture cache orphaned a `.bin` file whenever an asset's mtime or
+  size changed, and nothing reclaimed them, so a long-lived install
+  with edited assets grew the cache dir without bound.
+  `cache::sweep` (run once at startup, off-thread) now evicts
+  oldest-first once the directory exceeds 1 GiB. The W.2 leak audit
+  (docs/soak-testing.md) found every memory-side suspect already
+  bounded; this was the only real growth.
 - **Memory soak harness (W.1)** — `scripts/soak.sh` runs a 16-entity
   synthetic scene under Xvfb and least-squares-regresses RSS against
   time to catch slow leaks, emitting a `build/soak-report-<date>.md`

@@ -11,8 +11,10 @@
 //! breaking the filesystem semantics. mtime is read in nanoseconds (not
 //! seconds) so two saves within the same second still invalidate; size
 //! and child count cover the corner case where the filesystem floors
-//! mtime to the second on some media (FAT32 / SMB). Orphan files from
-//! previous keys leak on disk; a sweep is left for the packaging phase.
+//! mtime to the second on some media (FAT32 / SMB). Editing an asset
+//! orphans its previous cache file; [`sweep`] (run once at startup)
+//! evicts the oldest `.bin` files when the directory exceeds
+//! `CACHE_DIR_CAP_BYTES`, so the orphans can't grow without bound.
 //!
 //! ## File format (little-endian)
 //! ```text
@@ -50,6 +52,102 @@ fn cache_disabled() -> bool {
 fn cache_root() -> Option<PathBuf> {
     let dirs = directories::ProjectDirs::from("", "", "animaEngine")?;
     Some(dirs.cache_dir().join("textures"))
+}
+
+/// On-disk cap for the decoded-frame cache. Beyond it, [`sweep`] evicts
+/// the oldest `.bin` files. Sized to hold a couple of max-size assets
+/// (each up to `MAX_DECODED_ASSET_BYTES` = 512 MiB) plus a working set
+/// of smaller ones, so ordinary use never trims — only a long history
+/// of edited/large assets does.
+const CACHE_DIR_CAP_BYTES: u64 = 1024 * 1024 * 1024; // 1 GiB
+
+/// What a [`sweep`] did. `kept_bytes` is the on-disk total afterwards.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct SweepReport {
+    pub removed: usize,
+    pub freed_bytes: u64,
+    pub kept_bytes: u64,
+}
+
+/// Evict the oldest cache files until the texture cache directory is
+/// under `CACHE_DIR_CAP_BYTES` (W.2 — bounds the orphan-file growth
+/// the keying scheme creates). Best-effort and side-effect-only:
+/// disabled by `ANIMA_NO_CACHE`, a no-op when the dir is missing or
+/// already small. Run once at startup, off the hot path — never per
+/// frame.
+pub fn sweep() -> SweepReport {
+    if cache_disabled() {
+        return SweepReport::default();
+    }
+    match cache_root() {
+        Some(root) => sweep_dir(&root, CACHE_DIR_CAP_BYTES),
+        None => SweepReport::default(),
+    }
+}
+
+/// IO half of [`sweep`]: stat every `.bin`, and if the total exceeds
+/// `cap`, delete oldest-first (by mtime) until it fits. The decision of
+/// *how many* to drop is the pure [`evictions_needed`].
+fn sweep_dir(root: &Path, cap: u64) -> SweepReport {
+    let Ok(read) = fs::read_dir(root) else {
+        return SweepReport::default();
+    };
+    // (path, size, mtime) for every cache file.
+    let mut files: Vec<(PathBuf, u64, SystemTime)> = Vec::new();
+    for entry in read.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|x| x.to_str()) != Some("bin") {
+            continue;
+        }
+        let Ok(meta) = entry.metadata() else { continue };
+        if !meta.is_file() {
+            continue;
+        }
+        let mtime = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+        files.push((path, meta.len(), mtime));
+    }
+
+    files.sort_by_key(|(_, _, mtime)| *mtime); // oldest first
+    let sizes: Vec<u64> = files.iter().map(|(_, len, _)| *len).collect();
+    let total: u64 = sizes.iter().sum();
+    let drop_count = evictions_needed(&sizes, cap);
+
+    let mut freed = 0;
+    let mut removed = 0;
+    for (path, len, _) in files.into_iter().take(drop_count) {
+        if fs::remove_file(&path).is_ok() {
+            freed += len;
+            removed += 1;
+        }
+    }
+    if removed > 0 {
+        tracing::info!(
+            "Texture cache sweep: removed {removed} file(s), freed {} MiB (cap {} MiB)",
+            freed / (1024 * 1024),
+            cap / (1024 * 1024)
+        );
+    }
+    SweepReport {
+        removed,
+        freed_bytes: freed,
+        kept_bytes: total.saturating_sub(freed),
+    }
+}
+
+/// Pure eviction planner: given file sizes ordered **oldest-first** and
+/// a cap, return how many leading (oldest) files to remove so the rest
+/// fit under `cap`. Returns 0 when already under cap.
+fn evictions_needed(sizes_oldest_first: &[u64], cap: u64) -> usize {
+    let mut remaining: u64 = sizes_oldest_first.iter().sum();
+    let mut count = 0;
+    for &size in sizes_oldest_first {
+        if remaining <= cap {
+            break;
+        }
+        remaining = remaining.saturating_sub(size);
+        count += 1;
+    }
+    count
 }
 
 /// Compute the cache file path for an asset, or `None` if we can't build
@@ -458,5 +556,62 @@ mod tests {
             count: 1,
         };
         assert_eq!(hash_fingerprint(&canon, &fp), hash_fingerprint(&canon, &fp),);
+    }
+
+    // ── Cache sweep (W.2) ────────────────────────────────────────────
+
+    #[test]
+    fn evictions_needed_under_cap_drops_nothing() {
+        assert_eq!(evictions_needed(&[10, 20, 30], 100), 0);
+        assert_eq!(evictions_needed(&[], 100), 0);
+    }
+
+    #[test]
+    fn evictions_needed_drops_oldest_until_under_cap() {
+        // total 100, cap 50 → drop oldest (10, 20, 30 = 60 freed)
+        // leaving 40 ≤ 50. That's 3 leading files.
+        assert_eq!(evictions_needed(&[10, 20, 30, 40], 50), 3);
+        // cap 0 → everything goes.
+        assert_eq!(evictions_needed(&[5, 5, 5], 0), 3);
+        // exactly at cap → nothing.
+        assert_eq!(evictions_needed(&[50, 50], 100), 0);
+        // one over → drop just the oldest.
+        assert_eq!(evictions_needed(&[50, 50, 1], 100), 1);
+    }
+
+    #[test]
+    fn sweep_dir_trims_to_cap_and_ignores_non_bin() {
+        let dir = std::env::temp_dir().join(format!("anima_sweep_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        // Five 100-byte .bin files (500 total) + one unrelated file the
+        // sweep must never touch.
+        for i in 0..5 {
+            fs::write(dir.join(format!("{i:016x}.bin")), vec![0u8; 100]).unwrap();
+        }
+        fs::write(dir.join("library.toml"), b"keep me").unwrap();
+
+        let report = sweep_dir(&dir, 250);
+        // 500 > 250 → must drop the three oldest (300 freed, 200 kept).
+        assert_eq!(report.removed, 3, "{report:?}");
+        assert!(report.kept_bytes <= 250, "kept {} > cap", report.kept_bytes);
+        assert_eq!(report.freed_bytes, 300);
+        // The non-.bin file survives.
+        assert!(dir.join("library.toml").exists());
+        let bins = fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("bin"))
+            .count();
+        assert_eq!(bins, 2);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sweep_dir_missing_dir_is_noop() {
+        let dir = std::env::temp_dir().join("anima_sweep_does_not_exist_xyz");
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(sweep_dir(&dir, 100), SweepReport::default());
     }
 }

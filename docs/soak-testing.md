@@ -109,12 +109,36 @@ CI runs a 10-minute variant nightly (`soak` job, schedule-only) and
 uploads the report. The threshold there is 1024 KiB/min over ~30
 samples on llvmpipe.
 
-### W.2 pre-registered leak suspects
+### W.2 leak audit (boundedness ledger)
 
-When the harness flags DRIFT, start with these (the W.2 backlog):
-egui texture deltas, toast-queue growth, hotplug window-registry
-remnants, portal session re-binds. `texture_count` and
-`decoded_bytes` columns localise GPU- vs decode-side growth.
+The short soak ran flat, so W.2 was a proactive code audit of the
+pre-registered suspects plus the other long-session growth candidates.
+Findings — each is bounded with the cited mechanism:
+
+| Suspect | Bound / mechanism | Evidence |
+|---|---|---|
+| egui texture deltas | every `textures_delta.free` id is released | `ui/egui_renderer.rs` free loop, unconditional |
+| Toast queue | hard cap `MAX_TOASTS = 8`; oldest evicted on push, expired pruned per frame | `ui/toasts.rs`; tests `cap_drops_oldest`, `prune_removes_expired` |
+| Hotplug window registry | `extra_windows` cleared before each rebuild (no stale slots); entity textures pruned every frame | `app/windows.rs::rebuild_extra_windows`, `renderer::prune_stale_textures` |
+| Portal session | one `CreateSession` at startup, no re-bind loop (T.4 deferred) | `hotkeys/portal.rs::spawn_bg` (single call) |
+| Hot-reload threads | one worker at a time (`hot_reload_rx.is_some()` gate); self-terminating after send | `app/hot_reload.rs::check_hot_reload` |
+| Perf ring buffer | fixed `capacity` (1024), evicts oldest | `perf.rs::end_frame` |
+| Library thumbnail textures | egui memory cache capped at `THUMB_TEXTURE_CAP = 256` | `ui/panels/library.rs` |
+| **On-disk decode cache** | **was unbounded** — fixed in W.2 | `animation/cache.rs::sweep`, 1 GiB cap, oldest evicted at startup |
+
+The only real growth found was the **on-disk** decoded-frame cache:
+the content-addressed keying orphans a file whenever an asset's
+mtime/size changes, and nothing ever reclaimed them. `cache::sweep`
+(run once at startup, off-thread) now evicts oldest-first past a 1 GiB
+cap. No unbounded *memory* growth was found.
+
+When the harness flags DRIFT despite this, the `texture_count` and
+`decoded_bytes` columns localise GPU- vs decode-side growth; re-walk
+the table above for the responsible subsystem.
+
+**Exit criterion (maintainer):** a 24 h soak flat before declaring W.2
+closed, and the 7-day desktop run (below) started here and carried
+through release.
 
 ## 7-day desktop protocol (manual, pre-1.0)
 
