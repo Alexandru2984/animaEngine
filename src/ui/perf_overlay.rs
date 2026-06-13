@@ -15,6 +15,14 @@
 //!   five [`Category`] buckets.
 //! - **RSS** — resident-set size in MB, when available (Linux only,
 //!   read from `/proc/self/status`).
+//! - **GPU block** (W.3) — VRAM estimate (decoded asset bytes + GPU
+//!   texture-cache bytes), live texture count + uploads last frame,
+//!   and entity draw calls last frame. The same memory the soak
+//!   harness regresses, shown live. GPU *pass time* via
+//!   `TIMESTAMP_QUERY` is feature-detected at renderer init (logged)
+//!   but the timed readback is deferred — it needs GPU hardware that
+//!   exposes the feature to validate against (llvmpipe, our CI
+//!   adapter, does not).
 //!
 //! Snapshot export and RAM tracking live in [`crate::perf`] helpers;
 //! the overlay only triggers them. A snapshot writes one chrome-
@@ -27,12 +35,32 @@ use std::time::Duration;
 /// handles the actual IO so the overlay function stays pure-UI.
 pub struct ExportRequest;
 
+/// GPU-side numbers for the HUD (W.3). Assembled by the render loop
+/// from the renderer; the HUD becomes the soak harness's visual twin
+/// for the memory side.
+#[derive(Clone, Copy, Default)]
+pub struct GpuStats {
+    /// Decoded asset bytes held in CPU frame buffers
+    /// (`Scene::total_decoded_bytes`).
+    pub decoded_bytes: usize,
+    /// Estimated GPU texture-cache bytes (RGBA8).
+    pub texture_bytes: u64,
+    /// Live entity textures.
+    pub texture_count: usize,
+    /// Texture uploads (create / update / recreate) in the previous
+    /// frame — non-zero means the cache is churning.
+    pub uploads_last_frame: u32,
+    /// Entity draw calls in the previous frame.
+    pub draws_last_frame: u32,
+}
+
 /// Render the perf overlay. Returns `Some(ExportRequest)` when the
 /// user clicks the export button this frame.
 pub fn show(
     ctx: &egui::Context,
     sampler: &PerfSampler,
     rss_kib: Option<u64>,
+    gpu: GpuStats,
 ) -> Option<ExportRequest> {
     let mut export_clicked = false;
     egui::Window::new("Perf")
@@ -91,6 +119,32 @@ pub fn show(
                 })
                 .text_style(egui::TextStyle::Monospace),
             );
+            ui.separator();
+
+            // ── GPU / memory block (W.3) — the soak's visual twin ────
+            let vram_mib =
+                (gpu.decoded_bytes as u64 + gpu.texture_bytes) as f64 / (1024.0 * 1024.0);
+            ui.label(
+                egui::RichText::new(format!("VRAM {vram_mib:>6.1} MiB"))
+                    .text_style(egui::TextStyle::Monospace),
+            )
+            .on_hover_text(
+                "Estimate: decoded asset bytes + GPU texture cache (RGBA8). \
+                Same memory the soak harness regresses.",
+            );
+            ui.label(
+                egui::RichText::new(format!(
+                    "tex   {:>4}  {:>3} up/f",
+                    gpu.texture_count, gpu.uploads_last_frame
+                ))
+                .text_style(egui::TextStyle::Monospace),
+            )
+            .on_hover_text("Live entity textures and uploads (create/update) last frame.");
+            ui.label(
+                egui::RichText::new(format!("draws {:>4}/f", gpu.draws_last_frame))
+                    .text_style(egui::TextStyle::Monospace),
+            )
+            .on_hover_text("Entity draw calls last frame (one per visible quad).");
             ui.separator();
 
             // ── Sparkline-ish histogram (last 120 frame totals) ──────

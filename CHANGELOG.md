@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Perf HUD GPU block (W.3)** — the perf overlay (Ctrl+Shift+\`) now
+  shows a VRAM estimate (decoded asset bytes + GPU texture-cache
+  bytes), the live texture count and uploads-per-frame, and draw
+  calls per frame — the same memory the soak harness regresses, live.
+  GPU pass-time via `TIMESTAMP_QUERY` is feature-detected and logged
+  at startup; the timed readback is deferred pending an adapter that
+  exposes it (CI's software renderer doesn't).
 - **Bounded on-disk decode cache (W.2)** — the content-addressed
   texture cache orphaned a `.bin` file whenever an asset's mtime or
   size changed, and nothing reclaimed them, so a long-lived install

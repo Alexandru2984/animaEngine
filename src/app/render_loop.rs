@@ -56,6 +56,15 @@ impl App {
         }
         self.perf_frame_counter = self.perf_frame_counter.wrapping_add(1);
 
+        // Capture-and-reset the previous frame's GPU op counters (W.3).
+        // Read-only on the renderer (the counters are `Cell`s), so it
+        // doesn't conflict with the `&mut renderer` borrow later.
+        if let Some(renderer) = self.renderer.as_ref() {
+            let (uploads, draws) = renderer.shared.take_frame_gpu_counters();
+            self.gpu_uploads = uploads;
+            self.gpu_draws = draws;
+        }
+
         // Soak metrics (W.1) — no-op unless ANIMA_SOAK_METRICS is set.
         // Read before the &mut renderer borrow below; texture count
         // lags by at most one frame, which is irrelevant at the
@@ -169,6 +178,17 @@ impl App {
                     // paints just the toggle ⚙ button; in edit mode it
                     // adds the settings panel, context menu, toasts.
                     self.toasts.prune();
+
+                    // GPU stats for the perf HUD (W.3). Built here while
+                    // `renderer` and `self.scene` are still freely
+                    // readable — before the disjoint &mut borrows below.
+                    let gpu_stats = crate::ui::perf_overlay::GpuStats {
+                        decoded_bytes: self.scene.total_decoded_bytes(),
+                        texture_bytes: renderer.shared.texture_bytes(),
+                        texture_count: renderer.shared.textures.len(),
+                        uploads_last_frame: self.gpu_uploads,
+                        draws_last_frame: self.gpu_draws,
+                    };
 
                     let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
                     let mut palette_outcome: Option<panels::PaletteOutcome> = None;
@@ -313,6 +333,7 @@ impl App {
                                         ctx,
                                         perf_sampler_ref,
                                         perf_rss_kib,
+                                        gpu_stats,
                                     )
                                     .is_some()
                                 {

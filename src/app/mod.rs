@@ -107,6 +107,10 @@ pub struct App {
     /// Soak-test metrics emitter (W.1). `None` unless
     /// `ANIMA_SOAK_METRICS` is set; ticked once per frame.
     soak: Option<crate::soak::SoakRecorder>,
+    /// Previous frame's GPU texture uploads / draw calls, for the perf
+    /// HUD (W.3). Captured-and-reset at each frame's start.
+    gpu_uploads: u32,
+    gpu_draws: u32,
     /// Snapshot of the monitor topology taken on the first `resumed()`
     /// — empty until then. Used by the picker UI (C.2) and the
     /// per-monitor render path (C.3); the data layer (this commit /
@@ -202,6 +206,8 @@ impl App {
             perf_last_rss_kib: None,
             perf_frame_counter: 0,
             soak: crate::soak::SoakRecorder::from_env(),
+            gpu_uploads: 0,
+            gpu_draws: 0,
             monitors: Vec::new(),
             window_watcher: None,
             window_watcher_probe_done: false,

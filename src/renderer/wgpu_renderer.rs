@@ -52,6 +52,44 @@ pub struct GpuShared {
     edit_bar_tex: GpuTexture,
     /// UI: selection highlight texture (semi-transparent border).
     selection_tex: GpuTexture,
+    /// Per-frame GPU op counters for the perf HUD (W.3). `Cell` because
+    /// `SurfaceState::render` borrows `&GpuShared`; single-threaded
+    /// (renderer lives on the event-loop thread), reset once per frame
+    /// via `take_frame_gpu_counters`.
+    uploads_this_frame: std::cell::Cell<u32>,
+    draws_this_frame: std::cell::Cell<u32>,
+}
+
+impl GpuShared {
+    /// Note one texture upload (create / in-place update / recreate).
+    fn note_upload(&self) {
+        self.uploads_this_frame
+            .set(self.uploads_this_frame.get() + 1);
+    }
+
+    /// Note one draw call.
+    fn note_draw(&self) {
+        self.draws_this_frame.set(self.draws_this_frame.get() + 1);
+    }
+
+    /// Read and reset the per-frame upload/draw counters. Call once per
+    /// frame (start), so the HUD shows the previous frame's totals.
+    pub fn take_frame_gpu_counters(&self) -> (u32, u32) {
+        (
+            self.uploads_this_frame.replace(0),
+            self.draws_this_frame.replace(0),
+        )
+    }
+
+    /// Estimated GPU memory held by the entity texture cache, in bytes
+    /// (RGBA8 → width × height × 4 per texture). The UI/edit textures
+    /// are tiny and omitted.
+    pub fn texture_bytes(&self) -> u64 {
+        self.textures
+            .values()
+            .map(|t| t.width as u64 * t.height as u64 * 4)
+            .sum()
+    }
 }
 
 /// Per-window render state.
@@ -149,6 +187,19 @@ impl GpuShared {
 
         tracing::info!("GPU adapter: {}", adapter.get_info().name);
         tracing::info!("Backend: {:?}", adapter.get_info().backend);
+        // GPU pass-time in the perf HUD needs TIMESTAMP_QUERY. Software
+        // adapters (llvmpipe) don't expose it, so we log availability
+        // and leave the timed readback for a machine that has it (W.3
+        // deferred GPU-timing). The HUD's VRAM/upload/draw rows don't
+        // depend on this.
+        tracing::info!(
+            "TIMESTAMP_QUERY (GPU pass timing): {}",
+            if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+                "available"
+            } else {
+                "unavailable (no GPU-time HUD row)"
+            }
+        );
 
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
@@ -330,6 +381,8 @@ impl GpuShared {
             alpha_mode,
             edit_bar_tex,
             selection_tex,
+            uploads_this_frame: std::cell::Cell::new(0),
+            draws_this_frame: std::cell::Cell::new(0),
         })
     }
 
@@ -347,6 +400,7 @@ impl GpuShared {
                     &entity.id,
                 );
                 self.textures.insert(entity.id.clone(), gpu_tex);
+                self.note_upload();
             }
         } else if entity.texture_dirty {
             if let Some(frame) = entity.animation().current_frame_data() {
@@ -354,6 +408,7 @@ impl GpuShared {
                     // If same size, update in place
                     if gpu_tex.width == frame.width && gpu_tex.height == frame.height {
                         gpu_tex.update_from_frame(&self.queue, frame);
+                        self.note_upload();
                     } else {
                         // Different size: recreate texture
                         let new_tex = GpuTexture::from_frame(
@@ -364,6 +419,7 @@ impl GpuShared {
                             &entity.id,
                         );
                         self.textures.insert(entity.id.clone(), new_tex);
+                        self.note_upload();
                     }
                 }
             }
@@ -691,6 +747,7 @@ impl SurfaceState {
                 render_pass
                     .set_vertex_buffer(0, self.dynamic_vertex_buffer.slice(byte_offset..byte_end));
                 render_pass.draw_indexed(0..6, 0, 0..1);
+                shared.note_draw();
             }
         }
 
