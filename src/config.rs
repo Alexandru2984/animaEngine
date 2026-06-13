@@ -246,9 +246,27 @@ pub struct WindowConfig {
     pub characters: Vec<CharacterConfig>,
 }
 
+/// Current config schema version (W.0, 0.9). Bumped only when a change
+/// is **not** purely additive — additive fields keep using serde
+/// `default` and need no migration. `v1` is every config written before
+/// 0.9 (no `version` key at all). See `migrate_table`.
+pub const CURRENT_SCHEMA_VERSION: u32 = 2;
+
+/// serde default for [`AppConfig::schema_version`]: a config file with
+/// no `version` key predates 0.9, i.e. schema v1.
+fn schema_version_legacy() -> u32 {
+    1
+}
+
 /// Full application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
+    /// Schema version. **Must be the first field** so it serialises as a
+    /// top-level scalar before any `[section]` (TOML forbids a bare key
+    /// after a table). Absent in pre-0.9 files → treated as v1 and
+    /// migrated on load; always re-written as [`CURRENT_SCHEMA_VERSION`].
+    #[serde(rename = "version", default = "schema_version_legacy")]
+    pub schema_version: u32,
     pub global: GlobalConfig,
     #[serde(rename = "characters")]
     pub characters: Vec<CharacterConfig>,
@@ -277,6 +295,15 @@ pub struct AppConfig {
     /// `CollapseState::default()`.
     #[serde(default)]
     pub collapse_state: CollapseState,
+    /// Forward-compatibility catch-all (W.0). Top-level `[section]`
+    /// blocks this build doesn't model — e.g. a section added by a
+    /// newer animaEngine — are captured here on load and written back
+    /// verbatim on save, instead of being silently dropped. **Must be
+    /// the last field** so unknown tables serialise after the known
+    /// ones. Preserves unknown *sections*, not unknown bare keys at the
+    /// document root (TOML ordering makes that unrepresentable here).
+    #[serde(flatten, default)]
+    pub extra: toml::Table,
 }
 
 impl AppConfig {
@@ -423,9 +450,67 @@ impl Default for AppConfig {
             groups: vec![],
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
+            schema_version: CURRENT_SCHEMA_VERSION,
+            extra: toml::Table::new(),
         }
     }
 }
+
+/// Read the `version` key from a parsed config table.
+///
+/// - absent → `1` (every config written before 0.9 is schema v1);
+/// - a positive integer → that version;
+/// - anything else (string, float, negative, zero) → treated as
+///   [`CURRENT_SCHEMA_VERSION`] with a warning. A malformed version
+///   field must never be a reason to wipe a user's config — we'd
+///   rather skip migration than run the wrong one.
+fn detect_schema_version(table: &toml::Table) -> u32 {
+    match table.get("version") {
+        None => 1,
+        Some(toml::Value::Integer(n)) if *n >= 1 => *n as u32,
+        Some(other) => {
+            tracing::warn!(
+                "config `version` is malformed ({other:?}); treating as current ({CURRENT_SCHEMA_VERSION}) and skipping migration"
+            );
+            CURRENT_SCHEMA_VERSION
+        }
+    }
+}
+
+/// Bring a parsed config table up to [`CURRENT_SCHEMA_VERSION`] in
+/// place, then stamp the version. Pure: no IO, no deserialisation.
+/// Returns the version it started from (for backup naming / logging).
+///
+/// The chain is ordered and idempotent: re-running it on an
+/// already-current table is a no-op apart from re-stamping the same
+/// version.
+fn migrate_table(table: &mut toml::Table) -> u32 {
+    let from = detect_schema_version(table);
+    let mut v = from;
+    while v < CURRENT_SCHEMA_VERSION {
+        match v {
+            1 => migrate_v1_v2(table),
+            // Unreachable while CURRENT_SCHEMA_VERSION == 2; the arm is
+            // here so adding a v2→v3 migration is a one-line change and
+            // a missing arm is a loud panic, not a silent skip.
+            other => unreachable!("no migration registered for schema v{other}"),
+        }
+        v += 1;
+    }
+    table.insert(
+        "version".to_string(),
+        toml::Value::Integer(CURRENT_SCHEMA_VERSION as i64),
+    );
+    from
+}
+
+/// v1 → v2: structurally identical. Every config change from 0.2
+/// through 0.8 was additive and is handled by serde `default`s, so
+/// there is nothing to rewrite — this migration only exists to stamp
+/// the version and to prove the chain runs end to end. The first
+/// genuinely non-additive change (a renamed/removed/retyped key) lands
+/// here as real rewrite logic.
+fn migrate_v1_v2(_table: &mut toml::Table) {}
 
 impl AppConfig {
     /// Get the config file path: ~/.config/animaEngine/config.toml
@@ -449,18 +534,64 @@ impl AppConfig {
 
         if path.exists() {
             match fs::read_to_string(&path) {
-                Ok(contents) => match toml::from_str::<AppConfig>(&contents) {
-                    Ok(mut config) => {
-                        if config.characters.len() > MAX_ENTITIES {
-                            tracing::warn!(
-                                "Config has {} characters, capping at {} to prevent resource exhaustion",
-                                config.characters.len(),
-                                MAX_ENTITIES
-                            );
-                            config.characters.truncate(MAX_ENTITIES);
+                Ok(contents) => match contents.parse::<toml::Table>() {
+                    Ok(mut table) => {
+                        // Schema migration (W.0). Detect the on-disk
+                        // version first; if it's behind, copy the file
+                        // aside *before* mutating so a migration bug can
+                        // never be why a user loses their config.
+                        let from = detect_schema_version(&table);
+                        if from < CURRENT_SCHEMA_VERSION {
+                            let backup = path.with_extension(format!("toml.bak-v{from}"));
+                            match fs::copy(&path, &backup) {
+                                Ok(_) => tracing::info!(
+                                    "Migrating config v{from} → v{CURRENT_SCHEMA_VERSION}; backed up original to {}",
+                                    crate::drop_validate::redact_path(&backup)
+                                ),
+                                Err(e) => tracing::warn!(
+                                    "Could not write migration backup {}: {e}",
+                                    backup.display()
+                                ),
+                            }
                         }
-                        tracing::info!("Loaded config with {} characters", config.characters.len());
-                        return config;
+                        migrate_table(&mut table);
+
+                        // Deserialise from the migrated Value, not a
+                        // re-serialised string: a top-level scalar
+                        // (`version`) sorted among the section keys would
+                        // trip TOML's "value after table" rule on the way
+                        // back out. `try_into` doesn't care about order.
+                        match toml::Value::Table(table).try_into::<AppConfig>() {
+                            Ok(mut config) => {
+                                if config.characters.len() > MAX_ENTITIES {
+                                    tracing::warn!(
+                                        "Config has {} characters, capping at {} to prevent resource exhaustion",
+                                        config.characters.len(),
+                                        MAX_ENTITIES
+                                    );
+                                    config.characters.truncate(MAX_ENTITIES);
+                                }
+                                tracing::info!(
+                                    "Loaded config with {} characters (schema v{})",
+                                    config.characters.len(),
+                                    config.schema_version
+                                );
+                                // Persist the migrated form straight away so
+                                // the next launch sees the current version and
+                                // skips re-migrating / re-backing-up. Best
+                                // effort: a failure here just means we migrate
+                                // again next time, which is idempotent.
+                                if from < CURRENT_SCHEMA_VERSION {
+                                    if let Err(e) = config.save() {
+                                        tracing::warn!("Could not persist migrated config: {e}");
+                                    }
+                                }
+                                return config;
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to decode config: {}. Using defaults.", e);
+                            }
+                        }
                     }
                     Err(e) => {
                         tracing::warn!("Failed to parse config: {}. Using defaults.", e);
@@ -693,6 +824,8 @@ mod windows_tests {
             groups: vec![],
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
+            schema_version: CURRENT_SCHEMA_VERSION,
+            extra: toml::Table::new(),
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 1);
@@ -724,6 +857,8 @@ mod windows_tests {
             ],
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
+            schema_version: CURRENT_SCHEMA_VERSION,
+            extra: toml::Table::new(),
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 2);
@@ -745,6 +880,8 @@ mod windows_tests {
             groups: vec![],
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
+            schema_version: CURRENT_SCHEMA_VERSION,
+            extra: toml::Table::new(),
         };
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 1);
@@ -797,5 +934,142 @@ mod windows_tests {
         let ws = cfg.windows_normalised();
         assert_eq!(ws.len(), 1);
         assert_eq!(ws[0].characters.len(), 1);
+    }
+}
+
+// ── Schema versioning + migration (W.0, 0.9) ─────────────────────────
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    fn table(s: &str) -> toml::Table {
+        s.parse().expect("parse toml")
+    }
+
+    #[test]
+    fn detects_absent_version_as_v1() {
+        assert_eq!(detect_schema_version(&table("a = 1")), 1);
+    }
+
+    #[test]
+    fn detects_explicit_version() {
+        assert_eq!(detect_schema_version(&table("version = 2")), 2);
+    }
+
+    #[test]
+    fn malformed_version_is_treated_as_current_not_destroyed() {
+        // A string, a float, zero and a negative all map to CURRENT so
+        // we never run a migration off a garbage version field.
+        for bad in [
+            "version = \"two\"",
+            "version = 1.5",
+            "version = 0",
+            "version = -3",
+        ] {
+            assert_eq!(
+                detect_schema_version(&table(bad)),
+                CURRENT_SCHEMA_VERSION,
+                "input: {bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn migrate_stamps_current_version() {
+        let mut t = table("a = 1");
+        let from = migrate_table(&mut t);
+        assert_eq!(from, 1, "started from implicit v1");
+        assert_eq!(
+            t.get("version"),
+            Some(&toml::Value::Integer(CURRENT_SCHEMA_VERSION as i64))
+        );
+    }
+
+    #[test]
+    fn migrate_is_idempotent() {
+        let mut t = table("a = 1");
+        migrate_table(&mut t);
+        let snapshot = t.clone();
+        // Second run starts from CURRENT, does no work, re-stamps same.
+        let from = migrate_table(&mut t);
+        assert_eq!(from, CURRENT_SCHEMA_VERSION);
+        assert_eq!(t, snapshot, "migrating twice equals migrating once");
+    }
+
+    #[test]
+    fn v1_config_migrates_and_decodes() {
+        // A minimal pre-0.9 config: no version key.
+        let mut t = table(
+            r#"
+            characters = []
+
+            [global]
+            always_on_top = true
+            transparent = true
+            playback_enabled = true
+            window_width = 0
+            window_height = 0
+            "#,
+        );
+        let from = migrate_table(&mut t);
+        assert_eq!(from, 1);
+        let cfg: AppConfig = toml::Value::Table(t).try_into().expect("decode migrated");
+        assert_eq!(cfg.schema_version, CURRENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn default_config_is_current_version() {
+        assert_eq!(AppConfig::default().schema_version, CURRENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn save_serialises_version_first() {
+        // `version` must lead so it's a scalar before any [section];
+        // otherwise TOML serialisation fails with "value after table".
+        let s = toml::to_string_pretty(&AppConfig::default()).expect("serialise");
+        let version_pos = s.find("version =").expect("version key present");
+        let first_section = s.find("\n[").unwrap_or(s.len());
+        assert!(
+            version_pos < first_section,
+            "version key must precede the first section:\n{s}"
+        );
+    }
+
+    #[test]
+    fn unknown_section_survives_round_trip() {
+        // Forward-compat: a section a newer animaEngine added, that this
+        // build doesn't model, must come back out unchanged.
+        let src = format!(
+            r#"
+            version = {CURRENT_SCHEMA_VERSION}
+            characters = []
+
+            [global]
+            always_on_top = true
+            transparent = true
+            playback_enabled = true
+            window_width = 0
+            window_height = 0
+
+            [future_feature]
+            shiny = true
+            count = 7
+            "#
+        );
+        let cfg: AppConfig = toml::from_str(&src).expect("decode with unknown section");
+        assert!(
+            cfg.extra.contains_key("future_feature"),
+            "unknown section captured in extra: {:?}",
+            cfg.extra
+        );
+        let out = toml::to_string_pretty(&cfg).expect("re-serialise");
+        let back: AppConfig = toml::from_str(&out).expect("re-decode");
+        let ff = back
+            .extra
+            .get("future_feature")
+            .and_then(|v| v.as_table())
+            .expect("future_feature preserved");
+        assert_eq!(ff.get("shiny"), Some(&toml::Value::Boolean(true)));
+        assert_eq!(ff.get("count"), Some(&toml::Value::Integer(7)));
     }
 }

@@ -392,6 +392,8 @@ fn test_config_new_asset_types_serialize() {
         groups: vec![],
         keybindings: anima_engine::keybindings::KeyBindings::default(),
         collapse_state: anima_engine::ui::CollapseState::default(),
+        schema_version: anima_engine::config::CURRENT_SCHEMA_VERSION,
+        extra: toml::Table::new(),
     };
 
     // Serialize as full AppConfig (TOML requires a table at the root, not a bare array)

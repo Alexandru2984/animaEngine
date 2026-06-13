@@ -553,6 +553,8 @@ mod tests {
             groups: vec![],
             keybindings: crate::keybindings::KeyBindings::default(),
             collapse_state: crate::ui::CollapseState::default(),
+            schema_version: crate::config::CURRENT_SCHEMA_VERSION,
+            extra: toml::Table::new(),
         };
         Scene::from_config(&config)
     }

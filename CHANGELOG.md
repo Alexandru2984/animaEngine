@@ -6,6 +6,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Config schema versioning (W.0)** — a top-level `version` key
+  records the config generation; pre-0.9 files (no key) are schema v1
+  and migrate on load, with the original copied to
+  `config.toml.bak-v<n>` *before* any migration touches it. A
+  malformed version is treated as current rather than risking the
+  wrong migration. Unknown `[section]` tables (e.g. from a newer
+  build) survive a load → save round-trip instead of being dropped.
+  v1→v2 is an identity migration — every config change so far was
+  additive — but the chain, backup and forward-compat are in place
+  and tested for the first non-additive change.
+
 ## [0.8.0] — 2026-06-13
 
 UI/UX polish (Faza V) — the dedicated polish phase promised since 0.2 —

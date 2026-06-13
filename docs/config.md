@@ -4,6 +4,27 @@ The config file lives at `~/.config/animaEngine/config.toml`. It's
 auto-created on first run and hot-reloaded every 2 seconds. Decoding
 runs on a worker thread, so even large GIF changes don't freeze the UI.
 
+## Schema version
+
+```toml
+version = 2                 # config schema version (0.9+)
+```
+
+A top-level `version` key records the config schema generation. Files
+written before 0.9 have no `version` key and are treated as schema v1;
+on load they're migrated to the current version and re-saved. **Before
+any migration runs, the original is copied to
+`config.toml.bak-v<n>`** — a migration bug can never be the reason you
+lose a config. A malformed `version` (not a positive integer) is
+treated as current and skips migration rather than risk running the
+wrong one.
+
+Sections this build doesn't recognise (e.g. written by a newer
+animaEngine) are preserved verbatim through a load → save cycle rather
+than dropped, so downgrading doesn't silently strip newer settings.
+(This applies to whole `[section]` tables; unknown bare keys at the
+very top of the file are not preserved.)
+
 ## `[global]`
 
 ```toml
