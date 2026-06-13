@@ -8,6 +8,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Fuzz expansion (W.4)** — three new cargo-fuzz targets over the
+  hand-written parsers closest to untrusted bytes: the on-disk cache
+  codec (`deserialize_frames`), the MP4 NALU length-prefix walk
+  (`avcc_to_annex_b`), and the Shimeji `actions.xml` reader. Committed
+  seed inputs and a schedule-only nightly CI job that runs all six
+  targets. `docs/fuzzing.md` updated.
 - **Perf HUD GPU block (W.3)** — the perf overlay (Ctrl+Shift+\`) now
   shows a VRAM estimate (decoded asset bytes + GPU texture-cache
   bytes), the live texture count and uploads-per-frame, and draw

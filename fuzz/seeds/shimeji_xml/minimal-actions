@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Mascot>
+  <ActionList>
+    <Action Name="Stay" Type="Stay">
+      <Animation>
+        <Pose Image="/shime1.png" ImageAnchor="64,128" Velocity="0,0" Duration="250"/>
+      </Animation>
+    </Action>
+    <Action Name="Walk" Type="Move">
+      <Animation>
+        <Pose Image="/shime2.png" ImageAnchor="64,128" Velocity="4,0" Duration="6"/>
+      </Animation>
+    </Action>
+  </ActionList>
+</Mascot>

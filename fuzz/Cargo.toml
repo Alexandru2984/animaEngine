@@ -30,3 +30,21 @@ name = "asset_type_detect"
 path = "fuzz_targets/asset_type_detect.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "cache_deserialize"
+path = "fuzz_targets/cache_deserialize.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "avcc_nalu_walk"
+path = "fuzz_targets/avcc_nalu_walk.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "shimeji_xml"
+path = "fuzz_targets/shimeji_xml.rs"
+test = false
+doc = false

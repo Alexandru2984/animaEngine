@@ -440,6 +440,53 @@ jobs:
             build/soak-*.csv
           retention-days: 30
 
+  fuzz:
+    name: fuzz smoke (nightly)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@nightly
+      # The fuzz package depends on the full crate, so it needs the same
+      # GPU/X system libs the build job installs.
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - run: cargo install --locked cargo-fuzz
+      # Seed each corpus from the committed seeds so the fuzzer starts
+      # from valid inputs instead of empty.
+      - name: Seed corpora
+        run: |
+          for t in cache_deserialize avcc_nalu_walk shimeji_xml \
+                   keychord_parse uri_list_parse asset_type_detect; do
+            mkdir -p "fuzz/corpus/$t"
+            if [ -d "fuzz/seeds/$t" ]; then cp fuzz/seeds/$t/* "fuzz/corpus/$t/"; fi
+          done
+      # 60 s per target; a panic or sanitizer hit fails the job and the
+      # reproducer is uploaded below.
+      - name: Fuzz each target
+        run: |
+          for t in cache_deserialize avcc_nalu_walk shimeji_xml \
+                   keychord_parse uri_list_parse asset_type_detect; do
+            echo "::group::fuzz $t"
+            cargo +nightly fuzz run "$t" -- -max_total_time=60
+            echo "::endgroup::"
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts
+          retention-days: 30
+
   coverage:
     name: coverage (lcov artifact)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

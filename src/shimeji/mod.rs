@@ -321,6 +321,15 @@ fn read_capped_utf8(path: &Path) -> Result<String, String> {
 }
 
 /// Stream-parse the `<ActionList>` into our intermediate shape.
+/// Fuzz entry point (W.4): run the actions.xml parser over arbitrary
+/// text and discard the (private) result. Exposed only so the
+/// `shimeji_xml` fuzz target can assert panic-freedom on adversarial
+/// markup; not part of any supported API.
+#[doc(hidden)]
+pub fn fuzz_parse_actions(xml: &str) {
+    let _ = parse_actions(xml);
+}
+
 fn parse_actions(xml: &str) -> Result<Vec<ParsedAction>, String> {
     let mut reader = Reader::from_str(xml);
     let mut actions: Vec<ParsedAction> = Vec::new();

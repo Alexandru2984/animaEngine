@@ -174,7 +174,11 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
 /// such files (rare — every mainstream encoder emits 4) parse as garbage
 /// lengths here, fail the bounds check below, and the frame is skipped.
 /// Safe (no out-of-bounds path), just lossy for exotic encoders.
-fn avcc_to_annex_b(input: &[u8], out: &mut Vec<u8>) {
+///
+/// `pub` (hidden) for the W.4 fuzz target — the NALU walk is a hand-
+/// written length-prefix parser over untrusted MP4 sample bytes.
+#[doc(hidden)]
+pub fn avcc_to_annex_b(input: &[u8], out: &mut Vec<u8>) {
     let mut cursor = 0;
     while cursor + 4 <= input.len() {
         let nal_len = u32::from_be_bytes([
