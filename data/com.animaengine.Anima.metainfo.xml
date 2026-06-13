@@ -57,6 +57,17 @@
   </recommends>
 
   <releases>
+    <release version="0.8.0" date="2026-06-13">
+      <description>
+        <p>UI/UX polish, release-build provenance, and X11 window-awareness.</p>
+        <ul>
+          <li>Reduce-motion toggle, a first-run tour, inspector slider units with double-click reset, and a keyboard-navigable command palette.</li>
+          <li>High-contrast theme variants now restyle every custom widget; the whole UI is translated across all ten locales.</li>
+          <li>Physics-enabled characters can land on and walk along the top edges of your windows (X11 only).</li>
+          <li>Tag-triggered release builds with provenance attestations and embedded SBOMs; on-disk crash reports.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.0" date="2026-06-12">
       <description>
         <p>Content and feature completion: multi-state animations and Shimeji pack import.</p>

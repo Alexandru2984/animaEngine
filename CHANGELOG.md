@@ -6,6 +6,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-06-13
+
+UI/UX polish (Faza V) — the dedicated polish phase promised since 0.2 —
+plus the infrastructure and one feature that rode the same cycle. The
+polish work started from a heuristic UX audit (`docs/ux-audit-0.8.md`)
+whose fix list became the release scope: reduced-motion, a first-run
+tour, inspector units, keyboard-navigable command palette, high-
+contrast-aware custom widgets, and the closure of every hardcoded UI
+string. Alongside it: tag-triggered release automation with build
+provenance, on-disk crash reports, a criterion benchmark suite, and
+X11 window-awareness (mascots that land on your windows). Every locale
+now ships a fully translated UI.
+
 ### Added
 
 - **CI hardening** — five new gating jobs: rustdoc with `-D warnings`

@@ -153,6 +153,34 @@ nothing more.
   authentication (`org.freedesktop.DBus.GetConnectionUnixUser`)
   and a whitelist.
 
+### Window-awareness — read-only X11 introspection (0.8.0)
+
+`window_awareness` (off by default) connects a second X11 connection
+and polls window geometry every ~300 ms to use window top edges as
+physics platforms. The surface is deliberately minimal and
+**read-only**:
+
+- Only three request types are issued: `GetProperty`
+  (`_NET_CLIENT_LIST`, `_NET_WM_WINDOW_TYPE`, `_NET_WM_STATE`,
+  `_NET_FRAME_EXTENTS`), `GetGeometry`, and `TranslateCoordinates`.
+  No `ChangeProperty`, no `SendEvent`, no input synthesis, no window
+  manipulation.
+- It reads only from the X server the app is already connected to —
+  i.e. the user's own session, already in the trusted-display
+  assumption (see Scope). It learns nothing a screenshot wouldn't.
+- No data leaves the process: geometry is consumed into the physics
+  floor calculation and discarded each poll. Nothing is logged above
+  `trace`, nothing is persisted.
+- Per-window errors are swallowed (windows race the list query); a
+  torn read is corrected on the next poll. No error path writes.
+- Wayland exposes no equivalent, so the feature is inert there — no
+  fallback that reaches for anything more invasive.
+
+The accepted risk is the same same-user one as everywhere else: a
+process that can read window geometry could already do so directly.
+New request types here need a threat-model entry; the read-only
+invariant must hold.
+
 ### D-Bus accessibility tree (AT-SPI) — opt-out only
 
 Since 0.2.0 (Phase A.9) we enable the `accesskit` feature on

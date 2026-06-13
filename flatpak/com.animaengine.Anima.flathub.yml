@@ -63,7 +63,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/Alexandru2984/animaEngine.git
-        tag: v0.7.0
+        tag: v0.8.0
         # Pin the tag's commit hash here at submission time (see
         # FLATHUB.md) — it isn't knowable before the release commit
         # itself lands.
