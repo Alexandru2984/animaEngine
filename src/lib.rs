@@ -25,6 +25,7 @@ pub mod renderer;
 pub mod scene;
 pub mod shimeji;
 pub mod single_instance;
+pub mod soak;
 pub mod tray;
 pub mod ui;
 pub mod util;

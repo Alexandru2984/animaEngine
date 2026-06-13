@@ -56,6 +56,24 @@ impl App {
         }
         self.perf_frame_counter = self.perf_frame_counter.wrapping_add(1);
 
+        // Soak metrics (W.1) — no-op unless ANIMA_SOAK_METRICS is set.
+        // Read before the &mut renderer borrow below; texture count
+        // lags by at most one frame, which is irrelevant at the
+        // 60-second sampling interval.
+        if let Some(soak) = self.soak.as_mut() {
+            let decoded = self.scene.total_decoded_bytes();
+            let textures = self
+                .renderer
+                .as_ref()
+                .map(|r| r.shared.textures.len())
+                .unwrap_or(0);
+            let p95 = self
+                .perf_sampler
+                .recent_p95_total(60)
+                .map(|d| d.as_micros());
+            soak.maybe_sample(self.perf_last_rss_kib, decoded, textures, p95);
+        }
+
         // Check for external config changes (hot-reload)
         self.check_hot_reload();
 

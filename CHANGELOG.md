@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Memory soak harness (W.1)** — `scripts/soak.sh` runs a 16-entity
+  synthetic scene under Xvfb and least-squares-regresses RSS against
+  time to catch slow leaks, emitting a `build/soak-report-<date>.md`
+  verdict (FLAT/DRIFT) and exiting non-zero on drift so CI can gate.
+  The metrics come from a new env-gated `soak` module
+  (`ANIMA_SOAK_METRICS` → a CSV of RSS / decoded bytes / texture
+  count / frame p95; off and zero-cost otherwise). A 10-minute
+  variant runs nightly in CI; `docs/soak-testing.md` gains the 7-day
+  real-session protocol.
 - **Config schema versioning (W.0)** — a top-level `version` key
   records the config generation; pre-0.9 files (no key) are schema v1
   and migrate on load, with the original copied to

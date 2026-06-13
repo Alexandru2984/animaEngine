@@ -405,6 +405,41 @@ jobs:
             target/criterion
           retention-days: 90
 
+  soak:
+    name: memory soak (Xvfb)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev \
+            xvfb mesa-vulkan-drivers dbus dbus-daemon
+      - uses: Swatinem/rust-cache@v2
+      # 10-minute soak with 20 s sampling (~30 points) — long enough to
+      # regress RSS, short enough for a nightly shared runner. The
+      # 30-minute and 7-day protocols are manual (docs/soak-testing.md).
+      # Software GL/Vulkan via llvmpipe; no real GPU on the runner.
+      - name: Soak
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          GALLIUM_DRIVER: llvmpipe
+        run: dbus-run-session -- scripts/soak.sh 600 20 1024
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: soak-report
+          path: |
+            build/soak-report-*.md
+            build/soak-*.csv
+          retention-days: 30
+
   coverage:
     name: coverage (lcov artifact)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
