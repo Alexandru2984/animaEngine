@@ -228,21 +228,24 @@ on every "Add to scene" click.
 
 ## 4. Behavior expansion
 
-Three new variants added to `Behavior`. Existing behaviors
-(`Idle`, `WalkAround`, `FollowCursor`, `BoundedWander`) unchanged.
+Three variants were specified; **only `Bounce` shipped** — `Spinner`
+and `Reactive` were never implemented and aren't in the 1.0 behavior
+set (see below). Existing behaviors (`Idle`, `WalkAround`,
+`FollowCursor`, `BoundedWander`) unchanged. The complete shipped set is
+the five documented in [config.md](config.md#behavior).
 
-### 4.1 `Spinner` (deferred to 0.4)
+### 4.1 `Spinner` — never shipped (dropped from 1.0 scope)
 
-Originally scoped for C.6. Implementing sprite rotation requires a
-per-quad transform matrix in the vertex shader and a `rotation: f32`
-field on `Entity`; both are clean changes but they cross the
-behavior / renderer boundary cleanly enough that they deserve their
-own sub-phase. Moved to 0.4 / Phase D where the AccessKit-runtime-
-toggle and rebindable-keymap refactors also touch wider surfaces.
-The shape stays as originally specified:
+Originally scoped for C.6, then nominally deferred to 0.4. It was never
+implemented in any release through the 0.9 freeze and is **not** part of
+the 1.0 behavior set — there is no `Behavior::Spinner` variant. Sprite
+rotation would need a per-quad transform matrix in the vertex shader and
+a `rotation: f32` on `Entity`; the cost never justified itself against
+the shipped behaviors. Recorded here for provenance only. The shape, if
+ever revisited:
 
 ```rust
-Behavior::Spinner { rps: f32 }
+Behavior::Spinner { rps: f32 }   // not implemented
 ```
 
 ### 4.2 `Bounce`
@@ -265,17 +268,18 @@ Combinable mentally with gravity: a `Bounce` entity with
 `physics_enabled = true` is undefined behaviour for 0.3; we keep
 gravity as a hard override (gravity wins, bounce inactive).
 
-### 4.3 `Reactive` (deferred to 0.4)
+### 4.3 `Reactive` — never shipped (dropped from 1.0 scope)
 
-Originally scoped for C.6. Triggers require hooks in the click
-dispatch and the mouse-enter detection that the X11 input shape
-mechanism doesn't surface today; we'd be plumbing a "behavior gets
-told about UI events" channel through the event loop. That's
-exactly the kind of cross-cut better tackled with the multi-window
-event-loop refactor in 0.4. Spec stays as originally written:
+Originally scoped for C.6, then nominally deferred to 0.4. Like
+`Spinner`, it was never implemented and is **not** in the 1.0 behavior
+set — there is no `Behavior::Reactive` variant. Triggers would need
+hooks in the click dispatch and mouse-enter detection plus a "behavior
+gets told about UI events" channel through the event loop; that
+cross-cut never earned its place against the shipped set. Recorded for
+provenance only. Original spec:
 
 ```rust
-Behavior::Reactive {
+Behavior::Reactive {                // not implemented
     trigger: ReactiveTrigger,   // ClickOnSelf / CursorEnter / GlobalHotkey(...)
     effect: ReactiveEffect,     // Bounce(...) / Spinner(...) / SwapFrameRange(...)
     cooldown_sec: f32,
@@ -285,8 +289,8 @@ Behavior::Reactive {
 ### 4.4 UI
 
 Each new behavior gets a picker entry, an icon, and parameter
-sliders following the existing pattern in
-`src/ui/panels.rs::behavior_picker`. No new icon module work
+sliders following the existing pattern in the behavior picker under
+`src/ui/panels/`. No new icon module work
 needed beyond looking up Phosphor glyphs (suggestions:
 `arrows-clockwise` for Spinner, `wave-sine` for Bounce,
 `lightning` for Reactive).
@@ -452,8 +456,10 @@ At 60 fps target frame budget is 16.6 ms. Goal: 100 entities under
 
 - `tracing` spans on the render loop, gated behind a feature flag
   so the cost isn't paid in release
-- Per-frame metrics overlay (lands in 0.4 / G.6); for 0.3 we lean
-  on `tracing::Span::record` + offline log analysis
+- Per-frame metrics overlay — shipped in 0.4 (D.6) and extended with
+  a GPU block (VRAM / uploads / draws) in 0.9 (W.3); toggle with the
+  `TogglePerfOverlay` chord. During 0.3 itself we leaned on
+  `tracing::Span::record` + offline log analysis.
 - `cargo-flamegraph` runs in the dev loop for local profiling;
   not a CI gate
 

@@ -49,6 +49,29 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   additive — but the chain, backup and forward-compat are in place
   and tested for the first non-additive change.
 
+### Documentation
+
+- **Docs reality audit (W.5)** — every `docs/*.md` diffed against the
+  code it describes. `config.md` now documents *every* config field —
+  the previously-undocumented `theme`, `locale`, `monitor_mode`,
+  `accesskit_enabled`, `hotkey_backend`, per-character `monitor` /
+  `easing`, the per-state `[characters.animations.*]` sets, and the
+  `[[windows]]`, `[[groups]]`, `[keybindings.map]` and `version`
+  sections — plus the `bounce` behavior and the `ANIMA_ASSETS_DIR` /
+  `ANIMA_MEMORY_BUDGET_MB` / soak env vars. `architecture.md` diagrams
+  reconciled with the current tree (module splits `app.rs`→`app/`,
+  `keybindings.rs`→`keybindings/`, `panels.rs`→`panels/`,
+  `layer_window.rs`→`layer_window/`; `Bounce` added to the behavior
+  map; Action count 27→28). `threat-model.md` corrected three stale
+  claims now contradicted by shipped code: the AccessKit bridge is a
+  live `accesskit_enabled` flag (not a "future" one), global hotkeys
+  are user-rebindable with a selectable backend (not hardcoded), and
+  release artefacts now carry Sigstore build-provenance attestations +
+  embedded SBOMs. `engine-features.md` marks the never-shipped
+  `Spinner`/`Reactive` behaviors as dropped from 1.0 scope and the
+  perf overlay as shipped. Stale rustdoc on `group.rs` (claiming the
+  renderer ignored group offset/scale) corrected.
+
 ## [0.8.0] — 2026-06-13
 
 UI/UX polish (Faza V) — the dedicated polish phase promised since 0.2 —

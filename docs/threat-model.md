@@ -208,9 +208,10 @@ What it does *not* widen:
   local user" below). AT-SPI does not extend access to a different UID.
 
 **Operators who need to disable this** (e.g. a kiosk with no AT
-requirements) can depend on `egui-winit` without the `accesskit`
-feature and rebuild. A future release may expose this as a runtime
-config flag.
+requirements) can set `accesskit_enabled = false` under `[global]` —
+the change applies live, no rebuild — or, for a binary that never links
+the bridge at all, depend on `egui-winit` without the `accesskit`
+feature and rebuild.
 
 ### No network
 
@@ -255,17 +256,22 @@ finding #6 in the project notes.
 
 ### Global hotkeys
 
-`Ctrl+Shift+A/H/P` are hardcoded. They can conflict with other apps'
-bindings and there's no UI to rebind them. Configurable hotkeys are
-planned for the UI/UX polish phase.
+Exactly three actions are eligible for global registration —
+`ToggleEditMode`, `HideOverlay`, `PauseAll` (`hotkeys::GLOBAL_ACTIONS`).
+Their chords are **user-configurable** (defaults ship, rebindable in
+Settings → Keybindings and `[keybindings.map]`), and the backend is
+selectable via `[global].hotkey_backend` (`auto` probes the
+GlobalShortcuts portal, then falls back to `XGrabKey` on X11). Every
+other action (nudge, toggle-visible, etc.) is **in-app only** and never
+globally grabbed — there's no useful global meaning without a selection.
 
-**Privacy scope:** the global-hotkey integration registers exactly
-three specific chords via `XGrabKey` — the X server delivers *only
-those chords* to us, never the surrounding keystrokes. animaEngine
-has no global keyboard capture, no event tap, and the native Wayland
-path can't grab keys at all (compositor bindings call our D-Bus
-methods instead). In-app keyboard input (edit mode, panels) reaches
-us only while our window has focus, like any other application.
+**Privacy scope:** the global-hotkey integration registers *only* those
+few chords — whichever the X server (or the portal) is told to watch
+delivers *only those chords* to us, never the surrounding keystrokes.
+animaEngine has no global keyboard capture, no event tap, and the
+native Wayland path can't grab keys at all (compositor bindings call
+our D-Bus methods instead). In-app keyboard input (edit mode, panels)
+reaches us only while our window has focus, like any other application.
 
 ### Side-channel / display attacks
 
@@ -327,8 +333,15 @@ narrow this:
 - The `SHA256SUMS-vX.Y.Z.txt` we publish in GitHub Releases is the
   hash *of the image-built AppImage*. Reproducing on a different host
   is expected to differ; reproducing inside the container should match.
-- We do not yet sign the artefacts. When that lands, the signature
-  will cover the published binary, not the build process.
+- Release artefacts now carry **Sigstore build-provenance
+  attestations** (`actions/attest-build-provenance`, keyless via GitHub
+  OIDC) for both the `.deb` and the AppImage, verifiable with
+  `gh attestation verify <file> --repo <owner>/<repo>`. This attests
+  *where and how* the artefact was built (the provenance), tying it to
+  the tagged commit and the release workflow. The `.deb`/AppImage also
+  embed a dependency SBOM via `cargo-auditable`
+  (`cargo audit bin <file>`). The `SHA256SUMS` file still pins the
+  binary hash; the attestation covers the build chain on top of it.
 
 If you're producing an AppImage for redistribution, please build inside
 the container or document your build host clearly. A user who downloads

@@ -1,7 +1,7 @@
 # Soak & resilience testing
 
 Started in 0.6 (T.10) with the suspend/resume + stall protocol; the
-long-run soak harness lands in 0.9 (W.1) and extends this file.
+long-run soak harness shipped in 0.9 (W.1) and extends this file.
 
 ## Time bases — read this first
 

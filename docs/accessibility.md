@@ -79,9 +79,9 @@ in [docs/wayland.md](wayland.md) under "What's not (yet) parity".
 ### 5. Discoverable & rebindable keyboard model
 
 Every action animaEngine handles has an entry in
-[src/keybindings.rs](../src/keybindings.rs) carrying a label,
-description, default chord set, and stable i18n key. Three surfaces
-read that table:
+[src/keybindings/action.rs](../src/keybindings/action.rs) carrying a
+label, description, default chord set, and stable i18n key. Three
+surfaces read that table:
 
 - **Keybindings tab** in the settings sidebar — renders the live
   chord table, lets the user record new bindings, surfaces conflicts
@@ -162,5 +162,5 @@ RUST_LOG=anima_engine=info cargo run
 ```
 
 If a control reads as "unlabelled" or "graphic", add `on_hover_text`
-to its construction site in `src/ui/panels.rs` — that's almost always
-the fix.
+to its construction site under `src/ui/panels/` (one file per tab) —
+that's almost always the fix.

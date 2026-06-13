@@ -46,23 +46,25 @@ EguiRenderer (src/ui/egui_renderer.rs)
   ├─ Installs Phosphor icon font + active theme on construction
   └─ Renders on top of the sprite pass via LoadOp::Load
 
-Panels (src/ui/panels.rs)
-  ├─ settings()         — tabbed sidebar (Inspector / Scene / Appearance)
-  ├─ context_menu()     — right-click popup with 6 actions
-  ├─ command_palette()  — Ctrl+K fuzzy search over themes + presets
-  ├─ toasts()           — bottom-right notification stack
-  └─ toggle_button()    — the ⚙ widget in pass-through mode
+Panels (src/ui/panels/ — one file per tab/widget)
+  ├─ scene.rs / inspector.rs / appearance.rs — tabbed sidebar
+  ├─ context_menu.rs    — right-click popup
+  ├─ command_palette.rs — Ctrl+K fuzzy search over themes + presets
+  ├─ toasts.rs          — bottom-right notification stack
+  ├─ library.rs / monitor.rs / presets.rs / keybindings_tab.rs
+  └─ toggle_button.rs   — the ⚙ widget in pass-through mode
 
-Token + helper modules (Phase A):
+Token + helper modules (Phase A), src/ui/:
   ├─ theme.rs        — Palette, 4 themes (Dark/Light + HC pairs), apply()
   ├─ icons.rs        — Phosphor glyph constants by domain
   ├─ states.rs       — empty / error / spinner reusable cards
-  ├─ anim.rs         — pure easing helpers (ease_in_quad, ease_out_quad)
+  ├─ motion.rs       — UI transition helpers (crate::anim holds the
+  │                    pure easing curves: ease_in_quad, ease_out_quad)
   ├─ onboarding.rs   — OnboardingProgress + dismissible hint widget
   └─ keyboard.rs     — thin re-export of crate::keybindings::Action
 
-Rebindable keyboard map (src/keybindings.rs, D.1):
-  ├─ Action enum (27 variants) — single source of truth for dispatch
+Rebindable keyboard map (src/keybindings/, D.1):
+  ├─ Action enum (28 variants) — single source of truth for dispatch
   ├─ KeyChord + KeyCode + ModifierMask — canonical serializable form
   ├─ KeyBindings (BTreeMap<Action, Vec<KeyChord>>) — user-overridable
   ├─ lookup() drives both global hotkeys and in-app dispatch
@@ -87,7 +89,10 @@ Behavior enum (src/behavior.rs)
   ├─ Idle                         — default, no motion
   ├─ WalkAround { speed }         — horizontal patrol with edge bounce
   ├─ FollowCursor { speed, comfort_distance }
-  └─ BoundedWander { box, speed } — random walk inside a rect
+  ├─ BoundedWander { box, speed } — random walk inside a rect
+  └─ Bounce { amplitude_px, period_sec, axis } — sinusoidal bob
+                                    around the rest position; gravity
+                                    overrides it
 
 Pattern: Behavior holds config (serialized to TOML), BehaviorState holds
 runtime accumulators (direction, wander target, RNG seed). Entity::tick
@@ -122,7 +127,7 @@ Three independent producers, one consumer:
 
   Tray (src/tray.rs, ksni async thread)
        ╲
-  Global hotkeys (src/hotkeys.rs, XGrabKey via global-hotkey)
+  Global hotkeys (src/hotkeys/, portal preferred, XGrabKey fallback)
        ╲
   Single-instance Activate (src/single_instance.rs, zbus thread)
        ╲
@@ -131,10 +136,11 @@ Three independent producers, one consumer:
               ↓
          EventLoopProxy<AnimaEvent>::send_event
               ↓
-         winit user_event → App::user_event arm
+         winit user_event → App::user_event arm (src/app/mod.rs)
               ↓
-         {ToggleEditMode, ShowOverlay, HideOverlay,
-          ToggleGlobalPlayback, RaiseWindow, Quit}
+         {ToggleEditMode, ToggleGlobalPlayback, HideOverlay,
+          ShowOverlay, RaiseWindow, Quit, HotkeysUnavailable,
+          PortalShortcutsDenied}
 ```
 
 ### Scene cache
@@ -168,7 +174,7 @@ Mutter (and some others) clip the shape on certain transitions.
 
 ### Wayland native (opt-in)
 
-`LayerWindow::set_input_region` (src/wayland/layer_window.rs) uses
+`LayerWindow::set_input_region` (src/wayland/layer_window/mod.rs) uses
 **`wl_compositor::create_region` + `wl_surface::set_input_region`**:
 
 ```
@@ -296,9 +302,9 @@ top-level `Makefile`. AppImage and `.deb` both go through it.
 
 ## Where to look next
 
-- Behavior deep-dive: `src/behavior.rs` is ~330 lines, mostly tests
-- Render pass: `src/renderer/wgpu_renderer.rs::render` (~90 lines)
-- Event arm matrix: `src/app.rs::user_event` (the AnimaEvent dispatch)
+- Behavior deep-dive: `src/behavior.rs` (~740 lines, mostly tests)
+- Render pass: `src/renderer/wgpu_renderer.rs::render`
+- Event arm matrix: `src/app/mod.rs::user_event` (the AnimaEvent dispatch)
 - Wayland scaffolding: read `src/wayland/mod.rs` first, then the
   sub-files in the order it lists
 - **Security invariants**: `docs/threat-model.md` — what the codebase

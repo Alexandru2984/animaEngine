@@ -6,13 +6,12 @@
 //! (offset / scale / visibility). Composition rules:
 //!
 //! - **Position**: `effective = (member.x + group.offset_x,
-//!   member.y + group.offset_y)` (offset/scale composition lands in
-//!   the renderer pass in C.9 polish; this commit ships the data
-//!   layer + visibility folding only)
-//! - **Scale**: `effective = member.scale * group.scale` (same — C.9)
+//!   member.y + group.offset_y)` — composed at draw time via
+//!   `transform_for_member`, used by both the renderer and
+//!   `Scene::entity_at_point` so hit-testing matches the painted quad.
+//! - **Scale**: `effective = member.scale * group.scale` (same path).
 //! - **Visibility**: `effective = member.visible && group.visible`
-//!   (lands here — `visible_for_member` is consumed by
-//!   `Scene::visible_entities`)
+//!   via `visible_for_member`, consumed by `Scene::visible_entities`.
 //!
 //! **No nesting in 0.3.** A future 0.4 may add parent groups; for now
 //! the relationship is flat: each entity belongs to at most zero or
@@ -45,15 +44,13 @@ pub struct GroupConfig {
     #[serde(default)]
     pub member_ids: Vec<String>,
     /// Pixels added to every member's stored x position when the
-    /// renderer composes the group. C.9 wires this into the actual
-    /// draw call; in this commit the field exists and round-trips
-    /// but the renderer ignores it.
+    /// renderer composes the group, via `transform_for_member`.
     #[serde(default)]
     pub offset_x: f32,
     #[serde(default)]
     pub offset_y: f32,
-    /// Multiplier applied to every member's `scale`. Same C.9
-    /// deferral as offsets.
+    /// Multiplier applied to every member's `scale`, composed on the
+    /// same path as the offsets.
     #[serde(default = "default_scale")]
     pub scale: f32,
     /// Group-level visibility. `false` hides every member regardless
