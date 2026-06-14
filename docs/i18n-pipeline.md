@@ -52,11 +52,16 @@ entity-count-plural  = { $n } entities
      keybindings-recording = Press a chord… (Esc to cancel)
      ```
 
-3. **Run the parity test** before committing — it enforces that no
-   key exists in `en.ftl` but is missing from another locale:
+3. **Run the parity tests** before committing. Two guards enforce the
+   contract: no key may exist in `en.ftl` yet be missing from another
+   locale, and every locale must interpolate exactly the same
+   `{ $variable }` arguments per key as English (a dropped or renamed
+   placeholder renders a broken string at runtime):
 
    ```bash
    cargo test --lib i18n::tests::every_locale_covers_every_en_key
+   cargo test --lib i18n::tests::every_locale_matches_en_placeholder_args
+   # or just: cargo test --lib i18n
    ```
 
 4. **Use a `t()` lookup at the call site** — never inline a literal
@@ -139,3 +144,24 @@ glossary at the top.
   Portuguese variant we ship; Continental Portuguese contributors
   can submit a separate `pt-PT.ftl` if they want, but we won't
   fork strings inside an existing file.
+
+## RTL (right-to-left) status
+
+All 10 shipped locales are left-to-right. **No RTL locale (Arabic,
+Hebrew, Persian, …) ships through 1.0**, and adding one is *not* a
+drop-in `.ftl` file — it's gated on two things this codebase doesn't
+do yet:
+
+- **egui text shaping** has no bidirectional reordering, so an RTL
+  string would render visually reversed.
+- The i18n layer deliberately **disables Fluent's bidi isolation**
+  (`bundle.set_use_isolating(false)` in `src/i18n/mod.rs`, and strips
+  the FSI/PDI codepoints) so interpolated values copy cleanly into bug
+  reports. That trade-off is correct for LTR-only; an RTL locale would
+  need isolation re-enabled and scoped to the interpolation sites.
+
+The *key layer* itself is direction-agnostic (Fluent is just
+key → string), so the data model doesn't block RTL — only the
+rendering and isolation policy do. Recorded here so a future RTL
+contributor knows the real cost up front rather than discovering it
+after translating 194 strings.

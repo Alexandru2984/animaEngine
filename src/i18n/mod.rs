@@ -342,6 +342,94 @@ mod tests {
         out
     }
 
+    /// Map each message key to the multiset of `$variable` references in
+    /// its value (continuation lines included). Used to prove every
+    /// locale interpolates exactly the arguments English does.
+    fn collect_message_vars(code: &str) -> std::collections::BTreeMap<String, Vec<String>> {
+        let source = load_source(code);
+        let mut out: std::collections::BTreeMap<String, Vec<String>> =
+            std::collections::BTreeMap::new();
+        let mut cur: Option<String> = None;
+        let push_vars = |bucket: &mut Vec<String>, text: &str| {
+            // Fluent placeable variable refs look like `{ $name }`; the
+            // identifier is `$` + an FTL identifier (alnum / - / _).
+            let bytes = text.as_bytes();
+            let mut i = 0;
+            while i < bytes.len() {
+                if bytes[i] == b'$' {
+                    let start = i + 1;
+                    let mut j = start;
+                    while j < bytes.len()
+                        && (bytes[j].is_ascii_alphanumeric()
+                            || bytes[j] == b'_'
+                            || bytes[j] == b'-')
+                    {
+                        j += 1;
+                    }
+                    if j > start {
+                        bucket.push(text[start..j].to_string());
+                    }
+                    i = j;
+                } else {
+                    i += 1;
+                }
+            }
+        };
+        for line in source.lines() {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with('#') || trimmed.is_empty() {
+                continue;
+            }
+            if line.starts_with(char::is_whitespace) {
+                // continuation of the current message
+                if let Some(k) = &cur {
+                    push_vars(out.get_mut(k).unwrap(), line);
+                }
+                continue;
+            }
+            if let Some(eq) = line.find('=') {
+                let key = line[..eq].trim();
+                if !key.is_empty() && !key.contains(' ') {
+                    let bucket = out.entry(key.to_string()).or_default();
+                    push_vars(bucket, &line[eq + 1..]);
+                    cur = Some(key.to_string());
+                    continue;
+                }
+            }
+            cur = None;
+        }
+        // Sort each bucket so the comparison is order-independent.
+        for v in out.values_mut() {
+            v.sort();
+        }
+        out
+    }
+
+    /// A locale that drops or renames a `{ $var }` would silently render
+    /// a broken string (or the literal variable name) at runtime. Every
+    /// locale must reference exactly the same arguments per key as
+    /// English does.
+    #[test]
+    fn every_locale_matches_en_placeholder_args() {
+        let en = collect_message_vars("en");
+        for (code, _) in SUPPORTED {
+            if *code == "en" {
+                continue;
+            }
+            let loc = collect_message_vars(code);
+            for (key, en_vars) in &en {
+                if en_vars.is_empty() {
+                    continue;
+                }
+                let loc_vars = loc.get(key).cloned().unwrap_or_default();
+                assert_eq!(
+                    *en_vars, loc_vars,
+                    "locale {code} key `{key}` interpolates {loc_vars:?} but en uses {en_vars:?}",
+                );
+            }
+        }
+    }
+
     #[test]
     fn normalise_strips_charset_suffix() {
         assert_eq!(normalise_env_locale("en_US.UTF-8"), Some("en".to_string()));

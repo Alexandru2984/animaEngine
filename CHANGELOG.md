@@ -8,6 +8,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Locale placeholder-parity test (W.6)** — a new i18n guard,
+  `every_locale_matches_en_placeholder_args`, asserts every locale
+  interpolates exactly the same `{ $var }` arguments per key as
+  English, so a translator dropping or renaming a placeholder fails CI
+  instead of shipping a string that renders broken at runtime.
 - **Fuzz expansion (W.4)** — three new cargo-fuzz targets over the
   hand-written parsers closest to untrusted bytes: the on-disk cache
   codec (`deserialize_frames`), the MP4 NALU length-prefix walk
@@ -49,8 +54,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   additive — but the chain, backup and forward-compat are in place
   and tested for the first non-additive change.
 
+### Fixed
+
+- **Six corrupted UI translations (W.6)** — a duplicated-suffix
+  artifact from an earlier translation batch left six labels mistyped:
+  Spanish `Imagenn`→`Imagen`; Italian `Linearee`→`Lineare`,
+  `Verticalee`→`Verticale`, `Recentii`→`Recenti`; Brazilian Portuguese
+  `Imagemm`→`Imagem`, `Recenteses`→`Recentes`. Found by the W.6
+  cross-locale sweep (194 keys × 10 locales), which otherwise came back
+  clean on both key and placeholder parity.
+
 ### Documentation
 
+- **Full locale audit (W.6)** — `docs/locale-audit/README.md` status
+  table corrected from the stale "partial; placeholder English" to the
+  verified full-coverage reality; `i18n-pipeline.md` gains the
+  placeholder-parity test in its workflow and an honest RTL-status
+  section (no RTL locale ships; adding one is gated on egui bidi
+  shaping and Fluent isolation, not just a new `.ftl`).
 - **Docs reality audit (W.5)** — every `docs/*.md` diffed against the
   code it describes. `config.md` now documents *every* config field —
   the previously-undocumented `theme`, `locale`, `monitor_mode`,
