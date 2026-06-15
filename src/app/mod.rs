@@ -115,8 +115,9 @@ pub struct App {
     /// `Outdated`. Reset on any successful present. A short streak is a
     /// transient blip the per-frame `surface.configure()` clears (resize,
     /// occlusion, the first frame or two after S3 resume); a streak past
-    /// [`SURFACE_LOSS_REBUILD_THRESHOLD`] means the surface reconfigure
-    /// isn't recovering it (driver reset, GPU hot-unplug, device lost
+    /// `render_loop::SURFACE_LOSS_REBUILD_THRESHOLD` means the surface
+    /// reconfigure isn't recovering it (driver reset, GPU hot-unplug,
+    /// device lost
     /// across suspend) and we rebuild the renderer wholesale.
     surface_loss_streak: u32,
     /// Snapshot of the monitor topology taken on the first `resumed()`
