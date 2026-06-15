@@ -5,6 +5,50 @@ always something to polish. This file covers the **how** (build, test,
 style) and points at [docs/architecture.md](docs/architecture.md) for
 the **what** (where each subsystem lives).
 
+## Stability freeze (0.9 → 1.0)
+
+animaEngine is in a **stability freeze** from 0.9 until 1.0. Feature
+work stopped when 0.9 opened; everything between here and 1.0 is
+measurement, hardening, and paperwork — proving the 1.0 contract before
+promising it. If you're contributing during this window, read this
+section first: it decides whether a change can land at all.
+
+**A change qualifies for the freeze only if it is one of:**
+
+- a **crash** fix — panic, hang, OOM, GPU/device failure;
+- a **data-loss** fix — config corruption, lost user state, a bad
+  migration;
+- a **regression** fix — something that worked in an earlier release
+  and no longer does;
+- a **security** fix — see [SECURITY.md](SECURITY.md) and
+  [docs/threat-model.md](docs/threat-model.md);
+- a **doc error** — the docs describe something the code doesn't do, or
+  the reverse;
+- a **translation** fix — a wrong or corrupted string in an *existing*
+  locale.
+
+**These wait until after 1.0, no matter how good:**
+
+- new features, new behaviors, new config fields, new UI;
+- refactors, renames, or architecture changes not required by one of
+  the fixes above (the "god-object `App` split" and a native-Wayland
+  device-loss rework are the standing examples — both deferred on
+  purpose);
+- new dependencies or non-security version bumps;
+- new locales — the string set is frozen; fixes to shipped locales are
+  welcome, a brand-new language is not.
+
+**Exceptions are decided in the open, before the PR.** Open an issue
+describing the change and why it can't wait for 1.0, and get an explicit
+"yes, in scope" from the maintainer first. A PR that expands scope
+without that decision will be asked to wait — the whole point of the
+freeze is that *nothing* grows the surface we're trying to stabilize.
+
+**Branch policy:** fixes branch from `main` and merge back to `main`;
+1.0 ships from `main`. No feature branches are in flight during the
+freeze — anything feature-shaped lives in an issue until the 1.0 tag is
+cut, then development reopens.
+
 ## Quick loop
 
 ```bash
@@ -26,8 +70,10 @@ cargo fmt --check
 RUST_LOG=anima_engine=debug cargo run
 ```
 
-CI (see `.github/workflows/ci.yml`) runs the same four checks against
-Ubuntu 22.04 + 24.04. If they pass locally they pass in CI.
+CI (see `.github/workflows/ci.yml`) runs these four on Ubuntu 24.04,
+plus rustdoc, MSRV, cargo-machete, desktop-metadata and actionlint
+gates. If the four above pass locally they pass in CI; the rest rarely
+trip on a focused change.
 
 ## House rules
 
@@ -51,10 +97,12 @@ review fast:
   features should follow the same pattern.
 - **Constants**: cross-module magic numbers go in `src/constants.rs`.
   Module-local values stay local.
-- **Tests**: every new feature gets at least one unit test. UI / event
-  loop code is exempt (we'd need a display server) but the underlying
-  pure logic isn't. `cargo test` currently runs 80 tests; please don't
-  shrink that number.
+- **Tests**: every fix gets at least one unit test that would have
+  caught it. UI / event-loop code is exempt (we'd need a display
+  server), but the underlying pure logic isn't — extract the decision
+  into a testable function and test that, the way `next_surface_loss_state`
+  and `scaling_desyncs_xshape` were. Coverage only goes up; don't delete
+  tests to make a change fit.
 
 ## Style
 
@@ -76,9 +124,10 @@ Briefly:
 - `src/behavior.rs` — per-entity motion behaviors
 - `src/renderer/` — wgpu pipeline (sprite shader, batched quads)
 - `src/ui/` — egui integration (settings panel, context menu, toasts)
-- `src/wayland/` — native Wayland backend (opt-in, in development)
+- `src/wayland/` — native Wayland backend (opt-in, wlroots only)
 - `src/window/` — X11-side input shape + EWMH hints
-- `src/app.rs` — the `ApplicationHandler` that ties it all together
+- `src/app/` — the `ApplicationHandler` that ties it all together
+  (`mod.rs` + `render_loop.rs`, `lifecycle.rs`, `dispatch.rs`, …)
 
 ## Adding a new behavior
 
@@ -91,7 +140,7 @@ touch for a feature:
    from `TickContext` (sprite size, screen size, cursor, dt).
 3. (Optional) Add accumulators to `BehaviorState` if you need runtime
    state separate from the config.
-4. Wire the UI in `src/ui/panels.rs::behavior_picker` — add a
+4. Wire the UI in the behavior picker under `src/ui/panels/` — add a
    `selectable_value` entry and a `match` arm with sliders.
 5. Write 2-3 unit tests in the `tests` module at the bottom of
    `behavior.rs`.
@@ -106,7 +155,7 @@ flows through `Behavior` and `BehaviorState`.
 2. Make your changes; keep commits focused (one logical change per
    commit, ideally).
 3. Run the four checks above (`build` / `test` / `clippy` / `fmt`).
-4. Open a PR. CI runs the same checks on Ubuntu 22.04 + 24.04.
+4. Open a PR. CI runs them (and the extra gates) on Ubuntu 24.04.
 5. PR description should include:
    - What it does
    - Why (linked issue if applicable)

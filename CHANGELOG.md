@@ -106,6 +106,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Documentation
 
+- **Stability freeze declared (W.7)** — `CONTRIBUTING.md` gains a
+  "Stability freeze (0.9 → 1.0)" section: feature work is closed until
+  1.0, and only crash / data-loss / regression / security / doc-error /
+  translation fixes land; exceptions need an issue and an explicit
+  in-scope decision before the PR; fixes branch off `main`. Stale facts
+  in the file fixed along the way (CI runs on Ubuntu 24.04; module
+  paths `app.rs`→`app/`, `panels.rs`→`panels/`; dropped the brittle
+  hardcoded test count).
 - **Full locale audit (W.6)** — `docs/locale-audit/README.md` status
   table corrected from the stale "partial; placeholder English" to the
   verified full-coverage reality; `i18n-pipeline.md` gains the
