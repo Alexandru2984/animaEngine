@@ -56,6 +56,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **XWayland fractional-scaling click-through, surfaced not silent** —
+  under XWayland (default on GNOME/KDE Wayland) a fractional (125 %,
+  150 %) or mixed-DPI multi-monitor scale desyncs the `XShape`
+  click-through region from the painted overlay — an inherent XWayland
+  limitation an X11 client can't correct. The app now detects this at
+  startup and logs a clear warning (instead of leaving misaligned clicks
+  a mystery), and `docs/wayland.md` documents it with the workarounds
+  (native X11 session, or a uniform 100 %/200 % scale).
 - **GPU surface-loss recovery** — the render loop now handles a lost
   surface intentionally instead of reconfiguring forever. `Lost` /
   `Outdated` reconfigure in place (the transient case: resize, occlusion,

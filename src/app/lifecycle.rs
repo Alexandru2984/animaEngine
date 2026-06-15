@@ -47,6 +47,15 @@ impl App {
         // this list; for now we log it and keep the data ready.
         let monitors = super::windows::snapshot_monitors(event_loop);
         crate::monitor::log_topology(&monitors);
+        // We force the X11 backend, so a Wayland session means XWayland —
+        // where fractional/mixed scaling desyncs the XShape click-through
+        // region. Warn once (handle_resumed runs once) rather than leave
+        // misaligned clicks unexplained.
+        let on_xwayland = matches!(
+            crate::window::platform::detect_display_server(),
+            crate::window::platform::DisplayServer::Wayland
+        );
+        crate::monitor::warn_xwayland_xshape_scaling(on_xwayland, &monitors);
         self.monitors = monitors;
 
         // Discover + load + merge-scan the asset library. Errors are

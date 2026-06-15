@@ -190,6 +190,40 @@ pub fn log_topology(monitors: &[MonitorInfo]) {
     }
 }
 
+/// True if this monitor set is prone to the XWayland click-through
+/// misalignment: any fractional scale, or different scales across
+/// monitors. XWayland presents X11 clients a single unscaled coordinate
+/// space and scales surfaces behind their back, so an `XShape` input
+/// region (our click-through cutout) can land offset from where the
+/// compositor actually paints the window. Native X11 honours XShape
+/// exactly, and a uniform integer scale is handled cleanly — only
+/// fractional or mixed scaling desyncs it.
+fn scaling_desyncs_xshape(scales: &[f64]) -> bool {
+    let fractional = scales.iter().any(|s| s.fract().abs() > 1e-3);
+    let mixed = scales.windows(2).any(|w| (w[0] - w[1]).abs() > 1e-3);
+    fractional || mixed
+}
+
+/// Warn once at startup if we're on XWayland with a scaling setup that
+/// desyncs the `XShape` click-through region. This is an inherent
+/// XWayland limitation (see `docs/wayland.md`), not something we can fix
+/// from an X11 client — the warning tells the user *why* clicks might
+/// land in the wrong place rather than leaving it a mystery.
+pub fn warn_xwayland_xshape_scaling(on_xwayland: bool, monitors: &[MonitorInfo]) {
+    if !on_xwayland {
+        return;
+    }
+    let scales: Vec<f64> = monitors.iter().map(|m| m.scale_factor).collect();
+    if scaling_desyncs_xshape(&scales) {
+        tracing::warn!(
+            "XWayland + fractional/mixed display scaling detected ({scales:?}); \
+             click-through (XShape) may be offset from the painted overlay. \
+             This is an XWayland limitation — a native X11 session or a uniform \
+             100%/200% scale avoids it. See docs/wayland.md."
+        );
+    }
+}
+
 /// Which windows a monitor mode wants, for a given topology (T.6).
 ///
 /// The *primary* overlay window always exists (it hosts egui); the
@@ -256,6 +290,30 @@ pub fn plan_windows(mode: &MonitorMode, monitors: &[MonitorInfo]) -> WindowPlan 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn uniform_integer_scaling_is_safe() {
+        assert!(!scaling_desyncs_xshape(&[1.0]));
+        assert!(!scaling_desyncs_xshape(&[2.0, 2.0]));
+        assert!(!scaling_desyncs_xshape(&[1.0, 1.0, 1.0]));
+    }
+
+    #[test]
+    fn fractional_scaling_desyncs() {
+        assert!(scaling_desyncs_xshape(&[1.5]));
+        assert!(scaling_desyncs_xshape(&[1.25, 1.25]));
+    }
+
+    #[test]
+    fn mixed_scaling_desyncs() {
+        assert!(scaling_desyncs_xshape(&[1.0, 2.0]));
+        assert!(scaling_desyncs_xshape(&[2.0, 1.0, 2.0]));
+    }
+
+    #[test]
+    fn empty_or_single_uniform_does_not_desync() {
+        assert!(!scaling_desyncs_xshape(&[]));
+    }
 
     fn primary_only() -> Vec<MonitorInfo> {
         vec![MonitorInfo {

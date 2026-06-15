@@ -58,6 +58,26 @@ set the env var.
 | Tray icon (StatusNotifierItem) | ✓ | ✓ |
 | AccessKit / AT-SPI | ✓ | toggle still works; native screen-reader pickup compositor-dependent |
 
+## XWayland caveat: fractional / mixed scaling and click-through
+
+When the binary runs through **XWayland** (the default on GNOME/KDE
+Wayland, where `zwlr_layer_shell_v1` isn't exposed) the click-through
+cutout is an X11 `XShape` input region. XWayland presents X11 clients a
+single unscaled coordinate space and scales surfaces behind their back,
+so on **fractional scaling** (e.g. 125 %, 150 %) or a **mixed-DPI**
+multi-monitor layout (one screen at 100 %, another at 200 %) the
+`XShape` region can land offset from where the compositor actually
+paints the overlay — clicks may pass through where the ⚙ button looks
+like it is, or vice-versa.
+
+This is an inherent XWayland limitation, not something an X11 client can
+correct. animaEngine **detects the condition at startup and logs a
+warning** (`XWayland + fractional/mixed display scaling detected …`) so
+the behaviour isn't a mystery. To avoid it: run a native X11 session, or
+use a uniform integer scale (100 % or 200 %) across monitors. The native
+Wayland path (`wl_surface::set_input_region`, wlroots compositors) is not
+affected — it works in the compositor's scaled coordinate space.
+
 ## Global shortcuts on Wayland — the portal path (preferred)
 
 Wayland has no `XGrabKey` equivalent. The sanctioned mechanism is the
