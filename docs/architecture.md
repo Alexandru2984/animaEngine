@@ -38,6 +38,23 @@ Two entry points:
   - from_instance_surface(instance, surface, w, h)  backend-agnostic
 ```
 
+**Surface-loss recovery** (`app/render_loop.rs`). `get_current_texture`
+returns `SurfaceError`, matched exhaustively — there is no `unwrap`, so
+a lost surface never panics. `Lost`/`Outdated` reconfigure the surface
+in place (the common transient: resize race, occlusion, the first frame
+or two after S3 resume) and bump a consecutive-loss streak; `Timeout`
+drops the frame; `OutOfMemory` saves and exits. If the streak passes
+`SURFACE_LOSS_REBUILD_THRESHOLD` the surface isn't coming back by
+reconfigure (driver reset, GPU hot-unplug, device lost across suspend),
+so the renderer is **rebuilt wholesale** from the retained `Arc<Window>`
+— the same `WgpuRenderer::new` path as startup — and every entity is
+re-marked dirty to re-upload its texture. A failed rebuild means the GPU
+is unusable: exit cleanly (config already persisted) so the session
+restarts us, rather than spin on a dead device. The escalation policy is
+unit-tested (`next_surface_loss_state`); the device-loss *trigger* can't
+be simulated without GPU hardware, so the rebuild path is validated by
+construction (it reuses the tested init), not by a forced loss.
+
 ### UI overlay (egui)
 
 ```

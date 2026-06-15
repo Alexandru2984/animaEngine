@@ -56,6 +56,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **GPU surface-loss recovery** — the render loop now handles a lost
+  surface intentionally instead of reconfiguring forever. `Lost` /
+  `Outdated` reconfigure in place (the transient case: resize, occlusion,
+  the first frames after suspend); a loss that persists past a threshold
+  (driver reset, GPU hot-unplug, device lost across S3 resume) rebuilds
+  the whole renderer from the retained window — the same path as startup,
+  re-uploading textures — and, if even that fails, exits cleanly so the
+  session restarts us rather than spinning on a dead device. No panic
+  path existed before (the match was exhaustive) but a true device loss
+  had no recovery; flagged by two external audits. Escalation policy
+  unit-tested; rebuild path validated by reusing the tested init.
 - **Forward-compat with the upcoming rustc float-literal change** — 19
   `egui::Stroke::new(<width>, …)` call sites passed an un-suffixed float
   literal that relied on the `f64 → f32` inference fallback being

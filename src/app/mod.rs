@@ -111,6 +111,14 @@ pub struct App {
     /// HUD (W.3). Captured-and-reset at each frame's start.
     gpu_uploads: u32,
     gpu_draws: u32,
+    /// Consecutive frames the primary surface has come back `Lost` /
+    /// `Outdated`. Reset on any successful present. A short streak is a
+    /// transient blip the per-frame `surface.configure()` clears (resize,
+    /// occlusion, the first frame or two after S3 resume); a streak past
+    /// [`SURFACE_LOSS_REBUILD_THRESHOLD`] means the surface reconfigure
+    /// isn't recovering it (driver reset, GPU hot-unplug, device lost
+    /// across suspend) and we rebuild the renderer wholesale.
+    surface_loss_streak: u32,
     /// Snapshot of the monitor topology taken on the first `resumed()`
     /// — empty until then. Used by the picker UI (C.2) and the
     /// per-monitor render path (C.3); the data layer (this commit /
@@ -208,6 +216,7 @@ impl App {
             soak: crate::soak::SoakRecorder::from_env(),
             gpu_uploads: 0,
             gpu_draws: 0,
+            surface_loss_streak: 0,
             monitors: Vec::new(),
             window_watcher: None,
             window_watcher_probe_done: false,

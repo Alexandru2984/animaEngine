@@ -18,6 +18,7 @@
 //! 7. Present + close the perf frame + request next redraw.
 
 use super::App;
+use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::ui::panels;
 use std::time::{Duration, Instant};
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
@@ -39,6 +40,30 @@ pub(super) enum RedrawPacing {
 /// the heartbeat exists so config edits still apply while the overlay
 /// sits static.
 pub(super) const IDLE_HEARTBEAT: Duration = Duration::from_secs(2);
+
+/// Consecutive `Lost`/`Outdated` surface acquisitions before we stop
+/// trusting `surface.configure()` to recover and rebuild the whole
+/// renderer instead. A resize or an S3 resume produces a frame or two
+/// of `Lost` that reconfigure clears; a driver reset / GPU hot-unplug /
+/// device-lost-across-suspend does not, and only a fresh device+surface
+/// recovers it. Kept small so recovery is prompt (each loss requests an
+/// immediate redraw, so the streak burns through in a few frames), but
+/// above the 1–2 frame transient so we don't rebuild for a blip.
+pub(super) const SURFACE_LOSS_REBUILD_THRESHOLD: u32 = 8;
+
+/// Escalation policy for a lost surface, factored out so it's unit-tested
+/// without a GPU. Given the current consecutive-loss streak, returns the
+/// next streak and whether to rebuild the renderer now. At the threshold
+/// it signals a rebuild and resets the streak to 0 so a *post-rebuild*
+/// loss starts a fresh count (and we don't thrash rebuilds every frame).
+fn next_surface_loss_state(streak: u32) -> (u32, bool) {
+    let next = streak.saturating_add(1);
+    if next >= SURFACE_LOSS_REBUILD_THRESHOLD {
+        (0, true)
+    } else {
+        (next, false)
+    }
+}
 
 impl App {
     pub(super) fn handle_redraw_requested(&mut self, event_loop: &ActiveEventLoop) {
@@ -123,6 +148,12 @@ impl App {
             None
         };
 
+        // Surface-recovery bookkeeping for this frame. Resolved after
+        // the renderer borrow below is released (we can't reassign
+        // `self.renderer` while it's borrowed).
+        let mut surface_lost = false;
+        let mut rendered_ok = false;
+
         // Update textures for entities with changed frames
         if let Some(renderer) = &mut self.renderer {
             // Scene replacement paths (preset / palette Replace) swap the
@@ -174,6 +205,7 @@ impl App {
             };
             match render_result {
                 Ok(output) => {
+                    rendered_ok = true;
                     // egui runs in BOTH modes. In pass-through it
                     // paints just the toggle ⚙ button; in edit mode it
                     // adds the settings panel, context menu, toasts.
@@ -408,20 +440,40 @@ impl App {
                         self.import_shimeji_pack(&expanded);
                     }
                 }
-                Err(wgpu::SurfaceError::Lost) => {
+                // Surface needs reconfiguring against the current size
+                // (resize race, occlusion, or the surface coming back
+                // after suspend). Reconfigure and flag for the streak
+                // tracker — persistent loss escalates to a full rebuild.
+                Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                     renderer.resize(
                         renderer.primary.window_width,
                         renderer.primary.window_height,
                     );
+                    surface_lost = true;
                 }
                 Err(wgpu::SurfaceError::OutOfMemory) => {
                     tracing::error!("GPU out of memory!");
                     event_loop.exit();
                 }
+                // Timeout: the swapchain image wasn't ready in time —
+                // transient, just drop this frame and try the next.
+                Err(wgpu::SurfaceError::Timeout) => {
+                    tracing::debug!("surface acquire timed out; skipping frame");
+                }
                 Err(e) => {
                     tracing::warn!("Render error: {:?}", e);
                 }
             }
+        }
+
+        // Surface-loss recovery, now that the `self.renderer` borrow is
+        // released. A clean present resets the streak; a lost surface
+        // either reconfigures (handled above) or, once persistent,
+        // triggers a wholesale renderer rebuild.
+        if surface_lost {
+            self.recover_after_surface_loss(event_loop);
+        } else if rendered_ok {
+            self.surface_loss_streak = 0;
         }
 
         // Render the PerMonitor extras inside the same cycle (one
@@ -450,6 +502,53 @@ impl App {
             RedrawPacing::Idle => {
                 event_loop
                     .set_control_flow(ControlFlow::WaitUntil(Instant::now() + IDLE_HEARTBEAT));
+            }
+        }
+    }
+
+    /// React to a primary surface that came back `Lost`/`Outdated`.
+    ///
+    /// The per-frame `surface.configure()` (done in the match arm before
+    /// this is called) clears the common, transient cases — a resize
+    /// race, occlusion, the first frame or two after S3 resume. This
+    /// tracks how many frames in a row that *hasn't* worked: once the
+    /// streak passes [`SURFACE_LOSS_REBUILD_THRESHOLD`] the surface is
+    /// genuinely gone (driver reset, GPU hot-unplug, device lost across
+    /// suspend) and only a fresh device recovers it, so we rebuild the
+    /// whole renderer from the retained window — the same path startup
+    /// takes. If even that fails the GPU is unusable; save state and exit
+    /// cleanly so the session restarts us rather than spin forever.
+    ///
+    /// An immediate redraw is requested so the streak burns through in a
+    /// handful of frames instead of waiting on the idle heartbeat.
+    fn recover_after_surface_loss(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+        let (next_streak, rebuild) = next_surface_loss_state(self.surface_loss_streak);
+        self.surface_loss_streak = next_streak;
+        if !rebuild {
+            return; // give surface.configure() a few frames to recover
+        }
+        tracing::warn!("primary surface lost persistently; rebuilding the renderer");
+        let Some(window) = self.window.clone() else {
+            tracing::error!("no window to rebuild the renderer against; exiting");
+            event_loop.exit();
+            return;
+        };
+        match WgpuRenderer::new(window) {
+            Ok(renderer) => {
+                self.renderer = Some(renderer);
+                // The rebuilt device has an empty texture cache; force
+                // every entity to re-upload on the next frame.
+                for e in &mut self.scene.entities {
+                    e.texture_dirty = true;
+                }
+                tracing::info!("renderer rebuilt after persistent surface loss");
+            }
+            Err(e) => {
+                tracing::error!("renderer rebuild failed ({e}); exiting cleanly for a restart");
+                event_loop.exit();
             }
         }
     }
@@ -486,5 +585,36 @@ impl App {
             Some(due) => RedrawPacing::Deadline(due),
             None => RedrawPacing::Idle,
         }
+    }
+}
+
+#[cfg(test)]
+mod surface_loss_tests {
+    use super::{next_surface_loss_state, SURFACE_LOSS_REBUILD_THRESHOLD};
+
+    #[test]
+    fn below_threshold_increments_without_rebuild() {
+        let (next, rebuild) = next_surface_loss_state(0);
+        assert_eq!((next, rebuild), (1, false));
+        let (next, rebuild) = next_surface_loss_state(SURFACE_LOSS_REBUILD_THRESHOLD - 2);
+        assert_eq!((next, rebuild), (SURFACE_LOSS_REBUILD_THRESHOLD - 1, false));
+    }
+
+    #[test]
+    fn reaching_threshold_rebuilds_and_resets() {
+        // One more loss from THRESHOLD-1 hits THRESHOLD → rebuild, streak
+        // resets so a post-rebuild loss counts fresh (no per-frame thrash).
+        let (next, rebuild) = next_surface_loss_state(SURFACE_LOSS_REBUILD_THRESHOLD - 1);
+        assert!(rebuild);
+        assert_eq!(next, 0);
+    }
+
+    #[test]
+    fn saturates_without_overflow() {
+        let (_, rebuild) = next_surface_loss_state(u32::MAX);
+        assert!(
+            rebuild,
+            "a huge streak must still resolve to a rebuild, not panic"
+        );
     }
 }
