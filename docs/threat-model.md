@@ -273,6 +273,28 @@ native Wayland path can't grab keys at all (compositor bindings call
 our D-Bus methods instead). In-app keyboard input (edit mode, panels)
 reaches us only while our window has focus, like any other application.
 
+### In-process C video decoder (openh264)
+
+MP4/H.264 playback links **openh264** (Cisco's C decoder, built from
+source), which runs **in-process and unsandboxed**. A malformed `.mp4`
+therefore reaches C code that we don't control. We accept this for 1.0
+rather than sandbox it, and bound it instead:
+
+- The container is demuxed by the pure-Rust `mp4` crate, which validates
+  box structure before any sample bytes reach the decoder.
+- Our hand-written NALU length-prefix walk (`avcc_to_annex_b`) is
+  bounds-checked and **fuzzed** (W.4); it's the only bespoke parser on
+  the path.
+- `MAX_ASSET_FILE_BYTES` and `MAX_VIDEO_FRAMES` cap the input and the
+  work before decode.
+
+What we *don't* do is isolate the decoder itself — a memory-safety bug
+inside openh264 on a crafted stream is reachable. Process-level
+isolation (a seccomp-confined decode thread that passes frames back over
+a channel) is the right mitigation and is **deferred past 1.0**;
+recorded here so the residual is explicit, not implied. Users who don't
+play video are unaffected — nothing reaches the decoder.
+
 ### Side-channel / display attacks
 
 If another process on the user's display can see our window contents
@@ -281,16 +303,24 @@ Use a screen lock and don't share your display with untrusted users.
 
 ### Wayland native path
 
-The `ANIMA_USE_WAYLAND_NATIVE=1` code path is **experimental** and
-deliberately less hardened:
+The `ANIMA_USE_WAYLAND_NATIVE=1` code path (wlroots compositors only)
+reached near-parity with X11 over the 0.5 *E* phases, and its untrusted
+inputs go through the **same** boundaries as the X11 path:
 
-- Keyboard events aren't translated (sctk requires `libxkbcommon-dev`,
-  which we don't bundle).
-- egui UI isn't wired in.
-- Pointer events are buffered but discarded.
+- **File drops** (`wl_data_device` / `text/uri-list`) hit the identical
+  `pre_validate_dropped_file` gate before any decode — same extension
+  allowlist and frame/size caps. The `text/uri-list` parser
+  (`wayland::data_device::parse_uri_list`) is a fuzz target.
+- **Keyboard** is decoded through `xkbcommon` (E.1); **pointer** events
+  are dispatched (E.3); the **egui** UI renders on it (E.5).
 
-Use the X11 path for daily-driver work; the Wayland path is a
-correctness preview, not a hardened production target.
+It is still **opt-in and not the default** — GNOME/KDE Wayland lack
+`zwlr_layer_shell_v1` and fall back to XWayland automatically, so most
+users never exercise it. The remaining gaps are feature/UX, not
+security: the asset-library index isn't surfaced there yet, and
+per-monitor window distribution is single-surface. Use the X11 path for
+daily-driver work; the native path is a hardened-but-narrow target for
+wlroots users who want to skip XWayland.
 
 ## Supply chain
 
