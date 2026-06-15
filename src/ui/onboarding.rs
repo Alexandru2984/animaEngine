@@ -131,7 +131,7 @@ pub fn hint(ui: &mut egui::Ui, body: &str, seen: &mut bool) -> bool {
         .fill(bg)
         .corner_radius(RADIUS_MD)
         .inner_margin(egui::Margin::symmetric(SPACE_M as i8, SPACE_S as i8))
-        .stroke(egui::Stroke::new(1.0, accent.gamma_multiply(0.5)))
+        .stroke(egui::Stroke::new(1.0_f32, accent.gamma_multiply(0.5)))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(icons::HINT).color(accent).size(14.0));
@@ -233,7 +233,7 @@ pub fn coach_marks(
                 .fill(bg)
                 .corner_radius(RADIUS_MD)
                 .inner_margin(egui::Margin::same(SPACE_M as i8))
-                .stroke(egui::Stroke::new(1.5, accent))
+                .stroke(egui::Stroke::new(1.5_f32, accent))
                 .show(ui, |ui| {
                     let body_key = match step {
                         0 => "onboarding-coach-step1",

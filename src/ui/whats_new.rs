@@ -71,7 +71,7 @@ pub fn show(ui: &mut egui::Ui, last_seen: &mut Option<String>) -> bool {
         .fill(bg)
         .corner_radius(RADIUS_MD)
         .inner_margin(egui::Margin::same(SPACE_M as i8))
-        .stroke(egui::Stroke::new(1.0, accent.gamma_multiply(0.5)))
+        .stroke(egui::Stroke::new(1.0_f32, accent.gamma_multiply(0.5)))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(

@@ -349,33 +349,37 @@ jobs:
           sudo apt-get install -y \
             libvulkan1 mesa-vulkan-drivers libgl1 libxkbcommon0 \
             libxkbcommon-x11-0 libwayland-client0 \
-            weston dbus dbus-daemon
+            weston xvfb dbus dbus-daemon
       - uses: actions/download-artifact@v4
         with:
           name: release-binary
       - run: chmod +x anima_engine
-      # Weston implements no wlr-layer-shell, so this exercises the
-      # documented fallback chain on a pure-Wayland session (no X):
-      # compositor probe → no layer-shell → winit Wayland toplevel.
-      # That path is field-unvalidated since 0.6 (see the 0.6.0 release
-      # notes "Known limitations") — this canary is the first automated
-      # environment that runs it at all.
-      - name: Run release binary under headless Weston for 5 seconds
+      # Weston implements no wlr-layer-shell, so on this Wayland session
+      # the app takes its documented fallback: compositor probe → no
+      # layer-shell → the X11/XWayland route (it pins winit to X11, it
+      # does NOT open a native Wayland toplevel). That mirrors a real
+      # GNOME/KDE Wayland desktop, where XWayland is always present. We
+      # stand XWayland up with Xvfb (same X11 protocol) and point DISPLAY
+      # at it, so the probe→decision→X11-run chain actually completes
+      # instead of dying on "no X server" — that chain has been
+      # field-unvalidated since 0.6 (see the 0.6.0 "Known limitations").
+      - name: Run release binary on a Wayland session (XWayland fallback)
         run: |
           export XDG_RUNTIME_DIR=/tmp/xdg-runtime
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
           weston --backend=headless --socket=wayland-ci --idle-time=0 &
+          Xvfb :99 -screen 0 1280x720x24 &
           sleep 3
-          export WAYLAND_DISPLAY=wayland-ci
-          unset DISPLAY
+          export WAYLAND_DISPLAY=wayland-ci   # genuine Wayland session…
+          export DISPLAY=:99                  # …with XWayland (Xvfb) available
           timeout --preserve-status 5s \
             dbus-run-session -- ./anima_engine || EXIT=$?
           if [ "${EXIT:-0}" != "0" ] && [ "${EXIT:-0}" != "124" ] && [ "${EXIT:-0}" != "143" ]; then
             echo "App exited with non-success/non-timeout code: $EXIT"
             exit 1
           fi
-          echo "Wayland smoke test passed."
+          echo "Wayland (XWayland fallback) smoke test passed."
 
   bench:
     name: benchmark canary

@@ -218,6 +218,6 @@ fn sparkline(ui: &mut egui::Ui, sampler: &PerfSampler) {
             egui::pos2(rect.left(), target_y),
             egui::pos2(rect.right(), target_y),
         ],
-        egui::Stroke::new(1.0, egui::Color32::from_rgb(220, 180, 60)),
+        egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(220, 180, 60)),
     );
 }

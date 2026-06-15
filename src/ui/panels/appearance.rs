@@ -123,7 +123,7 @@ pub(super) fn warning_banner(ui: &mut egui::Ui, warning: Warning) {
         Severity::Error => egui::Color32::from_rgb(220, 80, 80),
     };
     egui::Frame::group(ui.style())
-        .stroke(egui::Stroke::new(1.0, accent))
+        .stroke(egui::Stroke::new(1.0_f32, accent))
         .show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label(egui::RichText::new(icons::WARN).color(accent));

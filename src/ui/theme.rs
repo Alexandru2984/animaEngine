@@ -346,7 +346,7 @@ fn apply_visuals(v: &mut Visuals, p: &Palette, high_contrast: bool) {
     v.warn_fg_color = p.semantic_warn;
     v.error_fg_color = p.semantic_error;
 
-    v.window_stroke = Stroke::new(1.0, p.border_subtle);
+    v.window_stroke = Stroke::new(1.0_f32, p.border_subtle);
     v.window_corner_radius = CornerRadius::same(RADIUS_LG);
     v.menu_corner_radius = CornerRadius::same(RADIUS_MD);
 
@@ -368,7 +368,7 @@ fn apply_visuals(v: &mut Visuals, p: &Palette, high_contrast: bool) {
 
     v.selection = Selection {
         bg_fill: p.accent_subtle,
-        stroke: Stroke::new(1.0, p.accent_base),
+        stroke: Stroke::new(1.0_f32, p.accent_base),
     };
 
     v.widgets = build_widgets(p, high_contrast);
@@ -379,15 +379,15 @@ fn build_widgets(p: &Palette, high_contrast: bool) -> Widgets {
     // High-contrast users get a thicker focus ring (3 px vs 2 px),
     // bright enough to read above any background. AA users still need
     // a clear focus indicator; this is the WCAG 2.4.7 requirement.
-    let focus_width = if high_contrast { 3.0 } else { 2.0 };
+    let focus_width: f32 = if high_contrast { 3.0 } else { 2.0 };
 
     Widgets {
         // Static surfaces — panel chrome, separators, group frames.
         noninteractive: WidgetVisuals {
             bg_fill: p.bg_surface,
             weak_bg_fill: p.bg_surface,
-            bg_stroke: Stroke::new(1.0, p.border_subtle),
-            fg_stroke: Stroke::new(1.0, p.fg_primary),
+            bg_stroke: Stroke::new(1.0_f32, p.border_subtle),
+            fg_stroke: Stroke::new(1.0_f32, p.fg_primary),
             corner_radius: radius,
             expansion: 0.0,
         },
@@ -395,8 +395,8 @@ fn build_widgets(p: &Palette, high_contrast: bool) -> Widgets {
         inactive: WidgetVisuals {
             bg_fill: p.bg_elevated,
             weak_bg_fill: p.bg_elevated,
-            bg_stroke: Stroke::new(1.0, p.border_strong),
-            fg_stroke: Stroke::new(1.0, p.fg_primary),
+            bg_stroke: Stroke::new(1.0_f32, p.border_strong),
+            fg_stroke: Stroke::new(1.0_f32, p.fg_primary),
             corner_radius: radius,
             expansion: 0.0,
         },
@@ -404,8 +404,8 @@ fn build_widgets(p: &Palette, high_contrast: bool) -> Widgets {
         hovered: WidgetVisuals {
             bg_fill: mix(p.bg_elevated, p.accent_base, 0.08),
             weak_bg_fill: mix(p.bg_elevated, p.accent_base, 0.08),
-            bg_stroke: Stroke::new(1.0, p.accent_base),
-            fg_stroke: Stroke::new(1.0, p.fg_primary),
+            bg_stroke: Stroke::new(1.0_f32, p.accent_base),
+            fg_stroke: Stroke::new(1.0_f32, p.fg_primary),
             corner_radius: radius,
             expansion: 1.0,
         },
@@ -414,7 +414,7 @@ fn build_widgets(p: &Palette, high_contrast: bool) -> Widgets {
             bg_fill: mix(p.bg_elevated, p.accent_base, 0.16),
             weak_bg_fill: mix(p.bg_elevated, p.accent_base, 0.16),
             bg_stroke: Stroke::new(focus_width, p.accent_base),
-            fg_stroke: Stroke::new(1.0, p.fg_primary),
+            fg_stroke: Stroke::new(1.0_f32, p.fg_primary),
             corner_radius: radius,
             expansion: 1.0,
         },
@@ -422,8 +422,8 @@ fn build_widgets(p: &Palette, high_contrast: bool) -> Widgets {
         open: WidgetVisuals {
             bg_fill: mix(p.bg_elevated, p.accent_base, 0.12),
             weak_bg_fill: mix(p.bg_elevated, p.accent_base, 0.12),
-            bg_stroke: Stroke::new(1.0, p.accent_base),
-            fg_stroke: Stroke::new(1.0, p.fg_primary),
+            bg_stroke: Stroke::new(1.0_f32, p.accent_base),
+            fg_stroke: Stroke::new(1.0_f32, p.fg_primary),
             corner_radius: radius,
             expansion: 0.0,
         },

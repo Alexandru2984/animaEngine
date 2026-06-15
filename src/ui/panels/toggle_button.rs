@@ -55,7 +55,7 @@ pub fn toggle_button(ctx: &egui::Context, edit_mode: bool) -> bool {
                 ui.painter().rect_stroke(
                     response.rect.shrink(1.5),
                     0.0,
-                    egui::Stroke::new(2.0, stroke.color),
+                    egui::Stroke::new(2.0_f32, stroke.color),
                     egui::StrokeKind::Inside,
                 );
             }

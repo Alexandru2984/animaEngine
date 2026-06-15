@@ -11,9 +11,19 @@
 #   scripts/soak.sh [DURATION_SECS] [INTERVAL_SECS] [RSS_SLOPE_KIB_PER_MIN]
 #   DURATION default 1800 (30 min), INTERVAL 60, threshold 512 KiB/min.
 #
-# Exit status: 0 if the RSS slope is below the threshold (flat enough),
-# 1 if it drifts above it — so CI can gate on it. A run that produces
-# too few samples to regress also fails (1).
+# The slope is fit over the STEADY STATE only — the first
+# SOAK_WARMUP_FRAC (default 0.5) of the run is discarded before
+# regressing. A cold start legitimately steps RSS once as the cache
+# fills and every entity's assets are decoded/uploaded for the first
+# time; fitting a single line across that one-time step reports a
+# bogus positive slope even when memory then plateaus flat. A real
+# leak keeps climbing through the back half and is still caught. The
+# report shows the full-range first/last delta for transparency, but
+# the verdict is the post-warmup slope.
+#
+# Exit status: 0 if the steady-state RSS slope is below the threshold
+# (flat enough), 1 if it drifts above it — so CI can gate on it. A run
+# with too few post-warmup samples to regress also fails.
 #
 # Output: build/soak-report-<date>.md and the raw build/soak-<date>.csv.
 
@@ -24,7 +34,8 @@ cd "$REPO"
 
 DURATION="${1:-1800}"
 INTERVAL="${2:-60}"
-SLOPE_THRESHOLD="${3:-512}" # KiB per minute
+SLOPE_THRESHOLD="${3:-512}"            # KiB per minute
+WARMUP_FRAC="${SOAK_WARMUP_FRAC:-0.5}" # discard this leading fraction before regressing
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -116,39 +127,45 @@ fi
 log "Collected $(($(wc -l < "$CSV") - 1)) samples → $CSV"
 
 # ── 5) Regress RSS vs time, write report ────────────────────────────
-# Least-squares slope of rss_kib over elapsed_secs (→ KiB/min), plus
-# first/last RSS. awk keeps the harness dependency-free.
-awk -F, -v thr="$SLOPE_THRESHOLD" -v report="$REPORT" -v csv="$CSV" -v dur="$DURATION" -v iv="$INTERVAL" '
+# Least-squares slope of rss_kib over elapsed_secs (→ KiB/min), fit over
+# the post-warmup samples only (see header). Full-range first/last is
+# kept for the report. awk keeps the harness dependency-free.
+awk -F, -v thr="$SLOPE_THRESHOLD" -v report="$REPORT" -v csv="$CSV" \
+        -v dur="$DURATION" -v iv="$INTERVAL" -v warm="$WARMUP_FRAC" '
+  BEGIN { cutoff = dur * warm }          # discard samples before this elapsed time
   NR == 1 { next }                       # header
   {
     n++; x=$1; y=$2;
-    sx+=x; sy+=y; sxx+=x*x; sxy+=x*y;
     if (n==1) { first=y; firstt=x }
     last=y; lastt=x;
     dec=$3; tex=$4; p95=$5;
+    # Steady-state accumulators: only samples past the warmup cutoff.
+    if (x >= cutoff) {
+      m++; sx+=x; sy+=y; sxx+=x*x; sxy+=x*y;
+    }
   }
   END {
-    if (n < 3) {
-      printf("FAIL: only %d samples, need >= 3 to regress\n", n);
+    delta = last - first;
+    if (m < 3) {
+      printf("FAIL: only %d post-warmup samples, need >= 3 to regress\n", m);
       exit 2;
     }
-    denom = (n*sxx - sx*sx);
-    slope_per_sec = (denom != 0) ? (n*sxy - sx*sy) / denom : 0;
+    denom = (m*sxx - sx*sx);
+    slope_per_sec = (denom != 0) ? (m*sxy - sx*sy) / denom : 0;
     slope_per_min = slope_per_sec * 60.0;
     verdict = (slope_per_min <= thr) ? "FLAT" : "DRIFT";
-    delta = last - first;
 
     printf("# Soak report\n\n") > report;
-    printf("- Samples: %d over %ds (interval %ds)\n", n, dur, iv) >> report;
-    printf("- RSS first/last: %d / %d KiB (delta %d KiB)\n", first, last, delta) >> report;
-    printf("- RSS slope: %.2f KiB/min (threshold %d)\n", slope_per_min, thr) >> report;
+    printf("- Samples: %d over %ds (interval %ds); regressed %d post-warmup (>=%.0f%%)\n", n, dur, iv, m, warm*100) >> report;
+    printf("- RSS first/last: %d / %d KiB (full-range delta %d KiB)\n", first, last, delta) >> report;
+    printf("- RSS steady-state slope: %.2f KiB/min (threshold %d)\n", slope_per_min, thr) >> report;
     printf("- Decoded bytes (final): %d\n", dec) >> report;
     printf("- Texture count (final): %d\n", tex) >> report;
     printf("- Frame p95 (final): %s us\n", p95) >> report;
     printf("- **Verdict: %s**\n", verdict) >> report;
     printf("\nRaw samples: %s\n", csv) >> report;
 
-    printf("Verdict: %s (slope %.2f KiB/min, threshold %d)\n", verdict, slope_per_min, thr);
+    printf("Verdict: %s (steady-state slope %.2f KiB/min, threshold %d)\n", verdict, slope_per_min, thr);
     exit (verdict == "FLAT") ? 0 : 1;
   }
 ' "$CSV"

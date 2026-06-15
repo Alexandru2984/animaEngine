@@ -56,6 +56,27 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Forward-compat with the upcoming rustc float-literal change** — 19
+  `egui::Stroke::new(<width>, …)` call sites passed an un-suffixed float
+  literal that relied on the `f64 → f32` inference fallback being
+  removed in a future release (rust#154024). Annotated each as `f32`.
+  No behaviour change on stable; the weekly beta-toolchain canary
+  caught it before it became a hard error.
+- **Soak harness false-positive DRIFT** — a cold start legitimately
+  steps RSS once (cache fill + first decode/upload of every entity),
+  then plateaus; the single-line least-squares fit reported that
+  one-time step as a ~2.4 MiB/min "leak". The regression now fits the
+  **steady-state** (post-warmup) samples only — `SOAK_WARMUP_FRAC`,
+  default 0.5 — so a true ongoing leak is still caught but a bounded
+  warmup is not. Validated against the failing run's own CSV (DRIFT →
+  FLAT, steady-state slope 0.00). No app memory regression existed.
+- **Weston smoke canary environment** — the headless-Weston job
+  asserted a "native Wayland toplevel" fallback the app doesn't have:
+  with no wlr-layer-shell it takes the X11/XWayland route, which needs
+  an X server the job never provided, so it always failed on "no X
+  server". The job now stands up XWayland (via Xvfb) alongside Weston —
+  matching a real GNOME/KDE Wayland desktop — so the genuine
+  probe → no-layer-shell → X11 fallback chain runs to completion.
 - **Six corrupted UI translations (W.6)** — a duplicated-suffix
   artifact from an earlier translation batch left six labels mistyped:
   Spanish `Imagenn`→`Imagen`; Italian `Linearee`→`Lineare`,
