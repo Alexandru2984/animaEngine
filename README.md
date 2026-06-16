@@ -1,15 +1,25 @@
 # animaEngine
 
+[![CI](https://github.com/Alexandru2984/animaEngine/actions/workflows/ci.yml/badge.svg)](https://github.com/Alexandru2984/animaEngine/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Alexandru2984/animaEngine)](https://github.com/Alexandru2984/animaEngine/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Linux-first animated desktop overlay engine. Render multiple animated
 characters or sprites on top of your desktop using transparent,
 always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 + **winit** + **egui** — no Electron, no Chromium, minimal RAM use.
 
-> Status: 0.5.4 — production-ready packaging (`.deb` / AppImage / Flatpak),
-> stable X11/XWayland backend, beta native Wayland backend for wlroots,
-> ten UI locales, multi-monitor distribution, asset library, sprite
-> groups. See [Architecture](docs/architecture.md) for a deeper map;
-> [CONTRIBUTING.md](CONTRIBUTING.md) for how to hack on it.
+<!-- TODO (X.3, against the RC build): demo GIF, top-fold. Record a
+     pass-through → edit-mode → drop-an-asset loop and drop it in:
+     ![animaEngine in action](docs/media/demo.gif) -->
+
+> Status: 0.9.0 — stability freeze before 1.0. Production-ready packaging
+> (`.deb` / AppImage / Flatpak), stable X11/XWayland backend, opt-in
+> native Wayland backend (wlroots), ten UI locales, multi-monitor
+> distribution, asset library, sprite groups. See
+> [Architecture](docs/architecture.md) for a deeper map, the
+> [stability policy](docs/stability-policy.md) for what stays put across
+> releases, and [CONTRIBUTING.md](CONTRIBUTING.md) for how to hack on it.
 
 ## What it does
 
@@ -63,11 +73,11 @@ via `make appimage` / `make deb` / `make flatpak`):
 
 ```bash
 # Debian / Ubuntu (.deb)
-sudo apt install ./anima-engine_0.5.4-1_amd64.deb
+sudo apt install ./anima-engine_0.9.0-1_amd64.deb
 
 # AppImage (any distro)
-chmod +x animaEngine-0.5.4-x86_64.AppImage
-./animaEngine-0.5.4-x86_64.AppImage
+chmod +x animaEngine-0.9.0-x86_64.AppImage
+./animaEngine-0.9.0-x86_64.AppImage
 
 # Flatpak
 flatpak install --user com.animaengine.Anima.flatpak
@@ -162,7 +172,10 @@ The default code path uses **winit + X11** (XWayland on Wayland
 sessions) — stable, supports every Linux desktop. An **opt-in native
 Wayland backend** built on `wlr-layer-shell-unstable-v1` adds true
 overlay support for wlroots compositors (sway / Hyprland / river /
-Wayfire); it is **beta**, not the default:
+Wayfire). It reached feature parity over the 0.5 *E* phases — keyboard
+(xkbcommon), pointer, egui and drag-drop all go through the same
+validation as X11 — but it stays **opt-in and wlroots-only**, not the
+default:
 
 ```bash
 ANIMA_USE_WAYLAND_NATIVE=1 anima-engine
@@ -174,7 +187,7 @@ flag needed there.
 
 ### Feature matrix
 
-| Feature | X11 / XWayland (default) | Wayland native (opt-in, beta) |
+| Feature | X11 / XWayland (default) | Wayland native (opt-in, wlroots) |
 |---------|-------------------------|------------------------------|
 | Click-through overlay | stable | stable (wlroots) |
 | Tray icon | stable | stable |
