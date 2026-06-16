@@ -39,9 +39,17 @@ finish-args:
   # Single-instance handshake (Faza 6.3) — we own the bus name that
   # matches our app-id.
   - --own-name=com.animaengine.Anima
-  # User can drop assets from anywhere in their home (PNG/GIF/MP4/…).
-  # `home:ro` is plenty since we copy decoded pixels into our cache.
-  - --filesystem=home:ro
+  # Asset access is scoped, not blanket-home. The curated asset library
+  # is read+write (the Shimeji importer copies sprites here — this also
+  # fixes import, which a read-only `home` silently broke); the two
+  # common source dirs are read-only for drag-drop / config paths. This
+  # keeps ~/.ssh, ~/.gnupg, browser profiles etc. out of reach, so a
+  # decoder exploit (openh264 / image) can't exfiltrate them. Assets
+  # kept elsewhere go through the library, or the file-chooser portal
+  # once that lands (post-1.0).
+  - --filesystem=xdg-data/animaEngine:create
+  - --filesystem=xdg-pictures:ro
+  - --filesystem=xdg-download:ro
   # XDG dirs for the config + cache so the sandboxed app finds the
   # same paths as the native build.
   - --filesystem=xdg-config/animaEngine

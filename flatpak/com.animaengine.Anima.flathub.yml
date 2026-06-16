@@ -30,9 +30,15 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   # Single-instance handshake — we own the bus name matching our app-id.
   - --own-name=com.animaengine.Anima
-  # Drag-and-drop assets from anywhere in the user's home (read-only;
-  # decoded pixels are copied into our own cache).
-  - --filesystem=home:ro
+  # Scoped asset access, not blanket-home. The asset library is
+  # read+write (the Shimeji importer copies sprites here; a read-only
+  # `home` silently broke that); Pictures + Downloads are read-only for
+  # drag-drop / config paths. Keeps ~/.ssh, ~/.gnupg, browser profiles
+  # out of reach so a decoder exploit can't exfiltrate them. Other
+  # locations go through the library or the post-1.0 file-chooser portal.
+  - --filesystem=xdg-data/animaEngine:create
+  - --filesystem=xdg-pictures:ro
+  - --filesystem=xdg-download:ro
   # Config + cache at the same XDG paths the native build uses.
   - --filesystem=xdg-config/animaEngine
   - --filesystem=xdg-cache/animaEngine

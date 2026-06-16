@@ -79,9 +79,12 @@ is click-through.
    `com.animaengine.Anima.yml`) and `cargo-sources.json`.
 3. Open a PR against the `new-pr` branch; CI builds it; a reviewer
    looks at finish-args and metainfo.
-4. Typical review asks: justify `--filesystem=home:ro` (answer:
-   drag-and-drop of arbitrary asset files; portals can't cover D&D
-   file access on all compositors yet), justify `--talk-name`s
+4. Typical review asks: justify the filesystem grants (answer: the
+   app's own asset library `xdg-data/animaEngine:create`, plus
+   `xdg-pictures:ro` + `xdg-download:ro` as the common drag-drop /
+   config-path asset sources — deliberately *not* `home`, to keep
+   credentials and browser profiles out of reach; a file-chooser portal
+   for arbitrary locations is post-1.0), justify `--talk-name`s
    (StatusNotifierItem tray + notifications).
 5. After merge, the app builds on Flathub's infra; install counts
    appear on the dashboard at <https://flathub.org/apps>.

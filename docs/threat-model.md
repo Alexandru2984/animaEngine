@@ -295,6 +295,12 @@ a channel) is the right mitigation and is **deferred past 1.0**;
 recorded here so the residual is explicit, not implied. Users who don't
 play video are unaffected — nothing reaches the decoder.
 
+Defence in depth: the **Flatpak** build scopes filesystem access away
+from `$HOME` (the asset library plus `xdg-pictures`/`xdg-download`
+read-only — see `flatpak/com.animaengine.Anima.yml`), so even a decoder
+RCE there can't read `~/.ssh`, GPG keys or browser profiles. The `.deb`
+/ AppImage builds run unconfined like any native app.
+
 ### Side-channel / display attacks
 
 If another process on the user's display can see our window contents

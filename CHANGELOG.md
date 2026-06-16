@@ -65,6 +65,16 @@ rules, and a 1.0-grade re-audit of the whole tree.
 
 ### Fixed
 
+- **Flatpak sandbox scoped off `$HOME`** — the manifest granted
+  `--filesystem=home:ro`, exposing `~/.ssh`, GPG keys, and browser
+  profiles read-only to the whole app, so any decoder exploit (the
+  accepted openh264-C residual, or `image`) could exfiltrate them.
+  Replaced with the app's own asset library (`xdg-data/animaEngine`,
+  read+write — which also *fixes* Shimeji import, silently broken by
+  the read-only home) plus `xdg-pictures` / `xdg-download` read-only for
+  drag-drop and config asset paths. Arbitrary locations now go through
+  the library (or a file-chooser portal, post-1.0). `.deb` / AppImage
+  installs are unaffected. Raised by external audit.
 - **XWayland fractional-scaling click-through, surfaced not silent** —
   under XWayland (default on GNOME/KDE Wayland) a fractional (125 %,
   150 %) or mixed-DPI multi-monitor scale desyncs the `XShape`
