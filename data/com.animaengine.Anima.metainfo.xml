@@ -57,6 +57,17 @@
   </recommends>
 
   <releases>
+    <release version="0.9.0" date="2026-06-15">
+      <description>
+        <p>Stability freeze: hardening, measurement, and a 1.0-grade audit — no new features.</p>
+        <ul>
+          <li>Config schema versioning with a tested migration chain and a pre-migration backup.</li>
+          <li>A memory-soak harness plus a leak audit that bounded the on-disk decode cache.</li>
+          <li>GPU surface-loss recovery, expanded fuzzing, and a perf-HUD GPU block.</li>
+          <li>Full docs-vs-code and cross-locale audits; the bugfix-only freeze rules are published.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.0" date="2026-06-13">
       <description>
         <p>UI/UX polish, release-build provenance, and X11 window-awareness.</p>

@@ -6,6 +6,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-06-15
+
+Stability freeze (Faza W) — prove the 1.0 contract before promising it.
+Feature work stopped; this release is measurement, hardening, and
+paperwork: config schema migration, a memory-soak harness and leak
+audit, the perf HUD's GPU block, expanded fuzzing, a full docs-vs-code
+reality audit, a complete cross-locale audit, the published freeze
+rules, and a 1.0-grade re-audit of the whole tree.
+
 ### Added
 
 - **Locale placeholder-parity test (W.6)** — a new i18n guard,
