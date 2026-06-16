@@ -8,8 +8,12 @@ to pick up patches.
 
 | Version | Supported |
 |---------|-----------|
-| 0.5.x   | yes       |
-| < 0.5   | no        |
+| 0.9.x   | yes       |
+| < 0.9   | no        |
+
+What "supported" guarantees across a release line — config, D-Bus, CLI,
+asset formats, file locations — is spelled out in the
+[stability policy](docs/stability-policy.md).
 
 ## Reporting a vulnerability
 

@@ -137,7 +137,9 @@ type = "walk_around"
 speed = 80.0
 ```
 
-See [docs/config.md](docs/config.md) for every field.
+See [docs/config.md](docs/config.md) for every field. What stays stable
+across releases — config, D-Bus, CLI, asset formats, file locations — is
+the [stability policy](docs/stability-policy.md).
 
 ## Supported assets
 
