@@ -76,3 +76,53 @@ impl DragController {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn idle_controller_reports_no_drag() {
+        let c = DragController::new();
+        assert!(!c.is_dragging());
+        assert_eq!(c.dragging_entity(), None);
+        assert_eq!(c.update(10.0, 10.0), None);
+    }
+
+    #[test]
+    fn start_drag_sets_state() {
+        let mut c = DragController::new();
+        c.start_drag(3, 10.0, 20.0);
+        assert!(c.is_dragging());
+        assert_eq!(c.dragging_entity(), Some(3));
+    }
+
+    #[test]
+    fn update_subtracts_grab_offset_from_mouse() {
+        // Grabbed entity index 1 at offset (10, 20) — i.e. the cursor sat
+        // 10px right and 20px below the entity origin when the drag began.
+        // Moving the cursor must keep that grab point under it: the origin
+        // is always mouse - offset, never snapping to the cursor.
+        let mut c = DragController::new();
+        c.start_drag(1, 10.0, 20.0);
+        assert_eq!(c.update(200.0, 200.0), Some((1, 190.0, 180.0)));
+        assert_eq!(c.update(10.0, 20.0), Some((1, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn end_drag_returns_to_idle() {
+        let mut c = DragController::new();
+        c.start_drag(0, 1.0, 1.0);
+        c.end_drag();
+        assert!(!c.is_dragging());
+        assert_eq!(c.dragging_entity(), None);
+        assert_eq!(c.update(5.0, 5.0), None);
+    }
+
+    #[test]
+    fn end_drag_when_idle_is_a_noop() {
+        let mut c = DragController::new();
+        c.end_drag(); // must not panic or change anything
+        assert!(!c.is_dragging());
+    }
+}

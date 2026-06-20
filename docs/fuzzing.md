@@ -20,9 +20,13 @@ own fuzz suites — but the **hand-written** parsers around them (our
 cache codec, the NALU length-prefix walk, the Shimeji XML reader) are
 exactly the bespoke code that warrants fuzzing, added in W.4 (0.9).
 
-Committed seed inputs live under `fuzz/seeds/<target>/` (a valid cache
-file, a length-prefixed NALU, a minimal `actions.xml`); the corpus
-proper (`fuzz/corpus/`) is gitignored and seeded from these.
+Committed seed inputs live under `fuzz/seeds/<target>/` — **every**
+target carries a handful: valid examples plus adversarial variants
+(truncated cache headers, a NALU whose length overruns the buffer,
+malformed / empty `actions.xml`, CRLF and comment-laden uri-lists,
+extension-less paths, modified key chords). The corpus proper
+(`fuzz/corpus/`) is gitignored and seeded from these, so a run starts
+from real structure instead of random bytes.
 
 ## Running
 
