@@ -65,6 +65,13 @@ rules, and a 1.0-grade re-audit of the whole tree.
 
 ### Fixed
 
+- **Single-instance "raise window" handoff** — the D-Bus proxy was
+  built with the bus name (`com.animaengine.Anima`) in the *interface*
+  slot, but the service exports interface `org.animaengine.Anima`, so a
+  second launch's `Activate` call hit a non-existent interface and
+  silently failed (single-instance enforcement still worked; raising the
+  existing window didn't). Split out `INTERFACE_NAME` and pinned both
+  with a regression test. Raised by external audit.
 - **Flatpak sandbox scoped off `$HOME`** — the manifest granted
   `--filesystem=home:ro`, exposing `~/.ssh`, GPG keys, and browser
   profiles read-only to the whole app, so any decoder exploit (the

@@ -19,6 +19,14 @@ use zbus::names::WellKnownName;
 // sandboxed app own the bus name that matches its app-id.
 const SERVICE_NAME: &str = "com.animaengine.Anima";
 const OBJECT_PATH: &str = "/com/animaengine/Anima";
+// The D-Bus *interface* the methods live on. Distinct from the bus name
+// above: the bus name must match the Flatpak app-id (`com.…`), but the
+// interface keeps the conventional reverse-DNS `org.…`. These are NOT
+// interchangeable — a proxy built with the wrong one calls a
+// non-existent interface and the method silently fails. Must stay equal
+// to the `#[interface(name = …)]` literals below (attribute macros
+// can't read a const, so the literals are spelled out there).
+const INTERFACE_NAME: &str = "org.animaengine.Anima";
 
 /// What the initial handshake decided about this process.
 pub enum AcquireOutcome {
@@ -225,7 +233,8 @@ pub fn install_service(connection: zbus::Connection, proxy: EventLoopProxy<Anima
 
 /// Tell the existing primary instance to raise its window.
 async fn signal_existing(connection: &zbus::Connection) {
-    let proxy = match zbus::Proxy::new(connection, SERVICE_NAME, OBJECT_PATH, SERVICE_NAME).await {
+    let proxy = match zbus::Proxy::new(connection, SERVICE_NAME, OBJECT_PATH, INTERFACE_NAME).await
+    {
         Ok(p) => p,
         Err(e) => {
             tracing::warn!("Couldn't reach existing instance: {e}");
@@ -235,5 +244,32 @@ async fn signal_existing(connection: &zbus::Connection) {
     match proxy.call_method("Activate", &()).await {
         Ok(_) => tracing::info!("Asked existing instance to raise its window"),
         Err(e) => tracing::warn!("Activate call failed: {e}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The bus name and the interface name are deliberately different
+    /// namespaces (`com.…` app-id vs `org.…` interface). A regression
+    /// once shipped that passed the bus name where `Proxy::new` wants the
+    /// interface, so the second-instance `Activate` handoff called a
+    /// non-existent interface and silently failed. Pin both so a future
+    /// "tidy-up" that reunifies them is caught here, not in the field.
+    #[test]
+    fn bus_name_and_interface_are_distinct() {
+        assert_eq!(SERVICE_NAME, "com.animaengine.Anima");
+        assert_eq!(INTERFACE_NAME, "org.animaengine.Anima");
+        assert_ne!(
+            SERVICE_NAME, INTERFACE_NAME,
+            "the proxy interface must be INTERFACE_NAME, not the bus name"
+        );
+    }
+
+    /// The object path is the bus name with dots as slashes, leading `/`.
+    #[test]
+    fn object_path_matches_bus_name() {
+        assert_eq!(OBJECT_PATH, "/com/animaengine/Anima");
     }
 }
