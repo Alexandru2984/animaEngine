@@ -153,6 +153,11 @@ rules, and a 1.0-grade re-audit of the whole tree.
 
 ### Documentation
 
+- **`wayland::mod` doc no longer claims "in progress"** — the module
+  header still listed the layer surface, event translation, click-through
+  and app integration as `⏳`, contradicting the shipped E-phase code (and
+  the threat-model / README already corrected). Rewritten to reflect the
+  wired, at-parity native backend. Raised by external audit.
 - **Stability freeze declared (W.7)** — `CONTRIBUTING.md` gains a
   "Stability freeze (0.9 → 1.0)" section: feature work is closed until
   1.0, and only crash / data-loss / regression / security / doc-error /
