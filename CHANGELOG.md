@@ -65,6 +65,14 @@ rules, and a 1.0-grade re-audit of the whole tree.
 
 ### Fixed
 
+- **Aggregate decode budget enforced at startup** — the
+  `ANIMA_MEMORY_BUDGET_MB` cap was checked on runtime entity adds but
+  *not* on the config-load path, so a hand-edited `config.toml` with many
+  large assets (or many per-state animation sets) could decode up to the
+  per-asset-cap × `MAX_ENTITIES` worst case the budget exists to bound.
+  `Scene::from_config` now accumulates decoded bytes and falls back to a
+  placeholder for any entity that would exceed the budget. Raised by
+  external audit.
 - **Single-instance "raise window" handoff** — the D-Bus proxy was
   built with the bus name (`com.animaengine.Anima`) in the *interface*
   slot, but the service exports interface `org.animaengine.Anima`, so a

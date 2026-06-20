@@ -52,9 +52,30 @@ impl Scene {
     pub fn from_config(config: &AppConfig) -> Self {
         let mut entities = Vec::new();
 
+        // Enforce the aggregate decode budget on the STARTUP path too —
+        // not only on runtime adds. A hand-edited config with many large
+        // assets (or many per-state animation sets) would otherwise decode
+        // up to the per-asset-cap × MAX_ENTITIES worst case the budget
+        // exists to prevent. We track the running total of *kept* entities;
+        // an entity that would push us over loads (one transient decode,
+        // itself capped) but is dropped for a fallback instead of retained.
+        let budget = max_total_decoded_bytes();
+        let mut decoded_total: usize = 0;
+
         for char_config in &config.characters {
             match Self::load_entity(char_config) {
                 Ok(entity) => {
+                    let incoming = entity.animations.decoded_bytes();
+                    if check_budget(decoded_total, incoming, budget).is_err() {
+                        tracing::warn!(
+                            "Entity '{}' would exceed the {} MB decode budget at load; using fallback",
+                            char_config.id,
+                            budget / (1024 * 1024),
+                        );
+                        entities.push(Self::create_fallback_entity(char_config));
+                        continue;
+                    }
+                    decoded_total = decoded_total.saturating_add(incoming);
                     tracing::info!(
                         "Loaded entity '{}' ({} frames, per-frame delays: {})",
                         entity.name,
