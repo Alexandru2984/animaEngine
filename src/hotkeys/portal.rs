@@ -384,10 +384,25 @@ where
         .await
         .map_err(|e| format!("{method}: {e}"))?;
 
-    let msg = responses
-        .next()
-        .await
-        .ok_or_else(|| format!("{method}: response stream closed"))?;
+    // Bound the wait: a portal that accepts the call but never emits a
+    // Response (buggy / hung backend) would otherwise block this hotkey
+    // thread forever and the fallback would never fire. Race the response
+    // against a timer.
+    const PORTAL_TIMEOUT_SECS: u64 = 15;
+    let next_fut = async { Some(responses.next().await) };
+    let timeout_fut = async {
+        async_io::Timer::after(std::time::Duration::from_secs(PORTAL_TIMEOUT_SECS)).await;
+        None
+    };
+    let msg = match futures_lite::future::or(next_fut, timeout_fut).await {
+        None => {
+            return Err(format!(
+                "{method}: portal did not respond within {PORTAL_TIMEOUT_SECS}s"
+            ))
+        }
+        Some(None) => return Err(format!("{method}: response stream closed")),
+        Some(Some(m)) => m,
+    };
     let (code, results) = msg
         .body()
         .deserialize::<(u32, HashMap<String, OwnedValue>)>()

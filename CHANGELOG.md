@@ -65,6 +65,11 @@ rules, and a 1.0-grade re-audit of the whole tree.
 
 ### Fixed
 
+- **GlobalShortcuts portal request now times out** — `portal_request`
+  awaited the portal's `Response` signal with no deadline, so a portal
+  that accepted the call but never replied (a buggy/hung backend) would
+  block the hotkey thread forever and the fallback would never fire. The
+  wait is now raced against a 15 s timer. Raised by external audit.
 - **X11 frame extents clamped** — `_NET_FRAME_EXTENTS` is writable by any
   X11 client; an absurd value (`u32::MAX`) would have blown the
   window-awareness platform rect (and the physics that rides on it) up to
