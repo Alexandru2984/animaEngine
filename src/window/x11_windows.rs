@@ -154,11 +154,18 @@ impl WindowWatcher {
             .and_then(|r| r.value32().map(|v| v.collect::<Vec<u32>>()))
             .filter(|v| v.len() == 4)
             .unwrap_or_else(|| vec![0; 4]);
+        // `_NET_FRAME_EXTENTS` is set by the WM but any X11 client can
+        // write it. A real titlebar/border is at most a few hundred px;
+        // clamp so a hostile or buggy `u32::MAX` can't blow the platform
+        // rect (and the physics layer that rides on it) up to absurd
+        // sizes. X11 is in the trust boundary, but cheap to harden.
+        const MAX_FRAME_EXTENT: u32 = 1024;
+        let clamp = |v: u32| v.min(MAX_FRAME_EXTENT) as f32;
         let (left, right, top, bottom) = (
-            extents[0] as f32,
-            extents[1] as f32,
-            extents[2] as f32,
-            extents[3] as f32,
+            clamp(extents[0]),
+            clamp(extents[1]),
+            clamp(extents[2]),
+            clamp(extents[3]),
         );
 
         Some(PlatformRect {

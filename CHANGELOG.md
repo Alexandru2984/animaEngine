@@ -65,6 +65,10 @@ rules, and a 1.0-grade re-audit of the whole tree.
 
 ### Fixed
 
+- **X11 frame extents clamped** — `_NET_FRAME_EXTENTS` is writable by any
+  X11 client; an absurd value (`u32::MAX`) would have blown the
+  window-awareness platform rect (and the physics that rides on it) up to
+  nonsensical sizes. Clamped to a sane maximum. Raised by external audit.
 - **Cache file stat-guarded before reading** — `cache::try_load` read
   the whole cache file into memory with `fs::read` *before* the
   deserializer's caps applied, so a corrupt or planted oversized file
