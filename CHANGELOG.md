@@ -65,6 +65,12 @@ rules, and a 1.0-grade re-audit of the whole tree.
 
 ### Fixed
 
+- **Cache file stat-guarded before reading** — `cache::try_load` read
+  the whole cache file into memory with `fs::read` *before* the
+  deserializer's caps applied, so a corrupt or planted oversized file
+  could OOM the process before validation. It now stats the file first
+  and refuses (and removes) anything larger than a valid cache could
+  possibly be. Raised by external audit.
 - **Config scalars sanitized against NaN / Inf** — TOML floats accept
   `nan` and `inf` literally, so a hand-edited `config.toml` could put a
   non-finite `scale` / `opacity` / `fps` / `x` / `y` straight into the

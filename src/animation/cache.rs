@@ -45,6 +45,13 @@ const VERSION: u32 = 1;
 const HEADER_BYTES: usize = 12; // magic + version + count
 const PER_FRAME_HEADER: usize = 12; // width + height + delay
 
+/// Largest a *valid* cache file can be: the per-asset decode cap plus
+/// room for the file/frame headers (`MAX_ANIMATION_FRAMES` × 12 + 12,
+/// ~7 KiB; 1 MiB is generous slack). We stat against this before reading
+/// a cache file whole into memory, so a corrupt or planted oversized
+/// file can't OOM us *before* `deserialize_frames`' own caps even run.
+const MAX_CACHE_FILE_BYTES: u64 = MAX_DECODED_ASSET_BYTES as u64 + 1024 * 1024;
+
 fn cache_disabled() -> bool {
     std::env::var_os("ANIMA_NO_CACHE").is_some()
 }
@@ -241,6 +248,20 @@ pub fn try_load(asset_path: &Path) -> Option<Vec<Frame>> {
         return None;
     }
 
+    // Stat before slurp: a valid cache is bounded, so an oversized file
+    // is corrupt/planted and must not be read whole into RAM (local DoS).
+    let meta = fs::metadata(&key).ok()?;
+    if meta.len() > MAX_CACHE_FILE_BYTES {
+        tracing::warn!(
+            "Asset cache at {} is {} bytes (> {} cap); ignoring and regenerating",
+            key.display(),
+            meta.len(),
+            MAX_CACHE_FILE_BYTES,
+        );
+        let _ = fs::remove_file(&key);
+        return None;
+    }
+
     let bytes = fs::read(&key).ok()?;
     match deserialize_frames(&bytes) {
         Ok(frames) => {
@@ -395,6 +416,21 @@ pub fn deserialize_frames(bytes: &[u8]) -> Result<Vec<Frame>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cache_file_cap_admits_the_largest_valid_cache() {
+        // The biggest a legitimate cache can be: the full per-asset pixel
+        // budget + every frame header + the file header. The stat guard
+        // must never reject that, only files bigger than physically
+        // possible for a valid cache.
+        let max_valid = MAX_DECODED_ASSET_BYTES as u64
+            + (MAX_ANIMATION_FRAMES as u64 * PER_FRAME_HEADER as u64)
+            + HEADER_BYTES as u64;
+        assert!(
+            MAX_CACHE_FILE_BYTES >= max_valid,
+            "cap {MAX_CACHE_FILE_BYTES} would reject a legitimate {max_valid}-byte cache",
+        );
+    }
 
     fn sample_frames() -> Vec<Frame> {
         vec![
