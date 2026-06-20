@@ -220,6 +220,43 @@ fn default_true() -> bool {
     true
 }
 
+/// Clamp a config float into `[min, max]`, substituting `default` for a
+/// non-finite value (`NaN` / `±inf`). A hand-edited `config.toml` can
+/// carry `scale = nan` or `opacity = inf`; left alone these reach the
+/// renderer's transform matrices and the GPU chokes on the NaN.
+fn finite_clamp(v: f32, min: f32, max: f32, default: f32) -> f32 {
+    if v.is_finite() {
+        v.clamp(min, max)
+    } else {
+        default
+    }
+}
+
+/// Replace a non-finite coordinate with `default`; positions aren't
+/// clamped to a range (entities legitimately sit off-screen) but `NaN` /
+/// `inf` would still poison the render path.
+fn finite_or(v: f32, default: f32) -> f32 {
+    if v.is_finite() {
+        v
+    } else {
+        default
+    }
+}
+
+impl CharacterConfig {
+    /// Coerce the renderer-facing scalars into safe, finite ranges. Run
+    /// on load so a hand-edited or corrupt config can't push `NaN`/`inf`
+    /// (or absurd magnitudes) into the transform math, physics, or the
+    /// animation clock.
+    fn sanitize(&mut self) {
+        self.scale = finite_clamp(self.scale, 0.1, 5.0, default_scale());
+        self.opacity = finite_clamp(self.opacity, 0.0, 1.0, default_opacity());
+        self.fps = finite_clamp(self.fps, 0.1, 240.0, default_fps());
+        self.x = finite_or(self.x, 0.0);
+        self.y = finite_or(self.y, 0.0);
+    }
+}
+
 /// One overlay window's worth of state. Independent of monitor
 /// distribution — a single window can still span monitors or pin to
 /// one via the global `monitor_mode`. C.3 ships the data layer; the
@@ -329,6 +366,20 @@ impl AppConfig {
             monitor_mode: None,
             characters: self.characters.clone(),
         }]
+    }
+
+    /// Coerce every character's renderer-facing scalars into safe, finite
+    /// ranges (see [`CharacterConfig::sanitize`]). Called once on load so
+    /// a hand-edited or corrupt config can't feed `NaN`/`inf` to the GPU.
+    fn sanitize(&mut self) {
+        for c in &mut self.characters {
+            c.sanitize();
+        }
+        for w in &mut self.windows {
+            for c in &mut w.characters {
+                c.sanitize();
+            }
+        }
     }
 }
 
@@ -571,6 +622,9 @@ impl AppConfig {
                                     );
                                     config.characters.truncate(MAX_ENTITIES);
                                 }
+                                // Coerce NaN/inf/out-of-range scalars before
+                                // anything reaches the renderer or physics.
+                                config.sanitize();
                                 tracing::info!(
                                     "Loaded config with {} characters (schema v{})",
                                     config.characters.len(),
@@ -1071,5 +1125,51 @@ mod migration_tests {
             .expect("future_feature preserved");
         assert_eq!(ff.get("shiny"), Some(&toml::Value::Boolean(true)));
         assert_eq!(ff.get("count"), Some(&toml::Value::Integer(7)));
+    }
+}
+
+#[cfg(test)]
+mod sanitize_tests {
+    use super::*;
+
+    #[test]
+    fn finite_clamp_replaces_non_finite_and_clamps_range() {
+        assert_eq!(finite_clamp(f32::NAN, 0.1, 5.0, 1.0), 1.0);
+        assert_eq!(finite_clamp(f32::INFINITY, 0.1, 5.0, 1.0), 1.0);
+        assert_eq!(finite_clamp(f32::NEG_INFINITY, 0.1, 5.0, 1.0), 1.0);
+        assert_eq!(finite_clamp(100.0, 0.1, 5.0, 1.0), 5.0); // over-range clamps
+        assert_eq!(finite_clamp(0.0, 0.1, 5.0, 1.0), 0.1); // under-range clamps
+        assert_eq!(finite_clamp(2.5, 0.1, 5.0, 1.0), 2.5); // in-range kept
+    }
+
+    #[test]
+    fn finite_or_replaces_non_finite_but_keeps_offscreen() {
+        assert_eq!(finite_or(f32::NAN, 0.0), 0.0);
+        assert_eq!(finite_or(f32::INFINITY, 0.0), 0.0);
+        assert_eq!(finite_or(-500.0, 0.0), -500.0); // off-screen is legitimate
+    }
+
+    #[test]
+    fn character_sanitize_fixes_hand_edited_nan_inf() {
+        // TOML floats accept `nan` / `inf` literally — exactly the
+        // hand-edited-config vector the sanitizer defends against.
+        let toml_str = r#"
+            id = "x"
+            name = "x"
+            asset_type = "gif"
+            asset_path = "a.gif"
+            x = nan
+            y = inf
+            scale = nan
+            opacity = inf
+            fps = nan
+        "#;
+        let mut c: CharacterConfig = toml::from_str(toml_str).unwrap();
+        assert!(!c.scale.is_finite(), "precondition: parsed NaN scale");
+        c.sanitize();
+        assert!(c.x.is_finite() && c.y.is_finite());
+        assert_eq!(c.scale, default_scale());
+        assert_eq!(c.opacity, default_opacity());
+        assert_eq!(c.fps, default_fps());
     }
 }

@@ -65,6 +65,13 @@ rules, and a 1.0-grade re-audit of the whole tree.
 
 ### Fixed
 
+- **Config scalars sanitized against NaN / Inf** — TOML floats accept
+  `nan` and `inf` literally, so a hand-edited `config.toml` could put a
+  non-finite `scale` / `opacity` / `fps` / `x` / `y` straight into the
+  renderer's transform matrices, where the GPU chokes on it. Loaded
+  configs are now coerced to finite, in-range values (out-of-range
+  scale/opacity/fps clamp; non-finite positions reset). Raised by
+  external audit.
 - **Aggregate decode budget enforced at startup** — the
   `ANIMA_MEMORY_BUDGET_MB` cap was checked on runtime entity adds but
   *not* on the config-load path, so a hand-edited `config.toml` with many
