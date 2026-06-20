@@ -6,7 +6,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.9.0] — 2026-06-15
+## [0.9.0] — 2026-06-20
 
 Stability freeze (Faza W) — prove the 1.0 contract before promising it.
 Feature work stopped; this release is measurement, hardening, and
