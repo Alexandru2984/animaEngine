@@ -55,7 +55,7 @@ pub(super) fn snapshot_monitors(event_loop: &ActiveEventLoop) -> Vec<MonitorInfo
 /// `true` when the entity's resolved monitor (pin first, then
 /// centroid, with the standard fallbacks) is `target`. The one filter
 /// every per-monitor draw list goes through.
-pub(super) fn entity_on_monitor(monitors: &[MonitorInfo], e: &Entity, target: &str) -> bool {
+pub(crate) fn entity_on_monitor(monitors: &[MonitorInfo], e: &Entity, target: &str) -> bool {
     let cx = e.x + e.scaled_width() / 2.0;
     let cy = e.y + e.scaled_height() / 2.0;
     monitor::resolve_monitor_for_position(monitors, cx, cy, e.monitor.as_deref())

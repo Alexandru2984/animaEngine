@@ -28,12 +28,14 @@
 //!   `MenuAction` types and the same six actions as the X11 path,
 //!   detected straight off the egui pointer events this loop already
 //!   drains (no new Wayland-protocol plumbing needed for it).
+//! - `MonitorMode::PerMonitor`: one sprite-only `LayerWindow` extra
+//!   surface per non-primary `wl_output`, mirroring the X11 path's
+//!   `app::windows::WindowSlot`s. **Untested** — no multi-output
+//!   wlroots compositor was available to exercise output binding /
+//!   hotplug against; see the `layer_window` module doc.
 //!
 //! ## What doesn't (yet)
 //!
-//! - **Per-monitor placement** — the layer surface attaches to
-//!   whichever output the compositor picks; no `PerMonitor`-style
-//!   multi-surface support yet.
 //! - **`FollowCursor` in pass-through mode** — no Wayland protocol
 //!   gives a client the global pointer position outside its own
 //!   input region (unlike X11's `XQueryPointer`, by design), so this
@@ -48,16 +50,18 @@
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::drop_validate::{pre_validate_dropped_file, redact_path};
+use crate::entity::Entity;
 use crate::error::{AnimaError, Result};
 use crate::event::AnimaEvent;
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyChord};
-use crate::renderer::wgpu_renderer::WgpuRenderer;
+use crate::monitor::{self, MonitorInfo, WindowPlan};
+use crate::renderer::wgpu_renderer::{SurfaceState, WgpuRenderer};
 use crate::scene::Scene;
 use crate::ui::{panels, ToastQueue, Warning};
 use crate::wayland::egui_render::WaylandEguiRenderer;
-use crate::wayland::layer_window::{InputRect, LayerWindow};
-use std::collections::BTreeSet;
+use crate::wayland::layer_window::{self, InputRect, LayerWindow};
+use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -164,6 +168,21 @@ pub fn run_native(
         width,
         TOGGLE_BUTTON_SIZE,
     )))?;
+
+    // Sprite-only extra surfaces for `MonitorMode::PerMonitor`, one
+    // per non-primary output — the Wayland counterpart of the X11
+    // path's `App.extra_windows`. Keyed by monitor name so it can be
+    // diffed against `monitor::plan_windows`'s output on every
+    // topology / mode change. **Untested**: no multi-output
+    // compositor was available to exercise this against (see
+    // docs/wayland.md and the module doc on `layer_window::mod`).
+    let mut extra_surfaces: HashMap<String, SurfaceState> = HashMap::new();
+    let mut last_monitor_mode = config.global.monitor_mode.clone();
+    {
+        let initial_monitors = layer.monitors();
+        let plan = monitor::plan_windows(&config.global.monitor_mode, &initial_monitors);
+        rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
+    }
 
     // Upload textures once for the initial scene.
     for entity in &scene.entities {
@@ -348,6 +367,43 @@ pub fn run_native(
             }
         }
 
+        // Rebuild PerMonitor extras whenever the user switches mode or
+        // the output topology changes (hotplug) — mirrors the X11
+        // path's `rebuild_windows_if_mode_changed` + `check_monitor_topology`.
+        let monitors_now = layer.monitors();
+        let plan = monitor::plan_windows(&config.global.monitor_mode, &monitors_now);
+        let plan_names: std::collections::HashSet<&str> =
+            plan.extras.iter().map(|m| m.name.as_str()).collect();
+        let current_names: std::collections::HashSet<&str> =
+            extra_surfaces.keys().map(|s| s.as_str()).collect();
+        if config.global.monitor_mode != last_monitor_mode || plan_names != current_names {
+            rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
+            last_monitor_mode = config.global.monitor_mode.clone();
+        }
+        for (name, new_w, new_h) in layer.drain_extra_resizes() {
+            if let Some(surface) = extra_surfaces.get_mut(&name) {
+                surface.resize(&renderer.shared, new_w, new_h);
+            }
+        }
+
+        // Entities live in window-local coordinates in single-output
+        // modes (today's only well-exercised case) and in global
+        // desktop coordinates once PerMonitor extras exist — same
+        // duality as the X11 path's `App::primary_origin` (T.8).
+        // `primary_output_name` is learned from `surface_enter`
+        // (handlers.rs); it stays `None` (→ identity origin) if the
+        // compositor never sends it, so the fallback is always the
+        // already-shipped single-output behavior, never a wrong offset.
+        let primary_origin: (f32, f32) = compute_primary_origin(
+            !extra_surfaces.is_empty(),
+            layer.state.primary_output_name.as_deref(),
+            &monitors_now,
+        );
+        let cursor_global = layer
+            .state
+            .cursor_pos
+            .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1));
+
         let events = layer.drain_egui_events();
         for event in &events {
             let egui::Event::Key {
@@ -389,7 +445,9 @@ pub fn run_native(
                     ..
                 } = event
                 {
-                    if let Some(idx) = scene.entity_at_point(pos.x, pos.y) {
+                    if let Some(idx) =
+                        scene.entity_at_point(pos.x + primary_origin.0, pos.y + primary_origin.1)
+                    {
                         selection.select(idx);
                         context_menu_state = Some(crate::app::ContextMenuState {
                             entity_idx: idx,
@@ -407,15 +465,15 @@ pub fn run_native(
             renderer.primary.window_width as f32,
             renderer.primary.window_height as f32,
             // `cursor_pos` is tracked from every Motion/Enter pointer
-            // event (pointer_handler.rs) in this surface's local space,
-            // which is also the entity coordinate space here (single
-            // full-screen surface, no PerMonitor origin to translate
-            // by). FollowCursor sees it whenever the pointer is over
-            // the surface's active input region — same X11 caveat
-            // applies: pass-through mode still leaves it stale outside
-            // the toggle button, since Wayland has no XQueryPointer
-            // equivalent (docs/threat-model.md).
-            layer.state.cursor_pos,
+            // event (pointer_handler.rs) in this surface's local
+            // space; `cursor_global` adds `primary_origin` so it lands
+            // in the same coordinate space entities use (identity
+            // outside PerMonitor, T.8-equivalent otherwise). FollowCursor
+            // sees it whenever the pointer is over the surface's active
+            // input region — same X11 caveat applies: pass-through mode
+            // still leaves it stale outside the toggle button, since
+            // Wayland has no XQueryPointer equivalent (docs/threat-model.md).
+            cursor_global,
         );
 
         // Update any dirty textures (animation frame advance).
@@ -431,21 +489,37 @@ pub fn run_native(
 
         // Render the scene. Pass `selected_id` so the highlight ring
         // appears in edit mode for the entity the user clicked.
-        // Refresh the monitor snapshot every frame so the inspector's
-        // picker shows a hot-plug straight away.
-        let monitors = layer.monitors();
+        // `monitors_now` (refreshed above) covers the inspector's
+        // picker hot-plug needs too — no separate snapshot needed.
+        let monitors = &monitors_now;
         let selected_id = selection
             .selected_index()
             .and_then(|idx| scene.entities.get(idx).map(|e| e.id.clone()));
         let visible = scene.visible_entities();
+        // In PerMonitor mode the primary surface covers exactly its
+        // own output: entities live in global coords (once extras
+        // exist) and need filtering to just the primary's monitor,
+        // same as the X11 path's `entity_on_monitor` gate (T.6/T.8).
+        let primary_monitor_name: Option<String> = if !extra_surfaces.is_empty() {
+            plan.primary.as_ref().map(|m| m.name.clone())
+        } else {
+            None
+        };
+        let drawn: Vec<&Entity> = match &primary_monitor_name {
+            Some(name) => visible
+                .into_iter()
+                .filter(|e| crate::app::windows::entity_on_monitor(monitors, e, name))
+                .collect(),
+            None => visible,
+        };
         toasts.prune();
         egui_renderer.ensure_theme(config.global.theme);
         match renderer.render(
-            &visible,
+            &drawn,
             &scene.groups,
             layer.state.edit_mode,
             selected_id.as_deref(),
-            (0.0, 0.0),
+            primary_origin,
         ) {
             Ok(output) => {
                 let view = output
@@ -556,6 +630,43 @@ pub fn run_native(
                     },
                 );
                 output.present();
+                // Sprite-only extras: no egui, no input — just the
+                // entities pinned (or resolved by position) to that
+                // monitor, translated by its own origin. Mirrors
+                // `app::windows::render_extra_windows` on the X11 path.
+                if !extra_surfaces.is_empty() {
+                    let extra_visible = scene.visible_entities();
+                    for (name, surface) in extra_surfaces.iter_mut() {
+                        let Some(mon) = monitors_now.iter().find(|m| &m.name == name) else {
+                            continue;
+                        };
+                        let drawn: Vec<&Entity> = extra_visible
+                            .iter()
+                            .copied()
+                            .filter(|e| {
+                                crate::app::windows::entity_on_monitor(&monitors_now, e, name)
+                            })
+                            .collect();
+                        let origin = (mon.x as f32, mon.y as f32);
+                        match surface.render(
+                            &renderer.shared,
+                            &drawn,
+                            &scene.groups,
+                            layer.state.edit_mode,
+                            selected_id.as_deref(),
+                            origin,
+                        ) {
+                            Ok(extra_output) => extra_output.present(),
+                            Err(wgpu::SurfaceError::Lost) => {
+                                let (w, h) = (surface.window_width, surface.window_height);
+                                surface.resize(&renderer.shared, w, h);
+                            }
+                            Err(e) => {
+                                tracing::warn!("Render error on extra surface {name}: {e:?}");
+                            }
+                        }
+                    }
+                }
                 if toggle_requested {
                     let new_mode = !layer.state.edit_mode;
                     if let Err(e) = layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
@@ -706,6 +817,113 @@ pub fn run_native(
     drop(renderer);
     drop(layer);
     Ok(())
+}
+
+/// Pure half of `rebuild_extra_surfaces`'s decision: given what the
+/// plan wants and what's currently tracked, which names need tearing
+/// down and which planned monitors need a brand-new surface. Split
+/// out so this decision has a unit test even though the actual
+/// teardown/creation (real Wayland + GPU calls) doesn't.
+fn diff_extra_plan<'a>(
+    plan_extras: &'a [MonitorInfo],
+    current_names: &[String],
+) -> (Vec<String>, Vec<&'a MonitorInfo>) {
+    let wanted: std::collections::HashSet<&str> =
+        plan_extras.iter().map(|m| m.name.as_str()).collect();
+    let stale: Vec<String> = current_names
+        .iter()
+        .filter(|name| !wanted.contains(name.as_str()))
+        .cloned()
+        .collect();
+    let new: Vec<&MonitorInfo> = plan_extras
+        .iter()
+        .filter(|m| !current_names.iter().any(|n| n == &m.name))
+        .collect();
+    (stale, new)
+}
+
+/// Pure: the origin to translate primary-surface entity coordinates
+/// and pointer positions by. Identity outside `PerMonitor` (no
+/// extras) — the single-output behavior every compositor exercises
+/// today; the primary output's logical position once extras exist
+/// and `surface_enter` has told us which output that is.
+fn compute_primary_origin(
+    has_extras: bool,
+    primary_output_name: Option<&str>,
+    monitors: &[MonitorInfo],
+) -> (f32, f32) {
+    if !has_extras {
+        return (0.0, 0.0);
+    }
+    primary_output_name
+        .and_then(|name| monitors.iter().find(|m| m.name == name))
+        .map(|m| (m.x as f32, m.y as f32))
+        .unwrap_or((0.0, 0.0))
+}
+
+/// Rebuild the sprite-only extra (non-primary) surfaces to match
+/// `plan`. Idempotent: tears down anything no longer in the plan,
+/// creates anything new, leaves unchanged entries alone. Mirrors
+/// `app::windows::rebuild_extra_windows` (X11 path) — both use the
+/// same pure `monitor::plan_windows`, so the two backends can't
+/// silently diverge on *which* monitors get an extra surface, only
+/// on *how* the surface is created (layer-shell here, a winit
+/// `Window` there).
+///
+/// **Untested**: no multi-output wlroots compositor was available to
+/// exercise output binding / hotplug against; see the module doc on
+/// `wayland::layer_window` and docs/wayland.md.
+fn rebuild_extra_surfaces(
+    layer: &mut LayerWindow,
+    renderer: &WgpuRenderer,
+    plan: &WindowPlan,
+    extra_surfaces: &mut HashMap<String, SurfaceState>,
+) {
+    let current_names: Vec<String> = extra_surfaces.keys().cloned().collect();
+    let (stale, new) = diff_extra_plan(&plan.extras, &current_names);
+    for name in stale {
+        layer.destroy_extra_layer(&name);
+        extra_surfaces.remove(&name);
+    }
+
+    for mon in new {
+        let Some(output) = layer.output_by_name(&mon.name) else {
+            tracing::warn!(
+                "No wl_output found for monitor {} — skipping extra surface",
+                mon.name
+            );
+            continue;
+        };
+        let wl_surface = match layer.create_extra_layer(&output, &mon.name) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("Couldn't create extra layer for {}: {e}", mon.name);
+                continue;
+            }
+        };
+        let wgpu_surface = match layer_window::build_wgpu_surface(
+            &renderer.shared.instance,
+            &layer.connection,
+            &wl_surface,
+        ) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("Couldn't create wgpu surface for {}: {e}", mon.name);
+                layer.destroy_extra_layer(&mon.name);
+                continue;
+            }
+        };
+        let surface = SurfaceState::new(&renderer.shared, wgpu_surface, mon.width, mon.height);
+        tracing::info!(
+            "Spawned Wayland extra surface on {} ({}x{} at {},{})",
+            mon.name,
+            mon.width,
+            mon.height,
+            mon.x,
+            mon.y
+        );
+        extra_surfaces.insert(mon.name.clone(), surface);
+    }
 }
 
 /// Apply a context-menu action to scene + renderer + selection +
@@ -931,5 +1149,78 @@ fn handle_palette_outcome(
                 toasts.success(crate::i18n::t_args("toast-preset-loaded", &args));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn monitor(name: &str, x: i32, y: i32) -> MonitorInfo {
+        MonitorInfo {
+            name: name.to_string(),
+            x,
+            y,
+            width: 1920,
+            height: 1080,
+            scale_factor: 1.0,
+            is_primary: false,
+        }
+    }
+
+    #[test]
+    fn diff_extra_plan_creates_missing_and_removes_stale() {
+        let plan = vec![monitor("right", 1920, 0), monitor("left", -1920, 0)];
+        let current = vec!["right".to_string(), "gone".to_string()];
+        let (stale, new) = diff_extra_plan(&plan, &current);
+        assert_eq!(stale, vec!["gone".to_string()]);
+        assert_eq!(new.len(), 1);
+        assert_eq!(new[0].name, "left");
+    }
+
+    #[test]
+    fn diff_extra_plan_no_changes_when_already_in_sync() {
+        let plan = vec![monitor("right", 1920, 0)];
+        let current = vec!["right".to_string()];
+        let (stale, new) = diff_extra_plan(&plan, &current);
+        assert!(stale.is_empty());
+        assert!(new.is_empty());
+    }
+
+    #[test]
+    fn diff_extra_plan_empty_plan_clears_everything() {
+        let plan: Vec<MonitorInfo> = Vec::new();
+        let current = vec!["right".to_string(), "left".to_string()];
+        let (stale, new) = diff_extra_plan(&plan, &current);
+        assert_eq!(stale.len(), 2);
+        assert!(new.is_empty());
+    }
+
+    #[test]
+    fn compute_primary_origin_is_identity_without_extras() {
+        let monitors = vec![monitor("right", 1920, 0)];
+        assert_eq!(
+            compute_primary_origin(false, Some("right"), &monitors),
+            (0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn compute_primary_origin_uses_known_output_position() {
+        let monitors = vec![monitor("left", -1920, 0), monitor("right", 1920, 100)];
+        assert_eq!(
+            compute_primary_origin(true, Some("right"), &monitors),
+            (1920.0, 100.0)
+        );
+    }
+
+    #[test]
+    fn compute_primary_origin_falls_back_to_identity_when_output_unknown() {
+        let monitors = vec![monitor("right", 1920, 0)];
+        assert_eq!(
+            compute_primary_origin(true, Some("nonexistent"), &monitors),
+            (0.0, 0.0)
+        );
+        assert_eq!(compute_primary_origin(true, None, &monitors), (0.0, 0.0));
     }
 }

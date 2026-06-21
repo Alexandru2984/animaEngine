@@ -368,17 +368,21 @@ inputs go through the **same** boundaries as the X11 path:
   at startup exactly like the X11 path; "Add to scene" goes through
   the same `resolve_library_asset` canonicalize-and-contain gate
   (`src/wayland/run.rs::handle_library_outcome`).
+- **`MonitorMode::PerMonitor`** spawns one sprite-only layer-shell
+  surface per non-primary `wl_output` (`src/wayland/run.rs::rebuild_extra_surfaces`),
+  mirroring the X11 path's extra windows: no input region, no egui,
+  entities filtered to the surface's own monitor. **Untested** — no
+  multi-output `zwlr_layer_shell_v1` compositor was available during
+  development; see docs/wayland.md.
 
 It is still **opt-in and not the default** — GNOME/KDE Wayland lack
 `zwlr_layer_shell_v1` and fall back to XWayland automatically, so most
-users never exercise it. The remaining gap is feature/UX, not
-security: per-monitor window distribution is single-surface. Three
-other things are inherently X11-only by Wayland protocol design rather
-than missing implementation — `XQueryPointer`-based `FollowCursor`
-polling in pass-through mode (see the section above), EWMH-based
-window-awareness physics, and `XGrabKey` global hotkeys (Wayland
-substitutes the GlobalShortcuts portal and compositor-bound D-Bus
-methods instead). Use the X11 path
+users never exercise it. Three things are inherently X11-only by
+Wayland protocol design rather than missing implementation —
+`XQueryPointer`-based `FollowCursor` polling in pass-through mode (see
+the section above), EWMH-based window-awareness physics, and
+`XGrabKey` global hotkeys (Wayland substitutes the GlobalShortcuts
+portal and compositor-bound D-Bus methods instead). Use the X11 path
 for daily-driver work; the native path is a hardened-but-narrow target
 for wlroots users who want to skip XWayland.
 

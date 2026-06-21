@@ -60,6 +60,15 @@ pub struct WaylandState {
     pub pending_size: Option<(u32, u32)>,
     /// Current cursor position in surface-local logical pixels.
     pub cursor_pos: Option<(f32, f32)>,
+    /// Name of the output the primary surface is currently displayed
+    /// on, learned from `CompositorHandler::surface_enter` (the
+    /// protocol's own notification of which `wl_output` a surface
+    /// landed on — there's no way to request this up front the way
+    /// X11's `with_position` lets the primary window claim a specific
+    /// monitor). `None` until the first `surface_enter`, or forever on
+    /// compositors that never send it — both fall back to identity
+    /// origin (today's single-output behavior), never a wrong one.
+    pub primary_output_name: Option<String>,
     /// Pointer + keyboard events translated into egui's vocabulary,
     /// buffered until `LayerWindow::drain_egui_events` is called once
     /// per frame. Text events (`egui::Event::Text`) come from sctk's
@@ -93,6 +102,26 @@ pub struct WaylandState {
     /// `DropCounterGuard` so the counter stays honest even if the
     /// worker panics mid-read.
     pub active_drop_workers: Arc<AtomicUsize>,
+    /// Sprite-only extra layer surfaces for `MonitorMode::PerMonitor`,
+    /// one per non-primary output — mirrors the X11 path's extra
+    /// windows (`app::windows::WindowSlot`). Only the protocol side
+    /// lives here (handler callbacks only ever see `WaylandState`,
+    /// never the wrapping `LayerWindow`); the matching wgpu surface
+    /// and render state lives in `run_native`'s `extra_surfaces`,
+    /// keyed by the same `output_name`. **Untested**: no multi-output
+    /// compositor was available to exercise this against; see
+    /// docs/wayland.md.
+    pub extra_layers: Vec<ExtraLayer>,
+}
+
+/// Protocol-side half of one extra (non-primary) layer surface. See
+/// [`WaylandState::extra_layers`].
+pub struct ExtraLayer {
+    pub layer: LayerSurface,
+    pub output_name: String,
+    /// Last size from this layer's own `configure` event, drained by
+    /// `LayerWindow::drain_extra_resizes` each frame.
+    pub pending_size: Option<(u32, u32)>,
 }
 
 /// Rectangular cutout used by `LayerWindow::set_input_region`.

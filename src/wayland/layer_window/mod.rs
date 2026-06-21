@@ -50,7 +50,11 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc;
 use std::sync::Arc;
-use wayland_client::{globals::registry_queue_init, protocol::wl_surface, Connection, EventQueue};
+use wayland_client::{
+    globals::registry_queue_init,
+    protocol::{wl_output, wl_surface},
+    Connection, EventQueue,
+};
 
 /// What `try_create` produces. The caller stores it and drives the event
 /// loop manually (we don't spawn anything internally).
@@ -118,7 +122,12 @@ impl LayerWindow {
             wl_surface.clone(),
             Layer::Overlay,
             Some("anima_engine"),
-            None, // any output — we'll pick later, multi-monitor in 7.x
+            // Any output — the compositor picks, same as the X11 path
+            // never explicitly positions its primary window either.
+            // `CompositorHandler::surface_enter` (handlers.rs) tells us
+            // afterward which one it chose, for entity-space origin
+            // translation once PerMonitor extras exist.
+            None,
         );
         layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
         layer.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
@@ -149,6 +158,7 @@ impl LayerWindow {
             last_modifiers: SctkModifiers::default(),
             pending_size: None,
             cursor_pos: None,
+            primary_output_name: None,
             pending_egui_events: Vec::new(),
             close_requested: false,
             edit_mode: false,
@@ -158,6 +168,7 @@ impl LayerWindow {
             drop_tx,
             drop_rx,
             active_drop_workers: Arc::new(AtomicUsize::new(0)),
+            extra_layers: Vec::new(),
         };
 
         // Round-trip so the compositor sends us its first `configure`
@@ -186,7 +197,7 @@ impl LayerWindow {
 /// internally; we satisfy that by leaking small `Arc`-wrapped handle
 /// values for the lifetime of the process. The leak is fixed-size and
 /// bounded to one surface, so it's a non-issue in practice.
-fn build_wgpu_surface(
+pub(crate) fn build_wgpu_surface(
     instance: &wgpu::Instance,
     connection: &Connection,
     surface: &wl_surface::WlSurface,
@@ -291,6 +302,95 @@ impl LayerWindow {
             });
         }
         out
+    }
+
+    /// Find the live `wl_output` matching a monitor's name as reported
+    /// by [`monitors`](Self::monitors) — used to bind a new extra
+    /// layer surface to the same physical output
+    /// `monitor::plan_windows` picked it for.
+    ///
+    /// **Untested**: no multi-output compositor was available to
+    /// exercise this against (see the module doc and
+    /// docs/wayland.md); validated by reading the sctk/wlr-layer-shell
+    /// protocol docs and mirroring `monitors()`'s already-exercised
+    /// name derivation exactly.
+    pub fn output_by_name(&self, name: &str) -> Option<wl_output::WlOutput> {
+        self.state.output_state.outputs().find(|o| {
+            self.state
+                .output_state
+                .info(o)
+                .map(|info| {
+                    info.name
+                        .clone()
+                        .unwrap_or_else(|| format!("wl_output #{}", info.id))
+                })
+                .as_deref()
+                == Some(name)
+        })
+    }
+
+    /// Create a sprite-only extra layer surface bound to `output` —
+    /// the `MonitorMode::PerMonitor` equivalent of the X11 path's
+    /// extra windows (`app::windows::WindowSlot`, fully click-through,
+    /// no egui). Registers the protocol side in `state.extra_layers`
+    /// and returns the raw `wl_surface` so the caller can build a
+    /// wgpu surface from it via [`build_wgpu_surface`].
+    pub fn create_extra_layer(
+        &mut self,
+        output: &wl_output::WlOutput,
+        monitor_name: &str,
+    ) -> Result<wl_surface::WlSurface> {
+        let qh = self.event_queue.handle();
+        let wl_surface = self.state.compositor.create_surface(&qh);
+        let layer = self.state._layer_shell.create_layer_surface(
+            &qh,
+            wl_surface.clone(),
+            Layer::Overlay,
+            Some("anima_engine"),
+            Some(output),
+        );
+        layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
+        // Extras never receive input — same rationale as the X11
+        // path's `set_passthrough_total` extras: the ⚙ toggle and
+        // every other interactive surface live on the primary only.
+        layer.set_keyboard_interactivity(KeyboardInteractivity::None);
+        layer.set_exclusive_zone(-1);
+        // Empty region (no `add` calls) → every pixel is click-through.
+        let region = self.state.compositor.wl_compositor().create_region(&qh, ());
+        wl_surface.set_input_region(Some(&region));
+        layer.commit();
+        region.destroy();
+
+        self.state.extra_layers.push(state::ExtraLayer {
+            layer,
+            output_name: monitor_name.to_string(),
+            pending_size: None,
+        });
+        Ok(wl_surface)
+    }
+
+    /// Tear down the extra layer surface for `monitor_name`, if any.
+    /// Dropping the `LayerSurface` destroys the layer-shell role and
+    /// the underlying `wl_surface` (sctk's `LayerSurfaceInner::drop`).
+    pub fn destroy_extra_layer(&mut self, monitor_name: &str) {
+        self.state
+            .extra_layers
+            .retain(|e| e.output_name != monitor_name);
+    }
+
+    /// Drain `(monitor_name, width, height)` for every extra layer
+    /// whose `configure` fired since the last call — the caller
+    /// resizes the matching `SurfaceState` it keeps alongside.
+    pub fn drain_extra_resizes(&mut self) -> Vec<(String, u32, u32)> {
+        self.state
+            .extra_layers
+            .iter_mut()
+            .filter_map(|e| {
+                e.pending_size
+                    .take()
+                    .map(|(w, h)| (e.output_name.clone(), w, h))
+            })
+            .collect()
     }
 
     /// Swap the click-through region in lock-step with the edit-mode

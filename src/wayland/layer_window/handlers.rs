@@ -21,7 +21,10 @@ use smithay_client_toolkit::{
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::{pointer::PointerData, Capability, SeatHandler, SeatState},
-    shell::wlr_layer::{LayerShellHandler, LayerSurface, LayerSurfaceConfigure},
+    shell::{
+        wlr_layer::{LayerShellHandler, LayerSurface, LayerSurfaceConfigure},
+        WaylandSurface,
+    },
 };
 use wayland_client::{
     protocol::{wl_output, wl_seat, wl_surface},
@@ -37,13 +40,24 @@ impl LayerShellHandler for WaylandState {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _layer: &LayerSurface,
+        layer: &LayerSurface,
         configure: LayerSurfaceConfigure,
         _serial: u32,
     ) {
         let (w, h) = configure.new_size;
-        if w > 0 && h > 0 {
+        if w == 0 || h == 0 {
+            return;
+        }
+        // Multiple layer surfaces share this one callback (primary +
+        // every PerMonitor extra) — `layer` tells us which. Compare
+        // against the primary first since it's the hot path (every
+        // session has one; extras are opt-in PerMonitor only).
+        if *layer == self.layer {
             self.pending_size = Some((w, h));
+            return;
+        }
+        if let Some(extra) = self.extra_layers.iter_mut().find(|e| &e.layer == layer) {
+            extra.pending_size = Some((w, h));
         }
     }
 }
@@ -82,9 +96,20 @@ impl CompositorHandler for WaylandState {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _output: &wl_output::WlOutput,
+        surface: &wl_surface::WlSurface,
+        output: &wl_output::WlOutput,
     ) {
+        // Only the primary surface's origin matters for entity-space
+        // translation (E.7 multi-monitor) — extras are sprite-only and
+        // already pinned to a specific output at creation time, so
+        // they never need to learn it from this event.
+        if surface != self.layer.wl_surface() {
+            return;
+        }
+        self.primary_output_name = self.output_state.info(output).map(|info| {
+            info.name
+                .unwrap_or_else(|| format!("wl_output #{}", info.id))
+        });
     }
 
     fn surface_leave(

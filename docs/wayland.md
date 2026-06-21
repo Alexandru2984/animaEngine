@@ -54,6 +54,7 @@ set the env var.
 | Settings panel + presets + Keybindings tab | ✓ | ✓ |
 | Perf overlay (`Ctrl+Shift+\``) | ✓ | ✓ |
 | Multi-monitor info | XRandR | `wl_output` enumeration |
+| `MonitorMode::PerMonitor` distribution | extra `winit::Window` per monitor | extra layer-shell surface per `wl_output` (**untested** — see below) |
 | Global hotkeys | XGrabKey (`Ctrl+Shift+A/H/P`) | **GlobalShortcuts portal** (preferred) or compositor bindings + D-Bus (see below) |
 | Tray icon (StatusNotifierItem) | ✓ | ✓ |
 | AccessKit / AT-SPI | ✓ | toggle still works; native screen-reader pickup compositor-dependent |
@@ -198,11 +199,25 @@ When you hit a compositor-specific quirk, file a GitHub issue tagged
 - Output of `WAYLAND_DEBUG=client anima-engine` for the first frame
 - Whether the X11 fallback path works on the same machine
 
+## Multi-monitor (`MonitorMode::PerMonitor`) — untested
+
+`PerMonitor` mode now spawns one sprite-only layer-shell surface per
+non-primary `wl_output`, mirroring the X11 path's extra windows
+exactly: entities resolve to a monitor (pin first, then centroid) and
+each surface draws only its own monitor's entities, translated by
+that output's logical position. Extras carry no input region (fully
+click-through) and no egui — same as the X11 extras.
+
+This was written against the published protocol docs and the sctk API
+(no `zwlr_layer_shell_v1` compositor with more than one output was
+available during development — see the note at the top of this doc).
+If you run a multi-monitor sway / Hyprland / river / Wayfire session
+and something looks wrong (entities on the wrong screen, a missing
+extra surface, a crash on hotplug), please file an issue tagged
+`wayland` with the compositor-compatibility report template above.
+
 ## What's not (yet) parity with X11
 
-- **One layer surface per `wl_output`.** Right now the layer attaches
-  to whichever output the compositor picks. Per-monitor distribution
-  on the native path is queued for a later release.
 - **Native AccessKit on wlroots.** The runtime toggle still applies;
   whether AT-SPI actually picks the surface up is compositor-side.
   GNOME Mutter routes everything via the X11 path anyway.

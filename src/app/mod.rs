@@ -4,7 +4,7 @@ mod input;
 mod lifecycle;
 mod outcomes;
 mod render_loop;
-mod windows;
+pub(crate) mod windows;
 
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;

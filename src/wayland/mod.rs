@@ -16,9 +16,10 @@
 //!
 //! File drops (`wl_data_device` / `text/uri-list`, `data_device`) pass
 //! through the *same* `pre_validate_dropped_file` gate as the X11 path.
-//! Remaining gaps are feature/UX, not correctness: the asset-library
-//! index isn't surfaced here yet and per-monitor distribution is
-//! single-surface.
+//! The asset library, context menu, and `MonitorMode::PerMonitor`
+//! multi-surface distribution are all wired now too (`run::run_native`);
+//! the remaining gaps are protocol-inherent, not missing wiring — see
+//! `run`'s module doc for the current list.
 
 pub mod data_device;
 pub mod egui_render;

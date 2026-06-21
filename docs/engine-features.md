@@ -67,7 +67,8 @@ Implication: an entity dragged across a monitor boundary updates its
 - **Wayland multi-output**: `wlr-layer-shell-unstable-v1` allows
   binding to a specific `wl_output`. The native backend
   (`ANIMA_USE_WAYLAND_NATIVE=1`) iterates outputs and creates one
-  layer surface per monitor in `PerMonitor` mode.
+  layer surface per monitor in `PerMonitor` mode. Untested against a
+  real multi-output wlroots compositor — see docs/wayland.md.
 
 ### 1.5 Tests
 
