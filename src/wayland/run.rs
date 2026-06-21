@@ -804,8 +804,11 @@ pub fn run_native(
         std::thread::sleep(Duration::from_millis(16));
     }
 
-    // Renderer is dropped here before `layer` — wgpu surface releases
-    // its handle while the underlying wl_surface is still alive.
+    // Renderer (and every extra surface's wgpu::Surface) is dropped
+    // here before `layer` — each wgpu surface releases its handle
+    // while the wl_surface it points into is still alive. `extra_surfaces`
+    // holds the same kind of raw-handle surface the primary one does
+    // (E.7), so it needs the identical ordering, not just `renderer`.
     // Persist any unsaved edits on clean shutdown so a Ctrl+C / window
     // close doesn't lose the last toggle.
     if config_dirty {
@@ -815,6 +818,7 @@ pub fn run_native(
     }
 
     drop(renderer);
+    drop(extra_surfaces);
     drop(layer);
     Ok(())
 }
@@ -882,8 +886,14 @@ fn rebuild_extra_surfaces(
     let current_names: Vec<String> = extra_surfaces.keys().cloned().collect();
     let (stale, new) = diff_extra_plan(&plan.extras, &current_names);
     for name in stale {
-        layer.destroy_extra_layer(&name);
+        // Order matters: `SurfaceState::surface` is a `wgpu::Surface`
+        // built from this layer's raw `wl_surface` pointer (E.7,
+        // `build_wgpu_surface`'s safety comment) — it must be dropped
+        // *before* the wl_surface it points into, never after, same
+        // invariant `LayerWindow`'s own doc comment states for the
+        // primary surface vs. `WgpuRenderer`.
         extra_surfaces.remove(&name);
+        layer.destroy_extra_layer(&name);
     }
 
     for mon in new {
