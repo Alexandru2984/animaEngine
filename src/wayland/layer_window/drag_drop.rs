@@ -164,31 +164,39 @@ impl DataDeviceHandler for WaylandState {
         let guard = DropCounterGuard {
             counter: self.active_drop_workers.clone(),
         };
-        std::thread::spawn(move || {
-            // Hold the guard for the whole closure so the counter
-            // decrements regardless of how we exit (success, error,
-            // or panic during read_to_end).
-            let _guard = guard;
-            // F.2: cap the payload via `Read::take` so the previous
-            // unbounded `read_to_end` can't be exploited by a source
-            // that streams gigabytes. 64 KiB covers every legitimate
-            // drag (hundreds of paths fit comfortably).
-            let mut capped = pipe.take(MAX_URI_LIST_BYTES);
-            let mut buf = Vec::with_capacity(512);
-            if let Err(e) = capped.read_to_end(&mut buf) {
-                tracing::warn!("Drop: read pipe failed: {e}");
-                return;
-            }
-            let paths = parse_uri_list(&buf);
-            if !paths.is_empty() {
-                // `try_send` so a stuck consumer (main loop) can't
-                // make us block here; bounded channel = bounded
-                // memory.
-                if let Err(e) = tx.try_send(paths) {
-                    tracing::warn!("Drop: result queue full, dropping batch: {e}");
+        let spawned = std::thread::Builder::new()
+            .name("anima-drop-read".into())
+            .spawn(move || {
+                // Hold the guard for the whole closure so the counter
+                // decrements regardless of how we exit (success, error,
+                // or panic during read_to_end).
+                let _guard = guard;
+                // F.2: cap the payload via `Read::take` so the previous
+                // unbounded `read_to_end` can't be exploited by a source
+                // that streams gigabytes. 64 KiB covers every legitimate
+                // drag (hundreds of paths fit comfortably).
+                let mut capped = pipe.take(MAX_URI_LIST_BYTES);
+                let mut buf = Vec::with_capacity(512);
+                if let Err(e) = capped.read_to_end(&mut buf) {
+                    tracing::warn!("Drop: read pipe failed: {e}");
+                    return;
                 }
-            }
-        });
+                let paths = parse_uri_list(&buf);
+                if !paths.is_empty() {
+                    // `try_send` so a stuck consumer (main loop) can't
+                    // make us block here; bounded channel = bounded
+                    // memory.
+                    if let Err(e) = tx.try_send(paths) {
+                        tracing::warn!("Drop: result queue full, dropping batch: {e}");
+                    }
+                }
+            });
+        // Spawn failure drops the closure (and `guard` with it), which
+        // decrements active_drop_workers via DropCounterGuard — the
+        // counter stays correct even on this rare path.
+        if let Err(e) = spawned {
+            tracing::warn!("Drop: read worker failed to spawn: {e}");
+        }
     }
 }
 

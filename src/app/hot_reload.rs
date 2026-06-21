@@ -70,15 +70,20 @@ impl App {
         tracing::info!("Config file changed externally, spawning reload worker…");
 
         let (tx, rx) = mpsc::channel();
-        self.hot_reload_rx = Some(rx);
-        std::thread::spawn(move || {
-            // AppConfig::load already falls back to defaults on parse
-            // errors, so this thread can't panic in practice.
-            let config = AppConfig::load();
-            let scene = Scene::from_config(&config);
-            // Receiver dropped (e.g. app exiting) → ignore send error.
-            let _ = tx.send(HotReloadResult { config, scene });
-        });
+        let spawned = std::thread::Builder::new()
+            .name("anima-hot-reload".into())
+            .spawn(move || {
+                // AppConfig::load already falls back to defaults on parse
+                // errors, so this thread can't panic in practice.
+                let config = AppConfig::load();
+                let scene = Scene::from_config(&config);
+                // Receiver dropped (e.g. app exiting) → ignore send error.
+                let _ = tx.send(HotReloadResult { config, scene });
+            });
+        match spawned {
+            Ok(_) => self.hot_reload_rx = Some(rx),
+            Err(e) => tracing::warn!("Hot-reload worker failed to spawn: {e}"),
+        }
     }
 
     /// Apply a finished hot-reload result on the UI thread.
