@@ -47,7 +47,7 @@ Caps in `src/constants.rs`:
 | `MAX_ASSET_FILE_BYTES` | 200 MB | drag-drop pre-validation |
 | `MAX_ENTITIES` | 64 | `AppConfig::load` truncation |
 | `MAX_DROP_SIZE` | 256 px | resize on drag-drop |
-| `MAX_QUADS` | 64 | renderer batch |
+| `MAX_QUADS` | 67 (`MAX_ENTITIES` + 3) | renderer batch |
 
 A pathological GIF / WebP / video / PNG sequence cannot run us out of
 memory at parse or decode time. Truncation is logged at `warn` level.
@@ -94,16 +94,18 @@ to video frames coming out of openh264.
 
 ### D-Bus interface — `com.animaengine.Anima`
 
-The X11 / single-instance flavour exposes one method: `Activate()`,
-which posts `AnimaEvent::RaiseWindow`.
-
-The native Wayland flavour (E.6 in 0.5.0, hardened in F.4 in 0.5.1)
-exposes four more — `ToggleEditMode`, `HideOverlay`, `ShowOverlay`,
-`ToggleGlobalPlayback` — because Wayland has no `XGrabKey`
-equivalent and these are the substitute that compositor bindings
-call via `gdbus`. The pre-0.5.0 "single-method invariant" no longer
-holds; this section documents the new surface and the mitigations
-applied.
+Both flavours expose the same five methods on `org.animaengine.Anima`
+— `Activate`, `ToggleEditMode`, `HideOverlay`, `ShowOverlay`,
+`ToggleGlobalPlayback` (`src/single_instance.rs`'s `ActivationService`
+is shared code; only the dispatch target differs). They exist because
+Wayland has no `XGrabKey` equivalent and these are the substitute that
+compositor bindings call via `gdbus` — but the X11 / single-instance
+build registers the identical interface, so the same four non-Activate
+methods are reachable there too, dispatched through the winit
+`EventLoopProxy` (see the Asymmetry note below) rather than the
+Wayland bounded channel. The pre-0.5.0 "single-method invariant" no
+longer holds on either build; this section documents the new surface
+and the mitigations applied.
 
 **What every method does:** flips an in-memory bool / forwards to
 the scene's playback toggle. No file IO. No process spawn. No
@@ -345,11 +347,11 @@ wlroots users who want to skip XWayland.
 - `deny.toml` license allowlist is narrow on purpose — bumping a dep
   that pulls a new SPDX expression fails CI and forces a deliberate
   choice rather than silent license drift.
-- `cargo fuzz` ships three targets (`keychord_parse`,
-  `uri_list_parse`, `asset_type_detect`); see [docs/fuzzing.md](
-  fuzzing.md). The decoders most worth covering next are
-  `cache::deserialize_frames`, `video_loader::avcc_to_annex_b`, and
-  the `image` crate's GIF/WebP paths.
+- `cargo fuzz` ships six targets (`keychord_parse`, `uri_list_parse`,
+  `asset_type_detect`, `cache_deserialize`, `avcc_nalu_walk`,
+  `shimeji_xml`); see [docs/fuzzing.md](fuzzing.md). The `image`
+  crate's own GIF/WebP decode paths aren't fuzzed here — they
+  delegate to upstream, which runs its own fuzz suite.
 
 ## Build reproducibility
 
