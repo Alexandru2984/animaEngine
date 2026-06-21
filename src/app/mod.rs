@@ -474,8 +474,9 @@ impl ApplicationHandler<AnimaEvent> for App {
     ) {
         // Events from extra (PerMonitor) windows get a narrow handler:
         // sprites repaint on expose, surfaces resize, shapes re-apply.
-        // Pointer/keyboard routing for extras lands in T.8 — until
-        // then only the primary window is interactive.
+        // Pointer/keyboard routing for extras (T.8, below) only
+        // matters in edit mode — pass-through extras are fully
+        // click-through, so the compositor never delivers them input.
         let is_primary = self.window.as_ref().is_some_and(|w| w.id() == window_id);
         if !is_primary {
             match event {
