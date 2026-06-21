@@ -124,7 +124,7 @@ running:
 gdbus call --session \
     --dest com.animaengine.Anima \
     --object-path /com/animaengine/Anima \
-    --method com.animaengine.Anima.ToggleEditMode
+    --method org.animaengine.Anima.ToggleEditMode
 ```
 
 ### sway bindings example
@@ -136,19 +136,19 @@ Put these in `~/.config/sway/config`:
 bindsym Mod4+Shift+a exec gdbus call --session \
     --dest com.animaengine.Anima \
     --object-path /com/animaengine/Anima \
-    --method com.animaengine.Anima.ToggleEditMode
+    --method org.animaengine.Anima.ToggleEditMode
 
 # Anima: hide overlay on Mod4+Shift+H
 bindsym Mod4+Shift+h exec gdbus call --session \
     --dest com.animaengine.Anima \
     --object-path /com/animaengine/Anima \
-    --method com.animaengine.Anima.HideOverlay
+    --method org.animaengine.Anima.HideOverlay
 
 # Anima: pause / resume playback on Mod4+Shift+P
 bindsym Mod4+Shift+p exec gdbus call --session \
     --dest com.animaengine.Anima \
     --object-path /com/animaengine/Anima \
-    --method com.animaengine.Anima.ToggleGlobalPlayback
+    --method org.animaengine.Anima.ToggleGlobalPlayback
 ```
 
 Reload sway (`Mod4+Shift+c`) to pick up the new bindings.
@@ -158,9 +158,9 @@ Reload sway (`Mod4+Shift+c`) to pick up the new bindings.
 `~/.config/hypr/hyprland.conf`:
 
 ```
-bind = SUPER SHIFT, A, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method com.animaengine.Anima.ToggleEditMode
-bind = SUPER SHIFT, H, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method com.animaengine.Anima.HideOverlay
-bind = SUPER SHIFT, P, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method com.animaengine.Anima.ToggleGlobalPlayback
+bind = SUPER SHIFT, A, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleEditMode
+bind = SUPER SHIFT, H, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.HideOverlay
+bind = SUPER SHIFT, P, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleGlobalPlayback
 ```
 
 Reload with `hyprctl reload`.
@@ -170,9 +170,9 @@ Reload with `hyprctl reload`.
 `~/.config/river/init`:
 
 ```
-riverctl map normal Super+Shift A spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method com.animaengine.Anima.ToggleEditMode'
-riverctl map normal Super+Shift H spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method com.animaengine.Anima.HideOverlay'
-riverctl map normal Super+Shift P spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method com.animaengine.Anima.ToggleGlobalPlayback'
+riverctl map normal Super+Shift A spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleEditMode'
+riverctl map normal Super+Shift H spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.HideOverlay'
+riverctl map normal Super+Shift P spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleGlobalPlayback'
 ```
 
 ## Compositor compatibility — tested matrix
