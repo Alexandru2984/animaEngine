@@ -30,8 +30,7 @@ impl App {
         // Handle drag in edit mode
         if self.edit_mode {
             if let Some((entity_idx, new_x, new_y)) = self.drag.update(self.mouse_x, self.mouse_y) {
-                if entity_idx < self.scene.entities.len() {
-                    let entity = &mut self.scene.entities[entity_idx];
+                if let Some(entity) = self.scene.entities.get_mut(entity_idx) {
                     entity.x = new_x;
                     entity.y = new_y;
                     // Drag relocates the entity → invalidate any
@@ -86,14 +85,15 @@ impl App {
 
                     // Start drag — freeze physics, flag the Drag
                     // animation state (U.2).
-                    let entity = &mut self.scene.entities[entity_idx];
-                    entity.physics.freeze();
-                    entity.dragging = true;
-                    let offset_x = self.mouse_x - entity.x;
-                    let offset_y = self.mouse_y - entity.y;
-                    self.drag.start_drag(entity_idx, offset_x, offset_y);
+                    if let Some(entity) = self.scene.entities.get_mut(entity_idx) {
+                        entity.physics.freeze();
+                        entity.dragging = true;
+                        let offset_x = self.mouse_x - entity.x;
+                        let offset_y = self.mouse_y - entity.y;
+                        self.drag.start_drag(entity_idx, offset_x, offset_y);
 
-                    tracing::info!("Clicked entity: {} ({})", entity.name, entity.id);
+                        tracing::info!("Clicked entity: {} ({})", entity.name, entity.id);
+                    }
                 } else {
                     self.selection.deselect();
                 }
@@ -125,11 +125,16 @@ impl App {
         let Some(idx) = self.selection.selected_index() else {
             return;
         };
+        let Some(entity) = self.scene.entities.get_mut(idx) else {
+            // Selection outlived the entity it pointed at (e.g. a
+            // hot-reload swapped the scene between selecting and
+            // scrolling) — stale index, not a bug worth a panic.
+            return;
+        };
         let scroll_y = match delta {
             MouseScrollDelta::LineDelta(_, y) => y,
             MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 50.0,
         };
-        let entity = &mut self.scene.entities[idx];
         let factor = if scroll_y > 0.0 { 1.1 } else { 0.9 };
         entity.scale = (entity.scale * factor).clamp(0.1, 10.0);
         tracing::debug!("Scale: {:.2}", entity.scale);

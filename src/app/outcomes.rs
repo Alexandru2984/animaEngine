@@ -175,11 +175,17 @@ impl App {
 
                 match self.scene.add_entity_from_path(&src_path, new_x, new_y) {
                     Ok(new_idx) => {
-                        self.scene.entities[new_idx].scale = orig_scale;
-                        self.scene.entities[new_idx].opacity = orig_opacity;
+                        if let Some(entity) = self.scene.entities.get_mut(new_idx) {
+                            entity.scale = orig_scale;
+                            entity.opacity = orig_opacity;
+                        }
                         if let Some(renderer) = &mut self.renderer {
-                            renderer.ensure_texture(&self.scene.entities[new_idx]);
-                            self.scene.entities[new_idx].texture_dirty = false;
+                            if let Some(entity) = self.scene.entities.get(new_idx) {
+                                renderer.ensure_texture(entity);
+                            }
+                            if let Some(entity) = self.scene.entities.get_mut(new_idx) {
+                                entity.texture_dirty = false;
+                            }
                         }
                         self.selection.select(new_idx);
                         self.config_dirty = true;
