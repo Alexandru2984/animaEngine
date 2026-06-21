@@ -183,6 +183,30 @@ process that can read window geometry could already do so directly.
 New request types here need a threat-model entry; the read-only
 invariant must hold.
 
+### Global pointer query — `XQueryPointer` for `FollowCursor`
+
+`X11InputManager` (the connection already used for input-shape and
+EWMH operations, not the window-awareness one above) issues
+`QueryPointer` against the root window once per frame, but only when
+both are true: the overlay is in its default pass-through shape (in
+edit mode `CursorMoved` already keeps the position fresh, no query
+needed) and at least one entity is running `Behavior::FollowCursor`
+(`Scene::has_cursor_follower`) — otherwise the call is skipped
+entirely. It exists because `XShape` makes everything but the toggle
+button click-through in pass-through mode, so winit's `CursorMoved`
+never fires there and the chased position would otherwise go stale.
+
+This adds no new capability to the trust model: `XQueryPointer` is one
+of the most basic X11 client calls — any process on the display can
+already read the pointer position globally, with no special
+permission, the same "trusted X11 display" assumption this whole
+document already rests on (see Scope). The result is consumed
+directly into behavior tick math and never logged or persisted.
+Wayland has no equivalent call by design (a compositor-mediated
+pointer query outside a surface's own input region isn't something
+clients are handed), so this path is X11-only; `FollowCursor` keeps
+the pre-existing edit-mode-only behavior there.
+
 ### D-Bus accessibility tree (AT-SPI) — opt-out only
 
 Since 0.2.0 (Phase A.9) we enable the `accesskit` feature on
@@ -302,6 +326,25 @@ from `$HOME` (the asset library plus `xdg-pictures`/`xdg-download`
 read-only — see `flatpak/com.animaengine.Anima.yml`), so even a decoder
 RCE there can't read `~/.ssh`, GPG keys or browser profiles. The `.deb`
 / AppImage builds run unconfined like any native app.
+
+**Patent note (legal, not security):** H.264/AVC decoding is covered
+by patents pooled under MPEG-LA. Cisco's *official, precompiled*
+`openh264` binary is covered by Cisco's own MPEG-LA license, which is
+why browsers fetch that exact binary at runtime instead of bundling
+their own build. This project instead builds `openh264` **from
+source** (`openh264 = "0.9"`, default `source` feature — see
+`Cargo.toml`) and links it directly into the binaries we distribute
+(`.deb`, AppImage, Flatpak). Building from source and redistributing
+the result is **not** automatically covered by Cisco's binary
+license; whether — and under what terms — that's permissible is a
+licensing question this document can't resolve and isn't legal
+advice. Anyone packaging or redistributing animaEngine for an
+audience beyond personal/local use should get their own legal read on
+H.264 patent exposure before doing so. Tracked as a pre-1.0 open
+question; mitigations under consideration: gating MP4/H.264 behind an
+opt-in build feature so a patent-clean build is possible, or vendoring
+against Cisco's official binary distribution instead of building from
+source.
 
 ### Side-channel / display attacks
 
