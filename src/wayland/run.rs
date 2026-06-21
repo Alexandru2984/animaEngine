@@ -24,11 +24,13 @@
 //!   startup exactly like the X11 path (`handle_resumed` in
 //!   src/app/lifecycle.rs); "Add to scene" goes through the same
 //!   `resolve_library_asset` containment check.
+//! - Right-click context menu: same `ContextMenuState` /
+//!   `MenuAction` types and the same six actions as the X11 path,
+//!   detected straight off the egui pointer events this loop already
+//!   drains (no new Wayland-protocol plumbing needed for it).
 //!
 //! ## What doesn't (yet)
 //!
-//! - **Right-click context menu** — not wired on this path; the
-//!   settings panel, palette, and library cover entity management.
 //! - **Per-monitor placement** — the layer surface attaches to
 //!   whichever output the compositor picks; no `PerMonitor`-style
 //!   multi-surface support yet.
@@ -109,6 +111,9 @@ pub fn run_native(
     let mut toasts = ToastQueue::default();
     let mut config_dirty = false;
     let warnings: BTreeSet<Warning> = BTreeSet::new();
+    // Right-click context menu state, mirroring `app::ContextMenuState`
+    // on the X11 path. Persists across frames while the menu is open.
+    let mut context_menu_state: Option<crate::app::ContextMenuState> = None;
     tracing::info!("Native Wayland renderer initialized ({width}×{height})");
 
     // Discover + load + merge-scan the asset library — same sequence
@@ -371,13 +376,46 @@ pub fn run_native(
             }
         }
 
+        // Right-click on an entity opens the context menu and selects
+        // it, same gating and behavior as the X11 path's
+        // `handle_mouse_input` (src/app/input.rs). Entity-less right
+        // clicks (empty space) are ignored.
+        if layer.state.edit_mode {
+            for event in &events {
+                if let egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Secondary,
+                    pressed: true,
+                    ..
+                } = event
+                {
+                    if let Some(idx) = scene.entity_at_point(pos.x, pos.y) {
+                        selection.select(idx);
+                        context_menu_state = Some(crate::app::ContextMenuState {
+                            entity_idx: idx,
+                            pos: *pos,
+                        });
+                    }
+                }
+            }
+        }
+
         // Tick the simulation. screen_w / screen_h match the surface so
         // walk-around behaviors stay inside the visible area.
         scene.set_reduced_motion(config.global.reduced_motion);
         scene.tick(
             renderer.primary.window_width as f32,
             renderer.primary.window_height as f32,
-            None, // no cursor on this path until egui is wired in
+            // `cursor_pos` is tracked from every Motion/Enter pointer
+            // event (pointer_handler.rs) in this surface's local space,
+            // which is also the entity coordinate space here (single
+            // full-screen surface, no PerMonitor origin to translate
+            // by). FollowCursor sees it whenever the pointer is over
+            // the surface's active input region — same X11 caveat
+            // applies: pass-through mode still leaves it stale outside
+            // the toggle button, since Wayland has no XQueryPointer
+            // equivalent (docs/threat-model.md).
+            layer.state.cursor_pos,
         );
 
         // Update any dirty textures (animation frame advance).
@@ -433,7 +471,9 @@ pub fn run_native(
                 let mut toggle_requested = false;
                 let mut palette_outcome: Option<panels::PaletteOutcome> = None;
                 let mut library_outcome: Option<panels::LibraryOutcome> = None;
+                let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
                 let mut shimeji_import: Option<String> = None;
+                let menu_state = context_menu_state.clone();
                 // Disjoint mut borrows for the closure.
                 let scene_mut = &mut scene;
                 let selection_mut = &mut selection;
@@ -456,6 +496,7 @@ pub fn run_native(
                 let toggle_requested_ref = &mut toggle_requested;
                 let palette_ref = &mut palette_outcome;
                 let library_ref = &mut library_outcome;
+                let menu_outcome_ref = &mut menu_outcome;
                 egui_renderer.render(
                     &renderer.shared.device,
                     &renderer.shared.queue,
@@ -505,6 +546,9 @@ pub fn run_native(
                                 shimeji_import_ref,
                             );
                             if edit_mode_snapshot {
+                                if let Some(state) = &menu_state {
+                                    *menu_outcome_ref = Some(panels::context_menu(ctx, state));
+                                }
                                 *palette_ref = panels::command_palette(ctx);
                                 panels::toasts(ctx, toasts_ref);
                             }
@@ -593,6 +637,25 @@ pub fn run_native(
                         toasts.error(crate::i18n::t("shimeji-no-library-toast"));
                     }
                 }
+                if let Some(out) = menu_outcome {
+                    match out {
+                        panels::ContextMenuOutcome::Open => {}
+                        panels::ContextMenuOutcome::Close => {
+                            context_menu_state = None;
+                        }
+                        panels::ContextMenuOutcome::Action(action) => {
+                            handle_menu_action(
+                                action,
+                                &mut scene,
+                                &mut renderer,
+                                &mut selection,
+                                &mut toasts,
+                                &mut config_dirty,
+                            );
+                            context_menu_state = None;
+                        }
+                    }
+                }
                 if let Some(out) = palette_outcome {
                     handle_palette_outcome(out, &mut scene, &mut config, &mut toasts);
                     config_dirty = true;
@@ -643,6 +706,107 @@ pub fn run_native(
     drop(renderer);
     drop(layer);
     Ok(())
+}
+
+/// Apply a context-menu action to scene + renderer + selection +
+/// toast queue. Mirrors `app/outcomes.rs::apply_menu_action` (X11
+/// path) exactly, including the `.get`/`.get_mut` everywhere
+/// hardening — a stale `entity_idx` (menu opened, then the entity
+/// disappeared via hot-reload before the user picked an action)
+/// degrades to a no-op rather than a panic. `renderer` isn't
+/// `Option` here (unlike the X11 path's `self.renderer`) since the
+/// native Wayland loop always has one by this point in the run.
+fn handle_menu_action(
+    action: panels::MenuAction,
+    scene: &mut Scene,
+    renderer: &mut WgpuRenderer,
+    selection: &mut SelectionState,
+    toasts: &mut ToastQueue,
+    config_dirty: &mut bool,
+) {
+    match action {
+        panels::MenuAction::Duplicate(idx) => {
+            let Some(src) = scene.entities.get(idx) else {
+                return;
+            };
+            let src_name = src.name.clone();
+            let src_path = std::path::PathBuf::from(&src.asset_path);
+            let new_x = src.x + 30.0;
+            let new_y = src.y + 30.0;
+            let orig_scale = src.scale;
+            let orig_opacity = src.opacity;
+
+            match scene.add_entity_from_path(&src_path, new_x, new_y) {
+                Ok(new_idx) => {
+                    if let Some(entity) = scene.entities.get_mut(new_idx) {
+                        entity.scale = orig_scale;
+                        entity.opacity = orig_opacity;
+                    }
+                    if let Some(entity) = scene.entities.get(new_idx) {
+                        renderer.ensure_texture(entity);
+                    }
+                    if let Some(entity) = scene.entities.get_mut(new_idx) {
+                        entity.texture_dirty = false;
+                    }
+                    selection.select(new_idx);
+                    *config_dirty = true;
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("name", src_name.clone());
+                    toasts.success(crate::i18n::t_args("toast-duplicated", &args));
+                }
+                Err(e) => {
+                    tracing::error!("Context menu duplicate failed: {}", e);
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("error", e.to_string());
+                    toasts.error(crate::i18n::t_args("toast-duplicate-failed", &args));
+                }
+            }
+        }
+        panels::MenuAction::Delete(idx) => {
+            let removed_name = scene
+                .entities
+                .get(idx)
+                .map(|e| e.name.clone())
+                .unwrap_or_default();
+            if let Some(entity) = scene.entities.get(idx) {
+                renderer.shared.textures.remove(&entity.id);
+            }
+            if scene.remove_entity(idx).is_some() {
+                selection.deselect();
+                *config_dirty = true;
+                let mut args = fluent::FluentArgs::new();
+                args.set("name", removed_name.clone());
+                toasts.info(crate::i18n::t_args("toast-deleted", &args));
+            }
+        }
+        panels::MenuAction::ResetTransform(idx) => {
+            if let Some(e) = scene.entities.get_mut(idx) {
+                e.scale = 1.0;
+                e.opacity = 1.0;
+                *config_dirty = true;
+            }
+        }
+        panels::MenuAction::ToggleGravity(idx) => {
+            if let Some(e) = scene.entities.get_mut(idx) {
+                e.physics.toggle();
+                *config_dirty = true;
+            }
+        }
+        panels::MenuAction::BringForward(idx) => {
+            if let Some(e) = scene.entities.get_mut(idx) {
+                e.z_index += 10;
+                scene.mark_visible_dirty();
+                *config_dirty = true;
+            }
+        }
+        panels::MenuAction::SendBackward(idx) => {
+            if let Some(e) = scene.entities.get_mut(idx) {
+                e.z_index -= 10;
+                scene.mark_visible_dirty();
+                *config_dirty = true;
+            }
+        }
+    }
 }
 
 /// Apply a library "Add to scene" outcome to scene + library index +

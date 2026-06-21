@@ -217,9 +217,6 @@ When you hit a compositor-specific quirk, file a GitHub issue tagged
 - **Window-awareness physics.** The X11 path polls EWMH window
   properties to use other windows' top edges as physics platforms;
   there's no Wayland equivalent, so the config knob is inert here.
-- **Right-click context menu.** Not wired on this path yet — the
-  settings panel, command palette, and asset library cover entity
-  management instead.
 
 ## Quick sanity check
 

@@ -371,14 +371,14 @@ inputs go through the **same** boundaries as the X11 path:
 
 It is still **opt-in and not the default** — GNOME/KDE Wayland lack
 `zwlr_layer_shell_v1` and fall back to XWayland automatically, so most
-users never exercise it. The remaining gaps are feature/UX, not
-security: per-monitor window distribution is single-surface, there's
-no right-click context menu yet, and three things are inherently
-X11-only by Wayland protocol design rather than missing implementation
-— `XQueryPointer`-based `FollowCursor` polling in pass-through mode
-(see the section above), EWMH-based window-awareness physics, and
-`XGrabKey` global hotkeys (Wayland substitutes the GlobalShortcuts
-portal and compositor-bound D-Bus methods instead). Use the X11 path
+users never exercise it. The remaining gap is feature/UX, not
+security: per-monitor window distribution is single-surface. Three
+other things are inherently X11-only by Wayland protocol design rather
+than missing implementation — `XQueryPointer`-based `FollowCursor`
+polling in pass-through mode (see the section above), EWMH-based
+window-awareness physics, and `XGrabKey` global hotkeys (Wayland
+substitutes the GlobalShortcuts portal and compositor-bound D-Bus
+methods instead). Use the X11 path
 for daily-driver work; the native path is a hardened-but-narrow target
 for wlroots users who want to skip XWayland.
 
