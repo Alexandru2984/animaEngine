@@ -919,6 +919,24 @@ fn rebuild_extra_surfaces(
                 continue;
             }
         };
+        // Wait for the compositor's first `configure` on this specific
+        // layer surface before touching wgpu at all — the same
+        // round-trip `LayerWindow::try_create` already does for the
+        // primary surface, for the same reason (a layer-shell surface
+        // committed to before its first configure is a protocol
+        // error, and confused wgpu into a queue-family validation
+        // panic on top of that when this went untested).
+        if let Err(e) = layer.event_queue.roundtrip(&mut layer.state) {
+            tracing::warn!(
+                "Roundtrip after creating extra layer for {} failed: {e}",
+                mon.name
+            );
+            layer.destroy_extra_layer(&mon.name);
+            continue;
+        }
+        let (configured_w, configured_h) = layer
+            .take_extra_configured_size(&mon.name)
+            .unwrap_or((mon.width, mon.height));
         let wgpu_surface = match layer_window::build_wgpu_surface(
             &renderer.shared.instance,
             &layer.connection,
@@ -931,12 +949,12 @@ fn rebuild_extra_surfaces(
                 continue;
             }
         };
-        let surface = SurfaceState::new(&renderer.shared, wgpu_surface, mon.width, mon.height);
+        let surface = SurfaceState::new(&renderer.shared, wgpu_surface, configured_w, configured_h);
         tracing::info!(
             "Spawned Wayland extra surface on {} ({}x{} at {},{})",
             mon.name,
-            mon.width,
-            mon.height,
+            configured_w,
+            configured_h,
             mon.x,
             mon.y
         );

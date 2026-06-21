@@ -32,8 +32,21 @@ use wayland_client::{
 };
 
 impl LayerShellHandler for WaylandState {
-    fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _layer: &LayerSurface) {
-        self.close_requested = true;
+    fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, layer: &LayerSurface) {
+        // Multiple layer surfaces share this callback once PerMonitor
+        // extras exist — same disambiguation as `configure` below.
+        // Found live: unplugging an output with an extra surface on
+        // it closed *that* layer, but the unchecked `_layer` here set
+        // `close_requested` regardless of which one, shutting down
+        // the whole app over losing one monitor. Only the primary
+        // closing means "the session is over"; an extra closing just
+        // means its output is gone, which the next frame's
+        // `rebuild_extra_surfaces` topology diff already handles by
+        // dropping the matching entry — no action needed here beyond
+        // not misfiring shutdown.
+        if *layer == self.layer {
+            self.close_requested = true;
+        }
     }
 
     fn configure(

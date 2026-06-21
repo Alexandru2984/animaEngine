@@ -393,6 +393,23 @@ impl LayerWindow {
             .collect()
     }
 
+    /// Take (not just peek) the configured size for one named extra
+    /// layer without touching the others — used right after
+    /// `create_extra_layer` + a roundtrip, before the first
+    /// `wgpu::Surface::configure` for it. Layer-shell surfaces must
+    /// receive (and, via sctk, implicitly ack) a `configure` event
+    /// before their first real commit; skipping that wait is exactly
+    /// what produced `zwlr_layer_surface_v1 error 2: layer_surface has
+    /// never been configured` plus a wgpu validation panic when this
+    /// was first exercised against a live multi-output sway session.
+    pub fn take_extra_configured_size(&mut self, name: &str) -> Option<(u32, u32)> {
+        self.state
+            .extra_layers
+            .iter_mut()
+            .find(|e| e.output_name == name)
+            .and_then(|e| e.pending_size.take())
+    }
+
     /// Swap the click-through region in lock-step with the edit-mode
     /// flag: edit-mode on → whole surface receives clicks; off → only
     /// the top-right ⚙ button corner does. Idempotent — calling with
