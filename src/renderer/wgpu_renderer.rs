@@ -573,10 +573,10 @@ impl SurfaceState {
     /// Returns `wgpu::SurfaceError` directly (not `AnimaError`)
     /// because the caller needs to match on specific variants like
     /// `Lost` and `OutOfMemory` to drive recovery and shutdown logic.
-    pub fn render(
+    pub fn render<'e>(
         &mut self,
         shared: &GpuShared,
-        entities: &[&Entity],
+        entities: &[&'e Entity],
         groups: &[crate::group::GroupConfig],
         edit_mode: bool,
         selected_entity_id: Option<&str>,
@@ -597,14 +597,19 @@ impl SurfaceState {
         let mut quad_idx: usize = 0;
 
         // Build a draw list: (quad_index, bind_group reference)
-        struct DrawCmd {
+        // `texture_entity_id` borrows straight from `entities` instead
+        // of cloning each entity's `String` id — this list is rebuilt
+        // every frame, so a clone here is a heap alloc per entity per
+        // frame for no reason; `HashMap<String, _>::get` takes `&str`
+        // through `Borrow`, so the borrow is all the lookup needs.
+        struct DrawCmd<'e> {
             quad_index: usize,
-            texture_entity_id: Option<String>, // entity ID or special UI element
+            texture_entity_id: Option<&'e str>, // entity ID or special UI element
             is_edit_bar: bool,
             is_selection: bool,
         }
 
-        let mut draws: Vec<DrawCmd> = Vec::with_capacity(entities.len() + 2);
+        let mut draws: Vec<DrawCmd<'e>> = Vec::with_capacity(entities.len() + 2);
 
         let mut overflowed = false;
         for entity in entities {
@@ -641,7 +646,7 @@ impl SurfaceState {
                 );
                 draws.push(DrawCmd {
                     quad_index: quad_idx,
-                    texture_entity_id: Some(entity.id.clone()),
+                    texture_entity_id: Some(entity.id.as_str()),
                     is_edit_bar: false,
                     is_selection: false,
                 });
@@ -731,7 +736,7 @@ impl SurfaceState {
                     render_pass.set_bind_group(1, &shared.edit_bar_tex.bind_group, &[]);
                 } else if cmd.is_selection {
                     render_pass.set_bind_group(1, &shared.selection_tex.bind_group, &[]);
-                } else if let Some(ref entity_id) = cmd.texture_entity_id {
+                } else if let Some(entity_id) = cmd.texture_entity_id {
                     if let Some(gpu_tex) = shared.textures.get(entity_id) {
                         render_pass.set_bind_group(1, &gpu_tex.bind_group, &[]);
                     } else {
