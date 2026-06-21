@@ -30,9 +30,11 @@
 //!   drains (no new Wayland-protocol plumbing needed for it).
 //! - `MonitorMode::PerMonitor`: one sprite-only `LayerWindow` extra
 //!   surface per non-primary `wl_output`, mirroring the X11 path's
-//!   `app::windows::WindowSlot`s. **Untested** — no multi-output
-//!   wlroots compositor was available to exercise output binding /
-//!   hotplug against; see the `layer_window` module doc.
+//!   `app::windows::WindowSlot`s. Exercised against a real headless
+//!   sway session (2-3 fake outputs, hotplug both directions) — see
+//!   the `layer_window` module doc and docs/wayland.md for what that
+//!   covered and what's still unverified (real GPU output, the other
+//!   three compositors in the support matrix).
 //!
 //! ## What doesn't (yet)
 //!
@@ -173,9 +175,9 @@ pub fn run_native(
     // per non-primary output — the Wayland counterpart of the X11
     // path's `App.extra_windows`. Keyed by monitor name so it can be
     // diffed against `monitor::plan_windows`'s output on every
-    // topology / mode change. **Untested**: no multi-output
-    // compositor was available to exercise this against (see
-    // docs/wayland.md and the module doc on `layer_window::mod`).
+    // topology / mode change. Exercised against a real headless sway
+    // session including output hotplug (see docs/wayland.md and the
+    // module doc on `layer_window::mod`).
     let mut extra_surfaces: HashMap<String, SurfaceState> = HashMap::new();
     let mut last_monitor_mode = config.global.monitor_mode.clone();
     {
@@ -882,9 +884,11 @@ fn compute_primary_origin(
 /// on *how* the surface is created (layer-shell here, a winit
 /// `Window` there).
 ///
-/// **Untested**: no multi-output wlroots compositor was available to
-/// exercise output binding / hotplug against; see the module doc on
-/// `wayland::layer_window` and docs/wayland.md.
+/// Exercised against a real headless sway session: output binding,
+/// adding an output mid-session, and removing one (including the one
+/// an extra surface was bound to) all confirmed not to crash the
+/// process — see the module doc on `wayland::layer_window` and
+/// docs/wayland.md for what's still unverified.
 fn rebuild_extra_surfaces(
     layer: &mut LayerWindow,
     renderer: &WgpuRenderer,

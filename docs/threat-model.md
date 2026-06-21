@@ -371,9 +371,9 @@ inputs go through the **same** boundaries as the X11 path:
 - **`MonitorMode::PerMonitor`** spawns one sprite-only layer-shell
   surface per non-primary `wl_output` (`src/wayland/run.rs::rebuild_extra_surfaces`),
   mirroring the X11 path's extra windows: no input region, no egui,
-  entities filtered to the surface's own monitor. **Untested** — no
-  multi-output `zwlr_layer_shell_v1` compositor was available during
-  development; see docs/wayland.md.
+  entities filtered to the surface's own monitor. Exercised against a
+  real headless sway session (2-3 fake outputs, hotplug in both
+  directions); see docs/wayland.md for what that covered and didn't.
 
 It is still **opt-in and not the default** — GNOME/KDE Wayland lack
 `zwlr_layer_shell_v1` and fall back to XWayland automatically, so most

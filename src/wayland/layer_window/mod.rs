@@ -6,13 +6,17 @@
 //! and rendering integration live in sibling modules — added in sub-phases
 //! 7.3 / 7.4 of Phase 7.
 //!
-//! ## Untested on the development machine
+//! ## Tested against headless sway; Hyprland/river/Wayfire still aren't
 //!
-//! GNOME Mutter (the host this code is being written on) does not advertise
-//! `zwlr_layer_shell_v1`, so the code below has been validated only against
-//! the published Wayland protocol spec and the sctk API docs. It will
-//! receive real exercise the first time someone runs the binary under
-//! sway / Hyprland / river.
+//! The primary day-to-day development host runs GNOME Mutter, which
+//! doesn't advertise `zwlr_layer_shell_v1` — but this module has now
+//! been exercised against a real `sway` (`WLR_BACKENDS=headless`,
+//! multiple fake outputs, output hotplug both ways) rather than just
+//! validated against the protocol spec and sctk API docs. See the
+//! `run` module doc and docs/wayland.md for what that covered and
+//! what it didn't (real GPU output on a physical display, the other
+//! three compositors in the support matrix, pointer/keyboard-heavy
+//! interaction).
 //!
 //! ## Lifecycle
 //!
@@ -309,11 +313,8 @@ impl LayerWindow {
     /// layer surface to the same physical output
     /// `monitor::plan_windows` picked it for.
     ///
-    /// **Untested**: no multi-output compositor was available to
-    /// exercise this against (see the module doc and
-    /// docs/wayland.md); validated by reading the sctk/wlr-layer-shell
-    /// protocol docs and mirroring `monitors()`'s already-exercised
-    /// name derivation exactly.
+    /// Exercised against a real 2-3 output headless sway session,
+    /// including hotplug (see the module doc and docs/wayland.md).
     pub fn output_by_name(&self, name: &str) -> Option<wl_output::WlOutput> {
         self.state.output_state.outputs().find(|o| {
             self.state

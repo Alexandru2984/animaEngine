@@ -199,22 +199,26 @@ When you hit a compositor-specific quirk, file a GitHub issue tagged
 - Output of `WAYLAND_DEBUG=client anima-engine` for the first frame
 - Whether the X11 fallback path works on the same machine
 
-## Multi-monitor (`MonitorMode::PerMonitor`) — untested
+## Multi-monitor (`MonitorMode::PerMonitor`)
 
-`PerMonitor` mode now spawns one sprite-only layer-shell surface per
+`PerMonitor` mode spawns one sprite-only layer-shell surface per
 non-primary `wl_output`, mirroring the X11 path's extra windows
 exactly: entities resolve to a monitor (pin first, then centroid) and
 each surface draws only its own monitor's entities, translated by
 that output's logical position. Extras carry no input region (fully
 click-through) and no egui — same as the X11 extras.
 
-This was written against the published protocol docs and the sctk API
-(no `zwlr_layer_shell_v1` compositor with more than one output was
-available during development — see the note at the top of this doc).
-If you run a multi-monitor sway / Hyprland / river / Wayfire session
-and something looks wrong (entities on the wrong screen, a missing
-extra surface, a crash on hotplug), please file an issue tagged
-`wayland` with the compositor-compatibility report template above.
+Tested against a real headless `sway` session (`WLR_BACKENDS=headless`,
+apt-installed locally, no GNOME-Mutter-class compositor on hand
+otherwise — see the note at the top of this doc) with 2-3 fake
+outputs: extra-surface creation, adding an output mid-session, and
+removing one (including the output an extra surface was bound to, the
+one case that used to take the whole process down) all confirmed
+working. **Not yet verified**: real GPU output on a physical multi-
+monitor setup, and the other three compositors in the table above
+(Hyprland, river, Wayfire) — only sway has actually been run. If you
+hit a problem on any of those, please file an issue tagged `wayland`
+with the compositor-compatibility report template above.
 
 ## What's not (yet) parity with X11
 
