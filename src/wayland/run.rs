@@ -219,6 +219,46 @@ pub fn run_native(
             }
         }
 
+        // Rebuild PerMonitor extras whenever the user switches mode or
+        // the output topology changes (hotplug) — mirrors the X11
+        // path's `rebuild_windows_if_mode_changed` + `check_monitor_topology`.
+        // Computed early in the frame: file-drop landing coordinates
+        // and the right-click hit test below both need `primary_origin`
+        // translated into entity-space before they touch `scene`.
+        let monitors_now = layer.monitors();
+        let plan = monitor::plan_windows(&config.global.monitor_mode, &monitors_now);
+        let plan_names: std::collections::HashSet<&str> =
+            plan.extras.iter().map(|m| m.name.as_str()).collect();
+        let current_names: std::collections::HashSet<&str> =
+            extra_surfaces.keys().map(|s| s.as_str()).collect();
+        if config.global.monitor_mode != last_monitor_mode || plan_names != current_names {
+            rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
+            last_monitor_mode = config.global.monitor_mode.clone();
+        }
+        for (name, new_w, new_h) in layer.drain_extra_resizes() {
+            if let Some(surface) = extra_surfaces.get_mut(&name) {
+                surface.resize(&renderer.shared, new_w, new_h);
+            }
+        }
+
+        // Entities live in window-local coordinates in single-output
+        // modes (today's only well-exercised case) and in global
+        // desktop coordinates once PerMonitor extras exist — same
+        // duality as the X11 path's `App::primary_origin` (T.8).
+        // `primary_output_name` is learned from `surface_enter`
+        // (handlers.rs); it stays `None` (→ identity origin) if the
+        // compositor never sends it, so the fallback is always the
+        // already-shipped single-output behavior, never a wrong offset.
+        let primary_origin: (f32, f32) = compute_primary_origin(
+            !extra_surfaces.is_empty(),
+            layer.state.primary_output_name.as_deref(),
+            &monitors_now,
+        );
+        let cursor_global = layer
+            .state
+            .cursor_pos
+            .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1));
+
         // Drain pointer + keyboard events. Until egui paint lands
         // (E.4) we don't have a UI consumer, but we already need to
         // detect the `Action::ToggleEditMode` chord so click-through
@@ -228,8 +268,13 @@ pub fn run_native(
         // Process any files dropped over the surface (E.3). Each path
         // routes through the same `add_entity_from_path` validation
         // gate as the X11 drag-drop path, so frame caps + extension
-        // whitelist still apply.
-        let drop_pos = layer.last_drag_pos();
+        // whitelist still apply. `drop_pos` is surface-local (same
+        // space as `cursor_pos`); add `primary_origin` so the spawned
+        // entity lands in the same coordinate space every other entity
+        // uses once PerMonitor extras exist.
+        let drop_pos = layer
+            .last_drag_pos()
+            .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1));
         for path in layer.drain_dropped_files() {
             // F.1 fix: run the same pre-validate gate the X11 path
             // uses (size cap + extension whitelist + regular-file
@@ -247,8 +292,8 @@ pub fn run_native(
                 continue;
             }
             let (x, y) = drop_pos.unwrap_or((
-                renderer.primary.window_width as f32 / 2.0,
-                renderer.primary.window_height as f32 / 2.0,
+                renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
             ));
             match scene.add_entity_from_path(&path, x, y) {
                 Ok(idx) => {
@@ -366,43 +411,6 @@ pub fn run_native(
                 layer.state.close_requested = true;
             }
         }
-
-        // Rebuild PerMonitor extras whenever the user switches mode or
-        // the output topology changes (hotplug) — mirrors the X11
-        // path's `rebuild_windows_if_mode_changed` + `check_monitor_topology`.
-        let monitors_now = layer.monitors();
-        let plan = monitor::plan_windows(&config.global.monitor_mode, &monitors_now);
-        let plan_names: std::collections::HashSet<&str> =
-            plan.extras.iter().map(|m| m.name.as_str()).collect();
-        let current_names: std::collections::HashSet<&str> =
-            extra_surfaces.keys().map(|s| s.as_str()).collect();
-        if config.global.monitor_mode != last_monitor_mode || plan_names != current_names {
-            rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
-            last_monitor_mode = config.global.monitor_mode.clone();
-        }
-        for (name, new_w, new_h) in layer.drain_extra_resizes() {
-            if let Some(surface) = extra_surfaces.get_mut(&name) {
-                surface.resize(&renderer.shared, new_w, new_h);
-            }
-        }
-
-        // Entities live in window-local coordinates in single-output
-        // modes (today's only well-exercised case) and in global
-        // desktop coordinates once PerMonitor extras exist — same
-        // duality as the X11 path's `App::primary_origin` (T.8).
-        // `primary_output_name` is learned from `surface_enter`
-        // (handlers.rs); it stays `None` (→ identity origin) if the
-        // compositor never sends it, so the fallback is always the
-        // already-shipped single-output behavior, never a wrong offset.
-        let primary_origin: (f32, f32) = compute_primary_origin(
-            !extra_surfaces.is_empty(),
-            layer.state.primary_output_name.as_deref(),
-            &monitors_now,
-        );
-        let cursor_global = layer
-            .state
-            .cursor_pos
-            .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1));
 
         let events = layer.drain_egui_events();
         for event in &events {
@@ -780,8 +788,8 @@ pub fn run_native(
                         &mut toasts,
                         &mut config_dirty,
                         (
-                            renderer.primary.window_width as f32 / 2.0,
-                            renderer.primary.window_height as f32 / 2.0,
+                            renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                            renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
                         ),
                     );
                 }
