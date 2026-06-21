@@ -227,7 +227,6 @@ toast-duplicate-failed = 複製に失敗しました: { $error }
 toast-deleted = { $name } を削除しました
 toast-playback-resumed = 再生を再開しました
 toast-playback-paused = 再生を一時停止しました
-toast-wayland-no-library = Wayland 経路ではアセットライブラリはまだ使えません
 inspector-wander-box = 徘徊範囲
 toast-perf-snapshot = パフォーマンススナップショット: { $path }
 toast-perf-snapshot-failed = スナップショットに失敗しました: { $error }

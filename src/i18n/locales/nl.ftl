@@ -227,7 +227,6 @@ toast-duplicate-failed = Dupliceren mislukt: { $error }
 toast-deleted = { $name } verwijderd
 toast-playback-resumed = Afspelen hervat
 toast-playback-paused = Afspelen gepauzeerd
-toast-wayland-no-library = De assetbibliotheek is nog niet beschikbaar op het Wayland-pad
 inspector-wander-box = Zwerfgebied
 toast-perf-snapshot = Prestatie-snapshot: { $path }
 toast-perf-snapshot-failed = Snapshot mislukt: { $error }

@@ -209,6 +209,17 @@ When you hit a compositor-specific quirk, file a GitHub issue tagged
 - **IME composition popups.** xkbcommon composes dead-keys / latin
   diacritics correctly through `KeyEvent::utf8`; full text-input-v3
   IME popups (for CJK candidates etc.) aren't wired yet.
+- **`FollowCursor` in pass-through mode.** X11 polls `XQueryPointer`
+  to keep this behavior accurate even when the click-through region
+  excludes the rest of the surface. No Wayland protocol hands a
+  client the global pointer position outside its own input region by
+  design, so `FollowCursor` only tracks the cursor in edit mode here.
+- **Window-awareness physics.** The X11 path polls EWMH window
+  properties to use other windows' top edges as physics platforms;
+  there's no Wayland equivalent, so the config knob is inert here.
+- **Right-click context menu.** Not wired on this path yet — the
+  settings panel, command palette, and asset library cover entity
+  management instead.
 
 ## Quick sanity check
 

@@ -227,7 +227,6 @@ toast-duplicate-failed = Duplicazione non riuscita: { $error }
 toast-deleted = { $name } eliminato
 toast-playback-resumed = Riproduzione ripresa
 toast-playback-paused = Riproduzione in pausa
-toast-wayland-no-library = La libreria degli asset non è ancora disponibile sul percorso Wayland
 inspector-wander-box = Area di vagabondaggio
 toast-perf-snapshot = Istantanea prestazioni: { $path }
 toast-perf-snapshot-failed = Istantanea non riuscita: { $error }

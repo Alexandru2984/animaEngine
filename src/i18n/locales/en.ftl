@@ -245,7 +245,6 @@ toast-duplicate-failed = Duplicate failed: { $error }
 toast-deleted = Deleted { $name }
 toast-playback-resumed = Playback resumed
 toast-playback-paused = Playback paused
-toast-wayland-no-library = Asset library not wired on the Wayland path yet
 inspector-wander-box = Wander box
 toast-perf-snapshot = Perf snapshot: { $path }
 toast-perf-snapshot-failed = Snapshot failed: { $error }

@@ -9,8 +9,8 @@
 //! - Fullscreen overlay on wlroots compositors (sway, Hyprland, river, …).
 //! - Animated sprite rendering for every entity in `Scene`.
 //! - Pointer events translated and consumed by egui through the
-//!   `WaylandEguiRenderer` (the ⚙ toggle button is the active UI
-//!   surface here; the full settings panel parity lands next).
+//!   `WaylandEguiRenderer` — the settings panel, command palette, and
+//!   toast queue all render here, same as the X11 path.
 //! - Keyboard events with xkbcommon-decoded keysyms + modifier
 //!   tracking. UTF-8 text already composed via xkb's dead-key engine
 //!   arrives as `egui::Event::Text` for widget input.
@@ -20,13 +20,28 @@
 //!   the X11 path uses.
 //! - Edit-mode toggle: bound chord (`Action::ToggleEditMode`) flips
 //!   the click-through input region in lock-step.
+//! - Asset library: discovered, scanned, indexed, and thumbnailed at
+//!   startup exactly like the X11 path (`handle_resumed` in
+//!   src/app/lifecycle.rs); "Add to scene" goes through the same
+//!   `resolve_library_asset` containment check.
 //!
 //! ## What doesn't (yet)
 //!
-//! - **Settings panel + context menu + toasts** — only the ⚙ button is
-//!   wired; the full UI surface ships in the next sub-phase.
+//! - **Right-click context menu** — not wired on this path; the
+//!   settings panel, palette, and library cover entity management.
 //! - **Per-monitor placement** — the layer surface attaches to
-//!   whichever output the compositor picks.
+//!   whichever output the compositor picks; no `PerMonitor`-style
+//!   multi-surface support yet.
+//! - **`FollowCursor` in pass-through mode** — no Wayland protocol
+//!   gives a client the global pointer position outside its own
+//!   input region (unlike X11's `XQueryPointer`, by design), so this
+//!   behavior stays edit-mode-only here. See docs/threat-model.md.
+//! - **Window-awareness physics** — no Wayland equivalent of the EWMH
+//!   properties this reads on X11; the config knob exists but the
+//!   feature is inert.
+//! - **`XGrabKey`-style global hotkeys** — Wayland has no client-side
+//!   key grab; only the GlobalShortcuts portal (if present) or
+//!   compositor-bound D-Bus methods (docs/wayland.md) work here.
 
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
@@ -95,6 +110,48 @@ pub fn run_native(
     let mut config_dirty = false;
     let warnings: BTreeSet<Warning> = BTreeSet::new();
     tracing::info!("Native Wayland renderer initialized ({width}×{height})");
+
+    // Discover + load + merge-scan the asset library — same sequence
+    // as the X11 path's `handle_resumed` (src/app/lifecycle.rs).
+    // Errors are logged but never fatal — an empty library is fine.
+    let mut library: Option<crate::asset_library::LibraryIndex> = None;
+    let mut library_root: Option<std::path::PathBuf> = None;
+    if let Some(root) = crate::asset_library::discover_asset_root() {
+        let index_path = crate::asset_library::LibraryIndex::default_path();
+        let mut idx = crate::asset_library::LibraryIndex::load(&index_path);
+        let scanned = crate::asset_library::scan(&root);
+        let scanned_count = scanned.len();
+        idx.merge_scan(scanned);
+        if let Err(e) = idx.save(&index_path) {
+            tracing::warn!("Failed to persist library.toml: {e}");
+        }
+        tracing::info!(
+            "Asset library at {}: {} indexed ({} from this scan)",
+            redact_path(&root),
+            idx.assets.len(),
+            scanned_count,
+        );
+        tracing::debug!("Asset library full root: {}", root.display());
+        {
+            let root_for_thumbs = root.clone();
+            let index_for_thumbs = idx.clone();
+            let spawned = std::thread::Builder::new()
+                .name("anima-thumbs".into())
+                .spawn(move || {
+                    crate::asset_library::generate_missing_thumbnails(
+                        &root_for_thumbs,
+                        &index_for_thumbs,
+                    );
+                });
+            if let Err(e) = spawned {
+                tracing::warn!("Thumbnail thread failed to spawn: {e}");
+            }
+        }
+        library = Some(idx);
+        library_root = Some(root);
+    } else {
+        tracing::info!("No asset library root found; Library tab will show empty state.");
+    }
 
     // Start in pass-through mode with the ⚙ button cutout — same default
     // as the X11 path.
@@ -437,7 +494,7 @@ pub fn run_native(
                                 window_awareness_mut,
                                 reduced_motion_mut,
                                 monitors_ref,
-                                None, // library index — not wired on Wayland yet
+                                library.as_ref(),
                                 library_ref,
                                 keybindings_mut,
                                 collapse_state_mut,
@@ -541,11 +598,18 @@ pub fn run_native(
                     config_dirty = true;
                 }
                 if let Some(out) = library_outcome {
-                    // No asset library index on this path yet; surface
-                    // a toast so the user knows the click was seen but
-                    // not actionable.
-                    let _ = out;
-                    toasts.warn(crate::i18n::t("toast-wayland-no-library"));
+                    handle_library_outcome(
+                        out,
+                        library_root.as_deref(),
+                        &mut library,
+                        &mut scene,
+                        &mut toasts,
+                        &mut config_dirty,
+                        (
+                            renderer.primary.window_width as f32 / 2.0,
+                            renderer.primary.window_height as f32 / 2.0,
+                        ),
+                    );
                 }
             }
             Err(wgpu::SurfaceError::Lost) => {
@@ -579,6 +643,79 @@ pub fn run_native(
     drop(renderer);
     drop(layer);
     Ok(())
+}
+
+/// Apply a library "Add to scene" outcome to scene + library index +
+/// toast queue. Mirrors `app/outcomes.rs::handle_library_outcome`
+/// (X11 path), adapted to free-function locals instead of `&mut self`
+/// — there's no `App` on this run loop. `center` is the drop position
+/// (window-local, since the native path has no multi-window origin to
+/// translate by).
+fn handle_library_outcome(
+    outcome: panels::LibraryOutcome,
+    library_root: Option<&std::path::Path>,
+    library: &mut Option<crate::asset_library::LibraryIndex>,
+    scene: &mut Scene,
+    toasts: &mut ToastQueue,
+    config_dirty: &mut bool,
+    center: (f32, f32),
+) {
+    use crate::drop_validate::resolve_library_asset;
+
+    let Some(root) = library_root else {
+        tracing::warn!("Library outcome received but no library_root is set; ignoring.");
+        return;
+    };
+    // Same M2 hardening as the X11 path: canonicalise both sides and
+    // reject anything that escapes the asset root before this ever
+    // reaches a decoder.
+    let rel_path = std::path::Path::new(&outcome.relative_path);
+    let abs_path = match resolve_library_asset(root, rel_path) {
+        Ok(p) => p,
+        Err(reason) => {
+            tracing::warn!("Library asset {} rejected: {reason}", redact_path(rel_path));
+            tracing::debug!("Rejected library relative path: {}", outcome.relative_path);
+            let mut args = fluent::FluentArgs::new();
+            args.set("reason", reason.clone());
+            toasts.warn(crate::i18n::t_args("toast-rejected", &args));
+            return;
+        }
+    };
+    if let Err(reason) = pre_validate_dropped_file(&abs_path) {
+        tracing::warn!(
+            "Library asset {} rejected: {reason}",
+            redact_path(&abs_path)
+        );
+        tracing::debug!("Rejected library full path: {}", abs_path.display());
+        let mut args = fluent::FluentArgs::new();
+        args.set("reason", reason.clone());
+        toasts.warn(crate::i18n::t_args("toast-rejected", &args));
+        return;
+    }
+    match scene.add_entity_from_path(&abs_path, center.0, center.1) {
+        Ok(_) => {
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", outcome.display_name.clone());
+            toasts.success(crate::i18n::t_args("library-asset-added-toast", &args));
+            if let Some(idx) = library.as_mut() {
+                if let Some(asset) = idx.assets.iter_mut().find(|a| a.id == outcome.asset_id) {
+                    asset.last_used_at = Some(std::time::SystemTime::now());
+                }
+                let _ = idx.save(&crate::asset_library::LibraryIndex::default_path());
+            }
+            *config_dirty = true;
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Library add failed for {}: {e}",
+                redact_path(std::path::Path::new(&outcome.relative_path))
+            );
+            tracing::debug!("Failed relative path: {}", outcome.relative_path);
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", outcome.display_name);
+            toasts.error(crate::i18n::t_args("library-asset-add-failed-toast", &args));
+        }
+    }
 }
 
 /// Apply a command-palette outcome to scene + config + toast queue.

@@ -231,7 +231,6 @@ toast-duplicate-failed = Duplicarea a eșuat: { $error }
 toast-deleted = Șters { $name }
 toast-playback-resumed = Redare reluată
 toast-playback-paused = Redare pe pauză
-toast-wayland-no-library = Biblioteca de asset-uri nu e încă disponibilă pe calea Wayland
 inspector-wander-box = Cutie de hoinăreală
 toast-perf-snapshot = Snapshot de performanță: { $path }
 toast-perf-snapshot-failed = Snapshot-ul a eșuat: { $error }

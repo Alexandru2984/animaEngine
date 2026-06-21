@@ -227,7 +227,6 @@ toast-duplicate-failed = Duplikowanie nie powiodło się: { $error }
 toast-deleted = Usunięto { $name }
 toast-playback-resumed = Odtwarzanie wznowione
 toast-playback-paused = Odtwarzanie wstrzymane
-toast-wayland-no-library = Biblioteka zasobów nie jest jeszcze dostępna na ścieżce Wayland
 inspector-wander-box = Obszar wędrówki
 toast-perf-snapshot = Migawka wydajności: { $path }
 toast-perf-snapshot-failed = Migawka nie powiodła się: { $error }
