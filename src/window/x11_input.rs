@@ -130,6 +130,31 @@ impl X11InputManager {
         Ok(reply.atom)
     }
 
+    /// Query the pointer position in global (root-window) coordinates
+    /// — the same space entity positions live in (T.8) — regardless
+    /// of the window's current input shape.
+    ///
+    /// `FollowCursor` needs this because in the default pass-through
+    /// shape, `XShape` makes everything but the toggle button
+    /// click-through, so winit's `CursorMoved` never fires there and
+    /// the last-tracked position goes stale. `XQueryPointer` reads
+    /// the pointer directly from the X server, the same read-only
+    /// query any client on the display can already make (see
+    /// docs/threat-model.md's "Trusted X11 / Wayland display server"
+    /// scope note) — it doesn't depend on which window currently
+    /// receives input. Returns `None` on any error; callers already
+    /// treat a missing cursor as "stale, skip this tick".
+    pub fn query_pointer_global(&self) -> Option<(f32, f32)> {
+        let screen = &self.conn.setup().roots[self.screen_num];
+        match self.conn.query_pointer(screen.root).ok()?.reply() {
+            Ok(reply) => Some((reply.root_x as f32, reply.root_y as f32)),
+            Err(e) => {
+                tracing::debug!("XQueryPointer failed: {e}");
+                None
+            }
+        }
+    }
+
     /// Set the X11 input shape so that only a rectangle in the top-right corner
     /// receives mouse input. The rest of the window is click-through.
     pub fn set_passthrough_with_button(&mut self, button_size: u32) -> Result<()> {

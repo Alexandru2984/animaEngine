@@ -127,9 +127,22 @@ impl App {
             })
             .unwrap_or((1920.0, 1080.0));
         // FollowCursor uses the live mouse position. In pass-through
-        // mode XShape blocks CursorMoved outside the toggle button,
-        // so the position is stale — accepted trade-off.
-        let cursor = Some((self.mouse_x, self.mouse_y));
+        // mode XShape blocks CursorMoved outside the toggle button, so
+        // winit's last-tracked position goes stale there. In edit mode
+        // the window has full input and CursorMoved keeps it fresh, so
+        // only pay for the extra X11 round trip when both pass-through
+        // is active and some entity actually needs it. Wayland has no
+        // equivalent read (and none of its CursorMoved delivery is
+        // shape-restricted in the way XShape is for X11), so this is
+        // X11-only — the same scope as window-awareness.
+        let cursor = if !self.edit_mode && self.scene.has_cursor_follower() {
+            self.x11_input
+                .as_ref()
+                .and_then(|mgr| mgr.query_pointer_global())
+                .or(Some((self.mouse_x, self.mouse_y)))
+        } else {
+            Some((self.mouse_x, self.mouse_y))
+        };
         {
             let _s = self.perf_sampler.scope(crate::perf::Category::SceneUpdate);
             self.scene

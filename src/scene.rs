@@ -205,6 +205,15 @@ impl Scene {
         self.window_platforms = platforms;
     }
 
+    /// Whether any entity is currently running `Behavior::FollowCursor`.
+    /// Lets the render loop skip the extra X11 `XQueryPointer` round
+    /// trip on every frame when nothing needs a live cursor position.
+    pub fn has_cursor_follower(&self) -> bool {
+        self.entities
+            .iter()
+            .any(|e| matches!(e.behavior, crate::behavior::Behavior::FollowCursor { .. }))
+    }
+
     /// Tick all entities: behavior + physics + animation.
     /// Screen dimensions bound autonomous motion (walk-around) and gravity.
     /// `cursor` is forwarded to behaviors that track the mouse (FollowCursor);
@@ -578,6 +587,23 @@ mod tests {
             extra: toml::Table::new(),
         };
         Scene::from_config(&config)
+    }
+
+    #[test]
+    fn has_cursor_follower_detects_only_follow_cursor_behavior() {
+        let mut scene = empty_scene();
+        assert!(!scene.has_cursor_follower(), "empty scene has no follower");
+
+        scene.entities.push(make_entity("idle", 0, true));
+        assert!(!scene.has_cursor_follower(), "Idle isn't a follower");
+
+        let mut follower = make_entity("follower", 0, true);
+        follower.behavior = crate::behavior::Behavior::FollowCursor {
+            speed: 100.0,
+            comfort_distance: 80.0,
+        };
+        scene.entities.push(follower);
+        assert!(scene.has_cursor_follower());
     }
 
     #[test]
