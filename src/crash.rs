@@ -220,7 +220,10 @@ fn save_snapshot_to_disk() -> Result<(), String> {
         std::fs::create_dir_all(parent).map_err(|e| format!("create cache dir: {e}"))?;
     }
     let toml = toml::to_string_pretty(config).map_err(|e| format!("serialize: {e}"))?;
-    std::fs::write(&path, toml).map_err(|e| format!("write: {e}"))?;
+    // Same atomic temp+rename helper every other stateful file on disk
+    // uses — a second crash (or kill) mid-write must never leave a
+    // truncated snapshot that `--recover` would later restore as-is.
+    crate::util::atomic_write_bytes(&path, toml.as_bytes()).map_err(|e| format!("write: {e}"))?;
     tracing::error!("Crash snapshot saved to {}", path.display());
     Ok(())
 }
@@ -246,6 +249,18 @@ pub fn try_recover() -> RecoverOutcome {
     };
     if !snapshot.exists() {
         return RecoverOutcome::NoSnapshot;
+    }
+    // Parse before touching anything on disk. A truncated or corrupt
+    // snapshot (e.g. a second crash mid-write, pre-atomic-write fix)
+    // must not be reported as "Restored" and then overwrite the live
+    // config with garbage — fail closed and leave both files alone.
+    match std::fs::read_to_string(&snapshot) {
+        Ok(contents) => {
+            if let Err(e) = validate_snapshot_contents(&contents) {
+                return RecoverOutcome::Failed(format!("snapshot is not a valid config: {e}"));
+            }
+        }
+        Err(e) => return RecoverOutcome::Failed(format!("read snapshot: {e}")),
     }
     let target = AppConfig::config_path();
     if let Some(parent) = target.parent() {
@@ -273,6 +288,13 @@ pub fn try_recover() -> RecoverOutcome {
     RecoverOutcome::Restored { backup }
 }
 
+/// `try_recover`'s gate, split out so it's testable without touching
+/// the real XDG paths `recovery_path`/`AppConfig::config_path` resolve
+/// to.
+fn validate_snapshot_contents(contents: &str) -> Result<(), toml::de::Error> {
+    toml::from_str::<AppConfig>(contents).map(|_| ())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,6 +306,22 @@ mod tests {
         let guard = slot().lock().unwrap();
         let stored = guard.as_ref().expect("snapshot must be recorded");
         assert_eq!(stored.characters.len(), cfg.characters.len());
+    }
+
+    #[test]
+    fn validate_snapshot_accepts_real_config_round_trip() {
+        let cfg = AppConfig::default();
+        let toml = toml::to_string_pretty(&cfg).unwrap();
+        assert!(validate_snapshot_contents(&toml).is_ok());
+    }
+
+    #[test]
+    fn validate_snapshot_rejects_truncated_contents() {
+        // Simulates a non-atomic write torn by a second crash mid-save.
+        let cfg = AppConfig::default();
+        let toml = toml::to_string_pretty(&cfg).unwrap();
+        let truncated = &toml[..toml.len() / 2];
+        assert!(validate_snapshot_contents(truncated).is_err());
     }
 
     #[test]
