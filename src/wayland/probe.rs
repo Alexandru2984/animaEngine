@@ -92,16 +92,28 @@ pub fn detect() -> WaylandCapabilities {
 }
 
 /// Pretty-print the situation as a single log line at startup.
-pub fn log_status(caps: &WaylandCapabilities) {
+///
+/// `native_active` mirrors the same `layer_shell && ANIMA_USE_WAYLAND_NATIVE`
+/// check `main()` uses — passed in so this can't drift from what's
+/// actually about to happen. Without it this used to unconditionally
+/// claim the native path was "coming in a later sub-phase" even on a
+/// run that, two log lines later, switches onto that exact path.
+pub fn log_status(caps: &WaylandCapabilities, native_active: bool) {
     if !caps.session_present {
         tracing::info!("Native Wayland: not a Wayland session (or not connectable).");
         return;
     }
-    if caps.layer_shell {
+    if caps.layer_shell && native_active {
         tracing::info!(
             "Native Wayland: detected wlr-layer-shell — overlay-ready compositor \
-             (sway / Hyprland / river / etc.). Currently still routing through \
-             XWayland; native path coming in a later sub-phase."
+             (sway / Hyprland / river / etc.). ANIMA_USE_WAYLAND_NATIVE=1 is set, \
+             so this session uses the native layer-shell path, not XWayland."
+        );
+    } else if caps.layer_shell {
+        tracing::info!(
+            "Native Wayland: detected wlr-layer-shell — overlay-ready compositor \
+             (sway / Hyprland / river / etc.). Still routing through XWayland; \
+             set ANIMA_USE_WAYLAND_NATIVE=1 to use the native layer-shell path."
         );
     } else {
         tracing::info!(

@@ -42,8 +42,16 @@ pub fn detect_display_server() -> DisplayServer {
     DisplayServer::Unknown("no display detected".to_string())
 }
 
-/// Log platform information and any relevant warnings
-pub fn log_platform_info() {
+/// Log platform information and any relevant warnings.
+///
+/// `native_wayland_active` is the same `layer_shell && ANIMA_USE_WAYLAND_NATIVE`
+/// check `main()` uses to decide whether to try the native layer-shell
+/// path — passed in (not re-derived here) so this can never drift from
+/// the actual decision. On that path click-through, positioning, and
+/// always-on-top all work as documented (a fullscreen `Overlay` layer
+/// surface with `wl_surface::set_input_region`), so the generic
+/// XWayland caveats below would be actively wrong advice.
+pub fn log_platform_info(native_wayland_active: bool) {
     let server = detect_display_server();
     tracing::info!("Display server: {}", server);
 
@@ -52,14 +60,23 @@ pub fn log_platform_info() {
     }
 
     match server {
+        DisplayServer::Wayland if native_wayland_active => {
+            tracing::info!(
+                "Wayland session with layer-shell support — using the native \
+                 Wayland path (ANIMA_USE_WAYLAND_NATIVE=1). Click-through and \
+                 overlay positioning work natively here, no XWayland caveats."
+            );
+        }
         DisplayServer::Wayland => {
             tracing::warn!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             tracing::warn!("Running on Wayland. Some features may be limited:");
             tracing::warn!("  • Absolute window positioning may not work");
             tracing::warn!("  • Always-on-top behavior depends on compositor");
             tracing::warn!("  • Click-through is not supported");
-            tracing::warn!("For best results, run under X11:");
+            tracing::warn!("For best results, run under X11, or try the native");
+            tracing::warn!("Wayland path on wlroots compositors (sway, Hyprland, river):");
             tracing::warn!("  GDK_BACKEND=x11 cargo run");
+            tracing::warn!("  ANIMA_USE_WAYLAND_NATIVE=1 cargo run");
             tracing::warn!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         }
         DisplayServer::Unknown(_) => {

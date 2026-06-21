@@ -70,13 +70,17 @@ fn main() {
         }
     };
 
-    window::platform::log_platform_info();
-    window::linux::check_compositor();
-
-    // Probe native Wayland capabilities. The result is only logged for now;
-    // the native code path will consume it in a later sub-phase.
+    // Probe native Wayland capabilities before the platform-info log so
+    // its Wayland warning can tell whether the native layer-shell path
+    // (no XWayland caveats) is actually about to be used, instead of
+    // unconditionally telling a sway/Hyprland/river user that
+    // click-through doesn't work when it's about to work fine.
     let wayland_caps = wayland::detect();
-    wayland::log_status(&wayland_caps);
+    let native_wayland_active =
+        wayland_caps.layer_shell && std::env::var_os("ANIMA_USE_WAYLAND_NATIVE").is_some();
+    wayland::log_status(&wayland_caps, native_wayland_active);
+    window::platform::log_platform_info(native_wayland_active);
+    window::linux::check_compositor();
 
     // First-run demo so users see something on screen. Safe to delete from config.
     demo::generate_assets();
@@ -120,7 +124,7 @@ fn main() {
     //
     // On success this never returns. On failure we log a warning and
     // continue with winit + XWayland as if the flag weren't set.
-    if wayland_caps.layer_shell && std::env::var_os("ANIMA_USE_WAYLAND_NATIVE").is_some() {
+    if native_wayland_active {
         tracing::info!("ANIMA_USE_WAYLAND_NATIVE=1 set — trying native layer-shell path");
         // Wire the D-Bus activation service for the Wayland path so
         // compositor bindings (sway/Hyprland) can dispatch the same
