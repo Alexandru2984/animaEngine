@@ -7,7 +7,7 @@ first, then the code.
 
 The goal isn't novelty — it's giving the existing engine more reach
 without breaking the invariants Phase B locked in (asset caps, atomic
-writes, drag-drop validation, single-method D-Bus).
+writes, drag-drop validation, the bounded D-Bus surface).
 
 ---
 
@@ -434,7 +434,9 @@ Profile scenes at:
 - 10 entities (baseline, 0.2 reality)
 - 25 entities (modest power-user)
 - 50 entities (preset stress test)
-- 100 entities (synthetic max — half of MAX_ENTITIES)
+- 100 entities (synthetic stress max — exceeds the current
+  `MAX_ENTITIES = 64` cap on purpose, to leave headroom if that cap
+  is ever raised)
 
 At 60 fps target frame budget is 16.6 ms. Goal: 100 entities under
 8 ms per frame, leaving room for compositor / shader work.
