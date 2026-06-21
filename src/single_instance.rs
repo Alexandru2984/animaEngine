@@ -192,7 +192,14 @@ pub fn install_wayland_service(
     connection: zbus::Connection,
 ) -> std::sync::mpsc::Receiver<AnimaEvent> {
     let (tx, rx) = std::sync::mpsc::sync_channel::<AnimaEvent>(DBUS_QUEUE_CAP);
-    std::thread::Builder::new()
+    // Spawn failure (e.g. RLIMIT_NPROC exhaustion — the same condition
+    // F.2's thread-spawn hardening elsewhere in the codebase guards
+    // against) degrades to "no D-Bus activation service" instead of
+    // crashing the whole process at startup: `tx` drops with the
+    // never-run closure, so `rx` just reports disconnected and the
+    // run loop's `try_recv` loop already treats that as "nothing to
+    // do" rather than an error worth propagating.
+    if let Err(e) = std::thread::Builder::new()
         .name("anima-instance-wayland".into())
         .spawn(move || {
             async_io::block_on(async move {
@@ -205,7 +212,9 @@ pub fn install_wayland_service(
                 std::future::pending::<()>().await;
             });
         })
-        .expect("spawn wayland instance thread");
+    {
+        tracing::warn!("Failed to spawn Wayland activation service thread: {e}");
+    }
     rx
 }
 
@@ -213,7 +222,12 @@ pub fn install_wayland_service(
 /// detached thread. Call only when `try_acquire` returned
 /// `Claimed(Some(connection))` AND the event loop proxy is available.
 pub fn install_service(connection: zbus::Connection, proxy: EventLoopProxy<AnimaEvent>) {
-    std::thread::Builder::new()
+    // Same rationale as `install_wayland_service`: a spawn failure
+    // here used to panic the whole process at startup on resource
+    // exhaustion. Degrading to "no activation service" means a
+    // second launch won't be able to raise this instance's window,
+    // but the instance that's already running keeps running.
+    if let Err(e) = std::thread::Builder::new()
         .name("anima-instance".into())
         .spawn(move || {
             async_io::block_on(async move {
@@ -228,7 +242,9 @@ pub fn install_service(connection: zbus::Connection, proxy: EventLoopProxy<Anima
                 std::future::pending::<()>().await;
             });
         })
-        .expect("spawn single-instance thread");
+    {
+        tracing::warn!("Failed to spawn single-instance activation thread: {e}");
+    }
 }
 
 /// Tell the existing primary instance to raise its window.
