@@ -334,7 +334,7 @@ impl LayerWindow {
     /// extra windows (`app::windows::WindowSlot`, fully click-through,
     /// no egui). Registers the protocol side in `state.extra_layers`
     /// and returns the raw `wl_surface` so the caller can build a
-    /// wgpu surface from it via [`build_wgpu_surface`].
+    /// wgpu surface from it via `build_wgpu_surface`.
     pub fn create_extra_layer(
         &mut self,
         output: &wl_output::WlOutput,
