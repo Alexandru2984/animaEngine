@@ -374,7 +374,21 @@ fn ensure_thumbnail_at(root: &Path, asset: &LibraryAsset, thumb_dir: &Path) -> O
     if matches!(asset.kind, LibraryKind::Video) {
         return None;
     }
-    let src = root.join(&asset.path);
+    // `asset.path` round-trips through library.toml, so a stale or
+    // hand-edited entry (merge_scan keeps unmatched entries around for
+    // disconnected drives) could carry a `../` escape or an absolute
+    // path. Route through the same canonicalize-and-contain gate as
+    // "Add to scene" instead of trusting it here too.
+    let src = match crate::drop_validate::resolve_library_asset(root, Path::new(&asset.path)) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!(
+                "Skipping thumbnail for {}: {e}",
+                crate::drop_validate::redact_path(Path::new(&asset.path))
+            );
+            return None;
+        }
+    };
     let thumb = thumb_dir.join(asset.thumbnail_filename());
 
     let src_mtime = std::fs::metadata(&src).and_then(|m| m.modified()).ok()?;
@@ -708,6 +722,38 @@ mod tests {
             last_used_at: None,
         };
         assert!(ensure_thumbnail_at(&root, &asset, &dir.join("thumbs")).is_none());
+    }
+
+    /// A stale or hand-edited `library.toml` entry can carry a `../`
+    /// escape — `merge_scan` keeps entries the current scan didn't
+    /// re-discover, so nothing re-validates `asset.path` between load
+    /// and use. `ensure_thumbnail_at` must refuse to read outside
+    /// `root` instead of handing `image::open` an escaped path.
+    #[test]
+    fn thumbnail_refuses_path_escaping_root() {
+        let dir = tempdir("thumb_escape");
+        let root = dir.join("root");
+        fs::create_dir_all(&root).unwrap();
+
+        // A file that exists outside `root`, reachable only via `../`.
+        let secret = dir.join("secret.png");
+        image::RgbaImage::from_pixel(4, 4, image::Rgba([1, 2, 3, 255]))
+            .save(&secret)
+            .unwrap();
+
+        let asset = LibraryAsset {
+            id: "escape000000".into(),
+            path: "../secret.png".into(),
+            kind: LibraryKind::Image,
+            tags: vec![],
+            added_at: SystemTime::now(),
+            last_used_at: None,
+        };
+        assert!(ensure_thumbnail_at(&root, &asset, &dir.join("thumbs")).is_none());
+        assert!(
+            !dir.join("thumbs").exists(),
+            "must not create a thumbnail for an escaped path"
+        );
     }
 
     fn tempdir(name: &str) -> PathBuf {
