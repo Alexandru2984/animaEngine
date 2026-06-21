@@ -44,6 +44,18 @@ describing the change and why it can't wait for 1.0, and get an explicit
 without that decision will be asked to wait — the whole point of the
 freeze is that *nothing* grows the surface we're trying to stabilize.
 
+**Active exception: X11/Wayland parity (granted 2026-06-21).** The
+native Wayland path (`ANIMA_USE_WAYLAND_NATIVE=1`) is a documented,
+supported target (see [docs/wayland.md](docs/wayland.md)), not an
+experiment — closing a capability gap between it and the X11 path
+(asset library, context menu, per-monitor distribution, cursor
+tracking wherever the Wayland protocol actually allows it) is treated
+as evening out the 1.0 contract across both backends, not as adding a
+new feature. This does **not** reopen the freeze generally: a
+capability neither path has today is still out of scope, and anything
+landing under this exception still needs the same crash/security/test
+discipline as everything else in this list.
+
 **Branch policy:** fixes branch from `main` and merge back to `main`;
 1.0 ships from `main`. No feature branches are in flight during the
 freeze — anything feature-shaped lives in an issue until the 1.0 tag is
