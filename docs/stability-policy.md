@@ -21,10 +21,16 @@ change to any of them is a breaking change and waits for 2.0 (see
   carries a `version` key for exactly this. Unknown `[section]` tables
   are preserved through a load → save cycle, so a config touched by a
   newer 1.x and opened by an older one doesn't lose data.
-- **D-Bus interface** `com.animaengine.Anima`. The method set —
-  `Activate`, `ToggleEditMode`, `HideOverlay`, `ShowOverlay`,
-  `ToggleGlobalPlayback` — keeps its names and (empty) signatures.
-  Methods may be *added*; existing ones aren't removed or repurposed.
+- **D-Bus surface.** The bus name `com.animaengine.Anima`, object path
+  `/com/animaengine/Anima`, and interface `org.animaengine.Anima` are
+  fixed. (The bus name and the interface are deliberately different
+  namespaces: `com.…` matches the Flatpak app-id, the interface keeps
+  the conventional reverse-DNS `org.…` — a `gdbus` binding needs both,
+  e.g. `--dest com.animaengine.Anima … --method org.animaengine.Anima.ToggleEditMode`.)
+  The method set — `Activate`, `ToggleEditMode`, `HideOverlay`,
+  `ShowOverlay`, `ToggleGlobalPlayback` — keeps its names and (empty)
+  signatures. Methods may be *added*; existing ones aren't removed or
+  repurposed.
 - **CLI flags.** `--help` / `-h` and `--recover` / `-r` keep their
   meaning. New flags may be added; these two don't change under you.
 - **Asset formats accepted.** The `asset_type` values — `png_static`,
