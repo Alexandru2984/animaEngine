@@ -191,11 +191,27 @@ pub fn settings(
     hotkey_backend: &str,
     shimeji_import: &mut Option<String>,
 ) {
+    // Frosted, semi-transparent panel: the overlay feels lighter and the
+    // desktop reads through behind the settings instead of a solid slab.
+    // Alpha kept high (≈92%) so text contrast survives over a busy
+    // background; a 1px subtle border gives the floating-card edge with
+    // no heavy fill or shadow. Tunable — drop the alpha for more glass.
+    let palette = theme::palette_of(ctx);
+    let panel_frame = egui::Frame::new()
+        .fill(egui::Color32::from_rgba_unmultiplied(
+            palette.bg_surface.r(),
+            palette.bg_surface.g(),
+            palette.bg_surface.b(),
+            235,
+        ))
+        .inner_margin(egui::Margin::symmetric(theme::SPACE_M as i8, SPACE_S as i8))
+        .stroke(egui::Stroke::new(1.0, palette.border_subtle));
     // `show_animated` slides the panel in/out with egui's animation
     // clock — which `ui::motion::set_reduced` zeroes under reduced
     // motion, so the slide collapses to an instant show/hide for free.
     egui::SidePanel::right("anima_settings")
         .resizable(false)
+        .frame(panel_frame)
         .default_width(320.0)
         .show_animated(ctx, open, |ui| {
             // ── Sticky header ─────────────────────────────────────────
