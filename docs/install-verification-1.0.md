@@ -100,9 +100,14 @@ Three distinct session types exercised so far — X11, GNOME Wayland
 | 2026-06-28 | Kali (XFCE) | X11 native | ✅ build + overlay works | docs missing `pkg-config` / `libxkbcommon-x11-dev`; overlay window oversized on fractional scale (⚙ button off-screen) |
 | 2026-06-28 | Fedora | GNOME Wayland → XWayland | ✅ build + overlay works | Mutter dropped always-on-top → re-assert `_NET_WM_STATE_ABOVE` on focus/occlusion; click-through + stay-on-top both confirmed |
 | 2026-06-28 | headless `sway` (dev host) | wlroots, native layer-shell | ✅ logic only (no visible output) | multi-monitor PerMonitor surface create / hotplug / drop-order crashes — see docs/wayland.md |
+| 2026-06-29 | Arch (GNOME) | GNOME Wayland → XWayland | ✅ build + overlay works | a focus-change re-assert clobbered the XShape click-through (overlay swallowed clicks) → shape-last + 500ms self-heal; also surfaced that XShape click-through can't reach **native-Wayland** windows under the overlay (XWayland boundary — see docs, not fixable on this path) |
+| 2026-06-29 | Alpine (XFCE) | X11 native | ⚙️ build ✅, run blocked | musl build needs `RUSTFLAGS="-C target-feature=-crt-static"` (Alpine ships no static `libxkbcommon.a`) — now in CONTRIBUTING; runtime then refused (no transparent alpha mode on the VM's software GL surface) — correct defensive behavior, needs a real GPU/WSI or transparent-capable compositor |
 
-Arch (glibc, cheap confirm) and Alpine (musl — the real build-debugging
-one, `openh264` needs `nasm`) remain to run.
+The maintainer's own Ubuntu GNOME-Wayland box additionally runs it on a
+real GPU (Vulkan/RADV). Build portability now covered across glibc +
+musl and X11 + Wayland; the remaining gaps are runtime-environment
+(software VMs lack a transparent surface) and the post-1.0 native-path
+items, not build breakage.
 
 ## Definition of done
 

@@ -91,6 +91,32 @@ plus rustdoc, MSRV, cargo-machete, desktop-metadata and actionlint
 gates. If the four above pass locally they pass in CI; the rest rarely
 trip on a focused change.
 
+### Alpine / musl
+
+On Alpine (or any musl target) the deps are:
+
+```bash
+apk add build-base cmake pkgconf nasm vulkan-loader-dev \
+    libx11-dev libxcb-dev libxkbcommon-dev wayland-dev libxrandr-dev \
+    mesa-vulkan-swrast
+```
+
+and the build needs **dynamic CRT linking**, because the Rust musl
+target defaults to fully-static linking but Alpine only ships the
+shared `libxkbcommon.so` (no static `.a`), so the link fails with
+`cannot find -lxkbcommon`:
+
+```bash
+RUSTFLAGS="-C target-feature=-crt-static" cargo build --release
+```
+
+`nasm` is required there too — `openh264` builds its assembly from
+source on musl. The binary itself builds and links clean this way;
+running it still needs a transparent-capable surface (a compositor +
+a GPU/WSI that exposes a non-opaque alpha mode), which a bare
+software-rendered VM may not provide — the app refuses with a clear
+message rather than painting the desktop black.
+
 ## House rules
 
 These are conventions the codebase already follows; matching them keeps
