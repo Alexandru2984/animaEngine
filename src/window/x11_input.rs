@@ -262,7 +262,12 @@ impl X11InputManager {
         free_pixmap(&self.conn, pixmap)?;
         self.conn.flush()?;
 
-        tracing::info!(
+        // Debug, not info: this fires on every mode toggle, resize, focus
+        // change, and the periodic click-through self-heal (twice a
+        // second in pass-through) — far too chatty for info. The
+        // user-facing mode transition is logged separately at info
+        // ("PASS-THROUGH MODE" / "EDIT MODE ON").
+        tracing::debug!(
             "X11 input shape set: {}x{} button at top-right (x={}), rest is click-through (window={}x{})",
             button_size,
             button_size,

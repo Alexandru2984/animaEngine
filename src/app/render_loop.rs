@@ -81,6 +81,21 @@ impl App {
         }
         self.perf_frame_counter = self.perf_frame_counter.wrapping_add(1);
 
+        // Self-heal click-through. GNOME/XWayland Mutter resets our
+        // XShape input region when it restacks the overlay for
+        // always-on-top, which can leave pass-through mode swallowing
+        // every click (user can't reach windows under the sprites).
+        // Re-applying the shape on a slow cadence guarantees it recovers
+        // even when the event-driven re-apply loses the race with the
+        // compositor's reset. Pass-through only — edit mode owns the
+        // full-window shape. The XShape set is cheap and invisible.
+        if !self.edit_mode
+            && self.last_shape_refresh.elapsed() >= std::time::Duration::from_millis(500)
+        {
+            self.reapply_input_shape();
+            self.last_shape_refresh = Instant::now();
+        }
+
         // Capture-and-reset the previous frame's GPU op counters (W.3).
         // Read-only on the renderer (the counters are `Cell`s), so it
         // doesn't conflict with the `&mut renderer` borrow later.

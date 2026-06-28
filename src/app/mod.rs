@@ -161,6 +161,13 @@ pub struct App {
     /// Last hotplug poll — winit has no monitor-change event on X11,
     /// so the redraw cycle re-enumerates on this cadence (T.9).
     last_monitor_check: Instant,
+    /// Last time we re-applied the click-through input shape as a
+    /// self-heal. GNOME/XWayland Mutter resets the XShape region behind
+    /// our back when it restacks the overlay for always-on-top, which
+    /// can leave pass-through mode swallowing every click. Re-applying
+    /// on a slow cadence guarantees click-through recovers within this
+    /// window no matter what the compositor did. Pass-through only.
+    last_shape_refresh: Instant,
 }
 
 /// Result of an async hot-reload — produced by a worker thread, consumed by
@@ -229,6 +236,7 @@ impl App {
             extra_windows: std::collections::HashMap::new(),
             last_monitor_mode,
             last_monitor_check: Instant::now(),
+            last_shape_refresh: Instant::now(),
         }
     }
 
@@ -594,35 +602,20 @@ impl ApplicationHandler<AnimaEvent> for App {
                 self.request_redraw();
             }
 
-            // Re-apply input shape when the window regains focus.
-            // Some compositors (notably Mutter with fractional scaling) clip
-            // the input shape after a focus loss → restore cycle.
-            WindowEvent::Focused(true) => {
+            // Every focus / occlusion transition. Mutter (GNOME on
+            // XWayland) both sinks our always-on-top *and* can reset the
+            // XShape click-through region when it processes the resulting
+            // window-state change. So re-assert ABOVE first, then re-apply
+            // the input shape **last** — order is load-bearing: doing the
+            // shape first (or not at all on focus loss, the earlier bug)
+            // let the ABOVE re-assert clobber it, leaving the overlay
+            // swallowing every click on Arch's newer Mutter (the user
+            // couldn't reach windows under the sprites). Shape-last keeps
+            // click-through and stay-on-top from desyncing.
+            WindowEvent::Focused(_) | WindowEvent::Occluded(_) => {
+                self.reassert_always_on_top();
                 self.reapply_input_shape();
-                self.reassert_always_on_top();
                 self.request_redraw();
-            }
-
-            // We just lost focus — another window came up, and Mutter
-            // (XWayland) tends to drop our always-on-top here, sinking the
-            // overlay behind it. Re-assert ABOVE so we keep floating on top
-            // (we stay click-through, so the focused window is still usable).
-            WindowEvent::Focused(false) => {
-                self.reassert_always_on_top();
-            }
-
-            // Re-apply input shape when the window becomes visible again
-            // after being occluded (e.g. user pressed Super+H, then restored).
-            WindowEvent::Occluded(false) => {
-                self.reapply_input_shape();
-                self.reassert_always_on_top();
-                self.request_redraw();
-            }
-
-            // Another window occluded us — same Mutter-drops-ABOVE case as
-            // focus loss; nudge ourselves back on top.
-            WindowEvent::Occluded(true) => {
-                self.reassert_always_on_top();
             }
 
             WindowEvent::RedrawRequested => {
