@@ -332,6 +332,23 @@ impl App {
         }
     }
 
+    /// Re-assert always-on-top (X11 `_NET_WM_STATE_ABOVE`).
+    ///
+    /// Mutter (GNOME on XWayland) drops the ABOVE state when another window
+    /// is focused over us, sinking the overlay behind it; re-sending the
+    /// EWMH request on every focus/occlusion transition keeps it floating
+    /// on top. No-op without an X11 manager (winit-only fallback, or the
+    /// native Wayland path) — there's no portable equivalent, and the
+    /// native Wayland path gets always-on-top from the layer surface
+    /// instead.
+    fn reassert_always_on_top(&self) {
+        if let Some(x11) = &self.x11_input {
+            if let Err(e) = x11.reassert_above() {
+                tracing::debug!("Re-assert always-on-top failed: {e}");
+            }
+        }
+    }
+
     /// Toggle between edit mode and pass-through mode
     fn toggle_edit_mode(&mut self) {
         self.edit_mode = !self.edit_mode;
@@ -582,14 +599,30 @@ impl ApplicationHandler<AnimaEvent> for App {
             // the input shape after a focus loss → restore cycle.
             WindowEvent::Focused(true) => {
                 self.reapply_input_shape();
+                self.reassert_always_on_top();
                 self.request_redraw();
+            }
+
+            // We just lost focus — another window came up, and Mutter
+            // (XWayland) tends to drop our always-on-top here, sinking the
+            // overlay behind it. Re-assert ABOVE so we keep floating on top
+            // (we stay click-through, so the focused window is still usable).
+            WindowEvent::Focused(false) => {
+                self.reassert_always_on_top();
             }
 
             // Re-apply input shape when the window becomes visible again
             // after being occluded (e.g. user pressed Super+H, then restored).
             WindowEvent::Occluded(false) => {
                 self.reapply_input_shape();
+                self.reassert_always_on_top();
                 self.request_redraw();
+            }
+
+            // Another window occluded us — same Mutter-drops-ABOVE case as
+            // focus loss; nudge ourselves back on top.
+            WindowEvent::Occluded(true) => {
+                self.reassert_always_on_top();
             }
 
             WindowEvent::RedrawRequested => {

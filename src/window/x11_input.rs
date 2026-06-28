@@ -124,6 +124,43 @@ impl X11InputManager {
         Ok(())
     }
 
+    /// Re-send the `_NET_WM_STATE_ADD _NET_WM_STATE_ABOVE` request to nudge
+    /// the WM to put us back above normal windows.
+    ///
+    /// `apply_overlay_hints` sets the ABOVE state once at startup, but some
+    /// compositors — notably GNOME's Mutter for XWayland clients — quietly
+    /// stop honoring it once another window is focused on top of us, so the
+    /// overlay sinks behind that window (the "characters go under the app I
+    /// clicked" symptom). Re-asserting on each focus/occlusion transition
+    /// (see `App::window_event`) keeps reminding the WM without a continuous
+    /// timer that would risk a restack flicker-war. This carries no focus
+    /// request (it is not `_NET_ACTIVE_WINDOW`), so it never steals focus —
+    /// it only affects stacking, which is exactly right for a click-through
+    /// overlay that should float above yet let clicks pass through. Logs at
+    /// debug since it fires on routine focus changes.
+    pub fn reassert_above(&self) -> Result<()> {
+        let screen = &self.conn.setup().roots[self.screen_num];
+        let root = screen.root;
+        let net_wm_state = self.intern_atom("_NET_WM_STATE")?;
+        let above = self.intern_atom("_NET_WM_STATE_ABOVE")?;
+        let data = ClientMessageData::from([
+            1u32, // _NET_WM_STATE_ADD
+            above, 0, 1, // source = normal application
+            0,
+        ]);
+        let event = ClientMessageEvent::new(32, self.x11_window, net_wm_state, data);
+        send_event(
+            &self.conn,
+            false,
+            root,
+            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+            event,
+        )?;
+        self.conn.flush()?;
+        tracing::debug!("Re-asserted _NET_WM_STATE_ABOVE");
+        Ok(())
+    }
+
     /// Intern an X11 atom by name.
     fn intern_atom(&self, name: &str) -> Result<u32> {
         let reply = self.conn.intern_atom(false, name.as_bytes())?.reply()?;
