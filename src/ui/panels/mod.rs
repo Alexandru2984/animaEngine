@@ -100,11 +100,73 @@ impl SettingsTab {
     }
 }
 
-/// Right-side settings panel. Organized into three tabs (Inspector /
-/// Scene / Appearance) with a sticky header and a scrollable body.
-/// Mutations flow directly through the supplied mutable references;
-/// `config_dirty` is set when anything changes so the save-on-exit-
-/// edit-mode path picks them up.
+/// Icon-only segmented tab bar, sized to stay uncluttered in the 320px
+/// panel: the active tab gets an `accent_subtle` pill (`RADIUS_MD`) with
+/// an `accent_base` glyph, the rest are `fg_muted` glyphs that tint on
+/// hover. The human label rides along as a hover tooltip *and* the
+/// AccessKit name (set via `widget_info`, so the icon-only bar stays
+/// screen-reader-legible), and the caller paints it as the page title
+/// just below. Returns the (possibly changed) active tab.
+fn settings_tab_bar(ui: &mut egui::Ui, active: SettingsTab) -> SettingsTab {
+    let palette = theme::palette_of(ui.ctx());
+    let mut next = active;
+    ui.columns(SettingsTab::ALL.len(), |cols| {
+        for (col, &tab) in cols.iter_mut().zip(SettingsTab::ALL) {
+            col.vertical_centered(|ui| {
+                let is_active = tab == active;
+                let size = egui::vec2(ui.available_width().min(44.0), 32.0);
+                let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
+                let radius = theme::RADIUS_MD as f32;
+                if is_active {
+                    ui.painter()
+                        .rect_filled(rect, radius, palette.accent_subtle);
+                } else if resp.hovered() {
+                    ui.painter().rect_filled(rect, radius, palette.bg_elevated);
+                }
+                let color = if is_active {
+                    palette.accent_base
+                } else {
+                    palette.fg_muted
+                };
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    tab.icon(),
+                    egui::FontId::proportional(18.0),
+                    color,
+                );
+                resp.widget_info(|| {
+                    egui::WidgetInfo::selected(
+                        egui::WidgetType::SelectableLabel,
+                        true,
+                        is_active,
+                        tab.label(),
+                    )
+                });
+                if resp.on_hover_text(tab.label()).clicked() {
+                    next = tab;
+                }
+            });
+        }
+    });
+    next
+}
+
+/// A 1px full-width divider in the subtle border tone. Reads lighter than
+/// egui's default `separator()` (which uses the heavier widget stroke),
+/// for the cleaner panel rhythm.
+fn hairline(ui: &mut egui::Ui) {
+    let palette = theme::palette_of(ui.ctx());
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
+    ui.painter().rect_filled(rect, 0.0, palette.border_subtle);
+}
+
+/// Right-side settings panel. Organized into tabs (Inspector / Scene /
+/// Library / Appearance / Keybindings) behind an icon-only tab bar, with
+/// a sticky header and a scrollable body. Mutations flow directly through
+/// the supplied mutable references; `config_dirty` is set when anything
+/// changes so the save-on-exit-edit-mode path picks them up.
 #[allow(clippy::too_many_arguments)]
 pub fn settings(
     ctx: &egui::Context,
@@ -146,27 +208,31 @@ pub fn settings(
                 );
             });
             ui.add_space(SPACE_S);
+            hairline(ui);
+            ui.add_space(SPACE_S);
 
-            // ── Tab switcher ──────────────────────────────────────────
+            // ── Tab switcher (icon-only segmented bar) ────────────────
             let mut active_tab: SettingsTab = ui.memory(|m| {
                 m.data
                     .get_temp::<SettingsTab>(egui::Id::new("anima.settings.tab"))
                     .unwrap_or_default()
             });
-            ui.horizontal(|ui| {
-                for tab in SettingsTab::ALL {
-                    let selected = *tab == active_tab;
-                    let label = format!("{}  {}", tab.icon(), tab.label());
-                    if ui.selectable_label(selected, label).clicked() {
-                        active_tab = *tab;
-                    }
-                }
-            });
+            active_tab = settings_tab_bar(ui, active_tab);
             ui.memory_mut(|m| {
                 m.data
                     .insert_temp(egui::Id::new("anima.settings.tab"), active_tab);
             });
-            ui.separator();
+
+            // Active tab name as the panel's page title — the bar stays
+            // icon-only to keep the narrow panel uncluttered — then a
+            // hairline into the content.
+            ui.add_space(SPACE_S);
+            ui.horizontal(|ui| {
+                ui.add_space(SPACE_XS);
+                ui.label(egui::RichText::new(active_tab.label()).text_style(theme::h2()));
+            });
+            ui.add_space(SPACE_XS);
+            hairline(ui);
 
             // ── Banners (session-lifetime warnings) ──────────────────
             // Rendered between the tab switcher and the tab body so
