@@ -82,6 +82,28 @@ issue — the point is a dated record, not a clean slate.
 |      | Flathub | KDE (Wayland) | | | |
 |      | AUR | archlinux:latest | | | |
 
+## Pre-RC from-source smoke runs (dev)
+
+Separate from the channel protocol above: ad-hoc `cargo build --release`
++ run on clean VMs while hardening toward 1.0, to catch
+build-dependency and display-server gaps the GitHub CI runners hide (CI
+ships `pkg-config` preinstalled and renders at scale 1.0). These are
+**from source**, not channel installs, and ran in Proxmox VMs **without
+GPU passthrough** (software-rendered via llvmpipe) — so they verify
+build + correctness, not performance.
+
+Three distinct session types exercised so far — X11, GNOME Wayland
+(XWayland fallback), and wlroots (native layer-shell):
+
+| Date | Distro / host | Session | Result | Found & fixed |
+|------|---------------|---------|--------|---------------|
+| 2026-06-28 | Kali (XFCE) | X11 native | ✅ build + overlay works | docs missing `pkg-config` / `libxkbcommon-x11-dev`; overlay window oversized on fractional scale (⚙ button off-screen) |
+| 2026-06-28 | Fedora | GNOME Wayland → XWayland | ✅ build + overlay works | Mutter dropped always-on-top → re-assert `_NET_WM_STATE_ABOVE` on focus/occlusion; click-through + stay-on-top both confirmed |
+| 2026-06-28 | headless `sway` (dev host) | wlroots, native layer-shell | ✅ logic only (no visible output) | multi-monitor PerMonitor surface create / hotplug / drop-order crashes — see docs/wayland.md |
+
+Arch (glibc, cheap confirm) and Alpine (musl — the real build-debugging
+one, `openh264` needs `nasm`) remain to run.
+
 ## Definition of done
 
 Every channel has at least one **green** row against the version that
