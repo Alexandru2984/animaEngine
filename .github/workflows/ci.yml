@@ -293,7 +293,15 @@ jobs:
       #   AT bridge; neither path runs on our Linux X11/Wayland targets,
       #   so there's no runtime exposure. Revisit when wgpu / accesskit
       #   drop the dependency upstream.
-      - run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436
+      #   RUSTSEC-2026-0186 — `memmap2` unsound (unchecked pointer offset).
+      #   The fixable 0.9.x instance was bumped to 0.9.11 (patched) in the
+      #   lockfile; the remaining 0.8.0 instance is pinned by xkbcommon
+      #   0.7.0 (-> smithay-client-toolkit 0.19.2), which has no 0.8.x
+      #   release carrying the fix. It's a soundness warning, not a remote
+      #   vuln, and our only mmap path there is xkb keymap files handed to
+      #   us by the compositor. Drop this ignore once xkbcommon bumps its
+      #   memmap2 requirement upstream.
+      - run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0186
 
   deny:
     name: cargo deny check
