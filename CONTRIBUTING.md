@@ -67,10 +67,14 @@ cut, then development reopens.
 git clone https://github.com/Alexandru2984/animaEngine
 cd animaEngine
 
-# System deps on Ubuntu/Debian
-sudo apt install -y build-essential cmake \
+# System deps on Ubuntu/Debian.
+# pkg-config is required (smithay-client-toolkit's build script probes
+# xkbcommon through it); build-essential does NOT pull it in, and the
+# GitHub CI runners ship it preinstalled, which is why its absence only
+# bites on a clean Debian/Kali box.
+sudo apt install -y build-essential cmake pkg-config \
     libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-    libwayland-dev libxrandr-dev
+    libxkbcommon-x11-dev libwayland-dev libxrandr-dev
 
 # Sanity check
 cargo build

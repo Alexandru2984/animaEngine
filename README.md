@@ -87,10 +87,11 @@ flatpak run com.animaengine.Anima
 ### From source
 
 ```bash
-# System deps (Ubuntu/Debian)
-sudo apt install -y build-essential cmake \
+# System deps (Ubuntu/Debian) — pkg-config is required and is NOT
+# part of build-essential; without it the xkbcommon build script fails.
+sudo apt install -y build-essential cmake pkg-config \
     libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-    libwayland-dev libxrandr-dev
+    libxkbcommon-x11-dev libwayland-dev libxrandr-dev
 
 # Build & run
 cargo build --release
