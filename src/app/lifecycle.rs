@@ -122,13 +122,23 @@ impl App {
             )
         };
 
-        // Build window attributes: transparent, borderless, always-on-top
+        // Build window attributes: transparent, borderless, always-on-top.
+        // `win_w`/`win_h` are PHYSICAL pixels (from `monitor.size()`, or a
+        // user-set config value meant to match a screen resolution), so the
+        // inner size must be a `PhysicalSize`. Passing `LogicalSize` made
+        // winit re-apply the monitor's scale factor: on any non-1.0 scale
+        // (HiDPI laptops, fractional scaling, virtual displays like a
+        // Proxmox console reporting scale≈1.08) the window came out scale×
+        // too big and overhung the screen — pushing the top-right ⚙ toggle
+        // button, the sole pass-through-mode affordance, off-screen.
+        // Matches the extra-window path in `windows.rs`, which already
+        // uses `PhysicalSize`.
         let window_attrs = Window::default_attributes()
             .with_title("animaEngine")
             .with_transparent(true)
             .with_decorations(false)
             .with_window_level(WindowLevel::AlwaysOnTop)
-            .with_inner_size(winit::dpi::LogicalSize::new(win_w, win_h));
+            .with_inner_size(winit::dpi::PhysicalSize::new(win_w, win_h));
 
         // X11-specific: Use Normal type (NOT Dock).
         // Dock windows on XWayland/Mutter don't receive mouse events.
