@@ -205,7 +205,7 @@ pub fn settings(
             235,
         ))
         .inner_margin(egui::Margin::symmetric(theme::SPACE_M as i8, SPACE_S as i8))
-        .stroke(egui::Stroke::new(1.0, palette.border_subtle));
+        .stroke(egui::Stroke::new(1.0_f32, palette.border_subtle));
     // `show_animated` slides the panel in/out with egui's animation
     // clock — which `ui::motion::set_reduced` zeroes under reduced
     // motion, so the slide collapses to an instant show/hide for free.
