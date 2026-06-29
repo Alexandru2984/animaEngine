@@ -171,6 +171,11 @@ Briefly:
 - `src/app/` — the `ApplicationHandler` that ties it all together
   (`mod.rs` + `render_loop.rs`, `lifecycle.rs`, `dispatch.rs`, …)
 
+Almost everything above is OS-agnostic; only `src/wayland/` and
+`src/window/` are Linux-bound. **Porting to Windows / macOS / BSD** is a
+scoped, post-1.0, help-wanted epic — see
+[docs/porting-windows.md](docs/porting-windows.md) for the full map.
+
 ## Adding a new behavior
 
 Worked example for "add a behavior" — covers most of the patterns you'd
