@@ -6,6 +6,65 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0-rc1] — 2026-06-29
+
+First 1.0 release candidate. The X11 and native-Wayland paths are
+brought level, the overlay is hardened on GNOME/XWayland (the hardest
+mainstream target), and the settings panel is modernised — alongside a
+batch of correctness, security, and docs fixes found by building and
+running from source on Kali, Fedora, Arch, and Alpine. See
+[docs/stability-policy.md](docs/stability-policy.md) for what the 1.x
+line guarantees.
+
+### Added
+
+- **Native Wayland feature parity.** On `ANIMA_USE_WAYLAND_NATIVE=1`
+  (wlroots compositors), the asset library, the right-click context
+  menu, and `MonitorMode::PerMonitor` multi-monitor distribution (one
+  sprite-only layer surface per `wl_output`) now all work, matching the
+  X11 path. Exercised against a real headless `sway` including output
+  hotplug.
+- **`FollowCursor` in pass-through mode (X11).** The behavior now tracks
+  the global pointer via `XQueryPointer` even when the overlay is
+  click-through, not only in edit mode.
+
+### Changed
+
+- **Settings panel redesign.** An icon-only segmented tab bar — active
+  tab named as the page title — replaces the cramped icon+text tabs, and
+  the panel is now frosted/semi-transparent so the desktop reads through
+  behind it.
+
+### Fixed
+
+- **Overlay sized in physical pixels.** On fractional / HiDPI scaling the
+  window came out oversized and pushed the ⚙ toggle button off-screen; it
+  now matches the monitor exactly. (Matches the per-monitor windows,
+  which were already correct.)
+- **Always-on-top + click-through on GNOME/XWayland.** Mutter dropped
+  `_NET_WM_STATE_ABOVE` on focus changes (sprites sank behind the focused
+  window) and could reset the click-through region; the overlay now
+  re-asserts on every focus/occlusion change and self-heals the
+  click-through shape, so characters stay on top without ever grabbing
+  every click.
+- **Native-Wayland multi-monitor robustness.** Fixed a
+  configure-before-first-commit crash when an output is added, the
+  output-hotplug teardown path, entity/cursor coordinate translation
+  across outputs, and `wgpu::Surface` vs `wl_surface` drop ordering.
+- **Crash safety.** Crash snapshots are written atomically and validated
+  before recovery; stale entity indices use `get`/`get_mut` instead of
+  panicking; a failed D-Bus activation thread spawn degrades instead of
+  aborting startup.
+- **Security.** Patched `memmap2` for RUSTSEC-2026-0186 (the fixable
+  instance; the pinned 0.8.0 transitive is a documented soundness-only
+  ignore).
+- **Performance.** Stopped cloning each entity's id `String` per quad,
+  every frame, in the render hot path.
+- **Docs & build.** Corrected the D-Bus interface name in the stability
+  policy; added the missing `pkg-config` / `libxkbcommon-x11-dev` apt
+  deps and the Alpine/musl `RUSTFLAGS="-C target-feature=-crt-static"`
+  build note; fixed several stale comments and startup log messages.
+
 ## [0.9.0] — 2026-06-20
 
 Stability freeze (Faza W) — prove the 1.0 contract before promising it.

@@ -1,6 +1,6 @@
 [package]
 name = "anima_engine"
-version = "0.9.0"
+version = "1.0.0-rc1"
 edition = "2021"
 # Strictest declared requirement in Cargo.lock (image 0.25.10),
 # verified with `cargo +1.88 check --locked --all-targets`; CI gates
