@@ -563,6 +563,25 @@ fn migrate_table(table: &mut toml::Table) -> u32 {
 /// here as real rewrite logic.
 fn migrate_v1_v2(_table: &mut toml::Table) {}
 
+/// Copy an existing-but-unreadable `config.toml` aside to
+/// `config.toml.bak-corrupt` so the default-config save that follows a
+/// failed load can never destroy the user's only copy. Best-effort and
+/// idempotent per launch (a repeat corruption overwrites the previous
+/// corrupt backup — both were unreadable, and the good-config safety
+/// nets are the migration `.bak-v<n>` and crash-recovery snapshots).
+/// Extracted from `AppConfig::load` so the decision is unit-testable
+/// without redirecting the real config path.
+fn backup_unreadable_config(path: &Path) {
+    let backup = path.with_extension("toml.bak-corrupt");
+    match fs::copy(path, &backup) {
+        Ok(_) => tracing::warn!(
+            "Config was unreadable — backed the original up to {} before writing defaults",
+            crate::drop_validate::redact_path(&backup)
+        ),
+        Err(e) => tracing::warn!("Could not back up unreadable config: {e}"),
+    }
+}
+
 impl AppConfig {
     /// Get the config file path: ~/.config/animaEngine/config.toml
     pub fn config_path() -> PathBuf {
@@ -659,6 +678,14 @@ impl AppConfig {
             tracing::info!("Config not found, creating default config");
         }
 
+        // Reaching here with the file still on disk means it exists but
+        // couldn't be read/parsed/decoded — copy it aside before the
+        // default save below overwrites it. Same never-lose-the-user's-
+        // file rule as the migration backup above: a hand-edit typo
+        // (hot-reload invites hand edits) must not cost the whole scene.
+        if path.exists() {
+            backup_unreadable_config(&path);
+        }
         let config = AppConfig::default();
         if let Err(e) = config.save() {
             tracing::warn!("Failed to save default config: {}", e);
@@ -1048,6 +1075,30 @@ mod migration_tests {
         let from = migrate_table(&mut t);
         assert_eq!(from, CURRENT_SCHEMA_VERSION);
         assert_eq!(t, snapshot, "migrating twice equals migrating once");
+    }
+
+    #[test]
+    fn unreadable_config_is_backed_up_verbatim_before_defaults() {
+        // A corrupt config must be copied aside byte-for-byte so the
+        // default-save that follows a failed load can't destroy the
+        // user's only copy (the load-path clobber found post-rc1).
+        let dir = std::env::temp_dir().join(format!("anima-corrupt-bak-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let cfg = dir.join("config.toml");
+        let garbage = "version = 2 [[[ not toml !!!";
+        std::fs::write(&cfg, garbage).unwrap();
+
+        backup_unreadable_config(&cfg);
+
+        let bak = dir.join("config.toml.bak-corrupt");
+        assert_eq!(
+            std::fs::read_to_string(&bak).expect("backup must exist"),
+            garbage,
+            "backup preserves the unreadable original verbatim"
+        );
+        // Original untouched by the backup itself.
+        assert_eq!(std::fs::read_to_string(&cfg).unwrap(), garbage);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
