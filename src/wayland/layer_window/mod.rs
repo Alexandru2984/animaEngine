@@ -197,10 +197,13 @@ impl LayerWindow {
 /// Wrap the wayland connection + layer wl_surface in a wgpu-compatible
 /// raw-window-handle pair and ask wgpu for a Surface.
 ///
-/// `wgpu::SurfaceTargetUnsafe::RawHandle` requires `'static` references
-/// internally; we satisfy that by leaking small `Arc`-wrapped handle
-/// values for the lifetime of the process. The leak is fixed-size and
-/// bounded to one surface, so it's a non-issue in practice.
+/// Nothing is leaked here (despite the `'static` in the return type):
+/// the handles are plain `NonNull` copies of the display/surface
+/// pointers, and the SAFETY contract is lifetime-based — the caller
+/// must keep the `wl_surface` alive for as long as the returned
+/// `wgpu::Surface` exists, and drop the surface *first* (see
+/// `LayerWindow`'s doc and `rebuild_extra_surfaces`' teardown order).
+/// Called once per surface, including each PerMonitor extra.
 pub(crate) fn build_wgpu_surface(
     instance: &wgpu::Instance,
     connection: &Connection,
