@@ -50,6 +50,16 @@ fn main() {
         print_help();
         std::process::exit(0);
     }
+    // Reject anything flag-shaped we don't recognise instead of
+    // silently launching the overlay: pre-fix, a typo like `--recovr`
+    // started the app as if nothing was wrong — the worst possible
+    // answer to a user who was explicitly asking for crash recovery.
+    let unknown = unknown_flags(&args[1..]);
+    if !unknown.is_empty() {
+        eprintln!("Unknown option(s): {}\n", unknown.join(", "));
+        print_help();
+        std::process::exit(2);
+    }
 
     // Install before any work — even our own startup can panic.
     crash::install_panic_hook();
@@ -385,5 +395,49 @@ fn portal_bridge(
                 }
             }
         }
+    }
+}
+
+/// Args that look like flags (`-…`) but aren't ones we know. Positional
+/// args pass through untouched (there are none today, but a future
+/// `anima-engine scene.toml` shouldn't be rejected by this gate).
+/// Extracted from `main` so the decision is unit-testable.
+fn unknown_flags(args: &[String]) -> Vec<String> {
+    const KNOWN: &[&str] = &["-h", "--help", "-r", "--recover"];
+    args.iter()
+        .filter(|a| a.starts_with('-') && !KNOWN.contains(&a.as_str()))
+        .cloned()
+        .collect()
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::unknown_flags;
+
+    fn v(args: &[&str]) -> Vec<String> {
+        args.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn known_flags_pass() {
+        assert!(unknown_flags(&v(&["--recover"])).is_empty());
+        assert!(unknown_flags(&v(&["-h", "--help", "-r"])).is_empty());
+        assert!(unknown_flags(&v(&[])).is_empty());
+    }
+
+    #[test]
+    fn typos_and_strangers_are_caught() {
+        // The exact failure that motivated this: a --recover typo must
+        // not silently launch the overlay.
+        assert_eq!(unknown_flags(&v(&["--recovr"])), v(&["--recovr"]));
+        assert_eq!(
+            unknown_flags(&v(&["--frobnicate", "-x"])),
+            v(&["--frobnicate", "-x"])
+        );
+    }
+
+    #[test]
+    fn positional_args_are_not_flags() {
+        assert!(unknown_flags(&v(&["scene.toml"])).is_empty());
     }
 }
