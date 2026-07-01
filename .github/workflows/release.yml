@@ -75,6 +75,21 @@ jobs:
       - name: Build AppImage
         run: scripts/build-appimage.sh
 
+      # GitHub replaces `~` in release-asset filenames with `.` on
+      # upload, but cargo-deb correctly names pre-release debs with a
+      # tilde (`1.0.0~rc1-1`, which apt sorts before 1.0.0). Left
+      # as-is, SHA256SUMS records the tilde name while the published
+      # asset carries the dot name, so `sha256sum -c` fails for anyone
+      # verifying a download (bit v1.0.0-rc1). Rename BEFORE
+      # checksumming so the sums file matches what GitHub serves; the
+      # tilde stays inside the .deb metadata where apt ordering needs it.
+      - name: Rename artifacts to GitHub-safe names
+        run: |
+          shopt -s nullglob
+          for f in build/*~*; do
+            mv -v "$f" "${f//\~/.}"
+          done
+
       - name: Checksums
         run: |
           cd build
