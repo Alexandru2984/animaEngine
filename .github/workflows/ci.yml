@@ -301,7 +301,15 @@ jobs:
       #   vuln, and our only mmap path there is xkb keymap files handed to
       #   us by the compositor. Drop this ignore once xkbcommon bumps its
       #   memmap2 requirement upstream.
-      - run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0186
+      #   RUSTSEC-2026-0192 — `ttf-parser` unmaintained (no patched
+      #   version exists; the author archived it). Pulled transitively by
+      #   egui's text stack (epaint -> ab_glyph -> owned_ttf_parser) — not
+      #   our dependency to swap. Exposure is minimal by construction: it
+      #   only ever parses the fonts compiled into the binary (egui's
+      #   defaults + the phosphor icon font), never user-supplied or
+      #   downloaded font files. Drop this ignore when egui/ab_glyph move
+      #   to a maintained parser (the advisory suggests `skrifa`).
+      - run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0186 --ignore RUSTSEC-2026-0192
 
   deny:
     name: cargo deny check
