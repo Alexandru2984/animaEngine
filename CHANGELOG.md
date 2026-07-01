@@ -6,6 +6,40 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0-rc2] — 2026-07-02
+
+Release-candidate bake fixes. A post-rc1 audit of the shipped product —
+live error-path probes, a memory soak (verdict: flat), and verification
+of the published artifacts themselves — surfaced four real defects, all
+fixed here. No feature changes.
+
+### Fixed
+
+- **Single-instance handshake was broken** (the most serious one).
+  Launching the app while it was already running started a full
+  duplicate overlay — two tray icons, two config writers — instead of
+  raising the first instance. zbus 5 reports an already-taken bus name
+  as `Err(NameTaken)` rather than the `Ok(Exists)` reply the handshake
+  matched on, so the "already running" branch was unreachable. A second
+  launch now hands off in ~0.1s and the running instance raises, as the
+  stability policy's `Activate` contract promises.
+- **Corrupted config no longer destroys the user's file.** A
+  `config.toml` that exists but fails to parse (a hand-edit typo) used
+  to be silently overwritten by defaults — losing the whole scene. The
+  unreadable original is now copied to `config.toml.bak-corrupt` first.
+- **Unknown CLI flags are rejected.** A typo like `--recovr` silently
+  launched the overlay instead of erroring; flag-shaped arguments
+  outside `-h/--help` / `-r/--recover` now print an error plus help and
+  exit 2.
+- **`sha256sum -c` works against published releases.** GitHub renames
+  `~` to `.` in uploaded asset filenames, so the rc1 SHA256SUMS listed
+  a `.deb` name that didn't match the published asset (content was
+  identical). Release artifacts are renamed to GitHub-safe names before
+  checksumming, starting with this tag.
+- Corrected a stale doc comment claiming `build_wgpu_surface` leaks
+  handle memory (it doesn't; verified as part of the memory audit —
+  9-minute 16-entity soak, steady-state RSS slope 0.28 KiB/min, flat).
+
 ## [1.0.0-rc1] — 2026-06-29
 
 First 1.0 release candidate. The X11 and native-Wayland paths are
