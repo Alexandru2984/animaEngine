@@ -163,6 +163,19 @@ pub fn try_acquire() -> AcquireOutcome {
                 signal_existing(&connection).await;
                 AcquireOutcome::HandedOff
             }
+            // zbus 5 never returns `Ok(Exists)` for a `DoNotQueue`
+            // request — it converts the taken-name reply into
+            // `Err(NameTaken)` before we see it. Pre-fix this fell
+            // into the generic Err arm below ("proceeding without
+            // lock"), so every second launch started a full duplicate
+            // overlay instead of raising the first — the exact thing
+            // the single-instance handshake exists to prevent, and a
+            // silent break of the stability policy's `Activate`
+            // contract. Found by a live dual-launch probe post-rc1.
+            Err(zbus::Error::NameTaken) => {
+                signal_existing(&connection).await;
+                AcquireOutcome::HandedOff
+            }
             Ok(other) => {
                 tracing::warn!("Unexpected RequestName reply: {other:?}. Proceeding.");
                 AcquireOutcome::Claimed(Some(connection))
