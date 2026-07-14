@@ -17,6 +17,7 @@
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+use crate::constants::MAX_IMAGE_DIM;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
@@ -74,6 +75,18 @@ impl LibraryAsset {
     pub fn thumbnail_filename(&self) -> String {
         format!("{}.png", self.id)
     }
+}
+
+/// The thumbnail's on-disk name is `<id>.png` joined into the cache
+/// dir, so `id` must be a single, separator-free path component or the
+/// join escapes the cache. Ids produced by [`stable_id`] are always 12
+/// lowercase hex chars; only a hand-edited or foreign `library.toml`
+/// could carry `../`, an absolute path, or control characters.
+/// Restrict to ASCII alphanumerics — a strict superset of the hex ids
+/// we generate — so `thumb_dir.join(<id>.png)` can never write outside
+/// the cache directory.
+fn is_safe_asset_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 128 && id.bytes().all(|b| b.is_ascii_alphanumeric())
 }
 
 /// Coarse classification kept distinct from `config::AssetType` so a
@@ -389,12 +402,37 @@ fn ensure_thumbnail_at(root: &Path, asset: &LibraryAsset, thumb_dir: &Path) -> O
             return None;
         }
     };
+    // The *write* target is `<id>.png` in the cache dir. Contain it: an
+    // id carrying `../` or a separator (only possible from a hand-edited
+    // index) would otherwise let `save` drop a PNG outside `thumb_dir`.
+    if !is_safe_asset_id(&asset.id) {
+        tracing::warn!("Refusing thumbnail: asset id is not a safe filename component");
+        return None;
+    }
     let thumb = thumb_dir.join(asset.thumbnail_filename());
 
     let src_mtime = std::fs::metadata(&src).and_then(|m| m.modified()).ok()?;
     if let Ok(tm) = std::fs::metadata(&thumb).and_then(|m| m.modified()) {
         if tm >= src_mtime {
             return Some(thumb); // fresh
+        }
+    }
+
+    // Reject a decompression bomb (a small file declaring enormous
+    // dimensions) at the header stage — the same MAX_IMAGE_DIM gate the
+    // scene loader applies. `image::open` would otherwise allocate the
+    // full decoded buffer before any cap is checked, OOMing this thread.
+    match image::image_dimensions(&src) {
+        Ok((w, h)) if w <= MAX_IMAGE_DIM && h <= MAX_IMAGE_DIM => {}
+        Ok((w, h)) => {
+            tracing::debug!(
+                "Thumbnail source is {w}x{h}, over MAX_IMAGE_DIM {MAX_IMAGE_DIM}; skipping"
+            );
+            return None;
+        }
+        Err(e) => {
+            tracing::debug!("Thumbnail dimension probe failed: {e}");
+            return None;
         }
     }
 
@@ -754,6 +792,69 @@ mod tests {
             !dir.join("thumbs").exists(),
             "must not create a thumbnail for an escaped path"
         );
+    }
+
+    /// The read *source* being contained isn't enough — the *write*
+    /// name `<id>.png` must be a safe path component too, or a
+    /// hand-edited id like `../../escape` drops the thumbnail outside
+    /// the cache dir even when `asset.path` is perfectly valid.
+    #[test]
+    fn thumbnail_refuses_unsafe_id_write_escape() {
+        let dir = tempdir("thumb_id_escape");
+        let root = dir.join("root");
+        fs::create_dir_all(&root).unwrap();
+        let src = root.join("ok.png");
+        image::RgbaImage::from_pixel(4, 4, image::Rgba([1, 2, 3, 255]))
+            .save(&src)
+            .unwrap();
+
+        let asset = LibraryAsset {
+            id: "../../escape".into(),
+            path: "ok.png".into(),
+            kind: LibraryKind::Image,
+            tags: vec![],
+            added_at: SystemTime::now(),
+            last_used_at: None,
+        };
+        let thumbs = dir.join("thumbs");
+        assert!(ensure_thumbnail_at(&root, &asset, &thumbs).is_none());
+        assert!(!thumbs.exists(), "unsafe id must write nothing at all");
+    }
+
+    #[test]
+    fn is_safe_asset_id_accepts_hex_rejects_traversal() {
+        assert!(is_safe_asset_id("0123456789ab")); // stable_id shape
+        assert!(is_safe_asset_id("abc123DEF456"));
+        assert!(!is_safe_asset_id(""));
+        assert!(!is_safe_asset_id("../evil"));
+        assert!(!is_safe_asset_id("a/b"));
+        assert!(!is_safe_asset_id("a.b")); // no dots → no `..`
+        assert!(!is_safe_asset_id("/abs"));
+    }
+
+    /// A small file that decodes to more than `MAX_IMAGE_DIM` on an axis
+    /// must be refused at the header stage, before `image::open` commits
+    /// to a full-resolution buffer.
+    #[test]
+    fn thumbnail_refuses_oversized_source() {
+        let dir = tempdir("thumb_oversize");
+        let root = dir.join("root");
+        fs::create_dir_all(&root).unwrap();
+        let src = root.join("big.png");
+        image::RgbaImage::from_pixel(MAX_IMAGE_DIM + 1, 1, image::Rgba([9, 9, 9, 255]))
+            .save(&src)
+            .unwrap();
+        let asset = LibraryAsset {
+            id: "big000000000".into(),
+            path: "big.png".into(),
+            kind: LibraryKind::Image,
+            tags: vec![],
+            added_at: SystemTime::now(),
+            last_used_at: None,
+        };
+        let thumbs = dir.join("thumbs");
+        assert!(ensure_thumbnail_at(&root, &asset, &thumbs).is_none());
+        assert!(!thumbs.join("big000000000.png").exists());
     }
 
     fn tempdir(name: &str) -> PathBuf {
