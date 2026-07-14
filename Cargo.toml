@@ -142,7 +142,7 @@ openh264 = "0.9"
 # XML-bomb class by construction; size/depth caps are enforced on top
 # in src/shimeji/. Default features = UTF-8 only (non-UTF-8 packs are
 # rejected with a clear reason, per docs/shimeji-import.md).
-quick-xml = "0.37"
+quick-xml = "0.41"
 
 # Config
 serde = { version = "1", features = ["derive"] }

@@ -243,16 +243,27 @@ fn pack_stats(root: &Path) -> Result<(usize, u64), String> {
         }
         let entries = std::fs::read_dir(dir).map_err(|e| format!("read_dir: {e}"))?;
         for entry in entries.flatten() {
-            let meta = entry
-                .metadata()
+            // `DirEntry::file_type` does NOT traverse the symlink — unlike
+            // `DirEntry::metadata`, which returns the *target's* type and
+            // made the old `is_symlink()` check dead code (always false),
+            // silently following links right out of the pack. Detect the
+            // link itself and skip it.
+            let ft = entry
+                .file_type()
                 .map_err(|e| format!("stat {}: {e}", entry.path().display()))?;
-            if meta.file_type().is_symlink() {
+            if ft.is_symlink() {
                 continue; // never follow symlinks inside a pack
             }
-            if meta.is_dir() {
+            if ft.is_dir() {
                 walk(&entry.path(), depth + 1, count, bytes)?;
-            } else {
-                *bytes = bytes.saturating_add(meta.len());
+            } else if ft.is_file() {
+                // Safe now that symlinks are excluded: this reads the
+                // regular file's own size, not a link target's.
+                let len = entry
+                    .metadata()
+                    .map_err(|e| format!("stat {}: {e}", entry.path().display()))?
+                    .len();
+                *bytes = bytes.saturating_add(len);
                 let p = entry.path();
                 if p.extension()
                     .and_then(|e| e.to_str())
@@ -393,8 +404,11 @@ fn attr_value(e: &quick_xml::events::BytesStart, name: &[u8]) -> Result<Option<S
             if attr.value.len() > MAX_ATTR_BYTES {
                 return Err("attribute exceeds length cap".into());
             }
+            // quick-xml 0.41 deprecated `unescape_value` in favour of
+            // spec-correct attribute-value normalisation. Shimeji packs
+            // are XML 1.0 with no declaration → Implicit1_0.
             let v = attr
-                .unescape_value()
+                .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                 .map_err(|e| format!("attribute decode: {e}"))?;
             return Ok(Some(v.into_owned()));
         }
@@ -540,6 +554,36 @@ mod tests {
     fn write_png(path: &Path, shade: u8) {
         let img = image::RgbaImage::from_pixel(2, 2, image::Rgba([shade, 0, 0, 255]));
         img.save(path).unwrap();
+    }
+
+    /// A symlink inside a pack must not be followed during the capped
+    /// stat walk. The old `entry.metadata()` returned the *target's*
+    /// type, so `is_symlink()` never fired and the walk recursed straight
+    /// out of the pack (inflating counts, and on a huge external tree a
+    /// cheap import-time DoS).
+    #[test]
+    #[cfg(unix)]
+    fn pack_stats_does_not_follow_symlinks() {
+        use std::os::unix::fs::symlink;
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("shimeji_tests")
+            .join("symlink_walk");
+        let _ = std::fs::remove_dir_all(&base);
+        let pack = base.join("pack");
+        std::fs::create_dir_all(&pack).unwrap();
+        write_png(&pack.join("real.png"), 1);
+
+        // An external tree the pack must not pull in through a link.
+        let outside = base.join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        write_png(&outside.join("secret1.png"), 2);
+        write_png(&outside.join("secret2.png"), 3);
+        symlink(&outside, pack.join("link")).unwrap();
+
+        let (count, _bytes) = pack_stats(&pack).unwrap();
+        assert_eq!(count, 1, "only the real sprite counts, not linked ones");
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     fn build_pack(name: &str) -> (PathBuf, PathBuf) {

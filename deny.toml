@@ -26,8 +26,16 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 unmaintained = "workspace"
 yanked = "deny"
 ignore = [
-    # Add advisory IDs here with a brief note if you need to ignore one,
-    # e.g. RUSTSEC-2024-XXXX = "tracked upstream, no fix yet"
+    # This list is kept in lockstep with the `--ignore` flags on the
+    # `cargo audit` job in .github/workflows/ci.yml — one accepted-advisory
+    # policy, two tools. Each entry is transitive-only with no reachable
+    # exposure on our Linux targets; see the ci.yml comment block for the
+    # full per-advisory rationale.
+    "RUSTSEC-2024-0436", # paste unmaintained — transitive (wgpu-hal metal / accesskit win), not on Linux paths
+    "RUSTSEC-2026-0186", # memmap2 unsound — remaining 0.8.0 pinned by xkbcommon; only mmaps compositor keymaps
+    "RUSTSEC-2026-0192", # ttf-parser unmaintained — egui font stack; only parses fonts compiled into the binary
+    "RUSTSEC-2026-0194", # quick-xml quadratic attr scan — direct dep bumped to 0.41; remaining copies transitive/non-reachable
+    "RUSTSEC-2026-0195", # quick-xml unbounded NsReader — not used on untrusted input; transitive copies only
 ]
 
 [licenses]

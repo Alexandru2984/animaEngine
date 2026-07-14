@@ -309,7 +309,18 @@ jobs:
       #   defaults + the phosphor icon font), never user-supplied or
       #   downloaded font files. Drop this ignore when egui/ab_glyph move
       #   to a maintained parser (the advisory suggests `skrifa`).
-      - run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0186 --ignore RUSTSEC-2026-0192
+      #   RUSTSEC-2026-0194 / -0195 — quick-xml DoS (quadratic attribute
+      #   scan / unbounded NsReader allocation), both fixed in >=0.41.0.
+      #   Our *direct* dependency — the one that parses untrusted Shimeji
+      #   pack XML in src/shimeji/ — was bumped 0.37 -> 0.41, so the only
+      #   attacker-reachable path is patched. Two transitive copies remain
+      #   and cannot be bumped without upstream: quick-xml 0.39.2 via
+      #   wayland-scanner (a proc-macro — runs at build time generating
+      #   protocol bindings, never parses runtime input), and 0.30.0 via
+      #   accesskit's zbus_xml (parses our own static D-Bus introspection
+      #   XML, not attacker-supplied). Neither uses NsReader on untrusted
+      #   input. Drop these when wayland-scanner / accesskit bump upstream.
+      - run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0186 --ignore RUSTSEC-2026-0192 --ignore RUSTSEC-2026-0194 --ignore RUSTSEC-2026-0195
 
   deny:
     name: cargo deny check
