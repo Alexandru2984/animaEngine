@@ -33,8 +33,19 @@ impl App {
         // Phase 1: drain a finished worker, if any.
         if let Some(rx) = &self.hot_reload_rx {
             match rx.try_recv() {
-                Ok(result) => {
+                Ok(Ok(result)) => {
                     self.apply_hot_reload(result);
+                    self.hot_reload_rx = None;
+                }
+                Ok(Err(reason)) => {
+                    // The on-disk config couldn't be read/parsed/decoded
+                    // (a partial write mid-save, or a hand-edit typo).
+                    // try_reload never touches the file, so nothing was
+                    // lost — keep the running scene and tell the user
+                    // their edit hasn't taken yet.
+                    tracing::warn!("Hot-reload skipped: {reason}; keeping current scene");
+                    self.toasts
+                        .warn("Config not reloaded (invalid or mid-save); keeping current scene");
                     self.hot_reload_rx = None;
                 }
                 Err(mpsc::TryRecvError::Disconnected) => {
@@ -73,12 +84,19 @@ impl App {
         let spawned = std::thread::Builder::new()
             .name("anima-hot-reload".into())
             .spawn(move || {
-                // AppConfig::load already falls back to defaults on parse
-                // errors, so this thread can't panic in practice.
-                let config = AppConfig::load();
-                let scene = Scene::from_config(&config);
+                // Read-only: unlike startup `load`, a bad or partially
+                // written config must never make this worker rewrite the
+                // user's file with defaults. On failure we forward the
+                // reason and the UI keeps the current scene.
+                let result = match AppConfig::try_reload() {
+                    Ok(config) => {
+                        let scene = Scene::from_config(&config);
+                        Ok(HotReloadResult { config, scene })
+                    }
+                    Err(e) => Err(e),
+                };
                 // Receiver dropped (e.g. app exiting) → ignore send error.
-                let _ = tx.send(HotReloadResult { config, scene });
+                let _ = tx.send(result);
             });
         match spawned {
             Ok(_) => self.hot_reload_rx = Some(rx),

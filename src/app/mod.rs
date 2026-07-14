@@ -70,7 +70,7 @@ pub struct App {
     config_mtime: Option<SystemTime>,
     /// Receiver for an in-flight async hot-reload. `Some` means a worker
     /// thread is currently decoding the new config + assets off the UI thread.
-    hot_reload_rx: Option<mpsc::Receiver<HotReloadResult>>,
+    hot_reload_rx: Option<mpsc::Receiver<Result<HotReloadResult, String>>>,
     /// egui integration. Paints in BOTH modes — the ⚙ toggle button is an
     /// egui widget that lives in pass-through too. Other UI (settings panel,
     /// context menu, toasts) is gated to edit mode inside the build closure.

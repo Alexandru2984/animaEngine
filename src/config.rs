@@ -518,7 +518,23 @@ impl Default for AppConfig {
 fn detect_schema_version(table: &toml::Table) -> u32 {
     match table.get("version") {
         None => 1,
-        Some(toml::Value::Integer(n)) if *n >= 1 => *n as u32,
+        // Bounded conversion. A value that doesn't fit u32 (e.g.
+        // `version = 4294967296`) must never wrap to a bogus low
+        // version and then drive migration off a cliff — the old
+        // `*n as u32` turned 2^32 into 0 and `migrate_table` hit
+        // `unreachable!`, so a hand-typed number could *panic* the
+        // loader. `try_from` rejects overflow and negatives; the
+        // `>= 1` guard rejects zero. All of them fall through to the
+        // "treat as current, skip migration" contract below.
+        Some(toml::Value::Integer(n)) => match u32::try_from(*n) {
+            Ok(v) if v >= 1 => v,
+            _ => {
+                tracing::warn!(
+                    "config `version` = {n} is out of range; treating as current ({CURRENT_SCHEMA_VERSION}) and skipping migration"
+                );
+                CURRENT_SCHEMA_VERSION
+            }
+        },
         Some(other) => {
             tracing::warn!(
                 "config `version` is malformed ({other:?}); treating as current ({CURRENT_SCHEMA_VERSION}) and skipping migration"
@@ -537,6 +553,19 @@ fn detect_schema_version(table: &toml::Table) -> u32 {
 /// version.
 fn migrate_table(table: &mut toml::Table) -> u32 {
     let from = detect_schema_version(table);
+    if from > CURRENT_SCHEMA_VERSION {
+        // Config written by a newer build than this one. There is no
+        // downgrade path, and re-stamping it to CURRENT would silently
+        // strip fields this build can't model. Leave the table — version
+        // marker and all — untouched and let `load` deserialise what it
+        // understands without persisting, so the richer on-disk file is
+        // never downgraded just by being opened by an older binary.
+        tracing::warn!(
+            "config schema v{from} is newer than this build (v{CURRENT_SCHEMA_VERSION}); \
+             loading read-only and leaving the file untouched"
+        );
+        return from;
+    }
     let mut v = from;
     while v < CURRENT_SCHEMA_VERSION {
         match v {
@@ -596,6 +625,56 @@ impl AppConfig {
         crate::util::fallback_scoped_dir("").join("config.toml")
     }
 
+    /// Parse → migrate (in memory) → decode → cap → sanitise a config
+    /// from a TOML string. **Pure**: no disk writes, no backups, no
+    /// default fallback. Returns the decoded config and the on-disk
+    /// schema version it came from (so `load` can decide whether to
+    /// back up + persist a migration). `migrate_table` mutates the
+    /// in-memory table only — the file on disk is never touched here,
+    /// which is what lets both the startup `load` and the read-only
+    /// `try_reload` share this without one leaking writes into the other.
+    fn decode_config_str(contents: &str) -> std::result::Result<(Self, u32), String> {
+        let mut table = contents
+            .parse::<toml::Table>()
+            .map_err(|e| format!("parse error: {e}"))?;
+        let from = detect_schema_version(&table);
+        migrate_table(&mut table);
+        // Deserialise from the migrated Value, not a re-serialised
+        // string: a top-level scalar (`version`) sorted among the section
+        // keys would trip TOML's "value after table" rule on the way back
+        // out. `try_into` doesn't care about order.
+        let mut config: Self = toml::Value::Table(table)
+            .try_into()
+            .map_err(|e| format!("decode error: {e}"))?;
+        if config.characters.len() > MAX_ENTITIES {
+            tracing::warn!(
+                "Config has {} characters, capping at {} to prevent resource exhaustion",
+                config.characters.len(),
+                MAX_ENTITIES
+            );
+            config.characters.truncate(MAX_ENTITIES);
+        }
+        // Coerce NaN/inf/out-of-range scalars before anything reaches the
+        // renderer or physics.
+        config.sanitize();
+        Ok((config, from))
+    }
+
+    /// Read-only config load for **hot-reload**. Reads and decodes the
+    /// config file without ever writing to disk — no default fallback,
+    /// no backup, no migration persist. A transient partial write (an
+    /// editor doing truncate-then-write) or a hand-edit typo therefore
+    /// returns `Err` and leaves both the file and the running scene
+    /// untouched, instead of the startup `load` behaviour of overwriting
+    /// the user's config with defaults. The caller keeps the last valid
+    /// scene and surfaces the error.
+    pub fn try_reload() -> std::result::Result<Self, String> {
+        let path = Self::config_path();
+        let contents = fs::read_to_string(&path).map_err(|e| format!("read error: {e}"))?;
+        let (config, _from) = Self::decode_config_str(&contents)?;
+        Ok(config)
+    }
+
     /// Load config from disk, or create default if not found
     pub fn load() -> Self {
         let path = Self::config_path();
@@ -604,13 +683,13 @@ impl AppConfig {
 
         if path.exists() {
             match fs::read_to_string(&path) {
-                Ok(contents) => match contents.parse::<toml::Table>() {
-                    Ok(mut table) => {
-                        // Schema migration (W.0). Detect the on-disk
-                        // version first; if it's behind, copy the file
-                        // aside *before* mutating so a migration bug can
-                        // never be why a user loses their config.
-                        let from = detect_schema_version(&table);
+                Ok(contents) => match Self::decode_config_str(&contents) {
+                    Ok((config, from)) => {
+                        // Behind the current schema: copy the file aside
+                        // *before* the persist below overwrites it, so a
+                        // migration bug can never be why a user loses
+                        // their config, then write the migrated form so
+                        // the next launch skips re-migrating.
                         if from < CURRENT_SCHEMA_VERSION {
                             let backup = path.with_extension(format!("toml.bak-v{from}"));
                             match fs::copy(&path, &backup) {
@@ -623,51 +702,19 @@ impl AppConfig {
                                     backup.display()
                                 ),
                             }
-                        }
-                        migrate_table(&mut table);
-
-                        // Deserialise from the migrated Value, not a
-                        // re-serialised string: a top-level scalar
-                        // (`version`) sorted among the section keys would
-                        // trip TOML's "value after table" rule on the way
-                        // back out. `try_into` doesn't care about order.
-                        match toml::Value::Table(table).try_into::<AppConfig>() {
-                            Ok(mut config) => {
-                                if config.characters.len() > MAX_ENTITIES {
-                                    tracing::warn!(
-                                        "Config has {} characters, capping at {} to prevent resource exhaustion",
-                                        config.characters.len(),
-                                        MAX_ENTITIES
-                                    );
-                                    config.characters.truncate(MAX_ENTITIES);
-                                }
-                                // Coerce NaN/inf/out-of-range scalars before
-                                // anything reaches the renderer or physics.
-                                config.sanitize();
-                                tracing::info!(
-                                    "Loaded config with {} characters (schema v{})",
-                                    config.characters.len(),
-                                    config.schema_version
-                                );
-                                // Persist the migrated form straight away so
-                                // the next launch sees the current version and
-                                // skips re-migrating / re-backing-up. Best
-                                // effort: a failure here just means we migrate
-                                // again next time, which is idempotent.
-                                if from < CURRENT_SCHEMA_VERSION {
-                                    if let Err(e) = config.save() {
-                                        tracing::warn!("Could not persist migrated config: {e}");
-                                    }
-                                }
-                                return config;
-                            }
-                            Err(e) => {
-                                tracing::warn!("Failed to decode config: {}. Using defaults.", e);
+                            if let Err(e) = config.save() {
+                                tracing::warn!("Could not persist migrated config: {e}");
                             }
                         }
+                        tracing::info!(
+                            "Loaded config with {} characters (schema v{})",
+                            config.characters.len(),
+                            config.schema_version
+                        );
+                        return config;
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to parse config: {}. Using defaults.", e);
+                        tracing::warn!("Failed to load config: {e}. Using defaults.");
                     }
                 },
                 Err(e) => {
@@ -1075,6 +1122,65 @@ mod migration_tests {
         let from = migrate_table(&mut t);
         assert_eq!(from, CURRENT_SCHEMA_VERSION);
         assert_eq!(t, snapshot, "migrating twice equals migrating once");
+    }
+
+    #[test]
+    fn out_of_range_version_does_not_panic_and_loads_as_current() {
+        // Regression: `version = 4294967296` (u32::MAX + 1) used to wrap
+        // to 0 via `as u32`, then `migrate_table` hit `unreachable!` and
+        // *panicked* the config loader — contradicting the "a malformed
+        // version must never be a reason to lose the config" contract.
+        for v in ["4294967296", "9999999999999", "-1", "0"] {
+            let src = format!("version = {v}\n[global]\n");
+            assert_eq!(
+                detect_schema_version(&table(&src)),
+                CURRENT_SCHEMA_VERSION,
+                "version = {v} must clamp to current, not wrap"
+            );
+            // The full path must not panic either.
+            let mut t = table(&src);
+            let from = migrate_table(&mut t);
+            assert_eq!(from, CURRENT_SCHEMA_VERSION);
+        }
+    }
+
+    #[test]
+    fn future_version_is_loaded_read_only_not_downgraded() {
+        // A config written by a newer build (v9) must not be silently
+        // re-stamped to the current version — that would strip fields
+        // this build doesn't understand on the next save. `migrate_table`
+        // leaves the version marker and unknown keys intact.
+        let mut t = table("version = 9\nfuture_only_key = 42\n");
+        let from = migrate_table(&mut t);
+        assert_eq!(from, 9, "reports the on-disk future version");
+        assert_eq!(
+            t.get("version"),
+            Some(&toml::Value::Integer(9)),
+            "future version marker is preserved, not downgraded"
+        );
+        assert_eq!(
+            t.get("future_only_key"),
+            Some(&toml::Value::Integer(42)),
+            "unknown future keys survive the no-op migration"
+        );
+    }
+
+    #[test]
+    fn decode_config_str_errors_instead_of_falling_back_to_defaults() {
+        // The read-only reload path (`try_reload` → `decode_config_str`)
+        // must surface a parse/decode failure as `Err`, never silently
+        // substitute defaults the way startup `load` does — that's what
+        // lets hot-reload keep the running scene on a mid-save read.
+        assert!(
+            AppConfig::decode_config_str("not [[[ valid toml").is_err(),
+            "garbage must be an error, not a default config"
+        );
+        // A valid config still decodes cleanly through the same pure
+        // path (no disk writes involved).
+        let valid = toml::to_string(&AppConfig::default()).expect("serialise default");
+        let (cfg, from) = AppConfig::decode_config_str(&valid).expect("valid config decodes");
+        assert_eq!(from, CURRENT_SCHEMA_VERSION);
+        assert_eq!(cfg.schema_version, CURRENT_SCHEMA_VERSION);
     }
 
     #[test]
