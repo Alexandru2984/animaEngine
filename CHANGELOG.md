@@ -6,6 +6,53 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0-rc3] — 2026-07-14
+
+Second bake wave, prompted by an external security/robustness audit of
+the rc2 tree. Five real issues, all fixed here; no feature changes. The
+memory soak stayed flat and the finding that the published artifacts are
+sound still holds — this round is hardening, not a rewrite.
+
+### Security
+
+- **Active dependency advisories patched.** quick-xml 0.37 → 0.41
+  (RUSTSEC-2026-0194 quadratic attribute scan, -0195 unbounded
+  `NsReader`) — this is the direct dependency that parses untrusted
+  Shimeji pack XML, so the only attacker-reachable path is now on a
+  fixed release. crossbeam-epoch → 0.9.20 (RUSTSEC-2026-0204). Two
+  transitive quick-xml copies that take no untrusted input (a build-time
+  proc-macro; accesskit's own introspection XML) can't be bumped without
+  upstream and carry documented, reachability-justified ignores, now
+  mirrored between the `cargo audit` job and `deny.toml`.
+- **Shimeji symlink guard actually works.** The pack stat-walk used
+  `DirEntry::metadata()`, which follows symlinks, so its `is_symlink()`
+  check never fired — a link inside a pack was silently followed out of
+  the tree. Switched to `DirEntry::file_type()`. (The sprite copy path
+  was already contained by canonicalisation.)
+- **Thumbnail write path is contained.** A hand-edited `library.toml`
+  could carry an asset id like `../../x`, and the thumbnail written to
+  `<id>.png` would escape the cache directory. Ids are now restricted to
+  a safe filename component. The decoder also gained the scene loader's
+  `MAX_IMAGE_DIM` gate so a small file declaring huge dimensions can't
+  OOM the thumbnail thread.
+
+### Fixed
+
+- **A malformed config `version` can no longer panic the loader.**
+  `version = 4294967296` wrapped to 0 through an `as u32` cast and hit
+  an `unreachable!` during migration. Bounded conversion now sends it —
+  along with negatives and zero — down the documented "treat as current,
+  skip migration" path.
+- **A future config schema is loaded read-only, never downgraded.** A
+  config written by a newer build is no longer re-stamped to the current
+  version (which would drop fields it doesn't model on the next save);
+  the file is left untouched.
+- **Hot-reload never rewrites your config.** It previously called the
+  startup loader, which backs up and writes defaults over an
+  unparseable file — so a mid-save read or a typo could replace the
+  running scene with defaults. Hot-reload now uses a read-only load; on
+  failure it keeps the current scene and surfaces a notice.
+
 ## [1.0.0-rc2] — 2026-07-02
 
 Release-candidate bake fixes. A post-rc1 audit of the shipped product —
