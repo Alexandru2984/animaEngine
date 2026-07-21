@@ -30,7 +30,18 @@ env:
 jobs:
   release:
     name: build, attest, draft
-    runs-on: ubuntu-24.04
+    # Build on the OLDEST supported LTS, not `ubuntu-latest`. Both
+    # artifacts link the runner's glibc, and an AppImage/.deb only runs
+    # on a glibc **at least as new** as the build machine's. 22.04 ships
+    # glibc 2.35 — the floor that covers every distro we promise
+    # (Debian 12, Fedora, Arch, Ubuntu 22.04+). Building on 24.04
+    # (glibc 2.39) silently breaks launch on all of them, which is
+    # exactly what scripts/build-appimage.sh and
+    # packaging/Dockerfile.appimage-builder (FROM ubuntu:22.04) warn
+    # about. Do not "modernise" this to 24.04. For a fully digest-pinned,
+    # reproducible build, packaging/Dockerfile.appimage-builder is the
+    # container equivalent of this base.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
