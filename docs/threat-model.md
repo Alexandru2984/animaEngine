@@ -6,9 +6,11 @@ you want to harden it further." It's deliberately short — the codebase
 is small enough that the actual security surface is mostly the file
 loaders and a couple of D-Bus interfaces.
 
-If you're reading this because you found a bug, the right place to
-report it is the public issue tracker. We don't run a private security
-program.
+If you're reading this because you found a general bug, the public
+issue tracker is the right place. If instead you found a **security
+vulnerability** — something exploitable on a default install — report
+it privately first via a GitHub Security Advisory, per
+[SECURITY.md](../SECURITY.md), rather than naming it in a public issue.
 
 ## Scope
 
@@ -445,7 +447,9 @@ behaviour, not tampering.
 
 ## Reporting
 
-Use the public issue tracker. If you find something that's clearly
-exploitable on a default install, open an issue first and tag it
-`security`; we'll triage and ship a fix in the open. No private
-security program — the project is too small for it to be meaningful.
+General bugs: the public issue tracker. **Security vulnerabilities** —
+anything clearly exploitable on a default install — go through a private
+GitHub Security Advisory instead, as described in
+[SECURITY.md](../SECURITY.md); please don't name the vulnerability in a
+public issue until a fix ships. SECURITY.md is the single source of
+truth for the reporting channel and the disclosure timeline.
