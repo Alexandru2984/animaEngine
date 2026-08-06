@@ -31,6 +31,40 @@ artifact changes before the final tag.
 - [ ] No missing-library / missing-portal error in
       `RUST_LOG=anima_engine=info` output.
 
+## Turnkey commands — GitHub channels
+
+The two GitHub-Releases artifacts (`.deb`, AppImage) are the only
+channels runnable against an RC: Flathub and AUR install from their own
+published manifests, which are version-bumped **at the final 1.0 tag**
+(see below), so they can't be exercised against an rc build. Run these
+on each clean target VM once the release is published:
+
+```bash
+TAG=v1.0.0-rc3   # or the final v1.0.0
+
+# Fetch every asset for the tag (works on the published release).
+gh release download "$TAG" --dir "$TAG" && cd "$TAG"
+# …no gh on the VM? explicit URLs instead:
+#   BASE=https://github.com/Alexandru2984/animaEngine/releases/download/$TAG
+#   wget -q "$BASE/SHA256SUMS-$TAG.txt" \
+#          "$BASE/anima-engine_1.0.0.rc3-1_amd64.deb" \
+#          "$BASE/animaEngine-1.0.0-rc3-x86_64.AppImage"
+
+sha256sum -c "SHA256SUMS-$TAG.txt"        # must print OK for both files
+
+# .deb — clean Ubuntu 22.04 AND 24.04
+sudo apt install ./anima-engine_*_amd64.deb
+RUST_LOG=anima_engine=info anima-engine   # walk the smoke checklist; quit via tray
+
+# AppImage — clean Ubuntu 22.04 (proves the glibc 2.35 floor the rc3
+# build fix restored) AND one non-Debian distro (Fedora)
+chmod +x animaEngine-*-x86_64.AppImage
+RUST_LOG=anima_engine=info ./animaEngine-*-x86_64.AppImage
+```
+
+The checksum step is the load-bearing one: it proves the tilde→dot
+rename holds (`sha256sum -c` fails otherwise) before you trust the rest.
+
 ## Channels
 
 ### GitHub Releases — `.deb`
@@ -49,6 +83,10 @@ artifact changes before the final tag.
 
 ### Flathub
 
+> **Deferred until the final 1.0 tag.** The Flathub manifest is still
+> pinned to `v0.9.0`; it is bumped to `v1.0.0` and re-verified as part of
+> cutting the final release, so there is nothing to test on an rc build.
+
 - **Image:** clean GNOME and clean KDE session (the two that matter for
   the sandbox + tray).
 - **Install:** `flatpak install flathub com.animaengine.Anima`
@@ -60,6 +98,10 @@ artifact changes before the final tag.
   GlobalShortcuts portal where the compositor offers it.
 
 ### AUR
+
+> **Deferred until the final 1.0 tag.** The PKGBUILD `pkgver` is still
+> `0.5.5`; it is bumped to `1.0.0` and re-verified as part of cutting the
+> final release. Not runnable on an rc build.
 
 - **Image:** clean Arch container (`archlinux:latest`).
 - **Build:** `makepkg -si` from the PKGBUILD on a non-root build user;
@@ -76,11 +118,12 @@ issue — the point is a dated record, not a clean slate.
 |------|---------|-------|---------|--------|---------------|
 |      | .deb | Ubuntu 24.04 | | | |
 |      | .deb | Ubuntu 22.04 | | | |
+|      | AppImage | Ubuntu 22.04 | | | glibc 2.35 floor — the rc3 build fix |
 |      | AppImage | Ubuntu 24.04 | | | |
 |      | AppImage | Fedora 40 | | | |
-|      | Flathub | GNOME (Wayland) | | | |
-|      | Flathub | KDE (Wayland) | | | |
-|      | AUR | archlinux:latest | | | |
+|      | Flathub | GNOME (Wayland) | | | *(final tag only)* |
+|      | Flathub | KDE (Wayland) | | | *(final tag only)* |
+|      | AUR | archlinux:latest | | | *(final tag only)* |
 
 ## Pre-RC from-source smoke runs (dev)
 
