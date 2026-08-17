@@ -320,7 +320,30 @@ jobs:
       #   accesskit's zbus_xml (parses our own static D-Bus introspection
       #   XML, not attacker-supplied). Neither uses NsReader on untrusted
       #   input. Drop these when wayland-scanner / accesskit bump upstream.
-      - run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0186 --ignore RUSTSEC-2026-0192 --ignore RUSTSEC-2026-0194 --ignore RUSTSEC-2026-0195
+      # On push / PR this is a hard gate — a human is changing deps, so a
+      # vulnerable one must block. On the weekly `schedule` canary the
+      # lockfile is UNCHANGED, so a new finding is a freshly-published
+      # advisory, not a regression we introduced. Surface it as a warning
+      # annotation instead of a red build, and triage it into a dep bump
+      # or a justified ignore on the next working day. Failing the canary
+      # red every week just trains everyone to ignore it — the opposite of
+      # what a security gate is for.
+      - name: cargo audit
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set +e
+          cargo audit --deny warnings \
+            --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0186 \
+            --ignore RUSTSEC-2026-0192 --ignore RUSTSEC-2026-0194 \
+            --ignore RUSTSEC-2026-0195
+          code=$?
+          if [ "$code" -ne 0 ] && [ "$EVENT_NAME" = "schedule" ]; then
+            echo "::warning::cargo audit found a newly-published advisory on an unchanged lockfile. Triage: bump the crate or add a justified --ignore. Not failing the weekly canary."
+            exit 0
+          fi
+          exit "$code"
 
   deny:
     name: cargo deny check
@@ -332,7 +355,23 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-deny
         run: cargo install --locked cargo-deny
-      - run: cargo deny check
+      # Same policy as the audit job: hard gate on push / PR, warn-only on
+      # the weekly schedule canary (unchanged lockfile → new advisory, not
+      # a regression). Licenses and bans can't newly fail on an unchanged
+      # tree, so tolerating the schedule run only ever softens advisories.
+      - name: cargo deny check
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set +e
+          cargo deny check
+          code=$?
+          if [ "$code" -ne 0 ] && [ "$EVENT_NAME" = "schedule" ]; then
+            echo "::warning::cargo deny found a new advisory on an unchanged lockfile. Triage on the next working day. Not failing the weekly canary."
+            exit 0
+          fi
+          exit "$code"
 
   # ── Weekly canaries (schedule / manual only) ────────────────────────
   # Early-warning jobs: they surface upstream or platform drift as a
