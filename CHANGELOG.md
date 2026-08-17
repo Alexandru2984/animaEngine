@@ -6,6 +6,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Bumped two transitive deps off freshly-published advisories that the
+  weekly audit canary flagged: `webbrowser` 1.2.1 → 1.2.4
+  (RUSTSEC-2026-0257, Unix `BROWSER` argument injection) and
+  `event-listener` 5.4.1 → 5.4.2 (RUSTSEC-2026-0221, unsound `!Send`
+  across threads). Both arrive via egui-winit / accesskit; both are real
+  fixes, not new ignores.
+
+### Changed
+
+- The weekly `cargo audit` / `cargo deny` canary no longer fails the
+  build red when a new advisory is published against an unchanged
+  lockfile — it emits a warning annotation instead. On push / PR the
+  audit stays a hard gate. Stops the "CI red every Monday" alert fatigue.
+
 ## [1.0.0-rc3] — 2026-07-14
 
 Second bake wave, prompted by an external security/robustness audit of
