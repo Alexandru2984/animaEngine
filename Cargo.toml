@@ -68,9 +68,6 @@ libc = "0.2"
 # Windowing
 winit = { version = "0.30", features = ["x11", "wayland"] }
 
-# X11 input shape & global hotkey support
-# Dock-type windows don't receive keyboard focus, so we need direct X11 control
-x11rb = { version = "0.13", features = ["shape"] }
 raw-window-handle = "0.6"
 
 # GPU rendering
@@ -82,12 +79,6 @@ egui = "0.31"
 egui-wgpu = "0.31"
 egui-winit = { version = "0.31", default-features = false, features = ["wayland", "x11", "links", "accesskit"] }
 
-# System tray via the freedesktop StatusNotifierItem D-Bus protocol.
-# `ksni` is a pure-Rust implementation — zero system deps beyond an
-# already-running D-Bus session (every Linux desktop has one). The
-# `async-io` runtime keeps total compile cost an order of magnitude
-# lower than the alternative tokio default.
-ksni = { version = "0.3", default-features = false, features = ["async-io"] }
 async-io = "2"
 # Stream combinators for zbus signal streams (portal Activated /
 # Deactivated). Already transitive via async-io / accesskit; promoted
@@ -98,25 +89,9 @@ futures-lite = "2"
 # and visibility without focusing the overlay.
 global-hotkey = "0.8"
 
-# Already pulled in transitively by ksni; pin explicitly so the
-# single-instance D-Bus handshake doesn't break on minor bumps.
-zbus = { version = "5", default-features = false, features = ["async-io"] }
-
-# Native Wayland — used in addition to winit, not as a replacement.
-# winit covers X11/XWayland (95 % of Linux desktops); sctk + wlr-layer-shell
-# adds true overlay support on wlroots compositors (sway, Hyprland, river).
-# The compositor probe at startup picks which backend is actually used.
-# All protocol bindings (wayland-protocols / -wlr) are consumed through
-# sctk's re-exports — no direct dependency needed.
-wayland-client = "0.31"
-# High-level Wayland client conveniences (registry, output, compositor,
-# layer-shell handlers). Event dispatch uses wayland-client's
-# EventQueue::blocking_dispatch directly — no calloop integration.
-# `xkbcommon` feature enabled in E.1 (0.5) to drive keyboard decoding on
-# the native Wayland path. libxkbcommon-dev is already in README build
-# deps + libxkbcommon0 lands transitively via libxkbcommon-x11-0 in .deb
-# depends, so this isn't a new system requirement.
-smithay-client-toolkit = { version = "0.19", default-features = false, features = ["xkbcommon"] }
+# NOTE: x11rb, ksni, zbus, wayland-client and smithay-client-toolkit are
+# Linux/BSD-only and now live in the `[target.'cfg(unix)'.dependencies]`
+# section below (cross-platform port, C2).
 
 # Image loading
 image = { version = "0.25", default-features = false, features = ["png", "gif", "webp", "jpeg"] }
@@ -161,6 +136,23 @@ pollster = "0.4"
 egui-phosphor = "0.9"
 fluent = "0.17.0"
 unic-langid = "0.9.6"
+
+# ── Linux/BSD overlay integration (cross-platform port, C2) ──────────
+# X11 (x11rb), native Wayland (wayland-client + smithay-client-toolkit),
+# the D-Bus tray (ksni) and the D-Bus single-instance handshake (zbus)
+# exist only on the unix desktop stack. Target-gated so a Windows build
+# drops them; the modules that use them (src/wayland/, src/window/x11_*,
+# tray, single_instance) get cfg-gated alongside during the Windows
+# backend work — which needs a Windows target for the compiler feedback
+# loop (no mingw/openh264 cross-compile on the Linux dev box). NOTE:
+# cfg(unix) also matches macOS, where X11/Wayland don't apply; macOS
+# (parked) will need a narrower any(linux, *bsd) gate or its own backend.
+[target.'cfg(unix)'.dependencies]
+x11rb = { version = "0.13", features = ["shape"] }
+ksni = { version = "0.3", default-features = false, features = ["async-io"] }
+zbus = { version = "5", default-features = false, features = ["async-io"] }
+wayland-client = "0.31"
+smithay-client-toolkit = { version = "0.19", default-features = false, features = ["xkbcommon"] }
 
 # Criterion owns `cargo bench`; the default libtest bench harnesses on
 # the lib/bin targets would otherwise swallow criterion CLI flags like
