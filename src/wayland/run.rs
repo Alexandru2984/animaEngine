@@ -569,6 +569,7 @@ pub fn run_native(
                 let monitor_mode_mut = &mut config.global.monitor_mode;
                 let window_awareness_mut = &mut config.global.window_awareness;
                 let reduced_motion_mut = &mut config.global.reduced_motion;
+                let hover_startle_mut = &mut config.global.hover_startle;
                 let accesskit_mut = &mut config.global.accesskit_enabled;
                 let keybindings_mut = &mut config.keybindings;
                 let collapse_state_mut = &mut config.collapse_state;
@@ -619,6 +620,7 @@ pub fn run_native(
                                 monitor_mode_mut,
                                 window_awareness_mut,
                                 reduced_motion_mut,
+                                hover_startle_mut,
                                 monitors_ref,
                                 library.as_ref(),
                                 library_ref,

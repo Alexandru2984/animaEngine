@@ -180,6 +180,7 @@ pub fn settings(
     monitor_mode: &mut MonitorMode,
     window_awareness: &mut bool,
     reduced_motion: &mut bool,
+    hover_startle: &mut bool,
     monitors: &[MonitorInfo],
     library: Option<&LibraryIndex>,
     library_outcome: &mut Option<LibraryOutcome>,
@@ -326,6 +327,7 @@ pub fn settings(
                                 onboarding,
                                 accesskit_enabled,
                                 reduced_motion,
+                                hover_startle,
                             );
                         }
                         SettingsTab::Keybindings => {

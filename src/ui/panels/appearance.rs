@@ -11,6 +11,7 @@ use crate::ui::icons;
 use crate::ui::onboarding::{self, OnboardingProgress};
 use crate::ui::theme::{self, h2, Theme, SPACE_2XL, SPACE_M, SPACE_S, SPACE_XS};
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn appearance_tab(
     ui: &mut egui::Ui,
     theme: &mut Theme,
@@ -19,6 +20,7 @@ pub(super) fn appearance_tab(
     onboarding: &mut OnboardingProgress,
     accesskit_enabled: &mut bool,
     reduced_motion: &mut bool,
+    hover_startle: &mut bool,
 ) {
     ui.label(egui::RichText::new(t("appearance-theme-header")).text_style(h2()));
     ui.add_space(SPACE_S);
@@ -53,6 +55,14 @@ pub(super) fn appearance_tab(
     if ui
         .checkbox(reduced_motion, t("appearance-reduced-motion-label"))
         .on_hover_text(t("appearance-reduced-motion-hint"))
+        .changed()
+    {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    if ui
+        .checkbox(hover_startle, t("appearance-hover-startle-label"))
+        .on_hover_text(t("appearance-hover-startle-hint"))
         .changed()
     {
         *config_dirty = true;

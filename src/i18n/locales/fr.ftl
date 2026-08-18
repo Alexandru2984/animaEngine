@@ -166,6 +166,8 @@ appearance-accesskit-label = Générer les mises à jour de l’arbre AccessKit
 appearance-accesskit-hint = Alimente les lecteurs d’écran AT-SPI (Orca, etc.). Laissez activé, sauf si vous voulez alléger l’empreinte ou si votre bureau n’a pas de bus AT-SPI. Remarque : le texte saisi dans les panneaux apparaît aussi sur le bus AT-SPI, où tout processus de votre utilisateur peut le lire.
 appearance-reduced-motion-label = Réduire les animations
 appearance-reduced-motion-hint = Ignore les transitions de l’interface (glissement du panneau, fondus, apparition de la palette) et arrête le balancement décoratif. Les animations qui portent un état restent actives.
+appearance-hover-startle-label = Sursaut au survol
+appearance-hover-startle-hint = Les mascottes reculent devant le pointeur quand il s'approche, puis reviennent. Le suivi du curseur est réservé à X11, donc sous Wayland natif cela ne réagit qu'en mode édition.
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Les raccourcis globaux n’ont pas pu être enregistrés (typique d’une session Wayland native). Le menu de la zone de notification et le bouton ⚙ fonctionnent toujours.

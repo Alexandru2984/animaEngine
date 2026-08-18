@@ -166,6 +166,8 @@ appearance-accesskit-label = Generează actualizări AccessKit
 appearance-accesskit-hint = Alimentează cititoarele de ecran AT-SPI (Orca etc.). Lasă activ dacă nu vrei să reduci consumul sau dacă desktop-ul tău nu rulează un bus AT-SPI. Notă: textul tastat în panouri apare și pe magistrala AT-SPI, unde orice proces care rulează ca utilizatorul tău îl poate citi.
 appearance-reduced-motion-label = Redu mișcarea
 appearance-reduced-motion-hint = Sare peste tranzițiile UI (glisarea panoului, fade-uri, pop-ul paletei) și oprește săltatul decorativ. Animațiile care transmit stare rulează în continuare.
+appearance-hover-startle-label = Tresărire la hover
+appearance-hover-startle-hint = Mascotele se feresc de cursor când se apropie de ele, apoi revin. Urmărirea cursorului e doar pe X11, deci pe Wayland nativ reacționează doar în modul editare.
 
 # ── Avertismente persistente (D.5) ────────────────────────────────────
 warning-global-hotkeys-unavailable = Comenzile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.

@@ -283,6 +283,7 @@ impl App {
                         let monitor_mode_mut = &mut self.config.global.monitor_mode;
                         let window_awareness_mut = &mut self.config.global.window_awareness;
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
+                        let hover_startle_mut = &mut self.config.global.hover_startle;
                         // Snapshot the AccessKit flag BEFORE taking
                         // its mutable borrow — the render closure
                         // syncs egui's runtime gate from this copy
@@ -369,6 +370,7 @@ impl App {
                                     monitor_mode_mut,
                                     window_awareness_mut,
                                     reduced_motion_mut,
+                                    hover_startle_mut,
                                     monitors_ref,
                                     library_ref,
                                     library_outcome_ref,

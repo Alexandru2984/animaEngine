@@ -166,6 +166,8 @@ appearance-accesskit-label = AccessKit ツリー更新を生成
 appearance-accesskit-hint = AT-SPI スクリーンリーダー（Orca など）に情報を提供します。リソースを節約したい場合やデスクトップに AT-SPI バスがない場合を除き、オンのままにしてください。注意：パネルに入力したテキストも AT-SPI バスに流れ、同じユーザーのプロセスなら読み取れます。
 appearance-reduced-motion-label = 動きを減らす
 appearance-reduced-motion-hint = UI のトランジション（パネルのスライド、フェード、パレットのポップ）を省略し、装飾的な揺れを止めます。状態を伝えるアニメーションは動き続けます。
+appearance-hover-startle-label = ホバーでびっくり
+appearance-hover-startle-hint = カーソルが近づくとマスコットが後ずさりし、その後落ち着きます。カーソル追跡はX11のみのため、ネイティブWaylandでは編集モードでのみ反応します。
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = グローバルホットキーを登録できませんでした（ネイティブ Wayland セッションでは一般的）。トレイメニューと ⚙ ボタンは引き続き使えます。

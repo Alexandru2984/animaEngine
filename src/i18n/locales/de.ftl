@@ -166,6 +166,8 @@ appearance-accesskit-label = AccessKit-Baumaktualisierungen erzeugen
 appearance-accesskit-hint = Versorgt AT-SPI-Screenreader (Orca usw.). Eingeschaltet lassen, außer Sie wollen weniger Ressourcen nutzen oder Ihr Desktop hat keinen AT-SPI-Bus. Hinweis: In Panels eingegebener Text erscheint auch auf dem AT-SPI-Bus, wo ihn jeder Prozess Ihres Benutzers lesen kann.
 appearance-reduced-motion-label = Bewegung reduzieren
 appearance-reduced-motion-hint = Überspringt UI-Übergänge (Panel-Gleiten, Überblendungen, Paletten-Pop) und stoppt dekoratives Wippen. Zustandsanzeigende Animationen laufen weiter.
+appearance-hover-startle-label = Erschrecken bei Annäherung
+appearance-hover-startle-hint = Maskottchen weichen dem Mauszeiger aus, wenn er nahe kommt, und beruhigen sich dann wieder. Cursor-Verfolgung gibt es nur unter X11, unter nativem Wayland reagiert dies nur im Bearbeitungsmodus.
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Globale Hotkeys konnten nicht registriert werden (typisch für native Wayland-Sitzungen). Tray-Menü und ⚙-Knopf funktionieren weiter.
