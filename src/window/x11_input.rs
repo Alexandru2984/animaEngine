@@ -382,3 +382,27 @@ impl X11InputManager {
         Ok(())
     }
 }
+
+// X11 is the first `OverlayPlatform` backend. The winit run loop holds a
+// `Box<dyn OverlayPlatform>` and calls these; a Windows/macOS backend
+// implements the same trait. Each method delegates to the inherent method
+// of the same name above — inherent methods win method resolution over
+// trait methods, so `self.foo()` here calls the inherent `foo`, never this
+// trait method (no recursion). Keep the inherent methods.
+impl crate::window::overlay::OverlayPlatform for X11InputManager {
+    fn reassert_above(&self) -> Result<()> {
+        self.reassert_above()
+    }
+    fn query_pointer_global(&self) -> Option<(f32, f32)> {
+        self.query_pointer_global()
+    }
+    fn set_passthrough_with_button(&mut self, button_size: u32) -> Result<()> {
+        self.set_passthrough_with_button(button_size)
+    }
+    fn set_passthrough_total(&mut self) -> Result<()> {
+        self.set_passthrough_total()
+    }
+    fn set_full_input(&mut self) -> Result<()> {
+        self.set_full_input()
+    }
+}

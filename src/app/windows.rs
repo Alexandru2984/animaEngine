@@ -15,7 +15,7 @@ use super::App;
 use crate::entity::Entity;
 use crate::monitor::{self, MonitorInfo};
 use crate::renderer::wgpu_renderer::SurfaceState;
-use crate::window::x11_input::X11InputManager;
+use crate::window::overlay::OverlayPlatform;
 use std::sync::Arc;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId, WindowLevel};
@@ -68,7 +68,7 @@ pub(super) struct WindowSlot {
     pub window: Arc<Window>,
     pub surface: SurfaceState,
     pub monitor: MonitorInfo,
-    pub x11_input: Option<X11InputManager>,
+    pub x11_input: Option<Box<dyn OverlayPlatform>>,
 }
 
 /// Overlay window attributes shared by the primary and the extras.
@@ -147,7 +147,7 @@ impl App {
             };
             let surface = SurfaceState::new(&renderer.shared, surface, mon.width, mon.height);
 
-            let mut x11_input = X11InputManager::new(&window);
+            let mut x11_input = crate::window::overlay::for_window(&window);
             if let Some(mgr) = &mut x11_input {
                 // Fully click-through — the ⚙ toggle is a primary-
                 // window affordance; extras reserve no corner (T.8).

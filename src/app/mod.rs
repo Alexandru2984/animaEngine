@@ -16,7 +16,7 @@ use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::scene::Scene;
 use crate::ui::Warning;
 use crate::ui::{EguiRenderer, ToastQueue};
-use crate::window::x11_input::X11InputManager;
+use crate::window::overlay::OverlayPlatform;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::{Instant, SystemTime};
@@ -63,7 +63,7 @@ pub struct App {
     /// Whether Super (Win/Cmd/Meta) is currently held — same reason.
     super_held: bool,
     /// Pooled X11 input manager (holds a single X11 connection)
-    x11_input: Option<X11InputManager>,
+    x11_input: Option<Box<dyn OverlayPlatform>>,
     /// Last time we checked config file for hot-reload
     last_config_check: Instant,
     /// Last known modification time of config file

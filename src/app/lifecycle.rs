@@ -11,7 +11,6 @@ use super::App;
 use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::ui::EguiRenderer;
-use crate::window::x11_input::X11InputManager;
 use std::sync::Arc;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowLevel};
@@ -175,7 +174,7 @@ impl App {
                 );
 
                 // Create pooled X11 input manager (single connection)
-                let mut x11_mgr = X11InputManager::new(&window);
+                let mut x11_mgr = crate::window::overlay::for_window(&window);
                 if let Some(ref mut mgr) = x11_mgr {
                     // Set initial input shape: click-through except toggle button
                     if let Err(e) = mgr.set_passthrough_with_button(TOGGLE_BUTTON_SIZE) {
