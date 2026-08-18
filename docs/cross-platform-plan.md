@@ -110,11 +110,18 @@ apply the overlay behaviours. C1 generalises that into `OverlayPlatform`.
 - **B2** ✅ This document + trait sketch.
 
 ### Track C — The port *(starts after the `v1.0.0` tag, trait-first)*
-- **C1** 🔑 Extract `OverlayPlatform` from `window/platform.rs`; move X11
-  (`X11InputManager`) and Wayland (layer-shell) behind it. **Pure
-  refactor, Linux-only, all tests green.** Biggest de-risking step. *(~1 wk)*
-- **C2** Abstract seams 2–5 (tray, hotkeys, single-instance, perms), Linux
-  impl as the first implementor. *(~1 wk)*
+- **C1** ✅ **Done** (2026-08-18). `OverlayPlatform` trait extracted in
+  `src/window/overlay.rs`; `X11InputManager` is the first backend; the app
+  holds `Box<dyn OverlayPlatform>` and constructs via `overlay::for_window`.
+  Pure refactor, 365 tests + clippy + fmt green.
+- **C2a** ✅ **Done** (2026-08-18). The Linux/BSD overlay deps (`x11rb`,
+  `ksni`, `zbus`, `wayland-client`, `smithay-client-toolkit`) are
+  target-gated under `[target.'cfg(unix)'.dependencies]`. Linux build +
+  Cargo.lock unchanged.
+- **C2b** ⏭ **Needs the Windows VM** (the Linux box can't cross-compile —
+  no mingw, openh264 builds C from source). Detailed checklist below.
+- **C2** (rest) Abstract the remaining seams (tray, single-instance) behind
+  traits like `OverlayPlatform`, Linux impl first. Verifiable on Linux.
 - **C3** **BSD** backend — cheap validation (reuses X11/Wayland; mostly
   CI + deps). Proves the trait boundary before Win32/Cocoa. *(~days)*
 - **C4** **Windows** backend: Win32 layered/transparent window +
@@ -145,3 +152,38 @@ apply the overlay behaviours. C1 generalises that into `OverlayPlatform`.
 `v1.0.0` tag → C1 → C2 → C3 (BSD) → C4 (Windows) → C5 (macOS) → C6.
 Nothing in Track C is a bug fix, so none of it is freeze-legal before the
 1.0 tag.
+
+## C2b / C4 execution checklist — Windows VM
+
+`cfg(unix)` is always true on the Linux dev box, so the Linux compiler
+can't flag a wrong Windows cfg — do this on a Windows target with
+`cargo check --target x86_64-pc-windows-msvc` as the feedback loop, not
+blind on Linux.
+
+**C2b — compile on Windows (cfg-gate the unix-only seams):**
+- [ ] `#[cfg(unix)]` the module declarations: `src/wayland/` (whole
+      subtree), `src/window/x11_input.rs`, `src/window/x11_windows.rs`,
+      `src/tray.rs`, `src/single_instance.rs` — in `src/window/mod.rs`,
+      `src/main.rs`, and any other `mod` sites.
+- [ ] Gate their callers in `src/app/` + `src/main.rs`: the native-Wayland
+      run-loop entry, `x11_windows::WindowWatcher`, the tray spawn, and the
+      single-instance acquire/signal at startup.
+- [ ] `libc getuid()` in `src/util.rs` → `#[cfg(unix)]`, with a Windows
+      fallback dir (`%LOCALAPPDATA%` via the `directories` crate).
+- [ ] `window::overlay::for_window` already returns `None` off-Linux (C1) —
+      leave it until C4 fills the Windows arm.
+- [ ] Chase the compiler until `cargo check --target …-windows-msvc` is
+      clean. The holes should be exactly the seams above.
+
+**C4 — the Windows backend:**
+- [ ] `impl OverlayPlatform` for a `WinOverlay`: click-through via
+      `WS_EX_LAYERED | WS_EX_TRANSPARENT` (`SetWindowLongPtrW`), topmost via
+      `SetWindowPos(HWND_TOPMOST)`, `query_pointer_global` via
+      `GetCursorPos`; `set_full_input` / `set_passthrough_*` toggle the
+      transparent ex-style. Extend `for_window` to build it on Windows.
+- [ ] Tray: the `tray-icon` crate (`Shell_NotifyIcon`) behind the tray seam.
+- [ ] Single-instance: named mutex (`CreateMutexW` + `ERROR_ALREADY_EXISTS`)
+      plus a raise-the-first-instance message, behind the single-instance seam.
+- [ ] `global-hotkey` already does `RegisterHotKey` on Windows — no work.
+- [ ] wgpu selects DX12/Vulkan automatically; winit creates the HWND.
+- [ ] Packaging: MSI or portable `.zip`; add a Windows CI job.
