@@ -27,6 +27,14 @@ pub const MAX_QUADS: usize = MAX_ENTITIES + 3;
 /// In pass-through mode this is the only area that receives mouse input.
 pub const TOGGLE_BUTTON_SIZE: u32 = 64;
 
+/// Hover-startle: a mascot recoils from the pointer when the cursor comes
+/// within this radius (px, in global/desktop space) of its centre.
+pub const HOVER_STARTLE_RADIUS: f32 = 130.0;
+
+/// Peak recoil speed (px/s) at the centre of the startle radius; the push
+/// scales down linearly to zero at the radius edge.
+pub const HOVER_STARTLE_SPEED: f32 = 340.0;
+
 /// Maximum number of frames extracted from a video. ~20 seconds at 30 fps.
 /// Caps memory at roughly MAX_VIDEO_FRAMES × MAX_DROP_SIZE² × 4 bytes
 /// (≈150 MB for a 256-px square, much less for typical overlay sprites).

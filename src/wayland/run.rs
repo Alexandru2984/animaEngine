@@ -471,6 +471,7 @@ pub fn run_native(
         // Tick the simulation. screen_w / screen_h match the surface so
         // walk-around behaviors stay inside the visible area.
         scene.set_reduced_motion(config.global.reduced_motion);
+        scene.set_hover_startle(config.global.hover_startle);
         scene.tick(
             renderer.primary.window_width as f32,
             renderer.primary.window_height as f32,

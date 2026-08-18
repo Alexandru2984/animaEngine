@@ -143,6 +143,11 @@ impl Entity {
     /// physics resolves vertical motion if enabled (gravity wins on Y),
     /// then the animation advances. `cursor` is the screen-space mouse
     /// position if known — needed by `FollowCursor`.
+    // The per-frame entity update genuinely takes the frame's inputs (dt,
+    // screen dims, cursor, physics platforms) plus the global interaction
+    // toggles; grouping them into a struct would only move the argument
+    // list around without making a call site clearer.
+    #[allow(clippy::too_many_arguments)]
     pub fn tick(
         &mut self,
         dt: f32,
@@ -151,6 +156,7 @@ impl Entity {
         cursor: Option<(f32, f32)>,
         platforms: &[crate::platforms::PlatformRect],
         reduced_motion: bool,
+        hover_startle: bool,
     ) -> bool {
         let sprite_w = self.scaled_width();
         let sprite_h = self.scaled_height();
@@ -168,6 +174,27 @@ impl Entity {
         let x_before = self.x;
         self.behavior
             .tick(&mut self.behavior_state, &mut self.x, &mut self.y, &ctx);
+
+        // Hover-startle: recoil from a cursor that comes too close.
+        // Orthogonal to the base behavior (a walking mascot still
+        // flinches) and radius-gated so it only fires near the pointer.
+        // Applied before `dx` so facing follows the recoil; physics
+        // re-governs Y for grounded entities, so the visible effect is a
+        // scoot away. Suppressed under reduced motion.
+        if hover_startle && !reduced_motion {
+            if let Some((cx, cy)) = cursor {
+                let (px, py) = hover_startle_push(
+                    self.x + sprite_w * 0.5,
+                    self.y + sprite_h * 0.5,
+                    cx,
+                    cy,
+                    dt,
+                );
+                self.x = (self.x + px).clamp(0.0, (screen_width - sprite_w).max(0.0));
+                self.y += py;
+            }
+        }
+
         let dx = self.x - x_before;
 
         // Physics — gravity / bounce on the vertical axis. When enabled
@@ -350,10 +377,66 @@ impl Entity {
     }
 }
 
+/// Recoil push for hover-startle: the (dx, dy) to add to an entity whose
+/// centre is at (`ecx`, `ecy`) when the cursor is at (`cx`, `cy`). Zero
+/// outside [`HOVER_STARTLE_RADIUS`]; inside, it points away from the
+/// cursor and scales from `HOVER_STARTLE_SPEED · dt` at the centre down
+/// to zero at the edge. A cursor exactly on the centre pushes right
+/// (arbitrary, avoids a divide-by-zero).
+fn hover_startle_push(ecx: f32, ecy: f32, cx: f32, cy: f32, dt: f32) -> (f32, f32) {
+    use crate::constants::{HOVER_STARTLE_RADIUS, HOVER_STARTLE_SPEED};
+    let (dx, dy) = (ecx - cx, ecy - cy);
+    let dist = (dx * dx + dy * dy).sqrt();
+    if dist >= HOVER_STARTLE_RADIUS {
+        return (0.0, 0.0);
+    }
+    let strength = HOVER_STARTLE_SPEED * dt * (1.0 - dist / HOVER_STARTLE_RADIUS);
+    if dist < 1e-3 {
+        return (strength, 0.0); // cursor on centre → arbitrary push right
+    }
+    let inv = 1.0 / dist;
+    (dx * inv * strength, dy * inv * strength)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::animation::frame::Frame;
+
+    #[test]
+    fn hover_startle_pushes_away_within_radius_and_is_inert_outside() {
+        use crate::constants::HOVER_STARTLE_RADIUS;
+        let dt = 1.0 / 60.0;
+
+        // Cursor to the LEFT of the entity centre → push is to the right
+        // (positive x), away from the cursor, and vertically negligible.
+        let (px, py) = hover_startle_push(100.0, 100.0, 100.0 - 20.0, 100.0, dt);
+        assert!(px > 0.0, "should recoil right, got {px}");
+        assert!(py.abs() < 1e-3, "no vertical push for a level cursor");
+
+        // Cursor beyond the radius → no push at all.
+        let (fx, fy) =
+            hover_startle_push(100.0, 100.0, 100.0 + HOVER_STARTLE_RADIUS + 5.0, 100.0, dt);
+        assert_eq!((fx, fy), (0.0, 0.0));
+
+        // Closer cursor recoils harder than a farther one (linear falloff).
+        let (near, _) = hover_startle_push(100.0, 100.0, 90.0, 100.0, dt);
+        let (far, _) = hover_startle_push(
+            100.0,
+            100.0,
+            100.0 - (HOVER_STARTLE_RADIUS - 5.0),
+            100.0,
+            dt,
+        );
+        assert!(
+            near > far,
+            "nearer cursor should push harder: {near} vs {far}"
+        );
+
+        // Cursor exactly on the centre → arbitrary rightward push, no NaN.
+        let (cx, cy) = hover_startle_push(100.0, 100.0, 100.0, 100.0, dt);
+        assert!(cx > 0.0 && cy == 0.0 && cx.is_finite());
+    }
 
     /// 4×4 frame, only the inner 2×2 is opaque (alpha 255), border is transparent.
     fn checker_frame() -> Frame {

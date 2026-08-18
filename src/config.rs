@@ -52,6 +52,13 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub reduced_motion: bool,
 
+    /// Hover-startle: mascots recoil from the mouse pointer when it comes
+    /// within a small radius of them. Off by default so the overlay stays
+    /// calm until asked. Cursor tracking is X11-only (same scope as
+    /// FollowCursor), so on native Wayland this only reacts in edit mode.
+    #[serde(default)]
+    pub hover_startle: bool,
+
     /// Window-awareness: desktop windows become physics platforms —
     /// mascots land on and walk along window top edges. X11 sessions
     /// only (Wayland exposes no global window geometry); silently
@@ -101,6 +108,7 @@ impl Default for GlobalConfig {
             onboarding: OnboardingProgress::default(),
             monitor_mode: MonitorMode::default(),
             reduced_motion: false,
+            hover_startle: false,
             window_awareness: false,
             accesskit_enabled: true,
             hotkey_backend: crate::hotkeys::probe::HotkeyBackend::Auto,

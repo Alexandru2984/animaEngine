@@ -150,7 +150,9 @@ impl App {
         // equivalent read (and none of its CursorMoved delivery is
         // shape-restricted in the way XShape is for X11), so this is
         // X11-only — the same scope as window-awareness.
-        let cursor = if !self.edit_mode && self.scene.has_cursor_follower() {
+        let cursor = if !self.edit_mode
+            && (self.scene.has_cursor_follower() || self.config.global.hover_startle)
+        {
             self.x11_input
                 .as_ref()
                 .and_then(|mgr| mgr.query_pointer_global())
@@ -162,6 +164,8 @@ impl App {
             let _s = self.perf_sampler.scope(crate::perf::Category::SceneUpdate);
             self.scene
                 .set_reduced_motion(self.config.global.reduced_motion);
+            self.scene
+                .set_hover_startle(self.config.global.hover_startle);
             self.scene.tick(screen_w, screen_h, cursor);
         }
 

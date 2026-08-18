@@ -44,6 +44,7 @@ pub struct Scene {
     /// entity tick so decorative behaviors (Bounce bobbing) idle at
     /// their rest position instead of animating.
     reduced_motion: bool,
+    hover_startle: bool,
 }
 
 impl Scene {
@@ -120,6 +121,7 @@ impl Scene {
             groups: config.groups.clone(),
             window_platforms: Vec::new(),
             reduced_motion: false,
+            hover_startle: false,
         }
     }
 
@@ -198,6 +200,10 @@ impl Scene {
         self.reduced_motion = reduced;
     }
 
+    pub fn set_hover_startle(&mut self, enabled: bool) {
+        self.hover_startle = enabled;
+    }
+
     /// Replace the desktop-window platform set (window-awareness).
     /// Called from the render loop after each X11 window poll; pass
     /// an empty vec to turn the feature's effect off instantly.
@@ -238,6 +244,7 @@ impl Scene {
                 cursor,
                 &self.window_platforms,
                 self.reduced_motion,
+                self.hover_startle,
             );
         }
     }
