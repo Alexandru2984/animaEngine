@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-08-18
+
+The 1.0 stable release. The culmination of the rc1 → rc3 bake — see those
+sections below for the full hardening history (single-instance handshake,
+config / hot-reload durability, Shimeji import, thumbnail containment,
+supply-chain, glibc reach). rc3 ran as a public prerelease for ~12 days
+with no regressions. Net changes since rc3:
+
 ### Security
 
 - Bumped two transitive deps off freshly-published advisories that the
