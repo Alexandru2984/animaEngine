@@ -35,6 +35,18 @@ pub const HOVER_STARTLE_RADIUS: f32 = 130.0;
 /// scales down linearly to zero at the radius edge.
 pub const HOVER_STARTLE_SPEED: f32 = 340.0;
 
+/// Poke: horizontal recoil (px) a mascot jumps when tapped, away from the
+/// poke point.
+pub const POKE_KICK: f32 = 42.0;
+
+/// Poke: upward launch speed (px/s) for a physics-enabled mascot — gravity
+/// brings it back down for a little hop. Physics-off mascots just recoil.
+pub const POKE_HOP_SPEED: f32 = 430.0;
+
+/// Poke: a press-then-release counts as a tap (→ poke) only if the cursor
+/// stayed within this radius (px); moving further is a drag, not a poke.
+pub const POKE_TAP_RADIUS: f32 = 6.0;
+
 /// Maximum number of frames extracted from a video. ~20 seconds at 30 fps.
 /// Caps memory at roughly MAX_VIDEO_FRAMES × MAX_DROP_SIZE² × 4 bytes
 /// (≈150 MB for a 256-px square, much less for typical overlay sprites).

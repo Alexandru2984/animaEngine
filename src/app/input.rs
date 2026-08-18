@@ -90,7 +90,13 @@ impl App {
                         entity.dragging = true;
                         let offset_x = self.mouse_x - entity.x;
                         let offset_y = self.mouse_y - entity.y;
-                        self.drag.start_drag(entity_idx, offset_x, offset_y);
+                        self.drag.start_drag(
+                            entity_idx,
+                            offset_x,
+                            offset_y,
+                            self.mouse_x,
+                            self.mouse_y,
+                        );
 
                         tracing::info!("Clicked entity: {} ({})", entity.name, entity.id);
                     }
@@ -99,12 +105,27 @@ impl App {
                 }
             }
             (MouseButton::Left, ElementState::Released) if self.drag.is_dragging() => {
+                // A press-release that never moved is a *tap*, not a drag →
+                // poke the mascot (recoil / hop) instead of just dropping it.
+                let tapped = self.drag.was_tap(
+                    self.mouse_x,
+                    self.mouse_y,
+                    crate::constants::POKE_TAP_RADIUS,
+                );
+                let screen_w = self
+                    .window
+                    .as_ref()
+                    .map(|w| w.inner_size().width as f32)
+                    .unwrap_or(1920.0);
                 // Drop the freeze. Physics remains whatever the user set —
                 // off by default (entity stays put), on if they pressed G.
                 if let Some(idx) = self.drag.dragging_entity() {
                     if let Some(entity) = self.scene.entities.get_mut(idx) {
                         entity.physics.unfreeze();
                         entity.dragging = false;
+                        if tapped {
+                            entity.poke(self.mouse_x, screen_w);
+                        }
                     }
                 }
                 self.drag.end_drag();

@@ -60,6 +60,15 @@ impl PhysicsState {
     /// `floor` is the y the entity's *top* rests at when standing —
     /// the caller computes it (screen bottom minus sprite height, or
     /// a window platform top via `platforms::effective_floor`).
+    /// Launch upward for a poke hop. No-op unless physics is enabled; it
+    /// ungrounds the entity so `tick` arcs it back down under gravity.
+    pub fn poke_hop(&mut self) {
+        if self.enabled {
+            self.velocity_y = -crate::constants::POKE_HOP_SPEED;
+            self.grounded = false;
+        }
+    }
+
     pub fn tick(&mut self, y: f32, floor: f32, dt: f32) -> f32 {
         if !self.enabled || self.frozen {
             return y;

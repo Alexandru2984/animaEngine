@@ -13,6 +13,10 @@ pub enum DragState {
         entity_index: usize,
         offset_x: f32,
         offset_y: f32,
+        /// Cursor position when the press began — lets `was_tap`
+        /// distinguish a tap (→ poke) from an actual move.
+        press_x: f32,
+        press_y: f32,
     },
 }
 
@@ -29,11 +33,20 @@ impl DragController {
 
     /// Start dragging an entity.
     /// `offset_x/y` is the distance from mouse position to entity origin.
-    pub fn start_drag(&mut self, entity_index: usize, offset_x: f32, offset_y: f32) {
+    pub fn start_drag(
+        &mut self,
+        entity_index: usize,
+        offset_x: f32,
+        offset_y: f32,
+        press_x: f32,
+        press_y: f32,
+    ) {
         self.state = DragState::Dragging {
             entity_index,
             offset_x,
             offset_y,
+            press_x,
+            press_y,
         };
         tracing::debug!("Started dragging entity at index {}", entity_index);
     }
@@ -46,6 +59,7 @@ impl DragController {
                 entity_index,
                 offset_x,
                 offset_y,
+                ..
             } => {
                 let new_x = mouse_x - offset_x;
                 let new_y = mouse_y - offset_y;
@@ -75,6 +89,20 @@ impl DragController {
             DragState::Idle => None,
         }
     }
+
+    /// Did the in-progress drag stay within `radius` of where it began —
+    /// i.e. a tap (→ poke) rather than a move? False when idle.
+    pub fn was_tap(&self, x: f32, y: f32, radius: f32) -> bool {
+        match &self.state {
+            DragState::Dragging {
+                press_x, press_y, ..
+            } => {
+                let (dx, dy) = (x - press_x, y - press_y);
+                dx * dx + dy * dy <= radius * radius
+            }
+            DragState::Idle => false,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -92,9 +120,20 @@ mod tests {
     #[test]
     fn start_drag_sets_state() {
         let mut c = DragController::new();
-        c.start_drag(3, 10.0, 20.0);
+        c.start_drag(3, 10.0, 20.0, 100.0, 100.0);
         assert!(c.is_dragging());
         assert_eq!(c.dragging_entity(), Some(3));
+    }
+
+    #[test]
+    fn was_tap_is_true_only_within_radius() {
+        let mut c = DragController::new();
+        assert!(!c.was_tap(0.0, 0.0, 6.0), "idle is never a tap");
+        c.start_drag(0, 0.0, 0.0, 100.0, 100.0);
+        // Released ~where it was pressed → a tap.
+        assert!(c.was_tap(103.0, 98.0, 6.0));
+        // Released well away → a drag, not a tap.
+        assert!(!c.was_tap(150.0, 100.0, 6.0));
     }
 
     #[test]
@@ -104,7 +143,7 @@ mod tests {
         // Moving the cursor must keep that grab point under it: the origin
         // is always mouse - offset, never snapping to the cursor.
         let mut c = DragController::new();
-        c.start_drag(1, 10.0, 20.0);
+        c.start_drag(1, 10.0, 20.0, 200.0, 200.0);
         assert_eq!(c.update(200.0, 200.0), Some((1, 190.0, 180.0)));
         assert_eq!(c.update(10.0, 20.0), Some((1, 0.0, 0.0)));
     }
@@ -112,7 +151,7 @@ mod tests {
     #[test]
     fn end_drag_returns_to_idle() {
         let mut c = DragController::new();
-        c.start_drag(0, 1.0, 1.0);
+        c.start_drag(0, 1.0, 1.0, 0.0, 0.0);
         c.end_drag();
         assert!(!c.is_dragging());
         assert_eq!(c.dragging_entity(), None);

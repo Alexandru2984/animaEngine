@@ -127,6 +127,22 @@ impl Entity {
         }
     }
 
+    /// React to a poke (a tap on this entity): recoil horizontally away
+    /// from the poke point, and — if physics is on — hop. `from_x` is the
+    /// poke's x in the same space as the entity; `screen_width` clamps the
+    /// recoil so a mascot at the edge can't be shoved off-screen.
+    pub fn poke(&mut self, from_x: f32, screen_width: f32) {
+        let center_x = self.x + self.scaled_width() * 0.5;
+        let dir = if (center_x - from_x).abs() < 1e-3 {
+            1.0
+        } else {
+            (center_x - from_x).signum()
+        };
+        let max_x = (screen_width - self.scaled_width()).max(0.0);
+        self.x = (self.x + dir * crate::constants::POKE_KICK).clamp(0.0, max_x);
+        self.physics.poke_hop();
+    }
+
     /// The active state's animation.
     pub fn animation(&self) -> &Animation {
         self.animations.current()
@@ -456,6 +472,24 @@ mod tests {
     fn entity_at(x: f32, y: f32) -> Entity {
         let anim = Animation::new(vec![checker_frame()], 1.0, false);
         Entity::for_test(x, y, anim)
+    }
+
+    #[test]
+    fn poke_recoils_away_from_the_poke_point_and_clamps() {
+        // Poked from the left → recoils right.
+        let mut e = entity_at(100.0, 100.0);
+        e.poke(50.0, 10_000.0);
+        assert!(e.x > 100.0, "poke from left pushes right, got {}", e.x);
+
+        // Poked from the right → recoils left.
+        let mut e2 = entity_at(100.0, 100.0);
+        e2.poke(300.0, 10_000.0);
+        assert!(e2.x < 100.0, "poke from right pushes left, got {}", e2.x);
+
+        // At the left edge, a rightward poke can't shove it off-screen.
+        let mut e3 = entity_at(0.0, 100.0);
+        e3.poke(500.0, 10_000.0);
+        assert!(e3.x >= 0.0, "clamped at the edge, got {}", e3.x);
     }
 
     #[test]
