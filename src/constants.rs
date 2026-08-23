@@ -47,6 +47,11 @@ pub const POKE_HOP_SPEED: f32 = 430.0;
 /// stayed within this radius (px); moving further is a drag, not a poke.
 pub const POKE_TAP_RADIUS: f32 = 6.0;
 
+/// Upper bound for reading `config.toml` / `library.toml` whole. Real
+/// files are a few KiB; 8 MiB is far past any legitimate scene yet stops
+/// a runaway/hostile file from being slurped into memory before parsing.
+pub const MAX_CONFIG_BYTES: u64 = 8 * 1024 * 1024;
+
 /// Maximum number of frames extracted from a video. ~20 seconds at 30 fps.
 /// Caps memory at roughly MAX_VIDEO_FRAMES × MAX_DROP_SIZE² × 4 bytes
 /// (≈150 MB for a 256-px square, much less for typical overlay sprites).

@@ -678,7 +678,9 @@ impl AppConfig {
     /// scene and surfaces the error.
     pub fn try_reload() -> std::result::Result<Self, String> {
         let path = Self::config_path();
-        let contents = fs::read_to_string(&path).map_err(|e| format!("read error: {e}"))?;
+        let contents =
+            crate::util::read_to_string_capped(&path, crate::constants::MAX_CONFIG_BYTES)
+                .map_err(|e| format!("read error: {e}"))?;
         let (config, _from) = Self::decode_config_str(&contents)?;
         Ok(config)
     }
@@ -690,7 +692,7 @@ impl AppConfig {
         tracing::debug!("Config path (full): {}", path.display());
 
         if path.exists() {
-            match fs::read_to_string(&path) {
+            match crate::util::read_to_string_capped(&path, crate::constants::MAX_CONFIG_BYTES) {
                 Ok(contents) => match Self::decode_config_str(&contents) {
                     Ok((config, from)) => {
                         // Behind the current schema: copy the file aside

@@ -5,6 +5,27 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// Read a small text file into a `String`, refusing anything larger than
+/// `max_bytes`. Config/library files are parsed whole, so an unbounded
+/// `read_to_string` would let a runaway or hostile file be slurped into
+/// memory before any sanitising runs. A bounded reader (not a pre-stat)
+/// means a file that grows between a check and the read still can't
+/// exceed the cap.
+pub fn read_to_string_capped(path: &Path, max_bytes: u64) -> std::io::Result<String> {
+    use std::io::Read;
+    let mut buf = String::new();
+    let n = std::fs::File::open(path)?
+        .take(max_bytes + 1)
+        .read_to_string(&mut buf)?;
+    if n as u64 > max_bytes {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("file exceeds the {max_bytes}-byte cap"),
+        ));
+    }
+    Ok(buf)
+}
+
 /// Write `contents` to `path` atomically: data goes into a sibling
 /// `<path>.anima.tmp`, gets `fsync`-ed, then `rename`d over the target.
 /// On Linux `rename` within the same filesystem is atomic, so either the

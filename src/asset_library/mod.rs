@@ -148,7 +148,7 @@ impl LibraryIndex {
     /// rendering an empty library is preferable to crashing the
     /// settings panel.
     pub fn load(path: &Path) -> Self {
-        match std::fs::read_to_string(path) {
+        match crate::util::read_to_string_capped(path, crate::constants::MAX_CONFIG_BYTES) {
             Ok(contents) => match toml::from_str::<LibraryIndex>(&contents) {
                 Ok(index) => {
                     if index.schema_version != SCHEMA_VERSION {
