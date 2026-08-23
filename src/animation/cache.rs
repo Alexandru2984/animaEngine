@@ -37,6 +37,7 @@ use crate::constants::{MAX_ANIMATION_FRAMES, MAX_DECODED_ASSET_BYTES, MAX_IMAGE_
 use crate::error::{AnimaError, Result};
 use std::fs;
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -262,8 +263,13 @@ pub fn try_load(asset_path: &Path) -> Option<Vec<Frame>> {
         return None;
     }
 
-    let bytes = fs::read(&key).ok()?;
-    match deserialize_frames(&bytes) {
+    // Stream from a BufReader instead of slurping the whole file: the
+    // frames we build are the only large allocation, not file-bytes +
+    // frames at once. The stat cap above still rejects an oversized file
+    // before we open it.
+    let file = fs::File::open(&key).ok()?;
+    let mut reader = BufReader::new(file);
+    match read_frames_from(&mut reader) {
         Ok(frames) => {
             tracing::debug!(
                 "Asset cache hit: {} → {}",
@@ -296,64 +302,82 @@ pub fn try_save(asset_path: &Path, frames: &[Frame]) -> Result<()> {
         return Ok(());
     };
 
-    let bytes = serialize_frames(frames);
-    // Atomic write so a crash mid-write can't corrupt a cache file the
-    // next launch would have to repair.
-    crate::util::atomic_write_bytes(&key, &bytes)?;
+    // Stream straight into the temp file — no full serialized Vec held
+    // alongside the live frames (that doubled the save-time peak). Atomic
+    // so a crash mid-write can't corrupt a cache the next launch reads.
+    crate::util::atomic_write_with(&key, |w| write_frames_to(frames, w))?;
     tracing::debug!(
         "Wrote asset cache: {} ({} bytes)",
         key.display(),
-        bytes.len()
+        serialized_len(frames)
     );
     Ok(())
 }
 
-/// `pub` (hidden) for the criterion benches and the W.4 fuzz target —
-/// not part of any supported API.
-#[doc(hidden)]
-pub fn serialize_frames(frames: &[Frame]) -> Vec<u8> {
-    // Pre-size to avoid reallocs on big sequences.
-    let total = HEADER_BYTES
+/// Serialised size of `frames` in the cache format, without building it.
+fn serialized_len(frames: &[Frame]) -> usize {
+    HEADER_BYTES
         + frames
             .iter()
             .map(|f| PER_FRAME_HEADER + f.rgba.len())
-            .sum::<usize>();
-    let mut out = Vec::with_capacity(total);
+            .sum::<usize>()
+}
 
-    out.extend_from_slice(&MAGIC.to_le_bytes());
-    out.extend_from_slice(&VERSION.to_le_bytes());
-    out.extend_from_slice(&(frames.len() as u32).to_le_bytes());
-
+/// Stream the cache byte format into `w` — no full serialized copy held
+/// alongside the live frames. Byte-for-byte identical to what
+/// [`serialize_frames`] produces.
+fn write_frames_to<W: Write>(frames: &[Frame], w: &mut W) -> std::io::Result<()> {
+    w.write_all(&MAGIC.to_le_bytes())?;
+    w.write_all(&VERSION.to_le_bytes())?;
+    w.write_all(&(frames.len() as u32).to_le_bytes())?;
     for f in frames {
-        out.extend_from_slice(&f.width.to_le_bytes());
-        out.extend_from_slice(&f.height.to_le_bytes());
-        out.extend_from_slice(&f.delay_ms.unwrap_or(0).to_le_bytes());
-        out.extend_from_slice(&f.rgba);
+        w.write_all(&f.width.to_le_bytes())?;
+        w.write_all(&f.height.to_le_bytes())?;
+        w.write_all(&f.delay_ms.unwrap_or(0).to_le_bytes())?;
+        w.write_all(&f.rgba)?;
     }
+    Ok(())
+}
+
+/// `pub` (hidden) for the criterion benches and the W.4 fuzz target —
+/// not part of any supported API. The live save path streams via
+/// [`write_frames_to`] instead of materialising this `Vec`.
+#[doc(hidden)]
+pub fn serialize_frames(frames: &[Frame]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(serialized_len(frames));
+    // Writing to a `Vec` is infallible.
+    let _ = write_frames_to(frames, &mut out);
     out
 }
 
 /// See [`serialize_frames`] on why this is `pub`.
 #[doc(hidden)]
 pub fn deserialize_frames(bytes: &[u8]) -> Result<Vec<Frame>> {
-    if bytes.len() < HEADER_BYTES {
-        return Err(AnimaError::other("cache header too short"));
-    }
+    read_frames_from(&mut std::io::Cursor::new(bytes))
+}
 
-    let magic = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
+/// Stream-parse the cache format from `r`, never holding the whole file —
+/// only the frames it builds (the old path kept the raw bytes AND the
+/// reconstructed frames alive at once, doubling the load peak). Every
+/// allocation is bounded against the same caps a fresh decode enforces:
+/// frame count before `with_capacity`, per-frame dimensions, and the
+/// cumulative byte budget *before* each frame's buffer is allocated. A
+/// short read (truncated / planted file) is a clean `Err`.
+fn read_frames_from<R: Read>(r: &mut R) -> Result<Vec<Frame>> {
+    let mut header = [0u8; HEADER_BYTES];
+    r.read_exact(&mut header)
+        .map_err(|_| AnimaError::other("cache header too short"))?;
+
+    let magic = u32::from_le_bytes(header[0..4].try_into().unwrap());
     if magic != MAGIC {
         return Err(AnimaError::other("cache magic mismatch"));
     }
-
-    let version = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
+    let version = u32::from_le_bytes(header[4..8].try_into().unwrap());
     if version != VERSION {
         return Err(AnimaError::other("cache version mismatch"));
     }
 
-    // A malicious / corrupted cache file could claim a 100M-frame asset
-    // and trick us into preallocating a huge Vec<Frame>. Reject up front
-    // against the same caps the live decoders enforce.
-    let count = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+    let count = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;
     if count > MAX_ANIMATION_FRAMES {
         return Err(AnimaError::other(format!(
             "cache claims {count} frames, max {MAX_ANIMATION_FRAMES}"
@@ -361,20 +385,18 @@ pub fn deserialize_frames(bytes: &[u8]) -> Result<Vec<Frame>> {
     }
 
     let mut frames = Vec::with_capacity(count);
-    let mut cursor = HEADER_BYTES;
     let mut total_bytes: usize = 0;
 
     for _ in 0..count {
-        if cursor + PER_FRAME_HEADER > bytes.len() {
-            return Err(AnimaError::other("cache truncated mid-frame-header"));
-        }
-        let w = u32::from_le_bytes(bytes[cursor..cursor + 4].try_into().unwrap());
-        let h = u32::from_le_bytes(bytes[cursor + 4..cursor + 8].try_into().unwrap());
-        let d = u32::from_le_bytes(bytes[cursor + 8..cursor + 12].try_into().unwrap());
-        cursor += PER_FRAME_HEADER;
+        let mut fh = [0u8; PER_FRAME_HEADER];
+        r.read_exact(&mut fh)
+            .map_err(|_| AnimaError::other("cache truncated mid-frame-header"))?;
+        let w = u32::from_le_bytes(fh[0..4].try_into().unwrap());
+        let h = u32::from_le_bytes(fh[4..8].try_into().unwrap());
+        let d = u32::from_le_bytes(fh[8..12].try_into().unwrap());
 
         // Reject frames whose dimensions exceed what we'd accept from a
-        // fresh decode. Mirrors validate_image_dimensions.
+        // fresh decode.
         if w > MAX_IMAGE_DIM || h > MAX_IMAGE_DIM {
             return Err(AnimaError::ImageTooLarge {
                 width: w,
@@ -387,12 +409,10 @@ pub fn deserialize_frames(bytes: &[u8]) -> Result<Vec<Frame>> {
             .checked_mul(h as usize)
             .and_then(|n| n.checked_mul(4))
             .ok_or_else(|| AnimaError::other("frame pixel count overflow"))?;
-        if cursor + pixel_len > bytes.len() {
-            return Err(AnimaError::other("cache truncated mid-pixels"));
-        }
 
-        // Refuse before allocating if the cumulative pixel payload would
-        // exceed our universal asset cap.
+        // Refuse before allocating if the cumulative payload would exceed
+        // the universal asset cap — so a single frame's buffer is always
+        // bounded even on the error path.
         total_bytes = total_bytes
             .checked_add(pixel_len)
             .ok_or_else(|| AnimaError::other("cumulative byte counter overflow"))?;
@@ -403,8 +423,9 @@ pub fn deserialize_frames(bytes: &[u8]) -> Result<Vec<Frame>> {
             )));
         }
 
-        let rgba = bytes[cursor..cursor + pixel_len].to_vec();
-        cursor += pixel_len;
+        let mut rgba = vec![0u8; pixel_len];
+        r.read_exact(&mut rgba)
+            .map_err(|_| AnimaError::other("cache truncated mid-pixels"))?;
 
         let frame = if d == 0 {
             Frame::new(rgba, w, h)

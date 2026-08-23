@@ -37,6 +37,18 @@ pub fn read_to_string_capped(path: &Path, max_bytes: u64) -> std::io::Result<Str
 /// returns `Err(ErrorKind::CrossesDevices)`; callers can decide to fall
 /// back to `fs::write` if they care.
 pub fn atomic_write_bytes(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+    atomic_write_with(path, |w| w.write_all(contents))
+}
+
+/// Like [`atomic_write_bytes`], but the caller **streams** the payload
+/// into a `BufWriter` over the temp file, so a large serialized blob (the
+/// frame cache — hundreds of MiB) never has to exist in memory alongside
+/// the data it was built from. Same temp → fsync → rename atomicity and
+/// `0600` permissions.
+pub fn atomic_write_with<F>(path: &Path, write: F) -> std::io::Result<()>
+where
+    F: FnOnce(&mut std::io::BufWriter<std::fs::File>) -> std::io::Result<()>,
+{
     let tmp = tmp_sibling(path);
 
     if let Some(parent) = path.parent() {
@@ -44,10 +56,13 @@ pub fn atomic_write_bytes(path: &Path, contents: &[u8]) -> std::io::Result<()> {
     }
 
     {
-        // Scope so the file is closed before we rename.
-        let mut file = create_private(&tmp)?;
-        file.write_all(contents)?;
-        file.sync_all()?;
+        // Scope so the file is flushed + closed before we rename.
+        let mut w = std::io::BufWriter::new(create_private(&tmp)?);
+        write(&mut w)?;
+        w.flush()?;
+        // fsync the underlying file before the rename so a crash can't
+        // leave a renamed-but-unwritten target.
+        w.into_inner().map_err(|e| e.into_error())?.sync_all()?;
     }
 
     match std::fs::rename(&tmp, path) {
