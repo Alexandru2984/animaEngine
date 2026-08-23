@@ -32,6 +32,12 @@ pub const SCHEMA_VERSION: u32 = 1;
 /// from external drives). 4 is plenty in practice and stops loops
 /// cold.
 const MAX_SYMLINK_DEPTH: usize = 4;
+/// Global caps so a symlink graph or a pathologically large tree can't
+/// turn the (synchronous, pre-window) startup scan into an unbounded
+/// CPU/RAM sink. The depth cap alone still allows exponential blow-up
+/// through ancestor symlinks; these bound the total work.
+const MAX_LIBRARY_ASSETS: usize = 10_000;
+const MAX_SCAN_ENTRIES: usize = 50_000;
 
 /// Whitelisted extensions, lowercase. Mirrors
 /// `crate::app::DROP_EXTENSIONS` exactly — divergence here would let
@@ -199,11 +205,17 @@ impl LibraryIndex {
     ///   are kept too — the file might be on a temporarily
     ///   disconnected drive
     pub fn merge_scan(&mut self, scanned: Vec<LibraryAsset>) {
-        for asset in scanned {
-            if !self.assets.iter().any(|a| a.id == asset.id) {
-                self.assets.push(asset);
-            }
-        }
+        // O(n) via a set of existing ids instead of a linear scan per
+        // asset (the old `any()` made this O(n²) — painful once the
+        // scanner can surface thousands of entries).
+        let existing: std::collections::HashSet<&str> =
+            self.assets.iter().map(|a| a.id.as_str()).collect();
+        let fresh: Vec<LibraryAsset> = scanned
+            .into_iter()
+            .filter(|asset| !existing.contains(asset.id.as_str()))
+            .collect();
+        drop(existing);
+        self.assets.extend(fresh);
     }
 }
 
@@ -270,11 +282,40 @@ pub fn scan(root: &Path) -> Vec<LibraryAsset> {
             return out;
         }
     };
-    walk(&canonical_root, &canonical_root, 0, &mut out);
+    let mut state = ScanState {
+        visited: std::collections::HashSet::new(),
+        entries_seen: 0,
+    };
+    walk(&canonical_root, &canonical_root, 0, &mut out, &mut state);
     out
 }
 
-fn walk(root: &Path, current: &Path, depth: usize, out: &mut Vec<LibraryAsset>) {
+/// Mutable scan bookkeeping: directories already entered (by identity)
+/// and the running entry count, both shared across the recursion.
+struct ScanState {
+    visited: std::collections::HashSet<(u64, u64)>,
+    entries_seen: usize,
+}
+
+/// A directory's `(device, inode)` identity for cycle detection. `None`
+/// off-Unix, where the depth + entry-count caps do the bounding instead.
+#[cfg(unix)]
+fn dir_id(meta: &std::fs::Metadata) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    Some((meta.dev(), meta.ino()))
+}
+#[cfg(not(unix))]
+fn dir_id(_meta: &std::fs::Metadata) -> Option<(u64, u64)> {
+    None
+}
+
+fn walk(
+    root: &Path,
+    current: &Path,
+    depth: usize,
+    out: &mut Vec<LibraryAsset>,
+    state: &mut ScanState,
+) {
     if depth > MAX_SYMLINK_DEPTH {
         tracing::warn!(
             "Asset scan stopped at symlink depth {} under {}",
@@ -282,6 +323,20 @@ fn walk(root: &Path, current: &Path, depth: usize, out: &mut Vec<LibraryAsset>) 
             current.display(),
         );
         return;
+    }
+    // Global caps — stop the whole walk once either is reached.
+    if out.len() >= MAX_LIBRARY_ASSETS || state.entries_seen >= MAX_SCAN_ENTRIES {
+        return;
+    }
+    // Cycle guard: never enter the same directory twice. A symlink back
+    // to an ancestor (or a symlink graph) would otherwise be re-walked
+    // up to the depth budget, exploding the work.
+    if let Ok(meta) = std::fs::metadata(current) {
+        if let Some(id) = dir_id(&meta) {
+            if !state.visited.insert(id) {
+                return;
+            }
+        }
     }
     let read_dir = match std::fs::read_dir(current) {
         Ok(rd) => rd,
@@ -291,6 +346,14 @@ fn walk(root: &Path, current: &Path, depth: usize, out: &mut Vec<LibraryAsset>) 
         }
     };
     for entry in read_dir.flatten() {
+        state.entries_seen += 1;
+        if state.entries_seen >= MAX_SCAN_ENTRIES {
+            tracing::warn!("Asset scan hit the {MAX_SCAN_ENTRIES}-entry cap; stopping early.");
+            return;
+        }
+        if out.len() >= MAX_LIBRARY_ASSETS {
+            return;
+        }
         let path = entry.path();
         let metadata = match entry.metadata() {
             Ok(m) => m,
@@ -314,7 +377,7 @@ fn walk(root: &Path, current: &Path, depth: usize, out: &mut Vec<LibraryAsset>) 
             } else {
                 depth
             };
-            walk(root, &path, next_depth, out);
+            walk(root, &path, next_depth, out, state);
             continue;
         }
         if !metadata.is_file() {
