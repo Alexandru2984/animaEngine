@@ -70,11 +70,18 @@ use wayland_client::{
 /// surface remains valid until the `LayerWindow` is dropped, so the
 /// caller must drop `WgpuRenderer` first.
 pub struct LayerWindow {
+    // Field order is load-bearing: Rust drops fields top-to-bottom, and
+    // `wgpu_surface` holds raw pointers into `connection` + `state`'s
+    // `wl_surface` and borrows `wgpu_instance`, so it MUST drop before all
+    // of them. Declaring it first makes that invariant structural instead
+    // of relying on the caller's drop order — which the `.take()` hand-off
+    // to the renderer normally provides, but an error/abandon path (surface
+    // built, never taken) would not, leaving a use-after-free on drop.
+    pub wgpu_surface: Option<wgpu::Surface<'static>>,
+    pub wgpu_instance: Option<wgpu::Instance>,
     pub connection: Connection,
     pub event_queue: EventQueue<WaylandState>,
     pub state: WaylandState,
-    pub wgpu_surface: Option<wgpu::Surface<'static>>,
-    pub wgpu_instance: Option<wgpu::Instance>,
     /// Logical dimensions reported by the compositor's first `configure`.
     /// Stays `None` until the round-trip after surface commit completes.
     pub size: Option<(u32, u32)>,
