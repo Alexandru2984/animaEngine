@@ -45,7 +45,7 @@ pub fn atomic_write_bytes(path: &Path, contents: &[u8]) -> std::io::Result<()> {
 
     {
         // Scope so the file is closed before we rename.
-        let mut file = std::fs::File::create(&tmp)?;
+        let mut file = create_private(&tmp)?;
         file.write_all(contents)?;
         file.sync_all()?;
     }
@@ -71,6 +71,28 @@ fn tmp_sibling(path: &Path) -> PathBuf {
     let mut name: OsString = path.as_os_str().to_owned();
     name.push(format!(".{}.anima.tmp", std::process::id()));
     PathBuf::from(name)
+}
+
+/// Create (truncate) a file readable/writable by the owner only. Config,
+/// library index and crash reports carry the user's asset paths and
+/// state; the umask default (usually `0644`) would leave them readable by
+/// every other local account. `mode(0o600)` sets the bits at creation
+/// (atomic — no world-readable window before a chmod). No-op on non-Unix.
+fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::File::create(path)
+    }
 }
 
 /// uid-scoped fallback directory for when XDG resolution fails
@@ -170,6 +192,21 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn atomic_write_is_owner_only_0600() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = test_dir("perms_0600");
+        let path = dir.join("secret.toml");
+        atomic_write_bytes(&path, b"paths=here").unwrap();
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(
+            mode & 0o777,
+            0o600,
+            "config/crash files must not be world-readable"
+        );
     }
 
     #[test]
