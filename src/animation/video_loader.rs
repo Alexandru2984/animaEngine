@@ -17,7 +17,9 @@
 //! - **Audio dropped.** We don't even look at audio tracks.
 
 use super::frame::Frame;
-use crate::constants::{MAX_DECODED_ASSET_BYTES, MAX_IMAGE_DIM, MAX_VIDEO_FRAMES};
+use crate::constants::{
+    MAX_DECODED_ASSET_BYTES, MAX_IMAGE_DIM, MAX_VIDEO_FRAMES, MAX_VIDEO_SAMPLES,
+};
 use crate::error::{AnimaError, Result};
 use mp4::Mp4Reader;
 use openh264::decoder::Decoder;
@@ -84,7 +86,16 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
     let mut frames: Vec<Frame> = Vec::new();
     let mut total_bytes: usize = 0;
 
-    for sample_id in 1..=sample_count {
+    // Bound the *attempts*, not just the frames kept: a file with millions
+    // of (mostly non-decodable) samples would otherwise feed the in-process
+    // C decoder millions of times. Real clips finish well under this.
+    let sample_limit = sample_count.min(MAX_VIDEO_SAMPLES);
+    if sample_count > sample_limit {
+        tracing::warn!(
+            "Video has {sample_count} samples; only attempting the first {sample_limit}"
+        );
+    }
+    for sample_id in 1..=sample_limit {
         if frames.len() >= MAX_VIDEO_FRAMES {
             // Redact at warn!, full path at debug! — matches the M4/G.1
             // log-redaction convention used by the other loaders.

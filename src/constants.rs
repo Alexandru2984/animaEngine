@@ -57,6 +57,13 @@ pub const MAX_CONFIG_BYTES: u64 = 8 * 1024 * 1024;
 /// (≈150 MB for a 256-px square, much less for typical overlay sprites).
 pub const MAX_VIDEO_FRAMES: usize = 600;
 
+/// Cap on the number of MP4 samples *attempted*, independent of how many
+/// decode successfully. A crafted file can carry millions of samples that
+/// decode to nothing; without this the loop would feed each one to the
+/// in-process C H.264 decoder. Set well above any legitimate clip (a 20 s
+/// 60 fps video is ~1200 samples) so real videos are unaffected.
+pub const MAX_VIDEO_SAMPLES: u32 = 3000;
+
 /// Cap on the number of frames we'll keep from any animated asset
 /// (GIF / WebP / PNG sequence / spritesheet). A pathological 10 000-frame
 /// GIF at 256 px would otherwise eat ~2.5 GB of RAM after decode.
@@ -72,7 +79,7 @@ pub const MAX_SEQUENCE_FILES: usize = 1_000;
 /// single asset (after resize / sequence). 512 MB matches what a high-end
 /// integrated GPU can host without thrashing; loaders that exceed it
 /// truncate and log a warning.
-pub const MAX_DECODED_ASSET_BYTES: usize = 512 * 1024 * 1024;
+pub const MAX_DECODED_ASSET_BYTES: usize = 256 * 1024 * 1024;
 
 /// Cap on the on-disk size we'll accept for a single drag-dropped asset.
 /// 200 MB — plenty for any reasonable GIF or short MP4, while still
