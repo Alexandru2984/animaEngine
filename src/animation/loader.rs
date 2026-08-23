@@ -3,6 +3,7 @@ use super::frame::Frame;
 use super::gif_loader;
 use super::png_sequence;
 use super::spritesheet;
+#[cfg(feature = "video")]
 use super::video_loader;
 use super::webp_loader;
 use crate::config::AssetType;
@@ -173,11 +174,20 @@ pub fn load_asset(
             spritesheet::load_spritesheet(asset_path, cols, rows)?
         }
         AssetType::Video => {
-            tracing::info!(
-                "Loading MP4 video from: {}",
-                crate::drop_validate::redact_path(asset_path)
-            );
-            video_loader::load_video(asset_path)?
+            #[cfg(feature = "video")]
+            {
+                tracing::info!(
+                    "Loading MP4 video from: {}",
+                    crate::drop_validate::redact_path(asset_path)
+                );
+                video_loader::load_video(asset_path)?
+            }
+            #[cfg(not(feature = "video"))]
+            {
+                return Err(crate::error::AnimaError::VideoDecode(
+                    "video support was not compiled into this build".into(),
+                ));
+            }
         }
     };
 

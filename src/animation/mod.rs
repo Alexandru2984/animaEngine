@@ -4,6 +4,7 @@ pub mod gif_loader;
 pub mod loader;
 pub mod png_sequence;
 pub mod spritesheet;
+#[cfg(feature = "video")]
 pub mod video_loader;
 pub mod webp_loader;
 

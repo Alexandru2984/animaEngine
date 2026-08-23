@@ -58,6 +58,15 @@ assets = [
     ["README.md", "usr/share/doc/anima-engine/", "644"],
 ]
 
+[features]
+default = ["video"]
+# H.264 / MP4 video support via the `openh264` C decoder. On by default;
+# build with `--no-default-features` to drop the only in-process C
+# dependency — the largest native memory-safety attack surface. A build
+# without it recognises MP4 drops but reports that video wasn't compiled
+# in, instead of decoding them.
+video = ["dep:openh264", "dep:mp4"]
+
 [dependencies]
 # libc — only used for `getuid()` to scope fallback cache / data
 # tmpdirs by user id when XDG dirs aren't reachable. Already in the
@@ -109,8 +118,8 @@ rayon = "1"
 # at runtime instead of building it themselves). See
 # docs/threat-model.md's "Patent note" under the openh264 section
 # before packaging this for redistribution.
-mp4 = "0.14"
-openh264 = "0.9"
+mp4 = { version = "0.14", optional = true }
+openh264 = { version = "0.9", optional = true }
 
 # Shimeji pack import (U.3) — actions.xml parsing. quick-xml does
 # not implement DTD entity expansion at all, which kills the classic
