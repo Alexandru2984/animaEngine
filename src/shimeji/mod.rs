@@ -285,7 +285,7 @@ fn pack_stats(root: &Path) -> Result<(usize, u64), String> {
 /// whose root element local-name is `Mascot`.
 fn find_actions_xml(root: &Path) -> Result<PathBuf, String> {
     let conventional = root.join("conf").join("actions.xml");
-    if conventional.is_file() {
+    if is_regular_file(&conventional) {
         return Ok(conventional);
     }
     let conf = root.join("conf");
@@ -316,9 +316,27 @@ fn find_actions_xml(root: &Path) -> Result<PathBuf, String> {
     Err("no actions.xml found (and no conf/*.xml with a <Mascot> root)".into())
 }
 
+/// True only for a *regular* file — not a symlink, FIFO, socket,
+/// directory or device. Uses `symlink_metadata`, so a symlink is judged
+/// as itself and never followed (the classic pack-escape vector), and a
+/// named pipe (`evil.xml`, `frame.png`) is rejected before any `fs::read`
+/// / `fs::copy` can block forever and freeze the synchronous import.
+fn is_regular_file(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_file())
+        .unwrap_or(false)
+}
+
 /// Read a file with the XML size cap, requiring valid UTF-8.
 fn read_capped_utf8(path: &Path) -> Result<String, String> {
-    let meta = std::fs::metadata(path).map_err(|e| format!("stat: {e}"))?;
+    // Reject symlinks / FIFOs / sockets / devices before touching the
+    // bytes: `symlink_metadata` doesn't follow, so a `conf/*.xml` symlink
+    // can't redirect the read outside the pack, and a named pipe can't
+    // wedge `fs::read`.
+    let meta = std::fs::symlink_metadata(path).map_err(|e| format!("stat: {e}"))?;
+    if !meta.file_type().is_file() {
+        return Err("not a regular file".into());
+    }
     if meta.len() > MAX_XML_BYTES {
         return Err(format!(
             "XML is {} KiB; cap is {} KiB",
@@ -473,6 +491,12 @@ fn resolve_pack_image(pack_root: &Path, image: &str) -> Result<PathBuf, String> 
     if !canonical.starts_with(pack_root) {
         return Err(format!("sprite {image:?} escapes the pack root"));
     }
+    // Containment isn't enough: a FIFO named `frame.png` sitting inside
+    // `img/` canonicalises to itself, passes the prefix check, and would
+    // then wedge `fs::copy` forever. Require a regular file.
+    if !is_regular_file(&canonical) {
+        return Err(format!("sprite {image:?} is not a regular file"));
+    }
     if canonical
         .extension()
         .and_then(|e| e.to_str())
@@ -583,6 +607,40 @@ mod tests {
 
         let (count, _bytes) = pack_stats(&pack).unwrap();
         assert_eq!(count, 1, "only the real sprite counts, not linked ones");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// A named pipe named like an XML/sprite must be rejected as a
+    /// non-regular file, never opened — `fs::read`/`fs::copy` on a FIFO
+    /// blocks forever waiting for a writer and would freeze the import.
+    #[test]
+    #[cfg(unix)]
+    fn special_files_are_rejected_not_read() {
+        use std::ffi::CString;
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("shimeji_tests")
+            .join("fifo_reject");
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+
+        let ok = base.join("ok.xml");
+        std::fs::write(&ok, "<Mascot/>").unwrap();
+        assert!(is_regular_file(&ok), "a real file is a regular file");
+        assert!(read_capped_utf8(&ok).is_ok());
+
+        let fifo = base.join("evil.xml");
+        let c = CString::new(fifo.to_str().unwrap()).unwrap();
+        assert_eq!(
+            unsafe { libc::mkfifo(c.as_ptr(), 0o644) },
+            0,
+            "mkfifo failed"
+        );
+        assert!(!is_regular_file(&fifo), "a FIFO is not a regular file");
+        // Must return Err immediately (via the is_file guard), NOT block.
+        assert!(read_capped_utf8(&fifo).is_err(), "FIFO must be rejected");
+
+        assert!(!is_regular_file(&base), "a directory is not a regular file");
         let _ = std::fs::remove_dir_all(&base);
     }
 
