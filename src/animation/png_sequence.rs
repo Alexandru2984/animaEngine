@@ -24,17 +24,31 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
         return Err(AnimaError::NotADirectory(dir_path.to_path_buf()));
     }
 
-    let mut entries: Vec<_> = fs::read_dir(dir_path)?
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("png") {
-                Some(path)
-            } else {
-                None
-            }
-        })
-        .collect();
+    // Stream the directory and keep at most MAX_SEQUENCE_FILES + 1 regular
+    // `.png` files. The old code collected *every* entry and sorted the
+    // whole listing before truncating, so a directory with millions of
+    // entries burned CPU + RAM before the cap ever applied. `file_type()`
+    // comes from readdir (no symlink follow), and we require a regular
+    // file — a FIFO/socket/device named `frame.png` can't slip through to
+    // wedge the image probe.
+    let mut entries: Vec<std::path::PathBuf> = Vec::new();
+    let mut overflowed = false;
+    for entry in fs::read_dir(dir_path)? {
+        let Ok(entry) = entry else { continue };
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("png") {
+            continue;
+        }
+        match entry.file_type() {
+            Ok(ft) if ft.is_file() => {}
+            _ => continue, // symlink / FIFO / socket / dir / device
+        }
+        entries.push(path);
+        if entries.len() > MAX_SEQUENCE_FILES {
+            overflowed = true;
+            break;
+        }
+    }
 
     entries.sort();
 
@@ -42,7 +56,7 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
         return Err(AnimaError::EmptyAsset(dir_path.to_path_buf()));
     }
 
-    let truncated_for_file_count = entries.len() > MAX_SEQUENCE_FILES;
+    let truncated_for_file_count = overflowed || entries.len() > MAX_SEQUENCE_FILES;
     if truncated_for_file_count {
         tracing::warn!(
             "PNG sequence {} has {} files; capping at MAX_SEQUENCE_FILES = {}",
