@@ -17,13 +17,16 @@ parallel feature tracks.
 | 0.5.0   | Platform reach | native Wayland parity (wlroots), `cargo-fuzz` harness |
 | 0.5.1 – 0.5.4 | Hardening | audit follow-ups: per-asset caps, redaction sweep, path canonicalisation, refactor split, MAX_ENTITIES enforcement, AT-SPI disclosure |
 
-## In flight
+## Released
 
-| Release | Theme | Status |
-|---------|-------|--------|
-| 0.5.5 (current) | Post-audit doc + hardening + engine correctness | README/architecture refresh, cache key hardening (size + nanos), global memory budget, CI audit/deny hard-fail, idle-aware frame pacing, animation-timing fixes (per-frame delay walk, BounceOut), quad-budget + GPU-texture-leak fixes, tmpdir fallback ownership verification |
+**1.0.0 (current)** — the first stable release (2026-08). The config
+stability guarantee holds across the whole 1.x line; shipped after an
+RC bake (rc1 → rc3) and two external audit/hardening rounds. `.deb` +
+AppImage (built on glibc 2.35 for broad reach) are live on GitHub
+Releases; the Flathub/AUR bumps to 1.0.0 are in progress. Full history in
+[CHANGELOG.md](CHANGELOG.md).
 
-## Planned — the road to 1.0
+## The road to 1.0 — delivered
 
 Full engineering plan with sub-phases, sizing, risks and
 definition-of-done per release: [docs/roadmap-1.0.md](docs/roadmap-1.0.md).

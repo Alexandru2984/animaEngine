@@ -13,7 +13,7 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
      pass-through → edit-mode → drop-an-asset loop and drop it in:
      ![animaEngine in action](docs/media/demo.gif) -->
 
-> Status: 0.9.0 — stability freeze before 1.0. Production-ready packaging
+> Status: 1.0.0 — first stable release. Production-ready packaging
 > (`.deb` / AppImage / Flatpak), stable X11/XWayland backend, opt-in
 > native Wayland backend (wlroots), ten UI locales, multi-monitor
 > distribution, asset library, sprite groups. See
@@ -73,11 +73,11 @@ via `make appimage` / `make deb` / `make flatpak`):
 
 ```bash
 # Debian / Ubuntu (.deb)
-sudo apt install ./anima-engine_0.9.0-1_amd64.deb
+sudo apt install ./anima-engine_1.0.0-1_amd64.deb
 
 # AppImage (any distro)
-chmod +x animaEngine-0.9.0-x86_64.AppImage
-./animaEngine-0.9.0-x86_64.AppImage
+chmod +x animaEngine-1.0.0-x86_64.AppImage
+./animaEngine-1.0.0-x86_64.AppImage
 
 # Flatpak
 flatpak install --user com.animaengine.Anima.flatpak
