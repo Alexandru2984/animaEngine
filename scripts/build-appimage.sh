@@ -35,6 +35,11 @@ OUTPUT="$BUILD_DIR/animaEngine-${VERSION}-${ARCH}.AppImage"
 
 LINUXDEPLOY="$TOOLS_DIR/linuxdeploy-${ARCH}.AppImage"
 LINUXDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage"
+# Content pin for the x86_64 `continuous` artifact. The tag is mutable, so
+# the URL is not a supply-chain guarantee on its own — we verify these
+# exact bytes below and abort on any drift. Bump deliberately (download,
+# review, replace) when intentionally updating linuxdeploy.
+LINUXDEPLOY_SHA256="421ca71d5c69ea97c6309276232990d43df1dcece0edfaa26bbf926ff96ed12e"
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -73,13 +78,26 @@ make install DESTDIR="$APPDIR" PREFIX=/usr >/dev/null
 ln -sf usr/share/applications/com.animaengine.Anima.desktop "$APPDIR/com.animaengine.Anima.desktop"
 ln -sf usr/share/icons/hicolor/scalable/apps/anima-engine.svg "$APPDIR/anima-engine.svg"
 
-# ── 3) Fetch linuxdeploy on demand ───────────────────────────────────
+# ── 3) Fetch linuxdeploy on demand, content-pinned ───────────────────
+# Verify the exact bytes against the committed SHA-256 — of a fresh
+# download AND a cached copy. This tool runs with the workspace open and
+# its output is checksummed + attested, so an unverified linuxdeploy would
+# let a compromised `continuous` artifact certify a malicious AppImage. A
+# mismatch aborts rather than trusts.
 mkdir -p "$TOOLS_DIR"
-if [[ ! -x "$LINUXDEPLOY" ]]; then
+verify_linuxdeploy() {
+    printf '%s  %s\n' "$LINUXDEPLOY_SHA256" "$LINUXDEPLOY" | sha256sum -c --status
+}
+if [[ ! -x "$LINUXDEPLOY" ]] || ! verify_linuxdeploy; then
     log "Downloading linuxdeploy…"
     if ! curl -fL -o "$LINUXDEPLOY" "$LINUXDEPLOY_URL"; then
         die "Failed to fetch linuxdeploy. Re-run with network or place the
         AppImage manually at $LINUXDEPLOY."
+    fi
+    if ! verify_linuxdeploy; then
+        die "linuxdeploy SHA-256 mismatch (expected $LINUXDEPLOY_SHA256).
+        Upstream 'continuous' may have moved; verify the new artifact and
+        update LINUXDEPLOY_SHA256 only if the change is trusted."
     fi
     chmod +x "$LINUXDEPLOY"
 fi
