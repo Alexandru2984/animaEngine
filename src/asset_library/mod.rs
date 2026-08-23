@@ -167,13 +167,21 @@ impl LibraryIndex {
                     index
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to parse {}: {}; starting empty", path.display(), e);
+                    tracing::warn!(
+                        "Failed to parse {}: {}; starting empty",
+                        crate::drop_validate::redact_path(path),
+                        e
+                    );
                     Self::default()
                 }
             },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Self::default(),
             Err(e) => {
-                tracing::warn!("Failed to read {}: {}; starting empty", path.display(), e);
+                tracing::warn!(
+                    "Failed to read {}: {}; starting empty",
+                    crate::drop_validate::redact_path(path),
+                    e
+                );
                 Self::default()
             }
         }
@@ -320,7 +328,7 @@ fn walk(
         tracing::warn!(
             "Asset scan stopped at symlink depth {} under {}",
             depth,
-            current.display(),
+            crate::drop_validate::redact_path(current),
         );
         return;
     }
@@ -341,7 +349,11 @@ fn walk(
     let read_dir = match std::fs::read_dir(current) {
         Ok(rd) => rd,
         Err(e) => {
-            tracing::warn!("Skipping {}: {}", current.display(), e);
+            tracing::warn!(
+                "Skipping {}: {}",
+                crate::drop_validate::redact_path(current),
+                e
+            );
             return;
         }
     };

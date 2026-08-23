@@ -63,14 +63,14 @@ pub fn load_gif(path: &Path) -> Result<Vec<Frame>> {
     if truncated_for_count {
         tracing::warn!(
             "GIF {} truncated at MAX_ANIMATION_FRAMES = {}",
-            path.display(),
+            crate::drop_validate::redact_path(path),
             MAX_ANIMATION_FRAMES
         );
     }
     if truncated_for_bytes {
         tracing::warn!(
             "GIF {} truncated at MAX_DECODED_ASSET_BYTES = {} MB ({} frames kept)",
-            path.display(),
+            crate::drop_validate::redact_path(path),
             MAX_DECODED_ASSET_BYTES / (1024 * 1024),
             frames.len()
         );

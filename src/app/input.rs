@@ -288,7 +288,11 @@ impl App {
                 }
             }
             Err(e) => {
-                tracing::error!("Failed to load dropped file {}: {}", path.display(), e);
+                tracing::error!(
+                    "Failed to load dropped file {}: {}",
+                    crate::drop_validate::redact_path(&path),
+                    e
+                );
                 {
                     let mut args = fluent::FluentArgs::new();
                     args.set("error", e.to_string());

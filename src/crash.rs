@@ -65,7 +65,12 @@ pub fn install_panic_hook() {
     std::panic::set_hook(Box::new(move |info| {
         tracing::error!("Panic — writing crash report + recovery snapshot. {info}");
         match write_crash_report(info) {
-            Ok(path) => tracing::error!("Crash report at {}", path.display()),
+            Ok(path) => {
+                tracing::error!(
+                    "Crash report at {}",
+                    crate::drop_validate::redact_path(&path)
+                )
+            }
             Err(e) => tracing::error!("Crash report write failed: {e}"),
         }
         if let Err(e) = save_snapshot_to_disk() {
@@ -224,7 +229,10 @@ fn save_snapshot_to_disk() -> Result<(), String> {
     // uses — a second crash (or kill) mid-write must never leave a
     // truncated snapshot that `--recover` would later restore as-is.
     crate::util::atomic_write_bytes(&path, toml.as_bytes()).map_err(|e| format!("write: {e}"))?;
-    tracing::error!("Crash snapshot saved to {}", path.display());
+    tracing::error!(
+        "Crash snapshot saved to {}",
+        crate::drop_validate::redact_path(&path)
+    );
     Ok(())
 }
 

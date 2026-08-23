@@ -61,14 +61,14 @@ pub fn load_webp(path: &Path) -> Result<Vec<Frame>> {
         if truncated_for_count {
             tracing::warn!(
                 "WebP {} truncated at MAX_ANIMATION_FRAMES = {}",
-                path.display(),
+                crate::drop_validate::redact_path(path),
                 MAX_ANIMATION_FRAMES
             );
         }
         if truncated_for_bytes {
             tracing::warn!(
                 "WebP {} truncated at MAX_DECODED_ASSET_BYTES = {} MB ({} frames kept)",
-                path.display(),
+                crate::drop_validate::redact_path(path),
                 MAX_DECODED_ASSET_BYTES / (1024 * 1024),
                 frames.len()
             );
@@ -78,7 +78,7 @@ pub fn load_webp(path: &Path) -> Result<Vec<Frame>> {
         tracing::info!(
             "Loaded animated WebP: {} frames from {} (per-frame delays: {})",
             frames.len(),
-            path.display(),
+            crate::drop_validate::redact_path(path),
             if has_delays { "yes" } else { "no" }
         );
         Ok(frames)
@@ -96,7 +96,7 @@ pub fn load_static_webp(path: &Path) -> Result<Vec<Frame>> {
         "Loaded static WebP: {}x{} from {}",
         width,
         height,
-        path.display()
+        crate::drop_validate::redact_path(path)
     );
     Ok(vec![Frame::new(rgba, width, height)])
 }

@@ -709,7 +709,7 @@ impl AppConfig {
                                 ),
                                 Err(e) => tracing::warn!(
                                     "Could not write migration backup {}: {e}",
-                                    backup.display()
+                                    crate::drop_validate::redact_path(&backup)
                                 ),
                             }
                             if let Err(e) = config.save() {

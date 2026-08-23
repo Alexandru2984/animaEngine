@@ -254,7 +254,7 @@ pub fn try_load(asset_path: &Path) -> Option<Vec<Frame>> {
     if meta.len() > MAX_CACHE_FILE_BYTES {
         tracing::warn!(
             "Asset cache at {} is {} bytes (> {} cap); ignoring and regenerating",
-            key.display(),
+            crate::drop_validate::redact_path(&key),
             meta.len(),
             MAX_CACHE_FILE_BYTES,
         );
@@ -273,7 +273,11 @@ pub fn try_load(asset_path: &Path) -> Option<Vec<Frame>> {
             Some(frames)
         }
         Err(e) => {
-            tracing::warn!("Asset cache corrupt at {}: {}", key.display(), e);
+            tracing::warn!(
+                "Asset cache corrupt at {}: {}",
+                crate::drop_validate::redact_path(&key),
+                e
+            );
             // Best-effort cleanup so the next run regenerates a clean file.
             let _ = fs::remove_file(&key);
             None
