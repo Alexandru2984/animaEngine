@@ -344,7 +344,32 @@ fn read_capped_utf8(path: &Path) -> Result<String, String> {
             MAX_XML_BYTES / 1024
         ));
     }
+    // Open with O_NOFOLLOW on Linux/BSD: even if `path` were swapped for a
+    // symlink between the stat above and here (TOCTOU), the open fails
+    // rather than following it out of the pack. Read through `take(MAX+1)`
+    // so a file that grew past the cap after the stat still can't blow
+    // memory.
+    #[cfg(unix)]
+    let bytes = {
+        use std::io::Read;
+        use std::os::unix::fs::OpenOptionsExt;
+        let f = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW)
+            .open(path)
+            .map_err(|e| format!("open: {e}"))?;
+        let mut buf = Vec::new();
+        f.take(MAX_XML_BYTES + 1)
+            .read_to_end(&mut buf)
+            .map_err(|e| format!("read: {e}"))?;
+        if buf.len() as u64 > MAX_XML_BYTES {
+            return Err(format!("XML exceeds {} KiB cap", MAX_XML_BYTES / 1024));
+        }
+        buf
+    };
+    #[cfg(not(unix))]
     let bytes = std::fs::read(path).map_err(|e| format!("read: {e}"))?;
+
     String::from_utf8(bytes)
         .map_err(|_| "XML is not valid UTF-8 (Shift-JIS packs are not supported)".into())
 }
