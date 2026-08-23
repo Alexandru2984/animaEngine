@@ -395,7 +395,7 @@ impl Entity {
 
 /// Recoil push for hover-startle: the (dx, dy) to add to an entity whose
 /// centre is at (`ecx`, `ecy`) when the cursor is at (`cx`, `cy`). Zero
-/// outside [`HOVER_STARTLE_RADIUS`]; inside, it points away from the
+/// outside [`crate::constants::HOVER_STARTLE_RADIUS`]; inside, it points away from the
 /// cursor and scales from `HOVER_STARTLE_SPEED · dt` at the centre down
 /// to zero at the edge. A cursor exactly on the centre pushes right
 /// (arbitrary, avoids a divide-by-zero).

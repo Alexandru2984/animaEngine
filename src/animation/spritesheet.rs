@@ -159,7 +159,7 @@ mod tests {
             let expected_r = ((idx + 1) as u8) * 10;
             assert_eq!(frame.width, 8);
             assert_eq!(frame.height, 8);
-            for chunk in frame.rgba.chunks_exact(4) {
+            for chunk in frame.rgba.as_chunks::<4>().0 {
                 assert_eq!(
                     chunk[0], expected_r,
                     "cell {idx}: pixel red channel mismatch"
