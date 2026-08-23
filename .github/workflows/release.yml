@@ -1,25 +1,31 @@
 name: Release
 
 # Tag-triggered release pipeline. Pushing a `vX.Y.Z` tag builds the
-# .deb + AppImage with embedded SBOMs (cargo auditable), attests build
-# provenance for both, and opens a **draft** GitHub release with the
+# .deb + AppImage with embedded SBOMs (cargo auditable) in an
+# **unprivileged** job, then a separate **publish** job attests build
+# provenance for both and opens a **draft** GitHub release with the
 # artifacts attached and the notes from docs/release-notes/. A human
-# reviews the draft and clicks publish — nothing goes public on its
-# own.
+# reviews the draft and clicks publish — nothing goes public on its own.
 #
-# Guards: the tag must match Cargo.toml's version, the notes file must
-# exist, and the full test suite must pass on the tagged commit.
+# Why two jobs: the build downloads and runs `linuxdeploy` (content-
+# pinned by SHA-256, but still third-party code) with the workspace open.
+# Keeping the signing token (id-token) and release-write permission out of
+# that job means a compromised build tool can't misuse the credentials or
+# certify a malicious artifact — it can only produce an artifact the
+# publish job then attests. The publish job runs no third-party code.
+#
+# Guards (in build): the tag must be an ancestor of origin/main, match
+# Cargo.toml's version, have a notes file, and the full test suite must
+# pass on the tagged commit.
 
 on:
   push:
     tags: ['v*']
 
+# Minimal default for every job. Only `publish` is granted the elevated
+# permissions below.
 permissions:
-  # Create the draft release + upload assets.
-  contents: write
-  # Sign build provenance (Sigstore via GitHub OIDC).
-  id-token: write
-  attestations: write
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -28,8 +34,8 @@ env:
   APPIMAGE_EXTRACT_AND_RUN: '1'
 
 jobs:
-  release:
-    name: build, attest, draft
+  build:
+    name: build (unprivileged)
     # Build on the OLDEST supported LTS, not `ubuntu-latest`. Both
     # artifacts link the runner's glibc, and an AppImage/.deb only runs
     # on a glibc **at least as new** as the build machine's. 22.04 ships
@@ -38,9 +44,7 @@ jobs:
     # (glibc 2.39) silently breaks launch on all of them, which is
     # exactly what scripts/build-appimage.sh and
     # packaging/Dockerfile.appimage-builder (FROM ubuntu:22.04) warn
-    # about. Do not "modernise" this to 24.04. For a fully digest-pinned,
-    # reproducible build, packaging/Dockerfile.appimage-builder is the
-    # container equivalent of this base.
+    # about. Do not "modernise" this to 24.04.
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -105,9 +109,9 @@ jobs:
       # tilde (`1.0.0~rc1-1`, which apt sorts before 1.0.0). Left
       # as-is, SHA256SUMS records the tilde name while the published
       # asset carries the dot name, so `sha256sum -c` fails for anyone
-      # verifying a download (bit v1.0.0-rc1). Rename BEFORE
-      # checksumming so the sums file matches what GitHub serves; the
-      # tilde stays inside the .deb metadata where apt ordering needs it.
+      # verifying a download. Rename BEFORE checksumming so the sums file
+      # matches what GitHub serves; the tilde stays inside the .deb
+      # metadata where apt ordering needs it.
       - name: Rename artifacts to GitHub-safe names
         run: |
           shopt -s nullglob
@@ -122,15 +126,56 @@ jobs:
             > "SHA256SUMS-$GITHUB_REF_NAME.txt"
           cat "SHA256SUMS-$GITHUB_REF_NAME.txt"
 
-      # Provenance: cryptographically links each artifact to this
-      # workflow run, repo and commit. Verify with:
+      # Stage exactly the three release files into a clean dir so the
+      # artifact hand-off carries them (and nothing from build/'s AppDir /
+      # tools cruft) at a predictable path for the publish job.
+      - name: Stage release artifacts
+        run: |
+          mkdir -p dist
+          cp build/anima-engine_*.deb \
+             build/animaEngine-*.AppImage \
+             "build/SHA256SUMS-$GITHUB_REF_NAME.txt" \
+             dist/
+          ls -l dist
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: attest + draft
+    needs: build
+    runs-on: ubuntu-22.04
+    # The only job with elevated permissions — and it runs no third-party
+    # code, just downloads the built artifacts, attests them, and opens
+    # the draft release.
+    permissions:
+      contents: write # create the draft release + upload assets
+      id-token: write # Sigstore OIDC for build provenance
+      attestations: write
+    steps:
+      # Needed for the release-notes file (title + body). No history.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-dist
+          path: dist
+
+      # Provenance: cryptographically links each artifact to this workflow
+      # run, repo and commit. Verify with:
       #   gh attestation verify <file> --repo <owner>/<repo>
       - name: Attest build provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: |
-            build/anima-engine_*.deb
-            build/animaEngine-*.AppImage
+            dist/anima-engine_*.deb
+            dist/animaEngine-*.AppImage
 
       - name: Create draft release
         env:
@@ -143,7 +188,7 @@ jobs:
             --verify-tag \
             --title "$TITLE" \
             --notes-file "$NOTES" \
-            build/anima-engine_*.deb \
-            build/animaEngine-*.AppImage \
-            "build/SHA256SUMS-$GITHUB_REF_NAME.txt"
+            dist/anima-engine_*.deb \
+            dist/animaEngine-*.AppImage \
+            "dist/SHA256SUMS-$GITHUB_REF_NAME.txt"
           echo "Draft release created — review and publish from the Releases page."
