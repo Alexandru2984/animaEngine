@@ -125,6 +125,7 @@ impl App {
 
         // Check for external config changes (hot-reload)
         self.check_hot_reload();
+        self.check_shimeji_import();
 
         // Appearance-tab monitor-mode switches rebuild the extra
         // overlay windows (T.6); topology changes do the same (T.9).

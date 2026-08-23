@@ -71,6 +71,10 @@ pub struct App {
     /// Receiver for an in-flight async hot-reload. `Some` means a worker
     /// thread is currently decoding the new config + assets off the UI thread.
     hot_reload_rx: Option<mpsc::Receiver<Result<HotReloadResult, String>>>,
+    /// In-flight off-thread Shimeji import. `Some` while a worker copies a
+    /// pack's sprites (the slow part) so a large pack can't freeze the UI;
+    /// the result is applied on the UI thread at the captured drop point.
+    pending_shimeji: Option<PendingShimejiImport>,
     /// egui integration. Paints in BOTH modes — the ⚙ toggle button is an
     /// egui widget that lives in pass-through too. Other UI (settings panel,
     /// context menu, toasts) is gated to edit mode inside the build closure.
@@ -177,6 +181,14 @@ struct HotReloadResult {
     scene: Scene,
 }
 
+/// An off-thread Shimeji import in flight: the worker's result channel and
+/// the drop position to spawn the imported characters at when it lands.
+struct PendingShimejiImport {
+    rx: mpsc::Receiver<std::result::Result<crate::shimeji::ImportReport, String>>,
+    x: f32,
+    y: f32,
+}
+
 /// Transient UI state owned by `App` (vs the persistent settings panel
 /// which is stateless and rebuilt from `Scene` every frame).
 #[derive(Default)]
@@ -213,6 +225,7 @@ impl App {
             last_config_check: Instant::now(),
             config_mtime: Self::get_config_mtime(),
             hot_reload_rx: None,
+            pending_shimeji: None,
             ui: None,
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),
@@ -416,6 +429,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                 Instant::now() + render_loop::IDLE_HEARTBEAT,
             ));
             self.check_hot_reload();
+            self.check_shimeji_import();
             self.request_redraw();
         }
     }

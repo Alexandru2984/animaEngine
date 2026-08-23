@@ -174,15 +174,66 @@ impl App {
                 .error(crate::i18n::t("shimeji-no-library-toast"));
             return;
         };
-        match crate::shimeji::import_pack(pack, &library_root) {
+        // One import at a time — the sprite copy is the slow part. A second
+        // pack dropped while one is in flight is ignored; the first still
+        // lands its toast.
+        if self.pending_shimeji.is_some() {
+            return;
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let pack = pack.to_path_buf();
+        // Read the pack + copy its sprites off the UI thread so a large
+        // (still-capped) pack can't freeze the overlay mid-drop.
+        let spawned = std::thread::Builder::new()
+            .name("anima-shimeji-import".into())
+            .spawn(move || {
+                let _ = tx.send(crate::shimeji::import_pack(&pack, &library_root));
+            });
+        match spawned {
+            Ok(_) => {
+                self.pending_shimeji = Some(super::PendingShimejiImport {
+                    rx,
+                    x: self.mouse_x.max(50.0),
+                    y: self.mouse_y.max(50.0),
+                });
+            }
+            Err(e) => {
+                tracing::warn!("Shimeji import worker failed to spawn: {e}");
+                self.toasts
+                    .error(crate::i18n::t("shimeji-import-failed-toast"));
+            }
+        }
+    }
+
+    /// Drain a finished off-thread Shimeji import and apply it on the UI
+    /// thread: spawn the imported characters at the captured drop point and
+    /// toast the outcome. Called once per frame beside the hot-reload check.
+    pub(super) fn check_shimeji_import(&mut self) {
+        // Phase 1 (immutable borrow): is a result ready?
+        let outcome = match self.pending_shimeji.as_ref() {
+            None => return,
+            Some(p) => match p.rx.try_recv() {
+                Ok(r) => Some((r, p.x, p.y)),
+                Err(std::sync::mpsc::TryRecvError::Empty) => return, // still working
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => None, // worker died
+            },
+        };
+        // Phase 2: the borrow is over — clear the slot and apply.
+        self.pending_shimeji = None;
+        let Some((result, drop_x, drop_y)) = outcome else {
+            tracing::warn!("Shimeji import worker disconnected before delivering");
+            return;
+        };
+
+        match result {
             Ok(report) => {
                 if !self.edit_mode {
                     self.toggle_edit_mode();
                 }
                 let mut imported_names: Vec<String> = Vec::new();
                 for mut cfg in report.characters {
-                    cfg.x = self.mouse_x.max(50.0);
-                    cfg.y = self.mouse_y.max(50.0);
+                    cfg.x = drop_x;
+                    cfg.y = drop_y;
                     // Avoid id collisions with an already-imported copy.
                     if self.scene.entities.iter().any(|e| e.id == cfg.id) {
                         cfg.id = format!("{}-{}", cfg.id, self.scene.entities.len());
@@ -191,13 +242,11 @@ impl App {
                         Ok(()) => imported_names.push(cfg.name.clone()),
                         Err(e) => {
                             tracing::warn!("Imported character '{}' rejected: {e}", cfg.name);
-                            {
-                                let mut args = fluent::FluentArgs::new();
-                                args.set("name", cfg.name.clone());
-                                args.set("error", e.to_string());
-                                self.toasts
-                                    .error(crate::i18n::t_args("toast-entity-load-failed", &args));
-                            }
+                            let mut args = fluent::FluentArgs::new();
+                            args.set("name", cfg.name.clone());
+                            args.set("error", e.to_string());
+                            self.toasts
+                                .error(crate::i18n::t_args("toast-entity-load-failed", &args));
                         }
                     }
                 }
