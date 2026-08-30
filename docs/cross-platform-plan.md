@@ -155,25 +155,54 @@ Nothing in Track C is a bug fix, so none of it is freeze-legal before the
 
 ## C2b / C4 execution checklist — Windows VM
 
-`cfg(unix)` is always true on the Linux dev box, so the Linux compiler
-can't flag a wrong Windows cfg — do this on a Windows target with
-`cargo check --target x86_64-pc-windows-msvc` as the feedback loop, not
-blind on Linux.
+Do this **on the Windows VM** (native), not cross-compiled from Linux —
+`cfg(unix)` is always true on the Linux box, so its compiler can't flag a
+wrong Windows cfg. The feedback loop is `cargo check` on the VM.
 
-**C2b — compile on Windows (cfg-gate the unix-only seams):**
-- [ ] `#[cfg(unix)]` the module declarations: `src/wayland/` (whole
-      subtree), `src/window/x11_input.rs`, `src/window/x11_windows.rs`,
-      `src/tray.rs`, `src/single_instance.rs` — in `src/window/mod.rs`,
-      `src/main.rs`, and any other `mod` sites.
-- [ ] Gate their callers in `src/app/` + `src/main.rs`: the native-Wayland
-      run-loop entry, `x11_windows::WindowWatcher`, the tray spawn, and the
-      single-instance acquire/signal at startup.
-- [ ] `libc getuid()` in `src/util.rs` → `#[cfg(unix)]`, with a Windows
-      fallback dir (`%LOCALAPPDATA%` via the `directories` crate).
-- [ ] `window::overlay::for_window` already returns `None` off-Linux (C1) —
-      leave it until C4 fills the Windows arm.
-- [ ] Chase the compiler until `cargo check --target …-windows-msvc` is
-      clean. The holes should be exactly the seams above.
+### Windows bootstrap (once, on the VM)
+
+1. **Git**, then **Rust** via <https://rustup.rs> (default toolchain
+   `x86_64-pc-windows-msvc`).
+2. **Visual Studio Build Tools** — the *Desktop development with C++*
+   workload. `rustc` needs the MSVC linker (`link.exe`); without it even
+   pure-Rust linking fails. rustup prompts for this on install.
+3. `git clone https://github.com/Alexandru2984/animaEngine && cd animaEngine`
+4. **Build without video**: `cargo check --no-default-features`. The
+   `video` feature (openh264 + mp4) builds a C H.264 decoder from source
+   (needs nasm + a C toolchain) — skip it for the whole port bootstrap and
+   add it back last, on its own. Every command below is `--no-default-features`.
+
+### C2b — compile on Windows (cfg-gate the unix-only seams)
+
+Precise surface, from a fresh sweep of the current tree (2026-08-30). The
+`cargo check --no-default-features` errors should be exactly these.
+
+- [ ] **Module decls → `#[cfg(unix)]`** in `src/lib.rs`: `wayland`,
+      `tray`, `single_instance`; and in `src/window/mod.rs`: `x11_input`,
+      `x11_windows`, `linux`.
+- [ ] **`src/hotkeys/`**: `portal.rs` + `probe.rs` use `zbus` (the Wayland
+      GlobalShortcuts portal) — gate those; **keep** the `global-hotkey`
+      path (it does `RegisterHotKey` on Windows for free).
+- [ ] **`src/error.rs`** (easy to miss): it has `AnimaError` variants /
+      `From` impls that wrap `zbus` / `x11rb` / wayland error types — those
+      need `#[cfg(unix)]` too, or the enum won't compile off-unix.
+- [ ] **Callers** in `src/main.rs` (the `EventLoopBuilderExtX11`, and the
+      wayland-run / tray / single-instance wiring) and `src/app/` (the
+      native-Wayland run-loop entry, `x11_windows::WindowWatcher`, tray
+      spawn, single-instance acquire/signal). Most winit x11/wayland
+      window-attr ext in `app/lifecycle.rs` + `app/windows.rs` is already
+      `#[cfg(target_os = "linux")]` — verify, don't assume.
+- [ ] **`src/util.rs`**: `fallback_scoped_dir` + `create_and_verify_private_dir`
+      use `libc::getuid()` + unix mode/ownership checks. Gate the unix impl
+      and add a `#[cfg(windows)]` fallback dir (`%LOCALAPPDATA%` via the
+      `directories` crate; no getuid, no 0700 verify). `create_private`
+      (the 0600 file write) is already `#[cfg(unix)]` with a plain
+      `File::create` on the else branch — fine.
+- [ ] **`window::overlay::for_window`** already returns `None` off-Linux
+      (from C1) — leave it until C4 fills the Windows arm.
+- [ ] Chase the compiler until `cargo check --no-default-features` is
+      clean. Then `cargo test --no-default-features` (the `#[cfg(unix)]`
+      tests — FIFO, symlink, 0600 perms — simply won't run on Windows).
 
 **C4 — the Windows backend:**
 - [ ] `impl OverlayPlatform` for a `WinOverlay`: click-through via
