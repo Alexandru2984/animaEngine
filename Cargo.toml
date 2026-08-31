@@ -172,6 +172,7 @@ smithay-client-toolkit = { version = "0.19", default-features = false, features 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Gdi",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

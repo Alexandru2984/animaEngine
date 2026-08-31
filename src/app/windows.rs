@@ -71,6 +71,16 @@ pub(super) struct WindowSlot {
     pub x11_input: Option<Box<dyn OverlayPlatform>>,
 }
 
+/// The `HWND` behind a winit window, for the layered presentation path.
+#[cfg(windows)]
+fn win_hwnd(window: &Window) -> Option<isize> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    match window.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Win32(handle) => Some(handle.hwnd.get()),
+        _ => None,
+    }
+}
+
 /// Overlay window attributes shared by the primary and the extras.
 /// Factored from `lifecycle.rs` so the two spawn sites can't drift.
 pub(super) fn overlay_window_attrs(width: u32, height: u32) -> winit::window::WindowAttributes {
@@ -138,14 +148,27 @@ impl App {
                     continue;
                 }
             };
-            let surface = match renderer.shared.instance.create_surface(window.clone()) {
-                Ok(s) => s,
-                Err(e) => {
-                    tracing::warn!("Couldn't create surface for {}: {e}", mon.name);
+            // Same split as the primary window: Windows renders offscreen
+            // and blits, everywhere else gets a swapchain.
+            #[cfg(windows)]
+            let surface = {
+                let Some(hwnd) = win_hwnd(&window) else {
+                    tracing::warn!("Extra window on {} is not a Win32 window", mon.name);
                     continue;
-                }
+                };
+                SurfaceState::new_layered(&renderer.shared, hwnd, mon.width, mon.height)
             };
-            let surface = SurfaceState::new(&renderer.shared, surface, mon.width, mon.height);
+            #[cfg(not(windows))]
+            let surface = {
+                let surface = match renderer.shared.instance.create_surface(window.clone()) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::warn!("Couldn't create surface for {}: {e}", mon.name);
+                        continue;
+                    }
+                };
+                SurfaceState::new(&renderer.shared, surface, mon.width, mon.height)
+            };
 
             let mut x11_input = crate::window::overlay::for_window(&window);
             if let Some(mgr) = &mut x11_input {
@@ -277,7 +300,7 @@ impl App {
                 selected_id.as_deref(),
                 origin,
             ) {
-                Ok(output) => output.present(),
+                Ok(output) => slot.surface.present(&renderer.shared, output),
                 Err(wgpu::SurfaceError::Lost) => {
                     let (w, h) = (slot.surface.window_width, slot.surface.window_height);
                     slot.surface.resize(&renderer.shared, w, h);
@@ -318,7 +341,7 @@ impl App {
             selected_id.as_deref(),
             origin,
         ) {
-            output.present();
+            slot.surface.present(&renderer.shared, output);
         }
     }
 

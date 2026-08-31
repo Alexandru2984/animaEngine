@@ -110,7 +110,7 @@ pub fn run_native(
     let mut renderer = WgpuRenderer::from_instance_surface(instance, surface, width, height)?;
     let mut egui_renderer = WaylandEguiRenderer::new(
         &renderer.shared.device,
-        renderer.primary.config.format,
+        renderer.shared.surface_format,
         config.global.theme,
     );
     let mut selection = SelectionState::new();

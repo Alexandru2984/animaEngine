@@ -45,10 +45,16 @@ const TRACK_INTERVAL: Duration = Duration::from_millis(16);
 /// the extended style from its own cached flags.
 const IDLE_INTERVAL: Duration = Duration::from_millis(250);
 
-/// The click-through pair. Kept together — winit treats them as one flag
-/// (`WindowFlags::IGNORE_CURSOR_EVENT`), so splitting them would leave the
-/// window in a state winit has no name for.
-const CLICK_THROUGH: isize = (WS_EX_TRANSPARENT | WS_EX_LAYERED) as isize;
+/// `WS_EX_TRANSPARENT` is the bit that actually decides hit-testing, and
+/// it is the only one that toggles here.
+///
+/// `WS_EX_LAYERED` is set alongside it and then *left alone*: the overlay
+/// is presented with `UpdateLayeredWindow`
+/// ([`crate::renderer::win_layered`]), which refuses a window without it.
+/// winit clears both together in `set_cursor_hittest` — doing the same
+/// would blank the overlay every time it went interactive.
+const HIT_TEST: isize = WS_EX_TRANSPARENT as isize;
+const LAYERED: isize = WS_EX_LAYERED as isize;
 
 /// State shared with the tracker thread. Two independent atomics rather
 /// than a mutex: a tick that observes a half-updated pair costs at most one
@@ -248,18 +254,20 @@ fn cursor_in_corner(hwnd: isize, size: u32) -> bool {
     pt.x >= rect.right - size && pt.x < rect.right && pt.y >= rect.top && pt.y < rect.top + size
 }
 
-/// Add or drop the click-through bits, read-modify-write so the styles
-/// winit owns survive untouched. A no-op when they already match — the
-/// tracker calls this 60×/s and most ticks change nothing.
+/// Add or drop the click-through bit, read-modify-write so the styles
+/// winit owns survive untouched, and always re-assert `WS_EX_LAYERED` —
+/// which doubles as the self-heal if winit ever recomputes the ex-style
+/// from its own flags and drops it. A no-op when the bits already match:
+/// the tracker calls this 60×/s and most ticks change nothing.
 fn apply_hit_test(hwnd: isize, transparent: bool) {
     // SAFETY: a style read and a conditional write on a live HWND. Neither
     // dereferences anything; `GWL_EXSTYLE` is valid for every window.
     unsafe {
         let current = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
         let next = if transparent {
-            current | CLICK_THROUGH
+            current | HIT_TEST | LAYERED
         } else {
-            current & !CLICK_THROUGH
+            (current & !HIT_TEST) | LAYERED
         };
         if next != current {
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);

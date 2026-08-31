@@ -1,3 +1,10 @@
+// A release build on Windows must not drag a console window along: the
+// overlay is a desktop app, and the console would sit on the desktop as a
+// black rectangle the user never asked for. Debug builds keep it, because
+// that is where the tracing output is read from. Everywhere else the
+// process is started from a terminal and this attribute does nothing.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 use anima_engine::app::App;
 use anima_engine::config::AppConfig;
 use anima_engine::crash::{self, RecoverOutcome};

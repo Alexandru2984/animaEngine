@@ -266,9 +266,7 @@ impl App {
                         // panel before any panel paints this frame.
                         ui.ensure_theme(self.config.global.theme);
 
-                        let view = output
-                            .texture
-                            .create_view(&wgpu::TextureViewDescriptor::default());
+                        let view = output.create_view();
                         let size = [
                             renderer.primary.window_width,
                             renderer.primary.window_height,
@@ -449,7 +447,7 @@ impl App {
                     }
                     {
                         let _s = self.perf_sampler.scope(crate::perf::Category::Present);
-                        output.present();
+                        renderer.present(output);
                     }
                     // Close the perf frame. The Idle bucket falls
                     // out implicitly: total - sum(other categories).
