@@ -211,6 +211,7 @@ dependencies = [
  "unic-langid",
  "wayland-client",
  "wgpu",
+ "windows-sys 0.52.0",
  "winit",
  "x11rb",
  "zbus 5.16.0",

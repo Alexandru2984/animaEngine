@@ -53,7 +53,11 @@ pub fn for_window(window: &Window) -> Option<Box<dyn OverlayPlatform>> {
         super::x11_input::X11InputManager::new(window)
             .map(|m| Box::new(m) as Box<dyn OverlayPlatform>)
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(windows)]
+    {
+        super::win_overlay::WinOverlay::new(window).map(|m| Box::new(m) as Box<dyn OverlayPlatform>)
+    }
+    #[cfg(not(any(target_os = "linux", windows)))]
     {
         let _ = window;
         None

@@ -173,17 +173,74 @@ fn generate_selection_frame(size: u32) -> Frame {
     Frame::new(rgba, size, size)
 }
 
+/// Choose the surface alpha mode, or explain why the overlay can't run.
+///
+/// A transparent surface is not a nice-to-have here: with an opaque mode
+/// the overlay paints the whole screen black behind the sprites, and since
+/// it is always-on-top *and* click-through the user is left staring at a
+/// black desktop they can't interact with. Refusing to start with a clear
+/// error beats that.
+///
+/// There is no Windows exception here, and it was worth one attempt to
+/// find out: DXGI reports only `Opaque` for a swapchain, and winit's
+/// `with_transparent(true)` does call `DwmEnableBlurBehindWindow` — but
+/// DWM does not honour per-pixel alpha for a flip-model swapchain, so
+/// taking `Opaque` there paints the desktop black behind the sprites,
+/// exactly the failure this guard exists for. The deeper reason is
+/// upstream: in wgpu 24 both the DX12 and GL backends hardcode
+/// `composite_alpha_modes: [Opaque]`, and DX12 hardcodes the swapchain to
+/// `DXGI_ALPHA_MODE_IGNORE` — no backend can produce a transparent surface
+/// on Windows. A transparent overlay there needs a different presentation
+/// path (see docs/cross-platform-plan.md, C4).
+///
+/// Pure, so the truth table is testable without a GPU.
+fn pick_alpha_mode(available: &[wgpu::CompositeAlphaMode]) -> Result<wgpu::CompositeAlphaMode> {
+    use wgpu::CompositeAlphaMode::{PostMultiplied, PreMultiplied};
+
+    if available.contains(&PreMultiplied) {
+        return Ok(PreMultiplied);
+    }
+    if available.contains(&PostMultiplied) {
+        return Ok(PostMultiplied);
+    }
+    Err(AnimaError::other(format!(
+        "no transparent alpha mode on this surface (available: {available:?}). \
+         An opaque overlay would cover the desktop with black. \
+         On Linux: make sure a compositor is running (picom on bare X11), \
+         or try the other backend (ANIMA_USE_WAYLAND_NATIVE=1 / GDK_BACKEND=x11). \
+         On Windows this is expected for now — the transparent presentation \
+         path is still to come (C4)."
+    )))
+}
+
 impl GpuShared {
     /// Build the process-wide GPU state. `surface` is only used for
     /// adapter compatibility and capability queries — it is not
     /// consumed; the caller wraps it into a [`SurfaceState`] next.
     fn new(instance: wgpu::Instance, surface: &wgpu::Surface<'static>) -> Result<Self> {
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::LowPower,
-            compatible_surface: Some(surface),
-            force_fallback_adapter: false,
-        }))
-        .ok_or(AnimaError::NoAdapter)?;
+        let request = |force_fallback_adapter| {
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::LowPower,
+                compatible_surface: Some(surface),
+                force_fallback_adapter,
+            }))
+        };
+        // A hardware adapter first. When there is none, ask again for a
+        // fallback one rather than failing startup: wgpu excludes CPU
+        // adapters from an ordinary request, so a Windows box with no GPU
+        // driver (a VM, "Microsoft Basic Display Adapter", a remote session)
+        // would never reach WARP and the overlay simply wouldn't launch.
+        // Software rendering is slow, not broken — and for a mostly-static
+        // desktop overlay that is a fair trade. Linux already finds
+        // llvmpipe through the ordinary request, so this changes nothing
+        // there.
+        let adapter = match request(false) {
+            Some(a) => a,
+            None => {
+                tracing::warn!("No hardware GPU adapter; retrying with a software fallback");
+                request(true).ok_or(AnimaError::NoAdapter)?
+            }
+        };
 
         tracing::info!("GPU adapter: {}", adapter.get_info().name);
         tracing::info!("Backend: {:?}", adapter.get_info().backend);
@@ -215,31 +272,7 @@ impl GpuShared {
         tracing::info!("Available alpha modes: {:?}", surface_caps.alpha_modes);
         tracing::info!("Available formats: {:?}", surface_caps.formats);
 
-        // Pick the best alpha mode for transparency. A transparent
-        // surface is not a nice-to-have here: with an opaque mode the
-        // overlay paints the whole screen black behind the sprites,
-        // and since it's always-on-top + click-through the user is
-        // left staring at a black desktop they can't interact with.
-        // Refusing to start (with a clear error) is strictly better.
-        let alpha_mode = if surface_caps
-            .alpha_modes
-            .contains(&wgpu::CompositeAlphaMode::PreMultiplied)
-        {
-            wgpu::CompositeAlphaMode::PreMultiplied
-        } else if surface_caps
-            .alpha_modes
-            .contains(&wgpu::CompositeAlphaMode::PostMultiplied)
-        {
-            wgpu::CompositeAlphaMode::PostMultiplied
-        } else {
-            return Err(AnimaError::other(format!(
-                "no transparent alpha mode on this surface (available: {:?}). \
-                 An opaque overlay would cover the desktop with black. \
-                 Make sure a compositor is running (picom on bare X11), \
-                 or try the other backend (ANIMA_USE_WAYLAND_NATIVE=1 / GDK_BACKEND=x11).",
-                surface_caps.alpha_modes
-            )));
-        };
+        let alpha_mode = pick_alpha_mode(&surface_caps.alpha_modes)?;
         tracing::info!("Using alpha mode: {:?}", alpha_mode);
 
         // Prefer sRGB format
@@ -772,7 +805,15 @@ impl WgpuRenderer {
         let window_width = size.width.max(1);
         let window_height = size.height.max(1);
 
+        // Backend mask, not `Backends::all()` — we only claim the ones the
+        // renderer is actually exercised against. Vulkan-first with a GL
+        // fallback is right for Linux/BSD; on Windows DX12 has to lead, and
+        // has to be in the mask at all: the OS ships it, while a Vulkan ICD
+        // may simply not exist (a fresh install, a VM, an RDP session).
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            #[cfg(windows)]
+            backends: wgpu::Backends::DX12 | wgpu::Backends::VULKAN | wgpu::Backends::GL,
+            #[cfg(not(windows))]
             backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
             ..Default::default()
         });
@@ -832,5 +873,43 @@ impl WgpuRenderer {
             selected_entity_id,
             origin,
         )
+    }
+}
+
+#[cfg(test)]
+mod alpha_mode_tests {
+    use super::pick_alpha_mode;
+    use wgpu::CompositeAlphaMode::{Auto, Opaque, PostMultiplied, PreMultiplied};
+
+    #[test]
+    fn premultiplied_wins_when_offered() {
+        assert_eq!(
+            pick_alpha_mode(&[Opaque, PostMultiplied, PreMultiplied]).unwrap(),
+            PreMultiplied
+        );
+    }
+
+    #[test]
+    fn postmultiplied_is_the_second_choice() {
+        assert_eq!(
+            pick_alpha_mode(&[Opaque, PostMultiplied]).unwrap(),
+            PostMultiplied
+        );
+    }
+
+    #[test]
+    fn nothing_transparent_at_all_is_always_an_error() {
+        // Not even `Opaque` on offer — no platform has a story for this.
+        assert!(pick_alpha_mode(&[Auto]).is_err());
+        assert!(pick_alpha_mode(&[]).is_err());
+    }
+
+    // `[Opaque]` is exactly what DXGI (and wgpu's GL backend) report on
+    // Windows. It must still be refused: taking it paints the desktop
+    // black behind the sprites — measured, not assumed.
+    #[test]
+    fn opaque_only_is_refused_on_every_platform() {
+        let err = pick_alpha_mode(&[Opaque]).unwrap_err().to_string();
+        assert!(err.contains("black"), "error should say why: {err}");
     }
 }

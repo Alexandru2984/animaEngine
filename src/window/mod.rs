@@ -6,6 +6,8 @@
 pub mod linux;
 pub mod overlay;
 pub mod platform;
+#[cfg(windows)]
+pub mod win_overlay;
 #[cfg(unix)]
 pub mod x11_input;
 #[cfg(unix)]
