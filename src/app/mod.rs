@@ -131,8 +131,12 @@ pub struct App {
     monitors: Vec<crate::monitor::MonitorInfo>,
     /// EWMH window watcher for window-awareness. `None` until first
     /// use or when no X server exists; `watcher_probe_done` stops us
-    /// re-attempting the connection every poll on Wayland.
+    /// re-attempting the connection every poll on Wayland. X11-only by
+    /// nature — off unix the physics fall back to the screen floor, the
+    /// same as a native Wayland session does today.
+    #[cfg(unix)]
     window_watcher: Option<crate::window::x11_windows::WindowWatcher>,
+    #[cfg(unix)]
     window_watcher_probe_done: bool,
     /// Last desktop-window poll — 300 ms cadence, see
     /// `poll_window_platforms`.
@@ -239,7 +243,9 @@ impl App {
             gpu_draws: 0,
             surface_loss_streak: 0,
             monitors: Vec::new(),
+            #[cfg(unix)]
             window_watcher: None,
+            #[cfg(unix)]
             window_watcher_probe_done: false,
             last_window_poll: Instant::now(),
             window_platforms_active: false,

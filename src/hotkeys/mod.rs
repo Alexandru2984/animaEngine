@@ -17,6 +17,10 @@
 //! are skipped on purpose — `XGrabKey`-ing a plain `Q` would steal
 //! the key from every focused app.
 
+// The GlobalShortcuts portal is a D-Bus (zbus) client — unix-only. The
+// `global-hotkey` path below stays portable: it is XGrabKey on X11 and
+// `RegisterHotKey` on Windows.
+#[cfg(unix)]
 pub mod portal;
 pub mod probe;
 

@@ -24,11 +24,18 @@ pub mod presets;
 pub mod renderer;
 pub mod scene;
 pub mod shimeji;
+// The D-Bus single-instance handshake, the StatusNotifierItem tray and the
+// native wlr-layer-shell path are unix-desktop-only (zbus / ksni /
+// wayland-client, target-gated in Cargo.toml). The Windows equivalents —
+// named mutex and Shell_NotifyIcon — arrive with the Windows backend (C4).
+#[cfg(unix)]
 pub mod single_instance;
 pub mod soak;
+#[cfg(unix)]
 pub mod tray;
 pub mod ui;
 pub mod util;
+#[cfg(unix)]
 pub mod wayland;
 pub mod window;
 

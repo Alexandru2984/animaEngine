@@ -128,6 +128,9 @@ fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
 ///    check fails, retry once with a pid-suffixed sibling — turning
 ///    the attacker's cheap pre-creation into a mkdir race they have
 ///    to win live — and scream in the log if even that is compromised.
+///
+/// See the `#[cfg(windows)]` twin below for the Windows resolution.
+#[cfg(unix)]
 pub fn fallback_scoped_dir(suffix: &str) -> PathBuf {
     // SAFETY: libc::getuid is a POSIX syscall with no preconditions
     // and no failure modes.
@@ -172,9 +175,40 @@ pub fn fallback_scoped_dir(suffix: &str) -> PathBuf {
     fallback
 }
 
+/// Windows fallback for when the `directories` crate can't resolve the
+/// per-user dirs. `%LOCALAPPDATA%` (then `%TEMP%`) is already per-user and
+/// ACL-scoped to the account by the OS, so there is no uid to scope by and
+/// no `0700` to set: the unix hardening above exists because `/tmp` is a
+/// shared, world-writable namespace, and Windows has no equivalent hazard
+/// on these paths. Tightening the DACL further is a C4 follow-up, not a
+/// prerequisite for compiling.
+#[cfg(windows)]
+pub fn fallback_scoped_dir(suffix: &str) -> PathBuf {
+    let base = std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute() && p.is_dir())
+        .unwrap_or_else(std::env::temp_dir);
+
+    let dir = base.join(format!("animaEngine{suffix}"));
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        tracing::warn!(
+            "Fallback dir {} could not be created: {e}; using a pid-suffixed sibling",
+            dir.display()
+        );
+        let pid_dir = base.join(format!(
+            "animaEngine-{pid}{suffix}",
+            pid = std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&pid_dir);
+        return pid_dir;
+    }
+    dir
+}
+
 /// mkdir(0700) + lstat verification: the path is a real directory (not
 /// a symlink), owned by `uid`, with no group/other permission bits.
 /// Returns `false` on any failure — the caller picks a different path.
+#[cfg(unix)]
 fn create_and_verify_private_dir(path: &Path, uid: u32) -> bool {
     use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 
@@ -252,12 +286,16 @@ mod tests {
         assert_eq!(std::fs::read(&path).unwrap(), b"x");
     }
 
+    // The private-dir tests below assert unix mode/ownership semantics
+    // against `create_and_verify_private_dir`, which only exists there.
+    #[cfg(unix)]
     fn current_uid() -> u32 {
         // SAFETY: getuid has no preconditions or failure modes.
         unsafe { libc::getuid() }
     }
 
     #[test]
+    #[cfg(unix)]
     fn private_dir_created_fresh_passes_verification() {
         let dir = test_dir("private_fresh").join("scoped");
         assert!(create_and_verify_private_dir(&dir, current_uid()));
@@ -267,6 +305,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn private_dir_with_lax_mode_fails_verification() {
         // Simulates the pre-created-by-attacker case: the dir exists
         // but with group/other access bits set.
@@ -278,6 +317,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn private_dir_symlink_fails_verification() {
         // A symlink planted at the path must not be followed.
         let base = test_dir("private_symlink");
@@ -289,6 +329,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn private_dir_wrong_owner_fails_verification() {
         // Can't chown without root, so probe the check from the other
         // side: verification against a uid that isn't the dir's owner.

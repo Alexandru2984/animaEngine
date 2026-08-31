@@ -83,6 +83,11 @@ pub fn resolve(
 /// `None` covers every failure mode — no bus, no portal service, no
 /// GlobalShortcuts interface — because the caller treats them all the
 /// same way (fall back).
+///
+/// The strategy types above stay portable — `HotkeyBackend` is a config
+/// field, so it has to deserialize everywhere — but the probe itself is
+/// a D-Bus call, and there is no session bus off unix.
+#[cfg(unix)]
 pub fn portal_version() -> Option<u32> {
     async_io::block_on(async {
         let conn = zbus::Connection::session().await.ok()?;
@@ -96,6 +101,13 @@ pub fn portal_version() -> Option<u32> {
         .ok()?;
         proxy.get_property::<u32>("version").await.ok()
     })
+}
+
+/// No desktop portal off unix — `RegisterHotKey` (via `global-hotkey`) is
+/// the native mechanism there, reached through `HotkeyStrategy::X11Grab`.
+#[cfg(not(unix))]
+pub fn portal_version() -> Option<u32> {
+    None
 }
 
 #[cfg(test)]

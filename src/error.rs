@@ -26,15 +26,22 @@ pub enum AnimaError {
     #[error("no suitable GPU adapter found")]
     NoAdapter,
 
+    // x11rb is a unix-only dependency (see Cargo.toml), so the variants
+    // that wrap its error types only exist there. Off-unix the X11 backend
+    // isn't compiled either, so nothing can construct them.
+    #[cfg(unix)]
     #[error("X11 connection error: {0}")]
     X11Connect(#[from] x11rb::errors::ConnectError),
 
+    #[cfg(unix)]
     #[error("X11 protocol error: {0}")]
     X11Reply(#[from] x11rb::errors::ReplyError),
 
+    #[cfg(unix)]
     #[error("X11 connection lost: {0}")]
     X11Connection(#[from] x11rb::errors::ConnectionError),
 
+    #[cfg(unix)]
     #[error("X11 ID exhausted: {0}")]
     X11Id(#[from] x11rb::errors::ReplyOrIdError),
 

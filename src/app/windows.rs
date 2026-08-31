@@ -372,25 +372,31 @@ impl App {
         }
         self.last_window_poll = std::time::Instant::now();
 
-        if self.window_watcher.is_none() {
-            if self.window_watcher_probe_done {
-                return;
-            }
-            self.window_watcher_probe_done = true;
-            self.window_watcher = crate::window::x11_windows::WindowWatcher::new();
+        // EWMH gives global window geometry only on X11. Off unix (and on
+        // native Wayland) there is no such query, so the feature stays
+        // inert and physics resolve against the screen floor.
+        #[cfg(unix)]
+        {
             if self.window_watcher.is_none() {
-                tracing::info!(
-                    "window_awareness: no X server reachable — feature inert this session"
-                );
-                return;
+                if self.window_watcher_probe_done {
+                    return;
+                }
+                self.window_watcher_probe_done = true;
+                self.window_watcher = crate::window::x11_windows::WindowWatcher::new();
+                if self.window_watcher.is_none() {
+                    tracing::info!(
+                        "window_awareness: no X server reachable — feature inert this session"
+                    );
+                    return;
+                }
             }
-        }
 
-        if let Some(watcher) = &self.window_watcher {
-            let platforms = watcher.snapshot();
-            tracing::trace!("window_awareness: {} platform(s)", platforms.len());
-            self.scene.set_window_platforms(platforms);
-            self.window_platforms_active = true;
+            if let Some(watcher) = &self.window_watcher {
+                let platforms = watcher.snapshot();
+                tracing::trace!("window_awareness: {} platform(s)", platforms.len());
+                self.scene.set_window_platforms(platforms);
+                self.window_platforms_active = true;
+            }
         }
     }
 }

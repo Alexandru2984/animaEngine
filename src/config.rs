@@ -819,7 +819,13 @@ impl AppConfig {
 mod resolve_path_tests {
     use super::*;
 
+    // `~` expansion reads `$HOME`, which unix guarantees and Windows does
+    // not set at all — so both assertions below are unix-shaped. Off unix
+    // `resolve_asset_path` takes its existing "no HOME" branch and passes
+    // the path through untouched; whether Windows should expand `~`
+    // against `%USERPROFILE%` instead is a C4 decision, not a C2b one.
     #[test]
+    #[cfg(unix)]
     fn tilde_slash_expands_to_home() {
         let home = std::env::var("HOME").expect("HOME set in test env");
         let resolved = AppConfig::resolve_asset_path("~/assets/x.png");
@@ -830,6 +836,7 @@ mod resolve_path_tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn tilde_user_syntax_passes_through_unexpanded() {
         // `~alex/x` must NOT become `$HOME + "alex/x"` — that silently
         // builds a path inside the wrong home. We don't support the

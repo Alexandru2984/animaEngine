@@ -3,8 +3,15 @@ use anima_engine::config::AppConfig;
 use anima_engine::crash::{self, RecoverOutcome};
 use anima_engine::event::AnimaEvent;
 use anima_engine::scene::Scene;
+use anima_engine::{demo, hotkeys, window};
+
+// The D-Bus single-instance handshake, the StatusNotifierItem tray and the
+// native wlr-layer-shell path are unix-desktop-only. Their Windows
+// counterparts (named mutex, Shell_NotifyIcon) land with the backend in C4.
+#[cfg(unix)]
 use anima_engine::single_instance::{self, AcquireOutcome};
-use anima_engine::{demo, hotkeys, tray, wayland, window};
+#[cfg(unix)]
+use anima_engine::{tray, wayland};
 
 // Force X11 backend — XWayland on Wayland systems.
 // This is required because:
@@ -72,25 +79,40 @@ fn main() {
 
     // Single-instance handshake — must happen before any work, otherwise
     // a redundant launch would do all the setup just to hand off.
-    let mut dbus_connection = match single_instance::try_acquire() {
+    #[cfg(unix)]
+    let mut instance: InstanceHandle = match single_instance::try_acquire() {
         AcquireOutcome::Claimed(conn) => conn,
         AcquireOutcome::HandedOff => {
             tracing::info!("Another instance is already running. Asked it to raise.");
             std::process::exit(0);
         }
     };
+    // No handshake off unix yet: a second launch starts a second overlay
+    // until the named-mutex backend lands (C4).
+    #[cfg(not(unix))]
+    let instance: InstanceHandle = None;
 
     // Probe native Wayland capabilities before the platform-info log so
     // its Wayland warning can tell whether the native layer-shell path
     // (no XWayland caveats) is actually about to be used, instead of
     // unconditionally telling a sway/Hyprland/river user that
     // click-through doesn't work when it's about to work fine.
-    let wayland_caps = wayland::detect();
-    let native_wayland_active =
-        wayland_caps.layer_shell && std::env::var_os("ANIMA_USE_WAYLAND_NATIVE").is_some();
-    wayland::log_status(&wayland_caps, native_wayland_active);
+    #[cfg(unix)]
+    let native_wayland_active = {
+        let wayland_caps = wayland::detect();
+        let active =
+            wayland_caps.layer_shell && std::env::var_os("ANIMA_USE_WAYLAND_NATIVE").is_some();
+        wayland::log_status(&wayland_caps, active);
+        active
+    };
+    #[cfg(not(unix))]
+    let native_wayland_active = false;
+
     window::platform::log_platform_info(native_wayland_active);
-    window::linux::check_compositor();
+    #[cfg(unix)]
+    {
+        window::linux::check_compositor();
+    }
 
     // First-run demo so users see something on screen. Safe to delete from config.
     demo::generate_assets();
@@ -134,49 +156,61 @@ fn main() {
     //
     // On success this never returns. On failure we log a warning and
     // continue with winit + XWayland as if the flag weren't set.
-    if native_wayland_active {
-        tracing::info!("ANIMA_USE_WAYLAND_NATIVE=1 set — trying native layer-shell path");
-        // Wire the D-Bus activation service for the Wayland path so
-        // compositor bindings (sway/Hyprland) can dispatch the same
-        // actions the X11 path's global hotkeys produce.
-        let dbus_rx = dbus_connection
-            .take()
-            .map(single_instance::install_wayland_service);
-        // T.2: the portal is the only global-hotkey mechanism that
-        // exists on the native path — XGrabKey has no X server here.
-        let portal_strategy = hotkeys::probe::resolve(
-            config.global.hotkey_backend,
-            hotkeys::probe::portal_version(),
-            false,
-        );
-        tracing::info!("Hotkey strategy (native): {}", portal_strategy.describe());
-        let portal_rx = match portal_strategy {
-            hotkeys::probe::HotkeyStrategy::Portal { .. } => {
-                Some(hotkeys::portal::spawn_bg(&config.keybindings))
-            }
-            _ => None,
-        };
-        match wayland::run_native(scene, config.clone(), dbus_rx, portal_rx) {
-            Ok(()) => {
-                tracing::info!("Native Wayland session ended cleanly.");
-                return;
-            }
-            Err(e) => {
-                tracing::warn!("Native Wayland init failed: {e}. Falling back to X11 path.");
-                // Re-load scene because the previous one was consumed.
-                let scene = Scene::from_config(&config);
-                run_winit_path(config, scene, dbus_connection);
-                return;
+    #[cfg(unix)]
+    {
+        if native_wayland_active {
+            tracing::info!("ANIMA_USE_WAYLAND_NATIVE=1 set — trying native layer-shell path");
+            // Wire the D-Bus activation service for the Wayland path so
+            // compositor bindings (sway/Hyprland) can dispatch the same
+            // actions the X11 path's global hotkeys produce.
+            let dbus_rx = instance
+                .take()
+                .map(single_instance::install_wayland_service);
+            // T.2: the portal is the only global-hotkey mechanism that
+            // exists on the native path — XGrabKey has no X server here.
+            let portal_strategy = hotkeys::probe::resolve(
+                config.global.hotkey_backend,
+                hotkeys::probe::portal_version(),
+                false,
+            );
+            tracing::info!("Hotkey strategy (native): {}", portal_strategy.describe());
+            let portal_rx = match portal_strategy {
+                hotkeys::probe::HotkeyStrategy::Portal { .. } => {
+                    Some(hotkeys::portal::spawn_bg(&config.keybindings))
+                }
+                _ => None,
+            };
+            match wayland::run_native(scene, config.clone(), dbus_rx, portal_rx) {
+                Ok(()) => {
+                    tracing::info!("Native Wayland session ended cleanly.");
+                    return;
+                }
+                Err(e) => {
+                    tracing::warn!("Native Wayland init failed: {e}. Falling back to X11 path.");
+                    // Re-load scene because the previous one was consumed.
+                    let scene = Scene::from_config(&config);
+                    run_winit_path(config, scene, instance);
+                    return;
+                }
             }
         }
     }
 
-    run_winit_path(config, scene, dbus_connection);
+    run_winit_path(config, scene, instance);
 }
+
+/// What the single-instance handshake hands back to be kept alive for the
+/// process lifetime: on unix the owned D-Bus connection the activation
+/// service is installed on. Off unix there is no handshake yet, so the
+/// handle carries nothing — the Windows named mutex lands in C4.
+#[cfg(unix)]
+type InstanceHandle = Option<zbus::Connection>;
+#[cfg(not(unix))]
+type InstanceHandle = Option<()>;
 
 /// X11 / XWayland path — the default. Factored into its own function so
 /// the native-Wayland branch above can fall back to it cleanly.
-fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus::Connection>) {
+fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     // Force X11 backend for reliable overlay support.
     // On Wayland systems, XWayland provides all the window hints we need.
     // Use `with_user_event` so the tray (and future global hotkeys) can
@@ -216,7 +250,10 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
     // Spawn the tray on its own thread. It posts AnimaEvent commands back
     // to us via this proxy; ignore the join handle — the tray dies with
     // the process.
-    let _tray_thread = tray::spawn(event_loop.create_proxy());
+    #[cfg(unix)]
+    {
+        let _tray_thread = tray::spawn(event_loop.create_proxy());
+    }
 
     // T.2: resolve the hotkey backend (config preference + portal
     // probe) and wire whichever mechanism won. The portal handshake
@@ -233,43 +270,62 @@ fn run_winit_path(config: AppConfig, scene: Scene, dbus_connection: Option<zbus:
     );
     tracing::info!("Hotkey strategy: {}", strategy.describe());
 
-    let mut hotkeys_available = true;
-    let _hotkeys: Option<hotkeys::HotkeyController> = match strategy {
+    // Each arm yields (controller, available): the controller has to
+    // outlive the app — dropping it un-registers every binding — and the
+    // flag drives the warning banner below.
+    let (_hotkeys, hotkeys_available): (Option<hotkeys::HotkeyController>, bool) = match strategy {
         hotkeys::probe::HotkeyStrategy::Portal { .. } => {
-            let rx = hotkeys::portal::spawn_bg(&config.keybindings);
-            let proxy = event_loop.create_proxy();
-            let bindings = config.keybindings.clone();
-            let spawned = std::thread::Builder::new()
-                .name("anima-portal-bridge".into())
-                .spawn(move || portal_bridge(rx, proxy, &bindings));
-            if let Err(e) = spawned {
-                tracing::warn!("Portal bridge thread failed to spawn: {e}");
-                hotkeys_available = false;
+            #[cfg(unix)]
+            {
+                let rx = hotkeys::portal::spawn_bg(&config.keybindings);
+                let proxy = event_loop.create_proxy();
+                let bindings = config.keybindings.clone();
+                let spawned = std::thread::Builder::new()
+                    .name("anima-portal-bridge".into())
+                    .spawn(move || portal_bridge(rx, proxy, &bindings));
+                let started = match spawned {
+                    Ok(_) => true,
+                    Err(e) => {
+                        tracing::warn!("Portal bridge thread failed to spawn: {e}");
+                        false
+                    }
+                };
+                // Banner decisions for this branch arrive later through
+                // AnimaEvent::HotkeysUnavailable — assume available now.
+                (None, started)
             }
-            // Banner decisions for this branch arrive later through
-            // AnimaEvent::HotkeysUnavailable — assume available now.
-            None
+            // Only reachable off unix when the user pinned
+            // `hotkey_backend = "portal"` in config — the probe never
+            // returns a version there. Say so instead of going silent.
+            #[cfg(not(unix))]
+            {
+                tracing::warn!(
+                    "hotkey_backend = portal is unix-only; no global hotkeys this session"
+                );
+                (None, false)
+            }
         }
         hotkeys::probe::HotkeyStrategy::X11Grab => {
             // Register the user's globally-bound chords (ToggleEditMode,
             // HideOverlay, PauseAll — anything else with a modifier).
-            // The controller must live as long as the app — dropping it
-            // un-registers the bindings.
             let ctrl = hotkeys::register(event_loop.create_proxy(), &config.keybindings);
-            hotkeys_available = ctrl.is_some();
-            ctrl
+            let registered = ctrl.is_some();
+            (ctrl, registered)
         }
-        hotkeys::probe::HotkeyStrategy::DbusOnly => {
-            hotkeys_available = false;
-            None
-        }
+        hotkeys::probe::HotkeyStrategy::DbusOnly => (None, false),
     };
 
     // Now that we have a proxy, install the single-instance service so a
     // future redundant launch can ask us to raise instead of starting up.
-    if let Some(conn) = dbus_connection {
-        single_instance::install_service(conn, event_loop.create_proxy());
+    #[cfg(unix)]
+    {
+        if let Some(conn) = instance {
+            single_instance::install_service(conn, event_loop.create_proxy());
+        }
     }
+    // Nothing to install off unix yet — the handle is inert until C4.
+    #[cfg(not(unix))]
+    let _ = instance;
 
     let mut app = App::new(config, scene);
     app.set_hotkey_backend_status(strategy.describe());
@@ -351,6 +407,7 @@ fn init_tracing() {
 /// message decides: `Ready` starts the activation pump; anything else
 /// runs the deferred XGrabKey fallback, and only when that also fails
 /// does the warning banner fire. Runs for the process lifetime.
+#[cfg(unix)]
 fn portal_bridge(
     rx: std::sync::mpsc::Receiver<hotkeys::portal::PortalMsg>,
     proxy: winit::event_loop::EventLoopProxy<AnimaEvent>,
