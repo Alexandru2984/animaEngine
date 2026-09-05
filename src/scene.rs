@@ -125,6 +125,22 @@ impl Scene {
         }
     }
 
+    /// Cap every frame at `MAX_DROP_SIZE`, the same overlay-friendly size
+    /// `add_entity_from_path` applies when an asset is first dropped.
+    /// Startup load must apply it too, or a sprite decoded from disk comes
+    /// back at its original resolution: a 1024² asset shown at 256² during
+    /// the drop session reloaded at 1024² after a restart, shifting its
+    /// placement and inflating RAM/VRAM. `?`-propagates a corrupt buffer
+    /// rather than fabricating a mismatched frame.
+    fn cap_to_drop_size(
+        frames: Vec<crate::animation::frame::Frame>,
+    ) -> Result<Vec<crate::animation::frame::Frame>> {
+        frames
+            .into_iter()
+            .map(|f| f.resized(MAX_DROP_SIZE))
+            .collect()
+    }
+
     /// Load a single entity from config. The legacy top-level asset
     /// fields define the `Idle` state; `[characters.animations.*]`
     /// tables add further states (U.1). A state that fails to load is
@@ -138,6 +154,7 @@ impl Scene {
             config.spritesheet_columns,
             config.spritesheet_rows,
         )?;
+        let frames = Self::cap_to_drop_size(frames)?;
         let idle = Animation::new(frames, config.fps, config.playing);
         let mut set = crate::animation::AnimationSet::single(idle);
 
@@ -152,12 +169,14 @@ impl Scene {
                 continue;
             }
             let resolved = AppConfig::resolve_asset_path(&scfg.asset_path);
-            match load_asset(
+            let loaded = load_asset(
                 &scfg.asset_type,
                 &resolved,
                 scfg.spritesheet_columns,
                 scfg.spritesheet_rows,
-            ) {
+            )
+            .and_then(Self::cap_to_drop_size);
+            match loaded {
                 Ok(frames) => {
                     let fps = scfg.fps.unwrap_or(config.fps);
                     set.insert(*state, Animation::new(frames, fps, config.playing));
@@ -445,13 +464,11 @@ impl Scene {
             char_config.spritesheet_rows,
         )?;
 
-        // Cap frames at MAX_DROP_SIZE for overlay-friendly sprites.
-        // `?` propagates a corrupt-buffer error instead of silently producing
-        // a frame with mismatched dimensions.
-        let frames: Vec<_> = frames
-            .into_iter()
-            .map(|f| f.resized(MAX_DROP_SIZE))
-            .collect::<Result<Vec<_>>>()?;
+        // Cap frames at MAX_DROP_SIZE for overlay-friendly sprites — the
+        // same cap `load_entity` applies on startup so the sprite is the
+        // same size across restarts. `?` propagates a corrupt-buffer error
+        // instead of silently producing a frame with mismatched dimensions.
+        let frames = Self::cap_to_drop_size(frames)?;
 
         let animation = Animation::new(frames, char_config.fps, char_config.playing);
         let entity = Entity::from_config(&char_config, animation);
