@@ -315,20 +315,24 @@ impl App {
                     // Mirror the clean state into the crash-recovery slot
                     // so the panic hook has something useful to dump.
                     crate::crash::record_known_good(&self.config);
+                    // Clear the dirty flag only on a successful write. A
+                    // transient failure (disk full, permissions) must keep
+                    // the scene dirty so the next save-triggering edit
+                    // retries instead of silently dropping the change.
+                    // Saves fire on discrete edits, not per frame, so a
+                    // persistent failure re-toasts per edit, not per frame.
+                    self.config_dirty = false;
+                    // Update mtime so hot-reload doesn't trigger on our own save
+                    self.config_mtime = Self::get_config_mtime();
                 }
                 Err(e) => {
                     tracing::warn!("Failed to save config: {}", e);
-                    {
-                        let mut args = fluent::FluentArgs::new();
-                        args.set("error", e.to_string());
-                        self.toasts
-                            .error(crate::i18n::t_args("toast-save-failed", &args));
-                    }
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("error", e.to_string());
+                    self.toasts
+                        .error(crate::i18n::t_args("toast-save-failed", &args));
                 }
             }
-            self.config_dirty = false;
-            // Update mtime so hot-reload doesn't trigger on our own save
-            self.config_mtime = Self::get_config_mtime();
         }
     }
 
