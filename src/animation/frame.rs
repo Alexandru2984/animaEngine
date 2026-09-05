@@ -56,8 +56,13 @@ impl Frame {
             max_dim as f32 / orig_h as f32
         };
 
-        let new_w = (orig_w as f32 * scale).round() as u32;
-        let new_h = (orig_h as f32 * scale).round() as u32;
+        // Clamp each side to at least 1px. An extreme aspect ratio — e.g.
+        // 4096×1 scaled to fit 256 — rounds the short side to 0, producing a
+        // zero-height image whose empty buffer later trips wgpu texture
+        // validation (a texture dimension must be ≥ 1). 1px is the correct
+        // degenerate result.
+        let new_w = ((orig_w as f32 * scale).round() as u32).max(1);
+        let new_h = ((orig_h as f32 * scale).round() as u32).max(1);
 
         let got_len = self.rgba.len();
         let img = image::RgbaImage::from_raw(orig_w, orig_h, self.rgba).ok_or(
@@ -114,6 +119,19 @@ mod tests {
             }
             other => panic!("expected FrameBufferCorrupt, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn extreme_aspect_ratio_clamps_short_side_to_one() {
+        // 4096×1 fit to 256: the long side scales to 256, the short side
+        // rounds to 0 without the clamp. A zero dimension would later trip
+        // wgpu texture validation; 1px is the correct degenerate result.
+        let rgba = vec![0u8; 4096 * 4];
+        let f = Frame::new(rgba, 4096, 1);
+        let resized = f.resized(256).expect("ok");
+        assert_eq!(resized.width, 256);
+        assert_eq!(resized.height, 1);
+        assert_eq!(resized.rgba.len(), 256 * 1 * 4);
     }
 
     #[test]

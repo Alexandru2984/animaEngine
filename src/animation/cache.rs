@@ -395,6 +395,13 @@ fn read_frames_from<R: Read>(r: &mut R) -> Result<Vec<Frame>> {
         let h = u32::from_le_bytes(fh[4..8].try_into().unwrap());
         let d = u32::from_le_bytes(fh[8..12].try_into().unwrap());
 
+        // Reject a zero dimension: it yields an empty pixel buffer that
+        // trips wgpu texture validation at upload (a texture side must be
+        // ≥ 1). A fresh decode never produces one — `Frame::resized` clamps
+        // to 1px — so a cache claiming it is corrupt.
+        if w == 0 || h == 0 {
+            return Err(AnimaError::other("cache frame has a zero dimension"));
+        }
         // Reject frames whose dimensions exceed what we'd accept from a
         // fresh decode.
         if w > MAX_IMAGE_DIM || h > MAX_IMAGE_DIM {
