@@ -1,5 +1,5 @@
 use super::frame::Frame;
-use crate::constants::{MAX_DECODED_ASSET_BYTES, MAX_SEQUENCE_FILES};
+use crate::constants::{MAX_ANIMATION_FRAMES, MAX_DECODED_ASSET_BYTES, MAX_SEQUENCE_FILES};
 use crate::error::{AnimaError, Result};
 use rayon::prelude::*;
 use std::fs;
@@ -65,6 +65,22 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
             MAX_SEQUENCE_FILES
         );
         entries.truncate(MAX_SEQUENCE_FILES);
+    }
+
+    // Cap retained frames at MAX_ANIMATION_FRAMES — the same limit the
+    // on-disk cache parser enforces on read. MAX_SEQUENCE_FILES (the
+    // enumeration cap, deliberately higher) would otherwise let a
+    // 601–1000 file sequence decode more frames than the cache accepts,
+    // so its cache entry was written and then rejected on every launch,
+    // re-decoding the whole sequence each time.
+    if entries.len() > MAX_ANIMATION_FRAMES {
+        tracing::debug!(
+            "PNG sequence {} has {} frames; capping at MAX_ANIMATION_FRAMES = {}",
+            crate::drop_validate::redact_path(dir_path),
+            entries.len(),
+            MAX_ANIMATION_FRAMES
+        );
+        entries.truncate(MAX_ANIMATION_FRAMES);
     }
 
     tracing::info!(
