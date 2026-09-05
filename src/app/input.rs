@@ -235,9 +235,7 @@ impl App {
                     cfg.x = drop_x;
                     cfg.y = drop_y;
                     // Avoid id collisions with an already-imported copy.
-                    if self.scene.entities.iter().any(|e| e.id == cfg.id) {
-                        cfg.id = format!("{}-{}", cfg.id, self.scene.entities.len());
-                    }
+                    cfg.id = self.scene.unique_id(&cfg.id);
                     match self.scene.append_character_config(&cfg) {
                         Ok(()) => imported_names.push(cfg.name.clone()),
                         Err(e) => {

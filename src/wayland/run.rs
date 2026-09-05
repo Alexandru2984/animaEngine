@@ -716,9 +716,7 @@ pub fn run_native(
                                 for mut cfg in report.characters {
                                     cfg.x = 100.0;
                                     cfg.y = 100.0;
-                                    if scene.entities.iter().any(|e| e.id == cfg.id) {
-                                        cfg.id = format!("{}-{}", cfg.id, scene.entities.len());
-                                    }
+                                    cfg.id = scene.unique_id(&cfg.id);
                                     match scene.append_character_config(&cfg) {
                                         Ok(()) => ok += 1,
                                         Err(e) => {

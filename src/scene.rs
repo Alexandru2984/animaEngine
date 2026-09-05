@@ -326,6 +326,44 @@ impl Scene {
         );
     }
 
+    /// A fresh `{stem}_{n}` id no current entity holds, probing `n` upward
+    /// from the entity count. Entity GPU textures are keyed by id
+    /// (`GpuShared::textures`), so two entities sharing an id alias each
+    /// other's texture — one upload clobbers the other, and pruning one
+    /// frees the survivor's. `entities.len()` alone is not collision-free
+    /// across deletes (add a,b,c → _0,_1,_2; delete _1 → len 2; add → _2,
+    /// aliasing the existing _2), so mint fresh ids only through here.
+    fn fresh_entity_id(&self, stem: &str) -> String {
+        let mut n = self.entities.len();
+        loop {
+            let candidate = format!("{stem}_{n}");
+            if self.entities.iter().all(|e| e.id != candidate) {
+                return candidate;
+            }
+            n += 1;
+        }
+    }
+
+    /// Make `desired` unique among current entity ids: returned unchanged
+    /// when free, otherwise suffixed `-2`, `-3`, … until it finds a gap.
+    /// Used by the duplicate/import paths, which start from an existing
+    /// id. See [`fresh_entity_id`](Self::fresh_entity_id) for why id
+    /// uniqueness matters. The old `-{len}` suffix those sites used was
+    /// itself not verified unique; this probes until it actually is.
+    pub fn unique_id(&self, desired: &str) -> String {
+        if self.entities.iter().all(|e| e.id != desired) {
+            return desired.to_string();
+        }
+        let mut n = 2u32;
+        loop {
+            let candidate = format!("{desired}-{n}");
+            if self.entities.iter().all(|e| e.id != candidate) {
+                return candidate;
+            }
+            n += 1;
+        }
+    }
+
     /// Add a new entity by loading an asset from a file path.
     /// Auto-detects the asset type from the extension.
     /// Returns the index of the new entity, or an error if loading fails.
@@ -356,7 +394,7 @@ impl Scene {
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("entity");
-        let id = format!("{}_{}", stem, self.entities.len());
+        let id = self.fresh_entity_id(stem);
         let name = stem.to_string();
 
         // Use absolute path for reliable loading
@@ -656,6 +694,37 @@ mod tests {
         scene.entities.push(make_entity("b", 5, true));
         scene.mark_visible_dirty();
         assert!(!scene.visible_cache.borrow().valid);
+    }
+
+    #[test]
+    fn fresh_entity_id_skips_ids_left_by_a_middle_delete() {
+        // add cat_0, cat_1, cat_2 then delete the middle → cat_0, cat_2.
+        // len is now 2, so the old `{stem}_{len}` scheme would mint cat_2
+        // again and alias the survivor's texture. Probing must skip it.
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("cat_0", 0, true));
+        scene.entities.push(make_entity("cat_2", 0, true));
+        assert_eq!(scene.fresh_entity_id("cat"), "cat_3");
+    }
+
+    #[test]
+    fn fresh_entity_id_uses_count_when_no_collision() {
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("cat_0", 0, true));
+        scene.entities.push(make_entity("cat_1", 0, true));
+        assert_eq!(scene.fresh_entity_id("cat"), "cat_2");
+    }
+
+    #[test]
+    fn unique_id_suffixes_until_free() {
+        let mut scene = empty_scene();
+        scene.entities.push(make_entity("cat_0", 0, true));
+        scene.entities.push(make_entity("cat_0-2", 0, true));
+        // Original taken, -2 taken → -3. The old `-{len}` (len 2 → -2)
+        // would have collided with the existing duplicate.
+        assert_eq!(scene.unique_id("cat_0"), "cat_0-3");
+        // A free id is returned unchanged.
+        assert_eq!(scene.unique_id("dog_0"), "dog_0");
     }
 
     #[test]

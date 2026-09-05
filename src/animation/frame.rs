@@ -131,7 +131,10 @@ mod tests {
         let resized = f.resized(256).expect("ok");
         assert_eq!(resized.width, 256);
         assert_eq!(resized.height, 1);
-        assert_eq!(resized.rgba.len(), 256 * 1 * 4);
+        assert_eq!(
+            resized.rgba.len(),
+            (resized.width * resized.height * 4) as usize
+        );
     }
 
     #[test]
