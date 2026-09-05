@@ -148,14 +148,13 @@ impl LayerWindow {
         layer.set_exclusive_zone(-1);
         layer.commit();
 
-        // Build the wgpu instance and surface from the raw Wayland
-        // handles. The compositor's first configure round-trip happens
-        // after this; we'll learn the real size in `dispatch_until_sized`.
+        // Build the wgpu instance now; the surface is built *after* `state`
+        // below (see the comment there) so their drop order stays correct
+        // if the initial roundtrip fails.
         let wgpu_instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
             ..Default::default()
         });
-        let wgpu_surface = build_wgpu_surface(&wgpu_instance, &connection, layer.wl_surface())?;
 
         let mut state = WaylandState {
             registry_state,
@@ -181,6 +180,19 @@ impl LayerWindow {
             active_drop_workers: Arc::new(AtomicUsize::new(0)),
             extra_layers: Vec::new(),
         };
+
+        // Build the wgpu surface from the wl_surface now owned by `state`,
+        // *after* `state` is constructed. Declaration order is (reversed)
+        // drop order for locals: putting this after `state` means that if
+        // the roundtrip below returns `Err`, `wgpu_surface` is dropped
+        // before `state`, so wgpu tears the surface down before the
+        // `LayerSurface` inside `state` runs `wl_surface.destroy()`. The
+        // reverse order (surface first) would destroy the wl_surface while
+        // the wgpu surface still references it — the lifetime violation
+        // `build_wgpu_surface`'s SAFETY contract forbids. On the success
+        // path the returned struct's field order enforces the same teardown.
+        let wgpu_surface =
+            build_wgpu_surface(&wgpu_instance, &connection, state.layer.wl_surface())?;
 
         // Round-trip so the compositor sends us its first `configure`
         // event and we learn the size. This also surfaces protocol errors
