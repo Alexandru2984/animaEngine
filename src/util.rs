@@ -97,11 +97,18 @@ fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
+        // O_NOFOLLOW: the temp name is `<path>.<pid>.anima.tmp`. If another
+        // local user pre-plants a symlink there (in a world-writable dir
+        // like a degraded /tmp), `create+truncate` would follow it and
+        // truncate whatever it targets. O_NOFOLLOW makes open fail with
+        // ELOOP instead, so the atomic write fails closed rather than
+        // clobbering an attacker-chosen file.
         std::fs::OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW)
             .open(path)
     }
     #[cfg(not(unix))]

@@ -119,7 +119,11 @@ fn write_crash_report(info: &std::panic::PanicHookInfo<'_>) -> Result<PathBuf, S
     );
 
     let path = dir.join(format!("crash-{ts:010}-{}.log", std::process::id()));
-    std::fs::write(&path, report).map_err(|e| format!("write report: {e}"))?;
+    // Crash reports carry a backtrace and the user's asset paths; write
+    // them owner-only (the atomic helper creates 0600) instead of leaving
+    // them world-readable under the default umask.
+    crate::util::atomic_write_bytes(&path, report.as_bytes())
+        .map_err(|e| format!("write report: {e}"))?;
     prune_reports(&dir, KEEP_REPORTS);
     Ok(path)
 }
@@ -189,7 +193,9 @@ pub fn unnotified_report() -> Option<PathBuf> {
         .filter(|n| n.starts_with("crash-") && n.ends_with(".log"))
         .collect();
     names.sort();
-    let marker = std::fs::read_to_string(dir.join(NOTIFIED_MARKER)).ok();
+    // The marker holds a single report filename; cap the read so a
+    // bloated or hostile marker can't be slurped whole.
+    let marker = crate::util::read_to_string_capped(&dir.join(NOTIFIED_MARKER), 4096).ok();
     pick_unnotified(&names, marker.as_deref()).map(|name| dir.join(name))
 }
 
@@ -261,14 +267,16 @@ pub fn try_recover() -> RecoverOutcome {
     // Parse before touching anything on disk. A truncated or corrupt
     // snapshot (e.g. a second crash mid-write, pre-atomic-write fix)
     // must not be reported as "Restored" and then overwrite the live
-    // config with garbage — fail closed and leave both files alone.
-    match std::fs::read_to_string(&snapshot) {
-        Ok(contents) => {
-            if let Err(e) = validate_snapshot_contents(&contents) {
-                return RecoverOutcome::Failed(format!("snapshot is not a valid config: {e}"));
-            }
-        }
-        Err(e) => return RecoverOutcome::Failed(format!("read snapshot: {e}")),
+    // config with garbage — fail closed and leave both files alone. Read
+    // with the same cap the config loader uses so a bloated snapshot
+    // can't be slurped whole.
+    let contents =
+        match crate::util::read_to_string_capped(&snapshot, crate::constants::MAX_CONFIG_BYTES) {
+            Ok(c) => c,
+            Err(e) => return RecoverOutcome::Failed(format!("read snapshot: {e}")),
+        };
+    if let Err(e) = validate_snapshot_contents(&contents) {
+        return RecoverOutcome::Failed(format!("snapshot is not a valid config: {e}"));
     }
     let target = AppConfig::config_path();
     if let Some(parent) = target.parent() {
@@ -289,8 +297,11 @@ pub fn try_recover() -> RecoverOutcome {
         None
     };
 
-    if let Err(e) = std::fs::copy(&snapshot, &target) {
-        return RecoverOutcome::Failed(format!("copy snapshot → config: {e}"));
+    // Publish the validated contents atomically (0600) rather than a
+    // plain copy, so a crash mid-recovery can't leave a half-written
+    // config — the same guarantee `AppConfig::save` gives.
+    if let Err(e) = crate::util::atomic_write_bytes(&target, contents.as_bytes()) {
+        return RecoverOutcome::Failed(format!("write recovered config: {e}"));
     }
     let _ = std::fs::remove_file(&snapshot);
     RecoverOutcome::Restored { backup }
