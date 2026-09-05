@@ -533,9 +533,7 @@ pub fn run_native(
             primary_origin,
         ) {
             Ok(output) => {
-                let view = output
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor::default());
+                let view = output.create_view();
                 let size = [
                     renderer.primary.window_width,
                     renderer.primary.window_height,
@@ -642,7 +640,7 @@ pub fn run_native(
                         }
                     },
                 );
-                output.present();
+                renderer.present(output);
                 // Sprite-only extras: no egui, no input — just the
                 // entities pinned (or resolved by position) to that
                 // monitor, translated by its own origin. Mirrors
@@ -669,7 +667,7 @@ pub fn run_native(
                             selected_id.as_deref(),
                             origin,
                         ) {
-                            Ok(extra_output) => extra_output.present(),
+                            Ok(extra_output) => surface.present(&renderer.shared, extra_output),
                             Err(wgpu::SurfaceError::Lost) => {
                                 let (w, h) = (surface.window_width, surface.window_height);
                                 surface.resize(&renderer.shared, w, h);
