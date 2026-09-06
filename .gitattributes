@@ -1,0 +1,19 @@
+# Line endings are LF in the repository, whatever platform a commit is
+# made from. Without this, the Windows porting session committed CRLF
+# into thirteen files simply because git had no instruction here — and a
+# later edit from Linux then rewrote the whole file, burying a two-line
+# change in a 1600-line diff.
+* text=auto eol=lf
+
+# Binary assets must never be line-ending converted.
+*.png binary
+*.gif binary
+*.webp binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.mp4 binary
+*.bin binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
