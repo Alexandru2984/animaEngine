@@ -12,9 +12,11 @@
 //! seconds) so two saves within the same second still invalidate; size
 //! and child count cover the corner case where the filesystem floors
 //! mtime to the second on some media (FAT32 / SMB). Editing an asset
-//! orphans its previous cache file; [`sweep`] (run once at startup)
-//! evicts the oldest `.bin` files when the directory exceeds
-//! `CACHE_DIR_CAP_BYTES`, so the orphans can't grow without bound.
+//! orphans its previous cache file; [`sweep`] evicts the oldest `.bin`
+//! files when the directory exceeds `CACHE_DIR_CAP_BYTES`, so the
+//! orphans can't grow without bound. It runs at startup and again
+//! whenever `SWEEP_INTERVAL_BYTES` of fresh data has been written, so a
+//! long session can't sit over the cap until the next restart.
 //!
 //! ## File format (little-endian)
 //! ```text
@@ -70,6 +72,11 @@ fn cache_root() -> Option<PathBuf> {
 /// of edited/large assets does.
 const CACHE_DIR_CAP_BYTES: u64 = 1024 * 1024 * 1024; // 1 GiB
 
+/// How old an abandoned atomic-write temp must be before a sweep reaps
+/// it. A live write finishes in seconds, so an hour is far past any
+/// in-flight save in this or a concurrently running instance.
+const STALE_TMP_AGE: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
 /// What a [`sweep`] did. `kept_bytes` is the on-disk total afterwards.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SweepReport {
@@ -82,7 +89,9 @@ pub struct SweepReport {
 /// under `CACHE_DIR_CAP_BYTES` (W.2 — bounds the orphan-file growth
 /// the keying scheme creates). Best-effort and side-effect-only:
 /// disabled by `ANIMA_NO_CACHE`, a no-op when the dir is missing or
-/// already small. Run once at startup, off the hot path — never per
+/// already small. Also reclaims atomic-write temps abandoned by a
+/// process that died mid-write. Run at startup and on the
+/// `SWEEP_INTERVAL_BYTES` write cadence — off the hot path, never per
 /// frame.
 pub fn sweep() -> SweepReport {
     if cache_disabled() {
@@ -105,14 +114,35 @@ fn sweep_dir(root: &Path, cap: u64) -> SweepReport {
     let mut files: Vec<(PathBuf, u64, SystemTime)> = Vec::new();
     for entry in read.flatten() {
         let path = entry.path();
-        if path.extension().and_then(|x| x.to_str()) != Some("bin") {
-            continue;
-        }
         let Ok(meta) = entry.metadata() else { continue };
         if !meta.is_file() {
             continue;
         }
         let mtime = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+
+        // Reclaim abandoned atomic-write temps. `atomic_write_with`
+        // removes its own temp when the rename fails, but a crash or
+        // SIGKILL mid-write leaves `<name>.<pid>.anima.tmp` behind — and
+        // since it isn't a `.bin`, nothing ever counted or collected it.
+        // Only reap old ones: a temp from a live write in another
+        // instance is seconds old, never hours.
+        if path
+            .to_str()
+            .is_some_and(|p| p.ends_with(crate::util::TMP_SUFFIX))
+        {
+            let stale = mtime
+                .elapsed()
+                .map(|age| age >= STALE_TMP_AGE)
+                .unwrap_or(false);
+            if stale {
+                let _ = fs::remove_file(&path);
+            }
+            continue;
+        }
+
+        if path.extension().and_then(|x| x.to_str()) != Some("bin") {
+            continue;
+        }
         files.push((path, meta.len(), mtime));
     }
 
@@ -349,12 +379,44 @@ pub fn try_save(
     // alongside the live frames (that doubled the save-time peak). Atomic
     // so a crash mid-write can't corrupt a cache the next launch reads.
     crate::util::atomic_write_with(&key, |w| write_frames_to(frames, w))?;
-    tracing::debug!(
-        "Wrote asset cache: {} ({} bytes)",
-        key.display(),
-        serialized_len(frames)
-    );
+    let written = serialized_len(frames);
+    tracing::debug!("Wrote asset cache: {} ({written} bytes)", key.display());
+    maybe_sweep_after_write(written as u64);
     Ok(())
+}
+
+/// New cache bytes written since the last sweep.
+static BYTES_SINCE_SWEEP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How much fresh data may land before the directory cap is re-checked.
+///
+/// The startup sweep bounds the cache at launch, but every later import
+/// or hot-reload adds entries with nothing re-checking the total — so a
+/// long-running session could sit well past `CACHE_DIR_CAP_BYTES` until
+/// the next restart. Re-sweeping on this interval bounds the overshoot to
+/// roughly one interval while keeping the stat walk off the per-asset
+/// path.
+const SWEEP_INTERVAL_BYTES: u64 = CACHE_DIR_CAP_BYTES / 8;
+
+/// Re-run the directory sweep once enough new data has accumulated.
+fn maybe_sweep_after_write(written: u64) {
+    use std::sync::atomic::Ordering;
+    let total = BYTES_SINCE_SWEEP.fetch_add(written, Ordering::Relaxed) + written;
+    if total < SWEEP_INTERVAL_BYTES {
+        return;
+    }
+    // Reset before sweeping so a concurrent writer doesn't queue a second
+    // pass behind this one. Racing writers may both sweep, which is
+    // harmless — the sweep is idempotent.
+    BYTES_SINCE_SWEEP.store(0, Ordering::Relaxed);
+    let report = sweep();
+    if report.removed > 0 {
+        tracing::debug!(
+            "Incremental cache sweep after {} MiB of writes: removed {} file(s)",
+            total / (1024 * 1024),
+            report.removed
+        );
+    }
 }
 
 /// Serialised size of `frames` in the cache format, without building it.
@@ -709,6 +771,38 @@ mod tests {
         assert_eq!(evictions_needed(&[50, 50], 100), 0);
         // one over → drop just the oldest.
         assert_eq!(evictions_needed(&[50, 50, 1], 100), 1);
+    }
+
+    #[test]
+    fn sweep_dir_reaps_only_stale_atomic_write_temps() {
+        // A crash or SIGKILL mid-write leaves `<name>.<pid>.anima.tmp`
+        // behind. It isn't a `.bin`, so nothing used to count or collect
+        // it. Old ones must go; a temp from a write in flight right now
+        // (possibly another running instance) must not.
+        let dir = std::env::temp_dir().join(format!("anima_tmp_reap_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        let fresh = dir.join(format!(
+            "abc.{}{}",
+            std::process::id(),
+            crate::util::TMP_SUFFIX
+        ));
+        fs::write(&fresh, b"in flight").unwrap();
+
+        let stale = dir.join(format!("def.999999{}", crate::util::TMP_SUFFIX));
+        fs::write(&stale, b"abandoned").unwrap();
+        // Backdate well past STALE_TMP_AGE.
+        let old = SystemTime::now() - (STALE_TMP_AGE + std::time::Duration::from_secs(60));
+        let f = fs::File::options().write(true).open(&stale).unwrap();
+        f.set_modified(old).unwrap();
+        drop(f);
+
+        let _ = sweep_dir(&dir, u64::MAX);
+
+        assert!(fresh.exists(), "an in-flight temp must survive the sweep");
+        assert!(!stale.exists(), "an abandoned temp must be reclaimed");
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

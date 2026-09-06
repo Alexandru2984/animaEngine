@@ -104,9 +104,16 @@ where
 /// path, so atomicity guarantees aren't affected.
 fn tmp_sibling(path: &Path) -> PathBuf {
     let mut name: OsString = path.as_os_str().to_owned();
-    name.push(format!(".{}.anima.tmp", std::process::id()));
+    name.push(format!(".{}{TMP_SUFFIX}", std::process::id()));
     PathBuf::from(name)
 }
+
+/// Trailing marker on every [`atomic_write_with`] temp file.
+///
+/// Public so sweepers can recognise (and reclaim) temps abandoned by a
+/// process that died mid-write — the cleanup in `atomic_write_with` only
+/// covers a failed rename, not a SIGKILL.
+pub const TMP_SUFFIX: &str = ".anima.tmp";
 
 /// Create (truncate) a file readable/writable by the owner only. Config,
 /// library index and crash reports carry the user's asset paths and
