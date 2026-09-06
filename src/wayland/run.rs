@@ -392,21 +392,37 @@ pub fn run_native(
                 config_dirty = true;
             }
             if let Some(vis) = last_visibility {
+                // `overlay_hidden` is the single source of truth and it
+                // gates rendering below. It used to be updated only by the
+                // keybinding path, so a D-Bus Hide/Show left the flag and
+                // the actual intent disagreeing.
                 match vis {
-                    AnimaEvent::HideOverlay => {
-                        if let Err(e) =
-                            layer.set_input_region(Some(InputRect::toggle_button_corner(
-                                renderer.primary.window_width,
-                                TOGGLE_BUTTON_SIZE,
-                            )))
-                        {
-                            tracing::warn!("dbus hide: {e}");
-                        }
-                    }
-                    AnimaEvent::ShowOverlay => {
-                        // No-op on a layer surface (always present).
-                    }
+                    AnimaEvent::HideOverlay => overlay_hidden = true,
+                    AnimaEvent::ShowOverlay => overlay_hidden = false,
                     _ => {}
+                }
+                // A layer surface can't be unmapped the way winit's
+                // `set_visible(false)` unmaps a window, so "hidden" is
+                // expressed as: paint nothing (see the render gate) and
+                // accept no input. Previously hide only narrowed the input
+                // region, which left every sprite fully visible on screen —
+                // the overlay was not hidden in any sense the user would
+                // recognise.
+                let region = if overlay_hidden {
+                    None
+                } else if layer.state.edit_mode {
+                    Some(InputRect::full(
+                        renderer.primary.window_width,
+                        renderer.primary.window_height,
+                    ))
+                } else {
+                    Some(InputRect::toggle_button_corner(
+                        renderer.primary.window_width,
+                        TOGGLE_BUTTON_SIZE,
+                    ))
+                };
+                if let Err(e) = layer.set_input_region(region) {
+                    tracing::warn!("visibility change: {e}");
                 }
             }
             if quit {
@@ -516,12 +532,20 @@ pub fn run_native(
         } else {
             None
         };
-        let drawn: Vec<&Entity> = match &primary_monitor_name {
-            Some(name) => visible
-                .into_iter()
-                .filter(|e| crate::app::windows::entity_on_monitor(monitors, e, name))
-                .collect(),
-            None => visible,
+        let drawn: Vec<&Entity> = if overlay_hidden {
+            // Hidden: present a cleared (fully transparent) surface. The
+            // layer surface stays mapped — that is what a layer shell
+            // gives us — but nothing is painted into it, which is the
+            // visible equivalent of the winit path unmapping its window.
+            Vec::new()
+        } else {
+            match &primary_monitor_name {
+                Some(name) => visible
+                    .into_iter()
+                    .filter(|e| crate::app::windows::entity_on_monitor(monitors, e, name))
+                    .collect(),
+                None => visible,
+            }
         };
         toasts.prune();
         egui_renderer.ensure_theme(config.global.theme);
@@ -548,6 +572,7 @@ pub fn run_native(
                     .map(|m| m.scale_factor as f32)
                     .fold(1.0_f32, f32::max);
                 let edit_mode_snapshot = layer.state.edit_mode;
+                let hidden_snapshot = overlay_hidden;
                 // Snapshot the AccessKit flag BEFORE taking its mutable
                 // borrow, same trick as the X11 path uses.
                 let accesskit_snapshot = config.global.accesskit_enabled;
@@ -595,6 +620,15 @@ pub fn run_native(
                             ctx.disable_accesskit();
                         }
                         crate::ui::motion::set_reduced(ctx, *reduced_motion_mut);
+                        if hidden_snapshot {
+                            // Hidden means hidden: no sprites (the draw
+                            // list is empty above) and no UI either, so
+                            // the ⚙ button doesn't linger over a
+                            // supposedly hidden overlay. Restore comes
+                            // through the same D-Bus/keybinding channel
+                            // that hid it, exactly as on the winit path.
+                            return;
+                        }
                         if panels::toggle_button(ctx, edit_mode_snapshot) {
                             *toggle_requested_ref = true;
                         }
