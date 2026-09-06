@@ -24,6 +24,10 @@
 //!   startup exactly like the X11 path (`handle_resumed` in
 //!   src/app/lifecycle.rs); "Add to scene" goes through the same
 //!   `resolve_library_asset` containment check.
+//! - Entity selection and drag: left-click selects and picks a
+//!   character up, motion moves it, release drops it (a press/release
+//!   that never moved pokes instead). Same `DragController` and the
+//!   same tap/poke semantics as `App::handle_mouse_input`.
 //! - Right-click context menu: same `ContextMenuState` /
 //!   `MenuAction` types and the same six actions as the X11 path,
 //!   detected straight off the egui pointer events this loop already
@@ -115,6 +119,7 @@ pub fn run_native(
         config.global.theme,
     );
     let mut selection = SelectionState::new();
+    let mut drag = crate::input::drag::DragController::new();
     let mut toasts = ToastQueue::default();
     let mut config_dirty = false;
     // Soak metrics (W.1). Previously wired only into the winit render
@@ -469,24 +474,93 @@ pub fn run_native(
         // clicks (empty space) are ignored.
         if layer.state.edit_mode {
             for event in &events {
-                if let egui::Event::PointerButton {
-                    pos,
-                    button: egui::PointerButton::Secondary,
-                    pressed: true,
-                    ..
-                } = event
-                {
-                    if let Some(idx) =
-                        scene.entity_at_point(pos.x + primary_origin.0, pos.y + primary_origin.1)
-                    {
-                        selection.select(idx);
-                        context_menu_state = Some(crate::app::ContextMenuState {
-                            entity_idx: idx,
-                            pos: *pos,
-                            // Armed after the first showing — see ContextMenuState.
-                            armed: false,
-                        });
+                match event {
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Secondary,
+                        pressed: true,
+                        ..
+                    } => {
+                        if let Some(idx) = scene
+                            .entity_at_point(pos.x + primary_origin.0, pos.y + primary_origin.1)
+                        {
+                            selection.select(idx);
+                            context_menu_state = Some(crate::app::ContextMenuState {
+                                entity_idx: idx,
+                                pos: *pos,
+                                // Armed after the first showing — see ContextMenuState.
+                                armed: false,
+                            });
+                        }
                     }
+                    // Left press: select and begin a drag, mirroring
+                    // `App::handle_mouse_input` on the winit path. Both were
+                    // missing here — selection was right-click only, and
+                    // dragging a character (the core interaction of a
+                    // desktop-pet overlay) was not implemented on this
+                    // backend at all.
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        ..
+                    } => {
+                        let (gx, gy) = (pos.x + primary_origin.0, pos.y + primary_origin.1);
+                        match scene.entity_at_point(gx, gy) {
+                            Some(idx) => {
+                                selection.select(idx);
+                                if let Some(entity) = scene.entities.get_mut(idx) {
+                                    entity.physics.freeze();
+                                    entity.dragging = true;
+                                    drag.start_drag(idx, gx - entity.x, gy - entity.y, gx, gy);
+                                }
+                            }
+                            None => selection.deselect(),
+                        }
+                    }
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        ..
+                    } if drag.is_dragging() => {
+                        let (gx, gy) = (pos.x + primary_origin.0, pos.y + primary_origin.1);
+                        // A press/release that never moved is a *tap*, not a
+                        // drag — poke the mascot instead of just dropping it.
+                        let tapped = drag.was_tap(gx, gy, crate::constants::POKE_TAP_RADIUS);
+                        let poke_bounds = monitor::covered_bounds(
+                            &plan,
+                            (
+                                renderer.primary.window_width as f32,
+                                renderer.primary.window_height as f32,
+                            ),
+                        );
+                        if let Some(idx) = drag.dragging_entity() {
+                            if let Some(entity) = scene.entities.get_mut(idx) {
+                                entity.physics.unfreeze();
+                                entity.dragging = false;
+                                if tapped {
+                                    entity.poke(gx, poke_bounds);
+                                }
+                            }
+                        }
+                        drag.end_drag();
+                        config_dirty = true;
+                    }
+                    egui::Event::PointerMoved(pos) if drag.is_dragging() => {
+                        let (gx, gy) = (pos.x + primary_origin.0, pos.y + primary_origin.1);
+                        if let Some((idx, nx, ny)) = drag.update(gx, gy) {
+                            if let Some(entity) = scene.entities.get_mut(idx) {
+                                entity.x = nx;
+                                entity.y = ny;
+                                // Relocating invalidates any Bounce rest
+                                // position, or the sprite springs back to
+                                // where it was picked up.
+                                entity.behavior_state.bounce_invalidate();
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
