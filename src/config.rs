@@ -232,7 +232,7 @@ fn default_true() -> bool {
 /// non-finite value (`NaN` / `±inf`). A hand-edited `config.toml` can
 /// carry `scale = nan` or `opacity = inf`; left alone these reach the
 /// renderer's transform matrices and the GPU chokes on the NaN.
-fn finite_clamp(v: f32, min: f32, max: f32, default: f32) -> f32 {
+pub(crate) fn finite_clamp(v: f32, min: f32, max: f32, default: f32) -> f32 {
     if v.is_finite() {
         v.clamp(min, max)
     } else {
@@ -262,6 +262,9 @@ impl CharacterConfig {
         self.fps = finite_clamp(self.fps, 0.1, 240.0, default_fps());
         self.x = finite_or(self.x, 0.0);
         self.y = finite_or(self.y, 0.0);
+        // The behavior tunables feed the same physics and transform math
+        // every tick, so they need the same coercion as the scalars above.
+        self.behavior.sanitize();
     }
 }
 

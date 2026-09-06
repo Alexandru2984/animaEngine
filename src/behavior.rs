@@ -79,6 +79,73 @@ pub enum Behavior {
     },
 }
 
+impl Behavior {
+    /// Coerce this behavior's tunables into finite, sane ranges.
+    ///
+    /// Called from `CharacterConfig::sanitize` on load. These values feed
+    /// the physics and transform math on every tick, so a hand-edited or
+    /// corrupt config carrying `NaN`, `inf` or an absurd magnitude would
+    /// otherwise propagate straight into entity positions and, from
+    /// there, into GPU quad coordinates. The bounds are deliberately
+    /// generous — they exist to stop non-finite and runaway values, not
+    /// to second-guess a deliberate setting.
+    pub fn sanitize(&mut self) {
+        use crate::config::finite_clamp;
+
+        /// Upper bound on any px/second rate.
+        const MAX_SPEED: f32 = 10_000.0;
+        /// Upper bound on any pixel distance/coordinate.
+        const MAX_DIST: f32 = 100_000.0;
+
+        match self {
+            Behavior::Idle => {}
+            Behavior::WalkAround { speed } => {
+                *speed = finite_clamp(*speed, 0.0, MAX_SPEED, default_walk_speed());
+            }
+            Behavior::FollowCursor {
+                speed,
+                comfort_distance,
+            } => {
+                *speed = finite_clamp(*speed, 0.0, MAX_SPEED, default_follow_speed());
+                *comfort_distance =
+                    finite_clamp(*comfort_distance, 0.0, MAX_DIST, default_comfort_distance());
+            }
+            Behavior::BoundedWander {
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+                speed,
+            } => {
+                *x_min = finite_clamp(*x_min, -MAX_DIST, MAX_DIST, default_wander_x_min());
+                *x_max = finite_clamp(*x_max, -MAX_DIST, MAX_DIST, default_wander_x_max());
+                *y_min = finite_clamp(*y_min, -MAX_DIST, MAX_DIST, default_wander_y_min());
+                *y_max = finite_clamp(*y_max, -MAX_DIST, MAX_DIST, default_wander_y_max());
+                // An inverted box makes the random target pick degenerate.
+                if *x_min > *x_max {
+                    std::mem::swap(x_min, x_max);
+                }
+                if *y_min > *y_max {
+                    std::mem::swap(y_min, y_max);
+                }
+                *speed = finite_clamp(*speed, 0.0, MAX_SPEED, default_wander_speed());
+            }
+            Behavior::Bounce {
+                amplitude_px,
+                period_sec,
+                axis: _,
+            } => {
+                *amplitude_px =
+                    finite_clamp(*amplitude_px, 0.0, MAX_DIST, default_bounce_amplitude());
+                // The tick already floors the period at 0.05 to avoid a
+                // divide-by-zero; applying it here too means the stored
+                // config matches what actually runs.
+                *period_sec = finite_clamp(*period_sec, 0.05, 3600.0, default_bounce_period());
+            }
+        }
+    }
+}
+
 /// Axis selector for `Behavior::Bounce`. `Both` produces a circular
 /// motion (90° phase offset between x and y) rather than a diagonal
 /// shake — circles look more lifelike for ambient bobbing.
@@ -370,6 +437,62 @@ impl Behavior {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sanitize_replaces_non_finite_behavior_tunables() {
+        let mut b = Behavior::WalkAround { speed: f32::NAN };
+        b.sanitize();
+        assert_eq!(
+            b,
+            Behavior::WalkAround {
+                speed: default_walk_speed()
+            }
+        );
+
+        let mut b = Behavior::Bounce {
+            amplitude_px: f32::INFINITY,
+            // A zero period divides by zero in the sine math.
+            period_sec: 0.0,
+            axis: BounceAxis::Vertical,
+        };
+        b.sanitize();
+        match b {
+            Behavior::Bounce {
+                amplitude_px,
+                period_sec,
+                ..
+            } => {
+                assert!(amplitude_px.is_finite());
+                assert!(period_sec >= 0.05, "period floored, got {period_sec}");
+            }
+            other => panic!("variant changed: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn sanitize_uninverts_a_backwards_wander_box() {
+        let mut b = Behavior::BoundedWander {
+            x_min: 900.0,
+            x_max: 100.0,
+            y_min: 800.0,
+            y_max: 200.0,
+            speed: 120.0,
+        };
+        b.sanitize();
+        match b {
+            Behavior::BoundedWander {
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+                ..
+            } => {
+                assert!(x_min <= x_max, "x box uninverted");
+                assert!(y_min <= y_max, "y box uninverted");
+            }
+            other => panic!("variant changed: {other:?}"),
+        }
+    }
 
     fn ctx(dt: f32) -> TickContext {
         TickContext {
