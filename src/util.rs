@@ -5,6 +5,26 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// True when `path` resolves to a **regular file** — symlinks are
+/// followed, but directories, FIFOs, sockets and devices are rejected.
+///
+/// Check this before opening any asset path that came from a config or a
+/// dropped directory. `stat` on a FIFO returns immediately, but `open`
+/// on one blocks until a writer appears, so a `.png` named pipe would
+/// otherwise wedge the loading thread indefinitely — the probe that
+/// exists to bound work becomes the denial of service.
+///
+/// Symlinks are deliberately followed here: asset paths are the user's
+/// own, so a symlinked sprite is legitimate and only the *kind* of the
+/// final target matters. Where a symlink itself is the threat (an
+/// untrusted imported pack redirecting a read outside its tree), use an
+/// `lstat`-based check instead — see `shimeji::is_regular_file`.
+pub fn resolves_to_regular_file(path: &Path) -> bool {
+    std::fs::metadata(path)
+        .map(|m| m.file_type().is_file())
+        .unwrap_or(false)
+}
+
 /// Read a small text file into a `String`, refusing anything larger than
 /// `max_bytes`. Config/library files are parsed whole, so an unbounded
 /// `read_to_string` would let a runaway or hostile file be slurped into

@@ -7,7 +7,7 @@ use super::spritesheet;
 use super::video_loader;
 use super::webp_loader;
 use crate::config::AssetType;
-use crate::constants::MAX_IMAGE_DIM;
+use crate::constants::{MAX_IMAGE_DIM, MAX_SEQUENCE_FILES};
 use crate::error::{AnimaError, Result};
 use std::fs;
 use std::path::Path;
@@ -43,6 +43,19 @@ const IMAGE_PROBE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp"];
 fn validate_single_file(path: &Path) -> Result<(u32, u32)> {
     if !path.exists() {
         return Err(AnimaError::AssetNotFound(path.to_path_buf()));
+    }
+
+    // Reject anything that isn't a regular file *before* opening it.
+    // `image_dimensions` below opens the path, and opening a FIFO blocks
+    // until a writer appears — a `.png` named pipe reached through a
+    // config entry or a dropped directory would wedge this thread
+    // forever. `stat` on a FIFO returns immediately, so checking the kind
+    // first is what keeps the probe bounded.
+    if !crate::util::resolves_to_regular_file(path) {
+        return Err(AnimaError::other(format!(
+            "not a regular file: {}",
+            crate::drop_validate::redact_path(path)
+        )));
     }
 
     let ext = path
@@ -89,12 +102,36 @@ fn validate_single_file(path: &Path) -> Result<(u32, u32)> {
 }
 
 /// Validate every `.png` inside a sequence directory before any decode.
+///
+/// Mirrors the guards `png_sequence::load_png_sequence` applies — but
+/// those run *after* this pass, so without the same limits here the
+/// pre-decode validation is itself the unbounded step: a directory with
+/// tens of thousands of entries, or one holding a `.png` FIFO, would
+/// stall or hang before the loader's own caps ever applied.
 fn validate_directory(dir: &Path) -> Result<()> {
+    let mut checked = 0usize;
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) == Some("png") {
-            validate_single_file(&path)?;
+        if path.extension().and_then(|e| e.to_str()) != Some("png") {
+            continue;
+        }
+        // Same dirent-level filter the sequence loader uses: skip
+        // symlinks / FIFOs / sockets / dirs / devices without opening them.
+        match entry.file_type() {
+            Ok(ft) if ft.is_file() => {}
+            _ => continue,
+        }
+        validate_single_file(&path)?;
+        checked += 1;
+        if checked >= MAX_SEQUENCE_FILES {
+            tracing::debug!(
+                "Validated MAX_SEQUENCE_FILES = {} frames in {}; the sequence \
+                 loader caps the rest",
+                MAX_SEQUENCE_FILES,
+                crate::drop_validate::redact_path(dir)
+            );
+            break;
         }
     }
     Ok(())
@@ -364,6 +401,31 @@ mod tests {
         // We mostly care that it's NOT silently Ok((0, 0)) and NOT an
         // "asset not found" — the path exists, it just isn't a PNG.
         assert!(matches!(err, AnimaError::Other(_)));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn validate_rejects_a_fifo_instead_of_blocking_on_open() {
+        // A `.png` named pipe reachable from a config entry or a dropped
+        // directory. `image_dimensions` would `open` it and block until a
+        // writer appeared, wedging the loader thread; the kind check must
+        // reject it immediately. If this test ever hangs, that guard is gone.
+        use std::ffi::CString;
+        let dir = temp_dir("fifo_png");
+        let fifo = dir.join("evil.png");
+        let c = CString::new(fifo.to_str().unwrap()).unwrap();
+        assert_eq!(
+            unsafe { libc::mkfifo(c.as_ptr(), 0o644) },
+            0,
+            "mkfifo failed"
+        );
+
+        let err = validate_image_dimensions(&fifo).unwrap_err();
+        assert!(
+            err.to_string().contains("not a regular file"),
+            "expected a regular-file rejection, got: {err}"
+        );
+        let _ = std::fs::remove_file(&fifo);
     }
 
     #[test]
