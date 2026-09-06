@@ -129,17 +129,19 @@ impl Entity {
 
     /// React to a poke (a tap on this entity): recoil horizontally away
     /// from the poke point, and — if physics is on — hop. `from_x` is the
-    /// poke's x in the same space as the entity; `screen_width` clamps the
-    /// recoil so a mascot at the edge can't be shoved off-screen.
-    pub fn poke(&mut self, from_x: f32, screen_width: f32) {
+    /// poke's x in the same space as the entity; `bounds` clamps the
+    /// recoil so a mascot at the edge can't be shoved off the desktop.
+    pub fn poke(&mut self, from_x: f32, bounds: crate::monitor::DesktopBounds) {
         let center_x = self.x + self.scaled_width() * 0.5;
         let dir = if (center_x - from_x).abs() < 1e-3 {
             1.0
         } else {
             (center_x - from_x).signum()
         };
-        let max_x = (screen_width - self.scaled_width()).max(0.0);
-        self.x = (self.x + dir * crate::constants::POKE_KICK).clamp(0.0, max_x);
+        self.x = bounds.clamp_x(
+            self.x + dir * crate::constants::POKE_KICK,
+            self.scaled_width(),
+        );
         self.physics.poke_hop();
     }
 
@@ -167,8 +169,7 @@ impl Entity {
     pub fn tick(
         &mut self,
         dt: f32,
-        screen_width: f32,
-        screen_height: f32,
+        bounds: crate::monitor::DesktopBounds,
         cursor: Option<(f32, f32)>,
         platforms: &[crate::platforms::PlatformRect],
         reduced_motion: bool,
@@ -179,8 +180,7 @@ impl Entity {
         let ctx = TickContext {
             sprite_width: sprite_w,
             sprite_height: sprite_h,
-            screen_width,
-            screen_height,
+            bounds,
             cursor,
             dt,
             reduced_motion,
@@ -206,7 +206,7 @@ impl Entity {
                     cy,
                     dt,
                 );
-                self.x = (self.x + px).clamp(0.0, (screen_width - sprite_w).max(0.0));
+                self.x = bounds.clamp_x(self.x + px, sprite_w);
                 self.y += py;
             }
         }
@@ -229,7 +229,7 @@ impl Entity {
             platforms,
             self.x + sprite_w / 2.0,
             self.y + sprite_h,
-            screen_height,
+            bounds.max_y,
             tolerance,
         );
         let floor = floor_feet - sprite_h;
@@ -467,6 +467,11 @@ mod tests {
     }
 
     /// 4×4 frame, only the inner 2×2 is opaque (alpha 255), border is transparent.
+    /// Bounds wide enough that only the clamp under test can bite.
+    fn wide_bounds() -> crate::monitor::DesktopBounds {
+        crate::monitor::DesktopBounds::from_size(10_000.0, 10_000.0)
+    }
+
     fn checker_frame() -> Frame {
         // Layout (alpha only, R/G/B = 0):
         //   . . . .
@@ -490,17 +495,17 @@ mod tests {
     fn poke_recoils_away_from_the_poke_point_and_clamps() {
         // Poked from the left → recoils right.
         let mut e = entity_at(100.0, 100.0);
-        e.poke(50.0, 10_000.0);
+        e.poke(50.0, wide_bounds());
         assert!(e.x > 100.0, "poke from left pushes right, got {}", e.x);
 
         // Poked from the right → recoils left.
         let mut e2 = entity_at(100.0, 100.0);
-        e2.poke(300.0, 10_000.0);
+        e2.poke(300.0, wide_bounds());
         assert!(e2.x < 100.0, "poke from right pushes left, got {}", e2.x);
 
         // At the left edge, a rightward poke can't shove it off-screen.
         let mut e3 = entity_at(0.0, 100.0);
-        e3.poke(500.0, 10_000.0);
+        e3.poke(500.0, wide_bounds());
         assert!(e3.x >= 0.0, "clamped at the edge, got {}", e3.x);
     }
 

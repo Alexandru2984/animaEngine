@@ -112,11 +112,22 @@ impl App {
                     self.mouse_y,
                     crate::constants::POKE_TAP_RADIUS,
                 );
-                let screen_w = self
+                // Same bounds the simulation tick uses, so a poke can't
+                // shove a mascot off the region it's allowed to occupy —
+                // and, on a multi-monitor desktop, doesn't clamp one that
+                // lives on a secondary monitor back onto the primary.
+                let fallback = self
                     .window
                     .as_ref()
-                    .map(|w| w.inner_size().width as f32)
-                    .unwrap_or(1920.0);
+                    .map(|w| {
+                        let s = w.inner_size();
+                        (s.width as f32, s.height as f32)
+                    })
+                    .unwrap_or((1920.0, 1080.0));
+                let poke_bounds = crate::monitor::covered_bounds(
+                    &crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors),
+                    fallback,
+                );
                 // Drop the freeze. Physics remains whatever the user set —
                 // off by default (entity stays put), on if they pressed G.
                 if let Some(idx) = self.drag.dragging_entity() {
@@ -124,7 +135,7 @@ impl App {
                         entity.physics.unfreeze();
                         entity.dragging = false;
                         if tapped {
-                            entity.poke(self.mouse_x, screen_w);
+                            entity.poke(self.mouse_x, poke_bounds);
                         }
                     }
                 }

@@ -167,7 +167,15 @@ impl App {
                 .set_reduced_motion(self.config.global.reduced_motion);
             self.scene
                 .set_hover_startle(self.config.global.hover_startle);
-            self.scene.tick(screen_w, screen_h, cursor);
+            // Bounds are the desktop region our windows actually cover,
+            // not the primary window's size: in PerMonitor mode an entity
+            // on a secondary monitor was otherwise clamped back onto the
+            // primary. Span keeps the primary-window size (its plan names
+            // no monitor), so single-window setups are unchanged.
+            let plan =
+                crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors);
+            let bounds = crate::monitor::covered_bounds(&plan, (screen_w, screen_h));
+            self.scene.tick(bounds, cursor);
         }
 
         // Precompute multi-window facts before the renderer borrow —

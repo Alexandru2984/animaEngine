@@ -238,6 +238,96 @@ pub struct WindowPlan {
     pub extras: Vec<MonitorInfo>,
 }
 
+/// The rectangle entities live in and are clamped to, in **global
+/// desktop coordinates** (physical pixels).
+///
+/// A single monitor at the origin yields `(0, 0, w, h)` — exactly what
+/// the old `screen_width` / `screen_height` pair meant — so the
+/// single-monitor case is unchanged by construction. Several monitors
+/// yield the union of their rectangles, whose origin can be **negative**
+/// when a monitor sits left of or above the primary. That is precisely
+/// why this is a rectangle and not a size: physics and behaviours used
+/// to clamp to `[0, primary_window_width]`, so on a multi-monitor
+/// desktop any sprite on another monitor was dragged back onto the
+/// primary one.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DesktopBounds {
+    pub min_x: f32,
+    pub min_y: f32,
+    pub max_x: f32,
+    pub max_y: f32,
+}
+
+impl DesktopBounds {
+    /// Origin-anchored bounds of the given size: the single-window case,
+    /// and the fallback when no topology is known.
+    pub fn from_size(width: f32, height: f32) -> Self {
+        Self {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: width,
+            max_y: height,
+        }
+    }
+
+    /// Union of every listed monitor's rectangle. `None` for an empty
+    /// list, so callers pick their own fallback.
+    pub fn union_of(monitors: &[MonitorInfo]) -> Option<Self> {
+        let mut iter = monitors.iter();
+        let first = iter.next()?;
+        let mut b = Self {
+            min_x: first.x as f32,
+            min_y: first.y as f32,
+            max_x: (first.x as f32) + first.width as f32,
+            max_y: (first.y as f32) + first.height as f32,
+        };
+        for m in iter {
+            b.min_x = b.min_x.min(m.x as f32);
+            b.min_y = b.min_y.min(m.y as f32);
+            b.max_x = b.max_x.max((m.x as f32) + m.width as f32);
+            b.max_y = b.max_y.max((m.y as f32) + m.height as f32);
+        }
+        Some(b)
+    }
+
+    pub fn width(&self) -> f32 {
+        self.max_x - self.min_x
+    }
+
+    pub fn height(&self) -> f32 {
+        self.max_y - self.min_y
+    }
+
+    /// Clamp a sprite's left edge so a `sprite_w`-wide sprite stays
+    /// inside. Bounds narrower than the sprite pin it to `min_x` rather
+    /// than producing an inverted range.
+    pub fn clamp_x(&self, x: f32, sprite_w: f32) -> f32 {
+        x.clamp(self.min_x, (self.max_x - sprite_w).max(self.min_x))
+    }
+}
+
+/// The desktop region our overlay windows actually cover — the area an
+/// entity may legitimately occupy.
+///
+/// Derived from the plan rather than from the raw topology, because the
+/// two differ: `Span` draws **one** window sized to a single monitor, so
+/// widening its bounds to the whole desktop would let sprites walk off
+/// the window and vanish. `Single` covers exactly the named monitor, and
+/// `PerMonitor` covers the union of primary plus extras.
+///
+/// `fallback` (the primary window's own size) is used when the plan
+/// names nothing — `Span`, or an empty topology — which reproduces the
+/// previous behaviour exactly.
+pub fn covered_bounds(plan: &WindowPlan, fallback: (f32, f32)) -> DesktopBounds {
+    let mut rects: Vec<MonitorInfo> = Vec::with_capacity(1 + plan.extras.len());
+    if let Some(p) = &plan.primary {
+        rects.push(p.clone());
+    }
+    rects.extend(plan.extras.iter().cloned());
+    DesktopBounds::union_of(&rects)
+        .unwrap_or_else(|| DesktopBounds::from_size(fallback.0, fallback.1))
+}
+
 /// Pure planning function — unit-testable without a display.
 ///
 /// - `Span` / empty topology → single window, pre-0.6 behaviour.
@@ -290,6 +380,133 @@ pub fn plan_windows(mode: &MonitorMode, monitors: &[MonitorInfo]) -> WindowPlan 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn mon(name: &str, x: i32, y: i32, w: u32, h: u32) -> MonitorInfo {
+        MonitorInfo {
+            name: name.to_string(),
+            x,
+            y,
+            width: w,
+            height: h,
+            scale_factor: 1.0,
+            is_primary: false,
+        }
+    }
+
+    // ── DesktopBounds ────────────────────────────────────────────────
+
+    #[test]
+    fn from_size_is_origin_anchored() {
+        let b = DesktopBounds::from_size(1920.0, 1080.0);
+        assert_eq!(
+            (b.min_x, b.min_y, b.max_x, b.max_y),
+            (0.0, 0.0, 1920.0, 1080.0)
+        );
+        assert_eq!((b.width(), b.height()), (1920.0, 1080.0));
+    }
+
+    #[test]
+    fn union_of_empty_is_none() {
+        assert_eq!(DesktopBounds::union_of(&[]), None);
+    }
+
+    #[test]
+    fn union_spans_monitors_to_the_right() {
+        let b = DesktopBounds::union_of(&[
+            mon("primary", 0, 0, 1920, 1080),
+            mon("right", 1920, 0, 2560, 1440),
+        ])
+        .unwrap();
+        assert_eq!((b.min_x, b.max_x), (0.0, 4480.0));
+        assert_eq!((b.min_y, b.max_y), (0.0, 1440.0));
+    }
+
+    /// The case a width/height pair fundamentally cannot express: a
+    /// monitor placed left of and above the primary puts the desktop
+    /// origin at negative coordinates.
+    #[test]
+    fn union_handles_negative_origins() {
+        let b = DesktopBounds::union_of(&[
+            mon("primary", 0, 0, 1920, 1080),
+            mon("left", -1920, -200, 1920, 1080),
+        ])
+        .unwrap();
+        assert_eq!((b.min_x, b.min_y), (-1920.0, -200.0));
+        assert_eq!((b.max_x, b.max_y), (1920.0, 1080.0));
+        assert_eq!(b.width(), 3840.0);
+    }
+
+    #[test]
+    fn clamp_x_keeps_a_sprite_inside_including_negative_origin() {
+        let b = DesktopBounds::union_of(&[mon("left", -1920, 0, 1920, 1080)]).unwrap();
+        // Well inside → untouched.
+        assert_eq!(b.clamp_x(-1000.0, 64.0), -1000.0);
+        // Past the left edge → pinned to min_x, *not* to zero. Clamping
+        // to 0 is exactly the old bug: it teleported the sprite onto the
+        // primary monitor.
+        assert_eq!(b.clamp_x(-5000.0, 64.0), -1920.0);
+        // Past the right edge → last position that still fits.
+        assert_eq!(b.clamp_x(500.0, 64.0), -64.0);
+    }
+
+    #[test]
+    fn clamp_x_pins_when_bounds_are_narrower_than_the_sprite() {
+        let b = DesktopBounds::from_size(50.0, 50.0);
+        // max_x - sprite_w would be negative; must not invert the range.
+        assert_eq!(b.clamp_x(30.0, 200.0), 0.0);
+    }
+
+    // ── covered_bounds ───────────────────────────────────────────────
+
+    /// Span draws one window sized to a single monitor, so its bounds
+    /// stay the primary window's own size — widening them to the whole
+    /// desktop would let sprites walk off the window and vanish.
+    #[test]
+    fn covered_bounds_span_uses_the_window_size() {
+        let plan = plan_windows(&MonitorMode::Span, &[mon("a", 0, 0, 1920, 1080)]);
+        let b = covered_bounds(&plan, (1280.0, 720.0));
+        assert_eq!(b, DesktopBounds::from_size(1280.0, 720.0));
+    }
+
+    #[test]
+    fn covered_bounds_single_uses_that_monitor_only() {
+        let monitors = vec![
+            mon("primary", 0, 0, 1920, 1080),
+            mon("right", 1920, 0, 2560, 1440),
+        ];
+        let plan = plan_windows(
+            &MonitorMode::Single {
+                name: "right".into(),
+            },
+            &monitors,
+        );
+        let b = covered_bounds(&plan, (1920.0, 1080.0));
+        assert_eq!((b.min_x, b.max_x), (1920.0, 4480.0));
+    }
+
+    /// The regression this refactor exists for: with per-monitor
+    /// overlays the covered region is the union, so an entity living on
+    /// a secondary monitor is no longer clamped back onto the primary.
+    #[test]
+    fn covered_bounds_per_monitor_spans_every_overlay() {
+        let monitors = vec![
+            mon("primary", 0, 0, 1920, 1080),
+            mon("right", 1920, 0, 1920, 1080),
+        ];
+        let mut monitors = monitors;
+        monitors[0].is_primary = true;
+        let plan = plan_windows(&MonitorMode::PerMonitor, &monitors);
+        let b = covered_bounds(&plan, (1920.0, 1080.0));
+        assert_eq!((b.min_x, b.max_x), (0.0, 3840.0));
+
+        // A sprite at x=3000 sits on the second monitor. Under the old
+        // primary-window bounds it was clamped to 1920-64; now it stays.
+        assert_eq!(b.clamp_x(3000.0, 64.0), 3000.0);
+        assert_eq!(
+            DesktopBounds::from_size(1920.0, 1080.0).clamp_x(3000.0, 64.0),
+            1856.0
+        );
+    }
 
     #[test]
     fn uniform_integer_scaling_is_safe() {

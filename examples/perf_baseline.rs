@@ -52,7 +52,10 @@ fn main() {
         let mut scene = build_scene(n);
         // Warm-up: hot caches, jit allocations, etc.
         for _ in 0..50 {
-            scene.tick(1920.0, 1080.0, Some((960.0, 540.0)));
+            scene.tick(
+                anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
+                Some((960.0, 540.0)),
+            );
             let _ = scene.visible_entities();
         }
 
@@ -60,7 +63,10 @@ fn main() {
         let mut vis_total = 0u128;
         for _ in 0..ITERATIONS {
             let t0 = Instant::now();
-            scene.tick(1920.0, 1080.0, Some((960.0, 540.0)));
+            scene.tick(
+                anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
+                Some((960.0, 540.0)),
+            );
             tick_total += t0.elapsed().as_micros();
 
             // Invalidate the cache every other call so we hit both the

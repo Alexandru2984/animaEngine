@@ -489,8 +489,13 @@ pub fn run_native(
         scene.set_reduced_motion(config.global.reduced_motion);
         scene.set_hover_startle(config.global.hover_startle);
         scene.tick(
-            renderer.primary.window_width as f32,
-            renderer.primary.window_height as f32,
+            crate::monitor::covered_bounds(
+                &plan,
+                (
+                    renderer.primary.window_width as f32,
+                    renderer.primary.window_height as f32,
+                ),
+            ),
             // `cursor_pos` is tracked from every Motion/Enter pointer
             // event (pointer_handler.rs) in this surface's local
             // space; `cursor_global` adds `primary_origin` so it lands

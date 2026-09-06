@@ -243,7 +243,7 @@ impl Scene {
     /// Screen dimensions bound autonomous motion (walk-around) and gravity.
     /// `cursor` is forwarded to behaviors that track the mouse (FollowCursor);
     /// pass `None` when the position is stale or unknown.
-    pub fn tick(&mut self, screen_width: f32, screen_height: f32, cursor: Option<(f32, f32)>) {
+    pub fn tick(&mut self, bounds: crate::monitor::DesktopBounds, cursor: Option<(f32, f32)>) {
         let now = Instant::now();
         let dt = now.duration_since(self.last_tick).as_secs_f32();
         self.last_tick = now;
@@ -258,8 +258,7 @@ impl Scene {
         for entity in &mut self.entities {
             entity.tick(
                 dt,
-                screen_width,
-                screen_height,
+                bounds,
                 cursor,
                 &self.window_platforms,
                 self.reduced_motion,

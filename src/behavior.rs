@@ -272,8 +272,11 @@ fn random_unit(state: &mut u64) -> f32 {
 pub struct TickContext {
     pub sprite_width: f32,
     pub sprite_height: f32,
-    pub screen_width: f32,
-    pub screen_height: f32,
+    /// Region the entity may occupy, in global desktop coordinates.
+    /// Replaces the old `screen_width`/`screen_height` pair, which
+    /// implied an origin at `(0, 0)` and so clamped every entity onto
+    /// the primary monitor on a multi-monitor desktop.
+    pub bounds: crate::monitor::DesktopBounds,
     /// Mouse position in screen space, if known. `None` when the cursor
     /// isn't being tracked (e.g. window unfocused) — behaviors that need
     /// it should no-op.
@@ -303,11 +306,14 @@ impl Behavior {
                 // Bounce off the screen edges. We clamp position *and*
                 // flip direction so a tick that overshoots the edge
                 // immediately starts walking back the other way.
-                if *entity_x <= 0.0 {
-                    *entity_x = 0.0;
+                if *entity_x <= ctx.bounds.min_x {
+                    *entity_x = ctx.bounds.min_x;
                     state.walk_direction = 1.0;
-                } else if *entity_x + ctx.sprite_width >= ctx.screen_width {
-                    *entity_x = ctx.screen_width - ctx.sprite_width;
+                } else if *entity_x + ctx.sprite_width >= ctx.bounds.max_x {
+                    // `.max(min_x)` so bounds narrower than the sprite
+                    // pin it instead of placing it left of the edge and
+                    // ping-ponging against the branch above.
+                    *entity_x = (ctx.bounds.max_x - ctx.sprite_width).max(ctx.bounds.min_x);
                     state.walk_direction = -1.0;
                 }
             }
@@ -498,8 +504,7 @@ mod tests {
         TickContext {
             sprite_width: 64.0,
             sprite_height: 64.0,
-            screen_width: 1920.0,
-            screen_height: 1080.0,
+            bounds: crate::monitor::DesktopBounds::from_size(1920.0, 1080.0),
             cursor: None,
             dt,
             reduced_motion: false,
@@ -556,6 +561,52 @@ mod tests {
         }
         assert_eq!(state.walk_direction, 1.0);
         assert!(x >= 0.0);
+    }
+
+    /// A monitor placed left of the primary sits at negative desktop
+    /// coordinates. The edges the walker bounces off must be that
+    /// monitor's, not `0` — clamping to zero teleported the sprite onto
+    /// the primary monitor and pinned it there.
+    #[test]
+    fn walk_around_bounces_off_a_negative_origin_monitor() {
+        let bounds = crate::monitor::DesktopBounds {
+            min_x: -1920.0,
+            min_y: 0.0,
+            max_x: 0.0,
+            max_y: 1080.0,
+        };
+        let neg_ctx = |dt: f32| TickContext {
+            sprite_width: 64.0,
+            sprite_height: 64.0,
+            bounds,
+            cursor: None,
+            dt,
+            reduced_motion: false,
+        };
+
+        // Walking left off the far edge turns around at min_x, not 0.
+        let b = Behavior::WalkAround { speed: 200.0 };
+        let mut state = BehaviorState {
+            walk_direction: -1.0,
+            ..BehaviorState::default()
+        };
+        let mut x = -1900.0;
+        let mut y = 0.0;
+        for _ in 0..30 {
+            b.tick(&mut state, &mut x, &mut y, &neg_ctx(1.0 / 60.0));
+        }
+        assert_eq!(state.walk_direction, 1.0);
+        assert!(x >= -1920.0, "stayed on its own monitor, got {x}");
+        assert!(x < 0.0, "must not be dragged onto the primary, got {x}");
+
+        // And the right edge is that monitor's, not the desktop's.
+        let mut state = BehaviorState::default();
+        let mut x = -100.0;
+        for _ in 0..30 {
+            b.tick(&mut state, &mut x, &mut y, &neg_ctx(1.0 / 60.0));
+        }
+        assert_eq!(state.walk_direction, -1.0);
+        assert!(x + 64.0 <= 0.0, "bounced at max_x, got {x}");
     }
 
     #[test]
@@ -695,8 +746,7 @@ mod bounce_tests {
         TickContext {
             sprite_width: 64.0,
             sprite_height: 64.0,
-            screen_width: 1920.0,
-            screen_height: 1080.0,
+            bounds: crate::monitor::DesktopBounds::from_size(1920.0, 1080.0),
             cursor: None,
             dt,
             reduced_motion: false,

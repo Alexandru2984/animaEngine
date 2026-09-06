@@ -78,7 +78,12 @@ fn bench_scene_tick(c: &mut Criterion) {
     for &n in &[10usize, 50, 100] {
         let mut scene = build_scene(n);
         g.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
-            b.iter(|| scene.tick(1920.0, 1080.0, Some((960.0, 540.0))));
+            b.iter(|| {
+                scene.tick(
+                    anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
+                    Some((960.0, 540.0)),
+                )
+            });
         });
     }
     g.finish();
@@ -86,7 +91,10 @@ fn bench_scene_tick(c: &mut Criterion) {
 
 fn bench_visible_entities(c: &mut Criterion) {
     let mut scene = build_scene(100);
-    scene.tick(1920.0, 1080.0, None);
+    scene.tick(
+        anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
+        None,
+    );
     c.bench_function("visible_entities_rebuild/100", |b| {
         b.iter(|| {
             scene.mark_visible_dirty();
