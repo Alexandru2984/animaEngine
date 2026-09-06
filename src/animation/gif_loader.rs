@@ -1,6 +1,5 @@
 use super::frame::Frame;
-use crate::constants::{MAX_ANIMATION_FRAMES, MAX_DECODED_ASSET_BYTES};
-use crate::error::{AnimaError, Result};
+use crate::error::Result;
 use image::codecs::gif::GifDecoder;
 use image::AnimationDecoder;
 use std::fs::File;
@@ -16,72 +15,86 @@ pub fn load_gif(path: &Path) -> Result<Vec<Frame>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let decoder = GifDecoder::new(reader)?;
-    let gif_frames = decoder.into_frames();
+    super::animated::collect_frames(decoder.into_frames(), "GIF", path)
+}
 
-    let mut frames: Vec<Frame> = Vec::new();
-    let mut total_bytes: usize = 0;
-    let mut truncated_for_count = false;
-    let mut truncated_for_bytes = false;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::constants::MAX_ANIMATION_FRAMES;
+    use crate::error::AnimaError;
+    use image::codecs::gif::GifEncoder;
+    use image::{Delay, Frame as ImageFrame, RgbaImage};
+    use std::path::PathBuf;
 
-    for frame_result in gif_frames {
-        if frames.len() >= MAX_ANIMATION_FRAMES {
-            truncated_for_count = true;
-            break;
+    fn tmp_dir(name: &str) -> PathBuf {
+        let d = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("gif_tests")
+            .join(name);
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// Encode a real animated GIF so the decode path is exercised end to
+    /// end rather than mocked.
+    fn write_gif(path: &Path, count: usize, delay_ms: u32) {
+        let file = std::fs::File::create(path).unwrap();
+        let mut enc = GifEncoder::new(file);
+        let frames: Vec<ImageFrame> = (0..count)
+            .map(|i| {
+                let shade = (i * 20 % 256) as u8;
+                let img = RgbaImage::from_pixel(4, 4, image::Rgba([shade, 0, 0, 255]));
+                ImageFrame::from_parts(img, 0, 0, Delay::from_numer_denom_ms(delay_ms, 1))
+            })
+            .collect();
+        enc.encode_frames(frames).unwrap();
+    }
+
+    #[test]
+    fn decodes_frames_and_per_frame_delays() {
+        let dir = tmp_dir("basic");
+        let path = dir.join("anim.gif");
+        write_gif(&path, 3, 100);
+
+        let frames = load_gif(&path).expect("should decode");
+        assert_eq!(frames.len(), 3);
+        for f in &frames {
+            assert_eq!((f.width, f.height), (4, 4));
+            assert_eq!(f.rgba.len(), 4 * 4 * 4);
+            // GIF stores delays in centiseconds, so 100ms round-trips.
+            assert_eq!(f.delay_ms, Some(100), "per-frame delay preserved");
         }
-        match frame_result {
-            Ok(frame) => {
-                let (numerator, denominator) = frame.delay().numer_denom_ms();
-                let delay_ms = numerator.checked_div(denominator).unwrap_or(100);
-
-                let rgba_image = frame.into_buffer();
-                let (width, height) = rgba_image.dimensions();
-                let rgba = rgba_image.into_raw();
-
-                // Refuse the frame if it would push us past the byte cap.
-                if total_bytes.saturating_add(rgba.len()) > MAX_DECODED_ASSET_BYTES {
-                    truncated_for_bytes = true;
-                    break;
-                }
-                total_bytes += rgba.len();
-
-                if delay_ms > 0 {
-                    frames.push(Frame::with_delay(rgba, width, height, delay_ms));
-                } else {
-                    frames.push(Frame::new(rgba, width, height));
-                }
-            }
-            Err(e) => {
-                tracing::warn!("Failed to decode GIF frame: {}", e);
-            }
-        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
-    if frames.is_empty() {
-        return Err(AnimaError::EmptyAsset(path.to_path_buf()));
-    }
+    #[test]
+    fn frame_count_is_capped() {
+        // The cap is shared with the WebP path via `animated::collect_frames`;
+        // this pins it so the two can't silently diverge again.
+        let dir = tmp_dir("capped");
+        let path = dir.join("long.gif");
+        write_gif(&path, MAX_ANIMATION_FRAMES + 25, 20);
 
-    if truncated_for_count {
-        tracing::warn!(
-            "GIF {} truncated at MAX_ANIMATION_FRAMES = {}",
-            crate::drop_validate::redact_path(path),
-            MAX_ANIMATION_FRAMES
+        let frames = load_gif(&path).expect("should decode");
+        assert_eq!(
+            frames.len(),
+            MAX_ANIMATION_FRAMES,
+            "must truncate at MAX_ANIMATION_FRAMES, not decode the lot"
         );
-    }
-    if truncated_for_bytes {
-        tracing::warn!(
-            "GIF {} truncated at MAX_DECODED_ASSET_BYTES = {} MB ({} frames kept)",
-            crate::drop_validate::redact_path(path),
-            MAX_DECODED_ASSET_BYTES / (1024 * 1024),
-            frames.len()
-        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
-    let has_delays = frames.iter().any(|f| f.delay_ms.is_some());
-    tracing::info!(
-        "Loaded GIF: {} frames from {} (per-frame delays: {})",
-        frames.len(),
-        path.display(),
-        if has_delays { "yes" } else { "no" }
-    );
-    Ok(frames)
+    #[test]
+    fn garbage_is_rejected_not_silently_empty() {
+        let dir = tmp_dir("garbage");
+        let path = dir.join("not.gif");
+        std::fs::write(&path, b"this is not a GIF").unwrap();
+        assert!(load_gif(&path).is_err());
+
+        let missing = dir.join("nope.gif");
+        assert!(matches!(load_gif(&missing), Err(AnimaError::Io(_))));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
