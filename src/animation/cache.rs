@@ -33,6 +33,7 @@
 //! debugging asset loaders.
 
 use crate::animation::frame::Frame;
+use crate::config::AssetType;
 use crate::constants::{MAX_ANIMATION_FRAMES, MAX_DECODED_ASSET_BYTES, MAX_IMAGE_DIM};
 use crate::error::{AnimaError, Result};
 use std::fs;
@@ -160,12 +161,26 @@ fn evictions_needed(sizes_oldest_first: &[u64], cap: u64) -> usize {
 
 /// Compute the cache file path for an asset, or `None` if we can't build
 /// a stable key (path doesn't canonicalize, mtime unreadable, etc.).
-fn cache_key(asset_path: &Path) -> Option<PathBuf> {
+///
+/// The key combines the path+stat fingerprint with a hash of the decode
+/// descriptor (asset type + spritesheet grid). Path and mtime alone are
+/// not enough: the same file decoded as a static image, or as a
+/// spritesheet with a different column/row grid, produces different
+/// frames and must land on a different key — otherwise a cache hit serves
+/// the frames from the previous decode configuration.
+fn cache_key(
+    asset_path: &Path,
+    asset_type: &AssetType,
+    columns: Option<u32>,
+    rows: Option<u32>,
+) -> Option<PathBuf> {
     let root = cache_root()?;
     let canon = asset_path.canonicalize().ok()?;
     let fp = path_fingerprint(&canon).ok()?;
 
-    Some(root.join(format!("{:016x}.bin", hash_fingerprint(&canon, &fp))))
+    let base = hash_fingerprint(&canon, &fp);
+    let decode = decode_descriptor_hash(asset_type, columns, rows);
+    Some(root.join(format!("{base:016x}-{decode:08x}.bin")))
 }
 
 fn hash_fingerprint(canon: &Path, fp: &PathFingerprint) -> u64 {
@@ -173,6 +188,19 @@ fn hash_fingerprint(canon: &Path, fp: &PathFingerprint) -> u64 {
     canon.hash(&mut hasher);
     fp.hash(&mut hasher);
     hasher.finish()
+}
+
+/// Hash of the decode parameters that change the produced frames for the
+/// same bytes on disk. `video` presence is folded in so a build without
+/// the H.264 decoder never serves frames a video-enabled build cached
+/// (its Video key namespace differs), and vice-versa.
+fn decode_descriptor_hash(asset_type: &AssetType, columns: Option<u32>, rows: Option<u32>) -> u32 {
+    let mut hasher = DefaultHasher::new();
+    std::mem::discriminant(asset_type).hash(&mut hasher);
+    columns.hash(&mut hasher);
+    rows.hash(&mut hasher);
+    cfg!(feature = "video").hash(&mut hasher);
+    hasher.finish() as u32
 }
 
 /// Stat-derived signature of an asset. Two assets with the same
@@ -240,11 +268,20 @@ fn path_fingerprint(path: &Path) -> Result<PathFingerprint> {
 
 /// Try to load decoded frames from the cache. Returns `None` on any miss,
 /// disable, or corruption — the caller falls back to full decode.
-pub fn try_load(asset_path: &Path) -> Option<Vec<Frame>> {
+///
+/// The decode descriptor (`asset_type` + spritesheet grid) is part of the
+/// key, so a hit is only served to a decode configuration that would have
+/// produced those exact frames.
+pub fn try_load(
+    asset_path: &Path,
+    asset_type: &AssetType,
+    columns: Option<u32>,
+    rows: Option<u32>,
+) -> Option<Vec<Frame>> {
     if cache_disabled() {
         return None;
     }
-    let key = cache_key(asset_path)?;
+    let key = cache_key(asset_path, asset_type, columns, rows)?;
     if !key.exists() {
         return None;
     }
@@ -294,11 +331,17 @@ pub fn try_load(asset_path: &Path) -> Option<Vec<Frame>> {
 /// Write decoded frames to the cache. Errors are reported as `Err` but
 /// callers typically log and continue — caching is a perf optimization,
 /// not a correctness requirement.
-pub fn try_save(asset_path: &Path, frames: &[Frame]) -> Result<()> {
+pub fn try_save(
+    asset_path: &Path,
+    asset_type: &AssetType,
+    columns: Option<u32>,
+    rows: Option<u32>,
+    frames: &[Frame],
+) -> Result<()> {
     if cache_disabled() {
         return Ok(());
     }
-    let Some(key) = cache_key(asset_path) else {
+    let Some(key) = cache_key(asset_path, asset_type, columns, rows) else {
         return Ok(());
     };
 
@@ -624,6 +667,27 @@ mod tests {
             count: 1,
         };
         assert_eq!(hash_fingerprint(&canon, &fp), hash_fingerprint(&canon, &fp),);
+    }
+
+    #[test]
+    fn decode_descriptor_separates_grids_and_types() {
+        // The same bytes on disk decode to different frames under a
+        // different grid or asset type, so the key must separate them —
+        // otherwise re-importing an image as 8x1 serves the 4x1 frames
+        // cached earlier.
+        assert_ne!(
+            decode_descriptor_hash(&AssetType::Spritesheet, Some(4), Some(1)),
+            decode_descriptor_hash(&AssetType::Spritesheet, Some(8), Some(1)),
+        );
+        assert_ne!(
+            decode_descriptor_hash(&AssetType::PngStatic, None, None),
+            decode_descriptor_hash(&AssetType::Spritesheet, None, None),
+        );
+        // Identical descriptors must stay stable, or every lookup misses.
+        assert_eq!(
+            decode_descriptor_hash(&AssetType::Gif, Some(2), Some(3)),
+            decode_descriptor_hash(&AssetType::Gif, Some(2), Some(3)),
+        );
     }
 
     // ── Cache sweep (W.2) ────────────────────────────────────────────

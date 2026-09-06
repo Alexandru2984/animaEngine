@@ -117,7 +117,12 @@ pub fn load_asset(
 
     // Try the on-disk RGBA cache first — skips PNG/GIF/WebP decoding
     // entirely when the asset hasn't changed since last run.
-    if let Some(frames) = cache::try_load(asset_path) {
+    if let Some(frames) = cache::try_load(
+        asset_path,
+        asset_type,
+        spritesheet_columns,
+        spritesheet_rows,
+    ) {
         tracing::info!(
             "Asset cache hit ({}): {} frames",
             crate::drop_validate::redact_path(asset_path),
@@ -192,7 +197,13 @@ pub fn load_asset(
     };
 
     // Best-effort cache write — never fails the load.
-    if let Err(e) = cache::try_save(asset_path, &frames) {
+    if let Err(e) = cache::try_save(
+        asset_path,
+        asset_type,
+        spritesheet_columns,
+        spritesheet_rows,
+        &frames,
+    ) {
         tracing::warn!(
             "Failed to write asset cache for {}: {}",
             crate::drop_validate::redact_path(asset_path),
