@@ -366,9 +366,10 @@ impl Scene {
     /// Make `desired` unique among current entity ids: returned unchanged
     /// when free, otherwise suffixed `-2`, `-3`, … until it finds a gap.
     /// Used by the duplicate/import paths, which start from an existing
-    /// id. See [`fresh_entity_id`](Self::fresh_entity_id) for why id
-    /// uniqueness matters. The old `-{len}` suffix those sites used was
-    /// itself not verified unique; this probes until it actually is.
+    /// id. Entity GPU textures are keyed by id, so a duplicate id makes
+    /// two entities alias one texture. The old `-{len}` suffix those
+    /// sites used was itself not verified unique; this probes until it
+    /// actually is.
     pub fn unique_id(&self, desired: &str) -> String {
         if self.entities.iter().all(|e| e.id != desired) {
             return desired.to_string();
