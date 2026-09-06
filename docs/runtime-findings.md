@@ -42,7 +42,7 @@ to aim at a widget; `wlrctl`'s motion is relative only.
 
 ## Interaction
 
-### R1 · Context menu closes on the release of the click that opened it — `OPEN`
+### R1 · Context menu closes on the release of the click that opened it — `FIXED`
 
 Right-clicking an entity opens the context menu on button *press* and closes
 it again on *release*, so a normal right-click makes it flash and vanish. The
@@ -59,7 +59,16 @@ Observed on the native Wayland path. **Not** verified on the winit/X11 path,
 which sets the menu state from the same `Pressed` event and may share the
 defect.
 
-### R2 · No entity drag on the native Wayland path — `OPEN`
+**Fixed.** Two compounding causes: the menu was anchored with its top-left
+exactly at the click point, so the pointer sat on the rect boundary where
+egui reports `contains_pointer() == false` (probed: `any_click=true`,
+`contains_pointer=false`, `interact_pos == rect.min`); and dismissal did not
+exclude the click that opened the menu. The menu is now offset 2px off the
+cursor, and `ContextMenuState` carries an `armed` flag set once it has been
+shown. The shared fix covers both backends. Verified in both directions:
+a normal right-click leaves the menu up, a later click outside dismisses it.
+
+### R2 · No entity drag on the native Wayland path — `FIXED`
 
 `DragController` is never used anywhere under `src/wayland/`. Dragging a
 character with the mouse — arguably the core interaction of a desktop-pet
@@ -70,13 +79,22 @@ section listing three limitations (FollowCursor in pass-through,
 window-awareness physics, `XGrabKey` hotkeys) and **drag is not among them**,
 so the documentation implies it works.
 
-### R3 · Left-click does not select an entity on Wayland — `OPEN`
+**Fixed.** `App::handle_mouse_input`'s behaviour is now mirrored on the
+Wayland path — press selects and picks up, motion moves (invalidating the
+Bounce rest position), release drops, and a press/release that never moved
+pokes instead. The module doc now lists this under "What works". Verified by
+dragging a character across a headless sway session.
+
+### R3 · Left-click does not select an entity on Wayland — `FIXED`
 
 `src/wayland/run.rs` only matches `egui::PointerButton::Secondary` when
 resolving a click to an entity, so selection is right-click only. The winit
 path selects on left-click (`src/app/input.rs`). The Inspector's own empty
 state says *"Click an entity in the Scene tab, or press Tab to cycle"* — it
 does not mention that clicking the sprite works differently per backend.
+
+**Fixed** as part of R2 — left press now selects, and clicking empty space
+deselects, matching winit.
 
 ---
 
