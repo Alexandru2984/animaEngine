@@ -48,7 +48,21 @@ pub trait OverlayPlatform {
 /// when the window server can't support these operations (e.g. the winit
 /// window isn't X11, so the caller falls back to `set_cursor_hittest`).
 pub fn for_window(window: &Window) -> Option<Box<dyn OverlayPlatform>> {
-    #[cfg(target_os = "linux")]
+    // X11 is the display server on Linux *and* the BSDs, and
+    // `x11_input` is already `cfg(unix)` — so it compiles there today.
+    // Gating this factory on `target_os = "linux"` alone silently dropped
+    // the BSDs to the generic fallback (no fine-grained toggle-button
+    // input region, no global pointer query) even though the backend was
+    // built into the binary. macOS is deliberately excluded: it is unix
+    // but not X11. Keep this list and the `not(any(...))` arm below in
+    // sync.
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly",
+    ))]
     {
         super::x11_input::X11InputManager::new(window)
             .map(|m| Box::new(m) as Box<dyn OverlayPlatform>)
@@ -57,7 +71,14 @@ pub fn for_window(window: &Window) -> Option<Box<dyn OverlayPlatform>> {
     {
         super::win_overlay::WinOverlay::new(window).map(|m| Box::new(m) as Box<dyn OverlayPlatform>)
     }
-    #[cfg(not(any(target_os = "linux", windows)))]
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly",
+        windows,
+    )))]
     {
         let _ = window;
         None
