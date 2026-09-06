@@ -25,6 +25,26 @@ use winit::event::{ElementState, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::{Window, WindowId};
 
+/// The ⚙ toggle button's size in **physical pixels**, for a window whose
+/// scale factor is `scale_factor`.
+///
+/// [`TOGGLE_BUTTON_SIZE`] is expressed in egui points (logical units) and
+/// egui paints at the window's scale factor, so the button occupies
+/// `size × scale` physical pixels on screen. The X11 input region,
+/// however, is specified in physical pixels. Passing the raw constant to
+/// both — which is what the code did — meant that on a HiDPI display
+/// (scale 2) the button was drawn 128px wide while only a 64px corner
+/// accepted clicks, leaving three quarters of the visible button dead.
+pub(crate) fn toggle_button_px(scale_factor: f64) -> u32 {
+    let px = (TOGGLE_BUTTON_SIZE as f64) * scale_factor;
+    // A non-finite or absurd scale must not produce a zero-sized (or
+    // wrapped) region — that would make the overlay unreachable.
+    if !px.is_finite() {
+        return TOGGLE_BUTTON_SIZE;
+    }
+    px.round().clamp(1.0, u32::MAX as f64) as u32
+}
+
 /// Main application state — implements winit's ApplicationHandler.
 ///
 /// The overlay operates in two modes:
@@ -361,11 +381,18 @@ impl App {
     /// like Mutter occasionally clip the shape after fractional-scaling
     /// transitions or after the window is minimized and restored).
     fn reapply_input_shape(&mut self) {
+        // Read the scale before taking the `&mut self.x11_input` borrow.
+        let button_px = toggle_button_px(
+            self.window
+                .as_ref()
+                .map(|w| w.scale_factor())
+                .unwrap_or(1.0),
+        );
         if let Some(x11) = &mut self.x11_input {
             let result = if self.edit_mode {
                 x11.set_full_input()
             } else {
-                x11.set_passthrough_with_button(TOGGLE_BUTTON_SIZE)
+                x11.set_passthrough_with_button(button_px)
             };
             if let Err(e) = result {
                 tracing::warn!("Failed to apply input shape: {}", e);
@@ -710,5 +737,32 @@ impl ApplicationHandler<AnimaEvent> for App {
 
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The constant is in egui points but the X11 input region is in
+    /// physical pixels. Handing the raw value to both left three quarters
+    /// of the drawn button unclickable at scale 2.
+    #[test]
+    fn toggle_button_px_scales_logical_points_to_physical() {
+        assert_eq!(toggle_button_px(1.0), TOGGLE_BUTTON_SIZE);
+        assert_eq!(toggle_button_px(2.0), TOGGLE_BUTTON_SIZE * 2);
+        // Fractional scaling (GNOME 125% / 150%) rounds to whole pixels.
+        assert_eq!(toggle_button_px(1.25), 80);
+        assert_eq!(toggle_button_px(1.5), 96);
+    }
+
+    /// A bad scale must never yield a zero-sized region — that would make
+    /// the overlay permanently unreachable in pass-through mode.
+    #[test]
+    fn toggle_button_px_never_degenerates_to_zero() {
+        assert!(toggle_button_px(0.0) >= 1);
+        assert!(toggle_button_px(-1.0) >= 1);
+        assert_eq!(toggle_button_px(f64::NAN), TOGGLE_BUTTON_SIZE);
+        assert_eq!(toggle_button_px(f64::INFINITY), TOGGLE_BUTTON_SIZE);
     }
 }

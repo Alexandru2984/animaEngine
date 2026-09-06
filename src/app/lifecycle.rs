@@ -8,7 +8,6 @@
 //! input shape, and brings up wgpu + egui.
 
 use super::App;
-use crate::constants::TOGGLE_BUTTON_SIZE;
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::ui::EguiRenderer;
 use std::sync::Arc;
@@ -176,8 +175,11 @@ impl App {
                 // Create pooled X11 input manager (single connection)
                 let mut x11_mgr = crate::window::overlay::for_window(&window);
                 if let Some(ref mut mgr) = x11_mgr {
-                    // Set initial input shape: click-through except toggle button
-                    if let Err(e) = mgr.set_passthrough_with_button(TOGGLE_BUTTON_SIZE) {
+                    // Set initial input shape: click-through except toggle
+                    // button. Physical pixels — the constant is in egui
+                    // points, see `toggle_button_px`.
+                    let button_px = super::toggle_button_px(window.scale_factor());
+                    if let Err(e) = mgr.set_passthrough_with_button(button_px) {
                         tracing::warn!("Failed to set initial input shape: {}", e);
                         let _ = window.set_cursor_hittest(false);
                     }
