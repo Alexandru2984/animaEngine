@@ -117,6 +117,12 @@ pub fn run_native(
     let mut selection = SelectionState::new();
     let mut toasts = ToastQueue::default();
     let mut config_dirty = false;
+    // Soak metrics (W.1). Previously wired only into the winit render
+    // loop, so `ANIMA_SOAK_METRICS` was silently a no-op here: the
+    // memory-regression harness covered one of the two backends and gave
+    // no indication it was skipping the other. `None` for frame p95 —
+    // this loop has no `PerfSampler`; the memory columns are the point.
+    let mut soak = crate::soak::SoakRecorder::from_env();
     let warnings: BTreeSet<Warning> = BTreeSet::new();
     // Right-click context menu state, mirroring `app::ContextMenuState`
     // on the X11 path. Persists across frames while the menu is open.
@@ -485,6 +491,14 @@ pub fn run_native(
 
         // Tick the simulation. screen_w / screen_h match the surface so
         // walk-around behaviors stay inside the visible area.
+        if let Some(soak) = soak.as_mut() {
+            soak.maybe_sample(
+                crate::perf::read_rss_kib(),
+                scene.total_decoded_bytes(),
+                renderer.shared.textures.len(),
+                None,
+            );
+        }
         scene.set_reduced_motion(config.global.reduced_motion);
         scene.set_hover_startle(config.global.hover_startle);
         scene.tick(
