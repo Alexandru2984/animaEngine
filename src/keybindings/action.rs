@@ -306,17 +306,6 @@ impl Action {
         }
     }
 
-    /// Join the default chords' display strings with `  /  ` for the
-    /// legacy reference table in the Appearance tab. The rebind UI
-    /// uses `KeyBindings::chords_for` instead.
-    pub fn default_combo(self) -> String {
-        self.default_chords()
-            .iter()
-            .map(|c| c.display_str())
-            .collect::<Vec<_>>()
-            .join("  /  ")
-    }
-
     /// Stable Fluent message id like `action-toggle-edit-mode`. Used
     /// by the rebind UI and command palette so the action label
     /// localizes without forcing every locale file to retain English

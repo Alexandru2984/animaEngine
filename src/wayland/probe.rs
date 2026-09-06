@@ -23,13 +23,6 @@ pub struct WaylandCapabilities {
     pub layer_shell: bool,
 }
 
-impl WaylandCapabilities {
-    /// True when we *could* run a native Wayland overlay end-to-end.
-    pub fn fully_capable(&self) -> bool {
-        self.session_present && self.layer_shell
-    }
-}
-
 /// Dummy state — we only need the registry init, not actual event handling.
 struct ProbeState;
 

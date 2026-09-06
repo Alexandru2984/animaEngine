@@ -224,12 +224,6 @@ impl AnimationSet {
         self.active
     }
 
-    /// `true` if the set carries a dedicated animation for `state`
-    /// (no fallback considered).
-    pub fn has_state(&self, state: StateId) -> bool {
-        self.states.contains_key(&state)
-    }
-
     /// The animation for the active state. Falls back to `Idle` when
     /// the active state has no dedicated sequence.
     pub fn current(&self) -> &Animation {
