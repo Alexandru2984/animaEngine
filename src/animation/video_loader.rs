@@ -80,6 +80,9 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
     // `decode_round_trip_through_real_decoder`.
     let mut primer = Vec::new();
     push_sps_pps_from_avcc(&mp4, track_id, &mut primer)?;
+    // Prefix width the samples are actually encoded with — read once,
+    // not assumed.
+    let nal_len_size = nal_length_size(&mp4, track_id);
 
     let mut annex_b = Vec::with_capacity(64 * 1024);
 
@@ -120,7 +123,7 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
         if sample_id == 1 {
             annex_b.extend_from_slice(&primer);
         }
-        avcc_to_annex_b(&sample.bytes, &mut annex_b);
+        avcc_to_annex_b(&sample.bytes, nal_len_size, &mut annex_b);
 
         match decoder.decode(&annex_b) {
             Ok(Some(yuv)) => {
@@ -180,26 +183,32 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
 /// Convert one length-prefixed AVCC bitstream (the MP4 sample format) into
 /// Annex-B (start-code prefixed) for openh264.
 ///
-/// KNOWN LIMITATION: assumes 4-byte NALU length prefixes. The avcC box's
-/// `lengthSizeMinusOne` field legally allows 1- or 2-byte prefixes too;
-/// such files (rare — every mainstream encoder emits 4) parse as garbage
-/// lengths here, fail the bounds check below, and the frame is skipped.
-/// Safe (no out-of-bounds path), just lossy for exotic encoders.
+/// `nal_length_size` is the prefix width in bytes, from the avcC box's
+/// `lengthSizeMinusOne + 1` — legally 1, 2 or 4. This used to be hard-
+/// coded to 4; a file using a narrower prefix (rare, but valid — every
+/// mainstream encoder emits 4) read its lengths as garbage, failed the
+/// bounds check below and lost every frame. Anything outside {1, 2, 4}
+/// is not a legal avcC value, so it falls back to 4.
 ///
 /// `pub` (hidden) for the W.4 fuzz target — the NALU walk is a hand-
 /// written length-prefix parser over untrusted MP4 sample bytes.
 #[doc(hidden)]
-pub fn avcc_to_annex_b(input: &[u8], out: &mut Vec<u8>) {
+pub fn avcc_to_annex_b(input: &[u8], nal_length_size: u8, out: &mut Vec<u8>) {
+    let size = match nal_length_size {
+        1 | 2 | 4 => nal_length_size as usize,
+        _ => 4,
+    };
     let mut cursor = 0;
-    while cursor + 4 <= input.len() {
-        let nal_len = u32::from_be_bytes([
-            input[cursor],
-            input[cursor + 1],
-            input[cursor + 2],
-            input[cursor + 3],
-        ]) as usize;
-        cursor += 4;
-        if cursor + nal_len > input.len() {
+    while cursor + size <= input.len() {
+        // Big-endian over `size` bytes. Accumulating avoids a separate
+        // branch per width and can't overflow: size ≤ 4, so at most a
+        // u32's worth lands in a usize.
+        let mut nal_len: usize = 0;
+        for b in &input[cursor..cursor + size] {
+            nal_len = (nal_len << 8) | *b as usize;
+        }
+        cursor += size;
+        if nal_len == 0 || cursor + nal_len > input.len() {
             // Malformed sample — bail; the decoder will skip this frame.
             break;
         }
@@ -207,6 +216,18 @@ pub fn avcc_to_annex_b(input: &[u8], out: &mut Vec<u8>) {
         out.extend_from_slice(&input[cursor..cursor + nal_len]);
         cursor += nal_len;
     }
+}
+
+/// NALU length prefix width for `track_id`, from its avcC box.
+///
+/// Falls back to 4 when the box can't be read — the near-universal value,
+/// and the one this walker assumed unconditionally before.
+fn nal_length_size<R: Read + Seek>(mp4: &Mp4Reader<R>, track_id: u32) -> u8 {
+    mp4.tracks()
+        .get(&track_id)
+        .and_then(|t| t.trak.mdia.minf.stbl.stsd.avc1.as_ref())
+        .map(|avc1| avc1.avcc.length_size_minus_one + 1)
+        .unwrap_or(4)
 }
 
 /// Extract SPS / PPS parameter sets from the `avcC` configuration box and
@@ -294,7 +315,7 @@ mod tests {
             0, 0, 0, 1, 0xCC, // second NALU: 1 byte payload
         ];
         let mut out = Vec::new();
-        avcc_to_annex_b(&input, &mut out);
+        avcc_to_annex_b(&input, 4, &mut out);
         assert_eq!(
             out,
             vec![0, 0, 0, 1, 0xAA, 0xBB, 0, 0, 0, 1, 0xCC],
@@ -307,8 +328,39 @@ mod tests {
         // Length says 10 but only 2 bytes follow → must not panic.
         let input = [0, 0, 0, 10, 0xAA, 0xBB];
         let mut out = Vec::new();
-        avcc_to_annex_b(&input, &mut out);
+        avcc_to_annex_b(&input, 4, &mut out);
         assert!(out.is_empty(), "truncated input should produce nothing");
+    }
+
+    #[test]
+    fn avcc_to_annex_b_honours_narrow_length_prefixes() {
+        // avcC legally allows 1- and 2-byte prefixes. Hard-coding 4 read
+        // these as garbage lengths and dropped every frame.
+        let one = [2u8, 0xAA, 0xBB, 1, 0xCC];
+        let mut out = Vec::new();
+        avcc_to_annex_b(&one, 1, &mut out);
+        assert_eq!(out, vec![0, 0, 0, 1, 0xAA, 0xBB, 0, 0, 0, 1, 0xCC]);
+
+        let two = [0u8, 2, 0xAA, 0xBB, 0, 1, 0xCC];
+        out.clear();
+        avcc_to_annex_b(&two, 2, &mut out);
+        assert_eq!(out, vec![0, 0, 0, 1, 0xAA, 0xBB, 0, 0, 0, 1, 0xCC]);
+
+        // The same bytes read as 4-byte prefixes are nonsense — this is
+        // exactly the frame loss the old hard-coding caused.
+        out.clear();
+        avcc_to_annex_b(&two, 4, &mut out);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn avcc_to_annex_b_rejects_illegal_prefix_width() {
+        // 3 is not a legal lengthSizeMinusOne+1; fall back to 4 rather
+        // than trusting a corrupt container field.
+        let input = [0, 0, 0, 2, 0xAA, 0xBB];
+        let mut out = Vec::new();
+        avcc_to_annex_b(&input, 3, &mut out);
+        assert_eq!(out, vec![0, 0, 0, 1, 0xAA, 0xBB]);
     }
 
     /// Split an Annex-B stream into NALUs (3- and 4-byte start codes).
