@@ -230,6 +230,16 @@ pub(crate) struct ContextMenuState {
     pub entity_idx: usize,
     /// Screen-space anchor for the floating menu.
     pub pos: egui::Pos2,
+    /// Whether the menu may be dismissed by a click yet.
+    ///
+    /// The menu opens on the right *press*, and the matching *release*
+    /// completes a click a few frames later. Without this guard that
+    /// release dismissed the menu it had just opened, so a normal
+    /// right-click made the menu flash and vanish — it was only usable
+    /// while the button was physically held. The caller arms the state
+    /// once the menu has been shown, so only a click that *begins*
+    /// afterwards can close it.
+    pub armed: bool,
 }
 
 impl App {

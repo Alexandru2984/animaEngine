@@ -72,6 +72,8 @@ impl App {
                 self.ui_state.context_menu = Some(ContextMenuState {
                     entity_idx,
                     pos: egui::pos2(self.mouse_x, self.mouse_y),
+                    // Armed after the first showing — see ContextMenuState.
+                    armed: false,
                 });
             }
             return;

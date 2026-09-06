@@ -11,7 +11,13 @@ use crate::ui::panels;
 impl App {
     pub(super) fn handle_menu_outcome(&mut self, outcome: panels::ContextMenuOutcome) {
         match outcome {
-            panels::ContextMenuOutcome::Open => {}
+            panels::ContextMenuOutcome::Open => {
+                // The menu survived a frame, so a *subsequent* click may
+                // now dismiss it — but not the one that opened it.
+                if let Some(state) = self.ui_state.context_menu.as_mut() {
+                    state.armed = true;
+                }
+            }
             panels::ContextMenuOutcome::Close => {
                 self.ui_state.context_menu = None;
             }

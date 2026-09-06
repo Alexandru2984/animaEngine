@@ -483,6 +483,8 @@ pub fn run_native(
                         context_menu_state = Some(crate::app::ContextMenuState {
                             entity_idx: idx,
                             pos: *pos,
+                            // Armed after the first showing — see ContextMenuState.
+                            armed: false,
                         });
                     }
                 }
@@ -812,7 +814,14 @@ pub fn run_native(
                 }
                 if let Some(out) = menu_outcome {
                     match out {
-                        panels::ContextMenuOutcome::Open => {}
+                        panels::ContextMenuOutcome::Open => {
+                            // The menu survived a frame, so a *subsequent*
+                            // click may now dismiss it — but not the one
+                            // that opened it.
+                            if let Some(state) = context_menu_state.as_mut() {
+                                state.armed = true;
+                            }
+                        }
                         panels::ContextMenuOutcome::Close => {
                             context_menu_state = None;
                         }
