@@ -333,6 +333,18 @@ impl Entity {
             .floor()
             .clamp(0.0, (frame.height - 1) as f32) as u32;
 
+        // The renderer mirrors the sprite horizontally when `facing_left`
+        // (`make_quad_vertices` swaps the U coordinates), so the pixel
+        // actually drawn at this screen column comes from the mirrored
+        // texture column. Sampling the unmirrored column tests the
+        // opposite side of the sprite — for an asymmetric one, its
+        // transparent corners stop matching its clickable area.
+        let tex_x = if self.facing_left {
+            frame.width - 1 - tex_x
+        } else {
+            tex_x
+        };
+
         let idx = (tex_y * frame.width + tex_x) as usize * 4;
         // Defensive: corrupted frame data shouldn't crash a click.
         let alpha = frame.rgba.get(idx + 3).copied().unwrap_or(0);
@@ -523,6 +535,33 @@ mod tests {
         let e = entity_at(0.0, 0.0);
         // Pixel (0,0) is fully transparent — this is the bug we just fixed.
         assert!(!e.contains_point(0.5, 0.5));
+    }
+
+    #[test]
+    fn alpha_hit_follows_the_mirrored_sprite_when_facing_left() {
+        // `checker_frame` is symmetric, so it can't catch a flip bug.
+        // Build one opaque only at texture column 0, row 1.
+        let (col, row) = (0u32, 1u32);
+        let mut rgba = vec![0u8; 4 * 4 * 4];
+        rgba[((row * 4 + col) * 4) as usize + 3] = 255;
+        let anim = Animation::new(vec![Frame::new(rgba, 4, 4)], 1.0, false);
+        let mut e = Entity::for_test(0.0, 0.0, anim);
+
+        // Unflipped: that pixel is drawn at screen column 0.
+        assert!(e.contains_point(0.5, 1.5));
+        assert!(!e.contains_point(3.5, 1.5));
+
+        // facing_left mirrors the sprite, so the same opaque pixel is
+        // drawn at screen column 3 — the hit test has to follow it there.
+        e.facing_left = true;
+        assert!(
+            e.contains_point(3.5, 1.5),
+            "mirrored sprite must be clickable where it is drawn"
+        );
+        assert!(
+            !e.contains_point(0.5, 1.5),
+            "mirrored sprite must not be clickable where it is no longer drawn"
+        );
     }
 
     #[test]
