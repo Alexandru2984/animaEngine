@@ -94,31 +94,36 @@ impl App {
             tracing::info!("No asset library root found; Library tab will show empty state.");
         }
 
-        // Auto-detect screen resolution if config values are 0
-        let (win_w, win_h) = if self.config.global.window_width == 0
-            || self.config.global.window_height == 0
+        // Auto-detected resolution, used when the config doesn't pin a
+        // size and the plan doesn't name a monitor (i.e. Span).
+        let detected = if let Some(monitor) = event_loop
+            .primary_monitor()
+            .or_else(|| event_loop.available_monitors().next())
         {
-            if let Some(monitor) = event_loop
-                .primary_monitor()
-                .or_else(|| event_loop.available_monitors().next())
-            {
-                let size = monitor.size();
-                tracing::info!(
-                    "Auto-detected monitor resolution: {}x{}",
-                    size.width,
-                    size.height
-                );
-                (size.width, size.height)
-            } else {
-                tracing::warn!("Could not detect monitor resolution, falling back to 1920x1080");
-                (1920u32, 1080u32)
-            }
+            let size = monitor.size();
+            tracing::info!(
+                "Auto-detected monitor resolution: {}x{}",
+                size.width,
+                size.height
+            );
+            (size.width, size.height)
         } else {
+            tracing::warn!("Could not detect monitor resolution, falling back to 1920x1080");
+            (1920u32, 1080u32)
+        };
+
+        // Derive the primary window's geometry from the monitor plan, so
+        // `Single`/`PerMonitor` actually put it on the monitor they name.
+        // `self.monitors` was snapshotted above, before this point.
+        let plan = crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors);
+        let ((win_w, win_h), win_pos) = super::windows::primary_window_geometry(
+            &plan,
             (
                 self.config.global.window_width,
                 self.config.global.window_height,
-            )
-        };
+            ),
+            detected,
+        );
 
         // Build window attributes: transparent, borderless, always-on-top.
         // `win_w`/`win_h` are PHYSICAL pixels (from `monitor.size()`, or a
@@ -137,6 +142,16 @@ impl App {
             .with_decorations(false)
             .with_window_level(WindowLevel::AlwaysOnTop)
             .with_inner_size(winit::dpi::PhysicalSize::new(win_w, win_h));
+        // Place it on the planned monitor. Only the extra windows used to
+        // be positioned, so picking a non-primary monitor in Single mode
+        // left the overlay wherever the WM dropped it.
+        let window_attrs = match win_pos {
+            Some((x, y)) => {
+                tracing::info!("Placing primary overlay at {x},{y} ({win_w}x{win_h})");
+                window_attrs.with_position(winit::dpi::PhysicalPosition::new(x, y))
+            }
+            None => window_attrs,
+        };
 
         // X11-specific: Use Normal type (NOT Dock).
         // Dock windows on XWayland/Mutter don't receive mouse events.

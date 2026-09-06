@@ -81,6 +81,35 @@ fn win_hwnd(window: &Window) -> Option<isize> {
     }
 }
 
+/// Size (physical px) and optional desktop position for the **primary**
+/// overlay window, derived from the monitor plan.
+///
+/// `plan.primary` names the monitor the window should cover: `Single`
+/// picks it explicitly, `PerMonitor` pins it to the OS primary. `Span`
+/// leaves it `None` and keeps the whole-desktop behaviour, so `fallback`
+/// (the auto-detected resolution) applies.
+///
+/// The primary window was previously never positioned at all — only the
+/// extras were — so selecting a non-primary monitor in `Single` mode
+/// silently did nothing: the overlay stayed wherever the window manager
+/// happened to drop it. An explicit non-zero size in the config still
+/// wins over the monitor's own, since that is a deliberate user override.
+pub(super) fn primary_window_geometry(
+    plan: &monitor::WindowPlan,
+    configured: (u32, u32),
+    fallback: (u32, u32),
+) -> ((u32, u32), Option<(i32, i32)>) {
+    let size = if configured.0 != 0 && configured.1 != 0 {
+        configured
+    } else {
+        match &plan.primary {
+            Some(m) => (m.width, m.height),
+            None => fallback,
+        }
+    };
+    (size, plan.primary.as_ref().map(|m| (m.x, m.y)))
+}
+
 /// Overlay window attributes shared by the primary and the extras.
 /// Factored from `lifecycle.rs` so the two spawn sites can't drift.
 pub(super) fn overlay_window_attrs(width: u32, height: u32) -> winit::window::WindowAttributes {
@@ -114,13 +143,18 @@ impl App {
         !self.extra_windows.is_empty()
     }
 
-    /// Global origin of the primary window. Identity for the
-    /// single-window modes (pre-0.6 behaviour); the primary monitor's
-    /// top-left in PerMonitor mode (entities live in global coords).
+    /// Global origin of the primary window — the top-left of whichever
+    /// monitor the plan puts it on, since entities live in global
+    /// desktop coordinates. `Span` has no single monitor (`primary:
+    /// None`) and keeps the identity origin.
+    ///
+    /// This used to short-circuit to `(0, 0)` whenever no extra windows
+    /// existed, which silently mis-translated `Single` mode: that mode
+    /// names one monitor and creates no extras, so a monitor sitting at
+    /// a non-zero desktop offset got entity coordinates that were off by
+    /// exactly that offset. It has to agree with where
+    /// [`primary_window_geometry`] actually places the window.
     pub(super) fn primary_origin(&self) -> (f32, f32) {
-        if !self.has_extra_windows() {
-            return (0.0, 0.0);
-        }
         monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors)
             .primary
             .map(|m| (m.x as f32, m.y as f32))
@@ -428,5 +462,74 @@ impl App {
                 self.window_platforms_active = true;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::primary_window_geometry;
+    use crate::monitor::{MonitorInfo, WindowPlan};
+
+    fn mon(name: &str, x: i32, y: i32, w: u32, h: u32) -> MonitorInfo {
+        MonitorInfo {
+            name: name.to_string(),
+            x,
+            y,
+            width: w,
+            height: h,
+            scale_factor: 1.0,
+            is_primary: false,
+        }
+    }
+
+    /// Span names no monitor, so the auto-detected resolution applies and
+    /// the window stays unpositioned — the pre-existing behaviour.
+    #[test]
+    fn span_keeps_detected_size_and_no_position() {
+        let plan = WindowPlan {
+            primary: None,
+            extras: Vec::new(),
+        };
+        let (size, pos) = primary_window_geometry(&plan, (0, 0), (1920, 1080));
+        assert_eq!(size, (1920, 1080));
+        assert_eq!(pos, None);
+    }
+
+    /// The regression this fixes: Single names a monitor at a non-zero
+    /// desktop offset, and the primary window has to actually go there.
+    #[test]
+    fn single_places_the_window_on_the_named_monitor() {
+        let plan = WindowPlan {
+            primary: Some(mon("HDMI-A-1", 1920, 0, 2560, 1440)),
+            extras: Vec::new(),
+        };
+        let (size, pos) = primary_window_geometry(&plan, (0, 0), (1920, 1080));
+        assert_eq!(size, (2560, 1440), "sized to the chosen monitor");
+        assert_eq!(pos, Some((1920, 0)), "and placed at its desktop origin");
+    }
+
+    /// An explicit config size is a deliberate override and still wins,
+    /// but the plan continues to decide *where* the window goes.
+    #[test]
+    fn configured_size_overrides_the_monitor_but_not_the_position() {
+        let plan = WindowPlan {
+            primary: Some(mon("HDMI-A-1", 1920, 0, 2560, 1440)),
+            extras: Vec::new(),
+        };
+        let (size, pos) = primary_window_geometry(&plan, (800, 600), (1920, 1080));
+        assert_eq!(size, (800, 600));
+        assert_eq!(pos, Some((1920, 0)));
+    }
+
+    /// A half-specified config size (one axis zero) is not a valid
+    /// override and must fall through to the monitor's own size.
+    #[test]
+    fn partial_configured_size_falls_through() {
+        let plan = WindowPlan {
+            primary: Some(mon("eDP-1", 0, 0, 1366, 768)),
+            extras: Vec::new(),
+        };
+        let (size, _) = primary_window_geometry(&plan, (800, 0), (1920, 1080));
+        assert_eq!(size, (1366, 768));
     }
 }
