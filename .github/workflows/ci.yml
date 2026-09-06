@@ -58,11 +58,20 @@ jobs:
       # shellcheck is preinstalled on the runner, so actionlint's
       # shellcheck rules are active here — keep that in mind when a
       # local run (without shellcheck) comes up clean.
+      # Pinned twice over: the script is fetched from the `v1.7.12` tag
+      # rather than `main` (a mutable branch whose contents we execute
+      # with bash), and its SHA-256 is verified before it runs. Bump the
+      # version, the tag and the hash together — re-download the script
+      # and run `sha256sum` on it to get the new value.
       - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SCRIPT_SHA256: 72fa3e45ac20f3c3a512d6747b4fcf719e21f890e8c43e78d48a41fdfb900c4e
         run: |
-          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash \
+          curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash" \
             -o /tmp/download-actionlint.bash
-          bash /tmp/download-actionlint.bash 1.7.12 /tmp
+          echo "${ACTIONLINT_SCRIPT_SHA256}  /tmp/download-actionlint.bash" | sha256sum -c -
+          bash /tmp/download-actionlint.bash "${ACTIONLINT_VERSION}" /tmp
       - run: /tmp/actionlint -color
 
   clippy:
