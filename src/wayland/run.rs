@@ -169,7 +169,7 @@ pub fn run_native(
     // as the X11 path.
     layer.set_input_region(Some(InputRect::toggle_button_corner(
         width,
-        TOGGLE_BUTTON_SIZE,
+        toggle_button_units(&layer.monitors()),
     )))?;
 
     // Sprite-only extra surfaces for `MonitorMode::PerMonitor`, one
@@ -213,10 +213,15 @@ pub fn run_native(
         if let Some((new_w, new_h)) = layer.state.pending_size.take() {
             if new_w != renderer.primary.window_width || new_h != renderer.primary.window_height {
                 renderer.resize(new_w, new_h);
-                layer.set_input_region(Some(InputRect::toggle_button_corner(
-                    new_w,
-                    TOGGLE_BUTTON_SIZE,
-                )))?;
+                // Re-derive from the live state: this used to re-apply the
+                // pass-through corner unconditionally, so a resize while
+                // in edit mode silently reverted the surface to
+                // click-through, and a resize while hidden made it
+                // clickable again.
+                let button = toggle_button_units(&layer.monitors());
+                let region =
+                    region_for_state(overlay_hidden, layer.state.edit_mode, new_w, new_h, button);
+                layer.set_input_region(region)?;
                 tracing::info!("Layer surface resized to {new_w}×{new_h}");
             }
         }
@@ -383,7 +388,7 @@ pub fn run_native(
             }
             if toggle_edit_xor {
                 let new_mode = !layer.state.edit_mode;
-                if let Err(e) = layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
+                if let Err(e) = layer.set_edit_mode(new_mode, toggle_button_units(&monitors_now)) {
                     tracing::warn!("dbus toggle: {e}");
                 }
             }
@@ -408,19 +413,13 @@ pub fn run_native(
                 // region, which left every sprite fully visible on screen —
                 // the overlay was not hidden in any sense the user would
                 // recognise.
-                let region = if overlay_hidden {
-                    None
-                } else if layer.state.edit_mode {
-                    Some(InputRect::full(
-                        renderer.primary.window_width,
-                        renderer.primary.window_height,
-                    ))
-                } else {
-                    Some(InputRect::toggle_button_corner(
-                        renderer.primary.window_width,
-                        TOGGLE_BUTTON_SIZE,
-                    ))
-                };
+                let region = region_for_state(
+                    overlay_hidden,
+                    layer.state.edit_mode,
+                    renderer.primary.window_width,
+                    renderer.primary.window_height,
+                    toggle_button_units(&monitors_now),
+                );
                 if let Err(e) = layer.set_input_region(region) {
                     tracing::warn!("visibility change: {e}");
                 }
@@ -446,7 +445,7 @@ pub fn run_native(
             };
             if let Some(Action::ToggleEditMode) = config.keybindings.lookup(chord) {
                 let new_mode = !layer.state.edit_mode;
-                match layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
+                match layer.set_edit_mode(new_mode, toggle_button_units(&monitors_now)) {
                     Ok(()) => tracing::info!(
                         "Edit mode {} (Wayland)",
                         if new_mode { "on" } else { "off" }
@@ -572,10 +571,9 @@ pub fn run_native(
                 // HiDPI; overshooting just makes glyphs bigger than
                 // necessary on standard DPI, which is the kinder
                 // failure mode.
-                let pixels_per_point = monitors
-                    .iter()
-                    .map(|m| m.scale_factor as f32)
-                    .fold(1.0_f32, f32::max);
+                // Same scale the input region is sized with, so the
+                // drawn button and its clickable area agree.
+                let pixels_per_point = ui_pixels_per_point(monitors);
                 let edit_mode_snapshot = layer.state.edit_mode;
                 let hidden_snapshot = overlay_hidden;
                 // Snapshot the AccessKit flag BEFORE taking its mutable
@@ -719,7 +717,9 @@ pub fn run_native(
                 }
                 if toggle_requested {
                     let new_mode = !layer.state.edit_mode;
-                    if let Err(e) = layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
+                    if let Err(e) =
+                        layer.set_edit_mode(new_mode, toggle_button_units(&monitors_now))
+                    {
                         tracing::warn!("Failed to flip input region on toggle: {e}");
                     } else {
                         tracing::info!(
@@ -884,6 +884,61 @@ pub fn run_native(
 /// teardown/creation (real Wayland + GPU calls) doesn't.
 /// Target frame interval for the native loop — a ~60 Hz soft cap.
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+
+/// egui's points-per-buffer-pixel for the native surface.
+///
+/// The layer surface leaves `wl_surface.set_buffer_scale` at 1, so buffer
+/// pixels and surface-local units are the same thing. Taking the largest
+/// scale among the outputs the surface may sit on keeps text crisp —
+/// undershooting blurs it, overshooting only makes glyphs bigger than
+/// necessary. True per-surface buffer scaling is the deferred hi-DPI work
+/// noted in `CompositorHandler::scale_factor_changed`.
+fn ui_pixels_per_point(monitors: &[MonitorInfo]) -> f32 {
+    monitors
+        .iter()
+        .map(|m| m.scale_factor as f32)
+        .fold(1.0_f32, f32::max)
+}
+
+/// The ⚙ toggle button's size in the surface-local units the input
+/// region is specified in.
+///
+/// egui lays the button out in *points* and paints it at
+/// [`ui_pixels_per_point`], so it covers `size × scale` buffer pixels —
+/// which, at buffer scale 1, are surface-local units. Passing the raw
+/// constant to `set_input_region` therefore left the clickable corner a
+/// fraction of the drawn button on any HiDPI output: exactly the
+/// points-vs-pixels mismatch the X11 path had.
+fn toggle_button_units(monitors: &[MonitorInfo]) -> u32 {
+    let px = TOGGLE_BUTTON_SIZE as f32 * ui_pixels_per_point(monitors);
+    if !px.is_finite() {
+        return TOGGLE_BUTTON_SIZE;
+    }
+    px.round().clamp(1.0, u32::MAX as f32) as u32
+}
+
+/// The input region matching the current overlay state.
+///
+/// Centralised because the region has to be re-derived from *all* of
+/// hidden/edit-mode/size on every event that can change any of them. The
+/// resize path in particular used to re-apply the pass-through corner
+/// unconditionally, silently dropping edit mode's full-surface region on
+/// any compositor-driven resize.
+fn region_for_state(
+    hidden: bool,
+    edit_mode: bool,
+    surface_w: u32,
+    surface_h: u32,
+    button: u32,
+) -> Option<InputRect> {
+    if hidden {
+        None
+    } else if edit_mode {
+        Some(InputRect::full(surface_w, surface_h))
+    } else {
+        Some(InputRect::toggle_button_corner(surface_w, button))
+    }
+}
 
 /// Dispatch Wayland events, waiting at most `timeout` for the socket.
 ///
@@ -1327,6 +1382,66 @@ mod tests {
             scale_factor: 1.0,
             is_primary: false,
         }
+    }
+
+    fn scaled(name: &str, scale: f64) -> MonitorInfo {
+        MonitorInfo {
+            scale_factor: scale,
+            ..monitor(name, 0, 0)
+        }
+    }
+
+    /// egui paints the button at `points × pixels_per_point`, and at
+    /// buffer scale 1 those are the same units the input region uses —
+    /// so the region has to be scaled too, or the clickable corner is a
+    /// fraction of the drawn button on HiDPI.
+    #[test]
+    fn toggle_button_units_track_the_ui_scale() {
+        assert_eq!(toggle_button_units(&[scaled("a", 1.0)]), TOGGLE_BUTTON_SIZE);
+        assert_eq!(
+            toggle_button_units(&[scaled("a", 2.0)]),
+            TOGGLE_BUTTON_SIZE * 2
+        );
+        // Mixed outputs: the largest scale wins, matching what egui is
+        // told to paint at.
+        assert_eq!(
+            toggle_button_units(&[scaled("a", 1.0), scaled("b", 2.0)]),
+            TOGGLE_BUTTON_SIZE * 2
+        );
+        // Fractional scaling rounds to whole units.
+        assert_eq!(toggle_button_units(&[scaled("a", 1.5)]), 96);
+        // No outputs yet → the unscaled constant, never zero.
+        assert_eq!(toggle_button_units(&[]), TOGGLE_BUTTON_SIZE);
+    }
+
+    #[test]
+    fn toggle_button_units_survive_a_nonsense_scale() {
+        assert_eq!(
+            toggle_button_units(&[scaled("a", f64::NAN)]),
+            TOGGLE_BUTTON_SIZE
+        );
+        assert!(toggle_button_units(&[scaled("a", 0.0)]) >= 1);
+    }
+
+    /// The resize path used to re-apply the pass-through corner
+    /// unconditionally, so resizing in edit mode reverted the surface to
+    /// click-through and resizing while hidden made it clickable again.
+    #[test]
+    fn region_follows_hidden_and_edit_state() {
+        // Hidden wins over everything: no region at all.
+        assert!(region_for_state(true, false, 1920, 1080, 64).is_none());
+        assert!(region_for_state(true, true, 1920, 1080, 64).is_none());
+
+        // Edit mode takes the whole surface.
+        let full = region_for_state(false, true, 1920, 1080, 64).unwrap();
+        assert_eq!((full.x, full.y, full.w, full.h), (0, 0, 1920, 1080));
+
+        // Pass-through keeps only the scaled corner, anchored top-right.
+        let corner = region_for_state(false, false, 1920, 1080, 128).unwrap();
+        assert_eq!(
+            (corner.x, corner.y, corner.w, corner.h),
+            (1792, 0, 128, 128)
+        );
     }
 
     #[test]
