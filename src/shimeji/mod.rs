@@ -31,6 +31,15 @@ const MAX_PACK_SPRITES: usize = 512;
 const MAX_PACK_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_ACTIONS: usize = 256;
 const MAX_POSES_PER_ACTION: usize = 256;
+/// Aggregate cap on the bytes one import may actually write to disk.
+///
+/// The pack itself is capped at `MAX_PACK_BYTES`, but that bounds the
+/// *input*, not the output: a pose list may reference the same image up
+/// to `MAX_POSES_PER_ACTION` times in each of four states, so a single
+/// large sprite could expand to tens of gigabytes of identical copies.
+/// Deduplication below removes nearly all of that amplification; this is
+/// the backstop for whatever it can't (many distinct large sprites).
+const MAX_IMPORT_OUTPUT_BYTES: u64 = 256 * 1024 * 1024;
 
 /// One shimeji engine tick, in milliseconds (shimeji-ee default).
 const TICK_MS: u32 = 40;
@@ -134,7 +143,19 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, S
     // ── Copy sprites + build per-state sequence configs ─────────────
     let import_dir = dest_root.join("imported").join(&slug);
 
-    let idle_dir = copy_state_sequence(&pack_root, &import_dir, "idle", &idle.poses, &mut report)?;
+    // One budget for the whole import: the dedup map and the output cap
+    // have to span all four state sequences, since the amplification
+    // comes from the *same* image being referenced across them.
+    let mut budget = CopyBudget::default();
+
+    let idle_dir = copy_state_sequence(
+        &pack_root,
+        &import_dir,
+        "idle",
+        &idle.poses,
+        &mut report,
+        &mut budget,
+    )?;
     let idle_fps = fps_from_poses(&idle.poses);
 
     let mut animations: BTreeMap<crate::animation::StateId, StateSequenceConfig> = BTreeMap::new();
@@ -150,7 +171,14 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, S
             ));
             continue;
         };
-        match copy_state_sequence(&pack_root, &import_dir, label, &action.poses, &mut report) {
+        match copy_state_sequence(
+            &pack_root,
+            &import_dir,
+            label,
+            &action.poses,
+            &mut report,
+            &mut budget,
+        ) {
             Ok(dir) => {
                 animations.insert(
                     state,
@@ -536,15 +564,57 @@ fn resolve_pack_image(pack_root: &Path, image: &str) -> Result<PathBuf, String> 
 /// Copy a pose sequence into `<import_dir>/<state>/frame_NNN.png`,
 /// preserving pose order (the PNG-sequence loader sorts by name).
 /// Returns the sequence directory.
+/// Import-wide copy accounting, shared across every state sequence.
+#[derive(Default)]
+struct CopyBudget {
+    /// Bytes actually written so far across the whole import.
+    written: u64,
+    /// First destination each source image was materialised at. A pose
+    /// list that references one image many times links to this instead
+    /// of writing the same bytes again.
+    seen: BTreeMap<PathBuf, PathBuf>,
+}
+
+/// Delete the `frame_NNN.png` files a previous import wrote into `dir`.
+///
+/// Re-importing a pack reuses the slug, so it writes into the existing
+/// directory. Without this, a shorter animation leaves the previous
+/// import's higher-numbered frames in place and the sequence loader
+/// picks them up as part of the new animation. Only our own generated
+/// names are removed — never an arbitrary file the user put there.
+fn remove_stale_frames(dir: &Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if !matches!(entry.file_type(), Ok(ft) if ft.is_file()) {
+            continue;
+        }
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        let Some(mid) = name
+            .strip_prefix("frame_")
+            .and_then(|n| n.strip_suffix(".png"))
+        else {
+            continue;
+        };
+        if !mid.is_empty() && mid.chars().all(|c| c.is_ascii_digit()) {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
 fn copy_state_sequence(
     pack_root: &Path,
     import_dir: &Path,
     state: &str,
     poses: &[ParsedPose],
     report: &mut ImportReport,
+    budget: &mut CopyBudget,
 ) -> Result<PathBuf, String> {
     let dir = import_dir.join(state);
     std::fs::create_dir_all(&dir).map_err(|e| format!("create {state} dir: {e}"))?;
+    remove_stale_frames(&dir);
 
     let mut copied = 0usize;
     for (i, pose) in poses.iter().enumerate() {
@@ -556,7 +626,32 @@ fn copy_state_sequence(
             }
         };
         let dest = dir.join(format!("frame_{i:03}.png"));
+
+        // Already materialised this exact source? Hard-link to that copy
+        // rather than writing identical bytes again. Animations reuse
+        // frames heavily (a walk cycle cycling shime1/shime2/shime1…),
+        // and without this a pack referencing one sprite from every pose
+        // of every state multiplies a 60 MiB image into ~60 GiB of
+        // writes. Both paths live under `import_dir`, so the link is
+        // always same-filesystem; anything unexpected falls through to a
+        // normal copy below.
+        if let Some(first) = budget.seen.get(&src) {
+            if std::fs::hard_link(first, &dest).is_ok() {
+                copied += 1;
+                continue;
+            }
+        }
+
+        let len = std::fs::metadata(&src).map(|m| m.len()).unwrap_or(0);
+        if budget.written.saturating_add(len) > MAX_IMPORT_OUTPUT_BYTES {
+            return Err(format!(
+                "{state}: import would write more than {} MiB of sprites",
+                MAX_IMPORT_OUTPUT_BYTES / (1024 * 1024)
+            ));
+        }
         std::fs::copy(&src, &dest).map_err(|e| format!("copy frame {i}: {e}"))?;
+        budget.written = budget.written.saturating_add(len);
+        budget.seen.insert(src, dest);
         copied += 1;
     }
     if copied == 0 {
@@ -603,6 +698,98 @@ mod tests {
     fn write_png(path: &Path, shade: u8) {
         let img = image::RgbaImage::from_pixel(2, 2, image::Rgba([shade, 0, 0, 255]));
         img.save(path).unwrap();
+    }
+
+    /// A pose list that references the same image over and over must not
+    /// write that image once per pose. The pack size cap bounds the
+    /// input, not the output, so without deduplication one sprite
+    /// referenced from every pose of every state multiplies into orders
+    /// of magnitude more bytes on disk than the pack itself.
+    #[test]
+    #[cfg(unix)]
+    fn repeated_poses_are_deduplicated_not_recopied() {
+        use std::os::unix::fs::MetadataExt;
+
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("shimeji_tests")
+            .join("dedup");
+        let _ = std::fs::remove_dir_all(&base);
+        let pack = base.join("RepeatMascot");
+        let dest = base.join("library");
+        std::fs::create_dir_all(pack.join("img")).unwrap();
+        std::fs::create_dir_all(pack.join("conf")).unwrap();
+        std::fs::create_dir_all(&dest).unwrap();
+        write_png(&pack.join("img").join("shime1.png"), 10);
+
+        // 12 poses, every one pointing at the same sprite.
+        let poses = (0..12)
+            .map(|_| r#"<Pose Image="/shime1.png" Velocity="0,0" Duration="6" />"#)
+            .collect::<Vec<_>>()
+            .join("\n        ");
+        let xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<Mascot>
+  <ActionList>
+    <Action Name="Stand" Type="Stay" BorderType="Floor">
+      <Animation>
+        {poses}
+      </Animation>
+    </Action>
+  </ActionList>
+  <BehaviorList>
+    <Behavior Name="Stand" Frequency="100" />
+  </BehaviorList>
+</Mascot>"#
+        );
+        std::fs::write(pack.join("conf").join("actions.xml"), xml).unwrap();
+
+        let report = import_pack(&pack, &dest).unwrap();
+        let idle_dir = PathBuf::from(&report.characters[0].asset_path);
+
+        let frames: Vec<PathBuf> = (0..12)
+            .map(|i| idle_dir.join(format!("frame_{i:03}.png")))
+            .collect();
+        for f in &frames {
+            assert!(
+                f.exists(),
+                "every pose still produces a frame: {}",
+                f.display()
+            );
+        }
+        // All twelve frames must share one inode — copied once, linked after.
+        let first_ino = std::fs::metadata(&frames[0]).unwrap().ino();
+        for f in &frames[1..] {
+            assert_eq!(
+                std::fs::metadata(f).unwrap().ino(),
+                first_ino,
+                "{} should share storage with frame_000, not be a fresh copy",
+                f.display()
+            );
+        }
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Re-importing a pack reuses the slug and writes into the existing
+    /// directory, so a shorter animation must not leave the previous
+    /// import's higher-numbered frames behind to be picked up as part of
+    /// the new sequence.
+    #[test]
+    fn reimport_clears_higher_numbered_stale_frames() {
+        let (pack, dest) = build_pack("reimport");
+        let report = import_pack(&pack, &dest).unwrap();
+        let idle_dir = PathBuf::from(&report.characters[0].asset_path);
+
+        // Simulate a longer previous import leaving frames behind.
+        let stale = idle_dir.join("frame_099.png");
+        write_png(&stale, 200);
+        assert!(stale.exists());
+
+        let _ = import_pack(&pack, &dest).unwrap();
+        assert!(
+            !stale.exists(),
+            "stale frame_099.png from the previous import must be cleared"
+        );
     }
 
     /// A symlink inside a pack must not be followed during the capped
