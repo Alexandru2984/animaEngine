@@ -208,30 +208,7 @@ impl App {
                     }
                 }
             }
-            panels::MenuAction::Delete(idx) => {
-                let removed_name = self
-                    .scene
-                    .entities
-                    .get(idx)
-                    .map(|e| e.name.clone())
-                    .unwrap_or_default();
-                if let Some(renderer) = &mut self.renderer {
-                    if let Some(entity) = self.scene.entities.get(idx) {
-                        renderer.shared.textures.remove(&entity.id);
-                    }
-                }
-                if self.scene.remove_entity(idx).is_some() {
-                    self.selection.deselect();
-                    self.config_dirty = true;
-                    {
-                        let mut args = fluent::FluentArgs::new();
-                        args.set("name", removed_name.clone());
-                        self.toasts
-                            .info(crate::i18n::t_args("toast-deleted", &args));
-                    }
-                    self.save_config_if_needed();
-                }
-            }
+            panels::MenuAction::Delete(idx) => self.delete_entity(idx),
             panels::MenuAction::ResetTransform(idx) => {
                 if let Some(e) = self.scene.entities.get_mut(idx) {
                     e.scale = 1.0;

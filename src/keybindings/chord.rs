@@ -44,6 +44,13 @@ impl KeyChord {
 
     /// Render the chord in canonical TOML form (`Ctrl+Shift+A`).
     pub fn canonical_str(&self) -> String {
+        self.modifier_prefix() + &self.key.canonical_str()
+    }
+
+    /// The `Ctrl+Shift+Alt+Super+` prefix both renderings share. Order is
+    /// fixed so a chord always round-trips to the same string — parsing
+    /// accepts any order, but serialising must not vary.
+    fn modifier_prefix(&self) -> String {
         let mut s = String::new();
         if self.mods.ctrl() {
             s.push_str("Ctrl+");
@@ -57,27 +64,12 @@ impl KeyChord {
         if self.mods.sup() {
             s.push_str("Super+");
         }
-        s.push_str(&self.key.canonical_str());
         s
     }
 
     /// Render with arrow glyphs / abbreviations for the UI.
     pub fn display_str(&self) -> String {
-        let mut s = String::new();
-        if self.mods.ctrl() {
-            s.push_str("Ctrl+");
-        }
-        if self.mods.shift() {
-            s.push_str("Shift+");
-        }
-        if self.mods.alt() {
-            s.push_str("Alt+");
-        }
-        if self.mods.sup() {
-            s.push_str("Super+");
-        }
-        s.push_str(&self.key.display_str());
-        s
+        self.modifier_prefix() + &self.key.display_str()
     }
 }
 

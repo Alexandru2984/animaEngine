@@ -34,29 +34,7 @@ impl App {
             }
             Action::DeleteSelected => {
                 if let Some(idx) = self.selection.selected_index() {
-                    let removed_name = self
-                        .scene
-                        .entities
-                        .get(idx)
-                        .map(|e| e.name.clone())
-                        .unwrap_or_default();
-                    if let Some(renderer) = &mut self.renderer {
-                        if let Some(entity) = self.scene.entities.get(idx) {
-                            renderer.shared.textures.remove(&entity.id);
-                        }
-                    }
-                    if let Some(removed_id) = self.scene.remove_entity(idx) {
-                        tracing::info!("Deleted entity: {}", removed_id);
-                        self.selection.deselect();
-                        self.config_dirty = true;
-                        {
-                            let mut args = fluent::FluentArgs::new();
-                            args.set("name", removed_name.clone());
-                            self.toasts
-                                .info(crate::i18n::t_args("toast-deleted", &args));
-                        }
-                        self.save_config_if_needed();
-                    }
+                    self.delete_entity(idx);
                 }
             }
             // Arrow nudges: Shift = 1 px fine, normal = 10 px. Every

@@ -330,6 +330,40 @@ impl App {
     // Outcome handlers (`handle_{menu,library,palette}_outcome` +
     // `apply_menu_action`) live in `src/app/outcomes.rs` (H.2).
 
+    /// Remove entity `idx`: drop its GPU texture, take it out of the
+    /// scene, clear the selection, toast, and persist.
+    ///
+    /// Both delete entry points — the `DeleteSelected` action and the
+    /// context menu — carried copies of this. Dropping the texture
+    /// *before* the entity leaves the scene is the part that must not be
+    /// forgotten: textures are keyed by entity id, so a missed removal
+    /// leaves an orphan resident for the session (the same class of
+    /// leak `prune_stale_textures` exists to sweep up).
+    pub(super) fn delete_entity(&mut self, idx: usize) {
+        let removed_name = self
+            .scene
+            .entities
+            .get(idx)
+            .map(|e| e.name.clone())
+            .unwrap_or_default();
+        if let Some(renderer) = &mut self.renderer {
+            if let Some(entity) = self.scene.entities.get(idx) {
+                renderer.shared.textures.remove(&entity.id);
+            }
+        }
+        let Some(removed_id) = self.scene.remove_entity(idx) else {
+            return;
+        };
+        tracing::info!("Deleted entity: {removed_id}");
+        self.selection.deselect();
+        self.config_dirty = true;
+        let mut args = fluent::FluentArgs::new();
+        args.set("name", removed_name);
+        self.toasts
+            .info(crate::i18n::t_args("toast-deleted", &args));
+        self.save_config_if_needed();
+    }
+
     /// Show or hide **every** overlay surface — the primary window and
     /// each per-monitor extra.
     ///
