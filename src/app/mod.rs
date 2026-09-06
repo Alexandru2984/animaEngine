@@ -330,6 +330,40 @@ impl App {
     // Outcome handlers (`handle_{menu,library,palette}_outcome` +
     // `apply_menu_action`) live in `src/app/outcomes.rs` (H.2).
 
+    /// Resolve a pressed key to a bound action and dispatch it.
+    ///
+    /// `window_event` handles the per-monitor extra windows in one
+    /// branch and the primary window in another, and both need identical
+    /// chord resolution — they differ only in which redraw they request
+    /// afterwards. The lookup lived in both arms, so any change to how a
+    /// keypress becomes an action had to be remembered twice.
+    /// `redraw_all` picks the follow-up repaint: the extra-window branch
+    /// refreshes every surface, the primary one only its own. Taking it
+    /// as a parameter keeps each call site a single statement — a
+    /// bool-returning helper would leave a nested `if` that clippy asks
+    /// to fold into the match guard, and a guard is the wrong home for a
+    /// call that actually performs the action.
+    fn dispatch_key(
+        &mut self,
+        logical_key: winit::keyboard::Key<&str>,
+        event_loop: &ActiveEventLoop,
+        redraw_all: bool,
+    ) {
+        let Some(keycode) = KeyCode::from_winit(logical_key) else {
+            return;
+        };
+        let chord = KeyChord::new(self.modifier_mask(), keycode);
+        let Some(action) = self.config.keybindings.lookup(chord) else {
+            return;
+        };
+        self.dispatch_action(action, event_loop);
+        if redraw_all {
+            self.request_redraw_all();
+        } else {
+            self.request_redraw();
+        }
+    }
+
     /// Remove entity `idx`: drop its GPU texture, take it out of the
     /// scene, clear the selection, toast, and persist.
     ///
@@ -670,13 +704,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                         },
                     ..
                 } if self.edit_mode => {
-                    if let Some(keycode) = KeyCode::from_winit(logical_key.as_ref()) {
-                        let chord = KeyChord::new(self.modifier_mask(), keycode);
-                        if let Some(action) = self.config.keybindings.lookup(chord) {
-                            self.dispatch_action(action, event_loop);
-                            self.request_redraw_all();
-                        }
-                    }
+                    self.dispatch_key(logical_key.as_ref(), event_loop, true);
                 }
                 _ => {}
             }
@@ -758,13 +786,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                     },
                 ..
             } if self.edit_mode => {
-                if let Some(keycode) = KeyCode::from_winit(logical_key.as_ref()) {
-                    let chord = KeyChord::new(self.modifier_mask(), keycode);
-                    if let Some(action) = self.config.keybindings.lookup(chord) {
-                        self.dispatch_action(action, event_loop);
-                        self.request_redraw();
-                    }
-                }
+                self.dispatch_key(logical_key.as_ref(), event_loop, false);
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
