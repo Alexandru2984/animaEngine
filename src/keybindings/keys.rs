@@ -365,3 +365,101 @@ impl FromStr for KeyCode {
         Err(ChordParseError::UnknownKey(s.to_string()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every key the engine can represent, so the round-trip test below
+    /// is exhaustive rather than a spot check.
+    fn all_keycodes() -> Vec<KeyCode> {
+        let named = [
+            NamedKey::Escape,
+            NamedKey::Space,
+            NamedKey::Tab,
+            NamedKey::Enter,
+            NamedKey::Backspace,
+            NamedKey::Delete,
+            NamedKey::Home,
+            NamedKey::End,
+            NamedKey::PageUp,
+            NamedKey::PageDown,
+            NamedKey::ArrowUp,
+            NamedKey::ArrowDown,
+            NamedKey::ArrowLeft,
+            NamedKey::ArrowRight,
+        ];
+        let symbols = [
+            SymbolKey::Plus,
+            SymbolKey::Minus,
+            SymbolKey::Equal,
+            SymbolKey::BracketLeft,
+            SymbolKey::BracketRight,
+            SymbolKey::Backquote,
+        ];
+        let mut all: Vec<KeyCode> = ('A'..='Z').map(KeyCode::Letter).collect();
+        all.extend((0..=9u8).map(KeyCode::Digit));
+        all.extend(named.into_iter().map(KeyCode::Named));
+        all.extend(symbols.into_iter().map(KeyCode::Symbol));
+        all
+    }
+
+    /// The canonical string is what gets written to `config.toml`, so a
+    /// key that doesn't survive `canonical_str` → parse would silently
+    /// drop or rebind the user's shortcut on the next load. Exhaustive
+    /// on purpose: a mapping typo in one arm is exactly the kind of bug
+    /// a spot check misses.
+    #[test]
+    fn every_keycode_round_trips_through_its_canonical_string() {
+        let all = all_keycodes();
+        assert_eq!(all.len(), 26 + 10 + 14 + 6, "table drifted from the enums");
+        for key in all {
+            let s = key.canonical_str();
+            let parsed: KeyCode = s
+                .parse()
+                .unwrap_or_else(|_| panic!("{key:?} serialises to {s:?}, which does not parse"));
+            assert_eq!(parsed, key, "round-trip changed {key:?} (via {s:?})");
+        }
+    }
+
+    /// Two different keys must never share a canonical form — a
+    /// collision would make one of them unbindable.
+    #[test]
+    fn canonical_strings_are_unique() {
+        let all = all_keycodes();
+        let mut seen = std::collections::BTreeMap::new();
+        for key in all {
+            let s = key.canonical_str();
+            if let Some(prev) = seen.insert(s.clone(), key) {
+                panic!("{prev:?} and {key:?} both serialise to {s:?}");
+            }
+        }
+    }
+
+    /// `display_str` is UI-only, but an empty label would render a blank
+    /// shortcut in the keybindings tab.
+    #[test]
+    fn display_strings_are_never_empty() {
+        for key in all_keycodes() {
+            assert!(!key.display_str().is_empty(), "{key:?} has no display form");
+        }
+    }
+
+    #[test]
+    fn letters_normalise_to_upper_case() {
+        let lower: KeyCode = "a".parse().expect("lower-case letter parses");
+        let upper: KeyCode = "A".parse().expect("upper-case letter parses");
+        assert_eq!(lower, upper, "case must not create two distinct bindings");
+        assert_eq!(lower, KeyCode::Letter('A'));
+    }
+
+    #[test]
+    fn unknown_keys_are_rejected() {
+        for bad in ["", "NotAKey", "F13", "ArrowSideways", "??"] {
+            assert!(
+                bad.parse::<KeyCode>().is_err(),
+                "{bad:?} should not parse as a key"
+            );
+        }
+    }
+}
