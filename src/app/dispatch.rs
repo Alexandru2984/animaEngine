@@ -21,11 +21,7 @@ impl App {
             }
             Action::QuitWithSave => {
                 tracing::info!("Quit action — saving and exiting");
-                self.save_config_if_needed();
-                self.ui = None;
-                self.renderer = None;
-                self.x11_input = None;
-                event_loop.exit();
+                self.save_and_exit(event_loop);
             }
             Action::SaveNow => {
                 self.config_dirty = true;

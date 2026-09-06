@@ -185,6 +185,7 @@ impl App {
         // the renderer borrow below is released (we can't reassign
         // `self.renderer` while it's borrowed).
         let mut surface_lost = false;
+        let mut out_of_memory = false;
         let mut rendered_ok = false;
 
         // Update textures for entities with changed frames
@@ -486,7 +487,10 @@ impl App {
                 }
                 Err(wgpu::SurfaceError::OutOfMemory) => {
                     tracing::error!("GPU out of memory!");
-                    event_loop.exit();
+                    // Deferred past the `self.renderer` borrow, same as
+                    // `surface_lost` below — shutting down needs `&mut
+                    // self` to save the config first.
+                    out_of_memory = true;
                 }
                 // Timeout: the swapchain image wasn't ready in time —
                 // transient, just drop this frame and try the next.
@@ -497,6 +501,14 @@ impl App {
                     tracing::warn!("Render error: {:?}", e);
                 }
             }
+        }
+
+        // GPU OOM is terminal — but the user's unsaved edits aren't the
+        // GPU's fault, so go out through the shared shutdown path rather
+        // than dropping them on the floor.
+        if out_of_memory {
+            self.save_and_exit(event_loop);
+            return;
         }
 
         // Surface-loss recovery, now that the `self.renderer` borrow is
@@ -566,7 +578,7 @@ impl App {
         tracing::warn!("primary surface lost persistently; rebuilding the renderer");
         let Some(window) = self.window.clone() else {
             tracing::error!("no window to rebuild the renderer against; exiting");
-            event_loop.exit();
+            self.save_and_exit(event_loop);
             return;
         };
         match WgpuRenderer::new(window.clone()) {
@@ -600,7 +612,7 @@ impl App {
             }
             Err(e) => {
                 tracing::error!("renderer rebuild failed ({e}); exiting cleanly for a restart");
-                event_loop.exit();
+                self.save_and_exit(event_loop);
             }
         }
     }

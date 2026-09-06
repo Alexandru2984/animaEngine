@@ -214,7 +214,7 @@ impl App {
                     }
                     Err(e) => {
                         tracing::error!("Failed to initialize wgpu renderer: {}", e);
-                        event_loop.exit();
+                        self.save_and_exit(event_loop);
                         return;
                     }
                 }
@@ -232,7 +232,7 @@ impl App {
             }
             Err(e) => {
                 tracing::error!("Failed to create window: {}", e);
-                event_loop.exit();
+                self.save_and_exit(event_loop);
             }
         }
     }

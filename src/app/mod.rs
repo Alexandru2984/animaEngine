@@ -304,6 +304,24 @@ impl App {
     // Outcome handlers (`handle_{menu,library,palette}_outcome` +
     // `apply_menu_action`) live in `src/app/outcomes.rs` (H.2).
 
+    /// The single shutdown path: persist any pending edits, then tear
+    /// down GPU resources in the required order and stop the loop.
+    ///
+    /// Every exit routes through here — including the abnormal ones (GPU
+    /// out of memory, a renderer rebuild that failed). Those used to call
+    /// `event_loop.exit()` directly, which silently discarded whatever
+    /// the user had changed since the last save; losing the GPU is not a
+    /// reason to also lose their scene.
+    pub(super) fn save_and_exit(&mut self, event_loop: &ActiveEventLoop) {
+        self.save_config_if_needed();
+        // Order matters: egui owns wgpu resources, drop it before the
+        // renderer to avoid use-after-free during Vulkan cleanup.
+        self.ui = None;
+        self.renderer = None;
+        self.x11_input = None;
+        event_loop.exit();
+    }
+
     /// Save config if dirty
     fn save_config_if_needed(&mut self) {
         if self.config_dirty {
@@ -485,11 +503,7 @@ impl ApplicationHandler<AnimaEvent> for App {
             }
             AnimaEvent::Quit => {
                 tracing::info!("Quit requested from tray");
-                self.save_config_if_needed();
-                self.ui = None;
-                self.renderer = None;
-                self.x11_input = None;
-                event_loop.exit();
+                self.save_and_exit(event_loop);
                 return;
             }
             AnimaEvent::HotkeysUnavailable => {
@@ -607,13 +621,7 @@ impl ApplicationHandler<AnimaEvent> for App {
         match event {
             WindowEvent::CloseRequested => {
                 tracing::info!("Close requested — saving config and exiting");
-                self.save_config_if_needed();
-                // Order matters: egui owns wgpu resources, drop it before
-                // the renderer to avoid use-after-free during Vulkan cleanup.
-                self.ui = None;
-                self.renderer = None;
-                self.x11_input = None;
-                event_loop.exit();
+                self.save_and_exit(event_loop);
             }
 
             WindowEvent::Resized(physical_size) => {
