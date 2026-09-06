@@ -182,6 +182,11 @@ pub struct App {
     /// one per non-primary monitor, sprite-only (egui stays on the
     /// primary). Keyed by `WindowId` for event routing.
     extra_windows: std::collections::HashMap<WindowId, windows::WindowSlot>,
+    /// Whether `HideOverlay` is currently in effect. Tracked so a
+    /// monitor hotplug (which rebuilds `extra_windows`) doesn't put
+    /// freshly created overlays on screen while the user has the whole
+    /// overlay hidden.
+    overlay_hidden: bool,
     /// Mode snapshot from the last window (re)build — the redraw
     /// handler compares it against config to catch Appearance-tab
     /// switches.
@@ -273,6 +278,7 @@ impl App {
             library_root: None,
             hotkey_backend_status: String::new(),
             extra_windows: std::collections::HashMap::new(),
+            overlay_hidden: false,
             last_monitor_mode,
             last_monitor_check: Instant::now(),
             last_shape_refresh: Instant::now(),
@@ -323,6 +329,28 @@ impl App {
 
     // Outcome handlers (`handle_{menu,library,palette}_outcome` +
     // `apply_menu_action`) live in `src/app/outcomes.rs` (H.2).
+
+    /// Show or hide **every** overlay surface — the primary window and
+    /// each per-monitor extra.
+    ///
+    /// Hide/Show used to touch only `self.window`, so in `PerMonitor`
+    /// mode hiding the overlay left every secondary monitor's sprites on
+    /// screen: the overlay was only partly hidden. Compositors also
+    /// sometimes clip our input shape across an unmap/map cycle, so the
+    /// shape is re-applied on the way back in — for the extras too.
+    fn set_overlay_visible(&mut self, visible: bool) {
+        self.overlay_hidden = !visible;
+        if let Some(window) = &self.window {
+            window.set_visible(visible);
+        }
+        for slot in self.extra_windows.values() {
+            slot.window.set_visible(visible);
+        }
+        if visible {
+            self.reapply_input_shape();
+            self.reapply_extra_input_shapes();
+        }
+    }
 
     /// The single shutdown path: persist any pending edits, then tear
     /// down GPU resources in the required order and stop the loop.
@@ -505,26 +533,15 @@ impl ApplicationHandler<AnimaEvent> for App {
                 };
                 self.toasts.info(label);
             }
-            AnimaEvent::ShowOverlay => {
-                if let Some(window) = &self.window {
-                    window.set_visible(true);
-                    // Compositors sometimes clip our shape on unmap/map.
-                    self.reapply_input_shape();
-                }
-            }
-            AnimaEvent::HideOverlay => {
-                if let Some(window) = &self.window {
-                    window.set_visible(false);
-                }
-            }
+            AnimaEvent::ShowOverlay => self.set_overlay_visible(true),
+            AnimaEvent::HideOverlay => self.set_overlay_visible(false),
             AnimaEvent::RaiseWindow => {
                 // Someone launched a second instance. Make sure we're
                 // visible and ask the WM to focus us. EWMH ABOVE keeps us
                 // on top regardless; this is just a nudge.
+                self.set_overlay_visible(true);
                 if let Some(window) = &self.window {
-                    window.set_visible(true);
                     window.focus_window();
-                    self.reapply_input_shape();
                 }
                 tracing::info!("Raised by second-instance handshake");
             }

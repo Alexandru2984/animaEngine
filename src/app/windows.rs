@@ -190,6 +190,13 @@ impl App {
                 mon.x,
                 mon.y
             );
+            // A rebuild can happen while the overlay is hidden (a monitor
+            // hotplug, or the user switching monitor mode). Without this
+            // the fresh windows would appear on screen despite Hide being
+            // in effect.
+            if self.overlay_hidden {
+                window.set_visible(false);
+            }
             self.extra_windows.insert(
                 window.id(),
                 WindowSlot {
