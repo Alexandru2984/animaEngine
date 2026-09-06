@@ -28,6 +28,17 @@ use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{Atom, AtomEnum, ConnectionExt, Window};
 use x11rb::rust_connection::RustConnection;
 
+/// Upper bound on desktop windows considered in one poll.
+///
+/// `snapshot` runs several *synchronous* X11 round-trips per entry
+/// (window type, state, geometry, frame extents), and the watcher polls
+/// on the UI thread every 300 ms — so an unbounded `_NET_CLIENT_LIST`
+/// turns into thousands of blocking requests per second. Any local
+/// application can extend that list, so its length is not ours to trust.
+/// Window-awareness only needs the windows a sprite could plausibly rest
+/// on; beyond this many, the extra rects change nothing visible.
+const MAX_WATCHED_WINDOWS: usize = 256;
+
 /// Pooled connection + interned atoms for the EWMH window walk.
 pub struct WindowWatcher {
     conn: RustConnection,
@@ -84,6 +95,10 @@ impl WindowWatcher {
         };
         windows
             .into_iter()
+            // Defence in depth: the request below already bounds the
+            // list, but `platform_rect` costs several blocking X11
+            // round-trips each, so never iterate an unbounded one.
+            .take(MAX_WATCHED_WINDOWS)
             .filter_map(|w| self.platform_rect(w))
             .collect()
     }
@@ -97,12 +112,23 @@ impl WindowWatcher {
                 self.net_client_list,
                 AtomEnum::WINDOW,
                 0,
-                u32::MAX,
+                // `long_length` counts 4-byte units and a window id is
+                // exactly one, so this asks for at most
+                // MAX_WATCHED_WINDOWS ids rather than `u32::MAX` — which
+                // requested a 16 GiB ceiling and left the bound entirely
+                // up to the server.
+                MAX_WATCHED_WINDOWS as u32,
             )
             .ok()?
             .reply()
             .ok()?;
         let windows: Vec<Window> = reply.value32()?.collect();
+        if windows.len() >= MAX_WATCHED_WINDOWS {
+            tracing::debug!(
+                "_NET_CLIENT_LIST hit the {MAX_WATCHED_WINDOWS}-window cap; \
+                 ignoring the rest for window-awareness"
+            );
+        }
         Some(windows)
     }
 
