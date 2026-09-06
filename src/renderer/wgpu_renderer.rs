@@ -523,18 +523,30 @@ impl GpuShared {
     /// compares (the texture map can never legitimately be larger than
     /// the entity list, since ids are unique per entity).
     pub fn prune_stale_textures(&mut self, entities: &[Entity]) {
-        if self.textures.len() <= entities.len() {
+        // Allocation-free fast path for the common no-op case (this runs
+        // every frame): equal cardinality *plus* one-way inclusion means
+        // the two id sets are equal, so nothing is stale. The previous
+        // `textures.len() <= entities.len()` shortcut was not equivalent
+        // — entities {a, b} against textures {a, c} has equal counts, so
+        // `c` was never pruned and stayed resident for the session.
+        if self.textures.len() == entities.len()
+            && entities
+                .iter()
+                .all(|e| self.textures.contains_key(e.id.as_str()))
+        {
             return;
         }
         let live: std::collections::HashSet<&str> =
             entities.iter().map(|e| e.id.as_str()).collect();
         let before = self.textures.len();
         self.textures.retain(|id, _| live.contains(id.as_str()));
-        tracing::debug!(
-            "Pruned {} stale GPU textures ({} live)",
-            before - self.textures.len(),
-            self.textures.len()
-        );
+        if before != self.textures.len() {
+            tracing::debug!(
+                "Pruned {} stale GPU textures ({} live)",
+                before - self.textures.len(),
+                self.textures.len()
+            );
+        }
     }
 }
 
