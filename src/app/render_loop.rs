@@ -569,15 +569,34 @@ impl App {
             event_loop.exit();
             return;
         };
-        match WgpuRenderer::new(window) {
+        match WgpuRenderer::new(window.clone()) {
             Ok(renderer) => {
+                // egui was built against the *old* device: its pipelines,
+                // bind groups and font atlas all belong to a device that
+                // no longer exists, so painting with it onto the new one
+                // is a wgpu validation failure. Rebuild it here — the
+                // same construction `resumed()` does — or recovery just
+                // trades a lost surface for a validation crash.
+                self.ui = Some(crate::ui::EguiRenderer::new(
+                    &renderer.shared.device,
+                    renderer.shared.surface_format,
+                    window,
+                    self.config.global.theme,
+                ));
                 self.renderer = Some(renderer);
                 // The rebuilt device has an empty texture cache; force
                 // every entity to re-upload on the next frame.
                 for e in &mut self.scene.entities {
                     e.texture_dirty = true;
                 }
-                tracing::info!("renderer rebuilt after persistent surface loss");
+                // Per-monitor overlays own SurfaceStates — swapchain,
+                // uniform buffer, bind groups — created on the old device
+                // as well. Drop and recreate them against the new shared
+                // GPU state (a no-op when no extras are planned).
+                self.rebuild_extra_windows(event_loop);
+                tracing::info!(
+                    "renderer, egui and per-monitor surfaces rebuilt after persistent surface loss"
+                );
             }
             Err(e) => {
                 tracing::error!("renderer rebuild failed ({e}); exiting cleanly for a restart");
