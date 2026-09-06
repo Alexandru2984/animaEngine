@@ -39,38 +39,110 @@ pub enum AcquireOutcome {
     HandedOff,
 }
 
+/// Commands forwarded per second before the service starts shedding.
+///
+/// Each method here posts into the winit event loop, which has no bound
+/// of its own — so a script hammering the session bus can grow that queue
+/// faster than the UI thread drains it, and synchronous asset decode on
+/// that thread widens the window further. Human use is a handful of
+/// activations per second at worst, so anything past this is a flood and
+/// dropping it is what keeps the overlay responsive. (The Wayland twin
+/// below already posts into a bounded channel.)
+const MAX_COMMANDS_PER_SECOND: u32 = 20;
+
+/// Fixed-window counter behind [`ActivationService::post`].
+struct CommandRate {
+    window_start: std::time::Instant,
+    count: u32,
+    dropped: u64,
+}
+
 /// Service exposed on the D-Bus. Activations by a second-launch instance
 /// post `AnimaEvent::RaiseWindow` to the main thread.
 struct ActivationService {
     proxy: EventLoopProxy<AnimaEvent>,
+    rate: std::sync::Mutex<CommandRate>,
+}
+
+// Plain helpers live outside the `#[interface]` block on purpose —
+// anything inside it is exported as a D-Bus method.
+impl ActivationService {
+    fn new(proxy: EventLoopProxy<AnimaEvent>) -> Self {
+        Self {
+            proxy,
+            rate: std::sync::Mutex::new(CommandRate {
+                window_start: std::time::Instant::now(),
+                count: 0,
+                dropped: 0,
+            }),
+        }
+    }
+
+    /// Forward `event` unless this second's budget is already spent.
+    fn post(&self, event: AnimaEvent) {
+        let allowed = match self.rate.lock() {
+            Ok(mut rate) => rate.allow(std::time::Instant::now()),
+            // A poisoned lock must not disable the overlay's control
+            // surface — fail open, forwarding is the safe direction.
+            Err(_) => true,
+        };
+        if allowed {
+            let _ = self.proxy.send_event(event);
+        }
+    }
+}
+
+impl CommandRate {
+    /// Whether a command arriving at `now` fits this second's budget.
+    /// Split out from `post` so the shedding logic is testable without
+    /// standing up an event loop.
+    fn allow(&mut self, now: std::time::Instant) -> bool {
+        if now.duration_since(self.window_start) >= std::time::Duration::from_secs(1) {
+            if self.dropped > 0 {
+                tracing::warn!(
+                    "dropped {} flooding D-Bus command(s) in the last second",
+                    self.dropped
+                );
+            }
+            self.window_start = now;
+            self.count = 0;
+            self.dropped = 0;
+        }
+        if self.count >= MAX_COMMANDS_PER_SECOND {
+            self.dropped = self.dropped.saturating_add(1);
+            return false;
+        }
+        self.count += 1;
+        true
+    }
 }
 
 #[interface(name = "org.animaengine.Anima")]
 impl ActivationService {
     async fn activate(&self) {
-        let _ = self.proxy.send_event(AnimaEvent::RaiseWindow);
+        self.post(AnimaEvent::RaiseWindow);
     }
 
     /// Toggle edit-mode click-through. Mapped to the X11 path's
     /// `Ctrl+Shift+A` global hotkey; on Wayland-native sessions a
     /// compositor binding can call this via `gdbus`.
     async fn toggle_edit_mode(&self) {
-        let _ = self.proxy.send_event(AnimaEvent::ToggleEditMode);
+        self.post(AnimaEvent::ToggleEditMode);
     }
 
     /// Hide the whole overlay. Pairs with `show_overlay`.
     async fn hide_overlay(&self) {
-        let _ = self.proxy.send_event(AnimaEvent::HideOverlay);
+        self.post(AnimaEvent::HideOverlay);
     }
 
     /// Show a previously hidden overlay.
     async fn show_overlay(&self) {
-        let _ = self.proxy.send_event(AnimaEvent::ShowOverlay);
+        self.post(AnimaEvent::ShowOverlay);
     }
 
     /// Pause / resume every animation in the scene.
     async fn toggle_global_playback(&self) {
-        let _ = self.proxy.send_event(AnimaEvent::ToggleGlobalPlayback);
+        self.post(AnimaEvent::ToggleGlobalPlayback);
     }
 }
 
@@ -244,7 +316,7 @@ pub fn install_service(connection: zbus::Connection, proxy: EventLoopProxy<Anima
         .name("anima-instance".into())
         .spawn(move || {
             async_io::block_on(async move {
-                let service = ActivationService { proxy };
+                let service = ActivationService::new(proxy);
                 if let Err(e) = connection.object_server().at(OBJECT_PATH, service).await {
                     tracing::warn!("Failed to publish activation service: {e}");
                     return;
@@ -279,6 +351,32 @@ async fn signal_existing(connection: &zbus::Connection) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A session-bus peer can call these methods as fast as it likes, and
+    /// each one used to land straight in the unbounded winit queue. The
+    /// budget must cap a flood without being sticky — the next second has
+    /// to work normally again, or a burst would wedge the control surface.
+    #[test]
+    fn command_rate_sheds_a_flood_but_reopens_next_second() {
+        let start = std::time::Instant::now();
+        let mut rate = CommandRate {
+            window_start: start,
+            count: 0,
+            dropped: 0,
+        };
+
+        for i in 0..MAX_COMMANDS_PER_SECOND {
+            assert!(rate.allow(start), "command {i} is within the budget");
+        }
+        assert!(!rate.allow(start), "past the budget, shed");
+        assert!(!rate.allow(start));
+        assert_eq!(rate.dropped, 2);
+
+        // A later second starts a fresh budget.
+        let next = start + std::time::Duration::from_secs(1);
+        assert!(rate.allow(next), "the next window accepts again");
+        assert_eq!(rate.dropped, 0, "drop counter resets with the window");
+    }
 
     /// The bus name and the interface name are deliberately different
     /// namespaces (`com.…` app-id vs `org.…` interface). A regression
