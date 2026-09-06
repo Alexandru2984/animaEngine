@@ -194,12 +194,32 @@ impl X11InputManager {
 
     /// Set the X11 input shape so that only a rectangle in the top-right corner
     /// receives mouse input. The rest of the window is click-through.
-    pub fn set_passthrough_with_button(&mut self, button_size: u32) -> Result<()> {
-        // Get window geometry to know where to place the button
-        let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
-        let win_width = geom.width as i16;
+    /// Build and apply a 1-bit XShape input mask covering the whole
+    /// window, then free the server-side resources.
+    ///
+    /// `base` fills the entire window (`0` = click-through, `1` =
+    /// receives input); `cutout`, when given, is stamped with `1` on top
+    /// of that base. Returns the window geometry the mask was built for
+    /// so callers can log it.
+    ///
+    /// The three public shape methods were near-identical copies of this
+    /// sequence. Beyond the duplication, each of them freed the pixmap
+    /// and GC only on the success path: any `?` in the middle returned
+    /// early and leaked both, server-side, for the life of the
+    /// connection — and the pass-through self-heal reshapes twice a
+    /// second, so a persistent failure leaked at that rate. Cleanup here
+    /// runs regardless of how the stamping ends.
+    fn apply_input_shape(&self, base: u32, cutout: Option<Rectangle>) -> Result<(u16, u16)> {
+        use x11rb::protocol::shape;
 
-        // Create a pixmap for the input shape
+        let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
+        let full = Rectangle {
+            x: 0,
+            y: 0,
+            width: geom.width,
+            height: geom.height,
+        };
+
         let pixmap = self.conn.generate_id()?;
         create_pixmap(
             &self.conn,
@@ -210,57 +230,62 @@ impl X11InputManager {
             geom.height,
         )?;
 
-        // Fill the entire pixmap with 0 (transparent / pass-through)
-        let gc = self.conn.generate_id()?;
-        create_gc(
-            &self.conn,
-            gc,
-            pixmap,
-            &CreateGCAux::new().foreground(0).background(0),
-        )?;
-        poly_fill_rectangle(
-            &self.conn,
-            pixmap,
-            gc,
-            &[Rectangle {
-                x: 0,
-                y: 0,
-                width: geom.width,
-                height: geom.height,
-            }],
-        )?;
+        // Everything from here to the matching `free_pixmap` is fallible,
+        // so it runs in a closure whose result is held until cleanup has
+        // happened.
+        let stamped = (|| -> Result<()> {
+            let gc = self.conn.generate_id()?;
+            create_gc(
+                &self.conn,
+                gc,
+                pixmap,
+                &CreateGCAux::new().foreground(base).background(base),
+            )?;
+            // Same again for the GC: it exists from here on, so its free
+            // must not be skipped by an early return below.
+            let drawn = (|| -> Result<()> {
+                poly_fill_rectangle(&self.conn, pixmap, gc, &[full])?;
+                if let Some(rect) = cutout {
+                    change_gc(&self.conn, gc, &ChangeGCAux::new().foreground(1))?;
+                    poly_fill_rectangle(&self.conn, pixmap, gc, &[rect])?;
+                }
+                shape::mask(
+                    &self.conn,
+                    shape::SO::SET,
+                    shape::SK::INPUT,
+                    self.x11_window,
+                    0,
+                    0,
+                    pixmap,
+                )?;
+                Ok(())
+            })();
+            let freed = free_gc(&self.conn, gc);
+            drawn.and(freed.map(|_| ()).map_err(Into::into))
+        })();
 
-        // Draw the button area with 1 (opaque / receives input)
-        change_gc(&self.conn, gc, &ChangeGCAux::new().foreground(1))?;
-        let button_x = win_width - button_size as i16;
-        poly_fill_rectangle(
-            &self.conn,
-            pixmap,
-            gc,
-            &[Rectangle {
+        let freed = free_pixmap(&self.conn, pixmap);
+        self.conn.flush()?;
+        stamped?;
+        freed?;
+        Ok((geom.width, geom.height))
+    }
+
+    pub fn set_passthrough_with_button(&mut self, button_size: u32) -> Result<()> {
+        // Geometry isn't known until the mask is built, so the button is
+        // anchored from the right edge inside `apply_input_shape`'s
+        // coordinate space — take the width first.
+        let width = self.conn.get_geometry(self.x11_window)?.reply()?.width;
+        let button_x = width as i16 - button_size as i16;
+        let (w, h) = self.apply_input_shape(
+            0,
+            Some(Rectangle {
                 x: button_x,
                 y: 0,
                 width: button_size as u16,
                 height: button_size as u16,
-            }],
+            }),
         )?;
-
-        // Apply the input shape
-        use x11rb::protocol::shape;
-        shape::mask(
-            &self.conn,
-            shape::SO::SET,
-            shape::SK::INPUT,
-            self.x11_window,
-            0,
-            0,
-            pixmap,
-        )?;
-
-        // Cleanup X resources
-        free_gc(&self.conn, gc)?;
-        free_pixmap(&self.conn, pixmap)?;
-        self.conn.flush()?;
 
         // Debug, not info: this fires on every mode toggle, resize, focus
         // change, and the periodic click-through self-heal (twice a
@@ -272,8 +297,8 @@ impl X11InputManager {
             button_size,
             button_size,
             button_x,
-            geom.width,
-            geom.height
+            w,
+            h
         );
         Ok(())
     }
@@ -283,101 +308,14 @@ impl X11InputManager {
     /// primary-window affordance, so in pass-through mode the extras
     /// reserve nothing.
     pub fn set_passthrough_total(&mut self) -> Result<()> {
-        use x11rb::protocol::shape;
-        let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
-
-        let pixmap = self.conn.generate_id()?;
-        create_pixmap(
-            &self.conn,
-            1,
-            pixmap,
-            self.x11_window,
-            geom.width,
-            geom.height,
-        )?;
-        let gc = self.conn.generate_id()?;
-        create_gc(
-            &self.conn,
-            gc,
-            pixmap,
-            &CreateGCAux::new().foreground(0).background(0),
-        )?;
-        poly_fill_rectangle(
-            &self.conn,
-            pixmap,
-            gc,
-            &[Rectangle {
-                x: 0,
-                y: 0,
-                width: geom.width,
-                height: geom.height,
-            }],
-        )?;
-        shape::mask(
-            &self.conn,
-            shape::SO::SET,
-            shape::SK::INPUT,
-            self.x11_window,
-            0,
-            0,
-            pixmap,
-        )?;
-        free_gc(&self.conn, gc)?;
-        free_pixmap(&self.conn, pixmap)?;
-        self.conn.flush()?;
+        self.apply_input_shape(0, None)?;
         tracing::debug!("X11 input shape: fully click-through");
         Ok(())
     }
 
     /// Set the window to receive input on the entire surface (edit mode).
     pub fn set_full_input(&mut self) -> Result<()> {
-        let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
-
-        // Create a full pixmap (all 1s = all receives input)
-        let pixmap = self.conn.generate_id()?;
-        create_pixmap(
-            &self.conn,
-            1,
-            pixmap,
-            self.x11_window,
-            geom.width,
-            geom.height,
-        )?;
-
-        let gc = self.conn.generate_id()?;
-        create_gc(
-            &self.conn,
-            gc,
-            pixmap,
-            &CreateGCAux::new().foreground(1).background(1),
-        )?;
-        poly_fill_rectangle(
-            &self.conn,
-            pixmap,
-            gc,
-            &[Rectangle {
-                x: 0,
-                y: 0,
-                width: geom.width,
-                height: geom.height,
-            }],
-        )?;
-
-        use x11rb::protocol::shape;
-        shape::mask(
-            &self.conn,
-            shape::SO::SET,
-            shape::SK::INPUT,
-            self.x11_window,
-            0,
-            0,
-            pixmap,
-        )?;
-
-        free_gc(&self.conn, gc)?;
-        free_pixmap(&self.conn, pixmap)?;
-        self.conn.flush()?;
-
+        self.apply_input_shape(1, None)?;
         tracing::info!("X11 input shape: full window receives input (edit mode)");
         Ok(())
     }
