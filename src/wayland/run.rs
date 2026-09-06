@@ -62,10 +62,11 @@ use crate::renderer::wgpu_renderer::{SurfaceState, WgpuRenderer};
 use crate::scene::Scene;
 use crate::ui::{panels, ToastQueue, Warning};
 use crate::wayland::egui_render::WaylandEguiRenderer;
-use crate::wayland::layer_window::{self, InputRect, LayerWindow};
+use crate::wayland::layer_window::{self, InputRect, LayerWindow, WaylandState};
 use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use wayland_client::EventQueue;
 
 /// Drive a native-Wayland session end-to-end.
 ///
@@ -195,14 +196,13 @@ pub fn run_native(
     }
 
     // ── Main loop ──
-    // `blocking_dispatch` waits for compositor events; the 16-ms sleep
-    // below ensures animations keep ticking even when the compositor
-    // doesn't push events at us.
+    // Waits for compositor events but never longer than one frame, so
+    // animations keep ticking and channel-delivered commands are picked
+    // up even when the compositor has nothing to say. See
+    // `dispatch_with_timeout`.
     loop {
-        layer
-            .event_queue
-            .blocking_dispatch(&mut layer.state)
-            .map_err(|e| AnimaError::other(format!("wayland dispatch: {e}")))?;
+        let frame_start = Instant::now();
+        dispatch_with_timeout(&mut layer.event_queue, &mut layer.state, FRAME_INTERVAL)?;
 
         if layer.state.close_requested {
             tracing::info!("Layer surface closed by compositor — exiting.");
@@ -843,8 +843,14 @@ pub fn run_native(
             }
         }
 
-        // Soft cap at ~60 Hz when idle.
-        std::thread::sleep(Duration::from_millis(16));
+        // Soft cap at ~60 Hz. The dispatch above returns immediately when
+        // events were already queued, so pace on the frame's actual
+        // elapsed time rather than sleeping unconditionally — otherwise a
+        // busy compositor would spin faster than the cap and an idle one
+        // would wait out the poll timeout *and* a full sleep on top.
+        if let Some(rest) = FRAME_INTERVAL.checked_sub(frame_start.elapsed()) {
+            std::thread::sleep(rest);
+        }
     }
 
     // Renderer (and every extra surface's wgpu::Surface) is dropped
@@ -871,6 +877,69 @@ pub fn run_native(
 /// down and which planned monitors need a brand-new surface. Split
 /// out so this decision has a unit test even though the actual
 /// teardown/creation (real Wayland + GPU calls) doesn't.
+/// Target frame interval for the native loop — a ~60 Hz soft cap.
+const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+
+/// Dispatch Wayland events, waiting at most `timeout` for the socket.
+///
+/// This replaces `EventQueue::blocking_dispatch`, which waits for a
+/// *compositor* event with no upper bound. On a quiet desktop — pointer
+/// still, nothing on screen changing — nothing ever arrives, so the loop
+/// simply stopped: animations froze mid-sequence and D-Bus/portal
+/// commands sat unread in their channels, because pushing into an mpsc
+/// channel does not make the Wayland socket readable. The 16 ms sleep at
+/// the bottom of the loop was documented as covering exactly this, but it
+/// is only reached *after* a compositor event has already unblocked the
+/// top.
+///
+/// Mirrors `blocking_dispatch`'s own steps (dispatch what's buffered,
+/// flush, read, dispatch again) but polls the connection fd with a
+/// deadline, so the loop still sleeps in the kernel when idle and never
+/// waits longer than `timeout`.
+fn dispatch_with_timeout(
+    queue: &mut EventQueue<WaylandState>,
+    state: &mut WaylandState,
+    timeout: Duration,
+) -> Result<()> {
+    use std::os::fd::AsRawFd;
+
+    let to_err =
+        |e: wayland_client::DispatchError| AnimaError::other(format!("wayland dispatch: {e}"));
+
+    // Already-buffered events first, exactly as blocking_dispatch does.
+    if queue.dispatch_pending(state).map_err(to_err)? > 0 {
+        return Ok(());
+    }
+    queue
+        .flush()
+        .map_err(|e| AnimaError::other(format!("wayland flush: {e}")))?;
+
+    if let Some(guard) = queue.prepare_read() {
+        let fd = guard.connection_fd();
+        let mut pfd = libc::pollfd {
+            fd: fd.as_raw_fd(),
+            events: libc::POLLIN | libc::POLLERR,
+            revents: 0,
+        };
+        let ms = timeout.as_millis().min(i32::MAX as u128) as i32;
+        // SAFETY: `pfd` is one initialised `pollfd` we own for the whole
+        // call and `poll` touches only that entry; the fd stays open
+        // because `guard` borrows the live connection.
+        let ready = unsafe { libc::poll(&mut pfd, 1, ms) };
+        if ready > 0 {
+            // A spurious wakeup returns WouldBlock — harmless, the next
+            // iteration retries, same as wayland-client's own read path.
+            let _ = guard.read();
+        }
+        // ready == 0 is the timeout (nothing to read) and ready < 0 is
+        // EINTR or similar; in both cases dropping the guard cancels the
+        // prepared read and we fall through to dispatch what we have.
+    }
+
+    queue.dispatch_pending(state).map_err(to_err)?;
+    Ok(())
+}
+
 /// Mirror the live scene into `config`, then persist it.
 ///
 /// The winit path does exactly this in `App::save_config_if_needed`. The
