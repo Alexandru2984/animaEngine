@@ -725,7 +725,7 @@ pub fn run_native(
                         // hot-reload picks the fresh state up next
                         // session.
                         if !new_mode && config_dirty {
-                            if let Err(e) = config.save() {
+                            if let Err(e) = sync_and_save(&mut config, &scene) {
                                 tracing::warn!("Config save failed: {e}");
                             } else {
                                 config_dirty = false;
@@ -855,7 +855,7 @@ pub fn run_native(
     // Persist any unsaved edits on clean shutdown so a Ctrl+C / window
     // close doesn't lose the last toggle.
     if config_dirty {
-        if let Err(e) = config.save() {
+        if let Err(e) = sync_and_save(&mut config, &scene) {
             tracing::warn!("Final config save failed: {e}");
         }
     }
@@ -871,6 +871,20 @@ pub fn run_native(
 /// down and which planned monitors need a brand-new surface. Split
 /// out so this decision has a unit test even though the actual
 /// teardown/creation (real Wayland + GPU calls) doesn't.
+/// Mirror the live scene into `config`, then persist it.
+///
+/// The winit path does exactly this in `App::save_config_if_needed`. The
+/// native loop used to call `config.save()` directly, which wrote back
+/// whatever `characters` was parsed at startup — so dragging a sprite,
+/// adding an entity or toggling playback set `config_dirty`, saved the
+/// *stale* scene, and silently discarded the edit. Any save on this path
+/// must go through here.
+fn sync_and_save(config: &mut AppConfig, scene: &Scene) -> Result<()> {
+    config.characters = scene.to_character_configs();
+    config.global.playback_enabled = scene.global_playing;
+    config.save()
+}
+
 fn diff_extra_plan<'a>(
     plan_extras: &'a [MonitorInfo],
     current_names: &[String],
