@@ -5,7 +5,13 @@ static analysis, fuzzing or unit tests. Every entry here was observed on
 screen; none of them would have been caught by the test suite, because the
 test suite covers the parsers and the pure logic, not the rendered product.
 
-Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history.
+Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
+`BY DESIGN` observed, deliberate, not changing · `RETRACTED` reported here
+in error, kept so the mistake isn't repeated.
+
+**Current state: nothing `OPEN`.** R1–R5 and R7–R13 are `FIXED`, R6 is
+`BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at the
+bottom are where the next round should start.
 
 ## How these were reproduced
 
@@ -172,34 +178,62 @@ noise rather than a legibility failure. Lowering the alpha is a one-line
 change in `panels::settings` if the frosted look is ever judged not worth
 the distraction — but that is a taste call, not a bug fix.
 
-### R6b · Panel alpha does not blend uniformly across channels — `OPEN`
+### R6b · Panel alpha "does not blend uniformly across channels" — `RETRACTED (measurement error)`
 
-Found while measuring R6, and more interesting than R6 itself.
+**There is no bug here. This entry was wrong, and it is kept only so the
+mistake isn't made a second time.**
 
-Solving the composite for the blend factor, per channel, using the same
-sprite and panel:
+It originally read: solving the composite per channel gave effective alphas
+of 0.789 / 0.846 / 0.994 against a designed 235/255 = 0.922, therefore the
+alpha was being applied in the wrong colour space or applied twice — and it
+was filed as a Linux-side confirmation of the external audit's M12.
+
+Two independent errors produced that result.
+
+**1. The wrong colour space — in the analysis, not in the app.** The
+composite was solved in **sRGB byte space**. But the render target is an
+sRGB format and the pipeline blends premultiplied:
+
+- `wgpu_renderer.rs:322` — `caps.formats.iter().find(|f| f.is_srgb())`
+- `wgpu_renderer.rs:409` — `blend: BlendState::PREMULTIPLIED_ALPHA_BLENDING`
+
+With an `...Srgb` target the hardware decodes to linear, blends, and
+re-encodes. Solving from raw screenshot bytes as though the blend were
+linear-in-bytes is simply the wrong equation, and its error grows with the
+distance between the two colours — which is exactly why the three channels
+disagreed by so much, and why blue (where sprite and panel nearly match)
+looked "correct" while red and green looked broken.
+
+**2. The two pixels were never the same pixel.** The original numbers
+compared the *brightest* star pixel found in one screenshot against a
+*different coordinate* in another. The star is a gradient, so the "source"
+colour fed into the equation was never the colour actually behind the
+sampled point.
+
+Re-measured properly — same coordinates in both frames, solved in linear
+space — the channels with real signal land on the designed value:
 
 ```
-star (253,248,208) over surface (30,34,43) measured as (77,67,44)
-  R -> effective alpha 0.789
-  G -> effective alpha 0.846
-  B -> effective alpha 0.994      designed: 235/255 = 0.922
+ pixel        alpha R / G / B        designed 0.9216
+ (1350,520)   0.921 / 0.923 / 0.867
+ (1365,515)   0.926 / 0.928 / 0.948
+ (1380,530)   0.919 / 0.922 / 1.000
 ```
 
-A single correct blend yields **one** alpha for all three channels. Three
-different values means the alpha is being applied in the wrong colour space
-— sRGB-encoded values blended as if linear, or alpha applied twice.
+R and G agree at **0.919–0.928**. Blue stays noisy because the sprite is
+yellow: panel blue (43) and sprite blue (47) are nearly equal, so the
+solve's denominator approaches zero and quantisation error explodes. That
+is instability in the measurement, not spread in the blend.
 
-This is the family the external audit raised as M12 (the alpha/colour
-contract per presenter, and `pick_alpha_mode` accepting `PostMultiplied`
-while the pipeline stays premultiplied, "which can apply alpha a second
-time"). The audit could only reason about it statically and scoped it to
-the Windows presenter; this is a measurement showing it **on Linux**.
+A fully controlled capture (animation paused) was attempted to remove the
+last variable and **failed**: pausing playback stops animation frames but
+not behaviour movement, so the sprites still shift between captures. Anyone
+retrying this needs a static scene — gravity and behaviours off — not just
+paused playback.
 
-Not isolated further: the cause could be the egui blend state, the
-`Bgra8UnormSrgb` surface format, or the premultiplication contract at the
-layer-surface boundary. Worth pinning down before trusting any colour or
-opacity value end-to-end.
+The audit's M12 concern about `pick_alpha_mode` accepting `PostMultiplied`
+while the pipeline stays premultiplied is **still open on its own terms**
+and still scoped to Windows. It gained no Linux evidence here.
 
 ### R7 · Keybindings rows wrap mid-token and overlap — `FIXED`
 
