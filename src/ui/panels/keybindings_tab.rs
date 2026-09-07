@@ -111,13 +111,22 @@ pub(super) fn keybindings_tab(
                 ui.label(t(action.i18n_key()));
 
                 // ── Column 2: chord chips + Record affordance
+                // Each item must stay intact: the panel defaults to 320px
+                // and this is the middle of three grid columns, so egui
+                // was breaking *inside* words to fit — chords came out as
+                // "Ctrl+ / Shift / +H" and the add button's own label as
+                // "+ / Ad / d". `Extend` stops the intra-item break, so
+                // `horizontal_wrapped` wraps between chips instead.
                 ui.horizontal_wrapped(|ui| {
                     let chords = bindings.chords_for(action);
                     if chords.is_empty() {
-                        ui.label(
-                            egui::RichText::new(t("keybindings-unbound"))
-                                .text_style(theme::caption())
-                                .color(caption_color),
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(t("keybindings-unbound"))
+                                    .text_style(theme::caption())
+                                    .color(caption_color),
+                            )
+                            .wrap_mode(egui::TextWrapMode::Extend),
                         );
                     } else {
                         for chord in &chords {
@@ -127,7 +136,7 @@ pub(super) fn keybindings_tab(
                             if conflict {
                                 chip = chip.color(warn_color);
                             }
-                            ui.label(chip);
+                            ui.add(egui::Label::new(chip).wrap_mode(egui::TextWrapMode::Extend));
                             if ui
                                 .small_button(icons::CLOSE)
                                 .on_hover_text("Remove this binding")
@@ -139,13 +148,20 @@ pub(super) fn keybindings_tab(
                         }
                     }
                     if recording_for == Some(action) {
-                        ui.label(
-                            egui::RichText::new(t("keybindings-recording"))
-                                .text_style(egui::TextStyle::Small)
-                                .color(crate::ui::theme::palette_of(ui.ctx()).semantic_info),
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(t("keybindings-recording"))
+                                    .text_style(egui::TextStyle::Small)
+                                    .color(crate::ui::theme::palette_of(ui.ctx()).semantic_info),
+                            )
+                            .wrap_mode(egui::TextWrapMode::Extend),
                         );
                     } else if ui
-                        .small_button(format!("{}  {}", icons::PLUS, t("keybindings-add")))
+                        .add(
+                            egui::Button::new(format!("{}  {}", icons::PLUS, t("keybindings-add")))
+                                .small()
+                                .wrap_mode(egui::TextWrapMode::Extend),
+                        )
                         .clicked()
                     {
                         ctx.memory_mut(|m| m.data.insert_temp(recording_id, action));
