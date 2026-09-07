@@ -121,7 +121,7 @@ new copy in ten languages — it is not a mechanical change.
 
 ## Rendering
 
-### R5 · `→` renders as a missing-glyph box — `OPEN`
+### R5 · `→` renders as a missing-glyph box — `FIXED`
 
 "AccessKit can be turned off from Appearance **□** Accessibility" — the arrow
 in `whats-new-accessibility-toggle` has no glyph in the proportional font.
@@ -131,14 +131,64 @@ The app bundles no fonts of its own; it uses egui's defaults. Note that `↑`
 "arrows are broken" — it is the proportional face that lacks U+2192. Any
 string using `→` in body text is affected.
 
-### R6 · Sprites bleed through the settings panel — `OPEN`
+**Fixed.** Reading the bundled cmap tables settles it: Ubuntu-Light,
+NotoEmoji-Regular and emoji-icon-font cover *none* of U+2190..U+2193, while
+the bundled Hack face covers all four — which is why the same arrows looked
+fine in the monospace keybindings chords. The command palette's "↑↓ + Enter
+to pick" footer was affected too, though never observed. `icons::install`
+now appends the monospace list to the proportional family as a last-resort
+fallback: no new asset, and it covers anything else Ubuntu-Light lacks.
 
-Entities positioned under the sidebar show through its background and land on
-top of the panel's text. Reproduced on the Inspector, Scene, Library and
-Appearance tabs with the demo `star` entity (default `x = 1300`), which sits
-behind the panel and overlaps headings and labels, hurting legibility.
+### R6 · Sprites bleed through the settings panel — `BY DESIGN`
 
-### R7 · Keybindings rows wrap mid-token and overlap — `OPEN`
+Entities positioned under the sidebar show through its background and land
+behind the panel's text, on every tab.
+
+**Not a defect.** The panel is deliberately frosted — `panels::settings`
+builds its frame at alpha 235/255 with the comment *"the desktop reads
+through behind the settings instead of a solid slab"*. Measured with the
+near-white demo `star` (RGB 253,248,208) behind it:
+
+| behind the panel | panel background | text contrast |
+|---|---|---|
+| nothing | (30, 34, 43) | 13.5:1 |
+| the star | (77, 67, 44) | **8.1:1** |
+
+Body text still clears WCAG AA (4.5:1) and AAA (7:1), so this is visual
+noise rather than a legibility failure. Lowering the alpha is a one-line
+change in `panels::settings` if the frosted look is ever judged not worth
+the distraction — but that is a taste call, not a bug fix.
+
+### R6b · Panel alpha does not blend uniformly across channels — `OPEN`
+
+Found while measuring R6, and more interesting than R6 itself.
+
+Solving the composite for the blend factor, per channel, using the same
+sprite and panel:
+
+```
+star (253,248,208) over surface (30,34,43) measured as (77,67,44)
+  R -> effective alpha 0.789
+  G -> effective alpha 0.846
+  B -> effective alpha 0.994      designed: 235/255 = 0.922
+```
+
+A single correct blend yields **one** alpha for all three channels. Three
+different values means the alpha is being applied in the wrong colour space
+— sRGB-encoded values blended as if linear, or alpha applied twice.
+
+This is the family the external audit raised as M12 (the alpha/colour
+contract per presenter, and `pick_alpha_mode` accepting `PostMultiplied`
+while the pipeline stays premultiplied, "which can apply alpha a second
+time"). The audit could only reason about it statically and scoped it to
+the Windows presenter; this is a measurement showing it **on Linux**.
+
+Not isolated further: the cause could be the egui blend state, the
+`Bgra8UnormSrgb` surface format, or the premultiplication contract at the
+layer-surface boundary. Worth pinning down before trusting any colour or
+opacity value end-to-end.
+
+### R7 · Keybindings rows wrap mid-token and overlap — `FIXED`
 
 At a normal panel width (≈460 px on a 1600 px output):
 
@@ -147,10 +197,21 @@ At a normal panel width (≈460 px on a 1600 px output):
 - that button then **overlaps the chord label**, so e.g. the `↑` of
   "Nudge selection up" is partly hidden behind it
 
-### R8 · Banner text is clipped by its close button — `OPEN`
+**Fixed.** With that little room egui was breaking text *inside* items.
+`TextWrapMode::Extend` on the chips, the add button and the
+unbound/recording labels stops any single item breaking, so the row wraps
+between whole items instead — which is what `horizontal_wrapped` is for.
+
+### R8 · Banner text is clipped by its close button — `FIXED`
 
 "Tip: V toggles visibility, G toggles gravity — no need to open this panel"
 runs into the `✕` with no gap and is cut at the panel edge.
+
+**Fixed.** The body label was added before the close button in a horizontal
+layout, so a long hint claimed the whole row and the button was drawn over
+it. The button now takes the right edge first and the body wraps into the
+width actually left, inside a nested left-to-right layout so wrapped lines
+stay left-aligned.
 
 ---
 
