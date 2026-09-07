@@ -76,7 +76,7 @@ theme-light = Chiaro
 theme-dark-hc = Scuro · Contrasto elevato
 theme-light-hc = Chiaro · Contrasto elevato
 
-onboarding-tabs = Le impostazioni sono divise su tre schede — Ispettore, Scena, Aspetto.
+onboarding-tabs = Le impostazioni sono su cinque schede — Inspector, Scena, Libreria, Aspetto, Scorciatoie.
 onboarding-quick-toggles = Suggerimento: V alterna la visibilità, G la gravità — senza aprire questo pannello.
 onboarding-theme = I temi si applicano subito — nessun riavvio richiesto.
 onboarding-coach-step1 = Benvenuto! I tuoi personaggi vivono sul desktop. Fai clic sull’ingranaggio in alto a destra per entrare in modalità modifica.
@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = Il processo di ricarica a caldo si è fermato 
 action-toggle-perf-overlay = Attiva/disattiva overlay prestazioni
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Novità della 0.4
-whats-new-keybindings = Scorciatoie da tastiera riassegnabili — apri la nuova scheda Scorciatoie.
-whats-new-collapse-state = Le sezioni dell’Inspector ricordano il loro stato aperto/chiuso tra le sessioni.
-whats-new-error-banners = Le superfici di errore (prima silenziose) ora mostrano toast o banner — le vedrai.
-whats-new-accessibility-toggle = AccessKit si può disattivare da Aspetto → Accessibilità.
+whats-new-header = Novità della 1.0
+whats-new-stable = animaEngine è 1.0: tre release candidate e un audit di sicurezza esterno alle spalle.
+whats-new-wayland-parity = Wayland nativo ora è allo stesso livello di X11, overlay per monitor inclusi.
+whats-new-durable-config = La tua scena è più al sicuro: le migrazioni fanno prima un backup e una modifica manuale errata non la sovrascrive più.
+whats-new-scaling = La geometria dell'overlay è in pixel fisici, così il ridimensionamento frazionario e HiDPI non sposta più il pulsante ⚙.
 onboarding-keybindings = Fai clic su una scorciatoia per rimuoverla; premi una combinazione per registrarne una nuova.
 onboarding-perf-overlay = Premi Ctrl+Shift+` per aprire l’overlay prestazioni in tempo reale.
 appearance-reset-onboarding = Ripristina i suggerimenti iniziali

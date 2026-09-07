@@ -76,7 +76,7 @@ theme-light = Licht
 theme-dark-hc = Donker · Hoog contrast
 theme-light-hc = Licht · Hoog contrast
 
-onboarding-tabs = Instellingen verspreid over drie tabbladen — Inspector, Scène, Weergave.
+onboarding-tabs = Instellingen staan in vijf tabbladen — Inspector, Scène, Bibliotheek, Uiterlijk, Sneltoetsen.
 onboarding-quick-toggles = Tip: V wisselt zichtbaarheid, G wisselt zwaartekracht — zonder dit paneel te openen.
 onboarding-theme = Thema's worden direct toegepast — geen herstart nodig.
 onboarding-coach-step1 = Welkom! Uw personages leven op het bureaublad. Klik op het tandwiel rechtsboven om de bewerkmodus te openen.
@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = De hot-reload-worker is onverwacht gestopt; lo
 action-toggle-perf-overlay = Prestatie-overlay omschakelen
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Nieuw in 0.4
-whats-new-keybindings = Herinstelbare sneltoetsen — open het nieuwe tabblad Sneltoetsen.
-whats-new-collapse-state = Inspector-secties onthouden hun open/dicht-stand tussen sessies.
-whats-new-error-banners = Foutmeldingen (voorheen stil) tonen nu toasts of banners — u ziet ze.
-whats-new-accessibility-toggle = AccessKit kan worden uitgeschakeld via Uiterlijk → Toegankelijkheid.
+whats-new-header = Nieuw in 1.0
+whats-new-stable = animaEngine is 1.0 — drie release-kandidaten en een externe beveiligingsaudit erachter.
+whats-new-wayland-parity = Native Wayland is nu gelijkwaardig aan X11, inclusief overlays per monitor.
+whats-new-durable-config = Je scène is veiliger: migraties maken eerst een back-up en een foute handmatige bewerking overschrijft haar niet meer.
+whats-new-scaling = De overlay rekent in fysieke pixels, dus fractionele en HiDPI-schaling verplaatst de ⚙-knop niet meer.
 onboarding-keybindings = Klik op een sneltoets om hem te verwijderen; druk een combinatie om een nieuwe op te nemen.
 onboarding-perf-overlay = Druk Ctrl+Shift+` om de live prestatie-overlay te openen.
 appearance-reset-onboarding = Introductietips herstellen

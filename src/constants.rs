@@ -108,3 +108,12 @@ pub fn max_total_decoded_bytes() -> usize {
         .and_then(|mb| mb.checked_mul(1024 * 1024))
         .unwrap_or(DEFAULT_MAX_TOTAL_DECODED_BYTES)
 }
+
+/// Release the "what's new" panel describes. Bump alongside any release
+/// that ships a fresh highlight reel; users whose config does not already
+/// carry this string see the panel once.
+///
+/// Lives here rather than in `ui::whats_new` so the config loader can
+/// stamp it on a fresh install without the config layer depending on the
+/// UI layer.
+pub const WHATS_NEW_VERSION: &str = "1.0.0";

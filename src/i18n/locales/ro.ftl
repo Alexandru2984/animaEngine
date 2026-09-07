@@ -76,7 +76,7 @@ theme-light = Luminos
 theme-dark-hc = Întunecat · Contrast ridicat
 theme-light-hc = Luminos · Contrast ridicat
 
-onboarding-tabs = Setările sunt împărțite pe trei tab-uri — Inspector, Scenă, Aspect.
+onboarding-tabs = Setările stau în cinci taburi — Inspector, Scenă, Bibliotecă, Aspect, Scurtături.
 onboarding-quick-toggles = Sfat: V comută vizibilitatea, G comută gravitația — fără să deschizi acest panou.
 onboarding-theme = Temele se aplică instant — niciun restart necesar.
 onboarding-coach-step1 = Bun venit! Personajele trăiesc pe desktop. Apasă butonul cu rotiță din colțul din dreapta-sus ca să intri în modul de editare.
@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = Procesul de reîncărcare la cald s-a oprit pe
 action-toggle-perf-overlay = Comută suprapunerea de performanță
 
 # ── Panou "What's new" (D.7) ──────────────────────────────────────────
-whats-new-header = Noutăți în 0.4
-whats-new-keybindings = Comenzi taste rebindable — deschide noul tab Comenzi taste.
-whats-new-collapse-state = Secțiunile Inspector își amintesc starea deschisă/închisă între sesiuni.
-whats-new-error-banners = Erorile (tăcute înainte) apar acum ca toast sau banner — le vezi.
-whats-new-accessibility-toggle = AccessKit poate fi dezactivat din Aspect → Accesibilitate.
+whats-new-header = Noutăți în 1.0
+whats-new-stable = animaEngine a ajuns la 1.0 — după trei versiuni candidat și un audit extern de securitate.
+whats-new-wayland-parity = Wayland nativ e acum la paritate cu X11, inclusiv suprapuneri pe fiecare monitor.
+whats-new-durable-config = Scena ta e mai în siguranță: migrările fac întâi o copie, iar o editare manuală greșită n-o mai suprascrie.
+whats-new-scaling = Geometria suprapunerii e în pixeli fizici, deci scalarea fracționară și HiDPI nu mai mută butonul ⚙.
 
 # ── Hint-uri onboarding noi (D.7) ─────────────────────────────────────
 onboarding-keybindings = Apasă × pe un chord ca să-l elimini; apasă o combinație ca să înregistrezi una nouă.

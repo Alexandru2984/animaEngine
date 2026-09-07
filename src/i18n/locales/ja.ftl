@@ -76,7 +76,7 @@ theme-light = ライト
 theme-dark-hc = ダーク · ハイコントラスト
 theme-light-hc = ライト · ハイコントラスト
 
-onboarding-tabs = 設定は 3 つのタブに分かれています — インスペクター・シーン・外観。
+onboarding-tabs = 設定は 5 つのタブに分かれています — インスペクター、シーン、ライブラリ、外観、キー割り当て。
 onboarding-quick-toggles = ヒント: V で表示の切替、G で重力の切替 — このパネルを開かずに操作できます。
 onboarding-theme = テーマは即座に適用されます — 再起動は不要です。
 onboarding-coach-step1 = ようこそ！キャラクターはデスクトップに住んでいます。右上の歯車ボタンをクリックして編集モードに入りましょう。
@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = ホットリロードのワーカーが予期�
 action-toggle-perf-overlay = パフォーマンス表示を切り替え
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = 0.4 の新着情報
-whats-new-keybindings = キーボードショートカットの割り当て変更 — 新しい「ショートカット」タブを開いてください。
-whats-new-collapse-state = インスペクターのセクションは開閉状態をセッションをまたいで記憶します。
-whats-new-error-banners = これまで無音だったエラーは、トーストやバナーで表示されるようになりました。
-whats-new-accessibility-toggle = AccessKit は 外観 → アクセシビリティ からオフにできます。
+whats-new-header = 1.0 の新着情報
+whats-new-stable = animaEngine が 1.0 に — 3 つのリリース候補と外部セキュリティ監査を経ました。
+whats-new-wayland-parity = ネイティブ Wayland が X11 と同等になりました。モニターごとのオーバーレイも含みます。
+whats-new-durable-config = シーンがより安全に。移行時は先にバックアップを取り、手編集の誤りで上書きされなくなりました。
+whats-new-scaling = オーバーレイの座標が物理ピクセル基準になり、分数・HiDPI スケーリングで ⚙ ボタンがずれなくなりました。
 onboarding-keybindings = ショートカットをクリックすると削除、キーの組み合わせを押すと新規登録できます。
 onboarding-perf-overlay = Ctrl+Shift+` でライブのパフォーマンス表示を開けます。
 appearance-reset-onboarding = オンボーディングのヒントをリセット

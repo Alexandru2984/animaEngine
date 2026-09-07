@@ -76,7 +76,7 @@ theme-light = Clair
 theme-dark-hc = Sombre · Contraste élevé
 theme-light-hc = Clair · Contraste élevé
 
-onboarding-tabs = Les réglages se répartissent sur trois onglets — Inspecteur, Scène, Apparence.
+onboarding-tabs = Les réglages tiennent en cinq onglets — Inspecteur, Scène, Bibliothèque, Apparence, Raccourcis.
 onboarding-quick-toggles = Astuce : V bascule la visibilité, G la gravité — sans ouvrir ce panneau.
 onboarding-theme = Les thèmes s'appliquent instantanément — pas de redémarrage.
 onboarding-coach-step1 = Bienvenue ! Vos personnages vivent sur le bureau. Cliquez sur le bouton engrenage en haut à droite pour entrer en mode édition.
@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = Le processus de rechargement à chaud s’est 
 action-toggle-perf-overlay = Basculer l’overlay de performance
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Nouveautés de la 0.4
-whats-new-keybindings = Raccourcis clavier réassignables — ouvrez le nouvel onglet Raccourcis.
-whats-new-collapse-state = Les sections de l’Inspecteur retiennent leur état ouvert/fermé entre les sessions.
-whats-new-error-banners = Les erreurs (silencieuses auparavant) affichent désormais des toasts ou des bannières — vous les verrez.
-whats-new-accessibility-toggle = AccessKit peut être désactivé dans Apparence → Accessibilité.
+whats-new-header = Nouveautés de la 1.0
+whats-new-stable = animaEngine passe en 1.0 — trois versions candidates et un audit de sécurité externe derrière.
+whats-new-wayland-parity = Le Wayland natif est désormais au niveau de X11, superpositions par écran comprises.
+whats-new-durable-config = Votre scène est mieux protégée : les migrations sauvegardent d'abord, et une édition manuelle fautive ne l'écrase plus.
+whats-new-scaling = La géométrie de la surcouche est en pixels physiques : la mise à l'échelle fractionnaire et HiDPI ne déplace plus le bouton ⚙.
 onboarding-keybindings = Cliquez sur un raccourci pour le retirer ; appuyez sur une combinaison pour en enregistrer un nouveau.
 onboarding-perf-overlay = Appuyez sur Ctrl+Shift+` pour ouvrir l’overlay de performance en direct.
 appearance-reset-onboarding = Réinitialiser les astuces de démarrage

@@ -1,4 +1,4 @@
-//! "What's new in 0.4" highlight panel (D.7).
+//! "What's new" highlight panel (D.7).
 //!
 //! Shows once per minor-version bump at the top of the settings
 //! sidebar — just below the warning banners, above the tab switcher.
@@ -14,10 +14,9 @@
 use crate::ui::icons;
 use crate::ui::theme::{self, RADIUS_MD, SPACE_M, SPACE_S, SPACE_XS};
 
-/// Anchor for "what's new" content the panel shows. Bump alongside
-/// each release that wants a fresh highlight reel; users who haven't
-/// stamped this key into `last_seen_whats_new` will see the panel.
-pub const WHATS_NEW_VERSION: &str = "0.4.0";
+/// Anchor for "what's new" content the panel shows. Defined in
+/// `constants` so the config loader can stamp it on a fresh install.
+pub use crate::constants::WHATS_NEW_VERSION;
 
 /// One highlight row inside the panel.
 struct Highlight {
@@ -28,20 +27,20 @@ struct Highlight {
 
 const HIGHLIGHTS: &[Highlight] = &[
     Highlight {
-        icon: icons::KEYBOARD,
-        body_key: "whats-new-keybindings",
+        icon: icons::SPARKLE,
+        body_key: "whats-new-stable",
     },
     Highlight {
-        icon: icons::SETTINGS,
-        body_key: "whats-new-collapse-state",
+        icon: icons::GHOST,
+        body_key: "whats-new-wayland-parity",
     },
     Highlight {
-        icon: icons::WARN,
-        body_key: "whats-new-error-banners",
+        icon: icons::SUCCESS,
+        body_key: "whats-new-durable-config",
     },
     Highlight {
-        icon: icons::INFO,
-        body_key: "whats-new-accessibility-toggle",
+        icon: icons::CURSOR,
+        body_key: "whats-new-scaling",
     },
 ];
 
@@ -99,10 +98,19 @@ pub fn show(ui: &mut egui::Ui, last_seen: &mut Option<String>) -> bool {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(h.icon).color(accent).size(14.0));
                     ui.add_space(SPACE_XS);
-                    ui.label(
-                        egui::RichText::new(crate::i18n::t(h.body_key))
-                            .text_style(theme::caption())
-                            .color(body_color),
+                    // Must wrap. A plain label asks for its natural width,
+                    // and a `SidePanel` grows to satisfy its content — so
+                    // the longest highlight string silently decided how
+                    // wide the whole settings panel was. Measured: 320px
+                    // (the configured width) with no panel, 424px with the
+                    // old copy, 593px with longer copy.
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(crate::i18n::t(h.body_key))
+                                .text_style(theme::caption())
+                                .color(body_color),
+                        )
+                        .wrap(),
                     );
                 });
                 ui.add_space(SPACE_XS);

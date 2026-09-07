@@ -102,7 +102,7 @@ theme-dark-hc = Dark · High contrast
 theme-light-hc = Light · High contrast
 
 # ── Onboarding hints ──────────────────────────────────────────────────
-onboarding-tabs = Settings split across three tabs — Inspector, Scene, Appearance.
+onboarding-tabs = Settings live across five tabs — Inspector, Scene, Library, Appearance, Keybindings.
 onboarding-quick-toggles = Tip: V toggles visibility, G toggles gravity — no need to open this panel.
 onboarding-theme = Themes apply instantly — no restart needed.
 onboarding-coach-step1 = Welcome! Your characters live on the desktop. Click the gear button in the top-right corner to enter edit mode.
@@ -189,11 +189,11 @@ warning-hot-reload-disconnected = The hot-reload worker stopped unexpectedly; in
 action-toggle-perf-overlay = Toggle perf overlay
 
 # ── What's new panel (D.7) ────────────────────────────────────────────
-whats-new-header = What's new in 0.4
-whats-new-keybindings = Rebindable keyboard shortcuts — open the new Keybindings tab.
-whats-new-collapse-state = Inspector sections remember their open/closed state across sessions.
-whats-new-error-banners = Failure surfaces (silent before) now toast or banner — you'll see them.
-whats-new-accessibility-toggle = AccessKit can be turned off from Appearance → Accessibility.
+whats-new-header = What's new in 1.0
+whats-new-stable = animaEngine is 1.0 — three release candidates and an external security audit behind it.
+whats-new-wayland-parity = Native Wayland now matches X11, per-monitor overlays included.
+whats-new-durable-config = Your scene is safer: migrations back up first, and a bad hand-edit can no longer overwrite it.
+whats-new-scaling = Overlay geometry is in physical pixels, so fractional and HiDPI scaling no longer misplace the ⚙ button.
 
 # ── New onboarding hints (D.7) ────────────────────────────────────────
 onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.

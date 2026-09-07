@@ -76,7 +76,7 @@ theme-light = Claro
 theme-dark-hc = Escuro · Alto contraste
 theme-light-hc = Claro · Alto contraste
 
-onboarding-tabs = As configurações estão divididas em três abas — Inspetor, Cena, Aparência.
+onboarding-tabs = As configurações ficam em cinco abas — Inspetor, Cena, Biblioteca, Aparência, Atalhos.
 onboarding-quick-toggles = Dica: V alterna visibilidade, G alterna gravidade — sem abrir este painel.
 onboarding-theme = Temas são aplicados instantaneamente — sem reiniciar.
 onboarding-coach-step1 = Bem-vindo! Seus personagens vivem na área de trabalho. Clique no botão de engrenagem no canto superior direito para entrar no modo de edição.
@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = O processo de hot-reload parou inesperadamente
 action-toggle-perf-overlay = Alternar overlay de desempenho
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Novidades da 0.4
-whats-new-keybindings = Atalhos de teclado reatribuíveis — abra a nova aba Atalhos.
-whats-new-collapse-state = As seções do Inspetor lembram seu estado aberto/fechado entre sessões.
-whats-new-error-banners = Superfícies de erro (antes silenciosas) agora mostram toasts ou banners — você as verá.
-whats-new-accessibility-toggle = O AccessKit pode ser desligado em Aparência → Acessibilidade.
+whats-new-header = Novidades da 1.0
+whats-new-stable = animaEngine chegou à 1.0: três candidatas a versão e uma auditoria de segurança externa.
+whats-new-wayland-parity = O Wayland nativo agora equivale ao X11, incluindo sobreposições por monitor.
+whats-new-durable-config = Sua cena está mais segura: as migrações fazem backup antes, e uma edição manual errada não a sobrescreve mais.
+whats-new-scaling = A geometria da sobreposição usa pixels físicos, então escala fracionária e HiDPI não deslocam mais o botão ⚙.
 onboarding-keybindings = Clique em um atalho para removê-lo; pressione uma combinação para gravar um novo.
 onboarding-perf-overlay = Pressione Ctrl+Shift+` para abrir o overlay de desempenho ao vivo.
 appearance-reset-onboarding = Restaurar dicas de boas-vindas

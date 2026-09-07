@@ -76,7 +76,7 @@ theme-light = Hell
 theme-dark-hc = Dunkel · Hoher Kontrast
 theme-light-hc = Hell · Hoher Kontrast
 
-onboarding-tabs = Einstellungen sind auf drei Tabs verteilt — Inspektor, Szene, Darstellung.
+onboarding-tabs = Die Einstellungen verteilen sich auf fünf Tabs — Inspector, Szene, Bibliothek, Darstellung, Tastenkürzel.
 onboarding-quick-toggles = Tipp: V schaltet die Sichtbarkeit um, G die Schwerkraft — ohne dieses Panel zu öffnen.
 onboarding-theme = Themes greifen sofort — kein Neustart nötig.
 onboarding-coach-step1 = Willkommen! Ihre Figuren leben auf dem Desktop. Klicken Sie auf das Zahnrad oben rechts, um den Bearbeitungsmodus zu öffnen.
@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = Der Hot-Reload-Worker wurde unerwartet beendet
 action-toggle-perf-overlay = Performance-Overlay umschalten
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Neu in 0.4
-whats-new-keybindings = Neu belegbare Tastenkürzel — öffnen Sie den neuen Tab „Kurzbefehle“.
-whats-new-collapse-state = Inspector-Abschnitte merken sich ihren Auf-/Zu-Zustand über Sitzungen hinweg.
-whats-new-error-banners = Fehlerflächen (früher stumm) zeigen jetzt Toasts oder Banner — Sie sehen sie.
-whats-new-accessibility-toggle = AccessKit lässt sich unter Erscheinungsbild → Barrierefreiheit abschalten.
+whats-new-header = Neu in 1.0
+whats-new-stable = animaEngine ist 1.0 — drei Release Candidates und ein externes Sicherheitsaudit liegen dahinter.
+whats-new-wayland-parity = Natives Wayland entspricht jetzt X11, inklusive Overlays pro Monitor.
+whats-new-durable-config = Deine Szene ist sicherer: Migrationen legen zuerst ein Backup an, und eine fehlerhafte Handbearbeitung überschreibt sie nicht mehr.
+whats-new-scaling = Die Overlay-Geometrie rechnet in physischen Pixeln, sodass fraktionale und HiDPI-Skalierung die ⚙-Schaltfläche nicht mehr verschieben.
 onboarding-keybindings = Klicken Sie auf ein Kürzel, um es zu entfernen; drücken Sie eine Kombination, um ein neues aufzunehmen.
 onboarding-perf-overlay = Ctrl+Shift+` öffnet das Live-Performance-Overlay.
 appearance-reset-onboarding = Einführungshinweise zurücksetzen

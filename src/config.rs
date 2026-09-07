@@ -743,10 +743,22 @@ impl AppConfig {
         // default save below overwrites it. Same never-lose-the-user's-
         // file rule as the migration backup above: a hand-edit typo
         // (hot-reload invites hand edits) must not cost the whole scene.
+        // A genuinely first run — no config file at all — has no previous
+        // version to catch up on, so the "what's new" panel is meaningless
+        // to it: the three-step onboarding tour is the right first-run
+        // surface. Stamping the current anchor keeps that panel for
+        // *upgraders*, who are the only ones it is written for. A config
+        // that exists but failed to parse is not a fresh install, so it
+        // still gets the panel.
+        let fresh_install = !path.exists();
         if path.exists() {
             backup_unreadable_config(&path);
         }
-        let config = AppConfig::default();
+        let mut config = AppConfig::default();
+        if fresh_install {
+            config.global.last_seen_whats_new =
+                Some(crate::constants::WHATS_NEW_VERSION.to_string());
+        }
         if let Err(e) = config.save() {
             tracing::warn!("Failed to save default config: {}", e);
         }

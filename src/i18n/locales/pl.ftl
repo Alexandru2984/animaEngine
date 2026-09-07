@@ -76,7 +76,7 @@ theme-light = Jasny
 theme-dark-hc = Ciemny · Wysoki kontrast
 theme-light-hc = Jasny · Wysoki kontrast
 
-onboarding-tabs = Ustawienia rozdzielono na trzy zakładki — Inspektor, Scena, Wygląd.
+onboarding-tabs = Ustawienia rozłożone są na pięciu kartach — Inspektor, Scena, Biblioteka, Wygląd, Skróty.
 onboarding-quick-toggles = Wskazówka: V przełącza widoczność, G grawitację — bez otwierania tego panelu.
 onboarding-theme = Motywy stosują się natychmiast — bez restartu.
 onboarding-coach-step1 = Witaj! Twoje postacie żyją na pulpicie. Kliknij koło zębate w prawym górnym rogu, aby wejść w tryb edycji.
@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = Proces przeładowywania na gorąco zatrzymał 
 action-toggle-perf-overlay = Przełącz nakładkę wydajności
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Co nowego w 0.4
-whats-new-keybindings = Skróty klawiszowe z możliwością zmiany — otwórz nową kartę Skróty.
-whats-new-collapse-state = Sekcje Inspektora pamiętają stan otwarcia/zamknięcia między sesjami.
-whats-new-error-banners = Miejsca błędów (wcześniej ciche) pokazują teraz toasty lub banery — zobaczysz je.
-whats-new-accessibility-toggle = AccessKit można wyłączyć w Wygląd → Dostępność.
+whats-new-header = Co nowego w 1.0
+whats-new-stable = animaEngine ma wersję 1.0 — po trzech kandydatach do wydania i zewnętrznym audycie bezpieczeństwa.
+whats-new-wayland-parity = Natywny Wayland dorównuje już X11, łącznie z nakładkami na każdy monitor.
+whats-new-durable-config = Twoja scena jest bezpieczniejsza: migracje najpierw tworzą kopię, a błędna ręczna edycja jej nie nadpisze.
+whats-new-scaling = Geometria nakładki liczona jest w pikselach fizycznych, więc skalowanie ułamkowe i HiDPI nie przesuwa już przycisku ⚙.
 onboarding-keybindings = Kliknij skrót, aby go usunąć; naciśnij kombinację, aby nagrać nowy.
 onboarding-perf-overlay = Naciśnij Ctrl+Shift+`, aby otworzyć nakładkę wydajności na żywo.
 appearance-reset-onboarding = Przywróć wskazówki startowe

@@ -76,7 +76,7 @@ theme-light = Claro
 theme-dark-hc = Oscuro · Alto contraste
 theme-light-hc = Claro · Alto contraste
 
-onboarding-tabs = Los ajustes se reparten en tres pestañas — Inspector, Escena, Apariencia.
+onboarding-tabs = Los ajustes se reparten en cinco pestañas: Inspector, Escena, Biblioteca, Apariencia, Atajos.
 onboarding-quick-toggles = Consejo: V alterna la visibilidad, G alterna la gravedad — sin abrir este panel.
 onboarding-theme = Los temas se aplican al instante — no hace falta reiniciar.
 onboarding-coach-step1 = ¡Bienvenido! Sus personajes viven en el escritorio. Haga clic en el botón de engranaje de la esquina superior derecha para entrar en el modo edición.
@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = El proceso de recarga en caliente se detuvo in
 action-toggle-perf-overlay = Alternar overlay de rendimiento
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Novedades de la 0.4
-whats-new-keybindings = Atajos de teclado reasignables — abra la nueva pestaña Atajos.
-whats-new-collapse-state = Las secciones del Inspector recuerdan su estado abierto/cerrado entre sesiones.
-whats-new-error-banners = Las superficies de error (antes silenciosas) ahora muestran toasts o banners — las verá.
-whats-new-accessibility-toggle = AccessKit puede desactivarse en Apariencia → Accesibilidad.
+whats-new-header = Novedades de la 1.0
+whats-new-stable = animaEngine es 1.0: tres candidatas a versión y una auditoría de seguridad externa por detrás.
+whats-new-wayland-parity = Wayland nativo ya iguala a X11, incluidas las superposiciones por monitor.
+whats-new-durable-config = Tu escena está más protegida: las migraciones hacen copia antes y una edición manual errónea ya no la sobrescribe.
+whats-new-scaling = La geometría de la superposición usa píxeles físicos, así que el escalado fraccional y HiDPI ya no descolocan el botón ⚙.
 onboarding-keybindings = Haga clic en un atajo para quitarlo; pulse una combinación para grabar uno nuevo.
 onboarding-perf-overlay = Pulse Ctrl+Shift+` para abrir el overlay de rendimiento en vivo.
 appearance-reset-onboarding = Restablecer las pistas de bienvenida
