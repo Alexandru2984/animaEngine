@@ -9,7 +9,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 `BY DESIGN` observed, deliberate, not changing · `RETRACTED` reported here
 in error, kept so the mistake isn't repeated.
 
-**Current state: nothing `OPEN`.** R1–R5, R7–R13 and R14 are `FIXED`, R6 is
+**Current state: nothing `OPEN`.** R1–R5, R7–R15 are `FIXED`, R6 is
 `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at the
 bottom are where the next round should start.
 
@@ -369,6 +369,35 @@ Two things this cost, worth writing down:
 - **`wtype` releases modifiers immediately**, faster than a frame, so
   `-M ctrl -k k -m ctrl` reproduces the stall case rather than normal
   typing. Use `-M ctrl -P k -s 800 -p k -m ctrl` to emulate a human hold.
+
+### R15 · Inactive tab icons fail contrast in the Light theme — `FIXED`
+
+Found on the first look at a non-dark theme, reached through the command
+palette that R14 had just made usable.
+
+The settings tab bar is **icon-only**, so each glyph is the whole label of
+its control and owes WCAG 1.4.11's 3:1 for non-text UI components. Inactive
+icons paint in `palette.fg_muted`:
+
+```
+                design    as rendered
+ dark   #6B7280  3.29:1      3.17-3.37:1   pass
+ light  #9CA3AF  2.29:1      2.11:1        fail
+```
+
+The rendered figures sit slightly below the design ones because the frosted
+panel blends toward the desktop behind it.
+
+There were already contrast assertions in `theme.rs`, but only for the two
+*high-contrast* palettes — the ordinary Light and Dark themes had none for
+`fg_muted`, so nothing caught this.
+
+**Fixed.** Light `fg_muted` is now `#7C838F` (3.44:1 design, 3.04–3.17:1
+rendered — parity with dark), and a test asserts ≥3:1 for both ordinary
+palettes. Verified the test fails on the old value and passes on the new.
+
+`fg_muted` has exactly one use outside `theme.rs`, this tab bar, so the
+change is contained.
 
 ## Still unexamined
 

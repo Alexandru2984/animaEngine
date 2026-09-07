@@ -206,7 +206,13 @@ impl Palette {
 
             fg_primary: Color32::from_rgb(0x1A, 0x1D, 0x23),
             fg_secondary: Color32::from_rgb(0x5A, 0x60, 0x70),
-            fg_muted: Color32::from_rgb(0x9C, 0xA3, 0xAF),
+            // Darker than it looks like it should be. `fg_muted` is what
+            // paints the *inactive settings tab icons*, and that tab bar
+            // is icon-only — the glyph is the control's whole label, so it
+            // owes WCAG 1.4.11's 3:1 for non-text UI. The old #9CA3AF gave
+            // 2.29:1 by design and measured 2.11:1 once the frosted panel
+            // blended it, while the dark theme's equivalent sat at 3.29:1.
+            fg_muted: Color32::from_rgb(0x7C, 0x83, 0x8F),
             fg_inverse: Color32::from_rgb(0xFB, 0xFB, 0xFC),
 
             accent_base: Color32::from_rgb(0x51, 0x63, 0xE8),
@@ -696,6 +702,25 @@ mod tests {
         let p = Palette::light_high_contrast();
         assert!(contrast_ratio(p.fg_secondary, p.bg_surface) >= 7.0);
         assert!(contrast_ratio(p.fg_muted, p.bg_surface) >= 7.0);
+    }
+
+    /// `fg_muted` paints the inactive settings-tab icons, and that bar is
+    /// icon-only — the glyph *is* the control's label, so it owes WCAG
+    /// 1.4.11's 3:1 for non-text UI components rather than the softer bar
+    /// a decorative tint would get.
+    ///
+    /// The light theme shipped at 2.29:1 here while dark sat at 3.29:1, so
+    /// the ordinary themes get the same guard the high-contrast ones had.
+    #[test]
+    fn muted_meets_non_text_contrast_in_both_ordinary_themes() {
+        for (name, p) in [("dark", Palette::dark()), ("light", Palette::light())] {
+            let ratio = contrast_ratio(p.fg_muted, p.bg_surface);
+            assert!(
+                ratio >= 3.0,
+                "{name} fg_muted on bg_surface = {ratio:.2}:1, below the 3:1 \
+                 required for the icon-only tab bar",
+            );
+        }
     }
 
     /// Semantic colours (success, warn, error, info) on the elevated
