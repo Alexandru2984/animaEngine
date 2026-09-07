@@ -26,6 +26,34 @@ use egui_phosphor::regular as ph;
 pub fn install(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+
+    // Give the proportional family the monospace face as a last-resort
+    // fallback.
+    //
+    // egui's proportional stack is Ubuntu-Light → NotoEmoji-Regular →
+    // emoji-icon-font, and **none** of the three carries the arrow block
+    // (U+2190..U+2193). So "Appearance → Accessibility" in the what's-new
+    // panel and the command palette's "↑↓ + Enter to pick" footer both
+    // painted a missing-glyph box, while the same arrows rendered fine in
+    // the keybindings chords — those use the monospace family, and the
+    // bundled Hack face does have them.
+    //
+    // Appending the whole monospace list, rather than shipping a font for
+    // four codepoints, keeps the binary the same size and also covers
+    // anything else Ubuntu-Light happens to lack.
+    let fallback = fonts
+        .families
+        .get(&egui::FontFamily::Monospace)
+        .cloned()
+        .unwrap_or_default();
+    if let Some(proportional) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+        for name in fallback {
+            if !proportional.contains(&name) {
+                proportional.push(name);
+            }
+        }
+    }
+
     ctx.set_fonts(fonts);
 }
 
