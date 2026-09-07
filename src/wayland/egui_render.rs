@@ -49,6 +49,17 @@ impl WaylandEguiRenderer {
         }
     }
 
+    /// Whether egui owns the pointer right now, i.e. it is over a panel,
+    /// window or popup rather than the bare overlay.
+    ///
+    /// The answer comes from the last completed frame, which is what any
+    /// immediate-mode integration has to work with — the winit path gets
+    /// the same guarantee from `egui_winit`'s "was this event consumed"
+    /// return value. Panels do not move between frames, so it holds.
+    pub fn owns_pointer(&self) -> bool {
+        self.context.is_pointer_over_area()
+    }
+
     /// Re-apply the design-system style if the active theme changed.
     pub fn ensure_theme(&mut self, theme: theme::Theme) {
         if self.current_theme != theme {

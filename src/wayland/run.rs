@@ -473,6 +473,19 @@ pub fn run_native(
         // it, same gating and behavior as the X11 path's
         // `handle_mouse_input` (src/app/input.rs). Entity-less right
         // clicks (empty space) are ignored.
+        //
+        // Presses that egui owns are skipped. The winit path gets this for
+        // free — `App::window_event` forwards to egui first and returns
+        // early when the event is consumed — and without the equivalent
+        // here, a left click anywhere on the settings panel's background
+        // fell through to `entity_at_point`, found nothing, and cleared
+        // the selection. So clicking blank space in the panel threw away
+        // the very entity whose Inspector you were reading.
+        //
+        // Only the *press* arms are gated. Motion and release stay live so
+        // a drag that began on a sprite still tracks and still finishes if
+        // the pointer crosses the panel on the way.
+        let egui_owns_pointer = egui_renderer.owns_pointer();
         if layer.state.edit_mode {
             for event in &events {
                 match event {
@@ -481,7 +494,7 @@ pub fn run_native(
                         button: egui::PointerButton::Secondary,
                         pressed: true,
                         ..
-                    } => {
+                    } if !egui_owns_pointer => {
                         if let Some(idx) = scene
                             .entity_at_point(pos.x + primary_origin.0, pos.y + primary_origin.1)
                         {
@@ -505,7 +518,7 @@ pub fn run_native(
                         button: egui::PointerButton::Primary,
                         pressed: true,
                         ..
-                    } => {
+                    } if !egui_owns_pointer => {
                         let (gx, gy) = (pos.x + primary_origin.0, pos.y + primary_origin.1);
                         match scene.entity_at_point(gx, gy) {
                             Some(idx) => {
