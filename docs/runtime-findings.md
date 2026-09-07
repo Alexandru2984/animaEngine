@@ -9,7 +9,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 `BY DESIGN` observed, deliberate, not changing · `RETRACTED` reported here
 in error, kept so the mistake isn't repeated.
 
-**Current state: nothing `OPEN`.** R1–R5 and R7–R13 are `FIXED`, R6 is
+**Current state: nothing `OPEN`.** R1–R5, R7–R13 and R14 are `FIXED`, R6 is
 `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at the
 bottom are where the next round should start.
 
@@ -333,11 +333,49 @@ Wired into `run_native`; rows now appear.
 
 ---
 
+### R14 · Every modifier chord was dead on native Wayland — `FIXED`
+
+The command palette had never been opened in a test. `Ctrl+K` did nothing.
+
+`egui_render.rs` built its `RawInput` with a hardcoded
+`modifiers: egui::Modifiers::default()`, so `input.modifiers` was
+**permanently all-false** on the native Wayland path. Individual
+`Event::Key`s carried the correct modifiers, which is why this survived
+review — the events look right; the field egui actually answers
+`input.modifiers` from is a different one.
+
+Blast radius is wider than the palette. Anything reading `input.modifiers`
+was affected, and that includes egui's own `TextEdit` chords, so **every
+text field in the app** had no Ctrl+A, Ctrl+C/V/X, Ctrl+Z and no
+shift-selection. Confirmed both ways: typing `dark`, pressing Ctrl+A, then
+typing `zz` left `darkzz` before the fix and `zz` after.
+
+**Fixed** by plumbing the live seat state through (`LayerWindow::modifiers`)
+and, on top of that, preferring the modifier snapshot carried by the newest
+key event in the frame (`effective_modifiers`). The second half matters on
+its own: sampling only live state loses a chord whose press *and* release
+both land inside one frame, which any long frame — a video or GIF decode
+stall — makes possible. Unit tests cover both directions.
+
+Two things this cost, worth writing down:
+
+- **`wtype` is the keyboard's version of the `wlrctl` trap.** It creates a
+  virtual keyboard, sends its keys and exits, so the seat's keyboard
+  capability blinks in and out. The app binds `wl_keyboard` from
+  `SeatHandler::new_capability`, which is asynchronous and never completes
+  in time, so **not one key is delivered** and nothing is logged. The rig
+  now holds a `wtype -s 3600000 -k Shift_L -k Shift_L` open for the whole
+  run purely to keep the capability up.
+- **`wtype` releases modifiers immediately**, faster than a frame, so
+  `-M ctrl -k k -m ctrl` reproduces the stall case rather than normal
+  typing. Use `-M ctrl -P k -s 800 -p k -m ctrl` to emulate a human hold.
+
 ## Still unexamined
 
 Areas never opened during this pass, listed so the next session knows where
-the map ends: command palette (`Ctrl+K`), keyboard shortcuts end-to-end,
-Shimeji pack import, drag-and-drop of files onto the overlay, preset
-Append/Replace, multi-monitor visual behaviour, theme switching and the
-non-dark themes, every locale other than English, and the whole winit/X11
-path interactively — a compositing X server was not available here.
+the map ends: keyboard shortcuts end-to-end (the palette itself is now
+covered by R14, but the bindable actions are not), Shimeji pack import,
+drag-and-drop of files onto the overlay, preset Append/Replace, multi-monitor
+visual behaviour, theme switching and the non-dark themes, every locale other
+than English, and the whole winit/X11 path interactively — a compositing X
+server was not available here.

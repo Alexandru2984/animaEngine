@@ -441,6 +441,7 @@ pub fn run_native(
         }
 
         let events = layer.drain_egui_events();
+        let modifiers = layer.modifiers();
         for event in &events {
             let egui::Event::Key {
                 key,
@@ -706,6 +707,7 @@ pub fn run_native(
                     size,
                     pixels_per_point,
                     events,
+                    modifiers,
                     |ctx| {
                         if accesskit_snapshot {
                             ctx.enable_accesskit();

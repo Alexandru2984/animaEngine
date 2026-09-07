@@ -266,6 +266,18 @@ impl LayerWindow {
         std::mem::take(&mut self.state.pending_egui_events)
     }
 
+    /// Current modifier state, for `RawInput::modifiers`.
+    ///
+    /// egui answers `input.modifiers` from `RawInput`, *not* from the
+    /// modifiers carried on individual `Event::Key`s, so this has to be
+    /// supplied every frame. It also has to be live state rather than
+    /// something scraped out of this frame's events: a modifier held
+    /// across frames — Ctrl held down while clicking — produces no key
+    /// event at all in the frames between.
+    pub fn modifiers(&self) -> egui::Modifiers {
+        crate::wayland::keyboard::modifiers_to_egui(self.state.last_modifiers)
+    }
+
     /// Drain any file paths the drag-drop worker thread parsed since
     /// the last call (E.3). Each call returns ownership of the paths
     /// alongside the last drag position, so the caller can spawn

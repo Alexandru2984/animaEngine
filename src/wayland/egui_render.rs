@@ -74,10 +74,12 @@ impl WaylandEguiRenderer {
         size_in_pixels: [u32; 2],
         pixels_per_point: f32,
         events: Vec<egui::Event>,
+        modifiers: egui::Modifiers,
         build_ui: F,
     ) where
         F: FnMut(&egui::Context),
     {
+        let modifiers = effective_modifiers(&events, modifiers);
         let pixels_per_point = pixels_per_point.max(0.5);
         let logical_size = egui::vec2(
             size_in_pixels[0] as f32 / pixels_per_point,
@@ -97,7 +99,14 @@ impl WaylandEguiRenderer {
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, logical_size)),
             time: None,
             predicted_dt: 1.0 / 60.0,
-            modifiers: egui::Modifiers::default(),
+            // egui answers `input.modifiers` from here, NOT from the
+            // modifiers carried on individual key events. This was hardcoded
+            // to `default()`, which left it permanently all-false on the
+            // native Wayland path and silently killed every modifier-gated
+            // interaction: Ctrl+K never opened the command palette, and
+            // egui's own text-editing chords (Ctrl+A/C/V/X/Z, shift-select)
+            // were dead in every text field. See `effective_modifiers`.
+            modifiers,
             events,
             hovered_files: Vec::new(),
             dropped_files: Vec::new(),
@@ -152,5 +161,96 @@ impl WaylandEguiRenderer {
         for id in &full_output.textures_delta.free {
             self.renderer.free_texture(id);
         }
+    }
+}
+
+/// Pick the modifier state to report to egui for one frame.
+///
+/// `live` is the seat state sampled when the frame's events were drained.
+/// That is the right answer for a modifier held across frames — Ctrl held
+/// down while clicking produces no key event at all in the frames between —
+/// but the wrong one when a whole chord lands inside a single frame: by
+/// drain time the modifier is already released, so the shortcut reads as
+/// unmodified and silently does nothing. One long frame is enough to hit
+/// this, so a video or GIF decode stall can swallow shortcuts at random.
+///
+/// Each key event carries the modifier snapshot taken when it arrived, so
+/// the newest of those wins when the batch has one.
+fn effective_modifiers(events: &[egui::Event], live: egui::Modifiers) -> egui::Modifiers {
+    events
+        .iter()
+        .rev()
+        .find_map(|e| match e {
+            egui::Event::Key { modifiers, .. } => Some(*modifiers),
+            _ => None,
+        })
+        .unwrap_or(live)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::effective_modifiers;
+
+    fn key(k: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
+        egui::Event::Key {
+            key: k,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers,
+        }
+    }
+
+    #[test]
+    fn empty_batch_keeps_live_state() {
+        let live = egui::Modifiers {
+            ctrl: true,
+            command: true,
+            ..Default::default()
+        };
+        assert_eq!(effective_modifiers(&[], live), live);
+    }
+
+    #[test]
+    fn non_key_events_keep_live_state() {
+        let live = egui::Modifiers {
+            shift: true,
+            ..Default::default()
+        };
+        let events = [egui::Event::Text("a".into())];
+        assert_eq!(effective_modifiers(&events, live), live);
+    }
+
+    /// The regression this exists for: the chord arrived and was gone again
+    /// before the frame drained, so the live state is bare and only the
+    /// event still remembers that Ctrl was down.
+    #[test]
+    fn chord_inside_one_frame_beats_stale_live_state() {
+        let held = egui::Modifiers {
+            ctrl: true,
+            command: true,
+            ..Default::default()
+        };
+        let events = [key(egui::Key::K, held)];
+        let got = effective_modifiers(&events, egui::Modifiers::default());
+        assert!(got.command, "Ctrl+K must still read as a command chord");
+    }
+
+    #[test]
+    fn newest_key_event_wins() {
+        let with_ctrl = egui::Modifiers {
+            ctrl: true,
+            command: true,
+            ..Default::default()
+        };
+        let events = [
+            key(egui::Key::K, with_ctrl),
+            key(egui::Key::A, egui::Modifiers::default()),
+        ];
+        let got = effective_modifiers(&events, with_ctrl);
+        assert!(
+            !got.command,
+            "the later unmodified key is the current truth"
+        );
     }
 }
