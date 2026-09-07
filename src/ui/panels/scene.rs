@@ -25,6 +25,8 @@ pub(super) fn scene_tab(
     config_dirty: &mut bool,
     monitor_mode: &mut MonitorMode,
     window_awareness: &mut bool,
+    // Whether this backend can actually provide window positions.
+    window_awareness_supported: bool,
     monitors: &[MonitorInfo],
     collapse_state: &mut CollapseState,
 ) {
@@ -32,13 +34,33 @@ pub(super) fn scene_tab(
     monitor_mode_picker(ui, monitor_mode, monitors, config_dirty);
 
     // ── Window awareness (X11) ────────────────────────────────────────
+    //
+    // Greyed out where it cannot work. The control used to stay live on
+    // every backend with only a tooltip to explain it, so on native
+    // Wayland a user could tick it, see nothing happen, and have no way
+    // to tell whether the feature or their setup was at fault. The
+    // display server is the wrong thing to test — a Wayland session
+    // running us through XWayland reads EWMH just fine — so the caller
+    // passes what it actually has.
     ui.add_space(SPACE_S);
-    if ui
-        .checkbox(window_awareness, t("scene-window-awareness"))
-        .on_hover_text(t("scene-window-awareness-tooltip"))
-        .changed()
-    {
-        *config_dirty = true;
+    ui.add_enabled_ui(window_awareness_supported, |ui| {
+        if ui
+            .checkbox(window_awareness, t("scene-window-awareness"))
+            .on_hover_text(t("scene-window-awareness-tooltip"))
+            .changed()
+        {
+            *config_dirty = true;
+        }
+    });
+    if !window_awareness_supported {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(t("scene-window-awareness-unavailable"))
+                    .text_style(crate::ui::theme::caption())
+                    .color(ui.visuals().weak_text_color()),
+            )
+            .wrap(),
+        );
     }
     ui.add_space(SPACE_L);
     ui.separator();

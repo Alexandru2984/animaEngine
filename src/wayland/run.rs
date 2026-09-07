@@ -744,6 +744,8 @@ pub fn run_native(
                                 onboarding_mut,
                                 monitor_mode_mut,
                                 window_awareness_mut,
+                                // Native Wayland exposes no window positions.
+                                false,
                                 reduced_motion_mut,
                                 hover_startle_mut,
                                 monitors_ref,

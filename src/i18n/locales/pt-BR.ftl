@@ -62,6 +62,7 @@ monitor-mode-span = Estender por todos os monitores
 monitor-mode-single = Monitor único
 scene-window-awareness = Pousar nas janelas (X11)
 scene-window-awareness-tooltip = Personagens com física ativa pousam e caminham pela borda superior das janelas abertas. Apenas sessões X11 — o Wayland não expõe posições de janelas, então lá isso não faz nada.
+scene-window-awareness-unavailable = Indisponível no Wayland nativo — nenhum protocolo expõe as posições das janelas.
 monitor-pin-label = Fixar ao monitor
 monitor-pin-auto = Auto (segue a posição)
 monitor-pinned-toast = Entidade fixada em { $name }

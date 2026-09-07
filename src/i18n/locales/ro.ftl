@@ -62,6 +62,7 @@ monitor-mode-span = Întinde pe toate monitoarele
 monitor-mode-single = Un singur monitor
 scene-window-awareness = Aterizează pe ferestre (X11)
 scene-window-awareness-tooltip = Personajele cu fizică activă aterizează și merg pe marginea de sus a ferestrelor deschise. Doar pe sesiuni X11 — Wayland nu expune pozițiile ferestrelor, deci acolo nu are efect.
+scene-window-awareness-unavailable = Indisponibil pe Wayland nativ — niciun protocol nu expune pozițiile ferestrelor.
 monitor-pin-label = Pinează pe monitor
 monitor-pin-auto = Auto (urmează poziția)
 monitor-pinned-toast = Entitate pinată pe { $name }

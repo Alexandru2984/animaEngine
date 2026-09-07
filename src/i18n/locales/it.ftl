@@ -62,6 +62,7 @@ monitor-mode-span = Estendi su tutti i monitor
 monitor-mode-single = Monitor singolo
 scene-window-awareness = Atterra sulle finestre (X11)
 scene-window-awareness-tooltip = I personaggi con fisica attiva atterrano e camminano sul bordo superiore delle finestre aperte. Solo sessioni X11 — Wayland non espone le posizioni delle finestre, quindi lì non ha effetto.
+scene-window-awareness-unavailable = Non disponibile su Wayland nativo: nessun protocollo espone la posizione delle finestre.
 monitor-pin-label = Fissa al monitor
 monitor-pin-auto = Auto (segue la posizione)
 monitor-pinned-toast = Entità fissata a { $name }

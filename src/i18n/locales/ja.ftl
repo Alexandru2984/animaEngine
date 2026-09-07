@@ -62,6 +62,7 @@ monitor-mode-span = 全モニターにまたがって表示
 monitor-mode-single = 単一モニター
 scene-window-awareness = ウィンドウに着地（X11）
 scene-window-awareness-tooltip = 物理が有効なキャラクターは、開いているウィンドウの上端に着地して歩きます。X11 セッション限定 — Wayland はウィンドウ位置を公開しないため、そこでは何も起きません。
+scene-window-awareness-unavailable = ネイティブ Wayland では利用できません — ウィンドウ位置を公開するプロトコルがありません。
 monitor-pin-label = モニターに固定
 monitor-pin-auto = 自動 (位置に従う)
 monitor-pinned-toast = エンティティを { $name } に固定しました

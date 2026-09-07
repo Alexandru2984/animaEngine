@@ -86,6 +86,7 @@ monitor-mode-span = Span all monitors
 monitor-mode-single = Single monitor
 scene-window-awareness = Land on windows (X11)
 scene-window-awareness-tooltip = Physics-enabled characters land on and walk along the top edges of your open windows. X11 sessions only — Wayland offers no window positions, so this does nothing there.
+scene-window-awareness-unavailable = Unavailable on native Wayland — no protocol exposes window positions.
 monitor-pin-label = Pin to monitor
 monitor-pin-auto = Auto (follow position)
 monitor-pinned-toast = Entity pinned to { $name }

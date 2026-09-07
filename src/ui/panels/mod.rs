@@ -179,6 +179,7 @@ pub fn settings(
     onboarding: &mut OnboardingProgress,
     monitor_mode: &mut MonitorMode,
     window_awareness: &mut bool,
+    window_awareness_supported: bool,
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
     monitors: &[MonitorInfo],
@@ -268,7 +269,16 @@ pub fn settings(
             // One-shot per minor-version bump; dismissing stamps the
             // current WHATS_NEW_VERSION into the config so the next
             // session skips the panel.
-            if crate::ui::whats_new::show(ui, last_seen_whats_new) {
+            //
+            // Only on the default tab. It used to render above *every*
+            // tab body, so the same four-item changelog reappeared each
+            // time the user switched tab, competing with the content
+            // they had just navigated to. The active tab is `insert_temp`
+            // (in-process only), so every session opens on Inspector and
+            // an upgrader still meets the panel exactly once.
+            if active_tab == SettingsTab::Inspector
+                && crate::ui::whats_new::show(ui, last_seen_whats_new)
+            {
                 *config_dirty = true;
             }
 
@@ -311,6 +321,7 @@ pub fn settings(
                                 config_dirty,
                                 monitor_mode,
                                 window_awareness,
+                                window_awareness_supported,
                                 monitors,
                                 collapse_state,
                             );

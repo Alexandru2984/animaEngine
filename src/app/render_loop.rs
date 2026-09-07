@@ -377,6 +377,8 @@ impl App {
                                     onboarding_mut,
                                     monitor_mode_mut,
                                     window_awareness_mut,
+                                    // winit backend: X11 or XWayland, both read EWMH.
+                                    true,
                                     reduced_motion_mut,
                                     hover_startle_mut,
                                     monitors_ref,
