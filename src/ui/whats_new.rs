@@ -85,7 +85,7 @@ pub fn show(ui: &mut egui::Ui, last_seen: &mut Option<String>) -> bool {
                             egui::Button::new(egui::RichText::new(icons::CLOSE).size(12.0).weak())
                                 .frame(false),
                         )
-                        .on_hover_text("Dismiss")
+                        .on_hover_text(crate::i18n::t("onboarding-dismiss"))
                         .clicked()
                     {
                         *last_seen = Some(WHATS_NEW_VERSION.to_string());

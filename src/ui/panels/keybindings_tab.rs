@@ -146,7 +146,7 @@ pub(super) fn keybindings_tab(
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
                         if ui
                             .small_button(icons::RESET)
-                            .on_hover_text("Reset to default")
+                            .on_hover_text(t("keybindings-reset-one"))
                             .clicked()
                         {
                             bindings.reset_action(action);
@@ -256,7 +256,7 @@ fn chord_cell(
                 ui.add(egui::Label::new(chip).wrap_mode(egui::TextWrapMode::Extend));
                 if ui
                     .small_button(icons::CLOSE)
-                    .on_hover_text("Remove this binding")
+                    .on_hover_text(t("keybindings-remove-chord"))
                     .clicked()
                 {
                     bindings.remove_chord(action, *chord);

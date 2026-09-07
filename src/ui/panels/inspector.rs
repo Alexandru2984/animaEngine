@@ -151,7 +151,7 @@ fn entity_inspector(
             if ui
                 .add(
                     egui::Slider::new(&mut entity.x, -200.0..=4000.0)
-                        .text("X")
+                        .text(t("inspector-x"))
                         .suffix(" px"),
                 )
                 .changed()
@@ -161,7 +161,7 @@ fn entity_inspector(
             if ui
                 .add(
                     egui::Slider::new(&mut entity.y, -200.0..=4000.0)
-                        .text("Y")
+                        .text(t("inspector-y"))
                         .suffix(" px"),
                 )
                 .changed()
@@ -361,26 +361,19 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
         .selected_text(current_label)
         .show_ui(ui, |ui| {
             let prev = behavior.clone();
-            ui.selectable_value(
-                behavior,
+            // The defaults a freshly-picked variant starts from. Looping
+            // over them keeps each option's label going through the same
+            // `behavior_label_with_icon` as the closed combo's selected
+            // text, so the two can't drift — the dropdown used to build
+            // its own hardcoded English strings while the selected text
+            // came from the helper.
+            for option in [
                 Behavior::Idle,
-                format!("{}  Idle", icons::BEHAVIOR_IDLE),
-            );
-            ui.selectable_value(
-                behavior,
                 Behavior::WalkAround { speed: 60.0 },
-                format!("{}  Walk around", icons::BEHAVIOR_WALK),
-            );
-            ui.selectable_value(
-                behavior,
                 Behavior::FollowCursor {
                     speed: 240.0,
                     comfort_distance: 80.0,
                 },
-                format!("{}  Follow cursor", icons::BEHAVIOR_FOLLOW),
-            );
-            ui.selectable_value(
-                behavior,
                 Behavior::BoundedWander {
                     x_min: 200.0,
                     x_max: 1200.0,
@@ -388,17 +381,15 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                     y_max: 800.0,
                     speed: 120.0,
                 },
-                format!("{}  Bounded wander", icons::BEHAVIOR_WANDER),
-            );
-            ui.selectable_value(
-                behavior,
                 Behavior::Bounce {
                     amplitude_px: 24.0,
                     period_sec: 1.5,
                     axis: crate::behavior::BounceAxis::Vertical,
                 },
-                format!("{}  Bounce", icons::BEHAVIOR_BOUNCE),
-            );
+            ] {
+                let label = behavior_label_with_icon(&option);
+                ui.selectable_value(behavior, option, label);
+            }
             if *behavior != prev {
                 changed = true;
             }
@@ -468,7 +459,7 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                     .weak(),
             );
             ui.horizontal(|ui| {
-                ui.label("X");
+                ui.label(t("inspector-x"));
                 if ui
                     .add(egui::DragValue::new(x_min).speed(1.0).prefix("min "))
                     .changed()
@@ -483,7 +474,7 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                 }
             });
             ui.horizontal(|ui| {
-                ui.label("Y");
+                ui.label(t("inspector-y"));
                 if ui
                     .add(egui::DragValue::new(y_min).speed(1.0).prefix("min "))
                     .changed()
@@ -552,12 +543,12 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
 }
 
 fn behavior_label_with_icon(b: &Behavior) -> String {
-    let (icon, name) = match b {
-        Behavior::Idle => (icons::BEHAVIOR_IDLE, "Idle"),
-        Behavior::WalkAround { .. } => (icons::BEHAVIOR_WALK, "Walk around"),
-        Behavior::FollowCursor { .. } => (icons::BEHAVIOR_FOLLOW, "Follow cursor"),
-        Behavior::BoundedWander { .. } => (icons::BEHAVIOR_WANDER, "Bounded wander"),
-        Behavior::Bounce { .. } => (icons::BEHAVIOR_BOUNCE, "Bounce"),
+    let (icon, key) = match b {
+        Behavior::Idle => (icons::BEHAVIOR_IDLE, "behavior-idle"),
+        Behavior::WalkAround { .. } => (icons::BEHAVIOR_WALK, "behavior-walk"),
+        Behavior::FollowCursor { .. } => (icons::BEHAVIOR_FOLLOW, "behavior-follow"),
+        Behavior::BoundedWander { .. } => (icons::BEHAVIOR_WANDER, "behavior-wander"),
+        Behavior::Bounce { .. } => (icons::BEHAVIOR_BOUNCE, "behavior-bounce"),
     };
-    format!("{icon}  {name}")
+    format!("{icon}  {}", t(key))
 }

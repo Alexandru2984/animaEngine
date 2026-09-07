@@ -51,6 +51,7 @@ scene-empty-headline = Lege scène
 scene-empty-hint = Sleep een PNG / GIF / WebP / MP4 naar de overlay — of probeer hieronder een preset.
 scene-drop-hint = Sleep een PNG / GIF / WebP naar de overlay om een entiteit toe te voegen.
 scene-presets-header = Presets
+scene-groups-header = Groepen
 scene-preset-append = Toevoegen
 scene-preset-replace = Vervangen
 scene-preset-replace-tooltip = Wist de huidige scène vóór het toevoegen
@@ -102,9 +103,7 @@ toggle-enter-edit = Bewerkingsmodus openen
 toggle-exit-edit = Bewerkingsmodus verlaten
 
 palette-search-placeholder = Typ om thema's / presets te zoeken…
-palette-close-hint = Esc om te sluiten · Ctrl+K om te wisselen
 palette-switch-theme = Wisselen naar thema { $theme }
-palette-apply-preset = Preset toepassen: { $preset }
 
 settings-tab-library = Bibliotheek
 
@@ -114,8 +113,6 @@ library-empty-hint = Sleep bestanden naar ~/.local/share/animaEngine/assets/ of 
 library-no-asset-root = Geen asset-map gevonden. Maak er een aan in ~/.local/share/animaEngine/assets/
 library-search-placeholder = Assets zoeken…
 library-add-to-scene = Toevoegen aan scène
-library-sort-recent = Recent
-library-sort-name = Naam
 library-kind-image = Afbeelding
 library-kind-animated = Animatie
 library-kind-video = Video
@@ -130,6 +127,8 @@ keybindings-add = Toevoegen
 keybindings-recording = Druk een toetsencombinatie… (Esc annuleert)
 keybindings-conflict = Conflicteert met { $action }
 keybindings-reset-all = Alles naar standaard herstellen
+keybindings-reset-one = Standaardwaarde herstellen
+keybindings-remove-chord = Deze toewijzing verwijderen
 keybindings-help = Aangepaste sneltoetsen worden bewaard in config.toml
 
 # ── Action labels (D.1.7) — placeholder pending D.4 native-speaker audit

@@ -51,6 +51,7 @@ scene-empty-headline = Pusta scena
 scene-empty-hint = Przeciągnij plik PNG / GIF / WebP / MP4 na nakładkę — lub wypróbuj preset poniżej.
 scene-drop-hint = Przeciągnij plik PNG / GIF / WebP na nakładkę, aby dodać element.
 scene-presets-header = Presety
+scene-groups-header = Grupy
 scene-preset-append = Dodaj
 scene-preset-replace = Zastąp
 scene-preset-replace-tooltip = Wyczyści obecną scenę przed dodaniem
@@ -102,9 +103,7 @@ toggle-enter-edit = Wejdź w tryb edycji
 toggle-exit-edit = Wyjdź z trybu edycji
 
 palette-search-placeholder = Wpisz, aby wyszukać motywy / presety…
-palette-close-hint = Esc zamyka · Ctrl+K przełącza
 palette-switch-theme = Przełącz na motyw { $theme }
-palette-apply-preset = Zastosuj preset: { $preset }
 
 settings-tab-library = Biblioteka
 
@@ -114,8 +113,6 @@ library-empty-hint = Wrzuć pliki do ~/.local/share/animaEngine/assets/ lub usta
 library-no-asset-root = Nie znaleziono katalogu zasobów. Utwórz go w ~/.local/share/animaEngine/assets/
 library-search-placeholder = Szukaj zasobów…
 library-add-to-scene = Dodaj do sceny
-library-sort-recent = Ostatnie
-library-sort-name = Nazwa
 library-kind-image = Obraz
 library-kind-animated = Animowane
 library-kind-video = Wideo
@@ -130,6 +127,8 @@ keybindings-add = Dodaj
 keybindings-recording = Naciśnij kombinację… (Esc anuluje)
 keybindings-conflict = Konflikt z { $action }
 keybindings-reset-all = Przywróć wszystkie wartości domyślne
+keybindings-reset-one = Przywróć domyślne
+keybindings-remove-chord = Usuń ten skrót
 keybindings-help = Własne skróty są zapisywane w config.toml
 
 # ── Action labels (D.1.7) — placeholder pending D.4 native-speaker audit

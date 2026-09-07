@@ -149,7 +149,7 @@ pub fn hint(ui: &mut egui::Ui, body: &str, seen: &mut bool) -> bool {
                             egui::Button::new(egui::RichText::new(icons::CLOSE).size(12.0).weak())
                                 .frame(false),
                         )
-                        .on_hover_text("Dismiss")
+                        .on_hover_text(crate::i18n::t("onboarding-dismiss"))
                         .clicked()
                     {
                         *seen = true;

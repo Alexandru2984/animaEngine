@@ -115,7 +115,10 @@ pub(super) fn scene_tab(
 /// the C.9 polish that also wires up offset/scale composition in
 /// the renderer.
 fn groups_section(ui: &mut egui::Ui, scene: &Scene) {
-    ui.label(egui::RichText::new(format!("{}  Groups", icons::STACK)).text_style(h2()));
+    ui.label(
+        egui::RichText::new(format!("{}  {}", icons::STACK, t("scene-groups-header")))
+            .text_style(h2()),
+    );
     ui.add_space(SPACE_S);
     let body_color = ui.visuals().text_color();
     let weak = ui.visuals().weak_text_color();

@@ -51,6 +51,7 @@ scene-empty-headline = Scena vuota
 scene-empty-hint = Trascina un PNG / GIF / WebP / MP4 sull'overlay — o prova un preset qui sotto.
 scene-drop-hint = Trascina un PNG / GIF / WebP sull'overlay per aggiungere un'entità.
 scene-presets-header = Preset
+scene-groups-header = Gruppi
 scene-preset-append = Aggiungi
 scene-preset-replace = Sostituisci
 scene-preset-replace-tooltip = Cancella la scena attuale prima di aggiungere
@@ -102,9 +103,7 @@ toggle-enter-edit = Entra in modalità modifica
 toggle-exit-edit = Esci dalla modalità modifica
 
 palette-search-placeholder = Cerca temi / preset…
-palette-close-hint = Esc per chiudere · Ctrl+K per alternare
 palette-switch-theme = Passa al tema { $theme }
-palette-apply-preset = Applica preset: { $preset }
 
 settings-tab-library = Libreria
 
@@ -114,8 +113,6 @@ library-empty-hint = Trascina file in ~/.local/share/animaEngine/assets/ o impos
 library-no-asset-root = Nessuna directory di asset trovata. Creane una in ~/.local/share/animaEngine/assets/
 library-search-placeholder = Cerca asset…
 library-add-to-scene = Aggiungi alla scena
-library-sort-recent = Recenti
-library-sort-name = Nome
 library-kind-image = Immagine
 library-kind-animated = Animato
 library-kind-video = Video
@@ -130,6 +127,8 @@ keybindings-add = Aggiungi
 keybindings-recording = Premi una combinazione… (Esc annulla)
 keybindings-conflict = In conflitto con { $action }
 keybindings-reset-all = Ripristina tutto ai valori predefiniti
+keybindings-reset-one = Ripristina il valore predefinito
+keybindings-remove-chord = Rimuovi questa associazione
 keybindings-help = Le scorciatoie personalizzate vengono salvate in config.toml
 
 # ── Action labels (D.1.7) — placeholder pending D.4 native-speaker audit

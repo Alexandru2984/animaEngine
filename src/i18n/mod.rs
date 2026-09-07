@@ -342,6 +342,62 @@ mod tests {
         out
     }
 
+    /// Concatenate every `.rs` file under `src/` so a test can ask whether
+    /// a string literal appears anywhere in the crate.
+    fn all_rust_source() -> String {
+        fn walk(dir: &std::path::Path, out: &mut String) {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk(&path, out);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    if let Ok(text) = std::fs::read_to_string(&path) {
+                        out.push_str(&text);
+                        out.push('\n');
+                    }
+                }
+            }
+        }
+        let mut out = String::new();
+        walk(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+            &mut out,
+        );
+        out
+    }
+
+    /// Every English key must actually be *used*. `every_locale_covers_
+    /// every_en_key` proves translations exist; nothing proved the app
+    /// asks for them.
+    ///
+    /// It shipped translated-but-unreferenced keys in all ten locales
+    /// while the UI drew hardcoded English instead: the whole behaviour
+    /// picker (`behavior-idle`, `-walk`, `-follow`, `-wander`, `-bounce`)
+    /// and the Appearance theme row (`appearance-theme-label`). Every
+    /// locale looked complete and the screen was still in English.
+    ///
+    /// Keys are only ever named by string literal — `Action::i18n_key`
+    /// and friends return `&'static str` out of a match — so scanning the
+    /// sources for the quoted key is sufficient.
+    #[test]
+    fn every_en_key_is_referenced_in_the_source() {
+        let source = all_rust_source();
+        let mut unused: Vec<String> = collect_keys("en")
+            .into_iter()
+            .filter(|key| !source.contains(&format!("\"{key}\"")))
+            .collect();
+        unused.sort();
+        assert!(
+            unused.is_empty(),
+            "these en.ftl keys are translated in every locale but never \
+             referenced — the UI is probably drawing hardcoded English \
+             instead: {unused:?}",
+        );
+    }
+
     /// Map each message key to the multiset of `$variable` references in
     /// its value (continuation lines included). Used to prove every
     /// locale interpolates exactly the arguments English does.

@@ -51,6 +51,7 @@ scene-empty-headline = シーンは空です
 scene-empty-hint = PNG / GIF / WebP / MP4 をオーバーレイにドロップ — もしくは下のプリセットをお試しください。
 scene-drop-hint = PNG / GIF / WebP をオーバーレイにドロップしてエンティティを追加できます。
 scene-presets-header = プリセット
+scene-groups-header = グループ
 scene-preset-append = 追加
 scene-preset-replace = 置換
 scene-preset-replace-tooltip = 追加前に現在のシーンを消去します
@@ -102,9 +103,7 @@ toggle-enter-edit = 編集モードに入る
 toggle-exit-edit = 編集モードを終了
 
 palette-search-placeholder = テーマ / プリセットを検索…
-palette-close-hint = Esc で閉じる · Ctrl+K で切替
 palette-switch-theme = { $theme } テーマに切替
-palette-apply-preset = プリセットを適用: { $preset }
 
 settings-tab-library = ライブラリ
 
@@ -114,8 +113,6 @@ library-empty-hint = ~/.local/share/animaEngine/assets/ にファイルを入れ
 library-no-asset-root = アセットディレクトリが見つかりません。~/.local/share/animaEngine/assets/ に作成してください
 library-search-placeholder = アセットを検索…
 library-add-to-scene = シーンに追加
-library-sort-recent = 最近
-library-sort-name = 名前
 library-kind-image = 画像
 library-kind-animated = アニメーション
 library-kind-video = 動画
@@ -130,6 +127,8 @@ keybindings-add = 追加
 keybindings-recording = キーの組み合わせを押してください…（Esc でキャンセル）
 keybindings-conflict = { $action } と競合しています
 keybindings-reset-all = すべて既定値に戻す
+keybindings-reset-one = 既定値に戻す
+keybindings-remove-chord = このキー割り当てを削除
 keybindings-help = カスタムショートカットは config.toml に保存されます
 
 # ── Action labels (D.1.7) — placeholder pending D.4 native-speaker audit

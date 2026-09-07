@@ -149,7 +149,11 @@ pub(super) fn warning_banner(ui: &mut egui::Ui, warning: Warning) {
 fn theme_picker(ui: &mut egui::Ui, theme: &mut Theme) -> bool {
     let mut changed = false;
     ui.horizontal(|ui| {
-        ui.label(format!("{}  Theme", icons::PALETTE));
+        ui.label(format!(
+            "{}  {}",
+            icons::PALETTE,
+            t("appearance-theme-label")
+        ));
         egui::ComboBox::from_id_salt("theme_picker")
             .selected_text(theme_label_with_icon(*theme))
             .show_ui(ui, |ui| {

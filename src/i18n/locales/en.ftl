@@ -16,8 +16,6 @@ library-empty-hint = Drop files into ~/.local/share/animaEngine/assets/ or set A
 library-no-asset-root = No asset directory found. Create one at ~/.local/share/animaEngine/assets/
 library-search-placeholder = Search assets…
 library-add-to-scene = Add to scene
-library-sort-recent = Recent
-library-sort-name = Name
 library-kind-image = Image
 library-kind-animated = Animated
 library-kind-video = Video
@@ -74,6 +72,7 @@ scene-empty-headline = Empty scene
 scene-empty-hint = Drop a PNG / GIF / WebP / MP4 onto the overlay — or try a preset below.
 scene-drop-hint = Drop a PNG / GIF / WebP onto the overlay to add one.
 scene-presets-header = Presets
+scene-groups-header = Groups
 scene-preset-append = Append
 scene-preset-replace = Replace
 scene-preset-replace-tooltip = Wipes the current scene before adding
@@ -131,9 +130,7 @@ toggle-exit-edit = Exit edit mode
 
 # ── Command palette ───────────────────────────────────────────────────
 palette-search-placeholder = Type to search themes / presets…
-palette-close-hint = Esc to close · Ctrl+K to toggle
 palette-switch-theme = Switch to { $theme } theme
-palette-apply-preset = Apply preset: { $preset }
 
 # ── Keybindings tab (D.1) ─────────────────────────────────────────────
 settings-tab-keybindings = Keybindings
@@ -142,6 +139,8 @@ keybindings-add = Add
 keybindings-recording = Press a chord… (Esc to cancel)
 keybindings-conflict = Conflicts with { $action }
 keybindings-reset-all = Reset all to defaults
+keybindings-reset-one = Reset to default
+keybindings-remove-chord = Remove this binding
 keybindings-help = Custom shortcuts persist in config.toml
 
 # ── Action labels (D.1.7) ─────────────────────────────────────────────

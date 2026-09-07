@@ -51,6 +51,7 @@ scene-empty-headline = Scenă goală
 scene-empty-hint = Trage un fișier PNG / GIF / WebP / MP4 peste overlay — sau încearcă un preset mai jos.
 scene-drop-hint = Trage un fișier PNG / GIF / WebP peste overlay pentru a adăuga o entitate.
 scene-presets-header = Preseturi
+scene-groups-header = Grupuri
 scene-preset-append = Adaugă
 scene-preset-replace = Înlocuiește
 scene-preset-replace-tooltip = Șterge scena curentă înainte să adauge
@@ -102,9 +103,7 @@ toggle-enter-edit = Intră în mod editare
 toggle-exit-edit = Ieși din mod editare
 
 palette-search-placeholder = Scrie pentru a căuta teme / preseturi…
-palette-close-hint = Esc pentru a închide · Ctrl+K pentru a comuta
 palette-switch-theme = Schimbă pe tema { $theme }
-palette-apply-preset = Aplică presetul: { $preset }
 
 settings-tab-library = Bibliotecă
 
@@ -114,8 +113,6 @@ library-empty-hint = Trage fișiere în ~/.local/share/animaEngine/assets/ sau s
 library-no-asset-root = Niciun director de assets găsit. Creează unul la ~/.local/share/animaEngine/assets/
 library-search-placeholder = Caută assets…
 library-add-to-scene = Adaugă în scenă
-library-sort-recent = Recente
-library-sort-name = Nume
 library-kind-image = Imagine
 library-kind-animated = Animat
 library-kind-video = Video
@@ -130,6 +127,8 @@ keybindings-add = Adaugă
 keybindings-recording = Apasă o combinație… (Esc pentru anulare)
 keybindings-conflict = Conflict cu { $action }
 keybindings-reset-all = Resetează tot la implicit
+keybindings-reset-one = Resetează la implicit
+keybindings-remove-chord = Elimină această combinație
 keybindings-help = Comenzile personalizate se salvează în config.toml
 
 # ── Etichete acțiuni (D.1.7) ──────────────────────────────────────────
