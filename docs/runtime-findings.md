@@ -100,7 +100,7 @@ deselects, matching winit.
 
 ## Content
 
-### R4 · A 1.0.0 release greets every new user with "What's new in 0.4" — `OPEN`
+### R4 · A 1.0.0 release greets every new user with "What's new in 0.4" — `FIXED`
 
 `WHATS_NEW_VERSION` in `src/ui/whats_new.rs` is `"0.4.0"`, and the header
 string is translated as "0.4" in **all ten locales**:
@@ -114,8 +114,21 @@ The four highlights are 0.4-era features (keybindings tab, collapsed-section
 persistence, error banners, AccessKit toggle). This is the first thing a new
 user sees, on every tab.
 
-Fixing it needs a product decision about what 1.0's highlights should be, and
-new copy in ten languages — it is not a mechanical change.
+**Fixed.** Highlights derived from `CHANGELOG.md`'s user-facing entries
+between 0.4 and 1.0 rather than invented: the stable release behind three
+candidates and an external audit, native Wayland reaching parity with X11,
+config durability, and physical-pixel overlay geometry. The nine
+non-English strings are machine translations and want a native-speaker
+pass before release.
+
+Fixing it surfaced two adjacent defects, R12 and R13 below, and one design
+question worth stating: `should_show()` returns true for `last_seen ==
+None`, which is exactly a **fresh install** — so a user who had never run
+any version was shown a changelog for a release they were never present
+for, on top of the onboarding tour they also get. A config created because
+no file existed is now stamped with the current anchor, leaving the panel
+to upgraders. A config that exists but fails to parse is not a fresh
+install and still sees it.
 
 ---
 
@@ -214,6 +227,28 @@ width actually left, inside a nested left-to-right layout so wrapped lines
 stay left-aligned.
 
 ---
+
+### R12 · "Settings split across three tabs" — there are five — `FIXED`
+
+`onboarding-tabs` named Inspector, Scene and Appearance. Library and
+Keybindings landed later and the hint was never updated, in any locale.
+
+### R13 · Banner text silently decided the settings panel width — `FIXED`
+
+The what's-new highlight labels did not wrap, so they asked for their
+natural width and the `SidePanel` grew to satisfy them. Measured on a
+1600px output:
+
+| panel contents | width |
+|---|---|
+| no what's-new panel | **320px** — the configured `default_width` |
+| the old 0.4 copy | 424px |
+| longer 1.0 copy | 593px |
+
+So the longest translated string in any locale was deciding how much of
+the screen the settings panel took. Wrapping the labels returns it to the
+configured 320px. Worth remembering when adding copy: `SidePanel` grows to
+fit unwrapped content regardless of `default_width`.
 
 ## First-run experience
 
