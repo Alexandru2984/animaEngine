@@ -136,11 +136,13 @@ pub fn hint(ui: &mut egui::Ui, body: &str, seen: &mut bool) -> bool {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(icons::HINT).color(accent).size(14.0));
                 ui.add_space(SPACE_XS);
-                ui.label(
-                    egui::RichText::new(body)
-                        .text_style(theme::caption())
-                        .color(body_color),
-                );
+                // Close button first, then the body — inside a
+                // right-to-left layout the first widget takes the right
+                // edge, so the text wraps into the width that is actually
+                // left over. Adding the label first (as this did) let a
+                // long hint claim the full row, pushing the ✕ on top of
+                // it: the text ran into the button with no gap and was
+                // clipped at the panel edge.
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
                         .add(
@@ -153,6 +155,21 @@ pub fn hint(ui: &mut egui::Ui, body: &str, seen: &mut bool) -> bool {
                         *seen = true;
                         dismissed = true;
                     }
+                    ui.add_space(SPACE_XS);
+                    // Nested left-to-right so the body reads normally: the
+                    // enclosing right-to-left layout would otherwise
+                    // right-align every wrapped line, leaving a lone
+                    // trailing word pushed against the close button.
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(body)
+                                    .text_style(theme::caption())
+                                    .color(body_color),
+                            )
+                            .wrap(),
+                        );
+                    });
                 });
             });
         });
