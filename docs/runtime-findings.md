@@ -9,7 +9,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 `BY DESIGN` observed, deliberate, not changing · `RETRACTED` reported here
 in error, kept so the mistake isn't repeated.
 
-**Current state: nothing `OPEN`.** R1–R5, R7–R15 are `FIXED`, R6 is
+**Current state: nothing `OPEN`.** R1–R5, R7–R18 are `FIXED`, R6 is
 `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at the
 bottom are where the next round should start.
 
@@ -347,7 +347,9 @@ review — the events look right; the field egui actually answers
 Blast radius is wider than the palette. Anything reading `input.modifiers`
 was affected, and that includes egui's own `TextEdit` chords, so **every
 text field in the app** had no Ctrl+A, Ctrl+C/V/X, Ctrl+Z and no
-shift-selection. Confirmed both ways: typing `dark`, pressing Ctrl+A, then
+shift-selection. It also reached the keybindings tab, which reads
+`i.modifiers` when capturing a new chord (`keybindings_tab.rs`) — so
+recording "Ctrl+Shift+X" on this backend stored a bare "X". Confirmed both ways: typing `dark`, pressing Ctrl+A, then
 typing `zz` left `darkzz` before the fix and `zz` after.
 
 **Fixed** by plumbing the live seat state through (`LayerWindow::modifiers`)
@@ -399,12 +401,80 @@ palettes. Verified the test fails on the old value and passes on the new.
 `fg_muted` has exactly one use outside `theme.rs`, this tab bar, so the
 change is contained.
 
+### R16 · Keybinding rows paint over each other — `FIXED`
+
+Found while checking German for layout damage; it turned out not to be a
+locale problem at all — English had it just as badly.
+
+The tab was an `egui::Grid` whose middle column is a `horizontal_wrapped`
+run of chord chips plus the "+ Add" button. The cell reserved height for
+fewer lines than it went on to paint, so the *next* row's stripe was drawn
+straight over the tail of the previous one.
+
+Not cosmetic: for every action with two chords the "+ Add" button was
+entirely covered — invisible and unclickable — and a chord chip was sliced
+in half.
+
+**Fixed** by dropping the grid for one `Frame` per action. A frame reserves
+its background shape and fills it after laying out its contents, so the
+stripe can never be shorter than what it sits behind. The label column now
+wraps inside a fixed width, which also stops German widening the whole side
+panel past its English width.
+
+### R17 · Ten complete locales, English on screen — `FIXED`
+
+The behaviour picker — Idle / Walk around / Follow cursor / Bounded wander
+/ Bounce — drew hardcoded English in **every** locale, while
+`behavior-idle`, `-walk`, `-follow`, `-wander` and `-bounce` sat translated
+in all ten `.ftl` files, unused. Same for the Appearance theme row, the
+inspector's X / Y labels, and two Dismiss tooltips.
+
+`every_locale_covers_every_en_key` proved the translations existed. Nothing
+proved the app ever asked for them, so this was invisible to the suite.
+
+**Fixed**, and the gap closed with `every_en_key_is_referenced_in_the_source`
+— it scans the crate for each English key as a string literal. Sound here
+because keys are only ever named by literal; `Action::i18n_key` and friends
+return `&'static str` out of a match.
+
+That test then found four more keys, all dead rather than hardcoded:
+`palette-close-hint` and `palette-apply-preset` were superseded by
+`palette-footer-hint` and the Replace/Append rows, and
+`library-sort-name` / `library-sort-recent` describe a sort control that
+does not exist (`library.rs` contains no "sort"). Removed from every locale
+rather than allowlisted, so the test stays strict.
+
+### R18 · Clicking the settings panel throws away the selection — `FIXED`
+
+Select a character, click any blank part of the settings panel, and the
+Inspector drops back to "Nothing selected" — the click fell through to the
+scene's hit test, found nothing, and deselected. The panel you are reading
+is the thing that clears itself.
+
+**This one was mine**, introduced with the R2/R3 fix that gave this backend
+left-click selection and drag. The winit path never had the bug because
+`App::window_event` hands every event to egui first and returns early when
+it is consumed; the native Wayland loop reads the raw event list and had no
+equivalent.
+
+**Fixed** with `WaylandEguiRenderer::owns_pointer()`
+(`Context::is_pointer_over_area()`) gating the two press arms. Only presses
+are gated — motion and release stay live so a drag begun on a sprite still
+tracks and still finishes if the pointer crosses the panel. Verified all
+three ways: selection survives a panel click, sprites still select, and a
+dragged character lands on the exact target.
+
 ## Still unexamined
 
 Areas never opened during this pass, listed so the next session knows where
-the map ends: keyboard shortcuts end-to-end (the palette itself is now
-covered by R14, but the bindable actions are not), Shimeji pack import,
+the map ends: keyboard shortcuts end-to-end (the palette works now, but the
+bindable actions themselves were never exercised), Shimeji pack import,
 drag-and-drop of files onto the overlay, preset Append/Replace, multi-monitor
-visual behaviour, theme switching and the non-dark themes, every locale other
-than English, and the whole winit/X11 path interactively — a compositing X
-server was not available here.
+visual behaviour, the two high-contrast themes, the eight locales other than
+English and German, and the whole winit/X11 path interactively — a
+compositing X server was not available here.
+
+The rig now drives the keyboard as well as the pointer, which is what made
+R14 findable. Two traps in doing so are written up under R14; the short
+version is that both `wlrctl` and `wtype` create their virtual device, use
+it and exit, and the app can never bind a device that transient.
