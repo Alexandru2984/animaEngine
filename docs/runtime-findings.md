@@ -252,18 +252,29 @@ fit unwrapped content regardless of `default_width`.
 
 ## First-run experience
 
-### R9 · Notices crowd out the settings — `OPEN`
+### R9 · Notices crowd out the settings — `FIXED`
 
 The "What's new" panel renders at the top of **every** tab, not once. Together
 with the persistent hint banners ("Settings split across three tabs…",
 "Themes apply instantly…", "Press Ctrl+Shift+\` …"), roughly half the panel
 height on first run is notices rather than settings.
 
-### R10 · X11-only toggle is live in a Wayland session — `OPEN`
+**Fixed**, in two parts. R4's fresh-install change removes the changelog
+for first-time users entirely, and the panel now renders only on the
+default tab instead of above every tab body — it used to reappear each
+time the user switched tab, competing with whatever they had navigated to.
+
+### R10 · X11-only toggle is live in a Wayland session — `FIXED`
 
 The Scene tab offers "Land on windows (X11)" as an active control under
 native Wayland, where window-awareness is inert by design (no EWMH
 equivalent). It is labelled `(X11)` but is not disabled or explained.
+
+**Fixed.** Disabled on the backends that cannot serve it, with the reason
+stated inline rather than only in a tooltip. Note the test is *not* the
+display server: a Wayland session running the app through XWayland reads
+EWMH fine, which is the common case on GNOME. The caller passes what its
+backend actually has — `true` from winit, `false` from `run_native`.
 
 ---
 
