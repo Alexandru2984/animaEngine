@@ -143,7 +143,7 @@ pub fn run_native(
     // `App::script_host`. Scripts resolve against `library_root`.
     let mut script_host = crate::scripting::ScriptHost::new();
     let mut audio_host = crate::audio::AudioHost::new();
-    if let Some(root) = crate::asset_library::discover_asset_root() {
+    if let Some(root) = crate::asset_library::ensure_asset_root() {
         let index_path = crate::asset_library::LibraryIndex::default_path();
         let mut idx = crate::asset_library::LibraryIndex::load(&index_path);
         let scanned = crate::asset_library::scan(&root);

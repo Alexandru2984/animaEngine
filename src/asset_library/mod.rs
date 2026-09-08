@@ -261,6 +261,40 @@ pub fn discover_asset_root() -> Option<PathBuf> {
     None
 }
 
+/// Like [`discover_asset_root`], but create the XDG location when nothing
+/// exists yet.
+///
+/// Discovery alone returns `None` on a fresh install, and everything that
+/// resolves against the library — sprites, behavior scripts, sounds — then
+/// has nowhere to look. For the Library tab that was merely an empty
+/// state; for scripts it means a character configured in the Inspector
+/// silently does nothing, with no directory for the user to even put a
+/// file in.
+///
+/// `$ANIMA_ASSETS_DIR` is deliberately *not* created. If someone points at
+/// a path that doesn't exist, that is a mistake worth surfacing rather
+/// than papering over — and tests rely on a missing override staying
+/// missing.
+pub fn ensure_asset_root() -> Option<PathBuf> {
+    if let Some(existing) = discover_asset_root() {
+        return Some(existing);
+    }
+    if std::env::var_os("ANIMA_ASSETS_DIR").is_some() {
+        return None;
+    }
+    let xdg = xdg_data_dir().join("assets");
+    match std::fs::create_dir_all(&xdg) {
+        Ok(()) => {
+            tracing::info!("Created asset library at {}", xdg.display());
+            Some(xdg)
+        }
+        Err(e) => {
+            tracing::warn!("Could not create asset library at {}: {e}", xdg.display());
+            None
+        }
+    }
+}
+
 /// Walk `root` recursively and return a [`LibraryAsset`] for every
 /// file whose extension is in [`LIBRARY_EXTENSIONS`]. Symlinks are
 /// followed but capped at `MAX_SYMLINK_DEPTH` (4) to defuse loops.
@@ -612,6 +646,73 @@ fn fnv1a_64(bytes: &[u8]) -> u64 {
 fn stable_id(canonical_path: &str) -> String {
     let h = fnv1a_64(canonical_path.as_bytes()) & 0x0000_FFFF_FFFF_FFFF;
     format!("{:012x}", h)
+}
+
+#[cfg(test)]
+mod ensure_root_tests {
+    use super::*;
+
+    /// A fresh install has no asset directory, and everything that
+    /// resolves against the library — sprites, scripts, sounds — then has
+    /// nowhere to look. Scripts made that visible: a character configured
+    /// in the Inspector silently did nothing.
+    #[test]
+    fn creates_the_xdg_location_when_nothing_exists() {
+        let tmp = std::env::temp_dir().join(format!(
+            "anima-ensure-root-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        // Scoped to this test's own XDG dir so it can never touch the
+        // developer's real library.
+        let prev_data = std::env::var_os("XDG_DATA_HOME");
+        let prev_assets = std::env::var_os("ANIMA_ASSETS_DIR");
+        std::env::remove_var("ANIMA_ASSETS_DIR");
+        std::env::set_var("XDG_DATA_HOME", &tmp);
+
+        let root = ensure_asset_root().expect("no root created");
+        assert!(root.is_dir(), "returned a path that isn't a directory");
+        assert!(root.starts_with(&tmp), "created outside the scoped XDG dir");
+
+        // Second call must reuse it, not fail on the existing directory.
+        assert_eq!(ensure_asset_root().as_deref(), Some(root.as_path()));
+
+        match prev_data {
+            Some(v) => std::env::set_var("XDG_DATA_HOME", v),
+            None => std::env::remove_var("XDG_DATA_HOME"),
+        }
+        if let Some(v) = prev_assets {
+            std::env::set_var("ANIMA_ASSETS_DIR", v);
+        }
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// An explicit override pointing somewhere that doesn't exist is a
+    /// mistake worth surfacing, not one to paper over by creating it.
+    #[test]
+    fn an_explicit_override_is_never_created() {
+        let missing = std::env::temp_dir().join(format!(
+            "anima-never-created-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let prev = std::env::var_os("ANIMA_ASSETS_DIR");
+        std::env::set_var("ANIMA_ASSETS_DIR", &missing);
+
+        assert_eq!(ensure_asset_root(), None);
+        assert!(!missing.exists(), "created the user's explicit override");
+
+        match prev {
+            Some(v) => std::env::set_var("ANIMA_ASSETS_DIR", v),
+            None => std::env::remove_var("ANIMA_ASSETS_DIR"),
+        }
+    }
 }
 
 #[cfg(test)]

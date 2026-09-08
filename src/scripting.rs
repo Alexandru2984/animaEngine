@@ -57,6 +57,27 @@ const MAX_SCRIPT_BYTES: u64 = 64 * 1024;
 /// a large vector every frame before anything looks at it.
 const MAX_SOUNDS_PER_RUN: usize = 4;
 
+/// Complain once per script about there being no asset library.
+///
+/// Deliberately a process-wide latch rather than state on the host: when
+/// there is no library there is no host either, and a per-frame warning
+/// for a condition the user cannot see is exactly the noise the one-shot
+/// reporting elsewhere exists to prevent.
+pub fn warn_no_library_once(path: &str) {
+    use std::sync::{Mutex, OnceLock};
+    static SEEN: OnceLock<Mutex<std::collections::BTreeSet<String>>> = OnceLock::new();
+    let seen = SEEN.get_or_init(|| Mutex::new(std::collections::BTreeSet::new()));
+    if let Ok(mut seen) = seen.lock() {
+        if seen.insert(path.to_string()) {
+            tracing::warn!(
+                "behavior script {path}: no asset library, so it cannot be loaded. \
+                 Expected under $XDG_DATA_HOME/animaEngine/assets/ \
+                 (or $ANIMA_ASSETS_DIR)."
+            );
+        }
+    }
+}
+
 /// What the tick chain needs to run scripts.
 ///
 /// A struct rather than a growing tuple: this is the third thing that has

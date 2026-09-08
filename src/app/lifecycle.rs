@@ -58,7 +58,7 @@ impl App {
 
         // Discover + load + merge-scan the asset library. Errors are
         // logged but never fatal — an empty library is fine.
-        if let Some(root) = crate::asset_library::discover_asset_root() {
+        if let Some(root) = crate::asset_library::ensure_asset_root() {
             let index_path = crate::asset_library::LibraryIndex::default_path();
             let mut idx = crate::asset_library::LibraryIndex::load(&index_path);
             let scanned = crate::asset_library::scan(&root);

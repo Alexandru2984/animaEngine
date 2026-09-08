@@ -158,6 +158,11 @@ Briefly:
 - `src/animation/` — loaders (PNG seq, GIF, WebP, MP4, spritesheet) +
   per-frame cache + the `Frame` type
 - `src/behavior.rs` — per-entity motion behaviors
+- `src/scripting.rs` — Rhai host for scripted behaviors (sandboxed,
+  execution-bounded)
+- `src/audio.rs` — panned one-shot sound playback (optional `audio`
+  feature)
+- `src/sysload.rs` — aggregate CPU / memory load, read from `/proc`
 - `src/renderer/` — wgpu pipeline (sprite shader, batched quads)
 - `src/ui/` — egui integration (settings panel, context menu, toasts)
 - `src/wayland/` — native Wayland backend (opt-in, wlroots only)

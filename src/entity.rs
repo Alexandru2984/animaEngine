@@ -174,12 +174,19 @@ impl Entity {
         let crate::behavior::Behavior::Script { path, params } = &self.behavior else {
             return false;
         };
-        let Some(crate::scripting::ScriptContext { host, audio, root }) = scripts else {
-            return false;
-        };
         if path.is_empty() {
+            // An unset path is the documented "hold still" state, not an
+            // error — the picker creates the variant before the user has
+            // named a script.
             return false;
         }
+        let Some(crate::scripting::ScriptContext { host, audio, root }) = scripts else {
+            // No asset library. Startup creates one, so reaching here means
+            // it could not be created — worth saying, because otherwise a
+            // character configured in the Inspector just sits there.
+            crate::scripting::warn_no_library_once(path);
+            return false;
+        };
 
         self.behavior_state.script_elapsed =
             (self.behavior_state.script_elapsed + ctx.dt) % 86_400.0;

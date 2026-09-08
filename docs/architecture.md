@@ -107,9 +107,15 @@ Behavior enum (src/behavior.rs)
   ├─ WalkAround { speed }         — horizontal patrol with edge bounce
   ├─ FollowCursor { speed, comfort_distance }
   ├─ BoundedWander { box, speed } — random walk inside a rect
-  └─ Bounce { amplitude_px, period_sec, axis } — sinusoidal bob
-                                    around the rest position; gravity
-                                    overrides it
+  ├─ Bounce { amplitude_px, period_sec, axis } — sinusoidal bob
+  │                                 around the rest position; gravity
+  │                                 overrides it
+  └─ Script { path, params }      — a Rhai file from the asset library
+
+Scripted motion does NOT run inside `Behavior::tick`. It needs the asset
+library root and a per-entity scope, so `Entity::tick_script` drives it
+and the `tick` arm above is only the fallback: a script that is missing,
+broken, or over its execution budget leaves the character where it was.
 
 Pattern: Behavior holds config (serialized to TOML), BehaviorState holds
 runtime accumulators (direction, wander target, RNG seed). Entity::tick
@@ -320,6 +326,16 @@ top-level `Makefile`. AppImage and `.deb` both go through it.
 ## Where to look next
 
 - Behavior deep-dive: `src/behavior.rs` (~740 lines, mostly tests)
+- Scripted behaviors: `src/scripting.rs` — the Rhai host, its sandbox and
+  its execution limits. Design and rationale in
+  [plans/v1.2-scripting.md](plans/v1.2-scripting.md); the script author's
+  view is in CONTRIBUTING.
+- Sound: `src/audio.rs` — one-shot playback panned by on-screen position,
+  behind the optional `audio` feature. The module is always compiled; only
+  the `rodio` parts are gated, so no caller's signature changes with it.
+- Machine load: `src/sysload.rs` — aggregate CPU / memory for scripts that
+  react to it. Reads `/proc` directly rather than taking a dependency, so
+  "we cannot enumerate processes" is structural rather than a promise.
 - Render pass: `src/renderer/wgpu_renderer.rs::render`
 - Event arm matrix: `src/app/mod.rs::user_event` (the AnimaEvent dispatch)
 - Wayland scaffolding: read `src/wayland/mod.rs` first, then the
