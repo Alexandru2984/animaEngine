@@ -1,10 +1,11 @@
-//! Rhai host for scripted behaviors (sub-phase 2 of
+//! Rhai host for scripted behaviors (sub-phases 2-3 of
 //! `docs/plans/v1.2-scripting.md`).
 //!
-//! Nothing calls this yet — `Behavior::Script` still ticks as Idle. This
-//! module exists so the engine, its limits and its sandbox can be built
-//! and tested on their own, before they are threaded through `Scene` →
-//! `Entity` → `Behavior`.
+//! Driven from `Entity::tick_script`, which `Scene::tick` hands the host
+//! and the asset-library root. The host lives on `App` (and on the
+//! native-Wayland loop) rather than on `Scene`, because `Scene` is built
+//! on a worker thread by the hot-reload path and so must stay `Send`,
+//! while `rhai::Engine` is not.
 //!
 //! # Why the script is top-level statements, not `fn tick(e)`
 //!
@@ -45,6 +46,10 @@ const MAX_CALL_LEVELS: usize = 16;
 const MAX_STRING_SIZE: usize = 4 * 1024;
 const MAX_ARRAY_SIZE: usize = 1024;
 const MAX_MAP_SIZE: usize = 1024;
+/// Cap on a script file read from disk. A motion script is a handful of
+/// lines; this is the same "bound the read" discipline every other loader
+/// in the tree follows for attacker-influenced files.
+const MAX_SCRIPT_BYTES: u64 = 64 * 1024;
 
 /// Everything a script may read for one tick.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -109,7 +114,27 @@ impl std::error::Error for ScriptError {}
 /// one per host rather than one per entity.
 pub struct ScriptHost {
     engine: rhai::Engine,
-    compiled: BTreeMap<String, rhai::AST>,
+    compiled: BTreeMap<String, Compiled>,
+    /// One scope per entity id, so two characters running the same script
+    /// accumulate separately.
+    scopes: BTreeMap<String, rhai::Scope<'static>>,
+}
+
+struct Compiled {
+    ast: rhai::AST,
+    /// Source mtime when this was built, so an edited file recompiles and
+    /// an unchanged one does not.
+    mtime: Option<std::time::SystemTime>,
+}
+
+// `rhai::Engine` is not `Debug`, and `Scene` derives it.
+impl std::fmt::Debug for ScriptHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ScriptHost")
+            .field("compiled", &self.compiled.len())
+            .field("scopes", &self.scopes.len())
+            .finish()
+    }
 }
 
 impl Default for ScriptHost {
@@ -142,18 +167,83 @@ impl ScriptHost {
         Self {
             engine,
             compiled: BTreeMap::new(),
+            scopes: BTreeMap::new(),
         }
     }
 
     /// Compile `source` and keep it under `key`, replacing anything
     /// already there. Callers re-compile when the file's mtime moves.
     pub fn compile(&mut self, key: &str, source: &str) -> Result<(), ScriptError> {
+        self.compile_with_mtime(key, source, None)
+    }
+
+    fn compile_with_mtime(
+        &mut self,
+        key: &str,
+        source: &str,
+        mtime: Option<std::time::SystemTime>,
+    ) -> Result<(), ScriptError> {
         let ast = self
             .engine
             .compile(source)
             .map_err(|e| ScriptError::Compile(e.to_string()))?;
-        self.compiled.insert(key.to_string(), ast);
+        self.compiled
+            .insert(key.to_string(), Compiled { ast, mtime });
         Ok(())
+    }
+
+    /// Make sure the script at `rel` (relative to the library `root`) is
+    /// compiled and current, reading it from disk only when it is missing
+    /// or its mtime moved.
+    ///
+    /// The path goes through `resolve_library_asset`, the same
+    /// canonicalize-and-contain helper assets use — scripts get no path
+    /// logic of their own, so there is one place traversal is answered.
+    pub fn ensure_compiled(
+        &mut self,
+        root: &std::path::Path,
+        rel: &str,
+    ) -> Result<(), ScriptError> {
+        let resolved = crate::drop_validate::resolve_library_asset(root, std::path::Path::new(rel))
+            .map_err(ScriptError::Compile)?;
+
+        let mtime = std::fs::metadata(&resolved).and_then(|m| m.modified()).ok();
+        if let Some(existing) = self.compiled.get(rel) {
+            // `None` mtime on either side means "can't tell" — recompile
+            // rather than serve a possibly stale AST.
+            if existing.mtime.is_some() && existing.mtime == mtime {
+                return Ok(());
+            }
+        }
+
+        // Bounded read: a behavior script is a few lines, and this file is
+        // attacker-influenced in exactly the way every other loader here
+        // guards against.
+        let meta = std::fs::metadata(&resolved)
+            .map_err(|e| ScriptError::Compile(format!("script unreadable: {e}")))?;
+        if !meta.is_file() {
+            return Err(ScriptError::Compile("script is not a regular file".into()));
+        }
+        if meta.len() > MAX_SCRIPT_BYTES {
+            return Err(ScriptError::Compile(format!(
+                "script larger than {MAX_SCRIPT_BYTES} bytes"
+            )));
+        }
+        let source = std::fs::read_to_string(&resolved)
+            .map_err(|e| ScriptError::Compile(format!("script unreadable: {e}")))?;
+
+        self.compile_with_mtime(rel, &source, mtime)
+    }
+
+    /// The persistent scope for one entity, created on first use.
+    pub fn scope_for(&mut self, entity_id: &str) -> &mut rhai::Scope<'static> {
+        self.scopes.entry(entity_id.to_string()).or_default()
+    }
+
+    /// Drop scopes for entities that no longer exist, so a long session
+    /// that adds and removes characters doesn't accumulate them.
+    pub fn retain_scopes<F: Fn(&str) -> bool>(&mut self, keep: F) {
+        self.scopes.retain(|id, _| keep(id));
     }
 
     /// Whether `key` has a compiled script ready to run.
@@ -179,7 +269,7 @@ impl ScriptHost {
         inputs: &ScriptInputs,
         params: &BTreeMap<String, f64>,
     ) -> Result<ScriptOutputs, ScriptError> {
-        let ast = self.compiled.get(key).ok_or(ScriptError::NotCompiled)?;
+        let compiled = self.compiled.get(key).ok_or(ScriptError::NotCompiled)?;
 
         // Rhai's float is f64; the engine's geometry is f32. Convert at
         // this boundary only, so scripts accumulate in the wider type.
@@ -216,7 +306,7 @@ impl ScriptHost {
         }
 
         self.engine
-            .run_ast_with_scope(scope, ast)
+            .run_ast_with_scope(scope, &compiled.ast)
             .map_err(|e| ScriptError::Runtime(e.to_string()))?;
 
         // A script that deletes or retypes `x` gets its last good value
@@ -450,6 +540,121 @@ mod tests {
                 "{source} was not rejected"
             );
         }
+    }
+
+    // ── Loading from disk ─────────────────────────────────────────────
+
+    struct TempRoot(std::path::PathBuf);
+
+    impl TempRoot {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "anima-script-{}-{}-{tag}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+        fn write(&self, rel: &str, body: &str) {
+            let p = self.0.join(rel);
+            if let Some(parent) = p.parent() {
+                std::fs::create_dir_all(parent).unwrap();
+            }
+            std::fs::write(p, body).unwrap();
+        }
+    }
+
+    impl Drop for TempRoot {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn ensure_compiled_loads_a_script_from_the_library() {
+        let root = TempRoot::new("load");
+        root.write("b/move.rhai", "x += 5.0;");
+        let mut host = ScriptHost::new();
+        host.ensure_compiled(&root.0, "b/move.rhai").unwrap();
+        let mut scope = rhai::Scope::new();
+        let out = host
+            .run("b/move.rhai", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        assert_eq!(out.x, 105.0);
+    }
+
+    /// Traversal is answered once, by the shared helper. This asserts
+    /// scripts actually go through it.
+    #[test]
+    fn ensure_compiled_refuses_to_escape_the_library() {
+        let root = TempRoot::new("escape");
+        root.write("ok.rhai", "x += 1.0;");
+        let mut host = ScriptHost::new();
+        let err = host
+            .ensure_compiled(&root.0, "../../etc/passwd")
+            .unwrap_err();
+        assert!(matches!(err, ScriptError::Compile(_)), "got {err:?}");
+    }
+
+    #[test]
+    fn ensure_compiled_rejects_an_oversized_script() {
+        let root = TempRoot::new("big");
+        root.write("big.rhai", &"// padding\n".repeat(8 * 1024));
+        let mut host = ScriptHost::new();
+        let err = host.ensure_compiled(&root.0, "big.rhai").unwrap_err();
+        match err {
+            ScriptError::Compile(m) => assert!(m.contains("larger than"), "{m}"),
+            other => panic!("expected a size refusal, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ensure_compiled_rejects_a_directory() {
+        let root = TempRoot::new("dir");
+        std::fs::create_dir_all(root.0.join("adir")).unwrap();
+        let mut host = ScriptHost::new();
+        let err = host.ensure_compiled(&root.0, "adir").unwrap_err();
+        assert!(matches!(err, ScriptError::Compile(_)));
+    }
+
+    /// An edited script has to take effect without a restart, and an
+    /// untouched one must not be recompiled sixty times a second.
+    #[test]
+    fn an_edited_script_recompiles_on_mtime_change() {
+        let root = TempRoot::new("reload");
+        root.write("r.rhai", "x = 1.0;");
+        let mut host = ScriptHost::new();
+        host.ensure_compiled(&root.0, "r.rhai").unwrap();
+        let mut scope = rhai::Scope::new();
+        let first = host
+            .run("r.rhai", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        assert_eq!(first.x, 1.0);
+
+        // Filesystem mtime resolution can be coarse; make the change
+        // unambiguous rather than racing it.
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        root.write("r.rhai", "x = 2.0;");
+        host.ensure_compiled(&root.0, "r.rhai").unwrap();
+        let second = host
+            .run("r.rhai", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        assert_eq!(second.x, 2.0, "edit did not take effect");
+    }
+
+    #[test]
+    fn scopes_are_per_entity_and_prunable() {
+        let mut host = ScriptHost::new();
+        host.scope_for("a").push("marker", 1_i64);
+        host.scope_for("b").push("marker", 2_i64);
+        assert_eq!(host.scopes.len(), 2);
+        host.retain_scopes(|id| id == "a");
+        assert_eq!(host.scopes.len(), 1);
+        assert!(host.scopes.contains_key("a"));
     }
 
     #[test]

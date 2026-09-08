@@ -163,6 +163,80 @@ impl Entity {
     /// position if known — needed by `FollowCursor`.
     // The per-frame entity update genuinely takes the frame's inputs (dt,
     // screen dims, cursor, physics platforms) plus the global interaction
+    /// Run this entity's behavior script, if it has one and scripting is
+    /// available. Returns whether it took responsibility for the motion —
+    /// `false` means the caller should fall through to the native
+    /// `Behavior::tick`.
+    ///
+    /// Every failure path returns `false`, so a script that is missing,
+    /// unreadable, badly written or over its budget leaves the entity
+    /// exactly where it was rather than taking the frame down. Errors are
+    /// logged at most once per script here; surfacing them in the UI is
+    /// sub-phase 4.
+    fn tick_script(
+        &mut self,
+        ctx: &TickContext,
+        scripts: Option<(&mut crate::scripting::ScriptHost, &std::path::Path)>,
+    ) -> bool {
+        let crate::behavior::Behavior::Script { path, params } = &self.behavior else {
+            return false;
+        };
+        let Some((host, root)) = scripts else {
+            return false;
+        };
+        if path.is_empty() {
+            return false;
+        }
+
+        self.behavior_state.script_elapsed =
+            (self.behavior_state.script_elapsed + ctx.dt) % 86_400.0;
+
+        if let Err(e) = host.ensure_compiled(root, path) {
+            tracing::warn!("behavior script {path}: {e}");
+            return false;
+        }
+
+        let inputs = crate::scripting::ScriptInputs {
+            x: self.x,
+            y: self.y,
+            dt: ctx.dt,
+            sprite_width: ctx.sprite_width,
+            sprite_height: ctx.sprite_height,
+            bounds_min_x: ctx.bounds.min_x,
+            bounds_min_y: ctx.bounds.min_y,
+            bounds_max_x: ctx.bounds.max_x,
+            bounds_max_y: ctx.bounds.max_y,
+            cursor: ctx.cursor,
+            elapsed: self.behavior_state.script_elapsed,
+            reduced_motion: ctx.reduced_motion,
+        };
+        // `params` is borrowed out of `self.behavior`, and `scope_for`
+        // needs `&mut host` while `self.id` is borrowed too — clone the
+        // small map rather than fight the borrow checker over 64 bytes.
+        let params = params.clone();
+        let key = path.clone();
+        let id = self.id.clone();
+
+        let scope = host.scope_for(&id);
+        // `run` takes `&self` on the host, but `scope_for` handed out a
+        // `&mut` borrow of it, so take the scope out and put it back.
+        let mut scope = std::mem::take(scope);
+        let result = host.run(&key, &mut scope, &inputs, &params);
+        *host.scope_for(&id) = scope;
+
+        match result {
+            Ok(out) => {
+                self.x = out.x;
+                self.y = out.y;
+                true
+            }
+            Err(e) => {
+                tracing::warn!("behavior script {key}: {e}");
+                false
+            }
+        }
+    }
+
     // toggles; grouping them into a struct would only move the argument
     // list around without making a call site clearer.
     #[allow(clippy::too_many_arguments)]
@@ -174,6 +248,10 @@ impl Entity {
         platforms: &[crate::platforms::PlatformRect],
         reduced_motion: bool,
         hover_startle: bool,
+        // The script host plus the library root, when scripting is
+        // available. `None` keeps every existing caller — and every test —
+        // on the native behaviors.
+        scripts: Option<(&mut crate::scripting::ScriptHost, &std::path::Path)>,
     ) -> bool {
         let sprite_w = self.scaled_width();
         let sprite_h = self.scaled_height();
@@ -188,8 +266,10 @@ impl Entity {
 
         // Behavior — autonomous motion (can affect both X and Y).
         let x_before = self.x;
-        self.behavior
-            .tick(&mut self.behavior_state, &mut self.x, &mut self.y, &ctx);
+        if !self.tick_script(&ctx, scripts) {
+            self.behavior
+                .tick(&mut self.behavior_state, &mut self.x, &mut self.y, &ctx);
+        }
 
         // Hover-startle: recoil from a cursor that comes too close.
         // Orthogonal to the base behavior (a walking mascot still

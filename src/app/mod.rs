@@ -173,6 +173,9 @@ pub struct App {
     /// path can resolve relative asset paths to absolute without
     /// re-scanning.
     library_root: Option<std::path::PathBuf>,
+    /// Rhai host for `Behavior::Script`. Lives here rather than on
+    /// `Scene`, which must stay `Send` for the hot-reload worker.
+    script_host: crate::scripting::ScriptHost,
     /// Human-readable description of the live global-hotkey backend,
     /// shown in the Keybindings tab (T.4). Set from `main` after
     /// strategy resolution; updated when the deferred portal fallback
@@ -286,6 +289,7 @@ impl App {
             window_platforms_active: false,
             library: None,
             library_root: None,
+            script_host: crate::scripting::ScriptHost::new(),
             hotkey_backend_status: String::new(),
             extra_windows: std::collections::HashMap::new(),
             overlay_hidden: false,

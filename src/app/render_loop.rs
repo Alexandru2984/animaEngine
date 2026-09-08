@@ -175,7 +175,11 @@ impl App {
             let plan =
                 crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors);
             let bounds = crate::monitor::covered_bounds(&plan, (screen_w, screen_h));
-            self.scene.tick(bounds, cursor);
+            let scripts = self
+                .library_root
+                .as_deref()
+                .map(|root| (&mut self.script_host, root));
+            self.scene.tick(bounds, cursor, scripts);
         }
 
         // Precompute multi-window facts before the renderer borrow —

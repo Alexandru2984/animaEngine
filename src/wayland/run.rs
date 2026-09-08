@@ -139,6 +139,9 @@ pub fn run_native(
     // Errors are logged but never fatal — an empty library is fine.
     let mut library: Option<crate::asset_library::LibraryIndex> = None;
     let mut library_root: Option<std::path::PathBuf> = None;
+    // Rhai host for `Behavior::Script`, mirroring the winit path's
+    // `App::script_host`. Scripts resolve against `library_root`.
+    let mut script_host = crate::scripting::ScriptHost::new();
     if let Some(root) = crate::asset_library::discover_asset_root() {
         let index_path = crate::asset_library::LibraryIndex::default_path();
         let mut idx = crate::asset_library::LibraryIndex::load(&index_path);
@@ -609,6 +612,7 @@ pub fn run_native(
             // still leaves it stale outside the toggle button, since
             // Wayland has no XQueryPointer equivalent (docs/threat-model.md).
             cursor_global,
+            library_root.as_deref().map(|root| (&mut script_host, root)),
         );
 
         // Update any dirty textures (animation frame advance).

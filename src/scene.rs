@@ -243,7 +243,18 @@ impl Scene {
     /// Screen dimensions bound autonomous motion (walk-around) and gravity.
     /// `cursor` is forwarded to behaviors that track the mouse (FollowCursor);
     /// pass `None` when the position is stale or unknown.
-    pub fn tick(&mut self, bounds: crate::monitor::DesktopBounds, cursor: Option<(f32, f32)>) {
+    /// `scripts` carries the Rhai host and the asset-library root when
+    /// scripting is available. It is a parameter rather than a field
+    /// because `Scene` is built on a worker thread by the hot-reload path
+    /// and so must stay `Send`, while `rhai::Engine` is not — and making
+    /// the engine `Sync` to satisfy a thread hop it never needed would be
+    /// the wrong trade. `None` keeps every scripted entity holding still.
+    pub fn tick(
+        &mut self,
+        bounds: crate::monitor::DesktopBounds,
+        cursor: Option<(f32, f32)>,
+        scripts: Option<(&mut crate::scripting::ScriptHost, &std::path::Path)>,
+    ) {
         let now = Instant::now();
         let dt = now.duration_since(self.last_tick).as_secs_f32();
         self.last_tick = now;
@@ -255,7 +266,18 @@ impl Scene {
             return;
         }
 
+        let (mut host, root) = match scripts {
+            Some((h, r)) => (Some(h), Some(r)),
+            None => (None, None),
+        };
+
         for entity in &mut self.entities {
+            // Re-borrow per entity: the host is `&mut` and the loop needs
+            // it each iteration.
+            let per_entity = match (host.as_deref_mut(), root) {
+                (Some(h), Some(r)) => Some((h, r)),
+                _ => None,
+            };
             entity.tick(
                 dt,
                 bounds,
@@ -263,7 +285,15 @@ impl Scene {
                 &self.window_platforms,
                 self.reduced_motion,
                 self.hover_startle,
+                per_entity,
             );
+        }
+
+        // Entities come and go; their scopes shouldn't outlive them.
+        if let Some(h) = host {
+            let live: std::collections::BTreeSet<&str> =
+                self.entities.iter().map(|e| e.id.as_str()).collect();
+            h.retain_scopes(|id| live.contains(id));
         }
     }
 
@@ -891,5 +921,124 @@ mod groups_tests {
             .map(|e| e.id.as_str())
             .collect();
         assert_eq!(ids, vec!["ghost"]);
+    }
+}
+
+#[cfg(test)]
+mod script_tests {
+    use super::tests::{empty_scene, make_entity};
+    use super::*;
+
+    // ── Scripted behaviors end to end (sub-phase 3) ───────────────────
+
+    struct ScriptDir(std::path::PathBuf);
+
+    impl ScriptDir {
+        fn new(tag: &str, rel: &str, body: &str) -> Self {
+            let dir = std::env::temp_dir()
+                .join(format!("anima-scene-script-{}-{tag}", std::process::id()));
+            let path = dir.join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, body).unwrap();
+            Self(dir)
+        }
+    }
+
+    impl Drop for ScriptDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn scripted(id: &str, path: &str, params: &[(&str, f64)]) -> Entity {
+        let mut e = make_entity(id, 0, true);
+        e.behavior = crate::behavior::Behavior::Script {
+            path: path.to_string(),
+            params: params.iter().map(|(k, v)| ((*k).to_string(), *v)).collect(),
+        };
+        e
+    }
+
+    fn bounds() -> crate::monitor::DesktopBounds {
+        crate::monitor::DesktopBounds::from_size(1920.0, 1080.0)
+    }
+
+    /// The whole point of the wiring: a scripted character actually moves.
+    #[test]
+    fn a_scripted_entity_moves_through_scene_tick() {
+        let dir = ScriptDir::new("move", "b/m.rhai", "x += params.step;");
+        let mut host = crate::scripting::ScriptHost::new();
+        let mut scene = empty_scene();
+        scene
+            .entities
+            .push(scripted("a", "b/m.rhai", &[("step", 7.0)]));
+
+        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        assert!(
+            scene.entities[0].x > 0.0,
+            "script did not move the entity (x = {})",
+            scene.entities[0].x
+        );
+    }
+
+    /// Without a library root there is nothing to resolve against, so a
+    /// scripted entity holds still rather than the app guessing a path.
+    #[test]
+    fn no_script_root_means_the_entity_holds_still() {
+        let mut scene = empty_scene();
+        scene.entities.push(scripted("a", "b/m.rhai", &[]));
+        scene.tick(bounds(), None, None);
+        assert_eq!(scene.entities[0].x, 0.0);
+    }
+
+    /// A broken script must not move the entity and must not take the
+    /// frame with it.
+    #[test]
+    fn a_broken_script_leaves_the_entity_where_it_was() {
+        let dir = ScriptDir::new("broken", "b/bad.rhai", "x +=* nonsense");
+        let mut host = crate::scripting::ScriptHost::new();
+        let mut scene = empty_scene();
+        scene.entities.push(scripted("a", "b/bad.rhai", &[]));
+        scene.entities[0].x = 42.0;
+
+        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        assert_eq!(scene.entities[0].x, 42.0);
+    }
+
+    /// An infinite loop is the case that would hang the overlay, so prove
+    /// it comes back and leaves the entity alone.
+    #[test]
+    fn a_runaway_script_is_bounded_and_does_not_move_the_entity() {
+        let dir = ScriptDir::new("runaway", "b/loop.rhai", "while true { x += 1.0; }");
+        let mut host = crate::scripting::ScriptHost::new();
+        let mut scene = empty_scene();
+        scene.entities.push(scripted("a", "b/loop.rhai", &[]));
+
+        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        assert_eq!(scene.entities[0].x, 0.0, "a killed script still moved it");
+    }
+
+    /// Two characters on one script accumulate separately, and a removed
+    /// character does not leave its scope behind.
+    #[test]
+    fn scopes_are_per_entity_and_pruned_with_the_scene() {
+        let dir = ScriptDir::new(
+            "scopes",
+            "b/count.rhai",
+            r#"if !state.contains("n") { state.n = 0.0; } state.n += 1.0; x = state.n;"#,
+        );
+        let mut host = crate::scripting::ScriptHost::new();
+        let mut scene = empty_scene();
+        scene.entities.push(scripted("a", "b/count.rhai", &[]));
+        scene.entities.push(scripted("b", "b/count.rhai", &[]));
+
+        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        assert_eq!(scene.entities[0].x, 2.0);
+        assert_eq!(scene.entities[1].x, 2.0, "entities shared an accumulator");
+
+        scene.entities.retain(|e| e.id == "a");
+        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        assert_eq!(scene.entities[0].x, 3.0, "surviving entity lost its state");
     }
 }

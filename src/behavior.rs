@@ -80,11 +80,11 @@ pub enum Behavior {
     /// Motion driven by a user-supplied script rather than a variant
     /// baked into this enum. See `docs/plans/v1.2-scripting.md`.
     ///
-    /// **Not yet executed.** The variant exists so a config carrying it
-    /// round-trips and so older scenes are provably unaffected by its
-    /// addition; until the engine lands (sub-phase 2) it ticks as
-    /// [`Behavior::Idle`], which is also the safe fallback a broken
-    /// script falls back to later.
+    /// Executed by `Entity::tick_script`, not by `Behavior::tick` — the
+    /// script host needs the asset-library root and a per-entity scope,
+    /// neither of which belongs in this enum. The arm below is the
+    /// fallback: an entity whose script is missing, broken or over its
+    /// budget holds still rather than taking the frame down.
     Script {
         /// Script location, relative to the asset-library root. Resolved
         /// through `drop_validate::resolve_library_asset` when the engine
@@ -255,6 +255,11 @@ pub struct BehaviorState {
     /// Phase accumulator in seconds for `Behavior::Bounce`. Modulo'd
     /// by the period to stay numerically stable over long sessions.
     pub bounce_t: f32,
+    /// Seconds this entity's script has been running, exposed to it as
+    /// `elapsed` so an author can drive phase without accumulating by
+    /// hand. Wrapped at a day to stay numerically stable in a session
+    /// left open indefinitely.
+    pub script_elapsed: f32,
 }
 
 impl Default for BehaviorState {
@@ -265,6 +270,7 @@ impl Default for BehaviorState {
             wander_rng_seed: 0xDEAD_BEEF_CAFE_BABE,
             bounce_rest: None,
             bounce_t: 0.0,
+            script_elapsed: 0.0,
         }
     }
 }
@@ -341,10 +347,9 @@ impl Behavior {
     ) {
         match self {
             Behavior::Idle => {}
-            // Ticks as Idle until the script engine lands (sub-phase 2).
-            // Deliberately the same no-op the fallback path will use, so
-            // a scene carrying `type = "script"` today behaves exactly as
-            // it will when a script fails to load tomorrow.
+            // Reached only when `Entity::tick_script` declined to run —
+            // no host, no library root, or the script failed. Holding
+            // still is the deliberate fallback.
             Behavior::Script { .. } => {}
             Behavior::WalkAround { speed } => {
                 *entity_x += state.walk_direction * speed * ctx.dt;

@@ -82,6 +82,7 @@ fn bench_scene_tick(c: &mut Criterion) {
                 scene.tick(
                     anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
                     Some((960.0, 540.0)),
+                    None,
                 )
             });
         });
@@ -93,6 +94,7 @@ fn bench_visible_entities(c: &mut Criterion) {
     let mut scene = build_scene(100);
     scene.tick(
         anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
+        None,
         None,
     );
     c.bench_function("visible_entities_rebuild/100", |b| {

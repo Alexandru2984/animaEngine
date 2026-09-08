@@ -55,6 +55,7 @@ fn main() {
             scene.tick(
                 anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
                 Some((960.0, 540.0)),
+                None,
             );
             let _ = scene.visible_entities();
         }
@@ -66,6 +67,7 @@ fn main() {
             scene.tick(
                 anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
                 Some((960.0, 540.0)),
+                None,
             );
             tick_total += t0.elapsed().as_micros();
 
