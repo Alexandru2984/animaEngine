@@ -5,61 +5,52 @@ always something to polish. This file covers the **how** (build, test,
 style) and points at [docs/architecture.md](docs/architecture.md) for
 the **what** (where each subsystem lives).
 
-## Stability freeze (0.9 → 1.0)
+## What lands (post-1.0)
 
-animaEngine is in a **stability freeze** from 0.9 until 1.0. Feature
-work stopped when 0.9 opened; everything between here and 1.0 is
-measurement, hardening, and paperwork — proving the 1.0 contract before
-promising it. If you're contributing during this window, read this
-section first: it decides whether a change can land at all.
+animaEngine is past 1.0 — the **stability freeze that ran from 0.9 to
+1.0 is over**, and feature work is open again. What replaced it is
+narrower and permanent: the promises in
+[docs/stability-policy.md](docs/stability-policy.md).
 
-**A change qualifies for the freeze only if it is one of:**
+**Guaranteed for the life of 1.x**, so a change that breaks any of them
+waits for 2.0 rather than shipping in a minor:
 
-- a **crash** fix — panic, hang, OOM, GPU/device failure;
-- a **data-loss** fix — config corruption, lost user state, a bad
-  migration;
-- a **regression** fix — something that worked in an earlier release
-  and no longer does;
-- a **security** fix — see [SECURITY.md](SECURITY.md) and
-  [docs/threat-model.md](docs/threat-model.md);
-- a **doc error** — the docs describe something the code doesn't do, or
-  the reverse;
-- a **translation** fix — a wrong or corrupted string in an *existing*
-  locale.
+- the config schema — a `config.toml` written by any 1.x release loads
+  in every later one;
+- the D-Bus surface (bus name, object path, interface, method names);
+- the `--help` / `--recover` CLI flags;
+- the accepted asset formats and the drag-drop extension allowlist;
+- the XDG file locations.
 
-**These wait until after 1.0, no matter how good:**
+Adding to those is fine — new config fields with serde defaults, new
+D-Bus methods, new flags, new formats. Removing or repurposing is not.
 
-- new features, new behaviors, new config fields, new UI;
-- refactors, renames, or architecture changes not required by one of
-  the fixes above (the "god-object `App` split" and a native-Wayland
-  device-loss rework are the standing examples — both deferred on
-  purpose);
-- new dependencies or non-security version bumps;
-- new locales — the string set is frozen; fixes to shipped locales are
-  welcome, a brand-new language is not.
+**Always welcome, at any time:** crash fixes (panic, hang, OOM, GPU or
+device failure), data-loss fixes (config corruption, lost user state, a
+bad migration), security fixes (see [SECURITY.md](SECURITY.md) and
+[docs/threat-model.md](docs/threat-model.md)), doc errors where the
+docs and the code disagree, and fixes to strings in existing locales.
 
-**Exceptions are decided in the open, before the PR.** Open an issue
-describing the change and why it can't wait for 1.0, and get an explicit
-"yes, in scope" from the maintainer first. A PR that expands scope
-without that decision will be asked to wait — the whole point of the
-freeze is that *nothing* grows the surface we're trying to stabilize.
+**Worth raising in an issue first**, not because they are unwelcome but
+because they are easier to agree on before the code exists: new
+dependencies, new locales, and architecture changes large enough to
+touch several subsystems. A short issue saying what and why is enough.
 
-**Active exception: X11/Wayland parity (granted 2026-06-21).** The
-native Wayland path (`ANIMA_USE_WAYLAND_NATIVE=1`) is a documented,
-supported target (see [docs/wayland.md](docs/wayland.md)), not an
-experiment — closing a capability gap between it and the X11 path
-(asset library, context menu, per-monitor distribution, cursor
-tracking wherever the Wayland protocol actually allows it) is treated
-as evening out the 1.0 contract across both backends, not as adding a
-new feature. This does **not** reopen the freeze generally: a
-capability neither path has today is still out of scope, and anything
-landing under this exception still needs the same crash/security/test
-discipline as everything else in this list.
+No feature overrides the invariants in [House rules](#house-rules) below
+— the zero-network rule in particular is load-bearing for the threat
+model, not a preference.
 
-**Branch policy:** fixes branch from `main` and merge back to `main`;
-1.0 ships from `main`. No feature branches are in flight during the
-freeze — anything feature-shaped lives in an issue until the 1.0 tag is
-cut, then development reopens.
+**Branch policy:** work branches from `main` and merges back to `main`;
+releases ship from `main`.
+
+### Historical note
+
+Through the 0.x series there was no stability guarantee, and from 0.9 to
+1.0 the project ran a hard feature freeze — only crash, data-loss,
+security, doc and translation fixes landed, with one granted exception
+for X11/Wayland parity. That window is closed; it is recorded here
+because the commit history and older issues refer to it.
+
 
 ## Quick loop
 
