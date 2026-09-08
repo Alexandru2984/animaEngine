@@ -70,6 +70,10 @@ pub struct ScriptInputs {
     /// Seconds since this behavior started, for phase accumulators.
     pub elapsed: f32,
     pub reduced_motion: bool,
+    /// Aggregate machine load, 0.0-1.0 each. See `crate::sysload` for why
+    /// these are totals and can never be anything more specific.
+    pub cpu: f32,
+    pub mem: f32,
 }
 
 /// What a script is allowed to change.
@@ -130,6 +134,10 @@ pub struct ScriptHost {
     /// frame. Kept here rather than toasting from the tick path so this
     /// module stays free of UI.
     unreported: Vec<(String, ScriptError)>,
+    /// Machine load exposed to scripts. Owned here because scripts are
+    /// its only consumer today; if anything else needs it, it moves out
+    /// rather than being read through the script host.
+    load: crate::sysload::SystemLoad,
 }
 
 struct Failed {
@@ -187,6 +195,7 @@ impl ScriptHost {
             scopes: BTreeMap::new(),
             failed: BTreeMap::new(),
             unreported: Vec::new(),
+            load: crate::sysload::SystemLoad::new(),
         }
     }
 
@@ -316,6 +325,22 @@ impl ScriptHost {
         std::fs::metadata(resolved).and_then(|m| m.modified()).ok()
     }
 
+    /// Re-sample machine load. Called once per scene tick; the sampler
+    /// throttles internally, so this is cheap on every frame.
+    pub fn refresh_load(&mut self) {
+        self.load.refresh();
+    }
+
+    /// Aggregate CPU load, 0.0-1.0.
+    pub fn cpu(&self) -> f32 {
+        self.load.cpu()
+    }
+
+    /// Aggregate memory load, 0.0-1.0.
+    pub fn mem(&self) -> f32 {
+        self.load.mem()
+    }
+
     /// Drain failures the user hasn't been told about yet.
     pub fn take_new_failures(&mut self) -> Vec<(String, ScriptError)> {
         std::mem::take(&mut self.unreported)
@@ -372,6 +397,8 @@ impl ScriptHost {
         scope.set_value("reduced_motion", inputs.reduced_motion);
         // Split rather than an Option so a script can't read a stale
         // coordinate while believing the cursor is live.
+        scope.set_value("cpu", inputs.cpu as f64);
+        scope.set_value("mem", inputs.mem as f64);
         scope.set_value("has_cursor", inputs.cursor.is_some());
         let (cx, cy) = inputs.cursor.unwrap_or((0.0, 0.0));
         scope.set_value("cursor_x", cx as f64);
@@ -454,6 +481,8 @@ mod tests {
             cursor: None,
             elapsed: 0.0,
             reduced_motion: false,
+            cpu: 0.0,
+            mem: 0.0,
         }
     }
 
@@ -475,6 +504,33 @@ mod tests {
         let out = run_once("x = bounds_max_x - w; y = dt * 60.0;").unwrap();
         assert_eq!(out.x, 1920.0 - 64.0);
         assert!((out.y - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn machine_load_reaches_the_script() {
+        let mut host = ScriptHost::new();
+        host.compile("t", "x = cpu * 100.0; y = mem * 100.0;")
+            .unwrap();
+        let mut scope = rhai::Scope::new();
+        let mut inp = inputs();
+        inp.cpu = 0.42;
+        inp.mem = 0.75;
+        let out = host.run("t", &mut scope, &inp, &BTreeMap::new()).unwrap();
+        assert!((out.x - 42.0).abs() < 1e-4);
+        assert!((out.y - 75.0).abs() < 1e-4);
+    }
+
+    /// Load is only ever aggregate. There is no API a script could use to
+    /// ask what is *running*, and this pins that the surface stays that
+    /// way — see `crate::sysload` for why that is structural.
+    #[test]
+    fn scripts_cannot_ask_what_is_running() {
+        for source in ["x = processes().len;", "x = process_list();", "x = pids();"] {
+            assert!(
+                run_once(source).is_err(),
+                "{source} was not rejected — a process API leaked into the scope"
+            );
+        }
     }
 
     #[test]
@@ -833,22 +889,47 @@ mod tests {
             .collect();
         assert!(!entries.is_empty(), "no example scripts found in {dir:?}");
 
-        // Every tunable any shipped example documents, so each runs with
-        // the values its header describes rather than a missing-key error.
-        let params: BTreeMap<String, f64> = [
-            ("speed", 60.0),
-            ("amplitude", 20.0),
-            ("period", 2.0),
-            ("radius", 200.0),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_string(), v))
-        .collect();
+        // Params come from each example's own header rather than a list
+        // kept here. A manual list drifts the moment someone adds an
+        // example, and the failure is Rhai doing arithmetic on missing
+        // values — "Function not found: - ((), ())", which tells a
+        // contributor nothing. Reading the documented block means the
+        // examples stay self-describing and self-testing.
+        fn documented_params(source: &str) -> BTreeMap<String, f64> {
+            let mut out = BTreeMap::new();
+            let mut in_block = false;
+            for line in source.lines() {
+                let line = line.trim_start().trim_start_matches("//").trim();
+                if line.starts_with('[') {
+                    in_block = line.contains("behavior.params");
+                    continue;
+                }
+                if !in_block {
+                    continue;
+                }
+                if let Some((name, value)) = line.split_once('=') {
+                    if let Ok(v) = value.trim().parse::<f64>() {
+                        out.insert(name.trim().to_string(), v);
+                    }
+                }
+            }
+            out
+        }
 
         for path in entries {
             let name = path.file_name().unwrap().to_string_lossy().to_string();
             let source = std::fs::read_to_string(&path).unwrap();
+            let params = documented_params(&source);
             let mut host = ScriptHost::new();
+            // An example that documents params but whose header the
+            // extractor failed to read would silently run with none, and
+            // pass by accident.
+            if source.contains("behavior.params") {
+                assert!(
+                    !params.is_empty(),
+                    "{name} documents params but none were extracted from its header"
+                );
+            }
             host.compile(&name, &source)
                 .unwrap_or_else(|e| panic!("example {name} does not compile: {e}"));
 

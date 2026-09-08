@@ -203,6 +203,8 @@ impl Entity {
             cursor: ctx.cursor,
             elapsed: self.behavior_state.script_elapsed,
             reduced_motion: ctx.reduced_motion,
+            cpu: host.cpu(),
+            mem: host.mem(),
         };
         // `params` is borrowed out of `self.behavior`, and `scope_for`
         // needs `&mut host` while `self.id` is borrowed too — clone the

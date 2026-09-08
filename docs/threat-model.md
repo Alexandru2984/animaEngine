@@ -273,6 +273,15 @@ What contains it:
   non-finite result is discarded in favour of the previous position, so
   it cannot push `NaN` into GPU quad coordinates.
 
+Scripts can also read **aggregate machine load** — `cpu` and `mem`, as
+fractions. This is deliberately not the `sysinfo` crate: its `system`
+feature bundles the process API with CPU and memory, so there would be no
+build-level way to prove we never enumerate processes, only a promise.
+`src/sysload.rs` reads `/proc/stat` and `/proc/meminfo` instead, both of
+which contain nothing but totals — so the code *cannot* learn what a
+person is running, and "the machine is busy" is the most it can ever
+disclose. Nothing is logged, persisted or transmitted.
+
 What is **not** prevented: a script can move a character somewhere
 annoying, or make it behave strangely. That is the feature. The guarantee
 is confinement and termination, not good taste.

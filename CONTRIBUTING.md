@@ -219,7 +219,7 @@ lose the change silently.
 
 Readable: `dt`, `w`, `h`, `bounds_min_x` / `bounds_min_y` / `bounds_max_x`
 / `bounds_max_y`, `cursor_x`, `cursor_y`, `has_cursor`, `elapsed`,
-`reduced_motion`, and your own `params`. Writable: `x` and `y` — integers
+`reduced_motion`, `cpu`, `mem`, and your own `params`. Writable: `x` and `y` — integers
 are fine, `x = 100` works. For state that has to survive between frames,
 use the `state` map; a top-level `let` will not, because Rhai unwinds the
 scope when a run ends:
@@ -241,11 +241,16 @@ Constraints worth knowing before you debug something surprising:
   spawn, and `import` and `eval` are both switched off. There is no way
   to widen this from a script, by design.
 - Paths resolve inside the asset library only.
+- `cpu` and `mem` are **aggregate** machine load, 0.0–1.0. There is
+  deliberately no way to ask what is *running*: `src/sysload.rs` reads
+  `/proc/stat` and `/proc/meminfo`, which contain nothing but totals, so
+  the limit is structural rather than a promise. Linux only for now;
+  elsewhere both read zero.
 
-Three worked examples live in
+Four worked examples live in
 [docs/examples/behaviors/](docs/examples/behaviors/) — a walk, a bob that
-accumulates through `state` and respects reduced motion, and one that
-reacts to the cursor. Copy them into your asset library to try them. A
+accumulates through `state` and respects reduced motion, one that reacts
+to the cursor, and one that paces faster as the machine gets busy. Copy them into your asset library to try them. A
 test compiles and runs every one of them, so they cannot drift from the
 API without CI noticing.
 

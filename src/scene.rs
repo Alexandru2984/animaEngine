@@ -271,6 +271,12 @@ impl Scene {
             None => (None, None),
         };
 
+        // Once per tick, not once per entity — every scripted character
+        // reads the same machine, and the sampler throttles anyway.
+        if let Some(h) = host.as_deref_mut() {
+            h.refresh_load();
+        }
+
         for entity in &mut self.entities {
             // Re-borrow per entity: the host is `&mut` and the loop needs
             // it each iteration.
