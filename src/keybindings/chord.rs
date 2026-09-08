@@ -44,7 +44,12 @@ impl KeyChord {
 
     /// Render the chord in canonical TOML form (`Ctrl+Shift+A`).
     pub fn canonical_str(&self) -> String {
-        self.modifier_prefix() + &self.key.canonical_str()
+        // `.as_str()` rather than `&…`: `smartstring` (pulled in by `rhai`)
+        // legally adds `impl Add<SmartString<_>> for String`, which gives
+        // `String`'s `Add` a second candidate. Deref coercion from `&String`
+        // to `&str` only fires when there is exactly one, so `s + &string`
+        // stops inferring crate-wide. Being explicit is immune to it.
+        self.modifier_prefix() + self.key.canonical_str().as_str()
     }
 
     /// The `Ctrl+Shift+Alt+Super+` prefix both renderings share. Order is
@@ -69,7 +74,8 @@ impl KeyChord {
 
     /// Render with arrow glyphs / abbreviations for the UI.
     pub fn display_str(&self) -> String {
-        self.modifier_prefix() + &self.key.display_str()
+        // See `canonical_str` for why this is `.as_str()`.
+        self.modifier_prefix() + self.key.display_str().as_str()
     }
 }
 

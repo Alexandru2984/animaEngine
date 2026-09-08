@@ -145,6 +145,7 @@ pollster = "0.4"
 egui-phosphor = "0.9"
 fluent = "0.17.0"
 unic-langid = "0.9.6"
+rhai = "1.26.0"
 
 # ── Linux/BSD overlay integration (cross-platform port, C2) ──────────
 # X11 (x11rb), native Wayland (wayland-client + smithay-client-toolkit),

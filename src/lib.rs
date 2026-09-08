@@ -23,6 +23,7 @@ pub mod platforms;
 pub mod presets;
 pub mod renderer;
 pub mod scene;
+pub mod scripting;
 pub mod shimeji;
 // The D-Bus single-instance handshake, the StatusNotifierItem tray and the
 // native wlr-layer-shell path are unix-desktop-only (zbus / ksni /
