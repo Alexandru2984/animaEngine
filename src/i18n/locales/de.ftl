@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = Der Hot-Reload-Worker wurde unerwartet beendet
 action-toggle-perf-overlay = Performance-Overlay umschalten
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Neu in 1.0
-whats-new-stable = animaEngine ist 1.0 — drei Release Candidates und ein externes Sicherheitsaudit liegen dahinter.
-whats-new-wayland-parity = Natives Wayland entspricht jetzt X11, inklusive Overlays pro Monitor.
-whats-new-durable-config = Deine Szene ist sicherer: Migrationen legen zuerst ein Backup an, und eine fehlerhafte Handbearbeitung überschreibt sie nicht mehr.
-whats-new-scaling = Die Overlay-Geometrie rechnet in physischen Pixeln, sodass fraktionale und HiDPI-Skalierung die ⚙-Schaltfläche nicht mehr verschieben.
+whats-new-header = Neu in 1.1
+whats-new-poke = Stups deine Maskottchen an — ein kurzes Tippen im Bearbeitungsmodus lässt sie reagieren.
+whats-new-startle = Maskottchen weichen jetzt zurück, wenn der Cursor näher kommt. Abschaltbar unter Darstellung.
+whats-new-wayland-drag = Natives Wayland unterstützt endlich Auswählen per Klick und das Ziehen deiner Figuren.
+whats-new-shortcuts = Strg+K öffnet wieder die Befehlspalette, und Textfelder können wieder Strg+A/C/V.
 onboarding-keybindings = Klicken Sie auf ein Kürzel, um es zu entfernen; drücken Sie eine Kombination, um ein neues aufzunehmen.
 onboarding-perf-overlay = Ctrl+Shift+` öffnet das Live-Performance-Overlay.
 appearance-reset-onboarding = Einführungshinweise zurücksetzen

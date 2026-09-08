@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = O processo de hot-reload parou inesperadamente
 action-toggle-perf-overlay = Alternar overlay de desempenho
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Novidades da 1.0
-whats-new-stable = animaEngine chegou à 1.0: três candidatas a versão e uma auditoria de segurança externa.
-whats-new-wayland-parity = O Wayland nativo agora equivale ao X11, incluindo sobreposições por monitor.
-whats-new-durable-config = Sua cena está mais segura: as migrações fazem backup antes, e uma edição manual errada não a sobrescreve mais.
-whats-new-scaling = A geometria da sobreposição usa pixels físicos, então escala fracionária e HiDPI não deslocam mais o botão ⚙.
+whats-new-header = Novidades da 1.1
+whats-new-poke = Cutuque seus mascotes — um toque rápido no modo de edição faz com que reajam.
+whats-new-startle = Os mascotes agora recuam quando o cursor se aproxima. Desative em Aparência.
+whats-new-wayland-drag = O Wayland nativo enfim permite selecionar com clique e arrastar seus personagens.
+whats-new-shortcuts = Ctrl+K abre novamente a paleta de comandos, e os campos de texto recuperaram Ctrl+A/C/V.
 onboarding-keybindings = Clique em um atalho para removê-lo; pressione uma combinação para gravar um novo.
 onboarding-perf-overlay = Pressione Ctrl+Shift+` para abrir o overlay de desempenho ao vivo.
 appearance-reset-onboarding = Restaurar dicas de boas-vindas

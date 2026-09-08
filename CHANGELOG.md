@@ -6,6 +6,136 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-09-08
+
+The first release after 1.0, and the first one shaped by actually *running*
+the application rather than only reading it. A harness that drives the
+overlay through a headless compositor — virtual pointer, virtual keyboard,
+screenshots — found eighteen defects the test suite could not see, several
+of which made whole features unreachable. Those fixes are the bulk of this
+release; two new interactions and a build-size option come with them.
+
+Config, D-Bus, CLI flags, accepted asset formats and XDG paths are
+unchanged, per [the stability policy](docs/stability-policy.md).
+
+### Added
+
+- **Poke** — tapping a mascot in edit mode (a press and release that
+  doesn't move) makes it react, instead of being swallowed as a
+  zero-distance drag.
+- **Hover-startle** — mascots recoil from an approaching cursor, with an
+  Appearance toggle to turn it off, translated in all ten locales.
+- **Entity selection and drag on the native Wayland backend.** Previously
+  left-click selected nothing there and `DragController` was never
+  constructed at all, so dragging a character — the core interaction of a
+  desktop-pet overlay — simply did not exist on that path. Its module doc
+  claimed otherwise by omission; the limitations list has been corrected.
+- **Optional `video` feature.** Building without it compiles OpenH264 out
+  entirely, for packagers who don't want the codec.
+- **An i18n guard that catches unused keys.**
+  `every_en_key_is_referenced_in_the_source` asserts every English message
+  is actually asked for by the code. The existing parity test proved
+  translations *existed*; nothing proved the app used them.
+- **A contrast guard for the ordinary palettes.** `theme.rs` asserted WCAG
+  ratios only for the two high-contrast themes, so nothing covered the
+  default Dark and Light.
+
+### Fixed
+
+Interaction and UI:
+
+- **Ctrl+K, and every other modifier chord, was dead on native Wayland.**
+  `RawInput` was built with a hardcoded `modifiers: Modifiers::default()`,
+  leaving `input.modifiers` permanently all-false. The command palette
+  never opened; egui's own text-editing chords (Ctrl+A/C/V/X/Z,
+  shift-selection) were inert in **every text field**; and the keybindings
+  tab, which reads the same field when capturing a chord, recorded
+  "Ctrl+Shift+X" as a bare "X".
+- **The context menu closed on the release of the click that opened it,**
+  making six entity actions reachable only while the button was held down.
+- **Keybinding rows painted over each other.** The "+ Add" button of any
+  action with two chords was completely covered — invisible and
+  unclickable — in every locale.
+- **Clicking blank space in the settings panel cleared the selection,** so
+  the panel discarded the entity whose Inspector you were reading.
+- **Ten complete locales still showed English.** The whole behaviour picker
+  and several other controls drew hardcoded strings while their
+  translations sat unused in all ten `.ftl` files.
+- **Inactive tab icons failed contrast in the Light theme** (2.11:1 against
+  a 3:1 requirement). The tab bar is icon-only, so the glyph is the
+  control's entire label.
+- Arrow glyphs (`→`, `↑↓`) rendered as missing-glyph boxes in proportional
+  text; hint banners clipped their text under the close button; the
+  keybindings grid broke words mid-token; the what's-new panel silently
+  dictated the width of the whole sidebar and greeted 1.0 users with "What's
+  new in 0.4"; window-awareness stayed clickable on backends that cannot
+  serve it.
+
+Native Wayland and X11:
+
+- `HideOverlay` did not hide the overlay; the scene wasn't synced into the
+  config before saving; the event wait was unbounded, so the loop could
+  stall on a quiet compositor; the input region ignored UI scale and
+  resize; soak metrics were silently a no-op on this backend.
+- Two wgpu/Wayland lifetime bugs: the surface could outlive its
+  `wl_surface` on a constructor error, and was dropped after its handles.
+- X11 sized its input region in points rather than physical pixels, left
+  the window-awareness poll unbounded, and leaked on input-shape failure.
+
+Correctness and robustness:
+
+- Entities were clamped to the primary window rather than the covered
+  desktop; the primary window ignored the monitor its own plan named; only
+  the primary surface was hidden on hide.
+- Hardening across the untrusted-input surfaces: bounded reads for config,
+  crash reports, Shimeji packs and the asset scanner; rejection of
+  symlinks, FIFOs and other non-regular files; `O_NOFOLLOW` on
+  `actions.xml`; config and crash files written `0600`; paths redacted from
+  warn/error logs; the decode cache keyed on the full descriptor; retained
+  animation frames capped; the H.264 `avcC` length-prefix width honoured.
+- Exit now runs through a single saving shutdown path; a failed save keeps
+  the config dirty so the retry survives; egui and per-monitor surfaces are
+  rebuilt on device recovery; flooding D-Bus commands are shed instead of
+  growing the event queue; entity ids can no longer collide; the alpha
+  hit-test mirrors correctly for left-facing sprites.
+
+Build and tests:
+
+- **`cargo test` deleted and rewrote 34 committed files.** The demo
+  generation test pointed the process at the repository, `remove_dir_all`'d
+  `assets/demo`, and regenerated it in place — leaving the working tree
+  dirty with a diff no review would catch (binary, one pixel, identical
+  size), and destroying the shipped assets outright if a generator panicked
+  midway. It now works in a scratch directory.
+- Line endings normalised to LF and pinned with `.gitattributes`; the stale
+  fuzz lockfile refreshed; GitHub Actions and the `actionlint` installer
+  pinned by commit SHA and content hash; the release pipeline split into an
+  unprivileged build and a separate attest/publish job.
+
+### Changed
+
+- **Cross-platform groundwork.** An `OverlayPlatform` trait now fronts the
+  window layer, the Linux/BSD overlay dependencies are target-gated under
+  `cfg(unix)`, and the X11 backend is enabled on the BSDs rather than Linux
+  alone. A Windows backend skeleton (`WinOverlay`, DX12 in the wgpu mask,
+  a layered-window present path) is included but **is not supported and has
+  never been built or run on Windows** — it cannot be meaningfully
+  cross-compiled from Linux, and no CI job covers it. Treat it as
+  scaffolding for the port, not as Windows support.
+- Internal consolidation: one keyboard dispatch shared by both window
+  branches, one delete path, one X11 input-shape builder, one animation
+  frame collector shared by GIF and WebP.
+
+### Notes
+
+- Nine of the ten locales are machine-translated for the strings added here
+  and in 1.0.0, and still want a native-speaker pass.
+- `docs/runtime-findings.md` records all eighteen runtime findings, how the
+  headless harness reproduces them, and the two traps that make driving a
+  Wayland compositor harder than it looks. One entry is a **retraction** of
+  a defect that turned out to be a measurement error, kept so the mistake
+  isn't repeated.
+
 ## [1.0.0] — 2026-08-18
 
 The 1.0 stable release. The culmination of the rc1 → rc3 bake — see those

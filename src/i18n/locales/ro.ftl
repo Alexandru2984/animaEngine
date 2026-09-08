@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = Procesul de reîncărcare la cald s-a oprit pe
 action-toggle-perf-overlay = Comută suprapunerea de performanță
 
 # ── Panou "What's new" (D.7) ──────────────────────────────────────────
-whats-new-header = Noutăți în 1.0
-whats-new-stable = animaEngine a ajuns la 1.0 — după trei versiuni candidat și un audit extern de securitate.
-whats-new-wayland-parity = Wayland nativ e acum la paritate cu X11, inclusiv suprapuneri pe fiecare monitor.
-whats-new-durable-config = Scena ta e mai în siguranță: migrările fac întâi o copie, iar o editare manuală greșită n-o mai suprascrie.
-whats-new-scaling = Geometria suprapunerii e în pixeli fizici, deci scalarea fracționară și HiDPI nu mai mută butonul ⚙.
+whats-new-header = Noutăți în 1.1
+whats-new-poke = Împunge-ți mascotele — o atingere scurtă în modul editare le face să reacționeze.
+whats-new-startle = Mascotele se feresc acum când cursorul se apropie. Poate fi oprit din Aspect.
+whats-new-wayland-drag = Wayland nativ acceptă în sfârșit selectarea cu clic și tragerea personajelor.
+whats-new-shortcuts = Ctrl+K redeschide paleta de comenzi, iar câmpurile de text au recăpătat Ctrl+A/C/V.
 
 # ── Hint-uri onboarding noi (D.7) ─────────────────────────────────────
 onboarding-keybindings = Apasă × pe un chord ca să-l elimini; apasă o combinație ca să înregistrezi una nouă.

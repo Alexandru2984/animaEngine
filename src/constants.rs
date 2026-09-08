@@ -116,4 +116,4 @@ pub fn max_total_decoded_bytes() -> usize {
 /// Lives here rather than in `ui::whats_new` so the config loader can
 /// stamp it on a fresh install without the config layer depending on the
 /// UI layer.
-pub const WHATS_NEW_VERSION: &str = "1.0.0";
+pub const WHATS_NEW_VERSION: &str = "1.1.0";

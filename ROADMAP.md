@@ -19,11 +19,18 @@ parallel feature tracks.
 
 ## Released
 
-**1.0.0 (current)** — the first stable release (2026-08). The config
-stability guarantee holds across the whole 1.x line; shipped after an
-RC bake (rc1 → rc3) and two external audit/hardening rounds. `.deb` +
-AppImage (built on glibc 2.35 for broad reach) are live on GitHub
-Releases; the Flathub/AUR bumps to 1.0.0 are in progress. Full history in
+**1.1.0 (current)** — the first release after 1.0 (2026-09), and the
+first shaped by running the overlay rather than only testing it. A
+headless-compositor harness with a virtual pointer and keyboard found
+eighteen defects the suite could not see; two new interactions (poke,
+hover-startle) ship alongside the fixes. No change to the 1.x config,
+D-Bus, CLI or path guarantees.
+
+**1.0.0** — the first stable release (2026-08). The config stability
+guarantee holds across the whole 1.x line; shipped after an RC bake
+(rc1 → rc3) and two external audit/hardening rounds. `.deb` + AppImage
+(built on glibc 2.35 for broad reach) are live on GitHub Releases; the
+Flathub/AUR bumps are in progress. Full history in
 [CHANGELOG.md](CHANGELOG.md).
 
 ## The road to 1.0 — delivered

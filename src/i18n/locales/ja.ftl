@@ -175,11 +175,11 @@ warning-hot-reload-disconnected = ホットリロードのワーカーが予期�
 action-toggle-perf-overlay = パフォーマンス表示を切り替え
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = 1.0 の新着情報
-whats-new-stable = animaEngine が 1.0 に — 3 つのリリース候補と外部セキュリティ監査を経ました。
-whats-new-wayland-parity = ネイティブ Wayland が X11 と同等になりました。モニターごとのオーバーレイも含みます。
-whats-new-durable-config = シーンがより安全に。移行時は先にバックアップを取り、手編集の誤りで上書きされなくなりました。
-whats-new-scaling = オーバーレイの座標が物理ピクセル基準になり、分数・HiDPI スケーリングで ⚙ ボタンがずれなくなりました。
+whats-new-header = 1.1 の新機能
+whats-new-poke = 編集モードで軽くタップすると、マスコットが反応します。
+whats-new-startle = カーソルが近づくとマスコットが後ずさりします。「表示」で無効にできます。
+whats-new-wayland-drag = ネイティブ Wayland でようやくクリック選択とドラッグに対応しました。
+whats-new-shortcuts = Ctrl+K でコマンドパレットが再び開き、テキスト欄で Ctrl+A/C/V が使えます。
 onboarding-keybindings = ショートカットをクリックすると削除、キーの組み合わせを押すと新規登録できます。
 onboarding-perf-overlay = Ctrl+Shift+` でライブのパフォーマンス表示を開けます。
 appearance-reset-onboarding = オンボーディングのヒントをリセット

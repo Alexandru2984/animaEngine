@@ -57,6 +57,28 @@
   </recommends>
 
   <releases>
+    <release version="1.1.0" date="2026-09-08">
+      <description>
+        <p>Two new interactions, and eighteen defects found by running the overlay on a screen instead of only testing it.</p>
+        <ul>
+          <li>Poke a mascot to make it react, and hover-startle so they recoil from the cursor.</li>
+          <li>Native Wayland gained click-to-select and dragging, which it never had.</li>
+          <li>Ctrl+K and every text-editing shortcut work again on native Wayland.</li>
+          <li>Keybinding rows no longer hide their own buttons; Light-theme tab icons meet contrast.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.0.0" date="2026-08-18">
+      <description>
+        <p>The stable 1.0 release, after a three-candidate bake and an external security audit.</p>
+        <ul>
+          <li>Click-through transparent overlay on X11 and native Wayland, GPU-accelerated.</li>
+          <li>Drop PNG / GIF / WebP / JPEG / MP4 to add characters; Shimeji pack import.</li>
+          <li>Durable config: atomic writes, migrations with backups, safe hot-reload.</li>
+          <li>Embedded SBOMs, build provenance attestation, and a strict dependency-audit gate.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.9.0" date="2026-06-20">
       <description>
         <p>Stability freeze: hardening, measurement, and a 1.0-grade audit — no new features.</p>

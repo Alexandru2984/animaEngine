@@ -189,11 +189,11 @@ warning-hot-reload-disconnected = The hot-reload worker stopped unexpectedly; in
 action-toggle-perf-overlay = Toggle perf overlay
 
 # ── What's new panel (D.7) ────────────────────────────────────────────
-whats-new-header = What's new in 1.0
-whats-new-stable = animaEngine is 1.0 — three release candidates and an external security audit behind it.
-whats-new-wayland-parity = Native Wayland now matches X11, per-monitor overlays included.
-whats-new-durable-config = Your scene is safer: migrations back up first, and a bad hand-edit can no longer overwrite it.
-whats-new-scaling = Overlay geometry is in physical pixels, so fractional and HiDPI scaling no longer misplace the ⚙ button.
+whats-new-header = What's new in 1.1
+whats-new-poke = Poke your mascots — a quick tap in edit mode makes them react.
+whats-new-startle = Mascots now recoil when the cursor comes close. Turn it off in Appearance.
+whats-new-wayland-drag = Native Wayland finally supports click-to-select and dragging your characters.
+whats-new-shortcuts = Ctrl+K opens the command palette again, and text fields regained Ctrl+A/C/V.
 
 # ── New onboarding hints (D.7) ────────────────────────────────────────
 onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.
