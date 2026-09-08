@@ -318,9 +318,8 @@ impl App {
         self.warnings.insert(w);
     }
 
-    /// Clear a warning — used when the underlying condition resolves
-    /// (e.g. the next hot-reload succeeds after a previous failure).
-    #[allow(dead_code)]
+    /// Clear a warning — called when the underlying condition resolves
+    /// (a hot-reload succeeding after the worker had disconnected).
     pub fn clear_warning(&mut self, w: Warning) {
         self.warnings.remove(&w);
     }

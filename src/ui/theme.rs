@@ -28,7 +28,6 @@ pub const SPACE_M: f32 = 8.0;
 pub const SPACE_L: f32 = 12.0;
 pub const SPACE_XL: f32 = 16.0;
 pub const SPACE_2XL: f32 = 24.0;
-pub const SPACE_3XL: f32 = 32.0;
 
 // ─── radius tokens — §4 ────────────────────────────────────────────────
 

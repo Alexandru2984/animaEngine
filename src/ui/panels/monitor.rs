@@ -207,28 +207,9 @@ pub(super) fn entity_count_label(count: usize) -> String {
 mod tests {
     use super::*;
 
-    fn two_monitors() -> Vec<MonitorInfo> {
-        vec![
-            MonitorInfo {
-                name: "eDP-1".into(),
-                x: 0,
-                y: 0,
-                width: 1920,
-                height: 1080,
-                scale_factor: 1.0,
-                is_primary: true,
-            },
-            MonitorInfo {
-                name: "HDMI-A-1".into(),
-                x: 1920,
-                y: 0,
-                width: 2560,
-                height: 1440,
-                scale_factor: 1.5,
-                is_primary: false,
-            },
-        ]
-    }
+    // Shared with `crate::monitor`'s own tests rather than kept as a
+    // second, byte-identical copy that could drift.
+    use crate::monitor::tests::left_right_setup as two_monitors;
 
     #[test]
     fn cycle_from_none_picks_first_monitor() {

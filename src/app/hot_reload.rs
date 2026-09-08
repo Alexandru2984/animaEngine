@@ -36,6 +36,12 @@ impl App {
                 Ok(Ok(result)) => {
                     self.apply_hot_reload(result);
                     self.hot_reload_rx = None;
+                    // A worker disconnect is transient — the loop spawns a
+                    // fresh one within a couple of seconds — so a reload
+                    // getting through means the condition has healed. The
+                    // banner promises it disappears when that happens; it
+                    // never did, because nothing called this.
+                    self.clear_warning(Warning::HotReloadDisconnected);
                 }
                 Ok(Err(reason)) => {
                     // The on-disk config couldn't be read/parsed/decoded

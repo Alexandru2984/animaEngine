@@ -75,10 +75,8 @@ pub const PLAY: &str = ph::PLAY;
 pub const PAUSE: &str = ph::PAUSE;
 
 // State / status (used inline with labels).
-pub const VISIBLE: &str = ph::EYE;
 pub const HIDDEN: &str = ph::EYE_SLASH;
 pub const GRAVITY: &str = ph::ARROW_FAT_DOWN; // physics on = pulled down
-pub const NO_GRAVITY: &str = ph::CIRCLE;
 
 // Severity (toasts, badges).
 pub const SUCCESS: &str = ph::CHECK_CIRCLE;

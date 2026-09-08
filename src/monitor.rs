@@ -378,7 +378,7 @@ pub fn plan_windows(mode: &MonitorMode, monitors: &[MonitorInfo]) -> WindowPlan 
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn mon(name: &str, x: i32, y: i32, w: u32, h: u32) -> MonitorInfo {
@@ -544,7 +544,11 @@ mod tests {
         }]
     }
 
-    fn left_right_setup() -> Vec<MonitorInfo> {
+    /// A 1920x1080 primary with a 2560x1440 @1.5 to its right.
+    ///
+    /// `pub(crate)` because the UI panel's tests need the same shape and
+    /// had their own byte-identical copy.
+    pub(crate) fn left_right_setup() -> Vec<MonitorInfo> {
         vec![
             MonitorInfo {
                 name: "eDP-1".into(),

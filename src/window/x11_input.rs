@@ -73,6 +73,29 @@ impl X11InputManager {
         }
     }
 
+    /// Ask the WM to add `_NET_WM_STATE_ABOVE` via ClientMessage.
+    ///
+    /// Some window managers honour the property alone; others only act on
+    /// the message. Both the initial hint application and the periodic
+    /// re-assert need it, and they were sending byte-identical messages
+    /// built twice.
+    fn send_above_client_message(&self, root: u32, net_wm_state: u32, above: u32) -> Result<()> {
+        let data = ClientMessageData::from([
+            1u32, // _NET_WM_STATE_ADD
+            above, 0, 1, // source = normal application
+            0,
+        ]);
+        let event = ClientMessageEvent::new(32, self.x11_window, net_wm_state, data);
+        send_event(
+            &self.conn,
+            false,
+            root,
+            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+            event,
+        )?;
+        Ok(())
+    }
+
     /// Apply EWMH hints to make the window behave as an overlay:
     /// - `_NET_WM_STATE_ABOVE` — always on top
     /// - `_NET_WM_STATE_SKIP_TASKBAR` — don't show in taskbar
@@ -102,21 +125,7 @@ impl X11InputManager {
             bytemuck::cast_slice(&states),
         )?;
 
-        // Also send ClientMessage to the WM to activate _NET_WM_STATE_ABOVE
-        // (some WMs require this in addition to the property)
-        let data = ClientMessageData::from([
-            1u32, // _NET_WM_STATE_ADD
-            above, 0, 1, // source = normal application
-            0,
-        ]);
-        let event = ClientMessageEvent::new(32, self.x11_window, net_wm_state, data);
-        send_event(
-            &self.conn,
-            false,
-            root,
-            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
-            event,
-        )?;
+        self.send_above_client_message(root, net_wm_state, above)?;
 
         self.conn.flush()?;
 
@@ -143,19 +152,7 @@ impl X11InputManager {
         let root = screen.root;
         let net_wm_state = self.intern_atom("_NET_WM_STATE")?;
         let above = self.intern_atom("_NET_WM_STATE_ABOVE")?;
-        let data = ClientMessageData::from([
-            1u32, // _NET_WM_STATE_ADD
-            above, 0, 1, // source = normal application
-            0,
-        ]);
-        let event = ClientMessageEvent::new(32, self.x11_window, net_wm_state, data);
-        send_event(
-            &self.conn,
-            false,
-            root,
-            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
-            event,
-        )?;
+        self.send_above_client_message(root, net_wm_state, above)?;
         self.conn.flush()?;
         tracing::debug!("Re-asserted _NET_WM_STATE_ABOVE");
         Ok(())

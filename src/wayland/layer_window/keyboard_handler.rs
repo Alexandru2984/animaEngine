@@ -45,6 +45,24 @@ fn is_unsafe_text_char(c: char) -> bool {
     )
 }
 
+impl WaylandState {
+    /// Queue one `egui::Event::Key`. Press and release differ only in the
+    /// flag, so they share this rather than the block being written twice.
+    fn push_key_event(&mut self, event: &KeyEvent, pressed: bool) {
+        let Some(key) = keysym_to_egui_key(event.keysym) else {
+            return;
+        };
+        let modifiers = modifiers_to_egui(self.last_modifiers);
+        self.pending_egui_events.push(egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers,
+        });
+    }
+}
+
 impl KeyboardHandler for WaylandState {
     fn enter(
         &mut self,
@@ -83,16 +101,7 @@ impl KeyboardHandler for WaylandState {
         _serial: u32,
         event: KeyEvent,
     ) {
-        if let Some(key) = keysym_to_egui_key(event.keysym) {
-            let modifiers = modifiers_to_egui(self.last_modifiers);
-            self.pending_egui_events.push(egui::Event::Key {
-                key,
-                physical_key: None,
-                pressed: true,
-                repeat: false,
-                modifiers,
-            });
-        }
+        self.push_key_event(&event, true);
         // UTF-8 text — already composed by xkbcommon. Push as a
         // separate Text event so text widgets get the character; chord
         // dispatch above already fired for shortcut-key combos.
@@ -128,16 +137,7 @@ impl KeyboardHandler for WaylandState {
         _serial: u32,
         event: KeyEvent,
     ) {
-        if let Some(key) = keysym_to_egui_key(event.keysym) {
-            let modifiers = modifiers_to_egui(self.last_modifiers);
-            self.pending_egui_events.push(egui::Event::Key {
-                key,
-                physical_key: None,
-                pressed: false,
-                repeat: false,
-                modifiers,
-            });
-        }
+        self.push_key_event(&event, false);
     }
 
     fn update_modifiers(

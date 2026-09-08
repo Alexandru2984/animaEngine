@@ -507,8 +507,3 @@ delegate_output!(WaylandState);
 delegate_pointer!(WaylandState);
 delegate_registry!(WaylandState);
 delegate_seat!(WaylandState);
-
-// Type-side hint to keep the `Arc` import live — once a sub-phase moves
-// state across threads, this becomes meaningful.
-#[allow(dead_code)]
-fn _arc_used(_x: Arc<()>) {}
