@@ -6,6 +6,42 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Scripted behaviors.** A character's motion can be a
+  [Rhai](https://rhai.rs) script from your asset library instead of one of
+  the five built-in behaviors, selectable from the Inspector with an
+  editor for the script's own tunables. Three worked examples ship in
+  [docs/examples/behaviors/](docs/examples/behaviors/); the recipe is in
+  CONTRIBUTING.
+  - Scripts are sandboxed and bounded: no filesystem, network or process
+    access, `import` and `eval` both switched off, and hard caps on
+    operations, call depth and container sizes. They run on the UI thread,
+    so a runaway script is aborted and the character holds still rather
+    than the overlay freezing.
+  - A broken script is reported once, not once per frame, and the failure
+    clears by itself when the file changes — edit and it recompiles, no
+    restart.
+  - Measured at ~2.3 µs per scripted entity per frame, roughly 66× a
+    native behavior but under 1% of a 60 Hz frame at the 64-entity cap.
+    The comparison runs in the scheduled benchmark canary.
+  - `docs/threat-model.md` gains a section saying plainly that a script is
+    code and a real widening of what an installed file can do.
+
+### Fixed
+
+- `CONTRIBUTING.md` still described the 0.9→1.0 feature freeze as active,
+  months after 1.0 and 1.1 shipped, so a contributor reading it would have
+  concluded features were still blocked.
+
+### Changed
+
+- Accepted RUSTSEC-2026-0249 (`smartstring` unmaintained), which arrives
+  transitively with the script engine. Unlike the other accepted
+  advisories this one is reachable, so the rationale is recorded
+  separately in `.github/workflows/ci.yml`: unmaintained is not
+  vulnerable, and script strings are capped inside a sandbox with no I/O.
+
 ## [1.1.0] — 2026-09-08
 
 The first release after 1.0, and the first one shaped by actually *running*
