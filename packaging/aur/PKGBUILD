@@ -12,7 +12,7 @@ license=('MIT')
 depends=('libxkbcommon-x11' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'libxrandr')
 makedepends=('cargo' 'cmake' 'librsvg' 'vulkan-headers' 'libxkbcommon' 'libx11' 'libxcb')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('5a2f387143f02bf00af161f2f0b18adcaa24647d78d000d98dbca8282744e825')
+sha256sums=('c6c8d00986960422e646c242938a1e3065cbc0c5710d89ac074cb9a202a19a50')
 
 _srcdir="animaEngine-$pkgver"
 
