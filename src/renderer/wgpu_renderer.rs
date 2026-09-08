@@ -1,13 +1,13 @@
 //! GPU renderer, split for multi-window (T.7).
 //!
 //! Two halves, per the decision record in `docs/architecture.md`
-//! Â§"Multi-window rendering":
+//! §"Multi-window rendering":
 //!
-//! - [`GpuShared`] â€” one per process: instance, device, queue,
+//! - [`GpuShared`] — one per process: instance, device, queue,
 //!   pipeline, bind-group layouts and the **entity texture cache**.
 //!   Entity textures are window-agnostic; an entity moving between
 //!   monitors must never re-upload its frames.
-//! - [`SurfaceState`] â€” one per overlay window: the surface, its
+//! - [`SurfaceState`] — one per overlay window: the surface, its
 //!   configuration, the projection uniform (depends on window size)
 //!   and the per-frame dynamic vertex buffer.
 //!
@@ -39,10 +39,10 @@ pub struct GpuShared {
     pub uniform_bind_group_layout: wgpu::BindGroupLayout,
     pub texture_bind_group_layout: wgpu::BindGroupLayout,
     pub index_buffer: wgpu::Buffer,
-    /// Cached GPU textures per entity id â€” shared across windows.
+    /// Cached GPU textures per entity id — shared across windows.
     pub textures: HashMap<String, GpuTexture>,
     /// Surface format the pipeline targets. Every window's surface is
-    /// configured with this same format â€” capability divergence across
+    /// configured with this same format — capability divergence across
     /// monitors is not a thing on the Linux backends we ship (Vulkan /
     /// GL pick formats per adapter, not per output).
     pub surface_format: wgpu::TextureFormat,
@@ -82,7 +82,7 @@ impl GpuShared {
     }
 
     /// Estimated GPU memory held by the entity texture cache, in bytes
-    /// (RGBA8 â†’ width Ă— height Ă— 4 per texture). The UI/edit textures
+    /// (RGBA8 → width × height × 4 per texture). The UI/edit textures
     /// are tiny and omitted.
     pub fn texture_bytes(&self) -> u64 {
         self.textures
@@ -95,9 +95,13 @@ impl GpuShared {
 /// Where a window's rendered frames go.
 ///
 /// On X11/Wayland that is an ordinary swapchain the compositor presents.
-/// Windows can't use one for a *transparent* overlay â€” see
-/// [`crate::renderer::win_layered`] for the measurement and the reason â€”
-/// so it renders offscreen and blits with `UpdateLayeredWindow` instead.
+/// Windows can't use one for a *transparent* overlay — see the
+/// `renderer::win_layered` module for the measurement and the reason — so
+/// it renders offscreen and blits with `UpdateLayeredWindow` instead.
+///
+/// Deliberately not an intra-doc link: that module is `#[cfg(windows)]`,
+/// so the link cannot resolve on any other target and fails the rustdoc
+/// job, which runs `--document-private-items` under `-D warnings`.
 enum Target {
     Swapchain {
         surface: wgpu::Surface<'static>,
@@ -119,7 +123,7 @@ pub enum AcquiredFrame {
 }
 
 impl AcquiredFrame {
-    /// The colour target for this frame â€” the sprite pass renders into it
+    /// The colour target for this frame — the sprite pass renders into it
     /// and egui paints on top of the same one.
     pub fn create_view(&self) -> wgpu::TextureView {
         let desc = wgpu::TextureViewDescriptor::default();
@@ -141,7 +145,7 @@ pub struct SurfaceState {
     /// Pre-allocated vertex buffer for dynamic quad drawing.
     /// Reused every frame via `queue.write_buffer()`.
     dynamic_vertex_buffer: wgpu::Buffer,
-    /// `true` while the scene is over the quad cap â€” gates the
+    /// `true` while the scene is over the quad cap — gates the
     /// overflow warning to once per episode instead of once per frame.
     quad_overflow_logged: bool,
 }
@@ -153,7 +157,7 @@ pub struct WgpuRenderer {
     pub primary: SurfaceState,
 }
 
-/// Generate a selection highlight frame â€” a rounded rectangle border with glow.
+/// Generate a selection highlight frame — a rounded rectangle border with glow.
 fn generate_selection_frame(size: u32) -> Frame {
     let mut rgba = Vec::with_capacity((size * size * 4) as usize);
     let border_w = 3.0f32;
@@ -193,7 +197,7 @@ fn generate_selection_frame(size: u32) -> Frame {
             };
 
             if dist_to_edge < border_w {
-                // Solid border â€” cyan-ish
+                // Solid border — cyan-ish
                 let edge_factor = (dist_to_edge / border_w).max(0.0);
                 let a = (220.0 * (1.0 - edge_factor * 0.3)) as u8;
                 rgba.extend_from_slice(&[80, 200, 255, a]);
@@ -203,7 +207,7 @@ fn generate_selection_frame(size: u32) -> Frame {
                 let a = (100.0 * glow_factor * glow_factor) as u8;
                 rgba.extend_from_slice(&[80, 200, 255, a]);
             } else {
-                // Interior â€” transparent
+                // Interior — transparent
                 rgba.extend_from_slice(&[0, 0, 0, 0]);
             }
         }
@@ -221,13 +225,13 @@ fn generate_selection_frame(size: u32) -> Frame {
 ///
 /// There is no Windows exception here, and it was worth one attempt to
 /// find out: DXGI reports only `Opaque` for a swapchain, and winit's
-/// `with_transparent(true)` does call `DwmEnableBlurBehindWindow` â€” but
+/// `with_transparent(true)` does call `DwmEnableBlurBehindWindow` — but
 /// DWM does not honour per-pixel alpha for a flip-model swapchain, so
 /// taking `Opaque` there paints the desktop black behind the sprites,
 /// exactly the failure this guard exists for. The deeper reason is
 /// upstream: in wgpu 24 both the DX12 and GL backends hardcode
 /// `composite_alpha_modes: [Opaque]`, and DX12 hardcodes the swapchain to
-/// `DXGI_ALPHA_MODE_IGNORE` â€” no backend can produce a transparent surface
+/// `DXGI_ALPHA_MODE_IGNORE` — no backend can produce a transparent surface
 /// on Windows. A transparent overlay there needs a different presentation
 /// path (see docs/cross-platform-plan.md, C4).
 ///
@@ -246,18 +250,19 @@ fn pick_alpha_mode(available: &[wgpu::CompositeAlphaMode]) -> Result<wgpu::Compo
          An opaque overlay would cover the desktop with black. \
          On Linux: make sure a compositor is running (picom on bare X11), \
          or try the other backend (ANIMA_USE_WAYLAND_NATIVE=1 / GDK_BACKEND=x11). \
-         On Windows this is expected for now â€” the transparent presentation \
+         On Windows this is expected for now — the transparent presentation \
          path is still to come (C4)."
     )))
 }
 
 impl GpuShared {
     /// Build the process-wide GPU state. `surface` is only used for
-    /// adapter compatibility and capability queries â€” it is not
+    /// adapter compatibility and capability queries — it is not
     /// consumed; the caller wraps it into a [`SurfaceState`] next.
     /// `surface` is `None` on the Windows overlay path, which has no
-    /// swapchain at all (see [`crate::renderer::win_layered`]); the format
-    /// is then fixed by the blit rather than negotiated with a compositor.
+    /// swapchain at all (see the `renderer::win_layered` module — plain
+    /// text because it is `#[cfg(windows)]`); the format is then fixed by
+    /// the blit rather than negotiated with a compositor.
     fn new(instance: wgpu::Instance, surface: Option<&wgpu::Surface<'static>>) -> Result<Self> {
         let request = |force_fallback_adapter| {
             pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
@@ -271,7 +276,7 @@ impl GpuShared {
         // adapters from an ordinary request, so a Windows box with no GPU
         // driver (a VM, "Microsoft Basic Display Adapter", a remote session)
         // would never reach WARP and the overlay simply wouldn't launch.
-        // Software rendering is slow, not broken â€” and for a mostly-static
+        // Software rendering is slow, not broken — and for a mostly-static
         // desktop overlay that is a fair trade. Linux already finds
         // llvmpipe through the ordinary request, so this changes nothing
         // there.
@@ -326,7 +331,7 @@ impl GpuShared {
             }
             // The layered blit fixes both: the DIB is 32-bpp sRGB BGRA, and
             // nothing negotiates alpha because DWM composites the bitmap's
-            // own channel. `alpha_mode` is inert here â€” no surface consumes it.
+            // own channel. `alpha_mode` is inert here — no surface consumes it.
             #[cfg(windows)]
             None => (
                 crate::renderer::win_layered::LAYERED_FORMAT,
@@ -518,7 +523,7 @@ impl GpuShared {
     /// Scene replacement (preset Replace, palette Replace, hot-reload)
     /// swaps `Scene::entities` wholesale; without this sweep the old
     /// entities' textures stay in the cache forever and VRAM grows on
-    /// every Replace. Called once per frame from both render loops â€”
+    /// every Replace. Called once per frame from both render loops —
     /// the `len` gate keeps the steady-state cost at two integer
     /// compares (the texture map can never legitimately be larger than
     /// the entity list, since ids are unique per entity).
@@ -637,7 +642,7 @@ impl SurfaceState {
         });
 
         // --- Pre-allocated dynamic vertex buffer ---
-        // MAX_QUADS quads Ă— 4 vertices per quad Ă— sizeof(SpriteVertex)
+        // MAX_QUADS quads × 4 vertices per quad × sizeof(SpriteVertex)
         let vb_size = (MAX_QUADS * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
         let dynamic_vertex_buffer = shared.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Dynamic Vertex Buffer"),
@@ -730,7 +735,7 @@ impl SurfaceState {
     /// `(0.0, 0.0)`, which is also the pre-0.6 behaviour.
     ///
     /// Returns the acquired `SurfaceTexture` **without** calling
-    /// `present()` â€” the caller can paint an egui overlay on top of
+    /// `present()` — the caller can paint an egui overlay on top of
     /// the same texture before presenting.
     ///
     /// Returns `wgpu::SurfaceError` directly (not `AnimaError`)
@@ -749,7 +754,7 @@ impl SurfaceState {
             Target::Swapchain { surface, .. } => {
                 AcquiredFrame::Swapchain(surface.get_current_texture()?)
             }
-            // Cloning is a handle bump, not a copy â€” the texture itself
+            // Cloning is a handle bump, not a copy — the texture itself
             // stays owned by the target across frames.
             #[cfg(windows)]
             Target::Layered(layered) => AcquiredFrame::Offscreen(layered.texture().clone()),
@@ -767,7 +772,7 @@ impl SurfaceState {
 
         // Build a draw list: (quad_index, bind_group reference)
         // `texture_entity_id` borrows straight from `entities` instead
-        // of cloning each entity's `String` id â€” this list is rebuilt
+        // of cloning each entity's `String` id — this list is rebuilt
         // every frame, so a clone here is a heap alloc per entity per
         // frame for no reason; `HashMap<String, _>::get` takes `&str`
         // through `Borrow`, so the borrow is all the lookup needs.
@@ -868,8 +873,8 @@ impl SurfaceState {
             });
             // quad_idx += 1; // last UI quad, no need to increment
         }
-        // The toggle button (âš™) is rendered as a real egui Button in
-        // App's egui pass â€” no sprite needed here.
+        // The toggle button (⚙) is rendered as a real egui Button in
+        // App's egui pass — no sprite needed here.
 
         // --- Render pass ---
         {
@@ -927,7 +932,7 @@ impl SurfaceState {
 
         shared.queue.submit(std::iter::once(encoder.finish()));
 
-        // Hand the texture back to the caller â€” egui may paint on it
+        // Hand the texture back to the caller — egui may paint on it
         // before present() is finally invoked.
         Ok(output)
     }
@@ -941,7 +946,7 @@ impl WgpuRenderer {
         let window_width = size.width.max(1);
         let window_height = size.height.max(1);
 
-        // Backend mask, not `Backends::all()` â€” we only claim the ones the
+        // Backend mask, not `Backends::all()` — we only claim the ones the
         // renderer is actually exercised against. Vulkan-first with a GL
         // fallback is right for Linux/BSD; on Windows DX12 has to lead, and
         // has to be in the mask at all: the OS ships it, while a Vulkan ICD
@@ -973,7 +978,7 @@ impl WgpuRenderer {
     }
 
     /// Construct from a pre-built `Instance` and `Surface`. This is the
-    /// backend-agnostic entry point â€” the native Wayland path (and any
+    /// backend-agnostic entry point — the native Wayland path (and any
     /// future backend) calls this directly after attaching a surface
     /// to its own window handle.
     pub fn from_instance_surface(
@@ -1065,14 +1070,14 @@ mod alpha_mode_tests {
 
     #[test]
     fn nothing_transparent_at_all_is_always_an_error() {
-        // Not even `Opaque` on offer â€” no platform has a story for this.
+        // Not even `Opaque` on offer — no platform has a story for this.
         assert!(pick_alpha_mode(&[Auto]).is_err());
         assert!(pick_alpha_mode(&[]).is_err());
     }
 
     // `[Opaque]` is exactly what DXGI (and wgpu's GL backend) report on
     // Windows. It must still be refused: taking it paints the desktop
-    // black behind the sprites â€” measured, not assumed.
+    // black behind the sprites — measured, not assumed.
     #[test]
     fn opaque_only_is_refused_on_every_platform() {
         let err = pick_alpha_mode(&[Opaque]).unwrap_err().to_string();
