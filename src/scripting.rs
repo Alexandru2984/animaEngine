@@ -818,6 +818,55 @@ mod tests {
         assert!(host.scopes.contains_key("a"));
     }
 
+    /// Every example script shipped in the docs must actually compile and
+    /// run against the current API. Documentation that drifts from the
+    /// code is worse than none, and these are the first thing a script
+    /// author will copy.
+    #[test]
+    fn shipped_example_scripts_compile_and_run() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/examples/behaviors");
+        let entries: Vec<_> = std::fs::read_dir(&dir)
+            .expect("examples directory missing")
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|x| x == "rhai"))
+            .collect();
+        assert!(!entries.is_empty(), "no example scripts found in {dir:?}");
+
+        // Every tunable any shipped example documents, so each runs with
+        // the values its header describes rather than a missing-key error.
+        let params: BTreeMap<String, f64> = [
+            ("speed", 60.0),
+            ("amplitude", 20.0),
+            ("period", 2.0),
+            ("radius", 200.0),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect();
+
+        for path in entries {
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            let source = std::fs::read_to_string(&path).unwrap();
+            let mut host = ScriptHost::new();
+            host.compile(&name, &source)
+                .unwrap_or_else(|e| panic!("example {name} does not compile: {e}"));
+
+            // Run a few frames, with and without a cursor, so a script
+            // that only works in one of those states is caught.
+            let mut scope = rhai::Scope::new();
+            for frame in 0..3 {
+                let mut inp = inputs();
+                inp.elapsed = frame as f32 / 60.0;
+                if frame == 1 {
+                    inp.cursor = Some((120.0, 210.0));
+                }
+                host.run(&name, &mut scope, &inp, &params)
+                    .unwrap_or_else(|e| panic!("example {name} failed at frame {frame}: {e}"));
+            }
+        }
+    }
+
     #[test]
     fn forget_makes_a_script_unavailable_again() {
         let mut host = ScriptHost::new();

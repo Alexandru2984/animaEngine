@@ -187,6 +187,71 @@ That's it — the rest of the engine (config save / load, hot-reload,
 toasts, the inspector) picks it up automatically because everything
 flows through `Behavior` and `BehaviorState`.
 
+### Or write it as a script instead
+
+Most motion doesn't need a new enum variant. `Behavior::Script` runs a
+[Rhai](https://rhai.rs) file from your asset library, so a new movement
+is a text file rather than a patch:
+
+```rhai
+// behaviors/lazy_walk.rhai — walk right, wrap at the edge.
+x += params.speed * dt;
+if x > bounds_max_x - w {
+    x = bounds_min_x;
+}
+```
+
+Point an entity at it from the Inspector's Behavior section, or in
+`config.toml`:
+
+```toml
+[characters.behavior]
+type = "script"
+path = "behaviors/lazy_walk.rhai"
+
+[characters.behavior.params]
+speed = 60.0
+```
+
+The script is **top-level statements**, not a function — Rhai passes map
+arguments by value, so a `fn tick(e)` mutating `e.x` would move a copy and
+lose the change silently.
+
+Readable: `dt`, `w`, `h`, `bounds_min_x` / `bounds_min_y` / `bounds_max_x`
+/ `bounds_max_y`, `cursor_x`, `cursor_y`, `has_cursor`, `elapsed`,
+`reduced_motion`, and your own `params`. Writable: `x` and `y` — integers
+are fine, `x = 100` works. For state that has to survive between frames,
+use the `state` map; a top-level `let` will not, because Rhai unwinds the
+scope when a run ends:
+
+```rhai
+if !state.contains("phase") { state.phase = 0.0; }
+state.phase += dt;
+y = state.phase.sin() * 20.0 + 400.0;
+```
+
+Constraints worth knowing before you debug something surprising:
+
+- Scripts run **on the UI thread, once per entity per frame**, so
+  execution is capped. A runaway script is aborted, not tolerated —
+  the entity holds still and you get one toast.
+- A failure is **sticky until the file changes.** Fix the file and it
+  recompiles by itself; no restart.
+- The sandbox is deny-by-default: no filesystem, no network, no process
+  spawn, and `import` and `eval` are both switched off. There is no way
+  to widen this from a script, by design.
+- Paths resolve inside the asset library only.
+
+Three worked examples live in
+[docs/examples/behaviors/](docs/examples/behaviors/) — a walk, a bob that
+accumulates through `state` and respects reduced motion, and one that
+reacts to the cursor. Copy them into your asset library to try them. A
+test compiles and runs every one of them, so they cannot drift from the
+API without CI noticing.
+
+Details and the reasoning are in
+[docs/plans/v1.2-scripting.md](docs/plans/v1.2-scripting.md).
+
 ## Submitting a change
 
 1. Fork the repo, branch from `main`.

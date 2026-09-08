@@ -90,6 +90,58 @@ fn bench_scene_tick(c: &mut Criterion) {
     g.finish();
 }
 
+/// A scene where every entity runs the same behavior script, for
+/// comparison against `scene_tick` at the same count.
+///
+/// The script is the closest equivalent of `Behavior::WalkAround` that
+/// the exposed API allows, so the two numbers measure interpreter
+/// overhead rather than different amounts of work.
+fn build_scripted_scene(n: usize, root: &std::path::Path) -> Scene {
+    let mut scene = build_scene(n);
+    for entity in &mut scene.entities {
+        entity.behavior = Behavior::Script {
+            path: "bench.rhai".to_string(),
+            params: [("speed".to_string(), 60.0)].into_iter().collect(),
+        };
+    }
+    std::fs::write(
+        root.join("bench.rhai"),
+        "x += params.speed * dt;\n\
+         if x > bounds_max_x - w { x = bounds_min_x; }\n",
+    )
+    .unwrap();
+    scene
+}
+
+/// Scripted vs native at the same entity counts.
+///
+/// The design for this feature said the cost had to be measured rather
+/// than assumed, because `Behavior::tick` runs on the UI thread once per
+/// entity per frame. Compare each number against `scene_tick` at the same
+/// parameter: the ratio is what a script costs, and `MAX_ENTITIES` (64)
+/// is the count that matters for the worst case.
+fn bench_scripted_scene_tick(c: &mut Criterion) {
+    let root = std::env::temp_dir().join(format!("anima-bench-scripts-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+
+    let mut g = c.benchmark_group("scripted_scene_tick");
+    for &n in &[10usize, 50, 100] {
+        let mut scene = build_scripted_scene(n, &root);
+        let mut host = anima_engine::scripting::ScriptHost::new();
+        g.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
+            b.iter(|| {
+                scene.tick(
+                    anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
+                    Some((960.0, 540.0)),
+                    Some((&mut host, root.as_path())),
+                )
+            });
+        });
+    }
+    g.finish();
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 fn bench_visible_entities(c: &mut Criterion) {
     let mut scene = build_scene(100);
     scene.tick(
@@ -165,6 +217,7 @@ fn bench_group_transform(c: &mut Criterion) {
 criterion_group!(
     benches,
     bench_scene_tick,
+    bench_scripted_scene_tick,
     bench_visible_entities,
     bench_cache_codec,
     bench_plan_windows,

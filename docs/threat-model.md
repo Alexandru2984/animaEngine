@@ -241,6 +241,42 @@ the change applies live, no rebuild — or, for a binary that never links
 the bridge at all, depend on `egui-winit` without the `accesskit`
 feature and rebuild.
 
+### Behavior scripts — sandboxed, bounded, but still code (1.2.0)
+
+`Behavior::Script` executes a Rhai file from the asset library. This is a
+real widening of what a file the user installs can do, and it deserves
+saying plainly rather than folding into "user-chosen content": until now
+the worst a dropped asset could do was exercise the decoders. A script
+runs.
+
+What contains it:
+
+- **Deny by default.** Rhai's language has no filesystem, network or
+  process access, and the two host-side doors that could reintroduce
+  them are shut explicitly: `import`'s default resolver reads files from
+  disk, so it is replaced with one that resolves nothing, and `eval` is
+  disabled so a script cannot assemble code at runtime. Neither can be
+  re-opened from inside a script.
+- **Bounded execution.** Operations, call depth, and the sizes of
+  strings, arrays and maps are all capped. This is load-bearing rather
+  than tidy: scripts run on the UI thread once per entity per frame, so
+  an unbounded one would freeze the overlay rather than merely misbehave.
+  A script that exceeds its budget is aborted and the entity holds still.
+- **Contained paths.** Script paths resolve through
+  `drop_validate::resolve_library_asset`, the same canonicalize-and-reject
+  helper assets use, so a script cannot be loaded from outside the
+  library. `Behavior::sanitize` additionally clears any path containing
+  `..`, a leading `/`, or a NUL before it gets that far.
+- **Bounded reads.** The file itself is refused if it is not a regular
+  file or is larger than 64 KB.
+- **No non-finite escape.** A script can only write `x` and `y`, and a
+  non-finite result is discarded in favour of the previous position, so
+  it cannot push `NaN` into GPU quad coordinates.
+
+What is **not** prevented: a script can move a character somewhere
+annoying, or make it behave strangely. That is the feature. The guarantee
+is confinement and termination, not good taste.
+
 ### No network
 
 The binary never makes outbound network connections. No telemetry,
