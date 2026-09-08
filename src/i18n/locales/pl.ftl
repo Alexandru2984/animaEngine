@@ -46,6 +46,8 @@ behavior-bounce-axis = Oś
 behavior-bounce-horizontal = Poziomo
 behavior-bounce-vertical = Pionowo
 behavior-bounce-both = Oba (okrąg)
+behavior-script = Skrypt
+behavior-script-unavailable = Zachowania skryptowe jeszcze nie działają — ta postać została skonfigurowana ręcznie.
 
 scene-empty-headline = Pusta scena
 scene-empty-hint = Przeciągnij plik PNG / GIF / WebP / MP4 na nakładkę — lub wypróbuj preset poniżej.

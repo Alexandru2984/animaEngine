@@ -46,6 +46,8 @@ behavior-bounce-axis = As
 behavior-bounce-horizontal = Horizontaal
 behavior-bounce-vertical = Verticaal
 behavior-bounce-both = Beide (cirkel)
+behavior-script = Script
+behavior-script-unavailable = Scriptgedrag werkt nog niet — dit figuur is handmatig ingesteld.
 
 scene-empty-headline = Lege scène
 scene-empty-hint = Sleep een PNG / GIF / WebP / MP4 naar de overlay — of probeer hieronder een preset.

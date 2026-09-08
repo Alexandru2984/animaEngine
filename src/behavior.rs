@@ -77,6 +77,31 @@ pub enum Behavior {
         #[serde(default)]
         axis: BounceAxis,
     },
+    /// Motion driven by a user-supplied script rather than a variant
+    /// baked into this enum. See `docs/plans/v1.2-scripting.md`.
+    ///
+    /// **Not yet executed.** The variant exists so a config carrying it
+    /// round-trips and so older scenes are provably unaffected by its
+    /// addition; until the engine lands (sub-phase 2) it ticks as
+    /// [`Behavior::Idle`], which is also the safe fallback a broken
+    /// script falls back to later.
+    Script {
+        /// Script location, relative to the asset-library root. Resolved
+        /// through `drop_validate::resolve_library_asset` when the engine
+        /// lands, so it cannot escape the library — scripts get no path
+        /// logic of their own.
+        #[serde(default)]
+        path: String,
+        /// Author-defined tunables, passed through to the script.
+        ///
+        /// Numbers only, deliberately: the design sketched a free-form
+        /// table, but every tunable a motion script wants is a scalar,
+        /// and restricting it keeps `sanitize` able to reject non-finite
+        /// values — the whole point of that pass. Widen it only if a real
+        /// script needs it.
+        #[serde(default)]
+        params: std::collections::BTreeMap<String, f64>,
+    },
 }
 
 impl Behavior {
@@ -141,6 +166,22 @@ impl Behavior {
                 // divide-by-zero; applying it here too means the stored
                 // config matches what actually runs.
                 *period_sec = finite_clamp(*period_sec, 0.05, 3600.0, default_bounce_period());
+            }
+            Behavior::Script { path, params } => {
+                // A hand-edited config is exactly how a hostile path gets
+                // here, so drop anything that isn't a plain relative path
+                // now rather than relying on the resolver alone. Belt and
+                // braces: the resolver still canonicalises and contains.
+                if path.contains("..") || path.starts_with('/') || path.contains('\0') {
+                    path.clear();
+                }
+                // Non-finite tunables would reach the script and, through
+                // it, entity positions — the same path `finite_clamp`
+                // exists to block for the native variants.
+                params.retain(|_, v| v.is_finite());
+                for v in params.values_mut() {
+                    *v = v.clamp(-1.0e9, 1.0e9);
+                }
             }
         }
     }
@@ -300,6 +341,11 @@ impl Behavior {
     ) {
         match self {
             Behavior::Idle => {}
+            // Ticks as Idle until the script engine lands (sub-phase 2).
+            // Deliberately the same no-op the fallback path will use, so
+            // a scene carrying `type = "script"` today behaves exactly as
+            // it will when a script fails to load tomorrow.
+            Behavior::Script { .. } => {}
             Behavior::WalkAround { speed } => {
                 *entity_x += state.walk_direction * speed * ctx.dt;
 
@@ -911,5 +957,154 @@ mod bounce_tests {
         .unwrap();
         let back: W = toml::from_str(&s).unwrap();
         assert_eq!(back.behavior, b);
+    }
+}
+
+#[cfg(test)]
+mod script_tests {
+    use super::*;
+
+    fn ctx(dt: f32) -> TickContext {
+        TickContext {
+            sprite_width: 64.0,
+            sprite_height: 64.0,
+            bounds: crate::monitor::DesktopBounds::from_size(1920.0, 1080.0),
+            cursor: None,
+            dt,
+            reduced_motion: false,
+        }
+    }
+
+    // ── Script variant (sub-phase 1) ──────────────────────────────────
+    //
+    // The point of landing the variant before the engine is to prove the
+    // config layer is unaffected. These are that proof.
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Wrap {
+        behavior: Behavior,
+    }
+
+    #[test]
+    fn script_behavior_round_trips_through_toml() {
+        let b = Behavior::Script {
+            path: "behaviors/lazy.rhai".to_string(),
+            params: [("speed".to_string(), 40.0)].into_iter().collect(),
+        };
+        let s = toml::to_string(&Wrap {
+            behavior: b.clone(),
+        })
+        .unwrap();
+        assert!(s.contains(r#"type = "script""#), "tag not snake_case: {s}");
+        let back: Wrap = toml::from_str(&s).unwrap();
+        assert_eq!(back.behavior, b);
+    }
+
+    /// Every field defaulted, because a hand-written config is allowed to
+    /// omit them and serde must not fail the whole scene over it.
+    #[test]
+    fn script_behavior_accepts_a_bare_tag() {
+        let back: Wrap = toml::from_str("[behavior]\ntype = \"script\"\n").unwrap();
+        assert_eq!(
+            back.behavior,
+            Behavior::Script {
+                path: String::new(),
+                params: Default::default(),
+            }
+        );
+    }
+
+    /// The regression this sub-phase exists to rule out: adding a variant
+    /// must not change how any pre-existing config parses.
+    #[test]
+    fn adding_script_leaves_existing_behaviors_parsing_unchanged() {
+        for (toml_src, expected) in [
+            ("type = \"idle\"", Behavior::Idle),
+            (
+                "type = \"walk_around\"\nspeed = 80.0",
+                Behavior::WalkAround { speed: 80.0 },
+            ),
+            (
+                "type = \"bounce\"\namplitude_px = 12.0\nperiod_sec = 1.0\naxis = \"both\"",
+                Behavior::Bounce {
+                    amplitude_px: 12.0,
+                    period_sec: 1.0,
+                    axis: BounceAxis::Both,
+                },
+            ),
+        ] {
+            let back: Wrap = toml::from_str(&format!("[behavior]\n{toml_src}\n")).unwrap();
+            assert_eq!(back.behavior, expected, "changed parse of: {toml_src}");
+        }
+    }
+
+    #[test]
+    fn sanitize_rejects_escaping_script_paths() {
+        for bad in ["../../etc/passwd", "/etc/passwd", "a/../../b"] {
+            let mut b = Behavior::Script {
+                path: bad.to_string(),
+                params: Default::default(),
+            };
+            b.sanitize();
+            let Behavior::Script { path, .. } = &b else {
+                unreachable!()
+            };
+            assert!(path.is_empty(), "kept an escaping path: {bad}");
+        }
+    }
+
+    #[test]
+    fn sanitize_keeps_plain_relative_script_paths() {
+        let mut b = Behavior::Script {
+            path: "behaviors/ok.rhai".to_string(),
+            params: Default::default(),
+        };
+        b.sanitize();
+        let Behavior::Script { path, .. } = &b else {
+            unreachable!()
+        };
+        assert_eq!(path, "behaviors/ok.rhai");
+    }
+
+    /// Non-finite tunables would reach entity positions through the
+    /// script, which is exactly what `finite_clamp` blocks for the
+    /// native variants.
+    #[test]
+    fn sanitize_drops_non_finite_script_params() {
+        let mut b = Behavior::Script {
+            path: "x.rhai".to_string(),
+            params: [
+                ("nan".to_string(), f64::NAN),
+                ("inf".to_string(), f64::INFINITY),
+                ("huge".to_string(), 1.0e30),
+                ("ok".to_string(), 12.5),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        b.sanitize();
+        let Behavior::Script { params, .. } = &b else {
+            unreachable!()
+        };
+        assert_eq!(params.get("ok"), Some(&12.5));
+        assert!(!params.contains_key("nan"));
+        assert!(!params.contains_key("inf"));
+        assert_eq!(params.get("huge"), Some(&1.0e9), "runaway value not capped");
+    }
+
+    /// Until the engine lands, a scripted entity must sit perfectly
+    /// still — the same no-op a failed script will fall back to.
+    #[test]
+    fn script_behavior_ticks_as_idle_for_now() {
+        let b = Behavior::Script {
+            path: "x.rhai".to_string(),
+            params: Default::default(),
+        };
+        let mut state = BehaviorState::default();
+        let (mut x, mut y) = (100.0_f32, 200.0_f32);
+        for _ in 0..10 {
+            b.tick(&mut state, &mut x, &mut y, &ctx(1.0 / 60.0));
+        }
+        assert_eq!((x, y), (100.0, 200.0));
     }
 }

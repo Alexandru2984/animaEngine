@@ -398,6 +398,23 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
     // Variant-specific sliders.
     match behavior {
         Behavior::Idle => {}
+        // No controls yet — the picker can't produce this variant, so the
+        // only way to be here is a hand-written config. Say so rather than
+        // render an empty section that looks broken.
+        Behavior::Script { path, .. } => {
+            ui.label(
+                egui::RichText::new(t("behavior-script-unavailable"))
+                    .text_style(theme::caption())
+                    .color(ui.visuals().weak_text_color()),
+            );
+            if !path.is_empty() {
+                ui.label(
+                    egui::RichText::new(path.as_str())
+                        .text_style(egui::TextStyle::Monospace)
+                        .weak(),
+                );
+            }
+        }
         Behavior::WalkAround { speed } => {
             if ui
                 .add(
@@ -549,6 +566,7 @@ fn behavior_label_with_icon(b: &Behavior) -> String {
         Behavior::FollowCursor { .. } => (icons::BEHAVIOR_FOLLOW, "behavior-follow"),
         Behavior::BoundedWander { .. } => (icons::BEHAVIOR_WANDER, "behavior-wander"),
         Behavior::Bounce { .. } => (icons::BEHAVIOR_BOUNCE, "behavior-bounce"),
+        Behavior::Script { .. } => (icons::KEYBOARD, "behavior-script"),
     };
     format!("{icon}  {}", t(key))
 }

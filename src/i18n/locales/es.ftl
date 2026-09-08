@@ -46,6 +46,8 @@ behavior-bounce-axis = Eje
 behavior-bounce-horizontal = Horizontal
 behavior-bounce-vertical = Vertical
 behavior-bounce-both = Ambos (círculo)
+behavior-script = Script
+behavior-script-unavailable = Los comportamientos por script aún no se ejecutan; este personaje se configuró a mano.
 
 scene-empty-headline = Escena vacía
 scene-empty-hint = Arrastra un PNG / GIF / WebP / MP4 sobre el overlay — o prueba un preset abajo.

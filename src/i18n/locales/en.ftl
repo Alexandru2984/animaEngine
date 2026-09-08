@@ -66,6 +66,8 @@ behavior-bounce-axis = Axis
 behavior-bounce-horizontal = Horizontal
 behavior-bounce-vertical = Vertical
 behavior-bounce-both = Both (circle)
+behavior-script = Script
+behavior-script-unavailable = Script behaviors aren't running yet — this character was configured by hand.
 
 # ── Scene tab ─────────────────────────────────────────────────────────
 scene-empty-headline = Empty scene
