@@ -176,6 +176,9 @@ pub struct App {
     /// Rhai host for `Behavior::Script`. Lives here rather than on
     /// `Scene`, which must stay `Send` for the hot-reload worker.
     script_host: crate::scripting::ScriptHost,
+    /// Sound playback for scripts. Opens a device once at startup and
+    /// falls back to silence when there isn't one.
+    audio_host: crate::audio::AudioHost,
     /// Human-readable description of the live global-hotkey backend,
     /// shown in the Keybindings tab (T.4). Set from `main` after
     /// strategy resolution; updated when the deferred portal fallback
@@ -290,6 +293,7 @@ impl App {
             library: None,
             library_root: None,
             script_host: crate::scripting::ScriptHost::new(),
+            audio_host: crate::audio::AudioHost::new(),
             hotkey_backend_status: String::new(),
             extra_windows: std::collections::HashMap::new(),
             overlay_hidden: false,

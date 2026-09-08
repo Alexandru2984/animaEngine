@@ -175,14 +175,25 @@ impl App {
             let plan =
                 crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors);
             let bounds = crate::monitor::covered_bounds(&plan, (screen_w, screen_h));
-            let scripts = self
-                .library_root
-                .as_deref()
-                .map(|root| (&mut self.script_host, root));
+            let scripts =
+                self.library_root
+                    .as_deref()
+                    .map(|root| crate::scripting::ScriptContext {
+                        host: &mut self.script_host,
+                        audio: &mut self.audio_host,
+                        root,
+                    });
             self.scene.tick(bounds, cursor, scripts);
 
             // Surface script failures once each. `take_new_failures`
             // already deduped them, so this cannot flood.
+            for (path, err) in self.audio_host.take_new_failures() {
+                let mut args = fluent::FluentArgs::new();
+                args.set("script", path);
+                args.set("error", err);
+                self.toasts
+                    .error(crate::i18n::t_args("script-failed-toast", &args));
+            }
             for (path, err) in self.script_host.take_new_failures() {
                 let mut args = fluent::FluentArgs::new();
                 args.set("script", path);

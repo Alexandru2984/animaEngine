@@ -128,12 +128,17 @@ fn bench_scripted_scene_tick(c: &mut Criterion) {
     for &n in &[10usize, 50, 100] {
         let mut scene = build_scripted_scene(n, &root);
         let mut host = anima_engine::scripting::ScriptHost::new();
+        let mut audio = anima_engine::audio::AudioHost::new();
         g.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
             b.iter(|| {
                 scene.tick(
                     anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
                     Some((960.0, 540.0)),
-                    Some((&mut host, root.as_path())),
+                    Some(anima_engine::scripting::ScriptContext {
+                        host: &mut host,
+                        audio: &mut audio,
+                        root: root.as_path(),
+                    }),
                 )
             });
         });

@@ -142,6 +142,7 @@ pub fn run_native(
     // Rhai host for `Behavior::Script`, mirroring the winit path's
     // `App::script_host`. Scripts resolve against `library_root`.
     let mut script_host = crate::scripting::ScriptHost::new();
+    let mut audio_host = crate::audio::AudioHost::new();
     if let Some(root) = crate::asset_library::discover_asset_root() {
         let index_path = crate::asset_library::LibraryIndex::default_path();
         let mut idx = crate::asset_library::LibraryIndex::load(&index_path);
@@ -612,8 +613,21 @@ pub fn run_native(
             // still leaves it stale outside the toggle button, since
             // Wayland has no XQueryPointer equivalent (docs/threat-model.md).
             cursor_global,
-            library_root.as_deref().map(|root| (&mut script_host, root)),
+            library_root
+                .as_deref()
+                .map(|root| crate::scripting::ScriptContext {
+                    host: &mut script_host,
+                    audio: &mut audio_host,
+                    root,
+                }),
         );
+
+        for (path, err) in audio_host.take_new_failures() {
+            let mut args = fluent::FluentArgs::new();
+            args.set("script", path);
+            args.set("error", err);
+            toasts.error(crate::i18n::t_args("script-failed-toast", &args));
+        }
 
         // Update any dirty textures (animation frame advance).
         // The prune sweeps textures orphaned by preset Replace — same

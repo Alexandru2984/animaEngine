@@ -80,7 +80,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev \
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev \
             librsvg2-bin desktop-file-utils file
 
       # Deliberately no build cache on the release path: artifacts are

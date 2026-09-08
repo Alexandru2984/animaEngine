@@ -65,7 +65,8 @@ cd animaEngine
 # bites on a clean Debian/Kali box.
 sudo apt install -y build-essential cmake pkg-config \
     libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-    libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+    libxkbcommon-x11-dev libwayland-dev libxrandr-dev \
+    libasound2-dev
 
 # Sanity check
 cargo build
@@ -89,7 +90,7 @@ On Alpine (or any musl target) the deps are:
 ```bash
 apk add build-base cmake pkgconf nasm vulkan-loader-dev \
     libx11-dev libxcb-dev libxkbcommon-dev wayland-dev libxrandr-dev \
-    mesa-vulkan-swrast
+    mesa-vulkan-swrast alsa-lib-dev
 ```
 
 and the build needs **dynamic CRT linking**, because the Rust musl
@@ -102,7 +103,9 @@ RUSTFLAGS="-C target-feature=-crt-static" cargo build --release
 ```
 
 `nasm` is required there too — `openh264` builds its assembly from
-source on musl. The binary itself builds and links clean this way;
+source on musl, and `alsa-lib-dev` for the `audio` feature. Both features
+can be dropped: `--no-default-features` builds without either, and
+`--no-default-features --features video` keeps video without audio. The binary itself builds and links clean this way;
 running it still needs a transparent-capable surface (a compositor +
 a GPU/WSI that exposes a non-opaque alpha mode), which a bare
 software-rendered VM may not provide — the app refuses with a clear
@@ -241,6 +244,12 @@ Constraints worth knowing before you debug something surprising:
   spawn, and `import` and `eval` are both switched off. There is no way
   to widen this from a script, by design.
 - Paths resolve inside the asset library only.
+- `play("meow.ogg")` plays a sound from the library, panned by where the
+  character is. It is rate-limited per character and capped per frame,
+  because calling it unconditionally every frame is the expected mistake.
+  On a build without the `audio` feature, or a machine with no sound
+  device, it is a silent no-op rather than an error — so a script written
+  with audio still runs everywhere.
 - `cpu` and `mem` are **aggregate** machine load, 0.0–1.0. There is
   deliberately no way to ask what is *running*: `src/sysload.rs` reads
   `/proc/stat` and `/proc/meminfo`, which contain nothing but totals, so

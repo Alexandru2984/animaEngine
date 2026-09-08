@@ -59,13 +59,19 @@ assets = [
 ]
 
 [features]
-default = ["video"]
+default = ["video", "audio"]
 # H.264 / MP4 video support via the `openh264` C decoder. On by default;
 # build with `--no-default-features` to drop the only in-process C
 # dependency — the largest native memory-safety attack surface. A build
 # without it recognises MP4 drops but reports that video wasn't compiled
 # in, instead of decoding them.
 video = ["dep:openh264", "dep:mp4"]
+# Sound playback for behavior scripts, via `rodio` -> `cpal` -> ALSA. On by
+# default, and droppable for the same reason `video` is: it is a native
+# system dependency (needs `libasound2-dev` to build), and the BSD / Windows
+# ports should not be blocked on it. Without it, a script's `play()` is a
+# silent no-op rather than a compile error.
+audio = ["dep:rodio"]
 
 [dependencies]
 # libc — only used for `getuid()` to scope fallback cache / data
@@ -146,6 +152,7 @@ egui-phosphor = "0.9"
 fluent = "0.17.0"
 unic-langid = "0.9.6"
 rhai = "1.26.0"
+rodio = { version = "0.22.2", optional = true }
 
 # ── Linux/BSD overlay integration (cross-platform port, C2) ──────────
 # X11 (x11rb), native Wayland (wayland-client + smithay-client-toolkit),

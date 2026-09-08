@@ -50,6 +50,24 @@ const MAX_MAP_SIZE: usize = 1024;
 /// lines; this is the same "bound the read" discipline every other loader
 /// in the tree follows for attacker-influenced files.
 const MAX_SCRIPT_BYTES: u64 = 64 * 1024;
+/// Sounds one run may queue.
+///
+/// A script calling `play` inside a loop is the obvious mistake; the audio
+/// host also rate-limits, but refusing here keeps a runaway from building
+/// a large vector every frame before anything looks at it.
+const MAX_SOUNDS_PER_RUN: usize = 4;
+
+/// What the tick chain needs to run scripts.
+///
+/// A struct rather than a growing tuple: this is the third thing that has
+/// to reach `Entity::tick_script`, and naming them beats positional
+/// arguments at every call site.
+pub struct ScriptContext<'a> {
+    pub host: &'a mut ScriptHost,
+    pub audio: &'a mut crate::audio::AudioHost,
+    /// Asset-library root. Scripts and sounds both resolve against it.
+    pub root: &'a std::path::Path,
+}
 
 /// Everything a script may read for one tick.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -78,12 +96,17 @@ pub struct ScriptInputs {
 
 /// What a script is allowed to change.
 ///
-/// Position only, matching exactly what `Behavior::tick` may mutate today,
-/// so nothing else in the engine has to learn that scripts exist.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Position, plus any sounds it asked to play. The caller decides whether
+/// those are audible — `play()` is registered unconditionally so a script
+/// written on an audio build still runs on one compiled without it, and
+/// simply makes no noise.
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct ScriptOutputs {
     pub x: f32,
     pub y: f32,
+    /// Library-relative sound paths, in the order the script asked for
+    /// them. Capped per run — see `MAX_SOUNDS_PER_RUN`.
+    pub sounds: Vec<String>,
 }
 
 /// Why a script did not run, or did not finish.
@@ -138,6 +161,13 @@ pub struct ScriptHost {
     /// its only consumer today; if anything else needs it, it moves out
     /// rather than being read through the script host.
     load: crate::sysload::SystemLoad,
+    /// Sounds the running script asked for.
+    ///
+    /// Shared with the `play` function registered on the engine, which
+    /// cannot borrow the host mutably from inside a Rhai call. The script
+    /// records an intent and the caller acts on it after the run returns —
+    /// the same pattern the UI panels use for their outcomes.
+    pending_sounds: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
 }
 
 struct Failed {
@@ -189,6 +219,19 @@ impl ScriptHost {
         // any reasoning about what a given file does.
         engine.disable_symbol("eval");
 
+        // `play("meow.ogg")` records an intent rather than making noise
+        // itself: the audio host needs `&mut`, which a Rhai-registered
+        // function cannot take, and doing IO from inside the interpreter
+        // would put device latency on the UI thread.
+        let pending_sounds = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let sink = std::rc::Rc::clone(&pending_sounds);
+        engine.register_fn("play", move |name: &str| {
+            let mut queued = sink.borrow_mut();
+            if queued.len() < MAX_SOUNDS_PER_RUN {
+                queued.push(name.to_string());
+            }
+        });
+
         Self {
             engine,
             compiled: BTreeMap::new(),
@@ -196,6 +239,7 @@ impl ScriptHost {
             failed: BTreeMap::new(),
             unreported: Vec::new(),
             load: crate::sysload::SystemLoad::new(),
+            pending_sounds,
         }
     }
 
@@ -418,9 +462,15 @@ impl ScriptHost {
             scope.push("state", rhai::Map::new());
         }
 
-        self.engine
+        // Cleared before, not after: a run that fails partway may have
+        // queued sounds, and those belong to the failed run, not the next.
+        self.pending_sounds.borrow_mut().clear();
+        let outcome = self
+            .engine
             .run_ast_with_scope(scope, &compiled.ast)
-            .map_err(|e| ScriptError::Runtime(e.to_string()))?;
+            .map_err(|e| ScriptError::Runtime(e.to_string()));
+        let sounds = std::mem::take(&mut *self.pending_sounds.borrow_mut());
+        outcome?;
 
         // A script that deletes or retypes `x` gets its last good value
         // back rather than teleporting the entity to the origin.
@@ -433,6 +483,7 @@ impl ScriptHost {
         Ok(ScriptOutputs {
             x: finite_or(x as f32, inputs.x),
             y: finite_or(y as f32, inputs.y),
+            sounds,
         })
     }
 }
@@ -496,7 +547,14 @@ mod tests {
     #[test]
     fn a_script_can_move_the_entity() {
         let out = run_once("x += 10.0; y -= 5.0;").unwrap();
-        assert_eq!(out, ScriptOutputs { x: 110.0, y: 195.0 });
+        assert_eq!(
+            out,
+            ScriptOutputs {
+                x: 110.0,
+                y: 195.0,
+                sounds: vec![]
+            }
+        );
     }
 
     #[test]
@@ -504,6 +562,61 @@ mod tests {
         let out = run_once("x = bounds_max_x - w; y = dt * 60.0;").unwrap();
         assert_eq!(out.x, 1920.0 - 64.0);
         assert!((out.y - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn a_script_can_ask_for_a_sound() {
+        let mut host = ScriptHost::new();
+        host.compile("t", r#"play("meow.ogg");"#).unwrap();
+        let mut scope = rhai::Scope::new();
+        let out = host
+            .run("t", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        assert_eq!(out.sounds, vec!["meow.ogg".to_string()]);
+    }
+
+    /// The queue belongs to one run. Without clearing, a script that plays
+    /// once would appear to play again on every later frame.
+    #[test]
+    fn sounds_do_not_leak_into_the_next_run() {
+        let mut host = ScriptHost::new();
+        host.compile("t", r#"if elapsed < 0.001 { play("once.ogg"); }"#)
+            .unwrap();
+        let mut scope = rhai::Scope::new();
+
+        let first = host
+            .run("t", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        assert_eq!(first.sounds.len(), 1);
+
+        let mut later = inputs();
+        later.elapsed = 5.0;
+        let second = host.run("t", &mut scope, &later, &BTreeMap::new()).unwrap();
+        assert!(second.sounds.is_empty(), "a stale sound replayed");
+    }
+
+    /// A script calling `play` in a loop is the obvious mistake; the cap
+    /// stops it building an unbounded vector every frame.
+    #[test]
+    fn a_runaway_play_loop_is_capped() {
+        let mut host = ScriptHost::new();
+        host.compile("t", r#"for i in 0..100 { play("spam.ogg"); }"#)
+            .unwrap();
+        let mut scope = rhai::Scope::new();
+        let out = host
+            .run("t", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        assert_eq!(out.sounds.len(), MAX_SOUNDS_PER_RUN);
+    }
+
+    /// `play` must exist on every build, so a script written with audio
+    /// compiled in still runs on a build without it — silently.
+    #[test]
+    fn play_is_registered_regardless_of_the_audio_feature() {
+        assert!(
+            run_once(r#"play("anything.ogg");"#).is_ok(),
+            "play() was not available"
+        );
     }
 
     #[test]
@@ -625,7 +738,14 @@ mod tests {
     #[test]
     fn non_finite_output_falls_back_to_the_previous_position() {
         let out = run_once("x = 0.0/0.0; y = 1.0/0.0;").unwrap();
-        assert_eq!(out, ScriptOutputs { x: 100.0, y: 200.0 });
+        assert_eq!(
+            out,
+            ScriptOutputs {
+                x: 100.0,
+                y: 200.0,
+                sounds: vec![]
+            }
+        );
     }
 
     #[test]
@@ -640,7 +760,14 @@ mod tests {
     #[test]
     fn an_integer_coordinate_is_accepted() {
         let out = run_once("x = 250; y = 300;").unwrap();
-        assert_eq!(out, ScriptOutputs { x: 250.0, y: 300.0 });
+        assert_eq!(
+            out,
+            ScriptOutputs {
+                x: 250.0,
+                y: 300.0,
+                sounds: vec![]
+            }
+        );
     }
 
     // ── Sandbox ───────────────────────────────────────────────────────

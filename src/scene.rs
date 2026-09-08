@@ -253,7 +253,7 @@ impl Scene {
         &mut self,
         bounds: crate::monitor::DesktopBounds,
         cursor: Option<(f32, f32)>,
-        scripts: Option<(&mut crate::scripting::ScriptHost, &std::path::Path)>,
+        scripts: Option<crate::scripting::ScriptContext<'_>>,
     ) {
         let now = Instant::now();
         let dt = now.duration_since(self.last_tick).as_secs_f32();
@@ -266,9 +266,9 @@ impl Scene {
             return;
         }
 
-        let (mut host, root) = match scripts {
-            Some((h, r)) => (Some(h), Some(r)),
-            None => (None, None),
+        let (mut host, mut audio, root) = match scripts {
+            Some(c) => (Some(c.host), Some(c.audio), Some(c.root)),
+            None => (None, None, None),
         };
 
         // Once per tick, not once per entity — every scripted character
@@ -276,12 +276,19 @@ impl Scene {
         if let Some(h) = host.as_deref_mut() {
             h.refresh_load();
         }
+        if let Some(a) = audio.as_deref_mut() {
+            a.begin_tick();
+        }
 
         for entity in &mut self.entities {
             // Re-borrow per entity: the host is `&mut` and the loop needs
             // it each iteration.
-            let per_entity = match (host.as_deref_mut(), root) {
-                (Some(h), Some(r)) => Some((h, r)),
+            let per_entity = match (host.as_deref_mut(), audio.as_deref_mut(), root) {
+                (Some(h), Some(a), Some(r)) => Some(crate::scripting::ScriptContext {
+                    host: h,
+                    audio: a,
+                    root: r,
+                }),
                 _ => None,
             };
             entity.tick(
@@ -965,6 +972,16 @@ mod script_tests {
         e
     }
 
+    /// The script tests don't exercise audio; a host is still needed to
+    /// build the context, and one without a device is silent anyway.
+    fn ctx<'a>(
+        host: &'a mut crate::scripting::ScriptHost,
+        audio: &'a mut crate::audio::AudioHost,
+        root: &'a std::path::Path,
+    ) -> crate::scripting::ScriptContext<'a> {
+        crate::scripting::ScriptContext { host, audio, root }
+    }
+
     fn bounds() -> crate::monitor::DesktopBounds {
         crate::monitor::DesktopBounds::from_size(1920.0, 1080.0)
     }
@@ -974,12 +991,13 @@ mod script_tests {
     fn a_scripted_entity_moves_through_scene_tick() {
         let dir = ScriptDir::new("move", "b/m.rhai", "x += params.step;");
         let mut host = crate::scripting::ScriptHost::new();
+        let mut audio = crate::audio::AudioHost::new();
         let mut scene = empty_scene();
         scene
             .entities
             .push(scripted("a", "b/m.rhai", &[("step", 7.0)]));
 
-        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        scene.tick(bounds(), None, Some(ctx(&mut host, &mut audio, &dir.0)));
         assert!(
             scene.entities[0].x > 0.0,
             "script did not move the entity (x = {})",
@@ -1003,11 +1021,12 @@ mod script_tests {
     fn a_broken_script_leaves_the_entity_where_it_was() {
         let dir = ScriptDir::new("broken", "b/bad.rhai", "x +=* nonsense");
         let mut host = crate::scripting::ScriptHost::new();
+        let mut audio = crate::audio::AudioHost::new();
         let mut scene = empty_scene();
         scene.entities.push(scripted("a", "b/bad.rhai", &[]));
         scene.entities[0].x = 42.0;
 
-        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        scene.tick(bounds(), None, Some(ctx(&mut host, &mut audio, &dir.0)));
         assert_eq!(scene.entities[0].x, 42.0);
     }
 
@@ -1017,10 +1036,11 @@ mod script_tests {
     fn a_runaway_script_is_bounded_and_does_not_move_the_entity() {
         let dir = ScriptDir::new("runaway", "b/loop.rhai", "while true { x += 1.0; }");
         let mut host = crate::scripting::ScriptHost::new();
+        let mut audio = crate::audio::AudioHost::new();
         let mut scene = empty_scene();
         scene.entities.push(scripted("a", "b/loop.rhai", &[]));
 
-        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        scene.tick(bounds(), None, Some(ctx(&mut host, &mut audio, &dir.0)));
         assert_eq!(scene.entities[0].x, 0.0, "a killed script still moved it");
     }
 
@@ -1034,17 +1054,18 @@ mod script_tests {
             r#"if !state.contains("n") { state.n = 0.0; } state.n += 1.0; x = state.n;"#,
         );
         let mut host = crate::scripting::ScriptHost::new();
+        let mut audio = crate::audio::AudioHost::new();
         let mut scene = empty_scene();
         scene.entities.push(scripted("a", "b/count.rhai", &[]));
         scene.entities.push(scripted("b", "b/count.rhai", &[]));
 
-        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
-        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        scene.tick(bounds(), None, Some(ctx(&mut host, &mut audio, &dir.0)));
+        scene.tick(bounds(), None, Some(ctx(&mut host, &mut audio, &dir.0)));
         assert_eq!(scene.entities[0].x, 2.0);
         assert_eq!(scene.entities[1].x, 2.0, "entities shared an accumulator");
 
         scene.entities.retain(|e| e.id == "a");
-        scene.tick(bounds(), None, Some((&mut host, &dir.0)));
+        scene.tick(bounds(), None, Some(ctx(&mut host, &mut audio, &dir.0)));
         assert_eq!(scene.entities[0].x, 3.0, "surviving entity lost its state");
     }
 }

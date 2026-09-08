@@ -169,12 +169,12 @@ impl Entity {
     fn tick_script(
         &mut self,
         ctx: &TickContext,
-        scripts: Option<(&mut crate::scripting::ScriptHost, &std::path::Path)>,
+        scripts: Option<crate::scripting::ScriptContext<'_>>,
     ) -> bool {
         let crate::behavior::Behavior::Script { path, params } = &self.behavior else {
             return false;
         };
-        let Some((host, root)) = scripts else {
+        let Some(crate::scripting::ScriptContext { host, audio, root }) = scripts else {
             return false;
         };
         if path.is_empty() {
@@ -224,6 +224,16 @@ impl Entity {
             Ok(out) => {
                 self.x = out.x;
                 self.y = out.y;
+                // Panned by where the character actually is, so a mascot on
+                // the left of the desktop is heard on the left. The audio
+                // host rate-limits and caps voices; a script asking for a
+                // sound every frame is expected, not exceptional.
+                if !out.sounds.is_empty() {
+                    let centre = self.x + ctx.sprite_width * 0.5;
+                    for sound in &out.sounds {
+                        audio.play(root, sound, &id, centre, ctx.bounds.min_x, ctx.bounds.max_x);
+                    }
+                }
                 true
             }
             Err(e) => {
@@ -258,7 +268,7 @@ impl Entity {
         // The script host plus the library root, when scripting is
         // available. `None` keeps every existing caller — and every test —
         // on the native behaviors.
-        scripts: Option<(&mut crate::scripting::ScriptHost, &std::path::Path)>,
+        scripts: Option<crate::scripting::ScriptContext<'_>>,
     ) -> bool {
         let sprite_w = self.scaled_width();
         let sprite_h = self.scaled_height();

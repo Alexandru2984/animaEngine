@@ -2,6 +2,7 @@ pub mod anim;
 pub mod animation;
 pub mod app;
 pub mod asset_library;
+pub mod audio;
 pub mod behavior;
 pub mod config;
 pub mod constants;

@@ -97,7 +97,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo clippy --locked --all-targets -- -D warnings
       # Keep the openh264-free (`--no-default-features`) build lint-clean so
@@ -117,7 +117,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # Broken intra-doc links and malformed doc comments fail the
       # build; private items are documented because the crate is a
@@ -144,7 +144,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2
         with:
@@ -181,7 +181,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo check --locked --all-targets
 
@@ -231,7 +231,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo build --release --locked
       # Hand the binary to the smoke jobs — they exercise *this*
@@ -413,7 +413,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
       - uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2
         with:
           tool: cargo-nextest
@@ -481,7 +481,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # Shared-runner numbers are too noisy to gate on; the value is
       # the trend. criterion keeps its history in target/criterion —
@@ -509,7 +509,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev \
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev \
             xvfb mesa-vulkan-drivers dbus dbus-daemon
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # 10-minute soak with 20 s sampling (~30 points) — long enough to
@@ -546,7 +546,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: fuzz
@@ -593,7 +593,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2
         with:
