@@ -47,7 +47,12 @@ behavior-bounce-horizontal = Orizontală
 behavior-bounce-vertical = Verticală
 behavior-bounce-both = Ambele (cerc)
 behavior-script = Script
-behavior-script-unavailable = Comportamentele prin script încă nu rulează — acest personaj a fost configurat manual.
+behavior-script-path-label = Cale
+behavior-script-path-hint = Relativă la biblioteca ta de resurse
+behavior-script-params = Parametri
+behavior-script-param-name = nume
+behavior-script-add-param = Adaugă
+behavior-script-remove-param = Elimină acest parametru
 script-failed-toast = Scriptul de comportament { $script } a eșuat: { $error }
 
 scene-empty-headline = Scenă goală

@@ -47,7 +47,12 @@ behavior-bounce-horizontal = 水平
 behavior-bounce-vertical = 垂直
 behavior-bounce-both = 両方 (円)
 behavior-script = スクリプト
-behavior-script-unavailable = スクリプト動作はまだ実行されません。このキャラクターは手動で設定されています。
+behavior-script-path-label = パス
+behavior-script-path-hint = アセットライブラリからの相対パス
+behavior-script-params = パラメーター
+behavior-script-param-name = 名前
+behavior-script-add-param = 追加
+behavior-script-remove-param = このパラメーターを削除
 script-failed-toast = 動作スクリプト { $script } が失敗しました: { $error }
 
 scene-empty-headline = シーンは空です

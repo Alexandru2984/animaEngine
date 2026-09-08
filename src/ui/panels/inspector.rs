@@ -351,6 +351,106 @@ fn easing_picker(ui: &mut egui::Ui, easing: &mut Option<crate::anim::EasingCurve
 
 /// Behavior dropdown + variant-specific sliders. Returns `true` when the
 /// user touched anything in this section.
+/// Controls for `Behavior::Script`: where the script lives, and the
+/// author-defined tunables passed to it.
+///
+/// The path is typed rather than picked from a list. The asset library
+/// indexes media, not `.rhai` files, so there is nothing to enumerate yet;
+/// a picker wants a script index first, and inventing one here would put
+/// discovery logic in a UI panel.
+///
+/// Failures are not shown here either — they arrive as a toast, from
+/// `ScriptHost::take_new_failures`. Surfacing them inline would mean
+/// threading the host through `panels::settings`, which already carries
+/// about twenty parameters and is called from both backends, for a message
+/// the user has already been given.
+fn script_controls(
+    ui: &mut egui::Ui,
+    path: &mut String,
+    params: &mut std::collections::BTreeMap<String, f64>,
+) -> bool {
+    let mut changed = false;
+
+    ui.horizontal(|ui| {
+        ui.label(t("behavior-script-path-label"));
+        if ui.text_edit_singleline(path).changed() {
+            changed = true;
+        }
+    });
+    ui.label(
+        egui::RichText::new(t("behavior-script-path-hint"))
+            .text_style(theme::caption())
+            .color(ui.visuals().weak_text_color()),
+    );
+
+    ui.add_space(SPACE_S);
+    ui.label(
+        egui::RichText::new(t("behavior-script-params"))
+            .text_style(theme::caption())
+            .weak(),
+    );
+
+    // Collected and applied after the loop: the rows borrow `params`.
+    let mut remove: Option<String> = None;
+    for (name, value) in params.iter_mut() {
+        ui.horizontal(|ui| {
+            if ui
+                .small_button(icons::TRASH)
+                .on_hover_text(t("behavior-script-remove-param"))
+                .clicked()
+            {
+                remove = Some(name.clone());
+            }
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(name.as_str()).text_style(egui::TextStyle::Monospace),
+                )
+                .wrap_mode(egui::TextWrapMode::Extend),
+            );
+            if ui.add(egui::DragValue::new(value).speed(1.0)).changed() {
+                changed = true;
+            }
+        });
+    }
+    if let Some(name) = remove {
+        params.remove(&name);
+        changed = true;
+    }
+
+    // New-parameter row. The name lives in egui memory rather than on the
+    // entity, so a half-typed name isn't written into the config.
+    let draft_id = ui.id().with("script_param_draft");
+    let mut draft: String = ui.memory(|m| m.data.get_temp(draft_id).unwrap_or_default());
+    ui.horizontal(|ui| {
+        ui.add(
+            egui::TextEdit::singleline(&mut draft)
+                .hint_text(t("behavior-script-param-name"))
+                .desired_width(110.0),
+        );
+        let can_add = !draft.trim().is_empty() && !params.contains_key(draft.trim());
+        if ui
+            .add_enabled(
+                can_add,
+                egui::Button::new(format!(
+                    "{}  {}",
+                    icons::PLUS,
+                    t("behavior-script-add-param")
+                ))
+                .small()
+                .wrap_mode(egui::TextWrapMode::Extend),
+            )
+            .clicked()
+        {
+            params.insert(draft.trim().to_string(), 0.0);
+            draft.clear();
+            changed = true;
+        }
+    });
+    ui.memory_mut(|m| m.data.insert_temp(draft_id, draft));
+
+    changed
+}
+
 fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
     let mut changed = false;
 
@@ -386,6 +486,13 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                     period_sec: 1.5,
                     axis: crate::behavior::BounceAxis::Vertical,
                 },
+                // Starts empty: an entity gets a script only once the
+                // user names one, and an empty path is the documented
+                // "hold still" state rather than an error.
+                Behavior::Script {
+                    path: String::new(),
+                    params: Default::default(),
+                },
             ] {
                 let label = behavior_label_with_icon(&option);
                 ui.selectable_value(behavior, option, label);
@@ -398,21 +505,9 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
     // Variant-specific sliders.
     match behavior {
         Behavior::Idle => {}
-        // No controls yet — the picker can't produce this variant, so the
-        // only way to be here is a hand-written config. Say so rather than
-        // render an empty section that looks broken.
-        Behavior::Script { path, .. } => {
-            ui.label(
-                egui::RichText::new(t("behavior-script-unavailable"))
-                    .text_style(theme::caption())
-                    .color(ui.visuals().weak_text_color()),
-            );
-            if !path.is_empty() {
-                ui.label(
-                    egui::RichText::new(path.as_str())
-                        .text_style(egui::TextStyle::Monospace)
-                        .weak(),
-                );
+        Behavior::Script { path, params } => {
+            if script_controls(ui, path, params) {
+                changed = true;
             }
         }
         Behavior::WalkAround { speed } => {

@@ -47,7 +47,12 @@ behavior-bounce-horizontal = Poziomo
 behavior-bounce-vertical = Pionowo
 behavior-bounce-both = Oba (okrąg)
 behavior-script = Skrypt
-behavior-script-unavailable = Zachowania skryptowe jeszcze nie działają — ta postać została skonfigurowana ręcznie.
+behavior-script-path-label = Ścieżka
+behavior-script-path-hint = Względem twojej biblioteki zasobów
+behavior-script-params = Parametry
+behavior-script-param-name = nazwa
+behavior-script-add-param = Dodaj
+behavior-script-remove-param = Usuń ten parametr
 script-failed-toast = Skrypt zachowania { $script } zawiódł: { $error }
 
 scene-empty-headline = Pusta scena

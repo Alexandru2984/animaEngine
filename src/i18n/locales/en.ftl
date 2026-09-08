@@ -67,7 +67,12 @@ behavior-bounce-horizontal = Horizontal
 behavior-bounce-vertical = Vertical
 behavior-bounce-both = Both (circle)
 behavior-script = Script
-behavior-script-unavailable = Script behaviors aren't running yet — this character was configured by hand.
+behavior-script-path-label = Path
+behavior-script-path-hint = Relative to your asset library
+behavior-script-params = Parameters
+behavior-script-param-name = name
+behavior-script-add-param = Add
+behavior-script-remove-param = Remove this parameter
 script-failed-toast = Behavior script { $script } failed: { $error }
 
 # ── Scene tab ─────────────────────────────────────────────────────────

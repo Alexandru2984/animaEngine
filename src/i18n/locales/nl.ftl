@@ -47,7 +47,12 @@ behavior-bounce-horizontal = Horizontaal
 behavior-bounce-vertical = Verticaal
 behavior-bounce-both = Beide (cirkel)
 behavior-script = Script
-behavior-script-unavailable = Scriptgedrag werkt nog niet — dit figuur is handmatig ingesteld.
+behavior-script-path-label = Pad
+behavior-script-path-hint = Relatief aan je assetbibliotheek
+behavior-script-params = Parameters
+behavior-script-param-name = naam
+behavior-script-add-param = Toevoegen
+behavior-script-remove-param = Deze parameter verwijderen
 script-failed-toast = Gedragsscript { $script } is mislukt: { $error }
 
 scene-empty-headline = Lege scène

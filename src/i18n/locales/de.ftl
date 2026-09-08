@@ -47,7 +47,12 @@ behavior-bounce-horizontal = Horizontal
 behavior-bounce-vertical = Vertikal
 behavior-bounce-both = Beide (Kreis)
 behavior-script = Skript
-behavior-script-unavailable = Skript-Verhalten läuft noch nicht — diese Figur wurde von Hand konfiguriert.
+behavior-script-path-label = Pfad
+behavior-script-path-hint = Relativ zu deiner Asset-Bibliothek
+behavior-script-params = Parameter
+behavior-script-param-name = Name
+behavior-script-add-param = Hinzufügen
+behavior-script-remove-param = Diesen Parameter entfernen
 script-failed-toast = Verhaltensskript { $script } fehlgeschlagen: { $error }
 
 scene-empty-headline = Leere Szene

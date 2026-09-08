@@ -47,7 +47,12 @@ behavior-bounce-horizontal = Horizontal
 behavior-bounce-vertical = Vertical
 behavior-bounce-both = Les deux (cercle)
 behavior-script = Script
-behavior-script-unavailable = Les comportements scriptés ne sont pas encore actifs — ce personnage a été configuré à la main.
+behavior-script-path-label = Chemin
+behavior-script-path-hint = Relatif à votre bibliothèque de ressources
+behavior-script-params = Paramètres
+behavior-script-param-name = nom
+behavior-script-add-param = Ajouter
+behavior-script-remove-param = Supprimer ce paramètre
 script-failed-toast = Le script de comportement { $script } a échoué : { $error }
 
 scene-empty-headline = Scène vide
