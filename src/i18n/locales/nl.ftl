@@ -48,6 +48,7 @@ behavior-bounce-vertical = Verticaal
 behavior-bounce-both = Beide (cirkel)
 behavior-script = Script
 behavior-script-unavailable = Scriptgedrag werkt nog niet — dit figuur is handmatig ingesteld.
+script-failed-toast = Gedragsscript { $script } is mislukt: { $error }
 
 scene-empty-headline = Lege scène
 scene-empty-hint = Sleep een PNG / GIF / WebP / MP4 naar de overlay — of probeer hieronder een preset.

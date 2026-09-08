@@ -48,6 +48,7 @@ behavior-bounce-vertical = 垂直
 behavior-bounce-both = 両方 (円)
 behavior-script = スクリプト
 behavior-script-unavailable = スクリプト動作はまだ実行されません。このキャラクターは手動で設定されています。
+script-failed-toast = 動作スクリプト { $script } が失敗しました: { $error }
 
 scene-empty-headline = シーンは空です
 scene-empty-hint = PNG / GIF / WebP / MP4 をオーバーレイにドロップ — もしくは下のプリセットをお試しください。

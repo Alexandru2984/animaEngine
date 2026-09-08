@@ -68,6 +68,7 @@ behavior-bounce-vertical = Vertical
 behavior-bounce-both = Both (circle)
 behavior-script = Script
 behavior-script-unavailable = Script behaviors aren't running yet — this character was configured by hand.
+script-failed-toast = Behavior script { $script } failed: { $error }
 
 # ── Scene tab ─────────────────────────────────────────────────────────
 scene-empty-headline = Empty scene

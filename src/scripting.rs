@@ -118,6 +118,23 @@ pub struct ScriptHost {
     /// One scope per entity id, so two characters running the same script
     /// accumulate separately.
     scopes: BTreeMap<String, rhai::Scope<'static>>,
+    /// Scripts that failed, and the source mtime when they did.
+    ///
+    /// This is what makes a failure *sticky*. `tick_script` runs sixty
+    /// times a second, so without it a broken script would re-read the
+    /// file, re-parse it and re-log the same error every frame — the
+    /// error handling would cost more than the feature. The entry clears
+    /// when the file changes, which is exactly when retrying is useful.
+    failed: BTreeMap<String, Failed>,
+    /// Failures not yet reported to the user, drained by the app once per
+    /// frame. Kept here rather than toasting from the tick path so this
+    /// module stays free of UI.
+    unreported: Vec<(String, ScriptError)>,
+}
+
+struct Failed {
+    error: ScriptError,
+    mtime: Option<std::time::SystemTime>,
 }
 
 struct Compiled {
@@ -168,6 +185,8 @@ impl ScriptHost {
             engine,
             compiled: BTreeMap::new(),
             scopes: BTreeMap::new(),
+            failed: BTreeMap::new(),
+            unreported: Vec::new(),
         }
     }
 
@@ -204,10 +223,20 @@ impl ScriptHost {
         root: &std::path::Path,
         rel: &str,
     ) -> Result<(), ScriptError> {
-        let resolved = crate::drop_validate::resolve_library_asset(root, std::path::Path::new(rel))
-            .map_err(ScriptError::Compile)?;
+        // Computed first, and tolerant of a path that doesn't resolve at
+        // all: `None` is a legitimate answer that still lets the failure
+        // be deduped, and lets a later "the user created the file" retry.
+        let mtime = self.source_mtime(root, rel);
 
-        let mtime = std::fs::metadata(&resolved).and_then(|m| m.modified()).ok();
+        // Already known broken, and the file hasn't moved: hand back the
+        // same error without touching the disk again.
+        if let Some(prev) = self.failed.get(rel) {
+            if prev.mtime == mtime {
+                return Err(prev.error.clone());
+            }
+            self.failed.remove(rel);
+        }
+
         if let Some(existing) = self.compiled.get(rel) {
             // `None` mtime on either side means "can't tell" — recompile
             // rather than serve a possibly stale AST.
@@ -215,6 +244,28 @@ impl ScriptHost {
                 return Ok(());
             }
         }
+
+        // One exit for every failure, so nothing can slip past the
+        // reporting. A path that doesn't resolve used to return early
+        // here and was therefore never reported at all — silence for the
+        // single most likely mistake, a typo in the path.
+        match self.load_and_compile(root, rel, mtime) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                self.note_failure(rel, e.clone(), mtime);
+                Err(e)
+            }
+        }
+    }
+
+    fn load_and_compile(
+        &mut self,
+        root: &std::path::Path,
+        rel: &str,
+        mtime: Option<std::time::SystemTime>,
+    ) -> Result<(), ScriptError> {
+        let resolved = crate::drop_validate::resolve_library_asset(root, std::path::Path::new(rel))
+            .map_err(ScriptError::Compile)?;
 
         // Bounded read: a behavior script is a few lines, and this file is
         // attacker-influenced in exactly the way every other loader here
@@ -233,6 +284,41 @@ impl ScriptHost {
             .map_err(|e| ScriptError::Compile(format!("script unreadable: {e}")))?;
 
         self.compile_with_mtime(rel, &source, mtime)
+    }
+
+    /// Record a failure once, so it is logged and toasted a single time
+    /// rather than every frame. `mtime` is the source's timestamp when it
+    /// failed; the entry clears when that changes.
+    pub fn note_failure(
+        &mut self,
+        key: &str,
+        error: ScriptError,
+        mtime: Option<std::time::SystemTime>,
+    ) {
+        let already = self
+            .failed
+            .get(key)
+            .is_some_and(|p| p.mtime == mtime && p.error == error);
+        if already {
+            return;
+        }
+        tracing::warn!("behavior script {key}: {error}");
+        self.unreported.push((key.to_string(), error.clone()));
+        self.failed.insert(key.to_string(), Failed { error, mtime });
+    }
+
+    /// Source mtime for a library-relative script, for `note_failure`.
+    /// `None` when it can't be read, which is itself a failure worth
+    /// reporting once.
+    pub fn source_mtime(&self, root: &std::path::Path, rel: &str) -> Option<std::time::SystemTime> {
+        let resolved =
+            crate::drop_validate::resolve_library_asset(root, std::path::Path::new(rel)).ok()?;
+        std::fs::metadata(resolved).and_then(|m| m.modified()).ok()
+    }
+
+    /// Drain failures the user hasn't been told about yet.
+    pub fn take_new_failures(&mut self) -> Vec<(String, ScriptError)> {
+        std::mem::take(&mut self.unreported)
     }
 
     /// The persistent scope for one entity, created on first use.
@@ -644,6 +730,81 @@ mod tests {
             .run("r.rhai", &mut scope, &inputs(), &BTreeMap::new())
             .unwrap();
         assert_eq!(second.x, 2.0, "edit did not take effect");
+    }
+
+    // ── One-shot failure reporting ────────────────────────────────────
+
+    /// The behaviour this whole mechanism exists for: `tick_script` runs
+    /// sixty times a second, so a broken script must be reported once,
+    /// not per frame.
+    #[test]
+    fn a_broken_script_is_reported_once_not_every_frame() {
+        let root = TempRoot::new("once");
+        root.write("bad.rhai", "x +=* nope");
+        let mut host = ScriptHost::new();
+
+        for _ in 0..60 {
+            assert!(host.ensure_compiled(&root.0, "bad.rhai").is_err());
+        }
+        assert_eq!(
+            host.take_new_failures().len(),
+            1,
+            "a broken script reported more than once"
+        );
+        // And draining leaves nothing behind for the next frame.
+        assert!(host.take_new_failures().is_empty());
+    }
+
+    /// Sticky, but not permanent: fixing the file has to un-break it
+    /// without a restart, and that is also the only time a retry is
+    /// worth the disk read.
+    #[test]
+    fn fixing_a_script_clears_the_failure_and_it_runs_again() {
+        let root = TempRoot::new("fixed");
+        root.write("f.rhai", "x +=* nope");
+        let mut host = ScriptHost::new();
+        assert!(host.ensure_compiled(&root.0, "f.rhai").is_err());
+        assert_eq!(host.take_new_failures().len(), 1);
+
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        root.write("f.rhai", "x += 3.0;");
+        host.ensure_compiled(&root.0, "f.rhai")
+            .expect("repaired script still refused");
+
+        let mut scope = rhai::Scope::new();
+        let out = host
+            .run("f.rhai", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        assert_eq!(out.x, 103.0);
+    }
+
+    /// A still-broken script that gets edited into a *different* error is
+    /// a new thing to tell the user about.
+    #[test]
+    fn a_different_error_after_an_edit_is_reported_again() {
+        let root = TempRoot::new("changed");
+        root.write("c.rhai", "x +=* nope");
+        let mut host = ScriptHost::new();
+        assert!(host.ensure_compiled(&root.0, "c.rhai").is_err());
+        assert_eq!(host.take_new_failures().len(), 1);
+
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        root.write("c.rhai", "x = = 2");
+        assert!(host.ensure_compiled(&root.0, "c.rhai").is_err());
+        assert_eq!(host.take_new_failures().len(), 1, "edit went unreported");
+    }
+
+    /// A missing file is a failure like any other, and must not be
+    /// re-stat'd and re-reported every frame either.
+    #[test]
+    fn a_missing_script_is_reported_once() {
+        let root = TempRoot::new("missing");
+        root.write("keep.rhai", "x += 1.0;");
+        let mut host = ScriptHost::new();
+        for _ in 0..30 {
+            assert!(host.ensure_compiled(&root.0, "nope.rhai").is_err());
+        }
+        assert_eq!(host.take_new_failures().len(), 1);
     }
 
     #[test]

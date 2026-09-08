@@ -48,6 +48,7 @@ behavior-bounce-vertical = Vertikal
 behavior-bounce-both = Beide (Kreis)
 behavior-script = Skript
 behavior-script-unavailable = Skript-Verhalten läuft noch nicht — diese Figur wurde von Hand konfiguriert.
+script-failed-toast = Verhaltensskript { $script } fehlgeschlagen: { $error }
 
 scene-empty-headline = Leere Szene
 scene-empty-hint = Ziehe eine PNG- / GIF- / WebP- / MP4-Datei auf das Overlay — oder probiere unten ein Preset.

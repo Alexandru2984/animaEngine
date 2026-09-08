@@ -48,6 +48,7 @@ behavior-bounce-vertical = Vertical
 behavior-bounce-both = Ambos (círculo)
 behavior-script = Script
 behavior-script-unavailable = Comportamentos por script ainda não são executados — este personagem foi configurado manualmente.
+script-failed-toast = O script de comportamento { $script } falhou: { $error }
 
 scene-empty-headline = Cena vazia
 scene-empty-hint = Arraste um PNG / GIF / WebP / MP4 para o overlay — ou experimente um preset abaixo.

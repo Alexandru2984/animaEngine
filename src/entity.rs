@@ -155,14 +155,6 @@ impl Entity {
         self.animations.current_mut()
     }
 
-    /// Tick the entity: behavior + physics + animation.
-    ///
-    /// Order matters: behavior moves the entity (possibly in 2D), then
-    /// physics resolves vertical motion if enabled (gravity wins on Y),
-    /// then the animation advances. `cursor` is the screen-space mouse
-    /// position if known — needed by `FollowCursor`.
-    // The per-frame entity update genuinely takes the frame's inputs (dt,
-    // screen dims, cursor, physics platforms) plus the global interaction
     /// Run this entity's behavior script, if it has one and scripting is
     /// available. Returns whether it took responsibility for the motion —
     /// `false` means the caller should fall through to the native
@@ -170,9 +162,10 @@ impl Entity {
     ///
     /// Every failure path returns `false`, so a script that is missing,
     /// unreadable, badly written or over its budget leaves the entity
-    /// exactly where it was rather than taking the frame down. Errors are
-    /// logged at most once per script here; surfacing them in the UI is
-    /// sub-phase 4.
+    /// exactly where it was rather than taking the frame down. Errors go
+    /// through `ScriptHost::note_failure`, which reports each one once and
+    /// keeps it sticky until the file changes — this runs sixty times a
+    /// second, so a per-frame log would be its own denial of service.
     fn tick_script(
         &mut self,
         ctx: &TickContext,
@@ -191,8 +184,9 @@ impl Entity {
         self.behavior_state.script_elapsed =
             (self.behavior_state.script_elapsed + ctx.dt) % 86_400.0;
 
-        if let Err(e) = host.ensure_compiled(root, path) {
-            tracing::warn!("behavior script {path}: {e}");
+        // `ensure_compiled` records its own failures, deduped and sticky
+        // until the file changes — this runs sixty times a second.
+        if host.ensure_compiled(root, path).is_err() {
             return false;
         }
 
@@ -231,12 +225,23 @@ impl Entity {
                 true
             }
             Err(e) => {
-                tracing::warn!("behavior script {key}: {e}");
+                // A runtime error repeats every frame too, so it goes
+                // through the same one-shot path as a compile failure.
+                let mtime = host.source_mtime(root, &key);
+                host.note_failure(&key, e, mtime);
                 false
             }
         }
     }
 
+    /// Tick the entity: behavior + physics + animation.
+    ///
+    /// Order matters: behavior moves the entity (possibly in 2D), then
+    /// physics resolves vertical motion if enabled (gravity wins on Y),
+    /// then the animation advances. `cursor` is the screen-space mouse
+    /// position if known — needed by `FollowCursor`.
+    // The per-frame entity update genuinely takes the frame's inputs (dt,
+    // screen dims, cursor, physics platforms) plus the global interaction
     // toggles; grouping them into a struct would only move the argument
     // list around without making a call site clearer.
     #[allow(clippy::too_many_arguments)]

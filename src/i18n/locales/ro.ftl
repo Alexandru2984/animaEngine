@@ -48,6 +48,7 @@ behavior-bounce-vertical = Verticală
 behavior-bounce-both = Ambele (cerc)
 behavior-script = Script
 behavior-script-unavailable = Comportamentele prin script încă nu rulează — acest personaj a fost configurat manual.
+script-failed-toast = Scriptul de comportament { $script } a eșuat: { $error }
 
 scene-empty-headline = Scenă goală
 scene-empty-hint = Trage un fișier PNG / GIF / WebP / MP4 peste overlay — sau încearcă un preset mai jos.

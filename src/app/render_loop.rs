@@ -180,6 +180,16 @@ impl App {
                 .as_deref()
                 .map(|root| (&mut self.script_host, root));
             self.scene.tick(bounds, cursor, scripts);
+
+            // Surface script failures once each. `take_new_failures`
+            // already deduped them, so this cannot flood.
+            for (path, err) in self.script_host.take_new_failures() {
+                let mut args = fluent::FluentArgs::new();
+                args.set("script", path);
+                args.set("error", err.to_string());
+                self.toasts
+                    .error(crate::i18n::t_args("script-failed-toast", &args));
+            }
         }
 
         // Precompute multi-window facts before the renderer borrow —
