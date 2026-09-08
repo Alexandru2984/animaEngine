@@ -35,6 +35,7 @@ ignore = [
     "RUSTSEC-2026-0186", # memmap2 unsound — remaining 0.8.0 pinned by xkbcommon; only mmaps compositor keymaps
     "RUSTSEC-2026-0192", # ttf-parser unmaintained — egui font stack; only parses fonts compiled into the binary
     "RUSTSEC-2026-0194", # quick-xml quadratic attr scan — direct dep bumped to 0.41; remaining copies transitive/non-reachable
+    "RUSTSEC-2026-0249", # smartstring unmaintained — transitive via rhai; reachable, but unmaintained ≠ vulnerable (see ci.yml)
     "RUSTSEC-2026-0195", # quick-xml unbounded NsReader — not used on untrusted input; transitive copies only
 ]
 
