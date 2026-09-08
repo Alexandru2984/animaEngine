@@ -33,13 +33,21 @@ APPDIR="$BUILD_DIR/AppDir"
 TOOLS_DIR="$BUILD_DIR/tools"
 OUTPUT="$BUILD_DIR/animaEngine-${VERSION}-${ARCH}.AppImage"
 
+# Pinned to a *versioned* linuxdeploy release, not the rolling `continuous`
+# tag. `continuous` is republished whenever upstream rebuilds — its asset
+# moved on 2026-09-01 — which broke the v1.1.0 release build with a hash
+# mismatch. The content pin was doing its job; the problem was pinning a
+# source that is allowed to move underneath it. A versioned tag's assets are
+# immutable, so tag + hash together are a real guarantee and the release
+# pipeline no longer depends on someone else's rebuild schedule.
+#
+# Bump deliberately: pick a newer tag from
+# https://github.com/linuxdeploy/linuxdeploy/releases, download it, review
+# the change, then replace both values below.
+LINUXDEPLOY_TAG="1-alpha-20251107-1"
 LINUXDEPLOY="$TOOLS_DIR/linuxdeploy-${ARCH}.AppImage"
-LINUXDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage"
-# Content pin for the x86_64 `continuous` artifact. The tag is mutable, so
-# the URL is not a supply-chain guarantee on its own — we verify these
-# exact bytes below and abort on any drift. Bump deliberately (download,
-# review, replace) when intentionally updating linuxdeploy.
-LINUXDEPLOY_SHA256="421ca71d5c69ea97c6309276232990d43df1dcece0edfaa26bbf926ff96ed12e"
+LINUXDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/${LINUXDEPLOY_TAG}/linuxdeploy-${ARCH}.AppImage"
+LINUXDEPLOY_SHA256="c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d"
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
