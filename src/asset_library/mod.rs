@@ -652,66 +652,67 @@ fn stable_id(canonical_path: &str) -> String {
 mod ensure_root_tests {
     use super::*;
 
-    /// A fresh install has no asset directory, and everything that
-    /// resolves against the library — sprites, scripts, sounds — then has
-    /// nowhere to look. Scripts made that visible: a character configured
-    /// in the Inspector silently did nothing.
+    /// Both checks live in one test because they mutate process-global
+    /// env vars and cargo runs tests in parallel threads within a single
+    /// process — the same reason `demo_generation` keeps its two steps
+    /// together. Split, they raced and one saw the other's XDG_DATA_HOME.
     #[test]
-    fn creates_the_xdg_location_when_nothing_exists() {
-        let tmp = std::env::temp_dir().join(format!(
-            "anima-ensure-root-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        // Scoped to this test's own XDG dir so it can never touch the
-        // developer's real library.
+    fn ensure_asset_root_creates_xdg_but_never_an_explicit_override() {
+        fn scratch(tag: &str) -> PathBuf {
+            std::env::temp_dir().join(format!(
+                "anima-ensure-root-{tag}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ))
+        }
+
         let prev_data = std::env::var_os("XDG_DATA_HOME");
         let prev_assets = std::env::var_os("ANIMA_ASSETS_DIR");
+
+        let home = scratch("xdg");
+        let missing = scratch("override");
+
+        // ── The override case runs FIRST, while the XDG directory still
+        // does not exist. Ordered the other way it passes for the wrong
+        // reason: `discover_asset_root` falls back to XDG when the
+        // override is missing, so a directory created earlier in this test
+        // gets returned and hides whether the override was honoured.
+        std::env::set_var("XDG_DATA_HOME", &home);
+        std::env::set_var("ANIMA_ASSETS_DIR", &missing);
+
+        // An explicit override pointing somewhere that doesn't exist is a
+        // mistake worth surfacing, not one to paper over by creating it.
+        assert_eq!(ensure_asset_root(), None);
+        assert!(!missing.exists(), "created the user's explicit override");
+        assert!(!home.exists(), "created XDG despite an explicit override");
+
+        // ── A fresh install has no asset directory, and everything that
+        // resolves against the library — sprites, scripts, sounds — then
+        // has nowhere to look. Scripts made that visible: a character
+        // configured in the Inspector silently did nothing.
         std::env::remove_var("ANIMA_ASSETS_DIR");
-        std::env::set_var("XDG_DATA_HOME", &tmp);
 
         let root = ensure_asset_root().expect("no root created");
         assert!(root.is_dir(), "returned a path that isn't a directory");
-        assert!(root.starts_with(&tmp), "created outside the scoped XDG dir");
-
-        // Second call must reuse it, not fail on the existing directory.
+        assert!(
+            root.starts_with(&home),
+            "created outside the scoped XDG dir"
+        );
+        // A second call reuses it rather than failing on the existing dir.
         assert_eq!(ensure_asset_root().as_deref(), Some(root.as_path()));
 
         match prev_data {
             Some(v) => std::env::set_var("XDG_DATA_HOME", v),
             None => std::env::remove_var("XDG_DATA_HOME"),
         }
-        if let Some(v) = prev_assets {
-            std::env::set_var("ANIMA_ASSETS_DIR", v);
-        }
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    /// An explicit override pointing somewhere that doesn't exist is a
-    /// mistake worth surfacing, not one to paper over by creating it.
-    #[test]
-    fn an_explicit_override_is_never_created() {
-        let missing = std::env::temp_dir().join(format!(
-            "anima-never-created-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let prev = std::env::var_os("ANIMA_ASSETS_DIR");
-        std::env::set_var("ANIMA_ASSETS_DIR", &missing);
-
-        assert_eq!(ensure_asset_root(), None);
-        assert!(!missing.exists(), "created the user's explicit override");
-
-        match prev {
+        match prev_assets {
             Some(v) => std::env::set_var("ANIMA_ASSETS_DIR", v),
             None => std::env::remove_var("ANIMA_ASSETS_DIR"),
         }
+        let _ = std::fs::remove_dir_all(&home);
     }
 }
 
