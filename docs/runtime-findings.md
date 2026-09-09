@@ -575,6 +575,41 @@ Worth understanding before choosing: a surface going lost while probing a
 freshly-created one is odd enough that it may point at the layer surface
 being reconfigured underneath wgpu, which would be ours after all.
 
+### R23 · Japanese renders as boxes, end to end — `OPEN`
+
+Start the app with `LANG=ja_JP.UTF-8` and **every Japanese character in
+the UI is a missing-glyph box**. Not one label is readable. Latin text in
+the same panels — `PNG`, `Ctrl+Shift+A`, `portal (GlobalShortcuts)`,
+`config.toml` — renders fine, so this is purely a script-coverage gap.
+
+Polish was checked alongside it and is perfect, diacritics included (ó, ą,
+ę, ś, ż, ł), so Latin-extended coverage is not the issue. Japanese is the
+only CJK locale shipped, so it is the only one affected — and it is
+affected completely.
+
+This is the same family as R5, where `→` had no glyph in the proportional
+font, but the consequence is a different order of magnitude: R5 cost one
+arrow, this costs an entire advertised language. The README promises "ten
+UI locales"; nine of them work.
+
+The bundled stack is egui's Ubuntu-Light → NotoEmoji → emoji-icon-font,
+plus the Hack monospace face appended by the R5 fix. None carries CJK, and
+no amount of re-ordering fixes that — the glyphs are simply not there.
+
+Options, none of them free:
+
+- **Bundle a CJK face.** Correct everywhere, offline, deterministic. Noto
+  Sans JP is several MB even subset, against a 24 MB binary, and it only
+  solves Japanese — Chinese or Korean later would want more.
+- **Load a system font at runtime.** The test machine has 31 CJK faces
+  installed, so on a desktop where someone actually reads Japanese one is
+  almost certainly present. Needs a font-discovery dependency (none in the
+  tree) and degrades to today's behaviour when nothing is found — which
+  argues for pairing it with the next option.
+- **Say so.** Whatever else is done, the language picker should not offer a
+  language that cannot be drawn. Disabling it where no CJK face is
+  available is the same honesty R10 applied to window-awareness.
+
 ## Still unexamined
 
 Verified since, on the headless rig:
@@ -594,8 +629,12 @@ Also verified: **preset Append and Replace** both behave — Append took the
 scene from 5 entities to 6, Replace took it to 1, and the footer even
 pluralises "1 entity" correctly.
 
+Also swept: **French, Polish and Japanese**. French and Polish render
+correctly, diacritics included. Japanese is R23.
+
 Still unexamined: Shimeji pack import, drag-and-drop of files onto the
-overlay, the eight locales other than English and German, and the whole
+overlay, the five locales other than English, German, French, Polish and
+Japanese, and the whole
 winit/X11 path interactively — Vulkan reports only `Opaque` composite alpha under
 Xvfb+picom with both the NVIDIA and software drivers, so the renderer
 refuses by design and the path cannot be driven here.
