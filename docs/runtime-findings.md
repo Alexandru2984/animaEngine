@@ -669,7 +669,7 @@ they can no longer read — including the picker itself.
 Verified on the rig: `LANG=ja_JP.UTF-8` now renders "インスペクター",
 "何も選択されていません" and the full hint text.
 
-### R24 · Romanian uses three words for the same thing — `OPEN`
+### R24 · Romanian uses three words for the same thing — `FIXED`
 
 The Keybindings panel titles itself **"Comenzi taste"**, the banner under
 it says **"Scurtături"**, and the body text mixes both with
@@ -682,10 +682,21 @@ machine-translation debt catching up, and it is worth a finding rather
 than another generic "the nine locales want a native pass" line, because
 it is now demonstrable rather than assumed.
 
-The maintainer reads Romanian, so this one is cheap to settle properly:
-pick the canonical term and apply it. The other eight non-English locales
-have had no such check at all and very likely carry the same kind of
-drift.
+**Correction to the count above.** Six of those "comenzi" are *correct*:
+"paleta de comenzi" is the command palette, which really is a list of
+commands. The inconsistency is narrower than first written — "comenzi"
+used for *keybindings* while "scurtături" is used for the same thing
+elsewhere.
+
+**Fixed** on that narrower reading. "Scurtături" is the term for the
+feature (matching the Windows and GNOME Romanian conventions),
+"combinație" for the key sequence itself — a distinction worth keeping,
+not collapsing — and "chord" is gone. The command palette strings are
+untouched.
+
+The other eight non-English locales have had no such check and very likely
+carry the same kind of drift. Terminology is the maintainer's call; this
+is one line per string to revise if a different word is preferred.
 
 ## Still unexamined
 

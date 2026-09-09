@@ -130,8 +130,8 @@ library-asset-added-toast = { $name } adăugat în scenă
 library-asset-add-failed-toast = Nu am putut adăuga { $name }
 library-count = { $n } assets indexate
 
-# ── Tab Comenzi taste (D.1) ───────────────────────────────────────────
-settings-tab-keybindings = Comenzi taste
+# ── Tab Scurtături (D.1) ───────────────────────────────────────────
+settings-tab-keybindings = Scurtături
 keybindings-unbound = (nelegat)
 keybindings-add = Adaugă
 keybindings-recording = Apasă o combinație… (Esc pentru anulare)
@@ -139,7 +139,7 @@ keybindings-conflict = Conflict cu { $action }
 keybindings-reset-all = Resetează tot la implicit
 keybindings-reset-one = Resetează la implicit
 keybindings-remove-chord = Elimină această combinație
-keybindings-help = Comenzile personalizate se salvează în config.toml
+keybindings-help = Scurtăturile personalizate se salvează în config.toml
 
 # ── Etichete acțiuni (D.1.7) ──────────────────────────────────────────
 action-toggle-edit-mode = Comută modul editare
@@ -180,7 +180,7 @@ appearance-hover-startle-label = Tresărire la hover
 appearance-hover-startle-hint = Mascotele se feresc de cursor când se apropie de ele, apoi revin. Urmărirea cursorului e doar pe X11, deci pe Wayland nativ reacționează doar în modul editare.
 
 # ── Avertismente persistente (D.5) ────────────────────────────────────
-warning-global-hotkeys-unavailable = Comenzile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.
+warning-global-hotkeys-unavailable = Scurtăturile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.
 warning-hot-reload-disconnected = Procesul de reîncărcare la cald s-a oprit pe neașteptate; modificările pe config nu se vor aplica până la repornire.
 action-toggle-perf-overlay = Comută suprapunerea de performanță
 
@@ -192,7 +192,7 @@ whats-new-wayland-drag = Wayland nativ acceptă în sfârșit selectarea cu clic
 whats-new-shortcuts = Ctrl+K redeschide paleta de comenzi, iar câmpurile de text au recăpătat Ctrl+A/C/V.
 
 # ── Hint-uri onboarding noi (D.7) ─────────────────────────────────────
-onboarding-keybindings = Apasă × pe un chord ca să-l elimini; apasă o combinație ca să înregistrezi una nouă.
+onboarding-keybindings = Apasă × pe o combinație ca s-o elimini; apasă o combinație nouă ca s-o înregistrezi.
 onboarding-perf-overlay = Apasă Ctrl+Shift+` ca să deschizi overlay-ul live de performanță.
 appearance-reset-onboarding = Resetează hint-urile de bun venit
 
