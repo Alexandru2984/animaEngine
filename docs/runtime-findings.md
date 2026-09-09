@@ -669,6 +669,24 @@ they can no longer read — including the picker itself.
 Verified on the rig: `LANG=ja_JP.UTF-8` now renders "インスペクター",
 "何も選択されていません" and the full hint text.
 
+### R24 · Romanian uses three words for the same thing — `OPEN`
+
+The Keybindings panel titles itself **"Comenzi taste"**, the banner under
+it says **"Scurtături"**, and the body text mixes both with
+**"combinație"**. Counted across `ro.ftl`: "scurtături" 8×, "comenzi" 6×,
+"combinație" 4× — for one concept, on one screen. **"chord" is left in
+English** twice, which is jargon even in English.
+
+Nothing renders wrong; the diacritics are all correct. This is the
+machine-translation debt catching up, and it is worth a finding rather
+than another generic "the nine locales want a native pass" line, because
+it is now demonstrable rather than assumed.
+
+The maintainer reads Romanian, so this one is cheap to settle properly:
+pick the canonical term and apply it. The other eight non-English locales
+have had no such check at all and very likely carry the same kind of
+drift.
+
 ## Still unexamined
 
 Verified since, on the headless rig:
@@ -688,12 +706,19 @@ Also verified: **preset Append and Replace** both behave — Append took the
 scene from 5 entities to 6, Replace took it to 1, and the footer even
 pluralises "1 entity" correctly.
 
-Also swept: **French, Polish and Japanese**. French and Polish render
-correctly, diacritics included. Japanese is R23.
+Also swept: **all ten locales**. Every Latin-script one renders correctly,
+diacritics included; Japanese was R23. Romanian turned up a translation
+consistency problem rather than a rendering one — R24.
 
-Still unexamined: Shimeji pack import, drag-and-drop of files onto the
-overlay, the five locales other than English, German, French, Polish and
-Japanese, and the whole
+**Shimeji pack import** was exercised for the first time, including its
+hardening. A legitimate pack imports (actions.xml parsed, `Stand` → idle,
+`Walk` → walk, frames copied, missing states reported with reasons), and
+three hostile packs are all refused with nothing from outside the pack
+reaching disk: an `actions.xml` that is a symlink to `/etc/passwd`, a
+sprite path of `../../../../etc/hostname`, and a FIFO where a sprite
+should be. The threat-model claims there hold up.
+
+Still unexamined: drag-and-drop of files onto the overlay, and the whole
 winit/X11 path interactively — Vulkan reports only `Opaque` composite alpha under
 Xvfb+picom with both the NVIDIA and software drivers, so the renderer
 refuses by design and the path cannot be driven here.
