@@ -504,6 +504,66 @@ touches 13 `App` members and several are winit-only (`window`,
 This sits squarely inside the project's standing X11/Wayland parity
 exception (`CONTRIBUTING.md`, granted 2026-06-21).
 
+### R20 · `Single` monitor mode ignores the chosen monitor on Wayland — `OPEN`
+
+Set `monitor_mode = single` with `name = "HEADLESS-1"` (the right-hand
+output of two) and the overlay renders entirely on the *left* one. Counted
+directly: 5704 non-black pixels on the left, **zero** on the right.
+
+The primary layer surface is created with no output:
+
+```rust
+let layer = layer_shell.create_layer_surface(
+    &qh, wl_surface, Layer::Overlay, Some("anima_engine"),
+    // Any output — the compositor picks, same as the X11 path
+    // never explicitly positions its primary window either.
+    None,
+);
+```
+
+That justification is **stale**. The X11 path *does* position its primary
+window now — `app/windows.rs` says so explicitly, and records that not
+doing it was the bug which made "selecting a non-primary monitor in
+`Single` mode silently do nothing". The same bug is still here, kept alive
+by a comment pointing at behaviour that has since changed. Same shape as
+the `_arc_used` placeholder whose stated reason had also stopped being
+true.
+
+Not a one-liner: `LayerWindow::try_create` builds the surface at
+`run.rs:97`, and the monitor list only exists at `run.rs:200`, so the plan
+genuinely isn't known yet. The fix is either creating the primary surface
+after the first output round-trip, or re-creating it once the plan
+resolves. `create_extra_layer` already passes `Some(output)`, so the
+protocol side is solved — it is the ordering that isn't.
+
+### R21 · `Span` covers one monitor on Wayland, but says "all" — `OPEN`
+
+With two outputs and `monitor_mode = span`, the renderer initialises at
+1600×1000 — one output — and a character placed at x = 2100 never appears.
+
+Unlike R20 this is arguably inherent: a `wlr-layer-shell` surface belongs
+to an output, so there is no single whole-desktop surface to create. The
+code knows: `monitor.rs:313` says "`Span` draws **one** window sized to a
+single monitor".
+
+The defect is that nothing tells the user. The picker offers **"Span all
+monitors"** and `docs/engine-features.md` promises "one overlay spanning
+all monitors" — on this backend it silently means "one monitor, and your
+characters on the others vanish". The honest fixes are to disable the mode
+where it cannot work, the way window-awareness was in R10, or to implement
+it as per-output surfaces (at which point it is PerMonitor with shared
+bounds).
+
+### R22 · A recovered startup condition is logged at ERROR — `OPEN`
+
+`get_physical_device_surface_capabilities: ERROR_SURFACE_LOST_KHR` is
+logged at `ERROR` on every launch, single- and multi-output alike, and the
+renderer then initialises fine on the next line. Logging a condition the
+code recovers from at the same level as a real failure trains users and
+maintainers to ignore the level that matters. Either it is expected during
+surface setup, in which case it belongs at `debug`, or it isn't and the
+retry is masking something.
+
 ## Still unexamined
 
 Verified since, on the headless rig:
@@ -519,10 +579,13 @@ Verified since, on the headless rig:
   light theme, which needed R15.
 - **Keyboard shortcuts end to end** — which is how R19 was found.
 
+Also verified: **preset Append and Replace** both behave — Append took the
+scene from 5 entities to 6, Replace took it to 1, and the footer even
+pluralises "1 entity" correctly.
+
 Still unexamined: Shimeji pack import, drag-and-drop of files onto the
-overlay, preset Append/Replace, the Span and Single monitor modes, the
-eight locales other than English and German, and the whole winit/X11 path
-interactively — Vulkan reports only `Opaque` composite alpha under
+overlay, the eight locales other than English and German, and the whole
+winit/X11 path interactively — Vulkan reports only `Opaque` composite alpha under
 Xvfb+picom with both the NVIDIA and software drivers, so the renderer
 refuses by design and the path cannot be driven here.
 
