@@ -464,15 +464,67 @@ tracks and still finishes if the pointer crosses the panel. Verified all
 three ways: selection survives a panel click, sprites still select, and a
 dragged character lands on the exact target.
 
+### R19 · 27 of 28 keybindings do nothing on native Wayland — `OPEN`
+
+Select a character, press the arrow keys bound to "Nudge selection". It
+does not move. Verified with the character confirmed selected — the
+Inspector showed "Cat Demo" throughout — so this is not a selection
+problem.
+
+The cause is a parity gap, not a bug in the key path. Keys arrive fine
+(R14 fixed that). But `src/wayland/run.rs` consults the keybinding table
+in exactly one place and matches exactly one action:
+
+```rust
+if let Some(Action::ToggleEditMode) = config.keybindings.lookup(chord) {
+```
+
+The winit/X11 path routes through `App::dispatch_action`, which handles
+**27** actions. Native Wayland handles **one**.
+
+So the Keybindings tab lists ~28 rebindable actions, lets the user rebind
+them, and persists the result to `config.toml` — and on this backend all
+but one are decorative. Nudge, delete, cycle, centre, the visible/gravity/
+playback toggles, opacity, FPS, duplicate, z-order, save, quit: none of
+them fire.
+
+Ctrl+K is the exception that hides it, and only by accident — the command
+palette reads `ctx.input()` inside egui rather than going through the
+table at all.
+
+**Not yet fixed, because it is not a small change.** `dispatch_action`
+touches 13 `App` members and several are winit-only (`window`,
+`event_loop`, `renderer`). The tractable split looks like:
+
+- the ~20 actions that only touch scene / selection / config-dirty extract
+  cleanly into a shared function both backends call;
+- the rest (quit, save-and-exit, edit-mode toggle, perf overlay) stay
+  per-backend because they genuinely differ.
+
+This sits squarely inside the project's standing X11/Wayland parity
+exception (`CONTRIBUTING.md`, granted 2026-06-21).
+
 ## Still unexamined
 
-Areas never opened during this pass, listed so the next session knows where
-the map ends: keyboard shortcuts end-to-end (the palette works now, but the
-bindable actions themselves were never exercised), Shimeji pack import,
-drag-and-drop of files onto the overlay, preset Append/Replace, multi-monitor
-visual behaviour, the two high-contrast themes, the eight locales other than
-English and German, and the whole winit/X11 path interactively — a
-compositing X server was not available here.
+Verified since, on the headless rig:
+
+- **Scripted behaviors run live.** A character with `type = "script"` moved
+  453 px in two seconds against 440 expected at `speed = 220`. The asset
+  library is also created on first run now, which it was not.
+- **Multi-monitor (PerMonitor).** With two outputs the app spawns an extra
+  layer surface on the second and a character placed at x = 2100 renders
+  there, not on the primary.
+- **Both high-contrast themes.** Tab icons measure 14.7–15.9:1 on dark HC
+  and 8.6–11.7:1 on light HC — comfortably past AAA, unlike the ordinary
+  light theme, which needed R15.
+- **Keyboard shortcuts end to end** — which is how R19 was found.
+
+Still unexamined: Shimeji pack import, drag-and-drop of files onto the
+overlay, preset Append/Replace, the Span and Single monitor modes, the
+eight locales other than English and German, and the whole winit/X11 path
+interactively — Vulkan reports only `Opaque` composite alpha under
+Xvfb+picom with both the NVIDIA and software drivers, so the renderer
+refuses by design and the path cannot be driven here.
 
 The rig now drives the keyboard as well as the pointer, which is what made
 R14 findable. Two traps in doing so are written up under R14; the short
