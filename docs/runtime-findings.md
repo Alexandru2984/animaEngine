@@ -512,7 +512,7 @@ Those remain unavailable on native Wayland and are worth a follow-up.
 This sat inside the project's standing X11/Wayland parity exception
 (`CONTRIBUTING.md`, granted 2026-06-21).
 
-### R20 · `Single` monitor mode ignores the chosen monitor on Wayland — `OPEN`
+### R20 · `Single` monitor mode ignores the chosen monitor on Wayland — `FIXED`
 
 Set `monitor_mode = single` with `name = "HEADLESS-1"` (the right-hand
 output of two) and the overlay renders entirely on the *left* one. Counted
@@ -537,12 +537,23 @@ by a comment pointing at behaviour that has since changed. Same shape as
 the `_arc_used` placeholder whose stated reason had also stopped being
 true.
 
-Not a one-liner: `LayerWindow::try_create` builds the surface at
-`run.rs:97`, and the monitor list only exists at `run.rs:200`, so the plan
-genuinely isn't known yet. The fix is either creating the primary surface
-after the first output round-trip, or re-creating it once the plan
-resolves. `create_extra_layer` already passes `Some(output)`, so the
-protocol side is solved — it is the ordering that isn't.
+**Fixed.** A layer surface's output is fixed at creation and the output
+list has not arrived by then, so `try_create` now takes the monitor name
+`Single` asks for, does one extra round-trip to learn the outputs, and
+replaces the surface with one bound to the requested output. The
+replacement is built only when a specific monitor was asked for and the
+first surface is not on it — every other mode keeps the compositor's
+choice and costs nothing.
+
+The swap happens *before* the wgpu surface is built, so the careful
+drop-order invariant documented around `build_wgpu_surface` is untouched:
+nothing references the discarded surface.
+
+Verified on the rig, exactly inverting the original measurement — with
+`Single`/`HEADLESS-1` on two outputs there are now **0** non-black pixels
+on the left and 6222 on the right. A stale monitor name warns and falls
+back to the compositor's choice rather than failing to start, and a normal
+single-output run is unchanged.
 
 ### R21 · `Span` covers one monitor on Wayland, but says "all" — `OPEN`
 

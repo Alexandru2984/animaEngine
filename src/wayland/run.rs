@@ -94,7 +94,13 @@ pub fn run_native(
     } else {
         "none (compositor bindings + D-Bus)".into()
     };
-    let mut layer = LayerWindow::try_create()?;
+    // `Single` names the monitor the overlay belongs on; the other modes
+    // let the compositor choose.
+    let preferred_output = match &config.global.monitor_mode {
+        crate::monitor::MonitorMode::Single { name } => Some(name.clone()),
+        _ => None,
+    };
+    let mut layer = LayerWindow::try_create(preferred_output.as_deref())?;
     let (width, height) = layer
         .size
         .ok_or_else(|| AnimaError::other("compositor produced no initial size"))?;

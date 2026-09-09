@@ -87,11 +87,29 @@ pub struct LayerWindow {
     pub size: Option<(u32, u32)>,
 }
 
+impl WaylandState {
+    /// The `wl_output` whose reported name matches `want`.
+    ///
+    /// Matched against the same name `LayerWindow::monitors` reports, so
+    /// what the user picked in the monitor list is what gets resolved here.
+    fn output_named(&self, want: &str) -> Option<wl_output::WlOutput> {
+        self.output_state.outputs().find(|o| {
+            self.output_state
+                .info(o)
+                .and_then(|i| i.name)
+                .is_some_and(|n| n == want)
+        })
+    }
+}
+
 impl LayerWindow {
     /// Best-effort layer surface creation. Returns `Err` with a clear
     /// reason when the compositor lacks any required global — callers
     /// drop down to the X11 path.
-    pub fn try_create() -> Result<Self> {
+    /// `preferred_output` names the monitor the overlay should live on,
+    /// for `MonitorMode::Single`. `None` lets the compositor choose, which
+    /// is right for `Span` and for `PerMonitor`'s primary.
+    pub fn try_create(preferred_output: Option<&str>) -> Result<Self> {
         let connection = Connection::connect_to_env()
             .map_err(|e| AnimaError::other(format!("wayland connect: {e}")))?;
 
@@ -133,11 +151,10 @@ impl LayerWindow {
             wl_surface.clone(),
             Layer::Overlay,
             Some("anima_engine"),
-            // Any output — the compositor picks, same as the X11 path
-            // never explicitly positions its primary window either.
-            // `CompositorHandler::surface_enter` (handlers.rs) tells us
-            // afterward which one it chose, for entity-space origin
-            // translation once PerMonitor extras exist.
+            // No output yet: the compositor's output list has not arrived,
+            // so there is nothing to name. When `preferred_output` asks for
+            // a specific monitor this surface is replaced below, once a
+            // round-trip has told us which outputs exist.
             None,
         );
         layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
@@ -180,6 +197,43 @@ impl LayerWindow {
             active_drop_workers: Arc::new(AtomicUsize::new(0)),
             extra_layers: Vec::new(),
         };
+
+        // Learn the output list before the wgpu surface is built.
+        //
+        // A layer surface's output is fixed at creation, and at the point
+        // the first one is created the compositor has not yet told us what
+        // outputs exist — which is why `Single` mode silently ignored the
+        // monitor the user picked and the overlay landed wherever the
+        // compositor felt like (R19's neighbour, R20). One extra round-trip
+        // here is enough to resolve the name, and the replacement surface
+        // is only built when the requested monitor is not the one we got.
+        if let Some(want) = preferred_output {
+            if let Err(e) = event_queue.roundtrip(&mut state) {
+                tracing::warn!("output round-trip failed, keeping compositor's choice: {e}");
+            } else if let Some(output) = state.output_named(want) {
+                let replacement = state._layer_shell.create_layer_surface(
+                    &qh,
+                    state.compositor.create_surface(&qh),
+                    Layer::Overlay,
+                    Some("anima_engine"),
+                    Some(&output),
+                );
+                replacement.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
+                replacement.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+                replacement.set_exclusive_zone(-1);
+                replacement.commit();
+                // Dropping the old `LayerSurface` destroys it. Nothing
+                // references its `wl_surface` yet — the wgpu surface is
+                // built from `state.layer` below, after this swap.
+                state.layer = replacement;
+                state.pending_size = None;
+                tracing::info!("Overlay pinned to output {want}");
+            } else {
+                tracing::warn!(
+                    "Configured monitor {want} not found; using the compositor's choice"
+                );
+            }
+        }
 
         // Build the wgpu surface from the wl_surface now owned by `state`,
         // *after* `state` is constructed. Declaration order is (reversed)
