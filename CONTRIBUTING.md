@@ -250,7 +250,8 @@ Constraints worth knowing before you debug something surprising:
   to widen this from a script, by design.
 - Paths resolve inside the asset library only.
 - `play("meow.ogg")` plays a sound from the library, panned by where the
-  character is. It is rate-limited per character and capped per frame,
+  character is. WAV, OGG, FLAC, MP3 and MP4 all work — `play("cat.mp4")`
+  plays the audio track of a video you already use as a sprite. It is rate-limited per character and capped per frame,
   because calling it unconditionally every frame is the expected mistake.
   On a build without the `audio` feature, or a machine with no sound
   device, it is a silent no-op rather than an error — so a script written

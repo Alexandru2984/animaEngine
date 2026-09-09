@@ -5,6 +5,11 @@
 //! the left. Files live under the asset library and resolve through the
 //! same containment helper as sprites and scripts.
 //!
+//! WAV, OGG/Vorbis, FLAC, MP3 and **MP4** all decode. The last of those
+//! means `play("mascot.mp4")` plays the audio track of a video the user
+//! already dropped in as a sprite — symphonia handles both the container
+//! and AAC, so there is no demuxing code here at all.
+//!
 //! # Everything here degrades to silence
 //!
 //! A missing audio device is normal, not exceptional — CI runners, most
@@ -397,6 +402,39 @@ mod host_tests {
         // Either outcome is valid; what matters is that it did not panic
         // and that playing is safe either way.
         let _ = host.is_available();
+    }
+
+    /// Every format we claim to accept must actually decode.
+    ///
+    /// MP4 matters most: it means a script can play the audio track of a
+    /// video the user already dropped in as a sprite, with no demuxing
+    /// code of our own — symphonia handles both container and codec.
+    /// Enabled by rodio's `mp4` feature (isomp4 + aac), which is easy to
+    /// drop by accident when trimming features, hence a test rather than
+    /// a note.
+    #[cfg(feature = "audio")]
+    #[test]
+    fn every_advertised_sound_format_decodes() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/audio");
+        for name in ["tone.wav", "tone.ogg", "tone.mp4"] {
+            let sound =
+                load_sound(&root, name).unwrap_or_else(|e| panic!("{name} did not decode: {e}"));
+            assert!(!sound.samples.is_empty(), "{name} decoded to silence");
+            assert!(
+                sound.samples.iter().all(|s| s.is_finite()),
+                "{name} produced non-finite samples"
+            );
+        }
+    }
+
+    /// The containment helper guards sounds exactly as it guards scripts
+    /// and sprites — worth pinning, since this is a separate loader.
+    #[cfg(feature = "audio")]
+    #[test]
+    fn a_sound_cannot_be_loaded_from_outside_the_library() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/audio");
+        assert!(load_sound(&root, "../../Cargo.toml").is_err());
+        assert!(load_sound(&root, "/etc/passwd").is_err());
     }
 
     #[test]

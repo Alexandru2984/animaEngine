@@ -273,6 +273,11 @@ What contains it:
   non-finite result is discarded in favour of the previous position, so
   it cannot push `NaN` into GPU quad coordinates.
 
+Sound playback is **output only**. rodio's default features include
+`recording`, which compiles in its microphone module; that is disabled
+here, so no audio-capture code is linked into the binary at all. Only
+`playback` plus the decoders are enabled.
+
 Scripts can also read **aggregate machine load** — `cpu` and `mem`, as
 fractions. This is deliberately not the `sysinfo` crate: its `system`
 feature bundles the process API with CPU and memory, so there would be no

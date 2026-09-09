@@ -152,7 +152,23 @@ egui-phosphor = "0.9"
 fluent = "0.17.0"
 unic-langid = "0.9.6"
 rhai = "1.26.0"
-rodio = { version = "0.22.2", optional = true }
+# Default features are deliberately not used. rodio's defaults include
+# `recording`, which compiles in its microphone module — audio *capture*
+# in a desktop overlay that only ever plays sounds. That is unnecessary
+# attack surface for a project whose threat model leans on "no network, no
+# telemetry", so only playback and the decoders we accept are enabled.
+# `dither` is dropped too: it is output-quality polish that pulls `rand`
+# and `rand_distr` for nothing this uses.
+rodio = { version = "0.22.2", optional = true, default-features = false, features = [
+    "playback",
+    # Decoders. `mp4` is isomp4 + aac, which is what lets a script play the
+    # audio track of an MP4 the user already dropped in as a sprite.
+    "wav",
+    "vorbis",
+    "flac",
+    "mp3",
+    "mp4",
+] }
 
 # ── Linux/BSD overlay integration (cross-platform port, C2) ──────────
 # X11 (x11rb), native Wayland (wayland-client + smithay-client-toolkit),
