@@ -22,6 +22,10 @@ pub(super) fn monitor_mode_picker(
     ui: &mut egui::Ui,
     mode: &mut MonitorMode,
     monitors: &[MonitorInfo],
+    // Whether one overlay can actually cover every monitor. True on
+    // winit/X11, where the root window is one big screen; false on native
+    // Wayland, where a layer surface belongs to a single output.
+    span_supported: bool,
     config_dirty: &mut bool,
 ) {
     ui.label(egui::RichText::new(t("monitor-section-header")).text_style(h2()));
@@ -51,10 +55,24 @@ pub(super) fn monitor_mode_picker(
                 {
                     new_mode = MonitorMode::PerMonitor;
                 }
-                if ui
-                    .selectable_label(matches!(mode, MonitorMode::Span), t("monitor-mode-span"))
-                    .clicked()
-                {
+                // With one monitor, "span all" and "cover this one" are
+                // the same thing, so the mode is honest there regardless of
+                // backend. It only misleads once a second monitor exists
+                // and the characters on it would silently vanish.
+                let span_honest = span_supported || monitors.len() <= 1;
+                let span_resp = ui.add_enabled(
+                    span_honest,
+                    egui::SelectableLabel::new(
+                        matches!(mode, MonitorMode::Span),
+                        t("monitor-mode-span"),
+                    ),
+                );
+                let span_resp = if span_honest {
+                    span_resp
+                } else {
+                    span_resp.on_disabled_hover_text(t("monitor-mode-span-unsupported"))
+                };
+                if span_resp.clicked() {
                     new_mode = MonitorMode::Span;
                 }
                 // Single-mode requires a named monitor; offer one entry

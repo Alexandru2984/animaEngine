@@ -68,6 +68,7 @@ monitor-section-header = Monitory
 monitor-mode-label = Dystrybucja
 monitor-mode-per-monitor = Na każdym monitorze
 monitor-mode-span = Rozciągnij na wszystkich monitorach
+monitor-mode-span-unsupported = W tym backendzie jedna nakładka nie może objąć kilku monitorów — użyj trybu na monitor.
 monitor-mode-single = Pojedynczy monitor
 scene-window-awareness = Ląduj na oknach (X11)
 scene-window-awareness-tooltip = Postacie z włączoną fizyką lądują na górnych krawędziach otwartych okien i chodzą po nich. Tylko sesje X11 — Wayland nie udostępnia pozycji okien, więc tam to nic nie robi.

@@ -22,7 +22,11 @@ positioned wherever the WM dropped it. In 0.3 they get either:
   each monitor has its own surface, its own scene subset, and its
   own X11 shape / Wayland layer
 - **One overlay spanning all monitors** (`MonitorMode::Span`) —
-  current 0.2 behaviour, kept for compatibility
+  current 0.2 behaviour, kept for compatibility. **X11 only**: a
+  `wlr-layer-shell` surface belongs to a single output, so there is no
+  whole-desktop surface to create on native Wayland. The mode is offered
+  disabled there once a second monitor exists — with one monitor it is
+  equivalent to covering that monitor, so it stays available.
 - **One overlay on a single chosen monitor** (`MonitorMode::Single
   { name }`) — useful for kiosk / streaming setups where only one
   display should carry the characters

@@ -90,6 +90,7 @@ monitor-section-header = Monitors
 monitor-mode-label = Distribution
 monitor-mode-per-monitor = Per monitor
 monitor-mode-span = Span all monitors
+monitor-mode-span-unsupported = One overlay cannot cover several monitors on this backend — use per-monitor instead.
 monitor-mode-single = Single monitor
 scene-window-awareness = Land on windows (X11)
 scene-window-awareness-tooltip = Physics-enabled characters land on and walk along the top edges of your open windows. X11 sessions only — Wayland offers no window positions, so this does nothing there.

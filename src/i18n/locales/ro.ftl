@@ -68,6 +68,7 @@ monitor-section-header = Monitoare
 monitor-mode-label = Distribuție
 monitor-mode-per-monitor = Pe fiecare monitor
 monitor-mode-span = Întinde pe toate monitoarele
+monitor-mode-span-unsupported = Pe acest backend o suprapunere nu poate acoperi mai multe monitoare — folosește „per monitor”.
 monitor-mode-single = Un singur monitor
 scene-window-awareness = Aterizează pe ferestre (X11)
 scene-window-awareness-tooltip = Personajele cu fizică activă aterizează și merg pe marginea de sus a ferestrelor deschise. Doar pe sesiuni X11 — Wayland nu expune pozițiile ferestrelor, deci acolo nu are efect.

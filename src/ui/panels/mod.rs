@@ -180,6 +180,9 @@ pub fn settings(
     monitor_mode: &mut MonitorMode,
     window_awareness: &mut bool,
     window_awareness_supported: bool,
+    // Whether one overlay can cover every monitor. False on native
+    // Wayland, where a layer surface belongs to a single output.
+    span_supported: bool,
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
     monitors: &[MonitorInfo],
@@ -322,6 +325,7 @@ pub fn settings(
                                 monitor_mode,
                                 window_awareness,
                                 window_awareness_supported,
+                                span_supported,
                                 monitors,
                                 collapse_state,
                             );

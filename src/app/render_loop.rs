@@ -404,6 +404,9 @@ impl App {
                                     window_awareness_mut,
                                     // winit backend: X11 or XWayland, both read EWMH.
                                     true,
+                                    // X11's root window is one screen across
+                                    // every monitor, so Span really spans.
+                                    true,
                                     reduced_motion_mut,
                                     hover_startle_mut,
                                     monitors_ref,

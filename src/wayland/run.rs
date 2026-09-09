@@ -806,6 +806,9 @@ pub fn run_native(
                                 window_awareness_mut,
                                 // Native Wayland exposes no window positions.
                                 false,
+                                // A layer surface belongs to one output, so no single
+                                // surface can span the desktop here.
+                                false,
                                 reduced_motion_mut,
                                 hover_startle_mut,
                                 monitors_ref,

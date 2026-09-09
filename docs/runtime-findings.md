@@ -555,7 +555,7 @@ on the left and 6222 on the right. A stale monitor name warns and falls
 back to the compositor's choice rather than failing to start, and a normal
 single-output run is unchanged.
 
-### R21 · `Span` covers one monitor on Wayland, but says "all" — `OPEN`
+### R21 · `Span` covers one monitor on Wayland, but says "all" — `FIXED`
 
 With two outputs and `monitor_mode = span`, the renderer initialises at
 1600×1000 — one output — and a character placed at x = 2100 never appears.
@@ -568,10 +568,19 @@ single monitor".
 The defect is that nothing tells the user. The picker offers **"Span all
 monitors"** and `docs/engine-features.md` promises "one overlay spanning
 all monitors" — on this backend it silently means "one monitor, and your
-characters on the others vanish". The honest fixes are to disable the mode
-where it cannot work, the way window-awareness was in R10, or to implement
-it as per-output surfaces (at which point it is PerMonitor with shared
-bounds).
+characters on the others vanish".
+
+**Fixed the honest way**, as R10 did for window-awareness: the mode is
+offered disabled on backends that cannot span, with a tooltip pointing at
+per-monitor instead. `span_supported` is plumbed separately from
+`window_awareness_supported` even though both are false on the same
+backend today — they are different capabilities, and conflating them would
+mislead whoever adds the next backend.
+
+Deliberately still available with a **single** monitor, where "span all"
+and "cover this one" are the same thing and the label is not a lie. It only
+misleads once a second monitor exists. `engine-features.md` now says X11
+only rather than promising it flatly.
 
 ### R22 · A recovered startup condition is logged at ERROR — `OPEN`
 

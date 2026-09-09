@@ -68,6 +68,7 @@ monitor-section-header = モニター
 monitor-mode-label = 配分
 monitor-mode-per-monitor = モニター毎
 monitor-mode-span = 全モニターにまたがって表示
+monitor-mode-span-unsupported = このバックエンドでは 1 つのオーバーレイで複数のモニターを覆えません。「モニターごと」を使ってください。
 monitor-mode-single = 単一モニター
 scene-window-awareness = ウィンドウに着地（X11）
 scene-window-awareness-tooltip = 物理が有効なキャラクターは、開いているウィンドウの上端に着地して歩きます。X11 セッション限定 — Wayland はウィンドウ位置を公開しないため、そこでは何も起きません。

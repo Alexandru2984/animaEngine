@@ -27,11 +27,15 @@ pub(super) fn scene_tab(
     window_awareness: &mut bool,
     // Whether this backend can actually provide window positions.
     window_awareness_supported: bool,
+    // Kept separate from window-awareness even though both are false on
+    // the same backend today: they are different capabilities, and a
+    // future backend could have one without the other.
+    span_supported: bool,
     monitors: &[MonitorInfo],
     collapse_state: &mut CollapseState,
 ) {
     // ── Monitor distribution section ─────────────────────────────────
-    monitor_mode_picker(ui, monitor_mode, monitors, config_dirty);
+    monitor_mode_picker(ui, monitor_mode, monitors, span_supported, config_dirty);
 
     // ── Window awareness (X11) ────────────────────────────────────────
     //
