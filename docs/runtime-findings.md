@@ -558,11 +558,22 @@ bounds).
 
 `get_physical_device_surface_capabilities: ERROR_SURFACE_LOST_KHR` is
 logged at `ERROR` on every launch, single- and multi-output alike, and the
-renderer then initialises fine on the next line. Logging a condition the
-code recovers from at the same level as a real failure trains users and
-maintainers to ignore the level that matters. Either it is expected during
-surface setup, in which case it belongs at `debug`, or it isn't and the
-retry is masking something.
+renderer initialises fine on the very next line.
+
+**Correction on first writing this up:** the message is not ours. It does
+not appear anywhere in `src/`, so it is wgpu's own log reaching the
+terminal through our `tracing_subscriber`. That changes the fix from "move
+one log line" to a judgement call:
+
+- narrowing the default `EnvFilter` to quieten that wgpu target would stop
+  the noise, but suppressing a graphics library's `ERROR` wholesale is a
+  good way to miss a real device failure later;
+- leaving it means every launch prints an `ERROR` the code handled, which
+  is exactly how people learn to skim past the level that matters.
+
+Worth understanding before choosing: a surface going lost while probing a
+freshly-created one is odd enough that it may point at the layer surface
+being reconfigured underneath wgpu, which would be ours after all.
 
 ## Still unexamined
 
