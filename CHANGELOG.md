@@ -47,6 +47,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   to be reading a chord. The loop now consults the shortcut table only
   when egui is not collecting text, which is what the X11 path has always
   done implicitly.
+- **Quit, save, delete and duplicate did nothing on native Wayland.**
+  `Q`, `S`, `Del`/`Bksp` and `D` were all inert on that backend — while
+  the overlay's own help screen, which works there, listed every one of
+  them. Delete and duplicate now go through the same handler the
+  right-click menu uses, so the keyboard and the menu cannot drift apart.
+  The perf-overlay shortcut is still not available on native Wayland;
+  that loop has no frame sampler, and wiring one is a separate change.
 - **Centre-on-screen and cycle-monitor did nothing on native Wayland.**
   Both looked window-bound and had been left behind with the X11-only
   actions; centring needs a rectangle rather than a window, and cycling

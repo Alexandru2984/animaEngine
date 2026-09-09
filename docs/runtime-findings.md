@@ -9,10 +9,12 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 `BY DESIGN` observed, deliberate, not changing · `RETRACTED` reported here
 in error, kept so the mistake isn't repeated.
 
-**Current state: R22 is the only thing `OPEN`**, and it is blocked on
-hardware rather than on a decision. R1–R5, R7–R21, R23–R26 are `FIXED`, R6
-is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at the
-bottom are where the next round should start.
+**Current state: R22 is `OPEN`** and blocked on hardware rather than on a
+decision; **R27 is fixed for four of its five actions**, with the fifth
+(the perf overlay on native Wayland) needing a decision rather than a
+patch. R1–R5, R7–R21, R23–R26 are `FIXED`, R6 is `BY DESIGN`, R6b is
+`RETRACTED`. The unexplored surfaces listed at the bottom are where the
+next round should start.
 
 ## How these were reproduced
 
@@ -766,6 +768,53 @@ path, so rewriting them would break a legitimate binding to repair a
 broken one. Anything rebound to a Ctrl chord before this fix needs
 rebinding once; it never worked, so nothing is lost.
 
+### R27 · Five more actions were silently dead on native Wayland — `FIXED` (four of five)
+
+With R19 landed and R26 fixed, all twenty-eight rebindable actions were
+pressed one at a time on the native Wayland backend for the first time.
+Twenty-two work. **Five did nothing at all**: `Q` (quit and save), `S`
+(save config now), `Del` / `Bksp` (delete), `D` (duplicate) and
+`Ctrl+Shift+`` ` (perf overlay).
+
+Four of those five are actively promised *by the app itself on that
+backend*: the in-app help screen — `H`, which does work there — prints
+"D — Duplicate", "Del/Bksp — Delete", "S — Save config" and "Q — Save and
+exit". So the overlay told the user about four shortcuts it then ignored.
+
+**Fixed for those four.** None of them is shareable with the winit path —
+each reaches for something only its own loop owns — but every piece they
+needed was already present in the native loop: `sync_and_save`,
+`layer.state.close_requested`, and `handle_menu_action`, which the
+right-click menu already used for delete and duplicate. Routing the
+keyboard through the same handler as the menu is deliberate, so the two
+cannot drift apart. Quit sets the close flag and lets the existing
+shutdown path do the save, rather than writing the scene twice.
+
+**`TogglePerfOverlay` is not fixed, and this is why.** It is not a missing
+call: the native loop has no `PerfSampler` at all, by an explicit choice
+recorded at `run.rs:135`. Showing the overlay there means threading a
+sampler plus GPU stats through that loop's hot path with `begin_frame`,
+`end_frame` and four `scope` sites — a feature port into a second render
+loop rather than a defect repair, and one this rig cannot validate,
+because everything here renders on lavapipe and the frame timings would
+be fiction. The Keybindings tab still offers the action, so the promise
+is still outstanding; it wants either the port or an honest
+"not on this backend" note in the tab, the way R10 and R21 handled
+window-awareness and span.
+
+Two notes on method, both mistakes worth not repeating:
+
+- The first sweep was **invalid** and nearly produced a false finding.
+  `Tab` is bound to Cycle entity, but it is also egui's focus key, so
+  pressing it moved keyboard focus into the settings panel and every
+  later key in the batch went to a widget instead of the shortcut table —
+  the panel had quietly switched to the Keybindings tab. Sweeps must not
+  contain `Tab`, and focus has to be cleared first.
+- `FpsUp` / `FpsDown` looked dead too. They are not: the rig's own virtual
+  keyboard had no entry for `[` and `]` and was silently logging
+  `unknown key`. Always check the rig's log before believing the app's
+  silence.
+
 ## Still unexamined
 
 Verified since, on the headless rig:
@@ -779,7 +828,11 @@ Verified since, on the headless rig:
 - **Both high-contrast themes.** Tab icons measure 14.7–15.9:1 on dark HC
   and 8.6–11.7:1 on light HC — comfortably past AAA, unlike the ordinary
   light theme, which needed R15.
-- **Keyboard shortcuts end to end** — which is how R19 was found.
+- **Keyboard shortcuts end to end** — which is how R19 was found. All
+  twenty-eight rebindable actions have now been pressed individually on
+  native Wayland; twenty-six work, one (`HideOverlay`) is global-hotkey
+  only by design on both backends, and one (the perf overlay) is R27's
+  open half.
 
 Also verified: **preset Append and Replace** both behave — Append took the
 scene from 5 entities to 6, Replace took it to 1, and the footer even
@@ -825,3 +878,13 @@ produced false findings:
   unresponsive.
 - The first-run onboarding tour covers the ⚙ button, so a scripted click
   on it does nothing until the tour is dismissed.
+
+**Seen once, not reproduced:** during R27's sweep a two-output session
+rendered no entities at all — five loaded and the panel drew, but the
+desktop stayed black. It has not recurred in four deliberate attempts
+(one clean two-output start, three app restarts against the same
+compositor, all rendering normally), and that session had accumulated a
+lot of state: entities repinned between outputs, the virtual keyboard
+restarted under the running app, the app killed and relaunched several
+times. Recorded rather than filed, because "nothing renders on two
+monitors" is worth recognising fast if it turns up again.

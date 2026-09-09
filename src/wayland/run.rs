@@ -480,6 +480,59 @@ pub fn run_native(
                         }
                     }
                 }
+                // The next four are not shareable — each one reaches for
+                // something only this loop owns (its config, its shutdown
+                // flag, its renderer's texture cache) — but every piece
+                // they need is already here, and the in-app help screen
+                // lists all four. They did nothing at all on this backend
+                // until now (R27).
+                Action::SaveNow => match sync_and_save(&mut config, &scene) {
+                    Ok(()) => {
+                        config_dirty = false;
+                        tracing::info!("Config saved manually");
+                        toasts.success(crate::i18n::t("toast-config-saved"));
+                    }
+                    Err(e) => {
+                        // `config_dirty` deliberately stays set: a
+                        // transient failure must let the next edit retry
+                        // rather than silently drop the scene, which is
+                        // the same rule `save_config_if_needed` follows
+                        // on the winit path.
+                        tracing::warn!("Failed to save config: {e}");
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("error", e.to_string());
+                        toasts.error(crate::i18n::t_args("toast-save-failed", &args));
+                    }
+                },
+                Action::QuitWithSave => {
+                    // The shutdown path at the end of `run` persists
+                    // `config_dirty` on its way out, so this needs no save
+                    // of its own — and doing one here would write the
+                    // scene twice on every quit.
+                    tracing::info!("Quit action — saving and exiting");
+                    layer.state.close_requested = true;
+                }
+                Action::DeleteSelected | Action::DuplicateSelected => {
+                    if let Some(idx) = selection.selected_index() {
+                        let menu_action = if action == Action::DeleteSelected {
+                            panels::MenuAction::Delete(idx)
+                        } else {
+                            panels::MenuAction::Duplicate(idx)
+                        };
+                        // Same handler the right-click menu uses, so the
+                        // keyboard and the menu cannot drift apart — it
+                        // already evicts the texture, fixes up the
+                        // selection and raises the toast.
+                        handle_menu_action(
+                            menu_action,
+                            &mut scene,
+                            &mut renderer,
+                            &mut selection,
+                            &mut toasts,
+                            &mut config_dirty,
+                        );
+                    }
+                }
                 // Everything that only touches the scene and the selection
                 // is shared with the winit path. Before this, the table was
                 // consulted here and matched ToggleEditMode alone, so the
