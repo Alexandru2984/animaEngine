@@ -22,6 +22,7 @@ mod action;
 mod bindings;
 mod chord;
 mod keys;
+pub mod shared;
 
 pub use action::Action;
 pub use bindings::KeyBindings;

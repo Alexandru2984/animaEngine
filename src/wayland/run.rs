@@ -459,16 +459,37 @@ pub fn run_native(
             let Some(chord) = KeyChord::from_egui(*key, *modifiers) else {
                 continue;
             };
-            if let Some(Action::ToggleEditMode) = config.keybindings.lookup(chord) {
-                let new_mode = !layer.state.edit_mode;
-                match layer.set_edit_mode(new_mode, toggle_button_units(&monitors_now)) {
-                    Ok(()) => tracing::info!(
-                        "Edit mode {} (Wayland)",
-                        if new_mode { "on" } else { "off" }
-                    ),
-                    Err(e) => {
-                        tracing::warn!("Failed to flip input region on edit toggle: {e}")
+            let Some(action) = config.keybindings.lookup(chord) else {
+                continue;
+            };
+            match action {
+                Action::ToggleEditMode => {
+                    let new_mode = !layer.state.edit_mode;
+                    match layer.set_edit_mode(new_mode, toggle_button_units(&monitors_now)) {
+                        Ok(()) => tracing::info!(
+                            "Edit mode {} (Wayland)",
+                            if new_mode { "on" } else { "off" }
+                        ),
+                        Err(e) => {
+                            tracing::warn!("Failed to flip input region on edit toggle: {e}")
+                        }
                     }
+                }
+                // Everything that only touches the scene and the selection
+                // is shared with the winit path. Before this, the table was
+                // consulted here and matched ToggleEditMode alone, so the
+                // other twenty-seven rebindable actions were inert on this
+                // backend — the user could rebind them and see the config
+                // persist while nothing happened (R19).
+                other => {
+                    let shift = layer.state.last_modifiers.shift;
+                    crate::keybindings::shared::dispatch_shared(
+                        other,
+                        &mut scene,
+                        &mut selection,
+                        &mut config_dirty,
+                        shift,
+                    );
                 }
             }
         }

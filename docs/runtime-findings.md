@@ -464,7 +464,7 @@ tracks and still finishes if the pointer crosses the panel. Verified all
 three ways: selection survives a panel click, sprites still select, and a
 dragged character lands on the exact target.
 
-### R19 · 27 of 28 keybindings do nothing on native Wayland — `OPEN`
+### R19 · 27 of 28 keybindings do nothing on native Wayland — `FIXED`
 
 Select a character, press the arrow keys bound to "Nudge selection". It
 does not move. Verified with the character confirmed selected — the
@@ -492,17 +492,25 @@ Ctrl+K is the exception that hides it, and only by accident — the command
 palette reads `ctx.input()` inside egui rather than going through the
 table at all.
 
-**Not yet fixed, because it is not a small change.** `dispatch_action`
-touches 13 `App` members and several are winit-only (`window`,
-`event_loop`, `renderer`). The tractable split looks like:
+**Fixed** by the split this entry predicted, measured rather than guessed:
+of the 26 arms, **18** touch only the scene, the selection and the dirty
+flag, and **8** genuinely need a window, a renderer or the event loop.
 
-- the ~20 actions that only touch scene / selection / config-dirty extract
-  cleanly into a shared function both backends call;
-- the rest (quit, save-and-exit, edit-mode toggle, perf overlay) stay
-  per-backend because they genuinely differ.
+The 18 moved to `keybindings::shared::dispatch_shared`, which both backends
+now call; it returns `false` for anything it does not own so each caller
+still runs its own arms. Native Wayland went from 1 handled action to 19.
 
-This sits squarely inside the project's standing X11/Wayland parity
-exception (`CONTRIBUTING.md`, granted 2026-06-21).
+Verified on the rig rather than by reading: five presses of Right moved a
+character exactly 50 px, `V` took it from 1199 visible pixels to 0 and back
+to 1168, and `Tab` moved the selection from Cat Demo to Ghost Demo.
+
+Still per-backend, because they differ for real: quit-with-save,
+save-now, edit-mode toggle, delete, centre-on-screen, duplicate (it goes
+through the renderer's texture cache), cycle-monitor and the perf overlay.
+Those remain unavailable on native Wayland and are worth a follow-up.
+
+This sat inside the project's standing X11/Wayland parity exception
+(`CONTRIBUTING.md`, granted 2026-06-21).
 
 ### R20 · `Single` monitor mode ignores the chosen monitor on Wayland — `OPEN`
 

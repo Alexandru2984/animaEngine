@@ -28,10 +28,6 @@ impl App {
                 self.save_config_if_needed();
                 tracing::info!("Config saved manually");
             }
-            Action::PauseAll => {
-                self.scene.toggle_global_playback();
-                self.config_dirty = true;
-            }
             Action::DeleteSelected => {
                 if let Some(idx) = self.selection.selected_index() {
                     self.delete_entity(idx);
@@ -43,56 +39,6 @@ impl App {
             // go through `get_mut` — the deselect-on-removal invariant
             // holds everywhere today, but a panic on a stale index is
             // the wrong failure mode for a keypress either way.
-            Action::NudgeUp => {
-                if let Some(idx) = self.selection.selected_index() {
-                    let step = if self.shift_held { 1.0 } else { 10.0 };
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.y -= step;
-                        entity.behavior_state.bounce_invalidate();
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            Action::NudgeDown => {
-                if let Some(idx) = self.selection.selected_index() {
-                    let step = if self.shift_held { 1.0 } else { 10.0 };
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.y += step;
-                        entity.behavior_state.bounce_invalidate();
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            Action::NudgeLeft => {
-                if let Some(idx) = self.selection.selected_index() {
-                    let step = if self.shift_held { 1.0 } else { 10.0 };
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.x -= step;
-                        entity.behavior_state.bounce_invalidate();
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            Action::NudgeRight => {
-                if let Some(idx) = self.selection.selected_index() {
-                    let step = if self.shift_held { 1.0 } else { 10.0 };
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.x += step;
-                        entity.behavior_state.bounce_invalidate();
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            Action::ResetTransform => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.scale = 1.0;
-                        entity.opacity = 1.0;
-                        tracing::info!("Reset '{}' scale=1.0, opacity=1.0", entity.name);
-                        self.config_dirty = true;
-                    }
-                }
-            }
             Action::CenterOnScreen => {
                 if let Some(idx) = self.selection.selected_index() {
                     if let Some(window) = &self.window {
@@ -109,74 +55,6 @@ impl App {
                             );
                             self.config_dirty = true;
                         }
-                    }
-                }
-            }
-            Action::OpacityUp => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.opacity = (entity.opacity + 0.1).min(1.0);
-                        tracing::info!("Opacity: {:.0}%", entity.opacity * 100.0);
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            Action::OpacityDown => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.opacity = (entity.opacity - 0.1).max(0.05);
-                        tracing::info!("Opacity: {:.0}%", entity.opacity * 100.0);
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            Action::ToggleVisible => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.visible = !entity.visible;
-                        tracing::info!(
-                            "Entity '{}' visibility: {}",
-                            entity.name,
-                            if entity.visible { "visible" } else { "hidden" }
-                        );
-                        self.scene.mark_visible_dirty();
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            // Gravity: off by default — entity stays put. Toggling on
-            // makes it fall from its current position; off pins it.
-            Action::ToggleGravity => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.physics.toggle();
-                        tracing::info!(
-                            "Entity '{}' gravity: {}",
-                            entity.name,
-                            if entity.physics.enabled {
-                                "ON (falling)"
-                            } else {
-                                "OFF (pinned)"
-                            }
-                        );
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            Action::TogglePlayback => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.animation_mut().toggle_playback();
-                        tracing::info!(
-                            "Entity '{}': {}",
-                            entity.name,
-                            if entity.animation().playing {
-                                "playing"
-                            } else {
-                                "paused"
-                            }
-                        );
-                        self.config_dirty = true;
                     }
                 }
             }
@@ -219,64 +97,6 @@ impl App {
                     }
                 }
             }
-            Action::CycleEntity => {
-                // Empty scene: nothing to cycle through, silently
-                // no-op so the user's `Tab` doesn't grab focus from
-                // the egui panel (which Tab would otherwise navigate).
-                if self.scene.entities.is_empty() {
-                    return;
-                }
-                let next = match self.selection.selected_index() {
-                    Some(idx) => (idx + 1) % self.scene.entities.len(),
-                    None => 0,
-                };
-                self.selection.select(next);
-                tracing::info!(
-                    "Selected: {} ({})",
-                    self.scene.entities[next].name,
-                    self.scene.entities[next].id
-                );
-            }
-            Action::BringForward => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.z_index += 10;
-                        tracing::info!("z-index: {} ({})", entity.z_index, entity.name);
-                        self.scene.mark_visible_dirty();
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            Action::SendBackward => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.z_index -= 10;
-                        tracing::info!("z-index: {} ({})", entity.z_index, entity.name);
-                        self.scene.mark_visible_dirty();
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            Action::FpsDown => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        let fps = entity.animation().fps;
-                        entity.animation_mut().set_fps((fps - 2.0).max(1.0));
-                        tracing::info!("FPS: {:.0} ({})", entity.animation().fps, entity.name);
-                        self.config_dirty = true;
-                    }
-                }
-            }
-            Action::FpsUp => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        let fps = entity.animation().fps;
-                        entity.animation_mut().set_fps(fps + 2.0);
-                        tracing::info!("FPS: {:.0} ({})", entity.animation().fps, entity.name);
-                        self.config_dirty = true;
-                    }
-                }
-            }
             Action::CycleMonitor => {
                 if let Some(idx) = self.selection.selected_index() {
                     if let Some(entity) = self.scene.entities.get_mut(idx) {
@@ -286,54 +106,6 @@ impl App {
                         self.config_dirty = true;
                     }
                 }
-            }
-            Action::ShowEntityInfo => {
-                if let Some(e) = self
-                    .selection
-                    .selected_index()
-                    .and_then(|idx| self.scene.entities.get(idx))
-                {
-                    tracing::info!(
-                        "━━━ Entity Info ━━━\n  Name: {}\n  ID: {}\n  Position: ({:.0}, {:.0})\n  Scale: {:.2}\n  Opacity: {:.0}%\n  FPS: {:.0}\n  Frames: {}\n  z-index: {}\n  Visible: {}\n  Playing: {}\n  Asset: {}",
-                        e.name, e.id, e.x, e.y, e.scale,
-                        e.opacity * 100.0, e.animation().fps,
-                        e.animation().frame_count(), e.z_index,
-                        e.visible, e.animation().playing, e.asset_path
-                    );
-                }
-            }
-            Action::ShowHelp => {
-                tracing::info!(
-                    "━━━ KEYBOARD SHORTCUTS ━━━\n\
-                    \n  Navigation:\n\
-                    \n    Tab        — Cycle through entities\n\
-                    \n    Click      — Select entity\n\
-                    \n    Escape     — Exit edit mode (auto-saves)\n\
-                    \n\n  Position:\n\
-                    \n    Drag       — Move entity\n\
-                    \n    Arrows     — Nudge 10px\n\
-                    \n    Shift+Arrows — Fine nudge 1px\n\
-                    \n    Home       — Center on screen\n\
-                    \n\n  Appearance:\n\
-                    \n    Scroll     — Resize\n\
-                    \n    +/-        — Opacity\n\
-                    \n    R          — Reset scale/opacity\n\
-                    \n    V          — Toggle visibility\n\
-                    \n    PgUp/PgDn  — Z-order\n\
-                    \n\n  Animation:\n\
-                    \n    P          — Play/pause entity\n\
-                    \n    Space      — Global play/pause\n\
-                    \n    [/]        — Adjust FPS\n\
-                    \n\n  Physics:\n\
-                    \n    G          — Toggle gravity (off by default)\n\
-                    \n\n  Actions:\n\
-                    \n    D          — Duplicate\n\
-                    \n    Del/Bksp   — Delete\n\
-                    \n    I          — Show entity info\n\
-                    \n    S          — Save config\n\
-                    \n    Q          — Save and exit\n\
-                    \n    H          — This help"
-                );
             }
             Action::TogglePerfOverlay => {
                 self.perf_overlay_visible = !self.perf_overlay_visible;
@@ -354,6 +126,18 @@ impl App {
             // edit mode — we leave the handling to the original sites
             // rather than duplicate it here.
             Action::HideOverlay | Action::OpenCommandPalette => {}
+            // Everything else is backend-independent and lives in
+            // `keybindings::shared`, so the native Wayland loop can run it
+            // too — it previously handled one action out of twenty-eight.
+            other => {
+                crate::keybindings::shared::dispatch_shared(
+                    other,
+                    &mut self.scene,
+                    &mut self.selection,
+                    &mut self.config_dirty,
+                    self.shift_held,
+                );
+            }
         }
     }
 }
