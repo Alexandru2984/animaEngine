@@ -28,17 +28,21 @@ impl KeyChord {
 
     /// Build a chord from egui's per-event input, returning `None`
     /// when the key isn't in our supported set (function keys, etc.).
-    /// Used by the rebinding UI to capture the chord the user pressed.
+    /// Used by the rebinding UI to capture the chord the user pressed,
+    /// and by the native Wayland loop, which reads egui's event list
+    /// directly rather than going through winit.
     pub fn from_egui(key: egui::Key, mods: egui::Modifiers) -> Option<Self> {
-        // Treat egui's `mac_cmd` / `command` as Super for cross-platform
-        // consistency — the recorded chord can later be re-pressed on
-        // any platform without losing the modifier identity.
-        let mask = ModifierMask::from_state(
-            mods.ctrl,
-            mods.shift,
-            mods.alt,
-            mods.mac_cmd || mods.command,
-        );
+        // Only `mac_cmd` means Super. `command` does NOT: off macOS egui
+        // defines it as an alias for `ctrl`, so treating it as Super
+        // turned every Ctrl chord into Ctrl+Super — which matches nothing
+        // in the table and cannot be typed. Two things broke on that:
+        // Ctrl+M (cycle monitor) and Ctrl+Shift+A (edit mode) were dead on
+        // the native Wayland backend, and the Keybindings tab recorded
+        // Ctrl+Super+X for any Ctrl chord the user rebound, on *both*
+        // backends, persisting a chord that could never fire again (R26).
+        // On macOS `mac_cmd` is set for the real Cmd key, so Super still
+        // round-trips there.
+        let mask = ModifierMask::from_state(mods.ctrl, mods.shift, mods.alt, mods.mac_cmd);
         Some(Self::new(mask, KeyCode::from_egui(key)?))
     }
 

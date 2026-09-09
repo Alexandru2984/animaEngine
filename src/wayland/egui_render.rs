@@ -60,6 +60,18 @@ impl WaylandEguiRenderer {
         self.context.is_pointer_over_area()
     }
 
+    /// Whether egui is collecting text right now — a focused text field,
+    /// the command palette's search box, the keybinding capture widget.
+    ///
+    /// Callers must consult this **before** running a key through the
+    /// keybinding table. `egui_winit` reports a key event as consumed on
+    /// exactly this condition, which is how the winit path avoids the
+    /// problem for free; this loop reads egui's raw event list itself and
+    /// so has to ask explicitly.
+    pub fn wants_keyboard(&self) -> bool {
+        self.context.wants_keyboard_input()
+    }
+
     /// Re-apply the design-system style if the active theme changed.
     pub fn ensure_theme(&mut self, theme: theme::Theme) {
         if self.current_theme != theme {

@@ -5,7 +5,6 @@
 
 use super::App;
 use crate::keybindings::Action;
-use crate::ui::panels;
 use winit::event_loop::ActiveEventLoop;
 
 impl App {
@@ -39,25 +38,6 @@ impl App {
             // go through `get_mut` — the deselect-on-removal invariant
             // holds everywhere today, but a panic on a stale index is
             // the wrong failure mode for a keypress either way.
-            Action::CenterOnScreen => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(window) = &self.window {
-                        let size = window.inner_size();
-                        if let Some(entity) = self.scene.entities.get_mut(idx) {
-                            entity.x = (size.width as f32 - entity.scaled_width()) / 2.0;
-                            entity.y = (size.height as f32 - entity.scaled_height()) / 2.0;
-                            entity.behavior_state.bounce_invalidate();
-                            tracing::info!(
-                                "Centered '{}' at ({:.0}, {:.0})",
-                                entity.name,
-                                entity.x,
-                                entity.y
-                            );
-                            self.config_dirty = true;
-                        }
-                    }
-                }
-            }
             Action::DuplicateSelected => {
                 if let Some(idx) = self.selection.selected_index() {
                     let Some(src) = self.scene.entities.get(idx) else {
@@ -97,16 +77,6 @@ impl App {
                     }
                 }
             }
-            Action::CycleMonitor => {
-                if let Some(idx) = self.selection.selected_index() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        let toast =
-                            panels::cycle_entity_monitor(&mut entity.monitor, &self.monitors);
-                        self.toasts.info(toast);
-                        self.config_dirty = true;
-                    }
-                }
-            }
             Action::TogglePerfOverlay => {
                 self.perf_overlay_visible = !self.perf_overlay_visible;
                 tracing::debug!(
@@ -130,13 +100,24 @@ impl App {
             // `keybindings::shared`, so the native Wayland loop can run it
             // too — it previously handled one action out of twenty-eight.
             other => {
-                crate::keybindings::shared::dispatch_shared(
-                    other,
-                    &mut self.scene,
-                    &mut self.selection,
-                    &mut self.config_dirty,
-                    self.shift_held,
-                );
+                let bounds = self
+                    .window
+                    .as_ref()
+                    .map(|w| {
+                        let s = w.inner_size();
+                        crate::monitor::DesktopBounds::from_size(s.width as f32, s.height as f32)
+                    })
+                    .unwrap_or_else(|| crate::monitor::DesktopBounds::from_size(1920.0, 1080.0));
+                let mut ctx = crate::keybindings::shared::ActionCtx {
+                    scene: &mut self.scene,
+                    selection: &mut self.selection,
+                    config_dirty: &mut self.config_dirty,
+                    shift_held: self.shift_held,
+                    bounds,
+                    monitors: &self.monitors,
+                    toasts: &mut self.toasts,
+                };
+                crate::keybindings::shared::dispatch_shared(other, &mut ctx);
             }
         }
     }

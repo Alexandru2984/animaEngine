@@ -88,10 +88,14 @@ pub fn keysym_to_egui_key(keysym: Keysym) -> Option<egui::Key> {
 }
 
 /// Project sctk's `Modifiers` struct onto egui's. `command` mirrors
-/// `ctrl` on Linux because we have no macOS-style super-as-command
-/// distinction on this path; the perf overlay's `Ctrl+Shift+\``
-/// default chord and every other Ctrl-prefixed action keep their
-/// expected behaviour.
+/// `ctrl` on Linux, which is what egui itself does off macOS — widgets
+/// test `command` for copy/paste and the command palette tests it for
+/// Ctrl+K, so it has to be set.
+///
+/// It is deliberately *not* also reported as Super. `KeyChord::from_egui`
+/// used to read `command` that way, which turned every Ctrl chord on this
+/// backend into Ctrl+Super and matched nothing in the table (R26). Super
+/// comes from `mac_cmd` alone; this path never sets it.
 pub fn modifiers_to_egui(m: SctkModifiers) -> egui::Modifiers {
     egui::Modifiers {
         alt: m.alt,

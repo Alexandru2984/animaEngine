@@ -452,17 +452,16 @@ pub fn run_native(
 
         let events = layer.drain_egui_events();
         let modifiers = layer.modifiers();
+        // A focused text field owns the keyboard: the palette's search box,
+        // a numeric field being typed into, the keybinding capture widget.
+        // Without this gate every character double-fires as a global
+        // shortcut — typing "vi" into the command palette also toggled the
+        // selection's visibility and dumped its info to the log (R25).
+        // `egui_winit` reports key events as consumed on exactly this
+        // condition, which is why the winit path never had the bug.
+        let egui_owns_keyboard = egui_renderer.wants_keyboard();
         for event in &events {
-            let egui::Event::Key {
-                key,
-                pressed: true,
-                modifiers,
-                ..
-            } = event
-            else {
-                continue;
-            };
-            let Some(chord) = KeyChord::from_egui(*key, *modifiers) else {
+            let Some(chord) = binding_chord(event, egui_owns_keyboard) else {
                 continue;
             };
             let Some(action) = config.keybindings.lookup(chord) else {
@@ -488,14 +487,22 @@ pub fn run_native(
                 // backend — the user could rebind them and see the config
                 // persist while nothing happened (R19).
                 other => {
-                    let shift = layer.state.last_modifiers.shift;
-                    crate::keybindings::shared::dispatch_shared(
-                        other,
-                        &mut scene,
-                        &mut selection,
-                        &mut config_dirty,
-                        shift,
-                    );
+                    let mut ctx = crate::keybindings::shared::ActionCtx {
+                        scene: &mut scene,
+                        selection: &mut selection,
+                        config_dirty: &mut config_dirty,
+                        shift_held: layer.state.last_modifiers.shift,
+                        bounds: monitor::covered_bounds(
+                            &plan,
+                            (
+                                renderer.primary.window_width as f32,
+                                renderer.primary.window_height as f32,
+                            ),
+                        ),
+                        monitors: &monitors_now,
+                        toasts: &mut toasts,
+                    };
+                    crate::keybindings::shared::dispatch_shared(other, &mut ctx);
                 }
             }
         }
@@ -1079,6 +1086,33 @@ fn toggle_button_units(monitors: &[MonitorInfo]) -> u32 {
     px.round().clamp(1.0, u32::MAX as f32) as u32
 }
 
+/// The chord a drained egui event should be looked up as, if any.
+///
+/// `egui_owns_keyboard` is `Context::wants_keyboard_input()`: a focused
+/// text field, the palette's search box, the keybinding capture widget.
+/// While that is true the key belongs to the widget and must not also fire
+/// a global shortcut — typing "vi" into the command palette used to toggle
+/// the selection's visibility and dump its info as well (R25).
+///
+/// Split out of the event loop so the gate is testable: the loop needs a
+/// compositor, a renderer and a scene, but this decision is one boolean
+/// and one event. The winit path gets the same answer for free, from
+/// `egui_winit` reporting key events as consumed on exactly this condition.
+fn binding_chord(event: &egui::Event, egui_owns_keyboard: bool) -> Option<KeyChord> {
+    if egui_owns_keyboard {
+        return None;
+    }
+    match event {
+        egui::Event::Key {
+            key,
+            pressed: true,
+            modifiers,
+            ..
+        } => KeyChord::from_egui(*key, *modifiers),
+        _ => None,
+    }
+}
+
 /// The input region matching the current overlay state.
 ///
 /// Centralised because the region has to be re-derived from *all* of
@@ -1551,6 +1585,47 @@ mod tests {
             scale_factor: scale,
             ..monitor(name, 0, 0)
         }
+    }
+
+    // ── keybinding gate (R25) ────────────────────────────────────────
+
+    fn key_event(key: egui::Key, pressed: bool) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    #[test]
+    fn a_press_becomes_a_chord_when_egui_is_not_typing() {
+        let ev = key_event(egui::Key::V, true);
+        assert_eq!(
+            binding_chord(&ev, false),
+            KeyChord::from_egui(egui::Key::V, egui::Modifiers::NONE)
+        );
+    }
+
+    /// The whole point of R25: while a text field has focus the keystroke
+    /// belongs to the widget, not to the global shortcut table.
+    #[test]
+    fn a_press_is_swallowed_while_egui_wants_the_keyboard() {
+        let ev = key_event(egui::Key::V, true);
+        assert!(
+            binding_chord(&ev, true).is_none(),
+            "typing into the palette must not toggle visibility as well"
+        );
+    }
+
+    /// Releases and non-key events were already ignored; keep it that way,
+    /// or every shortcut fires twice.
+    #[test]
+    fn releases_and_other_events_are_never_chords() {
+        assert!(binding_chord(&key_event(egui::Key::V, false), false).is_none());
+        assert!(binding_chord(&egui::Event::Text("v".into()), false).is_none());
+        assert!(binding_chord(&egui::Event::PointerGone, false).is_none());
     }
 
     /// egui paints the button at `points × pixels_per_point`, and at

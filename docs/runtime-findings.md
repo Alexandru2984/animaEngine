@@ -9,8 +9,9 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 `BY DESIGN` observed, deliberate, not changing · `RETRACTED` reported here
 in error, kept so the mistake isn't repeated.
 
-**Current state: nothing `OPEN`.** R1–R5, R7–R18 are `FIXED`, R6 is
-`BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at the
+**Current state: R22 is the only thing `OPEN`**, and it is blocked on
+hardware rather than on a decision. R1–R5, R7–R21, R23–R26 are `FIXED`, R6
+is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at the
 bottom are where the next round should start.
 
 ## How these were reproduced
@@ -698,6 +699,73 @@ The other eight non-English locales have had no such check and very likely
 carry the same kind of drift. Terminology is the maintainer's call; this
 is one line per string to revise if a different word is preferred.
 
+### R25 · Typing in any text field also fires the global shortcut — `FIXED`
+
+On native Wayland, open the command palette and type `vi` into its search
+box. The palette receives the text — and the selected character *also*
+turns invisible and dumps its info to the log, because `v` and `i` are
+bound to Toggle visible and Show entity info.
+
+Every text field on this backend has the problem: the palette's search,
+a numeric position field being typed into, the keybinding capture widget
+that is supposed to be reading a chord. `d` duplicates, `g` toggles
+gravity, `Delete` deletes.
+
+The winit path never had it. `App::window_event` hands each event to
+`egui_winit` first and returns early when it reports the event consumed,
+and for key events `egui_winit` reports exactly `wants_keyboard_input()`.
+The native loop instead reads egui's drained event list itself, so it
+never saw that answer and had no gate at all.
+
+**Fixed** by asking the same question the winit path asks implicitly: the
+keybinding table is consulted only when `Context::wants_keyboard_input()`
+is false. Ctrl+K still closes the palette, because
+`panels::command_palette` handles that chord from `ctx.input` rather than
+through the table — which is also why it works on the winit path, where
+the outer dispatcher likewise never sees it.
+
+Found while verifying R19's follow-up, not by looking for it: the palette
+was open on screen from an earlier step when a test key was sent.
+
+### R26 · Every Ctrl chord was `Ctrl+Super` — `FIXED`
+
+Found while checking R25's fix: with the keyboard gate in place, `v` and
+`Home` fired but **`Ctrl+M` and `Ctrl+Shift+A` did nothing at all**, on a
+backend where `Ctrl+K` (the command palette) worked fine.
+
+`Ctrl+K` works because `panels::command_palette` reads `ctx.input`
+directly. Everything else goes through `KeyChord::from_egui`, which built
+its modifier mask as:
+
+```rust
+ModifierMask::from_state(mods.ctrl, mods.shift, mods.alt, mods.mac_cmd || mods.command)
+```
+
+Off macOS, egui defines `command` as an alias for `ctrl` — and this path
+sets it that way itself (`wayland/keyboard.rs`). So holding Ctrl produced
+`ctrl && command`, the mask came out `CTRL | SUPER`, and the lookup
+matched nothing in the table. Every Ctrl-prefixed action on the native
+Wayland backend was dead, which is the same class of silence as R19 and
+was hidden by it: R19 made the whole table unreachable there, so nobody
+had yet pressed a Ctrl chord that *should* have worked.
+
+**It was not only a Wayland problem.** The Keybindings tab captures the
+chord the user pressed through the same `from_egui`, on both backends. So
+rebinding anything to a Ctrl chord recorded `Ctrl+Super+X`, displayed it,
+and wrote it to `config.toml` — a chord that cannot be typed on Linux,
+because `egui::Modifiers` has no Super field for this path to set. The
+binding was silently unusable from the moment it was saved.
+
+**Fixed** by reading only `mac_cmd` as Super. `command` is left to egui's
+own widgets, which is what it is for; macOS still round-trips Super
+because `mac_cmd` is set there for the real Cmd key.
+
+**Existing configs are not migrated.** A `Ctrl+Super+X` in `config.toml`
+could also have been hand-written, and Super chords *do* fire on the winit
+path, so rewriting them would break a legitimate binding to repair a
+broken one. Anything rebound to a Ctrl chord before this fix needs
+rebinding once; it never worked, so nothing is lost.
+
 ## Still unexamined
 
 Verified since, on the headless rig:
@@ -738,3 +806,22 @@ The rig now drives the keyboard as well as the pointer, which is what made
 R14 findable. Two traps in doing so are written up under R14; the short
 version is that both `wlrctl` and `wtype` create their virtual device, use
 it and exit, and the app can never bind a device that transient.
+
+A third trap surfaced while verifying R25, and it survives the usual fix.
+Keeping a spare `wtype` alive holds the seat's keyboard capability up, but
+**every new `wtype` process uploads a fresh keymap**, and the app logs
+`non-xkb compatible keymap` and drops the key — so the capability is
+present, the key is sent, and nothing happens. The rig now runs a single
+`zwp_virtual_keyboard_v1` client for the whole session, with one keymap,
+taking keystrokes from a FIFO; nothing about the seat changes between them.
+
+Two rig bugs are worth recording next to the app's, because both nearly
+produced false findings:
+
+- `zwlr_virtual_pointer_v1::motion_absolute` is mapped against the extent
+  the *caller* declares, and the compositor stretches that over the whole
+  output layout. Declaring one monitor's width on a two-monitor desktop
+  doubles every x, so clicks land on the other screen and the app looks
+  unresponsive.
+- The first-run onboarding tour covers the ⚙ button, so a scripted click
+  on it does nothing until the tour is dismissed.

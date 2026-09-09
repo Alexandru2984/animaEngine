@@ -1,8 +1,8 @@
 //! Keyboard actions that both backends can run.
 //!
-//! These eighteen touch only the scene, the selection and the dirty flag —
-//! nothing about a window, a renderer or an event loop — so they belong to
-//! neither backend in particular.
+//! These twenty touch only the scene, the selection, the dirty flag and
+//! the toast queue — nothing about a window, a renderer or an event loop —
+//! so they belong to neither backend in particular.
 //!
 //! They live here because they were living in `app::dispatch` instead,
 //! reachable only from the winit path. The native Wayland loop consulted
@@ -12,25 +12,60 @@
 //! persist while nudge, delete, cycle and the rest stayed inert (R19 in
 //! docs/runtime-findings.md).
 //!
-//! The remaining ten stay per-backend because they genuinely differ —
-//! quitting, saving, duplicating through the renderer's texture cache,
-//! centring against a window, the perf overlay.
+//! The remaining six stay per-backend because they genuinely differ:
+//! quitting and saving (each loop owns its shutdown), the edit-mode
+//! toggle (Wayland has to reshape its input region), deleting and
+//! duplicating (both reach into the renderer's texture cache), and the
+//! perf overlay (a winit-only counter).
+//!
+//! Centring and monitor-cycling used to be in that list. They only looked
+//! window-bound: centring needs a rectangle, not a window, and cycling
+//! needs the monitor list — both of which the Wayland loop already has.
 
 use crate::input::selection::SelectionState;
 use crate::keybindings::Action;
+use crate::monitor::{DesktopBounds, MonitorInfo};
 use crate::scene::Scene;
+use crate::ui::toasts::ToastQueue;
+
+/// What a shared action is allowed to touch.
+///
+/// A struct rather than a parameter list: this started at five arguments
+/// and centring plus monitor-cycling would have made it eight, at which
+/// point call sites stop being readable.
+pub struct ActionCtx<'a> {
+    pub scene: &'a mut Scene,
+    pub selection: &'a mut SelectionState,
+    pub config_dirty: &'a mut bool,
+    /// Fine-nudge modifier: 1 px instead of 10.
+    pub shift_held: bool,
+    /// The region an entity may occupy — what "centre on screen" centres
+    /// against. The winit path passes its window, the Wayland path the
+    /// area its layer surfaces cover.
+    pub bounds: DesktopBounds,
+    pub monitors: &'a [MonitorInfo],
+    pub toasts: &'a mut ToastQueue,
+}
 
 /// Run `action` if it is one of the backend-independent ones.
 ///
 /// Returns `false` when the action is not handled here, so a caller can
 /// fall through to its own arms rather than silently swallowing it.
-pub fn dispatch_shared(
-    action: Action,
-    scene: &mut Scene,
-    selection: &mut SelectionState,
-    config_dirty: &mut bool,
-    shift_held: bool,
-) -> bool {
+pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
+    let ActionCtx {
+        scene,
+        selection,
+        config_dirty,
+        shift_held,
+        bounds,
+        monitors,
+        toasts,
+    } = ctx;
+    let shift_held = *shift_held;
+    let bounds = *bounds;
+    // Destructuring gives `&mut &mut bool`; reborrow once so the arms can
+    // keep writing `*config_dirty = true` as they did before the move.
+    let config_dirty: &mut bool = config_dirty;
     match action {
         Action::PauseAll => {
             scene.toggle_global_playback();
@@ -259,6 +294,37 @@ pub fn dispatch_shared(
                 \n    H          — This help"
             );
         }
+        Action::CenterOnScreen => {
+            if let Some(idx) = selection.selected_index() {
+                if let Some(entity) = scene.entities.get_mut(idx) {
+                    // Centres on the region the overlay covers, which the
+                    // caller supplies: the window on winit, the layer
+                    // surfaces' area on Wayland.
+                    entity.x =
+                        bounds.min_x + (bounds.max_x - bounds.min_x - entity.scaled_width()) / 2.0;
+                    entity.y =
+                        bounds.min_y + (bounds.max_y - bounds.min_y - entity.scaled_height()) / 2.0;
+                    entity.behavior_state.bounce_invalidate();
+                    tracing::info!(
+                        "Centered '{}' at ({:.0}, {:.0})",
+                        entity.name,
+                        entity.x,
+                        entity.y
+                    );
+                    *config_dirty = true;
+                }
+            }
+        }
+        Action::CycleMonitor => {
+            if let Some(idx) = selection.selected_index() {
+                if let Some(entity) = scene.entities.get_mut(idx) {
+                    let toast =
+                        crate::ui::panels::cycle_entity_monitor(&mut entity.monitor, monitors);
+                    toasts.info(toast);
+                    *config_dirty = true;
+                }
+            }
+        }
         _ => return false,
     }
     true
@@ -305,7 +371,17 @@ mod tests {
 
     fn run(action: Action, scene: &mut Scene, sel: &mut SelectionState, shift: bool) -> bool {
         let mut dirty = false;
-        dispatch_shared(action, scene, sel, &mut dirty, shift)
+        let mut toasts = ToastQueue::default();
+        let mut ctx = ActionCtx {
+            scene,
+            selection: sel,
+            config_dirty: &mut dirty,
+            shift_held: shift,
+            bounds: DesktopBounds::from_size(1920.0, 1080.0),
+            monitors: &[],
+            toasts: &mut toasts,
+        };
+        dispatch_shared(action, &mut ctx)
     }
 
     #[test]
@@ -386,8 +462,8 @@ mod tests {
             Action::QuitWithSave,
             Action::SaveNow,
             Action::DeleteSelected,
-            Action::CenterOnScreen,
             Action::DuplicateSelected,
+            Action::TogglePerfOverlay,
         ] {
             assert!(!run(action, &mut scene, &mut sel, false), "{action:?}");
         }
@@ -399,7 +475,124 @@ mod tests {
         let mut sel = SelectionState::default();
         sel.select(0);
         let mut dirty = false;
-        dispatch_shared(Action::NudgeUp, &mut scene, &mut sel, &mut dirty, false);
+        let mut toasts = ToastQueue::default();
+        let mut ctx = ActionCtx {
+            scene: &mut scene,
+            selection: &mut sel,
+            config_dirty: &mut dirty,
+            shift_held: false,
+            bounds: DesktopBounds::from_size(1920.0, 1080.0),
+            monitors: &[],
+            toasts: &mut toasts,
+        };
+        dispatch_shared(Action::NudgeUp, &mut ctx);
         assert!(dirty, "a move that changes the scene must persist");
+    }
+
+    // ── centring and monitor-cycling ────────────────────────────────
+    //
+    // These two moved here from `app::dispatch` after the context struct
+    // landed. They had looked window-bound; they are not, and the Wayland
+    // path was missing them for no reason.
+
+    /// Centring has to use the *bounds the caller passed*, not a guess at
+    /// the primary screen. On Wayland the two differ whenever the overlay
+    /// spans more than one output.
+    #[test]
+    fn centring_uses_the_supplied_bounds() {
+        let mut scene = scene_with(1);
+        scene.entities[0].scale = 1.0;
+        let mut sel = SelectionState::default();
+        sel.select(0);
+        let mut dirty = false;
+        let mut toasts = ToastQueue::default();
+        let (w, h) = (
+            scene.entities[0].scaled_width(),
+            scene.entities[0].scaled_height(),
+        );
+        // An off-origin rectangle: a second monitor to the right of the
+        // first. Centring against it must land at its middle, not at the
+        // desktop's.
+        let bounds = DesktopBounds {
+            min_x: 1920.0,
+            min_y: 0.0,
+            max_x: 3200.0,
+            max_y: 720.0,
+        };
+        let mut ctx = ActionCtx {
+            scene: &mut scene,
+            selection: &mut sel,
+            config_dirty: &mut dirty,
+            shift_held: false,
+            bounds,
+            monitors: &[],
+            toasts: &mut toasts,
+        };
+        assert!(dispatch_shared(Action::CenterOnScreen, &mut ctx));
+        assert_eq!(scene.entities[0].x, 1920.0 + (1280.0 - w) / 2.0);
+        assert_eq!(scene.entities[0].y, (720.0 - h) / 2.0);
+        assert!(dirty);
+    }
+
+    #[test]
+    fn centring_without_a_selection_is_a_no_op() {
+        let mut scene = scene_with(1);
+        let before = (scene.entities[0].x, scene.entities[0].y);
+        let mut sel = SelectionState::default();
+        // Handled — it is one of ours — but it must not move anything.
+        assert!(run(Action::CenterOnScreen, &mut scene, &mut sel, false));
+        assert_eq!((scene.entities[0].x, scene.entities[0].y), before);
+    }
+
+    fn monitor(name: &str, x: i32) -> MonitorInfo {
+        MonitorInfo {
+            name: name.to_string(),
+            x,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            scale_factor: 1.0,
+            is_primary: x == 0,
+        }
+    }
+
+    #[test]
+    fn cycling_walks_the_monitor_list_and_toasts() {
+        let mut scene = scene_with(1);
+        let mut sel = SelectionState::default();
+        sel.select(0);
+        let mons = [monitor("DP-1", 0), monitor("DP-2", 1920)];
+        let mut dirty = false;
+        let mut toasts = ToastQueue::default();
+        let mut ctx = ActionCtx {
+            scene: &mut scene,
+            selection: &mut sel,
+            config_dirty: &mut dirty,
+            shift_held: false,
+            bounds: DesktopBounds::from_size(3840.0, 1080.0),
+            monitors: &mons,
+            toasts: &mut toasts,
+        };
+        assert!(dispatch_shared(Action::CycleMonitor, &mut ctx));
+        let first = scene.entities[0].monitor.clone();
+        assert!(first.is_some(), "cycling off None must pick a monitor");
+        assert!(dirty, "the new assignment has to persist");
+        assert_eq!(
+            toasts.iter().count(),
+            1,
+            "the user needs to see where it went"
+        );
+    }
+
+    /// The Wayland loop can hand over an empty monitor list on the frame
+    /// before the compositor has advertised any output. Cycling then has
+    /// nothing to pick and must leave the entity where it is.
+    #[test]
+    fn cycling_with_no_monitors_leaves_the_entity_alone() {
+        let mut scene = scene_with(1);
+        let mut sel = SelectionState::default();
+        sel.select(0);
+        assert!(run(Action::CycleMonitor, &mut scene, &mut sel, false));
+        assert_eq!(scene.entities[0].monitor, None);
     }
 }

@@ -192,4 +192,61 @@ mod tests {
             Some(KeyCode::Symbol(SymbolKey::Plus))
         );
     }
+
+    // ── egui → chord (R26) ───────────────────────────────────────────
+
+    /// Off macOS, egui sets `command` to the same value as `ctrl`. It must
+    /// not also count as Super, or every Ctrl chord becomes Ctrl+Super and
+    /// matches nothing — which killed Ctrl+M and Ctrl+Shift+A on the native
+    /// Wayland backend and made the rebinder record unpressable chords.
+    #[test]
+    fn linux_command_is_ctrl_not_super() {
+        let mods = egui::Modifiers {
+            ctrl: true,
+            command: true,
+            ..egui::Modifiers::NONE
+        };
+        assert_eq!(
+            KeyChord::from_egui(egui::Key::M, mods),
+            Some(KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('M')))
+        );
+    }
+
+    /// The default Ctrl chords have to survive the round trip that the
+    /// Wayland loop and the rebinder both make; this is the lookup that
+    /// was silently failing.
+    #[test]
+    fn a_default_ctrl_chord_still_resolves_from_egui() {
+        let mods = egui::Modifiers {
+            ctrl: true,
+            command: true,
+            ..egui::Modifiers::NONE
+        };
+        let chord = KeyChord::from_egui(egui::Key::M, mods).unwrap();
+        let bindings = KeyBindings::default();
+        assert_eq!(bindings.lookup(chord), Some(Action::CycleMonitor));
+
+        let mods = egui::Modifiers {
+            ctrl: true,
+            command: true,
+            shift: true,
+            ..egui::Modifiers::NONE
+        };
+        let chord = KeyChord::from_egui(egui::Key::A, mods).unwrap();
+        assert_eq!(bindings.lookup(chord), Some(Action::ToggleEditMode));
+    }
+
+    /// macOS still needs a way to express Super, and `mac_cmd` is it.
+    #[test]
+    fn mac_cmd_is_still_super() {
+        let mods = egui::Modifiers {
+            mac_cmd: true,
+            command: true,
+            ..egui::Modifiers::NONE
+        };
+        assert_eq!(
+            KeyChord::from_egui(egui::Key::M, mods),
+            Some(KeyChord::new(ModifierMask::SUPER, KeyCode::Letter('M')))
+        );
+    }
 }

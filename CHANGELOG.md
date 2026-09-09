@@ -30,6 +30,28 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Every Ctrl shortcut you rebound was saved as an unpressable chord.**
+  The Keybindings tab captured chords through a converter that read egui's
+  `command` modifier as Super — but off macOS `command` is an alias for
+  `ctrl`, so rebinding an action to any Ctrl chord recorded, displayed and
+  persisted `Ctrl+Super+X`, which cannot be typed on Linux. The binding was
+  dead from the moment it was saved. Existing configs are deliberately not
+  rewritten (a hand-written Super chord is legitimate and does work on
+  X11); anything rebound to a Ctrl chord before this needs rebinding once.
+  On native Wayland the same bug also killed the *built-in* Ctrl chords —
+  Ctrl+M and Ctrl+Shift+A did nothing there.
+- **Typing into any text field also fired the matching global shortcut**
+  on native Wayland. Typing `vi` into the command palette searched for
+  "vi" *and* turned the selected character invisible and dumped its info;
+  the keybinding capture widget had the same problem while it was supposed
+  to be reading a chord. The loop now consults the shortcut table only
+  when egui is not collecting text, which is what the X11 path has always
+  done implicitly.
+- **Centre-on-screen and cycle-monitor did nothing on native Wayland.**
+  Both looked window-bound and had been left behind with the X11-only
+  actions; centring needs a rectangle rather than a window, and cycling
+  needs the monitor list, both of which that backend already has. Six
+  actions remain genuinely per-backend.
 - `CONTRIBUTING.md` still described the 0.9→1.0 feature freeze as active,
   months after 1.0 and 1.1 shipped, so a contributor reading it would have
   concluded features were still blocked.
