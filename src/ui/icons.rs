@@ -18,6 +18,89 @@
 
 use egui_phosphor::regular as ph;
 
+/// Where a CJK face is likely to live, most-preferred first.
+///
+/// Scanned rather than pulled in through a font-discovery crate: the list
+/// is short, the paths are stable across the distributions this ships to,
+/// and a fontconfig dependency would be a large tree for one lookup that
+/// happens at most once per session.
+///
+/// `.ttc` entries are collections; face 0 is the Sans/SC face in every
+/// Noto CJK collection, which covers kana and the kanji a UI needs.
+const CJK_FONT_CANDIDATES: &[(&str, u32)] = &[
+    ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0),
+    ("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 0),
+    ("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc", 0),
+    (
+        "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+        0,
+    ),
+    (
+        "/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf",
+        0,
+    ),
+    ("/usr/share/fonts/truetype/fonts-japanese-gothic.ttf", 0),
+    ("/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf", 0),
+    (
+        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+        0,
+    ),
+];
+
+/// Upper bound on a font file we will read. Noto Sans CJK is ~19 MB, so
+/// this is generous; it exists for the same reason every other loader here
+/// is bounded, not because a realistic font approaches it.
+const MAX_FONT_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Whether `code` is written in a script the bundled fonts cannot draw.
+///
+/// The bundled stack is Latin plus emoji, so every shipped locale renders
+/// except the CJK ones. Kept as a prefix test so adding `zh` or `ko` later
+/// needs no change here.
+pub fn locale_needs_cjk(code: &str) -> bool {
+    let lang = code.split(['-', '_']).next().unwrap_or(code);
+    matches!(lang, "ja" | "zh" | "ko")
+}
+
+/// Load the first CJK face we can find, if any.
+///
+/// `None` means the machine has no CJK font installed — which is normal on
+/// a system nobody reads those languages on, and is exactly when the
+/// language picker should stop offering them.
+fn load_cjk_font() -> Option<egui::FontData> {
+    for (path, index) in CJK_FONT_CANDIDATES {
+        let path = std::path::Path::new(path);
+        let Ok(meta) = std::fs::metadata(path) else {
+            continue;
+        };
+        if !meta.is_file() || meta.len() > MAX_FONT_BYTES {
+            continue;
+        }
+        match std::fs::read(path) {
+            Ok(bytes) => {
+                tracing::info!("Loaded CJK font from {}", path.display());
+                return Some(egui::FontData {
+                    font: std::borrow::Cow::Owned(bytes),
+                    index: *index,
+                    tweak: egui::FontTweak::default(),
+                });
+            }
+            Err(e) => tracing::debug!("CJK font {} unreadable: {e}", path.display()),
+        }
+    }
+    None
+}
+
+/// Whether a CJK face is available on this machine.
+///
+/// The language picker uses this to avoid offering a language it would
+/// draw as a row of empty boxes.
+pub fn cjk_font_available() -> bool {
+    CJK_FONT_CANDIDATES
+        .iter()
+        .any(|(p, _)| std::fs::metadata(p).map(|m| m.is_file()).unwrap_or(false))
+}
+
 /// Register the Phosphor icon font with `ctx`. Idempotent: calling
 /// twice replaces the previous registration with the same data, which
 /// is cheap. Invoked from `EguiRenderer::new` after `theme::apply`
@@ -51,6 +134,28 @@ pub fn install(ctx: &egui::Context) {
             if !proportional.contains(&name) {
                 proportional.push(name);
             }
+        }
+    }
+
+    // CJK is not in the bundled stack at all, so a Japanese UI drew every
+    // character as a missing-glyph box — the whole locale, not one symbol.
+    // Loaded only when the active locale needs it: the face is ~19 MB, and
+    // holding that resident for a user reading English buys nothing.
+    // Re-installed on a language change, so switching at runtime works.
+    if locale_needs_cjk(&crate::i18n::current_locale()) {
+        match load_cjk_font() {
+            Some(data) => {
+                fonts.font_data.insert("cjk".to_owned(), data.into());
+                for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+                    if let Some(list) = fonts.families.get_mut(&family) {
+                        list.push("cjk".to_owned());
+                    }
+                }
+            }
+            None => tracing::warn!(
+                "No CJK font found; this locale will render as empty boxes. \
+                 Install a Noto CJK package to fix it."
+            ),
         }
     }
 
@@ -118,3 +223,39 @@ pub const KIND_IMAGE: &str = ph::IMAGE;
 pub const KIND_ANIMATED: &str = ph::FILM_REEL;
 pub const KIND_VIDEO: &str = ph::FILM_SCRIPT;
 pub const ADD: &str = ph::PLUS;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The bundled stack is Latin plus emoji, so only the CJK locales need
+    /// a font from outside it. Every other shipped language must not pay
+    /// the ~19 MB load.
+    #[test]
+    fn only_cjk_locales_ask_for_an_extra_font() {
+        for code in ["ja", "ja-JP", "ja_JP", "zh", "zh-CN", "ko"] {
+            assert!(locale_needs_cjk(code), "{code} should need CJK");
+        }
+        for code in [
+            "en", "en-US", "de", "es", "fr", "it", "nl", "pl", "pt-BR", "ro",
+        ] {
+            assert!(!locale_needs_cjk(code), "{code} should not need CJK");
+        }
+    }
+
+    /// Both separators appear in the wild — Fluent uses `-`, POSIX `LANG`
+    /// uses `_` — and getting this wrong silently reinstates the bug.
+    #[test]
+    fn the_language_subtag_is_read_past_either_separator() {
+        assert!(locale_needs_cjk("ja-JP"));
+        assert!(locale_needs_cjk("ja_JP"));
+        assert!(!locale_needs_cjk("jamaican-english"));
+    }
+
+    /// Availability is a plain filesystem probe, so it must answer without
+    /// panicking whatever the machine has installed.
+    #[test]
+    fn availability_is_safe_to_probe() {
+        let _ = cjk_font_available();
+    }
+}

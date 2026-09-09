@@ -81,6 +81,7 @@ monitor-no-monitors-detected = モニターが検出されません
 appearance-theme-header = テーマ
 appearance-theme-label = テーマ
 appearance-language-header = 言語
+appearance-language-no-font = この文字体系のフォントが見つかりません。Noto CJK パッケージを導入してください。
 theme-dark = ダーク
 theme-light = ライト
 theme-dark-hc = ダーク · ハイコントラスト

@@ -111,11 +111,27 @@ fn language_picker(ui: &mut egui::Ui, locale: &mut Option<String>) -> bool {
     egui::ComboBox::from_id_salt("anima.language.picker")
         .selected_text(active_label)
         .show_ui(ui, |ui| {
+            // A language whose script the machine has no font for would
+            // draw as a row of empty boxes — the whole UI, not one glyph.
+            // Offer it disabled with a reason instead of letting someone
+            // pick it and lose the ability to read the picker itself.
+            let cjk_ok = crate::ui::icons::cjk_font_available();
             for (code, autonym) in SUPPORTED {
                 let selected = *code == active_code;
-                if ui.selectable_label(selected, *autonym).clicked() && !selected {
+                let drawable = cjk_ok || !crate::ui::icons::locale_needs_cjk(code);
+                let resp = ui.add_enabled(drawable, egui::SelectableLabel::new(selected, *autonym));
+                let resp = if drawable {
+                    resp
+                } else {
+                    resp.on_disabled_hover_text(t("appearance-language-no-font"))
+                };
+                if resp.clicked() && !selected {
                     set_locale(code);
                     *locale = Some((*code).to_string());
+                    // Fonts are chosen per locale, so the stack has to be
+                    // rebuilt here — otherwise switching to Japanese at
+                    // runtime keeps the Latin-only fonts and draws boxes.
+                    crate::ui::icons::install(ui.ctx());
                     changed = true;
                 }
             }

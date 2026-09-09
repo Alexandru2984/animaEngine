@@ -81,6 +81,7 @@ monitor-no-monitors-detected = Geen monitors gedetecteerd
 appearance-theme-header = Thema
 appearance-theme-label = Thema
 appearance-language-header = Taal
+appearance-language-no-font = Er is geen lettertype voor dit schrift geïnstalleerd — installeer eerst een Noto CJK-pakket.
 theme-dark = Donker
 theme-light = Licht
 theme-dark-hc = Donker · Hoog contrast

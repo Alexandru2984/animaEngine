@@ -575,7 +575,7 @@ Worth understanding before choosing: a surface going lost while probing a
 freshly-created one is odd enough that it may point at the layer surface
 being reconfigured underneath wgpu, which would be ours after all.
 
-### R23 · Japanese renders as boxes, end to end — `OPEN`
+### R23 · Japanese renders as boxes, end to end — `FIXED`
 
 Start the app with `LANG=ja_JP.UTF-8` and **every Japanese character in
 the UI is a missing-glyph box**. Not one label is readable. Latin text in
@@ -609,6 +609,21 @@ Options, none of them free:
 - **Say so.** Whatever else is done, the language picker should not offer a
   language that cannot be drawn. Disabling it where no CJK face is
   available is the same honesty R10 applied to window-awareness.
+
+**Fixed** with the second and third together. A short list of well-known
+CJK font paths is probed and the first hit loaded — no font-discovery
+dependency, which would have been a large tree for one lookup per session.
+Loaded *only* when the active locale needs it, since the face is ~19 MB and
+holding that for someone reading English buys nothing, and re-installed
+when the language changes so switching at runtime works rather than
+silently keeping the Latin-only stack.
+
+When no CJK face exists, the picker offers those languages disabled with a
+tooltip naming the missing package, instead of letting someone select a UI
+they can no longer read — including the picker itself.
+
+Verified on the rig: `LANG=ja_JP.UTF-8` now renders "インスペクター",
+"何も選択されていません" and the full hint text.
 
 ## Still unexamined
 

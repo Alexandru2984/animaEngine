@@ -81,6 +81,7 @@ monitor-no-monitors-detected = Niciun monitor detectat
 appearance-theme-header = Temă
 appearance-theme-label = Temă
 appearance-language-header = Limbă
+appearance-language-no-font = Nu există niciun font instalat pentru acest scris — instalează întâi un pachet Noto CJK.
 theme-dark = Întunecat
 theme-light = Luminos
 theme-dark-hc = Întunecat · Contrast ridicat

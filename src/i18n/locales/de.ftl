@@ -81,6 +81,7 @@ monitor-no-monitors-detected = Keine Monitore erkannt
 appearance-theme-header = Design
 appearance-theme-label = Design
 appearance-language-header = Sprache
+appearance-language-no-font = Für diese Schrift ist keine Schriftart installiert — installiere zuerst ein Noto-CJK-Paket.
 theme-dark = Dunkel
 theme-light = Hell
 theme-dark-hc = Dunkel · Hoher Kontrast

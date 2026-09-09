@@ -104,6 +104,7 @@ monitor-no-monitors-detected = No monitors detected
 appearance-theme-header = Theme
 appearance-theme-label = Theme
 appearance-language-header = Language
+appearance-language-no-font = No font for this script is installed — install a Noto CJK package first.
 theme-dark = Dark
 theme-light = Light
 theme-dark-hc = Dark · High contrast

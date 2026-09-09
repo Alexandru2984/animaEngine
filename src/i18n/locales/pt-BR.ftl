@@ -81,6 +81,7 @@ monitor-no-monitors-detected = Nenhum monitor detectado
 appearance-theme-header = Tema
 appearance-theme-label = Tema
 appearance-language-header = Idioma
+appearance-language-no-font = Nenhuma fonte instalada para esta escrita — instale primeiro um pacote Noto CJK.
 theme-dark = Escuro
 theme-light = Claro
 theme-dark-hc = Escuro · Alto contraste
