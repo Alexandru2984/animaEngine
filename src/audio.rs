@@ -116,7 +116,19 @@ impl AudioHost {
     pub fn new() -> Self {
         #[cfg(feature = "audio")]
         let sink = match rodio::DeviceSinkBuilder::open_default_sink() {
-            Ok(s) => Some(s),
+            Ok(mut s) => {
+                // rodio prints "Dropping DeviceSink, audio playing through
+                // this sink will stop" whenever the sink is dropped, and
+                // recommends leaving it on — it catches a sink dropped by
+                // accident while you still expect sound.
+                //
+                // That is not the shape here: the host is owned for the
+                // whole process, so the only drop is at exit, where the
+                // message is pure noise on the user's terminal every time
+                // they quit.
+                s.log_on_drop(false);
+                Some(s)
+            }
             Err(e) => {
                 // Info, not warn: having no audio device is an ordinary
                 // configuration, not a fault to draw attention to.

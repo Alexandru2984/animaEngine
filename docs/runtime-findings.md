@@ -599,9 +599,25 @@ one log line" to a judgement call:
 - leaving it means every launch prints an `ERROR` the code handled, which
   is exactly how people learn to skim past the level that matters.
 
-Worth understanding before choosing: a surface going lost while probing a
-freshly-created one is odd enough that it may point at the layer surface
-being reconfigured underneath wgpu, which would be ours after all.
+**Investigated, not resolved.** The hypothesis was multi-GPU adapter
+probing: this machine exposes three Vulkan devices (RADV, NVIDIA,
+llvmpipe), and wgpu asks each whether it supports the surface, so one
+incompatible adapter answering `SURFACE_LOST` while another succeeds would
+explain it entirely — and make it upstream noise rather than ours.
+
+It could not be confirmed. Restricting `VK_DRIVER_FILES` to a single ICD
+does make the message disappear, but every single-ICD configuration then
+fails for an unrelated reason on this rig — llvmpipe and RADV both report
+only `Opaque` composite alpha under headless sway, so the renderer refuses
+before it would have logged anything. The two observations are therefore
+not comparable, and "it goes away with one driver" proves nothing.
+
+So it stays open, and the honest position is that we do not yet know
+whether this is benign. It should not be filtered away on a guess: a
+graphics library's `ERROR` is exactly what you want to still be reading
+the day a device really is lost. Confirming it needs either a
+single-GPU machine where the app actually runs, or wgpu-side logging of
+which adapter produced it.
 
 ### R23 · Japanese renders as boxes, end to end — `FIXED`
 
