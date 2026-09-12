@@ -476,12 +476,23 @@ impl ScriptHost {
         scope.set_value("params", param_map);
 
         // Per-entity scratch space. Seeded once and then left alone, so
-        // whatever the script stored last tick is still there — a `let`
-        // at script top level would not survive, since Rhai unwinds the
-        // scope when the run ends.
+        // whatever the script stored last tick is still there. A `let` at
+        // script top level is *not* the way to keep state: it is dropped
+        // after every run by the rewind below.
         if !scope.contains("state") {
             scope.push("state", rhai::Map::new());
         }
+
+        // Everything above is the per-tick contract; anything the script
+        // pushes on top of it is scratch. `run_ast_with_scope` does NOT
+        // rewind — the comment here used to claim Rhai unwinds the scope
+        // when a run ends, and it does not. So a script with a top-level
+        // `let` pushed a *fresh shadowing entry every frame* and never
+        // dropped one: measured at 118 entries after 100 frames from a
+        // single `let foo = 1;`, growing without bound for as long as the
+        // entity lives. `Scope` lookup is a linear scan, so this cost
+        // memory and got slower the longer it ran. Reported against 1.1.0.
+        let mark = scope.len();
 
         // Cleared before, not after: a run that fails partway may have
         // queued sounds, and those belong to the failed run, not the next.
@@ -491,12 +502,20 @@ impl ScriptHost {
             .run_ast_with_scope(scope, &compiled.ast)
             .map_err(|e| ScriptError::Runtime(e.to_string()));
         let sounds = std::mem::take(&mut *self.pending_sounds.borrow_mut());
-        outcome?;
 
         // A script that deletes or retypes `x` gets its last good value
         // back rather than teleporting the entity to the origin.
+        //
+        // Read *before* the rewind: a script that did `let x = …` shadows
+        // our entry, and the shadow is what it meant to hand back.
         let x = read_coord(scope, "x", inputs.x);
         let y = read_coord(scope, "y", inputs.y);
+
+        // Drop the run's scratch, keeping the seeded inputs and `state`.
+        // Ahead of the `?` on purpose: a run that failed partway has still
+        // pushed whatever it got through, and that has to go too.
+        scope.rewind(mark);
+        outcome?;
 
         // Non-finite output would reach GPU quad coordinates. Same
         // reasoning as `Behavior::sanitize`, applied per tick because a
@@ -678,9 +697,9 @@ mod tests {
     }
 
     /// A script needs somewhere to accumulate across frames. A top-level
-    /// `let` will not do it — Rhai unwinds the scope when a run ends — so
-    /// the host seeds a `state` map instead. This is the test that pins
-    /// that down.
+    /// `let` will not do it — the host rewinds the scope after every run —
+    /// so it seeds a `state` map instead. This is the test that pins that
+    /// down.
     #[test]
     fn state_map_persists_across_ticks() {
         let mut host = ScriptHost::new();
@@ -700,6 +719,57 @@ mod tests {
                 .unwrap();
             assert_eq!(out.x, expected as f32, "state did not survive tick");
         }
+    }
+
+    /// A top-level `let` must not grow the scope.
+    ///
+    /// `run_ast_with_scope` does not rewind, so every run pushed a fresh
+    /// shadowing entry and never dropped one — 118 entries after 100
+    /// frames from a single `let foo = 1;`, per entity, for as long as it
+    /// lived. `Scope` lookup is a linear scan, so it also got slower the
+    /// longer it ran. Reported against 1.1.0.
+    #[test]
+    fn a_top_level_let_does_not_grow_the_scope() {
+        let mut host = ScriptHost::new();
+        host.compile("t", "let foo = 1; x += 1.0;").unwrap();
+        let mut scope = rhai::Scope::new();
+
+        host.run("t", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        let after_first = scope.len();
+        for _ in 0..99 {
+            host.run("t", &mut scope, &inputs(), &BTreeMap::new())
+                .unwrap();
+        }
+        assert_eq!(
+            scope.len(),
+            after_first,
+            "scope grew over 100 frames — the per-run scratch is leaking"
+        );
+    }
+
+    /// The rewind has to happen on the failure path too: a script that
+    /// dies partway has still pushed whatever it got through, and a
+    /// failure is only sticky until the file changes.
+    #[test]
+    fn a_failing_script_does_not_grow_the_scope_either() {
+        let mut host = ScriptHost::new();
+        host.compile("t", "let a = 1; let b = 2; throw \"boom\";")
+            .unwrap();
+        let mut scope = rhai::Scope::new();
+
+        assert!(host
+            .run("t", &mut scope, &inputs(), &BTreeMap::new())
+            .is_err());
+        let after_first = scope.len();
+        for _ in 0..20 {
+            let _ = host.run("t", &mut scope, &inputs(), &BTreeMap::new());
+        }
+        assert_eq!(
+            scope.len(),
+            after_first,
+            "a failing script leaked its locals"
+        );
     }
 
     /// Two entities running the same script must not share accumulators,

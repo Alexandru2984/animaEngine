@@ -61,6 +61,55 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
         ));
     }
 
+    // `mp4` 0.14 does arithmetic on numbers it takes straight from the
+    // container without checking any of them, so a crafted file panics
+    // *inside the crate* rather than returning an error — and an asset
+    // load runs on the UI thread, so that is the whole app going down on
+    // a file the user merely dropped. Every operand is a public field, so
+    // they are checked here rather than wrapping the call in
+    // `catch_unwind`, which would also swallow genuine bugs of ours.
+    //
+    // Four sites, all reachable from `read_sample`:
+    //
+    //   track.rs:314  stsc.entries.len() - 1        → empty stsc
+    //   track.rs:322  stco.entries[chunk_id - 1]    → first_chunk = 0
+    //   track.rs:456  … / entry.samples_per_chunk   → zero per chunk
+    //   track.rs:522  sample_count() / trafs.len()  → more frags than samples
+    //
+    // Two of them only panic in debug: release wraps instead, turning the
+    // index into `usize::MAX`, which happens to land on a clean `None`.
+    // That is luck, not a guarantee, so they are refused either way.
+    //
+    // Found by a report against 1.1.0 and reproduced with a 2.3 KB MP4
+    // whose single stsc entry declared `samples_per_chunk = 0`:
+    // "attempt to divide by zero" from `read_sample`, on the first sample.
+    let stsc = &track.trak.mdia.minf.stbl.stsc.entries;
+    if stsc.is_empty() {
+        return Err(AnimaError::VideoDecode(
+            "video track has an empty stsc box".into(),
+        ));
+    }
+    if stsc.iter().any(|e| e.samples_per_chunk == 0) {
+        return Err(AnimaError::VideoDecode(
+            "video track has an stsc entry with zero samples per chunk".into(),
+        ));
+    }
+    // Chunk numbering is 1-based in the spec; the crate subtracts one to
+    // index, so a zero here underflows.
+    if stsc.iter().any(|e| e.first_chunk == 0) {
+        return Err(AnimaError::VideoDecode(
+            "video track has an stsc entry with a zero first chunk".into(),
+        ));
+    }
+    // `is_sync_sample` computes `sample_count() / trafs.len()` and then
+    // takes `sample_id %` that, so a fragmented track with more fragments
+    // than samples divides — and then modulos — by zero.
+    if !track.trafs.is_empty() && (sample_count as usize) < track.trafs.len() {
+        return Err(AnimaError::VideoDecode(
+            "video track has more fragments than samples".into(),
+        ));
+    }
+
     // Average fps lets us fill in `delay_ms` when the source has variable
     // sample durations. We still prefer per-sample timing when available.
     let total_duration = track.duration().as_secs_f64().max(1e-6);
@@ -400,16 +449,21 @@ mod tests {
     /// no committed binaries) — solid-color frames through openh264's
     /// encoder, muxed into a real MP4 by mp4::Mp4Writer, then loaded
     /// back through the full `load_video` pipeline.
-    #[test]
-    fn decode_round_trip_through_real_decoder() {
+    const W: usize = 32;
+    const H: usize = 32;
+
+    /// Mux three solid-colour H.264 frames into a real MP4 at `path`.
+    ///
+    /// Shared by the round-trip test and the malformed-container test so
+    /// both start from bytes a real muxer produced — a hand-rolled header
+    /// would prove nothing about what the loader meets in the wild.
+    fn build_three_frame_mp4(path: &std::path::Path) {
         use mp4::{
             AvcConfig, MediaConfig, Mp4Config, Mp4Sample, Mp4Writer, TrackConfig, TrackType,
         };
         use openh264::encoder::Encoder;
         use openh264::formats::YUVBuffer;
 
-        const W: usize = 32;
-        const H: usize = 32;
         // Limited-range BT.601 triples for pure red / green / blue —
         // the exact inverse of the constants in `yuv_to_rgba`.
         const YUV_COLORS: [(u8, u8, u8); 3] = [(81, 90, 240), (145, 54, 34), (41, 240, 110)];
@@ -447,13 +501,7 @@ mod tests {
             samples.push((avcc, is_sync));
         }
 
-        let dir =
-            std::env::temp_dir().join(format!("anima_video_roundtrip_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("roundtrip.mp4");
-
-        let file = std::fs::File::create(&path).unwrap();
+        let file = std::fs::File::create(path).unwrap();
         let mut writer = Mp4Writer::write_start(
             file,
             &Mp4Config {
@@ -492,6 +540,25 @@ mod tests {
                 .unwrap();
         }
         writer.write_end().unwrap();
+    }
+
+    /// A scratch directory that cleans up after itself, so a failing
+    /// assertion doesn't leave temp files behind for the next run to
+    /// trip over.
+    fn scratch(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("anima_video_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Round-trip: real encoder → real muxer → `load_video`, no committed
+    /// binaries.
+    #[test]
+    fn decode_round_trip_through_real_decoder() {
+        let dir = scratch("roundtrip");
+        let path = dir.join("roundtrip.mp4");
+        build_three_frame_mp4(&path);
 
         let frames = load_video(&path).expect("round-trip decode");
         let _ = std::fs::remove_dir_all(&dir);
@@ -512,5 +579,70 @@ mod tests {
             }
             assert_eq!(px[3], 255, "alpha must be opaque");
         }
+    }
+
+    /// `mp4` 0.14 divides by `stsc.samples_per_chunk` without checking it,
+    /// so a container claiming zero samples per chunk panicked inside the
+    /// crate on the first `read_sample`. Asset loading runs on the UI
+    /// thread, so that was the whole app going down on a dropped file.
+    ///
+    /// Built from a real muxed MP4 with the one field overwritten, rather
+    /// than a synthetic header, so the rest of the container stays exactly
+    /// as valid as it was — the loader has to reach the stsc check.
+    /// Overwrite one 4-byte big-endian field of the first `stsc` entry.
+    ///
+    /// stsc layout: `[size:4]["stsc"][version+flags:4][entry_count:4]`
+    /// then 12-byte entries of `(first_chunk, samples_per_chunk,
+    /// sample_description_index)`.
+    fn mp4_with_stsc_field(dir: &std::path::Path, field: usize, value: u32) -> std::path::PathBuf {
+        let good = dir.join("good.mp4");
+        build_three_frame_mp4(&good);
+        let mut bytes = std::fs::read(&good).unwrap();
+        let at = bytes
+            .windows(4)
+            .position(|w| w == b"stsc")
+            .expect("muxer wrote an stsc box");
+        let entry0 = at + 4 + 4 + 4; // past fourcc, version+flags, entry_count
+        let off = entry0 + field * 4;
+        bytes[off..off + 4].copy_from_slice(&value.to_be_bytes());
+        let bad = dir.join(format!("bad{field}.mp4"));
+        std::fs::write(&bad, &bytes).unwrap();
+        bad
+    }
+
+    /// `mp4` 0.14 divides by `stsc.samples_per_chunk` without checking it,
+    /// so a container claiming zero samples per chunk panicked inside the
+    /// crate on the first `read_sample`. Asset loading runs on the UI
+    /// thread, so that was the whole app going down on a dropped file.
+    ///
+    /// Built from a real muxed MP4 with one field overwritten, rather than
+    /// a synthetic header, so the rest of the container stays exactly as
+    /// valid as it was — the loader has to reach the stsc check.
+    #[test]
+    fn a_zero_samples_per_chunk_is_refused_not_a_panic() {
+        let dir = scratch("stsc_spc");
+        let bad = mp4_with_stsc_field(&dir, 1, 0);
+        let err = load_video(&bad).expect_err("zero samples-per-chunk must be refused");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            matches!(err, AnimaError::VideoDecode(ref m) if m.contains("samples per chunk")),
+            "wrong error for a zero-samples-per-chunk stsc: {err}"
+        );
+    }
+
+    /// Chunk numbers are 1-based and the crate subtracts one to index, so
+    /// `first_chunk = 0` underflows. Debug builds panic outright; release
+    /// wraps to `usize::MAX` and lands on a `None` by luck. Refused either
+    /// way rather than relying on that.
+    #[test]
+    fn a_zero_first_chunk_is_refused_not_a_panic() {
+        let dir = scratch("stsc_fc");
+        let bad = mp4_with_stsc_field(&dir, 0, 0);
+        let err = load_video(&bad).expect_err("zero first-chunk must be refused");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            matches!(err, AnimaError::VideoDecode(ref m) if m.contains("first chunk")),
+            "wrong error for a zero-first-chunk stsc: {err}"
+        );
     }
 }
