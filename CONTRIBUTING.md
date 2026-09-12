@@ -229,8 +229,8 @@ Readable: `dt`, `w`, `h`, `bounds_min_x` / `bounds_min_y` / `bounds_max_x`
 / `bounds_max_y`, `cursor_x`, `cursor_y`, `has_cursor`, `elapsed`,
 `reduced_motion`, `cpu`, `mem`, and your own `params`. Writable: `x` and `y` — integers
 are fine, `x = 100` works. For state that has to survive between frames,
-use the `state` map; a top-level `let` will not, because Rhai unwinds the
-scope when a run ends:
+use the `state` map; a top-level `let` will not, because the host rewinds
+the scope after every run:
 
 ```rhai
 if !state.contains("phase") { state.phase = 0.0; }

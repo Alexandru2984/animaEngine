@@ -1,8 +1,8 @@
 // Bob up and down around wherever the character was placed.
 //
 // Shows two things: accumulating across frames through `state` (a
-// top-level `let` would not survive, because Rhai unwinds the scope when
-// a run ends), and honouring the reduced-motion preference — this is
+// top-level `let` would not survive, because the host rewinds the scope
+// after every run), and honouring the reduced-motion preference — this is
 // decoration, so it holds still when the user has asked for less motion.
 //
 //   [characters.behavior.params]
