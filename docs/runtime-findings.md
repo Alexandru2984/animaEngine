@@ -9,12 +9,10 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 `BY DESIGN` observed, deliberate, not changing · `RETRACTED` reported here
 in error, kept so the mistake isn't repeated.
 
-**Current state: R22 is `OPEN`** and blocked on hardware rather than on a
-decision; **R27 is fixed for four of its five actions**, with the fifth
-(the perf overlay on native Wayland) needing a decision rather than a
-patch. R1–R5, R7–R21, R23–R26 and R28 are `FIXED`, R6 is `BY DESIGN`, R6b
-is `RETRACTED`. The unexplored surfaces listed at the bottom are where the
-next round should start.
+**Current state: R22 is the only thing `OPEN`**, and it is blocked on
+hardware rather than on a decision. R1–R5, R7–R21 and R23–R29 are `FIXED`,
+R6 is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at
+the bottom are where the next round should start.
 
 ## How these were reproduced
 
@@ -859,6 +857,46 @@ exactly one worker spawned per edit and none from the app's own writes.
 The parity table's **perf overlay** row was wrong in the same way and is
 now corrected rather than implemented — see R27 for why that one is a
 port rather than a patch.
+
+### R29 · The perf-overlay chord had never worked, on either backend — `FIXED`
+
+Found while closing R27's other half. With a `PerfSampler` finally wired
+into the native Wayland loop, `Ctrl+Shift+`` ` still did nothing —
+but rebinding the same action to a plain backtick showed the overlay
+immediately. So the sampler was fine and the *chord* was never arriving.
+
+Holding Shift changes the key's identity before either backend sees it:
+
+- Wayland gets a **resolved keysym** from sctk, so Shift+`` ` `` is
+  `asciitilde`, not `grave`;
+- winit reports the **logical character**, so the same press is `'~'`.
+
+Both translation tables listed only the unshifted form. `grave` was
+mapped, `asciitilde` was not, and the press stopped being an event at all
+— not a chord that missed, an event that was never generated. The letters
+had been right all along, because they list `a | A` and `'a'..='z' |
+'A'..='Z'`; only the punctuation was half-mapped.
+
+So `Ctrl+Shift+`` `, the **default** binding for the perf overlay, has
+never fired since it was introduced. That is also why nobody had noticed
+the native loop was missing a sampler: the shortcut that would have shown
+it up did not work on the backend that had one either.
+
+The same hole swallowed any Shift+punctuation chord a user tried to
+create. In the rebinder it is worse than silent: the capture widget waits
+for a key it can convert, so pressing Shift+`[` simply never completes the
+recording.
+
+**Fixed** by listing the shifted keysym and character alongside the plain
+one for every punctuation key we bind — `~`, `{`, `}`, `_` — so the key
+identity stops depending on the modifier, which is the thing the modifier
+mask already records. `+` and `=` were already separate `SymbolKey`s with
+both bound by default, and are deliberately left alone: merging them would
+change what existing configs mean.
+
+Worth noting for the next round: this was findable only because the fix
+for something else made the failure *visible*. R27 hid R29, and R19 hid
+R26 the same way. A silent backend is a good place for a second bug.
 
 ## Still unexamined
 

@@ -77,12 +77,20 @@ pub fn keysym_to_egui_key(keysym: Keysym) -> Option<egui::Key> {
         Keysym::Left => E::ArrowLeft,
         Keysym::Right => E::ArrowRight,
         // ── Punctuation bound by animaEngine actions
+        //
+        // Both the plain and the shifted keysym map to the same key, the
+        // way the letters above list `a | A`. `event.keysym` is *resolved*
+        // against the modifier state, so holding Shift turns ` into ~ and
+        // [ into { — and with only the plain form listed, the key stopped
+        // being an egui event at all. That is why the default perf-overlay
+        // chord, Ctrl+Shift+`, did nothing: not one event ever reached the
+        // shortcut table (R29).
         Keysym::plus => E::Plus,
-        Keysym::minus => E::Minus,
+        Keysym::minus | Keysym::underscore => E::Minus,
         Keysym::equal => E::Equals,
-        Keysym::bracketleft => E::OpenBracket,
-        Keysym::bracketright => E::CloseBracket,
-        Keysym::grave => E::Backtick,
+        Keysym::bracketleft | Keysym::braceleft => E::OpenBracket,
+        Keysym::bracketright | Keysym::braceright => E::CloseBracket,
+        Keysym::grave | Keysym::asciitilde => E::Backtick,
         _ => return None,
     })
 }
@@ -143,6 +151,30 @@ mod tests {
     #[test]
     fn punctuation_we_bind() {
         assert_eq!(keysym_to_egui_key(Keysym::grave), Some(egui::Key::Backtick));
+    }
+
+    /// Holding Shift *changes the keysym*, so the shifted form of every
+    /// bound punctuation key has to resolve to the same egui key — the
+    /// way `a | A` already did for letters. Without this the default
+    /// Ctrl+Shift+` produced no event at all.
+    #[test]
+    fn shifted_punctuation_keeps_its_key_identity() {
+        assert_eq!(
+            keysym_to_egui_key(Keysym::asciitilde),
+            Some(egui::Key::Backtick)
+        );
+        assert_eq!(
+            keysym_to_egui_key(Keysym::braceleft),
+            Some(egui::Key::OpenBracket)
+        );
+        assert_eq!(
+            keysym_to_egui_key(Keysym::braceright),
+            Some(egui::Key::CloseBracket)
+        );
+        assert_eq!(
+            keysym_to_egui_key(Keysym::underscore),
+            Some(egui::Key::Minus)
+        );
         assert_eq!(
             keysym_to_egui_key(Keysym::bracketleft),
             Some(egui::Key::OpenBracket)

@@ -129,11 +129,16 @@ pub fn run_native(
     let mut toasts = ToastQueue::default();
     let mut config_dirty = false;
     let mut config_watch = crate::config_watch::ConfigWatcher::new();
+    // Frame timings for the perf overlay (R27). This loop had no sampler
+    // at all, so `TogglePerfOverlay` was one of five rebindable actions
+    // that did nothing here — and the README's parity table called the
+    // overlay stable on both backends.
+    let mut perf_sampler = crate::perf::PerfSampler::default();
+    let mut perf_overlay_visible = false;
     // Soak metrics (W.1). Previously wired only into the winit render
     // loop, so `ANIMA_SOAK_METRICS` was silently a no-op here: the
     // memory-regression harness covered one of the two backends and gave
-    // no indication it was skipping the other. `None` for frame p95 —
-    // this loop has no `PerfSampler`; the memory columns are the point.
+    // no indication it was skipping the other.
     let mut soak = crate::soak::SoakRecorder::from_env();
     let warnings: BTreeSet<Warning> = BTreeSet::new();
     // Right-click context menu state, mirroring `app::ContextMenuState`
@@ -224,7 +229,16 @@ pub fn run_native(
     // `dispatch_with_timeout`.
     loop {
         let frame_start = Instant::now();
+        // Opens the perf frame before the blocking dispatch, so the wait
+        // for the compositor lands in `Idle` rather than vanishing — the
+        // same placement the winit loop uses relative to its own wait.
+        perf_sampler.begin_frame();
         dispatch_with_timeout(&mut layer.event_queue, &mut layer.state, FRAME_INTERVAL)?;
+
+        // Capture-and-reset the previous frame's GPU op counters. The
+        // counters are `Cell`s, so this is a shared borrow and does not
+        // conflict with the `&mut renderer` uses below.
+        let (gpu_uploads, gpu_draws) = renderer.shared.take_frame_gpu_counters();
 
         if layer.state.close_requested {
             tracing::info!("Layer surface closed by compositor — exiting.");
@@ -546,6 +560,17 @@ pub fn run_native(
                         toasts.error(crate::i18n::t_args("toast-save-failed", &args));
                     }
                 },
+                Action::TogglePerfOverlay => {
+                    perf_overlay_visible = !perf_overlay_visible;
+                    tracing::debug!(
+                        "Perf overlay {}",
+                        if perf_overlay_visible {
+                            "shown"
+                        } else {
+                            "hidden"
+                        }
+                    );
+                }
                 Action::QuitWithSave => {
                     // The shutdown path at the end of `run` persists
                     // `config_dirty` on its way out, so this needs no save
@@ -724,32 +749,35 @@ pub fn run_native(
         }
         scene.set_reduced_motion(config.global.reduced_motion);
         scene.set_hover_startle(config.global.hover_startle);
-        scene.tick(
-            crate::monitor::covered_bounds(
-                &plan,
-                (
-                    renderer.primary.window_width as f32,
-                    renderer.primary.window_height as f32,
+        {
+            let _s = perf_sampler.scope(crate::perf::Category::SceneUpdate);
+            scene.tick(
+                crate::monitor::covered_bounds(
+                    &plan,
+                    (
+                        renderer.primary.window_width as f32,
+                        renderer.primary.window_height as f32,
+                    ),
                 ),
-            ),
-            // `cursor_pos` is tracked from every Motion/Enter pointer
-            // event (pointer_handler.rs) in this surface's local
-            // space; `cursor_global` adds `primary_origin` so it lands
-            // in the same coordinate space entities use (identity
-            // outside PerMonitor, T.8-equivalent otherwise). FollowCursor
-            // sees it whenever the pointer is over the surface's active
-            // input region — same X11 caveat applies: pass-through mode
-            // still leaves it stale outside the toggle button, since
-            // Wayland has no XQueryPointer equivalent (docs/threat-model.md).
-            cursor_global,
-            library_root
-                .as_deref()
-                .map(|root| crate::scripting::ScriptContext {
-                    host: &mut script_host,
-                    audio: &mut audio_host,
-                    root,
-                }),
-        );
+                // `cursor_pos` is tracked from every Motion/Enter pointer
+                // event (pointer_handler.rs) in this surface's local
+                // space; `cursor_global` adds `primary_origin` so it lands
+                // in the same coordinate space entities use (identity
+                // outside PerMonitor, T.8-equivalent otherwise). FollowCursor
+                // sees it whenever the pointer is over the surface's active
+                // input region — same X11 caveat applies: pass-through mode
+                // still leaves it stale outside the toggle button, since
+                // Wayland has no XQueryPointer equivalent (docs/threat-model.md).
+                cursor_global,
+                library_root
+                    .as_deref()
+                    .map(|root| crate::scripting::ScriptContext {
+                        host: &mut script_host,
+                        audio: &mut audio_host,
+                        root,
+                    }),
+            );
+        }
 
         for (path, err) in audio_host.take_new_failures() {
             let mut args = fluent::FluentArgs::new();
@@ -804,6 +832,11 @@ pub fn run_native(
         };
         toasts.prune();
         egui_renderer.ensure_theme(config.global.theme);
+        // Timed with an explicit instant rather than a `scope` guard:
+        // the guard would have to be dropped in both match arms, and
+        // holding it across the arm keeps `perf_sampler` mutably borrowed
+        // to the end of the frame.
+        let submit_start = Instant::now();
         match renderer.render(
             &drawn,
             &scene.groups,
@@ -812,6 +845,7 @@ pub fn run_native(
             primary_origin,
         ) {
             Ok(output) => {
+                perf_sampler.add(crate::perf::Category::WgpuSubmit, submit_start.elapsed());
                 let view = output.create_view();
                 let size = [
                     renderer.primary.window_width,
@@ -834,6 +868,17 @@ pub fn run_native(
                 let mut palette_outcome: Option<panels::PaletteOutcome> = None;
                 let mut library_outcome: Option<panels::LibraryOutcome> = None;
                 let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
+                let mut perf_export_request = false;
+                // Built here, while `scene` and `renderer` are still
+                // freely readable — after this point the closure takes
+                // disjoint `&mut` borrows of both.
+                let gpu_stats = crate::ui::perf_overlay::GpuStats {
+                    decoded_bytes: scene.total_decoded_bytes(),
+                    texture_bytes: renderer.shared.texture_bytes(),
+                    texture_count: renderer.shared.textures.len(),
+                    uploads_last_frame: gpu_uploads,
+                    draws_last_frame: gpu_draws,
+                };
                 let mut shimeji_import: Option<String> = None;
                 let menu_state = context_menu_state.clone();
                 // Disjoint mut borrows for the closure.
@@ -860,6 +905,10 @@ pub fn run_native(
                 let palette_ref = &mut palette_outcome;
                 let library_ref = &mut library_outcome;
                 let menu_outcome_ref = &mut menu_outcome;
+                let perf_sampler_ref = &perf_sampler;
+                let perf_export_ref = &mut perf_export_request;
+                let perf_visible_snapshot = perf_overlay_visible;
+                let egui_start = Instant::now();
                 egui_renderer.render(
                     &renderer.shared.device,
                     &renderer.shared.queue,
@@ -931,10 +980,49 @@ pub fn run_native(
                                 *palette_ref = panels::command_palette(ctx);
                                 panels::toasts(ctx, toasts_ref);
                             }
+                            // Above every panel, so someone chasing a
+                            // stutter doesn't have to hunt for it behind
+                            // one — same placement as the winit path.
+                            if perf_visible_snapshot
+                                && crate::ui::perf_overlay::show(
+                                    ctx,
+                                    perf_sampler_ref,
+                                    crate::perf::read_rss_kib(),
+                                    gpu_stats,
+                                )
+                                .is_some()
+                            {
+                                *perf_export_ref = true;
+                            }
                         }
                     },
                 );
-                renderer.present(output);
+                perf_sampler.add(crate::perf::Category::EguiPaint, egui_start.elapsed());
+                if perf_export_request {
+                    match crate::perf::export_snapshot(&perf_sampler) {
+                        Ok(path) => {
+                            // Toast shows the full path — the user asked
+                            // for the export and wants to find the file.
+                            // The log redacts, so journald doesn't carry
+                            // their home directory.
+                            tracing::info!("Perf snapshot written: {}", redact_path(&path));
+                            tracing::debug!("Perf snapshot full path: {}", path.display());
+                            let mut args = fluent::FluentArgs::new();
+                            args.set("path", path.display().to_string());
+                            toasts.success(crate::i18n::t_args("toast-perf-snapshot", &args));
+                        }
+                        Err(e) => {
+                            tracing::error!("Perf snapshot failed: {e}");
+                            let mut args = fluent::FluentArgs::new();
+                            args.set("error", e.to_string());
+                            toasts.error(crate::i18n::t_args("toast-perf-snapshot-failed", &args));
+                        }
+                    }
+                }
+                {
+                    let _s = perf_sampler.scope(crate::perf::Category::Present);
+                    renderer.present(output);
+                }
                 // Sprite-only extras: no egui, no input — just the
                 // entities pinned (or resolved by position) to that
                 // monitor, translated by its own origin. Mirrors
@@ -1112,6 +1200,12 @@ pub fn run_native(
                 tracing::warn!("Render error on Wayland path: {e:?}");
             }
         }
+
+        // Closed before the pacing sleep, so the overlay reports the work
+        // the frame actually did rather than a flat ~16 ms for every
+        // frame regardless of load — which would make the number useless
+        // for the one thing it exists to answer.
+        perf_sampler.end_frame();
 
         // Soft cap at ~60 Hz. The dispatch above returns immediately when
         // events were already queued, so pace on the frame's actual

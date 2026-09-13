@@ -30,6 +30,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`Ctrl+Shift+`` `` had never opened the perf overlay** — on either
+  backend, since the shortcut was introduced. Holding Shift changes the
+  key's identity before the app sees it (`~` rather than `` ` ``), and only
+  the unshifted form was recognised, so the press was discarded before it
+  could become a shortcut. The same hole silently swallowed any
+  Shift+punctuation chord you tried to record in the Keybindings tab.
+- **The perf overlay now works on native Wayland.** That loop had no frame
+  sampler at all, so the overlay could not be shown there even once the
+  shortcut reached it.
 - **Hot-reload now works on native Wayland.** Editing `config.toml` while
   the overlay ran did nothing at all on that backend, although the README
   listed the feature and its parity table called it stable on both. The

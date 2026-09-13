@@ -232,11 +232,18 @@ impl KeyCode {
                     'A'..='Z' => Self::Letter(c),
                     '0'..='9' => Self::Digit(c.to_digit(10)? as u8),
                     '+' => Self::Symbol(SymbolKey::Plus),
-                    '-' => Self::Symbol(SymbolKey::Minus),
+                    // The shifted forms name the same physical key, and
+                    // winit reports the *logical* character — so with only
+                    // the plain form listed, Shift+` produced '~' and fell
+                    // through to `None`. The default perf-overlay chord is
+                    // Ctrl+Shift+`, so it never fired on this path either
+                    // (R29). Shift stays in the chord's modifier mask; it
+                    // is the key identity that must not change with it.
+                    '-' | '_' => Self::Symbol(SymbolKey::Minus),
                     '=' => Self::Symbol(SymbolKey::Equal),
-                    '[' => Self::Symbol(SymbolKey::BracketLeft),
-                    ']' => Self::Symbol(SymbolKey::BracketRight),
-                    '`' => Self::Symbol(SymbolKey::Backquote),
+                    '[' | '{' => Self::Symbol(SymbolKey::BracketLeft),
+                    ']' | '}' => Self::Symbol(SymbolKey::BracketRight),
+                    '`' | '~' => Self::Symbol(SymbolKey::Backquote),
                     _ => return None,
                 }
             }

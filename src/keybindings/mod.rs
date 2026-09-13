@@ -193,6 +193,45 @@ mod tests {
         );
     }
 
+    /// winit reports the *logical* character, so Shift+` arrives as '~'.
+    /// With only the plain forms listed it fell through to `None`, and
+    /// the default perf-overlay chord — Ctrl+Shift+` — never fired on
+    /// this path either (R29). Shift stays in the modifier mask; the key
+    /// identity must not change with it.
+    #[test]
+    fn shifted_punctuation_keeps_its_key_identity() {
+        use winit::keyboard::Key;
+        for (shifted, plain) in [("~", "`"), ("{", "["), ("}", "]"), ("_", "-")] {
+            assert_eq!(
+                KeyCode::from_winit(Key::Character(shifted)),
+                KeyCode::from_winit(Key::Character(plain)),
+                "{shifted} and {plain} must name the same key"
+            );
+        }
+    }
+
+    /// End to end: the chord the default binding is written as has to be
+    /// what a user pressing that key actually produces, on both backends.
+    #[test]
+    fn the_default_perf_overlay_chord_is_reachable() {
+        let bindings = KeyBindings::default();
+
+        // winit side: Ctrl+Shift held, winit hands us '~'.
+        let key = KeyCode::from_winit(winit::keyboard::Key::Character("~")).unwrap();
+        let chord = KeyChord::new(ModifierMask::CTRL | ModifierMask::SHIFT, key);
+        assert_eq!(bindings.lookup(chord), Some(Action::TogglePerfOverlay));
+
+        // egui/Wayland side: the same chord, built the way that loop does.
+        let mods = egui::Modifiers {
+            ctrl: true,
+            command: true,
+            shift: true,
+            ..egui::Modifiers::NONE
+        };
+        let chord = KeyChord::from_egui(egui::Key::Backtick, mods).unwrap();
+        assert_eq!(bindings.lookup(chord), Some(Action::TogglePerfOverlay));
+    }
+
     // ── egui → chord (R26) ───────────────────────────────────────────
 
     /// Off macOS, egui sets `command` to the same value as `ctrl`. It must
