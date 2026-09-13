@@ -106,7 +106,40 @@ pub fn cjk_font_available() -> bool {
 /// is cheap. Invoked from `EguiRenderer::new` after `theme::apply`
 /// so both the palette and the icon font are ready before the first
 /// frame.
+/// Install the fonts, forcing the CJK face in even when the active
+/// locale does not need it.
+///
+/// For the language picker. Its entry for Japanese is labelled `日本語`,
+/// and the face is normally loaded only once Japanese is *already*
+/// active — so the one row a Japanese reader has to find in order to
+/// switch was the one row drawn as empty boxes (R33). Opening the
+/// dropdown is a deliberate act, so paying the ~19 MB there is fine;
+/// what R23 wanted to avoid was paying it for someone reading English
+/// who never opens it.
+pub fn install_with_cjk(ctx: &egui::Context) {
+    // Cheap re-entry guard. The caller asks once per frame for as long as
+    // the dropdown is open, and a rebuild re-reads ~19 MB from disk and
+    // re-parses it — sixty times a second would be a visible stall, which
+    // is a poor trade for fixing a label.
+    if CJK_INSTALLED.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    install_inner(ctx, true)
+}
+
 pub fn install(ctx: &egui::Context) {
+    install_inner(ctx, false)
+}
+
+/// Whether the last `install_inner` put the CJK face in the stack.
+///
+/// Mirrors the fonts currently on the context, so it has to be updated on
+/// every path through `install_inner`, including the ones that leave CJK
+/// out — otherwise switching back to English would leave the flag set and
+/// a later `install_with_cjk` would skip a rebuild it genuinely needs.
+static CJK_INSTALLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn install_inner(ctx: &egui::Context, force_cjk: bool) {
     let mut fonts = egui::FontDefinitions::default();
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
 
@@ -142,7 +175,8 @@ pub fn install(ctx: &egui::Context) {
     // Loaded only when the active locale needs it: the face is ~19 MB, and
     // holding that resident for a user reading English buys nothing.
     // Re-installed on a language change, so switching at runtime works.
-    if locale_needs_cjk(&crate::i18n::current_locale()) {
+    let mut installed_cjk = false;
+    if force_cjk || locale_needs_cjk(&crate::i18n::current_locale()) {
         match load_cjk_font() {
             Some(data) => {
                 fonts.font_data.insert("cjk".to_owned(), data.into());
@@ -151,6 +185,7 @@ pub fn install(ctx: &egui::Context) {
                         list.push("cjk".to_owned());
                     }
                 }
+                installed_cjk = true;
             }
             None => tracing::warn!(
                 "No CJK font found; this locale will render as empty boxes. \
@@ -159,6 +194,7 @@ pub fn install(ctx: &egui::Context) {
         }
     }
 
+    CJK_INSTALLED.store(installed_cjk, std::sync::atomic::Ordering::Relaxed);
     ctx.set_fonts(fonts);
 }
 
@@ -240,6 +276,31 @@ mod tests {
             "en", "en-US", "de", "es", "fr", "it", "nl", "pl", "pt-BR", "ro",
         ] {
             assert!(!locale_needs_cjk(code), "{code} should not need CJK");
+        }
+    }
+
+    /// The language picker labels every entry with its *own* name, so a
+    /// CJK locale's label needs the CJK face to be drawable — while the
+    /// UI around it is still English and would not otherwise load it.
+    /// That is why `install_with_cjk` exists, and this pins the condition
+    /// that makes it necessary: remove the last non-Latin autonym and the
+    /// forced load becomes dead code rather than silently useless.
+    #[test]
+    fn the_picker_offers_a_language_its_own_label_cannot_draw_unaided() {
+        let needing: Vec<_> = crate::i18n::SUPPORTED
+            .iter()
+            .filter(|(code, _)| locale_needs_cjk(code))
+            .collect();
+        assert!(
+            !needing.is_empty(),
+            "no CJK locale is offered any more; install_with_cjk is now dead"
+        );
+        for (code, autonym) in needing {
+            assert!(
+                !autonym.is_ascii(),
+                "{code} is labelled {autonym:?}, which the bundled fonts \
+                 already draw — the forced CJK load would be pointless"
+            );
         }
     }
 

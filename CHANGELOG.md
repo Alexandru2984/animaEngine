@@ -30,6 +30,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Japanese was unreadable in the language picker.** Every language is
+  listed under its own name, and the font that draws `日本語` was loaded
+  only once Japanese was already selected — so the one entry a Japanese
+  reader needs to find was a row of empty boxes. The font now loads while
+  the picker is open; nobody who never opens it pays for it.
 - **The Library tab named the wrong folder.** Its empty state told you to
   drop files into `~/.local/share/animaEngine/assets/`, but the directory
   the app actually reads is lower-case `animaengine` — so following the

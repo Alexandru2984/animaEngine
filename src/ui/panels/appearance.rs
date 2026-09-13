@@ -116,6 +116,21 @@ fn language_picker(ui: &mut egui::Ui, locale: &mut Option<String>) -> bool {
             // Offer it disabled with a reason instead of letting someone
             // pick it and lose the ability to read the picker itself.
             let cjk_ok = crate::ui::icons::cjk_font_available();
+            // Every entry is labelled with its *own* name — `日本語`, not
+            // "Japanese" — and the CJK face is otherwise loaded only once a
+            // CJK locale is already active. So the single row a Japanese
+            // reader needs to find was the single row drawn as empty boxes
+            // (R33). This closure runs only while the dropdown is open, so
+            // the face is pulled in on a deliberate act rather than for
+            // everyone at startup, which is what R23 was protecting.
+            //
+            // Requested every frame the list is open: `install_with_cjk` is
+            // idempotent, and `set_fonts` takes effect on the next frame,
+            // so asking once on the opening frame would leave the list
+            // wrong for exactly that frame.
+            if cjk_ok && !crate::ui::icons::locale_needs_cjk(&active_code) {
+                crate::ui::icons::install_with_cjk(ui.ctx());
+            }
             for (code, autonym) in SUPPORTED {
                 let selected = *code == active_code;
                 let drawable = cjk_ok || !crate::ui::icons::locale_needs_cjk(code);

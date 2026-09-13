@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 in error, kept so the mistake isn't repeated.
 
 **Current state: R22 is the only thing `OPEN`**, and it is blocked on
-hardware rather than on a decision. R1–R5, R7–R21 and R23–R32 are `FIXED`,
+hardware rather than on a decision. R1–R5, R7–R21 and R23–R33 are `FIXED`,
 R6 is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at
 the bottom are where the next round should start.
 
@@ -1022,6 +1022,45 @@ diverge again.
 
 Found by opening the Library tab and reading it against the log — the
 same habit that produced R31, one tab over.
+
+### R33 · The language picker drew Japanese as three empty boxes — `FIXED`
+
+Open **Appearance → Language** with an English UI. Nine languages read
+normally; the tenth is `□ □ □`.
+
+R23 taught the app to load a CJK face *when the active locale needs one*,
+which fixed a Japanese UI. But every entry in the picker is labelled with
+its own name — `日本語`, not "Japanese" — and that list is drawn while the
+UI is still English, so the face is not loaded and the label cannot be
+drawn. The one row a Japanese reader has to find in order to switch was
+the one row rendered unreadable.
+
+Not the case R23 already handles. That one is "no CJK font installed",
+where the picker correctly offers those languages disabled with a tooltip
+naming the missing package. Here the font **was** present — 19 MB of Noto
+CJK, and `fc-list :lang=ja` reports 31 faces — so the entry was enabled,
+selectable, and illegible.
+
+**Fixed** by loading the face while the dropdown is open, which is a
+deliberate act by someone who is looking for a language. R23's actual
+concern is preserved: a user reading English who never opens the picker
+still never pays the ~19 MB.
+
+Two details the first attempt got wrong, both caught on the rig:
+
+- The closure runs **every frame** the list is open, and a rebuild
+  re-reads and re-parses 19 MB. Asking sixty times a second would have
+  traded an unreadable label for a visible stall, so the forced install is
+  guarded by a flag that mirrors what is actually on the context.
+- That flag has to be cleared on the paths that leave CJK *out*, or
+  switching back to English would leave it set and the next open would
+  skip a rebuild it genuinely needs.
+
+Verified as a full cycle, counting loads in the log: none at startup, one
+when the picker opens with `日本語` now legible, a second on selecting it
+and the whole UI in Japanese, none on reopening the picker while Japanese
+is active, none on switching back, and a third when the picker is opened
+again from English.
 
 ## Still unexamined
 
