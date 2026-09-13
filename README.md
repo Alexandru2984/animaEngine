@@ -196,7 +196,7 @@ flag needed there.
 | Keyboard input | stable (winit) | stable (sctk + xkbcommon) |
 | egui settings panel | stable | stable |
 | Multi-monitor distribution | stable | stable |
-| Perf overlay | stable | stable |
+| Perf overlay | stable | not yet (no frame sampler in that loop) |
 | Global hotkeys | stable (XGrabKey) | via D-Bus + compositor binding |
 | Hot-reload | stable | stable |
 

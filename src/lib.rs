@@ -5,6 +5,7 @@ pub mod asset_library;
 pub mod audio;
 pub mod behavior;
 pub mod config;
+pub mod config_watch;
 pub mod constants;
 pub mod crash;
 pub mod demo;

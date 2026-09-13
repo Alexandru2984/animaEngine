@@ -30,6 +30,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Hot-reload now works on native Wayland.** Editing `config.toml` while
+  the overlay ran did nothing at all on that backend, although the README
+  listed the feature and its parity table called it stable on both. The
+  watcher moved to a shared module instead of being copied a third time.
+  The parity table's perf-overlay row was wrong the same way and is now
+  corrected rather than implemented — that loop has no frame sampler.
 - **A malformed MP4 could close the app.** The container parser divides
   and subtracts using numbers taken straight from the file without
   checking them, so a 2.3 KB MP4 declaring zero samples per chunk panicked

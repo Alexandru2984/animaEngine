@@ -12,8 +12,8 @@ in error, kept so the mistake isn't repeated.
 **Current state: R22 is `OPEN`** and blocked on hardware rather than on a
 decision; **R27 is fixed for four of its five actions**, with the fifth
 (the perf overlay on native Wayland) needing a decision rather than a
-patch. R1–R5, R7–R21, R23–R26 are `FIXED`, R6 is `BY DESIGN`, R6b is
-`RETRACTED`. The unexplored surfaces listed at the bottom are where the
+patch. R1–R5, R7–R21, R23–R26 and R28 are `FIXED`, R6 is `BY DESIGN`, R6b
+is `RETRACTED`. The unexplored surfaces listed at the bottom are where the
 next round should start.
 
 ## How these were reproduced
@@ -814,6 +814,51 @@ Two notes on method, both mistakes worth not repeating:
   keyboard had no entry for `[` and `]` and was silently logging
   `unknown key`. Always check the rig's log before believing the app's
   silence.
+
+### R28 · Hot-reload was absent on native Wayland while the README called it stable — `FIXED`
+
+Run the overlay on the native Wayland backend, edit
+`~/.config/animaEngine/config.toml`, wait. Nothing happens — no log line,
+no toast, no moved character. There is not one reference to hot-reload
+anywhere under `src/wayland/`.
+
+Meanwhile the README lists it as a feature ("edit `config.toml` while the
+app runs; changes are decoded off the UI thread and applied seamlessly")
+and its backend-parity table says **stable / stable**. Same family as R10,
+R21 and R27: the documentation promising a backend something it does not
+do.
+
+Unlike those, there was no structural obstacle. Reloading is reading a
+file and building a `Scene`; nothing about it is X11- or Wayland-specific.
+So the mechanism moved to `src/config_watch.rs`, owned by neither backend,
+and the native loop uses it — rather than a third copy of logic in a loop
+that already duplicates enough of the other one.
+
+Two details worth keeping:
+
+- The watcher is told about the app's **own** saves. Without that, saving
+  the config changes its mtime, the next poll sees a "change", and the app
+  reloads the file it just wrote — discarding the selection and every
+  texture for nothing.
+- The unsaved-edit check happens **twice**: before starting a reload and
+  again when it lands. The worker decodes every asset in the scene, so it
+  is not instant, and an edit made while it ran would otherwise be
+  overwritten — which is exactly the bug the same review found on the
+  winit path.
+
+The winit path was deliberately **not** migrated to the shared watcher in
+the same change. It works today and its version is entangled with `App`'s
+warning banners; replacing something healthy is a different risk from
+giving a second backend a feature it never had. The duplication is
+recorded rather than resolved.
+
+Verified on the rig: three successive external edits produced three
+`Hot-reload applied: 5 entities` lines and the characters moved, with
+exactly one worker spawned per edit and none from the app's own writes.
+
+The parity table's **perf overlay** row was wrong in the same way and is
+now corrected rather than implemented — see R27 for why that one is a
+port rather than a patch.
 
 ## Still unexamined
 
