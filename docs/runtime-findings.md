@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 in error, kept so the mistake isn't repeated.
 
 **Current state: R22 is the only thing `OPEN`**, and it is blocked on
-hardware rather than on a decision. R1–R5, R7–R21 and R23–R30 are `FIXED`,
+hardware rather than on a decision. R1–R5, R7–R21 and R23–R31 are `FIXED`,
 R6 is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at
 the bottom are where the next round should start.
 
@@ -935,6 +935,43 @@ deliberately: they are what made the asymmetry visible.
 Verified on the rig in both directions: record `Shift+[`, leave by
 keyboard, and the config now gains the chord with a `Config saved` line
 behind it.
+
+### R31 · A chord's ✕ could drift onto the next line, above a different chord — `FIXED`
+
+Seen while screenshotting the Keybindings tab for R30. **Pause all
+animations** renders, at the default panel width, as:
+
+```
+Pause all animations   Ctrl+Shift+P
+                    ✕  Space  ✕
+```
+
+Each chord was a `Label` plus a separate `small_button`, two widgets, and
+`horizontal_wrapped` wraps *between* widgets — so a narrow column can put
+a chord at the end of one line and its own ✕ at the start of the next,
+immediately left of a different chord. The ✕ a user would naturally take
+for Space's is Ctrl+Shift+P's. Removal is silent and unconfirmed, so the
+misclick costs a binding with no way to notice.
+
+Not exotic: it happens in the **default** configuration, on the default
+panel width, in the first three rows of the tab. The long localized
+labels the column was designed around (German's
+"Bearbeitungsmodus umschalten") only make it likelier.
+
+The same look also turned up a second, older mismatch: the onboarding
+coach mark has always read *"Click any chord to remove it; press a key
+combo to record a new one."* The chord itself was an inert `Label`. Only
+the ✕ ever did anything.
+
+**Fixed** by making the chord and its ✕ one widget — a small button
+labelled `Ctrl+Shift+P ✕`. It cannot be split by wrapping, because there
+is nothing left to split, and clicking the chord now removes it, which is
+what the onboarding text had been promising all along. Conflict colouring
+and the monospace face are unchanged.
+
+Verified on the rig: `Pause all animations` now wraps as two whole chips
+on separate lines, and clicking the `Shift+[ ✕` chip on another row
+removed exactly that chord, leaving `Ctrl+Shift+H` in place.
 
 ## Still unexamined
 

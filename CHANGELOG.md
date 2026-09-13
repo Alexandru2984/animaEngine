@@ -30,6 +30,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The ✕ next to a shortcut could remove a different one.** In the
+  Keybindings tab a chord and its ✕ were separate widgets, so a narrow
+  column could wrap them apart and leave the ✕ sitting above the next
+  chord — including in the default configuration, in the first rows of the
+  tab. Each chord is now one chip you click to remove, which is also what
+  the onboarding tip has always said to do.
 - **Leaving edit mode with the keyboard discarded your changes** on
   native Wayland. Moving a character, rebinding a shortcut, changing
   opacity — anything done in edit mode and then dismissed with

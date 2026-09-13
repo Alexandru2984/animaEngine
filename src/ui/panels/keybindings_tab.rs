@@ -248,14 +248,33 @@ fn chord_cell(
         } else {
             for chord in &chords {
                 let conflict = conflicts.iter().any(|(c, _)| c == chord);
+                // Chord and ✕ are ONE widget, for two reasons.
+                //
+                // They used to be a `Label` plus a separate `small_button`,
+                // and `horizontal_wrapped` wraps between widgets — so a
+                // narrow column could put a chord at the end of one line
+                // and its own ✕ at the start of the next, immediately left
+                // of a *different* chord. "Pause all animations" does
+                // exactly that at the default panel width: the row reads
+                // `✕ Space ✕`, and the ✕ a user would take for Space's is
+                // Ctrl+Shift+P's. Removal is silent and unconfirmed, so the
+                // misclick just costs a binding (R31).
+                //
+                // It also makes the onboarding coach mark true. That has
+                // always said "Click any chord to remove it", while the
+                // chord itself was inert and only the ✕ did anything.
                 let mut chip =
-                    egui::RichText::new(chord.display_str()).text_style(egui::TextStyle::Monospace);
+                    egui::RichText::new(format!("{}  {}", chord.display_str(), icons::CLOSE))
+                        .text_style(egui::TextStyle::Monospace);
                 if conflict {
                     chip = chip.color(warn_color);
                 }
-                ui.add(egui::Label::new(chip).wrap_mode(egui::TextWrapMode::Extend));
                 if ui
-                    .small_button(icons::CLOSE)
+                    .add(
+                        egui::Button::new(chip)
+                            .small()
+                            .wrap_mode(egui::TextWrapMode::Extend),
+                    )
                     .on_hover_text(t("keybindings-remove-chord"))
                     .clicked()
                 {
