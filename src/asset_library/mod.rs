@@ -520,11 +520,12 @@ fn ensure_thumbnail_at(root: &Path, asset: &LibraryAsset, thumb_dir: &Path) -> O
     }
     let thumb = thumb_dir.join(asset.thumbnail_filename());
 
-    let src_mtime = std::fs::metadata(&src).and_then(|m| m.modified()).ok()?;
-    if let Ok(tm) = std::fs::metadata(&thumb).and_then(|m| m.modified()) {
-        if tm >= src_mtime {
-            return Some(thumb); // fresh
-        }
+    // Bail early when the source itself is unreadable — there is nothing
+    // to encode from, and `thumbnail_is_fresh` would answer "stale" and
+    // send us on to decode a file we already know we cannot stat.
+    std::fs::metadata(&src).and_then(|m| m.modified()).ok()?;
+    if thumbnail_is_fresh(&src, &thumb) {
+        return Some(thumb);
     }
 
     // Reject a decompression bomb (a small file declaring enormous
@@ -592,8 +593,12 @@ pub fn generate_missing_thumbnails(root: &Path, index: &LibraryIndex) {
 
 /// Decide whether the cached thumbnail at `cached` is still valid for
 /// `source`. Returns `false` when the source's mtime is newer than the
-/// cache, or when either path is missing. C.5 calls this before
-/// re-encoding a thumbnail.
+/// cache, or when either path is missing.
+///
+/// `ensure_thumbnail_at` calls this before re-encoding. It used to carry
+/// its own copy of the comparison and this function was reached only from
+/// its tests, so the tested code and the shipped code were two different
+/// pieces of arithmetic that merely happened to agree.
 pub fn thumbnail_is_fresh(source: &Path, cached: &Path) -> bool {
     let Ok(src_meta) = std::fs::metadata(source) else {
         return false;

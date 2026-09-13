@@ -10,7 +10,6 @@
 
 use super::action::Action;
 use super::chord::KeyChord;
-use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -128,14 +127,5 @@ impl KeyBindings {
         if let Some(list) = self.map.get_mut(&action) {
             list.retain(|c| *c != chord);
         }
-    }
-
-    /// Persist by piggy-backing on `AppConfig::save` (no separate
-    /// file). Provided for symmetry with other config-side helpers
-    /// even though we never call it directly.
-    pub fn validate(&self) -> Result<()> {
-        // Every chord parses through Display → FromStr; nothing else
-        // to enforce here. Future: warn on extremely unusual chords.
-        Ok(())
     }
 }
