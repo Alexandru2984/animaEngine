@@ -79,9 +79,20 @@ RUST_LOG=anima_engine=debug cargo run
 ```
 
 CI (see `.github/workflows/ci.yml`) runs these four on Ubuntu 24.04,
-plus rustdoc, MSRV, cargo-machete, desktop-metadata and actionlint
-gates. If the four above pass locally they pass in CI; the rest rarely
-trip on a focused change.
+plus rustdoc, MSRV, cargo-machete, desktop-metadata and actionlint gates.
+Those extra gates rarely trip on a focused change — **with one exception
+worth knowing about**, because it has gone red twice while all four of
+the above were green:
+
+```bash
+# The rustdoc gate. `--document-private-items` checks private module
+# docs too, and `-D warnings` makes a broken intra-doc link fatal — so
+# deleting or renaming a documented item fails here and nowhere else.
+RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --document-private-items
+```
+
+Run it before committing anything that removes, renames or moves a
+documented item, or that edits a module-level doc comment.
 
 ### Alpine / musl
 
