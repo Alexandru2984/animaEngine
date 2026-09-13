@@ -30,6 +30,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Leaving edit mode with the keyboard discarded your changes** on
+  native Wayland. Moving a character, rebinding a shortcut, changing
+  opacity — anything done in edit mode and then dismissed with
+  `Ctrl+Shift+A` or `Escape` stayed in memory only, while leaving via the
+  ⚙ button saved normally. Nothing was lost when you quit, but a crash in
+  between took it all; and because an unsaved scene deliberately blocks
+  hot-reload, such a session also stopped noticing edits to `config.toml`.
 - **`Ctrl+Shift+`` `` had never opened the perf overlay** — on either
   backend, since the shortcut was introduced. Holding Shift changes the
   key's identity before the app sees it (`~` rather than `` ` ``), and only

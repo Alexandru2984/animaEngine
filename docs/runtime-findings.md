@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 in error, kept so the mistake isn't repeated.
 
 **Current state: R22 is the only thing `OPEN`**, and it is blocked on
-hardware rather than on a decision. R1–R5, R7–R21 and R23–R29 are `FIXED`,
+hardware rather than on a decision. R1–R5, R7–R21 and R23–R30 are `FIXED`,
 R6 is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at
 the bottom are where the next round should start.
 
@@ -897,6 +897,44 @@ change what existing configs mean.
 Worth noting for the next round: this was findable only because the fix
 for something else made the failure *visible*. R27 hid R29, and R19 hid
 R26 the same way. A silent backend is a good place for a second bug.
+
+### R30 · Leaving edit mode with the keyboard threw away your changes — `FIXED`
+
+Found by exercising the Keybindings tab through the actual UI, to check
+R26's and R29's fixes end to end rather than only in unit tests. Record a
+chord, watch it appear in the list, press `Ctrl+Shift+A` to leave edit
+mode — and it is gone. Leave with the **⚙ button** instead and it
+persists.
+
+The save lived in the ⚙ button's handler, not in `set_edit_mode`, so the
+keyboard path — which is the one the UI itself recommends, "Press Escape
+or click ⚙ button to exit" — never reached it. The winit path is immune
+by construction: its save sits inside `App::toggle_edit_mode`, which both
+of its entry points call.
+
+The two log lines are what gave it away: `Edit mode off (Wayland)` from
+the shortcut versus `Edit mode off (Wayland, toggle button)` from the
+button, with `Config saved to config.toml` following only the second.
+
+Scope is wider than rebinding. Every edit-mode change goes through the
+same flag — dragging a character, nudging, opacity, gravity, z-order —
+so any of them made and then dismissed by keyboard stayed in memory
+only. Nothing is lost at *quit*, since the shutdown path persists a dirty
+config; what is lost is everything in between, including a crash.
+
+And since R28 it compounds: a dirty scene also **blocks hot-reload**, on
+purpose, so that an in-flight edit is never overwritten. A session left
+dirty by the keyboard therefore ignores every external change to
+`config.toml`, silently, until something else happens to save.
+
+**Fixed** by giving both paths one `flip_edit_mode` helper that flips,
+logs and persists — the structural equivalent of what `toggle_edit_mode`
+already does on the other backend. The two log spellings are kept,
+deliberately: they are what made the asymmetry visible.
+
+Verified on the rig in both directions: record `Shift+[`, leave by
+keyboard, and the config now gains the chord with a `Config saved` line
+behind it.
 
 ## Still unexamined
 

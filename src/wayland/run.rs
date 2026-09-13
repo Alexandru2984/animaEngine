@@ -520,16 +520,15 @@ pub fn run_native(
             };
             match action {
                 Action::ToggleEditMode => {
-                    let new_mode = !layer.state.edit_mode;
-                    match layer.set_edit_mode(new_mode, toggle_button_units(&monitors_now)) {
-                        Ok(()) => tracing::info!(
-                            "Edit mode {} (Wayland)",
-                            if new_mode { "on" } else { "off" }
-                        ),
-                        Err(e) => {
-                            tracing::warn!("Failed to flip input region on edit toggle: {e}")
-                        }
-                    }
+                    flip_edit_mode(
+                        &mut layer,
+                        &monitors_now,
+                        &mut config,
+                        &scene,
+                        &mut config_dirty,
+                        &mut config_watch,
+                        "Wayland",
+                    );
                 }
                 // The next four are not shareable — each one reaches for
                 // something only this loop owns (its config, its shutdown
@@ -1061,28 +1060,15 @@ pub fn run_native(
                     }
                 }
                 if toggle_requested {
-                    let new_mode = !layer.state.edit_mode;
-                    if let Err(e) =
-                        layer.set_edit_mode(new_mode, toggle_button_units(&monitors_now))
-                    {
-                        tracing::warn!("Failed to flip input region on toggle: {e}");
-                    } else {
-                        tracing::info!(
-                            "Edit mode {} (Wayland, toggle button)",
-                            if new_mode { "on" } else { "off" }
-                        );
-                        // Exiting edit mode + dirty → persist now so
-                        // hot-reload picks the fresh state up next
-                        // session.
-                        if !new_mode && config_dirty {
-                            if let Err(e) = sync_and_save(&mut config, &scene) {
-                                tracing::warn!("Config save failed: {e}");
-                            } else {
-                                config_dirty = false;
-                                config_watch.note_saved();
-                            }
-                        }
-                    }
+                    flip_edit_mode(
+                        &mut layer,
+                        &monitors_now,
+                        &mut config,
+                        &scene,
+                        &mut config_dirty,
+                        &mut config_watch,
+                        "Wayland, toggle button",
+                    );
                 }
                 // Palette / library outcomes apply outside the egui
                 // closure where we can take &mut renderer + &mut toasts
@@ -1528,6 +1514,60 @@ fn rebuild_extra_surfaces(
     }
 }
 
+/// Flip edit mode, persisting on the way out.
+///
+/// Both the keyboard shortcut and the ⚙ button come through here. The
+/// save used to live in the button's handler alone, so leaving edit mode
+/// with the keyboard kept every change in memory only — rebind a
+/// shortcut, press Escape, and the binding was gone (R30). The winit path
+/// avoids this by construction: its save sits inside
+/// `App::toggle_edit_mode`, which both of its entry points call.
+///
+/// `via` only colours the log line, and it earns its place: the two
+/// spellings are what made the asymmetry visible in the first place.
+#[allow(clippy::too_many_arguments)]
+fn flip_edit_mode(
+    layer: &mut LayerWindow,
+    monitors: &[MonitorInfo],
+    config: &mut AppConfig,
+    scene: &Scene,
+    config_dirty: &mut bool,
+    watcher: &mut crate::config_watch::ConfigWatcher,
+    via: &str,
+) {
+    let new_mode = !layer.state.edit_mode;
+    if let Err(e) = layer.set_edit_mode(new_mode, toggle_button_units(monitors)) {
+        tracing::warn!("Failed to flip input region on edit toggle: {e}");
+        return;
+    }
+    tracing::info!("Edit mode {} ({via})", if new_mode { "on" } else { "off" });
+
+    // Leaving edit mode with unsaved work → persist now. Two reasons, and
+    // the second only became true once this backend learned to hot-reload
+    // (R28): a dirty scene also *blocks* reloading, so a session left
+    // dirty ignores every external edit to config.toml until something
+    // else happens to save.
+    if should_persist_on_exit(new_mode, *config_dirty) {
+        match sync_and_save(config, scene) {
+            Ok(()) => {
+                *config_dirty = false;
+                watcher.note_saved();
+            }
+            Err(e) => tracing::warn!("Config save failed: {e}"),
+        }
+    }
+}
+
+/// Whether flipping edit mode to `new_mode` should write the config.
+///
+/// Entering edit mode never saves — nothing has changed yet. Leaving it
+/// saves only if something did. Split out so the rule is testable: the
+/// function around it needs a layer surface and a compositor, and this
+/// is two booleans.
+fn should_persist_on_exit(new_mode: bool, config_dirty: bool) -> bool {
+    !new_mode && config_dirty
+}
+
 /// Install a finished hot-reload. Mirrors `App::apply_hot_reload` on the
 /// winit path, including the texture diff: entities whose id survives
 /// keep their GPU memory instead of being re-uploaded, which is the
@@ -1817,6 +1857,26 @@ mod tests {
             scale_factor: scale,
             ..monitor(name, 0, 0)
         }
+    }
+
+    // ── edit-mode persistence (R30) ──────────────────────────────────
+
+    #[test]
+    fn leaving_edit_mode_with_changes_saves() {
+        assert!(should_persist_on_exit(false, true));
+    }
+
+    #[test]
+    fn leaving_edit_mode_with_nothing_to_save_does_not_write() {
+        assert!(!should_persist_on_exit(false, false));
+    }
+
+    /// Entering edit mode must never write: nothing has changed yet, and
+    /// a write here would also stamp the file's mtime for no reason.
+    #[test]
+    fn entering_edit_mode_never_saves() {
+        assert!(!should_persist_on_exit(true, true));
+        assert!(!should_persist_on_exit(true, false));
     }
 
     // ── keybinding gate (R25) ────────────────────────────────────────
