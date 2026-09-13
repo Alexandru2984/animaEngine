@@ -48,7 +48,7 @@ behavior-bounce-vertical = 垂直
 behavior-bounce-both = 両方 (円)
 behavior-script = スクリプト
 behavior-script-path-label = パス
-behavior-script-path-hint = アセットライブラリからの相対パス — ~/.local/share/animaEngine/assets/
+behavior-script-path-hint = アセットライブラリからの相対パス — { $path }
 behavior-script-params = パラメーター
 behavior-script-param-name = 名前
 behavior-script-add-param = 追加
@@ -119,8 +119,8 @@ settings-tab-library = ライブラリ
 
 # Asset library tab
 library-empty-headline = アセットが見つかりません
-library-empty-hint = ~/.local/share/animaEngine/assets/ にファイルを入れるか、ANIMA_ASSETS_DIR を設定してください。
-library-no-asset-root = アセットディレクトリが見つかりません。~/.local/share/animaEngine/assets/ に作成してください
+library-empty-hint = { $path } にファイルを入れるか、ANIMA_ASSETS_DIR を設定してください。
+library-no-asset-root = アセットディレクトリが見つかりません。{ $path } に作成してください
 library-search-placeholder = アセットを検索…
 library-add-to-scene = シーンに追加
 library-kind-image = 画像
@@ -218,7 +218,7 @@ library-import-shimeji-hint = パックのフォルダーをオーバーレイ�
 library-import-shimeji-button = インポート
 shimeji-imported-toast = { $name } をインポートしました（{ $n } 個の要素をスキップ — ログ参照）
 shimeji-import-failed-toast = インポートに失敗しました: { $reason }
-shimeji-no-library-toast = ライブラリのフォルダーがありません — まず ~/.local/share/animaEngine/assets/ を作成してください。
+shimeji-no-library-toast = ライブラリのフォルダーがありません — まず { $path } を作成してください。
 crash-report-found-toast = 前回のセッションがクラッシュしました。レポートを { $path } に保存しました — GitHub の issue に添付してください。
 
 # ── Group composition hint (C.9) ──────────────────────────────────────

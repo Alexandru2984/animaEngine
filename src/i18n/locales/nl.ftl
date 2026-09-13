@@ -48,7 +48,7 @@ behavior-bounce-vertical = Verticaal
 behavior-bounce-both = Beide (cirkel)
 behavior-script = Script
 behavior-script-path-label = Pad
-behavior-script-path-hint = Relatief aan je assetbibliotheek — ~/.local/share/animaEngine/assets/
+behavior-script-path-hint = Relatief aan je assetbibliotheek — { $path }
 behavior-script-params = Parameters
 behavior-script-param-name = naam
 behavior-script-add-param = Toevoegen
@@ -119,8 +119,8 @@ settings-tab-library = Bibliotheek
 
 # Asset library tab
 library-empty-headline = Geen assets geïndexeerd
-library-empty-hint = Sleep bestanden naar ~/.local/share/animaEngine/assets/ of stel ANIMA_ASSETS_DIR in.
-library-no-asset-root = Geen asset-map gevonden. Maak er een aan in ~/.local/share/animaEngine/assets/
+library-empty-hint = Sleep bestanden naar { $path } of stel ANIMA_ASSETS_DIR in.
+library-no-asset-root = Geen asset-map gevonden. Maak er een aan in { $path }
 library-search-placeholder = Assets zoeken…
 library-add-to-scene = Toevoegen aan scène
 library-kind-image = Afbeelding
@@ -218,7 +218,7 @@ library-import-shimeji-hint = Sleep de pakketmap op de overlay of plak het pad h
 library-import-shimeji-button = Importeren
 shimeji-imported-toast = { $name } geïmporteerd ({ $n } onderdelen overgeslagen — zie log)
 shimeji-import-failed-toast = Import mislukt: { $reason }
-shimeji-no-library-toast = Geen bibliotheekmap — maak eerst ~/.local/share/animaEngine/assets/ aan.
+shimeji-no-library-toast = Geen bibliotheekmap — maak eerst { $path } aan.
 crash-report-found-toast = De vorige sessie is gecrasht. Een rapport is opgeslagen in { $path } — voeg het toe aan een GitHub-issue.
 
 # ── Group composition hint (C.9) ──────────────────────────────────────

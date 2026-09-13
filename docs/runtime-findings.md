@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 in error, kept so the mistake isn't repeated.
 
 **Current state: R22 is the only thing `OPEN`**, and it is blocked on
-hardware rather than on a decision. R1–R5, R7–R21 and R23–R31 are `FIXED`,
+hardware rather than on a decision. R1–R5, R7–R21 and R23–R32 are `FIXED`,
 R6 is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at
 the bottom are where the next round should start.
 
@@ -972,6 +972,56 @@ and the monospace face are unchanged.
 Verified on the rig: `Pause all animations` now wraps as two whole chips
 on separate lines, and clicking the `Shift+[ ✕` chip on another row
 removed exactly that chord, leaving `Ctrl+Shift+H` in place.
+
+### R32 · The Library tab told users to create a directory the app never reads — `FIXED`
+
+The empty state says:
+
+> Drop files into `~/.local/share/animaEngine/assets/` or set
+> `ANIMA_ASSETS_DIR` to point at your collection.
+
+The app had just logged, one second earlier:
+
+```
+Created asset library at …/data/animaengine/assets
+```
+
+**`animaengine`, not `animaEngine`.** `directories::ProjectDirs`
+lower-cases the project name on Linux, and Linux filesystems are
+case-sensitive, so a user following the instruction literally creates a
+second directory beside the real one and watches the tab stay empty
+forever.
+
+The path was also hard-coded from `$HOME`, so it ignored `XDG_DATA_HOME`
+**and** `ANIMA_ASSETS_DIR` — the very variable the same sentence tells you
+about. Anyone who had set either was pointed somewhere unrelated, and the
+"Copy path to clipboard" button beneath copied the same wrong string.
+
+A third defect sat in the other empty state, the one shown when no asset
+directory exists at all: `library-no-asset-root` has always carried a
+`{ $path }` placeholder and was rendered through `t()` with no argument,
+so the placeholder went on screen instead of a path.
+
+The comment on the function said it all: *"kept in sync with
+`library-no-asset-root` i18n and the doc in `docs/config.md`"*. One path,
+copied into a Rust literal, ten `.ftl` files and four docs, kept in
+agreement by hand. It wasn't.
+
+**Fixed** by making `asset_library` answer the question — `asset_root_hint`
+resolves it exactly as the loader does, including the env override — and
+having both the sentence and the clipboard use that one value. The ten
+locale strings were *parameterised, not translated*: the literal path
+appears verbatim in all ten, so replacing it with `{ $path }` is
+mechanical and invents nothing. The four current docs are corrected;
+archived release notes are left alone, because they record what was said
+at the time.
+
+The new test asserts the real directory name is lower-case. That is the
+thing that silently diverged, and it comes from a dependency, so it can
+diverge again.
+
+Found by opening the Library tab and reading it against the log — the
+same habit that produced R31, one tab over.
 
 ## Still unexamined
 

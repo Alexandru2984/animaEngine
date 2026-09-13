@@ -12,8 +12,8 @@ settings-tab-library = Library
 
 # ── Asset library tab ────────────────────────────────────────────────
 library-empty-headline = No assets indexed
-library-empty-hint = Drop files into ~/.local/share/animaEngine/assets/ or set ANIMA_ASSETS_DIR to point at your collection.
-library-no-asset-root = No asset directory found. Create one at ~/.local/share/animaEngine/assets/
+library-empty-hint = Drop files into { $path } or set ANIMA_ASSETS_DIR to point at your collection.
+library-no-asset-root = No asset directory found. Create one at { $path }
 library-search-placeholder = Search assets…
 library-add-to-scene = Add to scene
 library-kind-image = Image
@@ -68,7 +68,7 @@ behavior-bounce-vertical = Vertical
 behavior-bounce-both = Both (circle)
 behavior-script = Script
 behavior-script-path-label = Path
-behavior-script-path-hint = Relative to your asset library — ~/.local/share/animaEngine/assets/
+behavior-script-path-hint = Relative to your asset library — { $path }
 behavior-script-params = Parameters
 behavior-script-param-name = name
 behavior-script-add-param = Add
@@ -236,7 +236,7 @@ library-import-shimeji-hint = Drop a pack folder onto the overlay, or paste its 
 library-import-shimeji-button = Import
 shimeji-imported-toast = Imported { $name } ({ $n } parts skipped — see log)
 shimeji-import-failed-toast = Import failed: { $reason }
-shimeji-no-library-toast = No asset library root — create ~/.local/share/animaEngine/assets/ first.
+shimeji-no-library-toast = No asset library root — create { $path } first.
 crash-report-found-toast = The previous session crashed. A report was saved at { $path } — please attach it to a GitHub issue.
 
 # ── Group composition hint (C.9) ──────────────────────────────────────

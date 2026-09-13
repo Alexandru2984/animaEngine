@@ -48,7 +48,7 @@ behavior-bounce-vertical = Pionowo
 behavior-bounce-both = Oba (okrąg)
 behavior-script = Skrypt
 behavior-script-path-label = Ścieżka
-behavior-script-path-hint = Względem twojej biblioteki zasobów — ~/.local/share/animaEngine/assets/
+behavior-script-path-hint = Względem twojej biblioteki zasobów — { $path }
 behavior-script-params = Parametry
 behavior-script-param-name = nazwa
 behavior-script-add-param = Dodaj
@@ -119,8 +119,8 @@ settings-tab-library = Biblioteka
 
 # Asset library tab
 library-empty-headline = Brak zindeksowanych zasobów
-library-empty-hint = Wrzuć pliki do ~/.local/share/animaEngine/assets/ lub ustaw ANIMA_ASSETS_DIR.
-library-no-asset-root = Nie znaleziono katalogu zasobów. Utwórz go w ~/.local/share/animaEngine/assets/
+library-empty-hint = Wrzuć pliki do { $path } lub ustaw ANIMA_ASSETS_DIR.
+library-no-asset-root = Nie znaleziono katalogu zasobów. Utwórz go w { $path }
 library-search-placeholder = Szukaj zasobów…
 library-add-to-scene = Dodaj do sceny
 library-kind-image = Obraz
@@ -218,7 +218,7 @@ library-import-shimeji-hint = Przeciągnij folder paczki na nakładkę albo wkle
 library-import-shimeji-button = Importuj
 shimeji-imported-toast = Zaimportowano { $name } (pominięto { $n } części — zobacz log)
 shimeji-import-failed-toast = Import nie powiódł się: { $reason }
-shimeji-no-library-toast = Brak folderu biblioteki — najpierw utwórz ~/.local/share/animaEngine/assets/.
+shimeji-no-library-toast = Brak folderu biblioteki — najpierw utwórz { $path }.
 crash-report-found-toast = Poprzednia sesja zakończyła się awarią. Raport zapisano w { $path } — dołącz go do zgłoszenia na GitHubie.
 
 # ── Group composition hint (C.9) ──────────────────────────────────────

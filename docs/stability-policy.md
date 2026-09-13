@@ -40,7 +40,7 @@ change to any of them is a breaking change and waits for 2.0 (see
   be added; an accepted format won't be dropped.
 - **XDG file locations.** Config at `~/.config/animaEngine/config.toml`,
   cache under `~/.cache/animaEngine/`, the asset library under
-  `~/.local/share/animaEngine/assets/` (all via the XDG base-directory
+  `~/.local/share/animaengine/assets/` (all via the XDG base-directory
   spec, overridable by the standard `XDG_*` variables). These paths
   don't move within 1.x.
 

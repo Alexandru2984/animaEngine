@@ -7,7 +7,7 @@
 //! TextureManager at once.
 
 use crate::asset_library::{LibraryAsset, LibraryIndex, LibraryKind};
-use crate::i18n::t;
+use crate::i18n::{t, t_args};
 use crate::ui::icons;
 use crate::ui::states;
 use crate::ui::theme::{self, SPACE_L, SPACE_M, SPACE_S, SPACE_XS};
@@ -59,18 +59,26 @@ pub(super) fn library_tab(
     });
     ui.separator();
 
+    // One resolved path for both the sentence and the clipboard, so the
+    // button cannot hand over somewhere different from what the text just
+    // named (R32). `library-no-asset-root` has always carried a `{ $path }`
+    // placeholder and was rendered through `t()` with no argument to fill
+    // it, which put the placeholder itself on screen.
+    let root = crate::asset_library::asset_root_hint();
+    let mut path_args = fluent::FluentArgs::new();
+    path_args.set("path", root.display().to_string());
+
     let Some(library) = library else {
-        // D.8: copy the documented path to the clipboard so the user
-        // can paste it into a file manager / terminal without typing.
+        // D.8: copy the path to the clipboard so the user can paste it
+        // into a file manager / terminal without typing it.
         if states::empty_with_action(
             ui,
             icons::LIBRARY,
             &t("library-empty-headline"),
-            &t("library-no-asset-root"),
+            &t_args("library-no-asset-root", &path_args),
             Some(&t("library-empty-action-copy-path")),
         ) {
-            let path = default_asset_path_hint();
-            ui.ctx().copy_text(path);
+            ui.ctx().copy_text(root.display().to_string());
         }
         return;
     };
@@ -80,11 +88,10 @@ pub(super) fn library_tab(
             ui,
             icons::LIBRARY,
             &t("library-empty-headline"),
-            &t("library-empty-hint"),
+            &t_args("library-empty-hint", &path_args),
             Some(&t("library-empty-action-copy-path")),
         ) {
-            let path = default_asset_path_hint();
-            ui.ctx().copy_text(path);
+            ui.ctx().copy_text(root.display().to_string());
         }
         return;
     }
@@ -259,17 +266,4 @@ fn library_row(ui: &mut egui::Ui, asset: &LibraryAsset, outcome: &mut Option<Lib
                 });
             });
         });
-}
-
-/// Documented asset-library path used by the empty-state CTA — kept
-/// in sync with `library-no-asset-root` i18n and the doc in
-/// `docs/config.md`. Lives here so the panels module can expose a
-/// "Copy path" button without dragging the library module's path
-/// resolution into the panel.
-fn default_asset_path_hint() -> String {
-    if let Ok(home) = std::env::var("HOME") {
-        format!("{home}/.local/share/animaEngine/assets")
-    } else {
-        "~/.local/share/animaEngine/assets".into()
-    }
 }

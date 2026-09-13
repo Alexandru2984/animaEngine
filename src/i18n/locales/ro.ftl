@@ -48,7 +48,7 @@ behavior-bounce-vertical = Verticală
 behavior-bounce-both = Ambele (cerc)
 behavior-script = Script
 behavior-script-path-label = Cale
-behavior-script-path-hint = Relativă la biblioteca ta de resurse — ~/.local/share/animaEngine/assets/
+behavior-script-path-hint = Relativă la biblioteca ta de resurse — { $path }
 behavior-script-params = Parametri
 behavior-script-param-name = nume
 behavior-script-add-param = Adaugă
@@ -119,8 +119,8 @@ settings-tab-library = Bibliotecă
 
 # Asset library tab
 library-empty-headline = Niciun asset indexat
-library-empty-hint = Trage fișiere în ~/.local/share/animaEngine/assets/ sau setează ANIMA_ASSETS_DIR.
-library-no-asset-root = Niciun director de assets găsit. Creează unul la ~/.local/share/animaEngine/assets/
+library-empty-hint = Trage fișiere în { $path } sau setează ANIMA_ASSETS_DIR.
+library-no-asset-root = Niciun director de assets găsit. Creează unul la { $path }
 library-search-placeholder = Caută assets…
 library-add-to-scene = Adaugă în scenă
 library-kind-image = Imagine
@@ -222,7 +222,7 @@ library-import-shimeji-hint = Trage un folder de pachet peste overlay sau lipeș
 library-import-shimeji-button = Importă
 shimeji-imported-toast = Importat { $name } ({ $n } părți sărite — vezi log-ul)
 shimeji-import-failed-toast = Import eșuat: { $reason }
-shimeji-no-library-toast = Nu există rădăcină de bibliotecă — creează întâi ~/.local/share/animaEngine/assets/.
+shimeji-no-library-toast = Nu există rădăcină de bibliotecă — creează întâi { $path }.
 crash-report-found-toast = Sesiunea anterioară s-a închis neașteptat. Raportul a fost salvat la { $path } — atașează-l unui issue pe GitHub.
 
 # ── Group composition hint (C.9) ──────────────────────────────────────

@@ -30,6 +30,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The Library tab named the wrong folder.** Its empty state told you to
+  drop files into `~/.local/share/animaEngine/assets/`, but the directory
+  the app actually reads is lower-case `animaengine` — so following the
+  instruction created a second folder next to the real one and the tab
+  stayed empty. It also ignored `XDG_DATA_HOME` and `ANIMA_ASSETS_DIR`,
+  including for the "Copy path to clipboard" button. Both now show the
+  path the app is really using. The docs carried the same wrong spelling
+  and are corrected.
 - **The ✕ next to a shortcut could remove a different one.** In the
   Keybindings tab a chord and its ✕ were separate widgets, so a narrow
   column could wrap them apart and leave the ✕ sitting above the next

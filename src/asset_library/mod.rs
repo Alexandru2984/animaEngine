@@ -261,6 +261,24 @@ pub fn discover_asset_root() -> Option<PathBuf> {
     None
 }
 
+/// Where the library *would* live, whether or not it exists yet.
+///
+/// For telling the user where to put their files. [`discover_asset_root`]
+/// answers `None` until a directory is actually there, which is precisely
+/// the moment the UI has something to say — so the empty state cannot use
+/// it, and used to hard-code `~/.local/share/animaEngine/assets` instead.
+/// That string was wrong twice over: the real directory is lower-case
+/// (`animaengine`), so following the instruction on a case-sensitive
+/// filesystem creates a directory the app never reads; and it ignored both
+/// `XDG_DATA_HOME` and `ANIMA_ASSETS_DIR`, so anyone who had set either was
+/// pointed somewhere unrelated (R32).
+pub fn asset_root_hint() -> PathBuf {
+    if let Ok(env_dir) = std::env::var("ANIMA_ASSETS_DIR") {
+        return PathBuf::from(env_dir);
+    }
+    xdg_data_dir().join("assets")
+}
+
 /// Like [`discover_asset_root`], but create the XDG location when nothing
 /// exists yet.
 ///
@@ -708,6 +726,38 @@ mod ensure_root_tests {
         );
         // A second call reuses it rather than failing on the existing dir.
         assert_eq!(ensure_asset_root().as_deref(), Some(root.as_path()));
+
+        // ── What the UI *tells* the user has to be the directory the app
+        // actually reads. The empty state used to hard-code
+        // `~/.local/share/animaEngine/assets`, which was wrong twice:
+        // `directories` lower-cases the project name on Linux, so the real
+        // directory is `animaengine` and following the instruction on a
+        // case-sensitive filesystem creates one the app never looks in;
+        // and it ignored both env vars below (R32). Asserted here rather
+        // than in its own test because these are process-global.
+        assert_eq!(
+            asset_root_hint(),
+            root,
+            "the hint must name the directory ensure_asset_root just made"
+        );
+        let name = root
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .expect("root has a named parent");
+        assert_eq!(
+            name,
+            name.to_lowercase(),
+            "the real directory name is lower-cased by `directories`; a docs \
+             or UI string spelling it otherwise sends the user elsewhere"
+        );
+
+        // An explicit override wins, and — unlike `ensure_asset_root` — the
+        // hint reports it even when it does not exist yet, because that is
+        // exactly when the user needs to be told where to create it.
+        std::env::set_var("ANIMA_ASSETS_DIR", &missing);
+        assert_eq!(asset_root_hint(), missing);
+        std::env::remove_var("ANIMA_ASSETS_DIR");
 
         match prev_data {
             Some(v) => std::env::set_var("XDG_DATA_HOME", v),

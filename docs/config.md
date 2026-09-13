@@ -302,7 +302,7 @@ shadowed.
 | `RUST_LOG=anima_engine=debug` | Verbose logs (default is `info`) |
 | `ANIMA_NO_CACHE=1` | Bypass the on-disk RGBA cache (and its startup sweep) |
 | `ANIMA_USE_WAYLAND_NATIVE=1` | Try the native wlr-layer-shell path |
-| `ANIMA_ASSETS_DIR=<path>` | Override the asset-library root (default `~/.local/share/animaEngine/assets/`) |
+| `ANIMA_ASSETS_DIR=<path>` | Override the asset-library root (default `~/.local/share/animaengine/assets/`) |
 | `ANIMA_MEMORY_BUDGET_MB=<int>` | Raise the aggregate decoded-RGBA budget (default 1024) for high-RAM machines |
 
 Two more are read only by the soak-test harness (`scripts/soak.sh`),

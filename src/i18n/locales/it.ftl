@@ -48,7 +48,7 @@ behavior-bounce-vertical = Verticale
 behavior-bounce-both = Entrambi (cerchio)
 behavior-script = Script
 behavior-script-path-label = Percorso
-behavior-script-path-hint = Relativo alla tua libreria di risorse — ~/.local/share/animaEngine/assets/
+behavior-script-path-hint = Relativo alla tua libreria di risorse — { $path }
 behavior-script-params = Parametri
 behavior-script-param-name = nome
 behavior-script-add-param = Aggiungi
@@ -119,8 +119,8 @@ settings-tab-library = Libreria
 
 # Asset library tab
 library-empty-headline = Nessun asset indicizzato
-library-empty-hint = Trascina file in ~/.local/share/animaEngine/assets/ o imposta ANIMA_ASSETS_DIR.
-library-no-asset-root = Nessuna directory di asset trovata. Creane una in ~/.local/share/animaEngine/assets/
+library-empty-hint = Trascina file in { $path } o imposta ANIMA_ASSETS_DIR.
+library-no-asset-root = Nessuna directory di asset trovata. Creane una in { $path }
 library-search-placeholder = Cerca asset…
 library-add-to-scene = Aggiungi alla scena
 library-kind-image = Immagine
@@ -218,7 +218,7 @@ library-import-shimeji-hint = Trascina la cartella del pacchetto sull’overlay 
 library-import-shimeji-button = Importa
 shimeji-imported-toast = { $name } importato ({ $n } parti saltate — vedi il log)
 shimeji-import-failed-toast = Importazione non riuscita: { $reason }
-shimeji-no-library-toast = Nessuna cartella libreria — crea prima ~/.local/share/animaEngine/assets/.
+shimeji-no-library-toast = Nessuna cartella libreria — crea prima { $path }.
 crash-report-found-toast = La sessione precedente si è chiusa in modo imprevisto. Un rapporto è stato salvato in { $path } — allegalo a un issue su GitHub.
 
 # ── Group composition hint (C.9) ──────────────────────────────────────

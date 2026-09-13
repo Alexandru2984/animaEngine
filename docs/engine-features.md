@@ -161,7 +161,7 @@ thumbnails, tags, and a search bar.
 In order, until a path is found / created:
 
 1. `$ANIMA_ASSETS_DIR` (env override, useful for testing)
-2. `~/.local/share/animaEngine/assets/` (XDG_DATA_HOME default)
+2. `~/.local/share/animaengine/assets/` (XDG_DATA_HOME default)
 3. `assets/` next to the executable (development convenience)
 
 Symlinks are followed but resolution depth is capped at 4 to
@@ -172,7 +172,7 @@ everything else is skipped silently.
 ### 3.3 Library index
 
 ```
-~/.local/share/animaEngine/library.toml
+~/.local/share/animaengine/library.toml
 ```
 
 Atomic-write managed (reusing `util::atomic_write_bytes`). Layout:
