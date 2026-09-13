@@ -96,15 +96,27 @@ where
     }
 }
 
-/// `<path>.<pid>.anima.tmp` — kept verbose so we never collide with a
-/// real asset called e.g. `config.tmp`, and include the process id so
-/// two animaEngine instances racing through a missed single-instance
-/// lock can't truncate each other's temp files mid-write (M5
-/// hardening, 0.5.2). The rename target stays the unchanged final
-/// path, so atomicity guarantees aren't affected.
+/// `<path>.<pid>-<n>.anima.tmp` — kept verbose so we never collide with a
+/// real asset called e.g. `config.tmp`.
+///
+/// The process id keeps two animaEngine instances racing through a missed
+/// single-instance lock from truncating each other's temp files mid-write
+/// (M5 hardening, 0.5.2). It does **not** separate two threads of the
+/// *same* process: the pid names the process, so concurrent writes to one
+/// path — two frame-cache writers for the same key, two threads panicking
+/// at once into the crash report — derived the identical temp name and
+/// scribbled over each other, with the loser's rename publishing a file
+/// half-written by the winner. The counter closes that; together the two
+/// are unique everywhere.
+///
+/// The rename target stays the unchanged final path, so atomicity
+/// guarantees aren't affected, and the sweeper in `animation::cache`
+/// matches on [`TMP_SUFFIX`] alone, so the added field is invisible to it.
 fn tmp_sibling(path: &Path) -> PathBuf {
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut name: OsString = path.as_os_str().to_owned();
-    name.push(format!(".{}{TMP_SUFFIX}", std::process::id()));
+    name.push(format!(".{}-{n}{TMP_SUFFIX}", std::process::id()));
     PathBuf::from(name)
 }
 
@@ -299,8 +311,63 @@ mod tests {
         atomic_write_bytes(&path, b"hello").unwrap();
 
         assert_eq!(std::fs::read(&path).unwrap(), b"hello");
-        // Tmp sibling must not survive a successful write.
-        assert!(!tmp_sibling(&path).exists());
+        // Tmp sibling must not survive a successful write. Checked by
+        // scanning for the suffix rather than by rebuilding the name:
+        // `tmp_sibling` now carries a counter, so asking it again returns
+        // a *different* name and the assertion would hold even if the
+        // temp were still sitting there.
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name())
+            .filter(|n| n.to_string_lossy().ends_with(TMP_SUFFIX))
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "temp files left behind: {leftovers:?}"
+        );
+    }
+
+    /// Two writes to the same path must not pick the same temp.
+    ///
+    /// The name used to be `<path>.<pid>`, which names the *process* — so
+    /// two threads writing one path (two frame-cache writers for the same
+    /// key, two threads panicking at once into the crash report) landed on
+    /// the identical temp and scribbled over each other, and the loser's
+    /// rename published a file half-written by the winner.
+    #[test]
+    fn two_writers_of_one_path_get_different_temps() {
+        let path = Path::new("/tmp/anima-util-unique/data.bin");
+        let a = tmp_sibling(path);
+        let b = tmp_sibling(path);
+        assert_ne!(a, b, "same temp handed out twice for one path");
+        for t in [&a, &b] {
+            let name = t.file_name().unwrap().to_string_lossy().into_owned();
+            assert!(name.ends_with(TMP_SUFFIX), "sweeper would not match {name}");
+            assert!(
+                name.contains(&std::process::id().to_string()),
+                "another process's temp must still be distinguishable: {name}"
+            );
+        }
+    }
+
+    /// Across threads too — the counter is what makes that true, and a
+    /// `Relaxed` fetch_add is enough because uniqueness is all that is
+    /// being claimed, not ordering.
+    #[test]
+    fn concurrent_writers_get_different_temps() {
+        use std::collections::HashSet;
+        let path = Path::new("/tmp/anima-util-unique/threaded.bin");
+        let names: HashSet<PathBuf> = std::thread::scope(|s| {
+            let handles: Vec<_> = (0..8)
+                .map(|_| s.spawn(|| (0..32).map(|_| tmp_sibling(path)).collect::<Vec<_>>()))
+                .collect();
+            handles
+                .into_iter()
+                .flat_map(|h| h.join().unwrap())
+                .collect()
+        });
+        assert_eq!(names.len(), 8 * 32, "temp names collided across threads");
     }
 
     #[test]

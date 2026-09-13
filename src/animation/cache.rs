@@ -122,7 +122,7 @@ fn sweep_dir(root: &Path, cap: u64) -> SweepReport {
 
         // Reclaim abandoned atomic-write temps. `atomic_write_with`
         // removes its own temp when the rename fails, but a crash or
-        // SIGKILL mid-write leaves `<name>.<pid>.anima.tmp` behind — and
+        // SIGKILL mid-write leaves `<name>.<pid>-<n>.anima.tmp` behind — and
         // since it isn't a `.bin`, nothing ever counted or collected it.
         // Only reap old ones: a temp from a live write in another
         // instance is seconds old, never hours.
@@ -775,7 +775,7 @@ mod tests {
 
     #[test]
     fn sweep_dir_reaps_only_stale_atomic_write_temps() {
-        // A crash or SIGKILL mid-write leaves `<name>.<pid>.anima.tmp`
+        // A crash or SIGKILL mid-write leaves `<name>.<pid>-<n>.anima.tmp`
         // behind. It isn't a `.bin`, so nothing used to count or collect
         // it. Old ones must go; a temp from a write in flight right now
         // (possibly another running instance) must not.

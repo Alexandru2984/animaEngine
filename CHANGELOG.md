@@ -30,6 +30,34 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A malformed MP4 could close the app.** The container parser divides
+  and subtracts using numbers taken straight from the file without
+  checking them, so a 2.3 KB MP4 declaring zero samples per chunk panicked
+  mid-load — and loading runs on the UI thread, so that was the whole
+  overlay going down on a file you merely dropped on it. Four such values
+  are now refused with an error instead.
+- **A small sound file could decode into an enormous one.** Only the file
+  was size-capped, and audio compresses: a 43 KB FLAC decodes to about
+  50 MB, and silence compresses far better than that, so a file inside the
+  4 MB limit could expand into gigabytes before anything objected. The
+  decode now stops at 8 MB and reports the sound as unplayable. A sound
+  larger than the whole cache budget also used to be cached anyway, after
+  evicting everything else to make room it then exceeded.
+- **Repeated sounds no longer copy themselves.** Every play duplicated the
+  entire decoded sound for the mixer, and the eight-per-tick limit caps
+  how many sounds *start*, not how many are still playing — so a script
+  triggering that limit every frame stacked full-size copies. Playing now
+  shares one buffer.
+- **A hot-reload could discard edits you made while it was loading.** The
+  reload refused to *start* while you had unsaved changes but applied its
+  result unconditionally when it finished, and rebuilding a scene from
+  disk is not instant. It now re-checks on arrival and keeps your work,
+  saying so.
+- **Two threads writing the same file could interleave.** The atomic-write
+  temp was named after the path and the process id, which does not
+  separate two threads of one process; both derived the same temp name and
+  overwrote each other, and the loser's rename published a half-written
+  file. Temps are now unique per write.
 - **Every Ctrl shortcut you rebound was saved as an unpressable chord.**
   The Keybindings tab captured chords through a converter that read egui's
   `command` modifier as Super — but off macOS `command` is an alias for

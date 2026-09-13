@@ -42,9 +42,25 @@ use std::time::{Duration, Instant};
 /// bound-the-read discipline every other loader here follows.
 #[cfg(feature = "audio")]
 const MAX_SOUND_BYTES: u64 = 4 * 1024 * 1024;
+/// Cap on the *decoded* size of one sound.
+///
+/// `MAX_SOUND_BYTES` bounds the file, which bounds nothing useful: audio
+/// codecs compress, and silence compresses enormously. A 23 KB FLAC
+/// decodes to 38 MB of `f32` — a ratio of about 1600:1 — so the file cap
+/// alone allowed a multi-gigabyte allocation from a file that passed
+/// every check. The decode is stopped at this many samples instead of
+/// being run to completion and measured afterwards.
+#[cfg(feature = "audio")]
+const MAX_DECODED_SOUND_BYTES: usize = 8 * 1024 * 1024;
+#[cfg(feature = "audio")]
+const MAX_SOUND_SAMPLES: usize = MAX_DECODED_SOUND_BYTES / std::mem::size_of::<f32>();
 /// Cap on decoded audio held in memory across all cached sounds.
 #[cfg(feature = "audio")]
 const MAX_CACHED_BYTES: usize = 32 * 1024 * 1024;
+/// One sound must always fit in the cache on its own, or the eviction
+/// below would clear everything and still overshoot the budget.
+#[cfg(feature = "audio")]
+const _: () = assert!(MAX_DECODED_SOUND_BYTES <= MAX_CACHED_BYTES);
 /// Minimum gap between two plays of the same sound by the same entity.
 ///
 /// A script calling `play` unconditionally each frame is the expected
@@ -73,6 +89,75 @@ impl Cached {
     }
 }
 
+/// A `rodio::Source` that reads a cached sound **in place**.
+///
+/// `SamplesBuffer` owns its `Vec<f32>`, so handing one to the mixer meant
+/// copying the whole decoded sound on every play. The per-tick voice cap
+/// limits how many sounds *start*, not how many are still running, so a
+/// script triggering the cap every frame kept stacking full-size copies
+/// of the same buffer for as long as each took to finish. Sharing the
+/// `Arc` makes a play cost a refcount bump instead.
+#[cfg(feature = "audio")]
+struct SharedSamples {
+    sound: std::sync::Arc<Cached>,
+    pos: usize,
+}
+
+#[cfg(feature = "audio")]
+impl Iterator for SharedSamples {
+    type Item = rodio::Sample;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let s = self.sound.samples.get(self.pos).copied();
+        if s.is_some() {
+            self.pos += 1;
+        }
+        s
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let left = self.sound.samples.len().saturating_sub(self.pos);
+        (left, Some(left))
+    }
+}
+
+#[cfg(feature = "audio")]
+impl rodio::Source for SharedSamples {
+    // Mirrors `rodio::buffer::SamplesBuffer`: the *total* span, with
+    // `Some(0)` once exhausted, rather than the remaining count.
+    #[inline]
+    fn current_span_len(&self) -> Option<usize> {
+        if self.pos >= self.sound.samples.len() {
+            Some(0)
+        } else {
+            Some(self.sound.samples.len())
+        }
+    }
+
+    #[inline]
+    fn channels(&self) -> rodio::ChannelCount {
+        self.sound.channels
+    }
+
+    #[inline]
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.sound.sample_rate
+    }
+
+    #[inline]
+    fn total_duration(&self) -> Option<Duration> {
+        // Both are `NonZero` in rodio 0.22, which is exactly why `Cached`
+        // keeps them in that form rather than as plain integers — no
+        // zero-guard is needed here.
+        let frames = self.sound.samples.len() / self.sound.channels.get() as usize;
+        Some(Duration::from_secs_f64(
+            frames as f64 / f64::from(self.sound.sample_rate.get()),
+        ))
+    }
+}
+
 /// Owns the output device and the decoded-sound cache.
 pub struct AudioHost {
     /// `None` when no device could be opened, and absent entirely on a
@@ -80,7 +165,7 @@ pub struct AudioHost {
     #[cfg(feature = "audio")]
     sink: Option<rodio::MixerDeviceSink>,
     #[cfg(feature = "audio")]
-    cache: BTreeMap<String, Cached>,
+    cache: BTreeMap<String, std::sync::Arc<Cached>>,
     #[cfg(feature = "audio")]
     cached_bytes: usize,
     /// Last time each (entity, sound) pair was triggered, for the
@@ -239,12 +324,22 @@ impl AudioHost {
                 Ok(sound) => {
                     // Evicting on a byte budget rather than a count: one
                     // long sound can outweigh many short ones.
-                    if self.cached_bytes + sound.bytes() > MAX_CACHED_BYTES {
+                    //
+                    // The clear used to be followed by an unconditional
+                    // insert, so a sound bigger than the whole budget was
+                    // cached anyway and left `cached_bytes` over the cap
+                    // for good. It cannot happen now — `load_sound`
+                    // refuses anything past MAX_DECODED_SOUND_BYTES, and
+                    // the const assert above pins that below the budget —
+                    // so after a clear there is always room.
+                    let bytes = sound.bytes();
+                    if self.cached_bytes + bytes > MAX_CACHED_BYTES {
                         self.cache.clear();
                         self.cached_bytes = 0;
                     }
-                    self.cached_bytes += sound.bytes();
-                    self.cache.insert(rel.to_string(), sound);
+                    self.cached_bytes += bytes;
+                    self.cache
+                        .insert(rel.to_string(), std::sync::Arc::new(sound));
                 }
                 Err(e) => {
                     tracing::warn!("sound {rel}: {e}");
@@ -261,11 +356,12 @@ impl AudioHost {
         let Some(sink) = &self.sink else { return };
 
         let (left, right) = pan_gains(centre_x, min_x, max_x);
-        let buffer = rodio::buffer::SamplesBuffer::new(
-            sound.channels,
-            sound.sample_rate,
-            sound.samples.clone(),
-        );
+        // Shares the decoded buffer rather than copying it — see
+        // `SharedSamples`.
+        let buffer = SharedSamples {
+            sound: std::sync::Arc::clone(sound),
+            pos: 0,
+        };
         sink.mixer()
             .add(rodio::source::ChannelVolume::new(buffer, vec![left, right]));
 
@@ -318,10 +414,25 @@ fn load_sound(root: &std::path::Path, rel: &str) -> Result<Cached, String> {
     let decoder = rodio::Decoder::try_from(file).map_err(|e| format!("cannot decode: {e}"))?;
     let channels = decoder.channels();
     let sample_rate = decoder.sample_rate();
-    let samples: Vec<f32> = decoder.collect();
+
+    // `take` one past the cap so an oversized sound is *detected* without
+    // ever being fully decoded. Collecting first and measuring afterwards
+    // is what let a 23 KB FLAC allocate 38 MB, and the same trick on a
+    // file at the 4 MB limit would have gone far further. It also caps
+    // what `collect` can pre-allocate from the decoder's size hint.
+    let samples: Vec<f32> = decoder.take(MAX_SOUND_SAMPLES + 1).collect();
 
     if samples.is_empty() {
         return Err("sound decoded to no audio".into());
+    }
+    if samples.len() > MAX_SOUND_SAMPLES {
+        // Refused rather than truncated: a sound that stops halfway is a
+        // confusing artefact, and the caller reports a failure to the user
+        // once and then stops retrying it.
+        return Err(format!(
+            "sound decodes to more than {} MiB of audio",
+            MAX_DECODED_SOUND_BYTES / (1024 * 1024)
+        ));
     }
     Ok(Cached {
         samples,
@@ -438,6 +549,48 @@ mod host_tests {
             );
         }
     }
+
+    /// A small file can decode to an enormous buffer, so the file-size
+    /// cap bounds nothing that matters.
+    ///
+    /// The fixture is 43 KB of FLAC that decodes to about 50 MB of `f32`
+    /// — a ratio near 1200:1, and silence compresses better still. The
+    /// old loader ran the decode to completion and measured afterwards,
+    /// so this allocated all 50 MB before anything could object; a file
+    /// at the 4 MB limit would have gone orders of magnitude further.
+    /// Reported against 1.1.0.
+    #[cfg(feature = "audio")]
+    #[test]
+    fn a_small_file_that_decodes_huge_is_refused() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/audio");
+        let on_disk = std::fs::metadata(root.join("long_silence.flac"))
+            .expect("fixture present")
+            .len();
+        assert!(
+            on_disk < MAX_SOUND_BYTES,
+            "fixture must pass the file-size check to exercise the decode cap"
+        );
+
+        let err = match load_sound(&root, "long_silence.flac") {
+            Err(e) => e,
+            Ok(sound) => panic!(
+                "a {} MiB decode was accepted",
+                sound.bytes() / (1024 * 1024)
+            ),
+        };
+        assert!(
+            err.contains("MiB of audio"),
+            "wrong refusal for an oversized decode: {err}"
+        );
+    }
+
+    // One sound always fitting the cache budget is what stops the
+    // eviction path from clearing everything and still overshooting —
+    // which is what it used to do, inserting the oversized sound anyway
+    // and leaving `cached_bytes` above the cap for good. That is pinned
+    // by the `const _: () = assert!(…)` next to the constants, which
+    // fails the build rather than a test run, so there is deliberately no
+    // runtime test for it here.
 
     /// The containment helper guards sounds exactly as it guards scripts
     /// and sprites — worth pinning, since this is a separate loader.

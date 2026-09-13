@@ -34,7 +34,22 @@ impl App {
         if let Some(rx) = &self.hot_reload_rx {
             match rx.try_recv() {
                 Ok(Ok(result)) => {
-                    self.apply_hot_reload(result);
+                    // Phase 2 refuses to *start* a reload while there are
+                    // unsaved edits, but the worker reads the file and
+                    // rebuilds the whole scene — assets included — so it
+                    // is not instant, and an edit made in that window used
+                    // to be overwritten without a word when the result
+                    // landed. The same rule has to hold on arrival, not
+                    // only on departure.
+                    if hot_reload_would_clobber(self.config_dirty) {
+                        tracing::info!(
+                            "Hot-reload discarded: the scene was edited while it was loading"
+                        );
+                        self.toasts
+                            .warn("Config not reloaded — you edited the scene meanwhile");
+                    } else {
+                        self.apply_hot_reload(result);
+                    }
                     self.hot_reload_rx = None;
                     // A worker disconnect is transient — the loop spawns a
                     // fresh one within a couple of seconds — so a reload
@@ -145,5 +160,39 @@ impl App {
         tracing::info!("Hot-reload applied: {n} entities");
         self.toasts
             .info(format!("Reloaded {n} entities from config"));
+    }
+}
+
+/// Whether applying a finished reload right now would destroy unsaved
+/// work.
+///
+/// `apply_hot_reload` replaces `config`, `scene` and the selection
+/// wholesale, so anything the user changed since the worker started is
+/// gone. The spawn side already refuses to begin a reload while the scene
+/// is dirty; this is the same question asked again on arrival, because
+/// the worker rebuilds the scene from disk — decoding every asset — and
+/// the user keeps using the overlay while it does.
+///
+/// Split out so the rule is testable: the surrounding method needs a
+/// window, a renderer and a live channel, and this does not.
+fn hot_reload_would_clobber(config_dirty: bool) -> bool {
+    config_dirty
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_clean_scene_accepts_a_finished_reload() {
+        assert!(!hot_reload_would_clobber(false));
+    }
+
+    /// The case that lost work: the reload was started while the scene was
+    /// clean, the user nudged something while it ran, and the result
+    /// landed on top of the edit.
+    #[test]
+    fn an_edit_made_while_loading_wins() {
+        assert!(hot_reload_would_clobber(true));
     }
 }
