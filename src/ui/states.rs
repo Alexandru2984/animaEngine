@@ -1,14 +1,16 @@
 //! Empty / error / loading state helpers — the live implementation of
 //! `docs/design-system.md` §8.
 //!
-//! Three exports:
+//! Two exports:
 //!
-//! - [`empty`]   — centered icon + headline + hint, for panels with no
+//! - [`empty`] — centered icon + headline + hint, for panels with no
 //!   data yet ("nothing selected", "empty scene")
-//! - [`error`]   — same shape but the icon is the design-system error
+//! - [`error`] — same shape but the icon is the design-system error
 //!   tone and an optional action button sits at the bottom (retry, etc.)
-//! - [`spinner`] — three-dot pulsing indicator with staggered alpha.
-//!   Local to a panel — never a full-screen overlay.
+//!
+//! A `spinner` used to live here too, for "loading" states. It never
+//! acquired a caller and was removed; `docs/design-system.md` §8 still
+//! describes the pattern if one is wanted again.
 //!
 //! Keeping these in a single module means every "we have nothing to
 //! show" branch in the UI ends up looking the same; readers can
