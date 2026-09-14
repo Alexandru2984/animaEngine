@@ -285,6 +285,80 @@ fn load_source(code: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+
+    /// A message that declares `{ $var }` must never be rendered through
+    /// plain `t()` — Fluent has no value to substitute and prints the
+    /// placeholder, so the user sees a literal `{$path}` on screen.
+    ///
+    /// Two of these shipped: the Library tab's "create one at …" empty
+    /// state (R32) and the Inspector's script-path hint (R34), plus two
+    /// Shimeji toasts that only appear on a failure path, which is
+    /// exactly where nobody looks. Reading the sources from a test is
+    /// unusual, but this class is invisible to the compiler — the key is
+    /// a string, and `t` and `t_args` differ only in whether an argument
+    /// was passed.
+    #[test]
+    fn placeholder_messages_are_never_rendered_without_arguments() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let ftl = std::fs::read_to_string(root.join("src/i18n/locales/en.ftl"))
+            .expect("en.ftl is the reference locale");
+
+        // `key = value`, plus Fluent's indented continuation lines.
+        let mut with_placeholders: Vec<String> = Vec::new();
+        let mut current: Option<(String, String)> = None;
+        let flush = |cur: &mut Option<(String, String)>, out: &mut Vec<String>| {
+            if let Some((k, v)) = cur.take() {
+                if v.contains("{ $") || v.contains("{$") {
+                    out.push(k);
+                }
+            }
+        };
+        for line in ftl.lines() {
+            if line.starts_with(char::is_whitespace) {
+                if let Some((_, v)) = current.as_mut() {
+                    v.push_str(line);
+                }
+                continue;
+            }
+            flush(&mut current, &mut with_placeholders);
+            if let Some((k, v)) = line.split_once(" = ") {
+                if !k.starts_with('#') && !k.is_empty() {
+                    current = Some((k.to_string(), v.to_string()));
+                }
+            }
+        }
+        flush(&mut current, &mut with_placeholders);
+        assert!(
+            !with_placeholders.is_empty(),
+            "parsed no placeholder messages — the .ftl format must have changed"
+        );
+
+        let mut sources = String::new();
+        let mut stack = vec![root.join("src")];
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir)
+                .expect("readable source dir")
+                .flatten()
+            {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    sources.push_str(&std::fs::read_to_string(&path).unwrap_or_default());
+                }
+            }
+        }
+
+        // `t_args("k")` cannot match: the byte before `("` is `s`, not `t`.
+        let offenders: Vec<&String> = with_placeholders
+            .iter()
+            .filter(|k| sources.contains(&format!("t(\"{k}\")")))
+            .collect();
+        assert!(
+            offenders.is_empty(),
+            "these carry a placeholder but are rendered with plain t(): {offenders:?}"
+        );
+    }
     use super::*;
     use std::collections::HashSet;
 

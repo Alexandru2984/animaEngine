@@ -1125,7 +1125,14 @@ pub fn run_native(
                             }
                         }
                     } else {
-                        toasts.error(crate::i18n::t("shimeji-no-library-toast"));
+                        let mut args = fluent::FluentArgs::new();
+                        args.set(
+                            "path",
+                            crate::asset_library::asset_root_hint()
+                                .display()
+                                .to_string(),
+                        );
+                        toasts.error(crate::i18n::t_args("shimeji-no-library-toast", &args));
                     }
                 }
                 if let Some(out) = menu_outcome {

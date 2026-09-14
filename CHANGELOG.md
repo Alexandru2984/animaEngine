@@ -30,6 +30,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Some messages showed `{$path}` instead of a path.** The Inspector's
+  script-path hint and both Shimeji "no asset library" errors printed the
+  placeholder rather than filling it in, as did one of the two import
+  failure toasts. All of them now name the directory the app is really
+  using, and a test fails the build if another message is ever rendered
+  without the value it declares.
 - **Japanese was unreadable in the language picker.** Every language is
   listed under its own name, and the font that draws `日本語` was loaded
   only once Japanese was already selected — so the one entry a Japanese

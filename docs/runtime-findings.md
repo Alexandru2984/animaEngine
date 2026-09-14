@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 in error, kept so the mistake isn't repeated.
 
 **Current state: R22 is the only thing `OPEN`**, and it is blocked on
-hardware rather than on a decision. R1–R5, R7–R21 and R23–R33 are `FIXED`,
+hardware rather than on a decision. R1–R5, R7–R21 and R23–R34 are `FIXED`,
 R6 is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at
 the bottom are where the next round should start.
 
@@ -1061,6 +1061,42 @@ when the picker opens with `日本語` now legible, a second on selecting it
 and the whole UI in Japanese, none on reopening the picker while Japanese
 is active, none on switching back, and a third when the picker is opened
 again from English.
+
+### R34 · Three more messages printed `{$path}` at the user — `FIXED`
+
+Selecting **Behavior → Script** in the Inspector draws a path field with
+this underneath it:
+
+> Relative to your asset library — **{$path}**
+
+The same defect R32 fixed one panel over, and the reason it was still here
+is that R32 fixed *an instance*. A Fluent message that declares `{ $var }`
+and is rendered through `t()` has nothing to substitute, so the
+placeholder goes on screen verbatim — and neither the compiler nor the
+existing locale tests can see it, because the key is a string and `t` and
+`t_args` differ only in whether an argument was passed.
+
+Sweeping all 34 placeholder-carrying messages against every `t("…")` call
+in the tree turned up three keys across four call sites:
+
+- `behavior-script-path-hint` — the one above;
+- `shimeji-no-library-toast`, on **both** backends — "No asset library
+  root — create `{ $path }` first", which is nothing but a path, so the
+  message was pure placeholder;
+- `shimeji-import-failed-toast` — correct at one call site and plain at
+  the other, which is the shape this family takes: somebody adds a second
+  error path and copies the `t()` next to it.
+
+All four now pass the value, and the two path ones go through R32's
+`asset_root_hint`, so the whole app names one directory.
+
+**The test is the point.** It parses `en.ftl`, collects every message with
+a placeholder, and fails if any is rendered by a bare `t("key")` anywhere
+under `src/`. Reading the sources from a test is unusual; this class is
+otherwise invisible to the compiler, and all four of these sat in code
+paths — an empty state, two failure toasts — that nobody looks at twice.
+Confirmed it actually bites by putting one of the defects back: it fails
+and names the key.
 
 ## Still unexamined
 

@@ -10,7 +10,7 @@
 
 use super::monitor::entity_monitor_picker;
 use crate::behavior::Behavior;
-use crate::i18n::t;
+use crate::i18n::{t, t_args};
 use crate::input::selection::SelectionState;
 use crate::monitor::MonitorInfo;
 use crate::scene::Scene;
@@ -377,8 +377,18 @@ fn script_controls(
             changed = true;
         }
     });
+    // The hint ends in the library path, so it needs the argument —
+    // rendered through `t()` it printed a literal `{ $path }` under the
+    // field, which is worse than saying nothing (R34).
+    let mut path_args = fluent::FluentArgs::new();
+    path_args.set(
+        "path",
+        crate::asset_library::asset_root_hint()
+            .display()
+            .to_string(),
+    );
     ui.label(
-        egui::RichText::new(t("behavior-script-path-hint"))
+        egui::RichText::new(t_args("behavior-script-path-hint", &path_args))
             .text_style(theme::caption())
             .color(ui.visuals().weak_text_color()),
     );

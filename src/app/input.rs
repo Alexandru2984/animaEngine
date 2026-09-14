@@ -183,8 +183,17 @@ impl App {
     /// to the log at info — the toast keeps the count only.
     pub(super) fn import_shimeji_pack(&mut self, pack: &std::path::Path) {
         let Some(library_root) = self.library_root.clone() else {
+            // The message names the directory to create, so it needs the
+            // path — through `t()` it printed the literal `{ $path }`.
+            let mut args = fluent::FluentArgs::new();
+            args.set(
+                "path",
+                crate::asset_library::asset_root_hint()
+                    .display()
+                    .to_string(),
+            );
             self.toasts
-                .error(crate::i18n::t("shimeji-no-library-toast"));
+                .error(crate::i18n::t_args("shimeji-no-library-toast", &args));
             return;
         };
         // One import at a time — the sprite copy is the slow part. A second
@@ -212,8 +221,10 @@ impl App {
             }
             Err(e) => {
                 tracing::warn!("Shimeji import worker failed to spawn: {e}");
+                let mut args = fluent::FluentArgs::new();
+                args.set("reason", e.to_string());
                 self.toasts
-                    .error(crate::i18n::t("shimeji-import-failed-toast"));
+                    .error(crate::i18n::t_args("shimeji-import-failed-toast", &args));
             }
         }
     }
