@@ -9,10 +9,11 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 `BY DESIGN` observed, deliberate, not changing · `RETRACTED` reported here
 in error, kept so the mistake isn't repeated.
 
-**Current state: R22 is the only thing `OPEN`**, and it is blocked on
-hardware rather than on a decision. R1–R5, R7–R21 and R23–R36 are `FIXED`,
-R6 is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at
-the bottom are where the next round should start.
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R36 are
+`FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
+one open and is now explained rather than fixed — the `ERROR` line at
+startup is one enumerated adapter failing a probe, and the evidence is in
+its entry. Drag-and-drop is the one surface still unexplored.
 
 ## How these were reproduced
 
@@ -615,7 +616,7 @@ and "cover this one" are the same thing and the label is not a lie. It only
 misleads once a second monitor exists. `engine-features.md` now says X11
 only rather than promising it flatly.
 
-### R22 · A recovered startup condition is logged at ERROR — `OPEN`
+### R22 · A recovered startup condition is logged at ERROR — `BY DESIGN`
 
 `get_physical_device_surface_capabilities: ERROR_SURFACE_LOST_KHR` is
 logged at `ERROR` on every launch, single- and multi-output alike, and the
@@ -645,12 +646,48 @@ only `Opaque` composite alpha under headless sway, so the renderer refuses
 before it would have logged anything. The two observations are therefore
 not comparable, and "it goes away with one driver" proves nothing.
 
-So it stays open, and the honest position is that we do not yet know
-whether this is benign. It should not be filtered away on a guess: a
-graphics library's `ERROR` is exactly what you want to still be reading
-the day a device really is lost. Confirming it needs either a
-single-GPU machine where the app actually runs, or wgpu-side logging of
-which adapter produced it.
+**Confirmed since, and the hypothesis was right.** The earlier attempt
+compared two things that were not comparable, because every single-ICD
+run refused before it could be observed. The way out was noticing that
+the error is logged at 0.13 s and the alpha-mode refusal happens at
+~0.45 s — so a run that *fails* still logs it, and single-ICD
+configurations can be compared after all. Driving the winit path through
+sway's own XWayland added a second, independent surface to compare
+against.
+
+Five runs on one machine, one moment, same set of drivers installed:
+
+| surface | drivers offered | `SURFACE_LOST` |
+|---|---|---|
+| Wayland (layer shell) | all | **1** |
+| Wayland | lavapipe only | 0 |
+| Wayland | **RADV only** | **1** |
+| Wayland | NVIDIA only | 0 |
+| X11 (XWayland) | all | 0 |
+
+So it is **RADV**, answering a surface-capabilities probe on the
+layer-shell surface. In the all-drivers run the error is logged at
+0.130 s and `Using "llvmpipe"` follows at 0.139 s: wgpu asks each
+enumerated adapter about the surface, one says `SURFACE_LOST`, and
+selection moves on to one that works. Exactly the multi-adapter story
+above — upstream noise from adapter selection, not a failure of the
+adapter actually used.
+
+Why RADV says that *here* is visible in its own run: `eglInitialize`
+fails with `DRI2: failed to get driver name`, so in this headless rig
+RADV enumerates as a Vulkan device while having no usable render node.
+An adapter that is present but cannot reach the hardware is precisely one
+that should fail a surface query.
+
+**Not filtered, and the original reasoning is unchanged:** a graphics
+library's `ERROR` is what you want to still be reading the day a device
+really is lost, and this costs one line at startup. What has changed is
+that nobody needs to chase it again.
+
+One thing this does *not* establish: whether the maintainer's real
+desktop shows it at all. There RADV is the working GPU rather than a
+broken enumeration entry, so it should not — but that is one launch and a
+`grep SURFACE_LOST` away, and is worth doing rather than assuming.
 
 ### R23 · Japanese renders as boxes, end to end — `FIXED`
 
