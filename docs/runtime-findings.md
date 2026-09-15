@@ -6,14 +6,16 @@ screen; none of them would have been caught by the test suite, because the
 test suite covers the parsers and the pure logic, not the rendered product.
 
 Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
-`BY DESIGN` observed, deliberate, not changing · `RETRACTED` reported here
-in error, kept so the mistake isn't repeated.
+`FIXED, unverified` patched on reasoning the rig cannot confirm — the
+entry says why · `BY DESIGN` observed, deliberate, not changing ·
+`RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
 **Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R36 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
-its entry. Drag-and-drop is the one surface still unexplored.
+its entry. R37 is `FIXED, unverified` and wants one drag on a real X11
+session. Nothing on the list is unexplored any more.
 
 ## How these were reproduced
 
@@ -1228,6 +1230,48 @@ Wayland has no such gap, because it does its own keysym folding. Removing
 it means either upstream variants or capturing from winit instead of
 egui, which is a larger change than this.
 
+### R37 · A dropped file did not land where you dropped it (X11) — `FIXED, unverified`
+
+The last unexamined surface, reached by writing an XDND drag source for
+the rig (nothing packaged does this headlessly).
+
+The drop itself works: the file is validated, decoded and added. But on
+X11 the character appears at the **last known cursor position**, not at
+the drop point — `handle_dropped_file` used `self.mouse_x / mouse_y`.
+
+That position cannot be right during a drag. XDND's drag source holds a
+pointer grab, so the target receives no `MotionNotify` at all; position
+travels as `XdndPosition` client messages instead. winit parses those —
+its own source says *"this event occurs every time the mouse moves while
+a file's being dragged over our window"* — but `DroppedFile` carries a
+path and nothing else, and winit's comment admits the API has nowhere to
+put the coordinates. In pass-through mode the overlay's input region is
+the ⚙ corner alone, so the last motion it ever saw may be from minutes
+earlier, or never.
+
+**Native Wayland never had this.** `wl_data_device` delivers `motion`
+during the drag and the backend caches it in `last_drag_pos`, with the
+screen centre as fallback. One more case of the two backends being
+written at different times against different protocols.
+
+**Fixed** by asking the X server directly at drop time — `QueryPointer`
+on the root, whose coordinates are already the global desktop space
+`mouse_x` lives in. It falls back to the old behaviour when the query
+fails, so the worst case is unchanged.
+
+**Marked unverified on purpose.** The rig cannot demonstrate the
+improvement, and the reason is worth keeping: under **XWayland**,
+`XQueryPointer` only knows what XWayland has been told, and a surface
+with an empty input region is sent no pointer events — so it answers with
+a stale position, exactly like the bug. Measured: with the overlay in
+pass-through and the virtual pointer moved to (400, 850), `xdotool
+getmouselocation` still reported (1567, 34). On a **real** X server the
+pointer is the server's own state and input shapes only route events, so
+the query is authoritative there. The fix is correct by construction for
+the platform it targets and inert on the one that can be tested, which is
+an uncomfortable combination — it wants one drag on a real X11 session
+before being trusted.
+
 ## Still unexamined
 
 Verified since, on the headless rig:
@@ -1263,7 +1307,8 @@ reaching disk: an `actions.xml` that is a symlink to `/etc/passwd`, a
 sprite path of `../../../../etc/hostname`, and a FIFO where a sprite
 should be. The threat-model claims there hold up.
 
-Still unexamined: drag-and-drop of files onto the overlay.
+Drag-and-drop was the last item here and is now exercised, through an
+XDND drag source written for the rig — see R37. The list is empty.
 
 **The winit/X11 path is no longer on this list.** It was, for several
 rounds, on the strength of an Xvfb result; running it under sway's own

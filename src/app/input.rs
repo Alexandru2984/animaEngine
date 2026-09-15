@@ -329,11 +329,24 @@ impl App {
             self.toggle_edit_mode();
         }
 
-        // Try to add the entity at the current mouse position
-        match self
-            .scene
-            .add_entity_from_path(&path, self.mouse_x, self.mouse_y)
-        {
+        // Where the file was actually dropped.
+        //
+        // winit's `DroppedFile` carries a path and nothing else: XDND does
+        // send the position and winit does parse it, but the API has
+        // nowhere to put it (winit's own source says so). Falling back to
+        // the last `CursorMoved` is wrong during a drag, because the drag
+        // source holds a pointer grab and the overlay receives no motion —
+        // so the character landed wherever the cursor had been *before*
+        // the drag started, which in pass-through mode is the ⚙ corner or
+        // nowhere at all (R37). Asking the X server closes that gap; root
+        // coordinates are the same global desktop space `mouse_x` uses.
+        //
+        // The native Wayland path needs none of this: `wl_data_device`
+        // delivers motion during the drag, so that backend has always
+        // placed the drop correctly.
+        let (drop_x, drop_y) = drop_position().unwrap_or((self.mouse_x, self.mouse_y));
+
+        match self.scene.add_entity_from_path(&path, drop_x, drop_y) {
             Ok(idx) => {
                 // Create texture for the new entity
                 if let Some(renderer) = &mut self.renderer {
@@ -385,5 +398,21 @@ impl App {
         self.ctrl_held = modifiers.state().control_key();
         self.alt_held = modifiers.state().alt_key();
         self.super_held = modifiers.state().super_key();
+    }
+}
+
+/// Pointer position at drop time, in global desktop coordinates.
+///
+/// `None` on anything but X11, and on X11 when the query fails — the
+/// caller then keeps the old last-known-cursor behaviour rather than
+/// dropping the file somewhere arbitrary.
+fn drop_position() -> Option<(f32, f32)> {
+    #[cfg(unix)]
+    {
+        crate::window::linux::pointer_root_position()
+    }
+    #[cfg(not(unix))]
+    {
+        None
     }
 }

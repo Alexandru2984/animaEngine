@@ -30,6 +30,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A file dropped on X11 landed at the wrong place.** The character
+  appeared wherever the cursor had last been seen over the overlay rather
+  than where the file was released — during a drag the pointer is grabbed
+  by the source, so the overlay sees no cursor movement at all, and winit
+  does not pass the drop position on. The X server is now asked directly.
+  Native Wayland was always correct here. Not yet confirmed on a real X11
+  session; see `docs/runtime-findings.md` for why the test rig cannot show
+  it.
 - **A shortcut you could record on Wayland, X11 refused.** `Shift`+`[`
   and `Shift`+`1` recorded fine on native Wayland and silently would not
   record on X11, because egui reports a shifted symbol as its own key and
