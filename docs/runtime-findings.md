@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 in error, kept so the mistake isn't repeated.
 
 **Current state: R22 is the only thing `OPEN`**, and it is blocked on
-hardware rather than on a decision. R1–R5, R7–R21 and R23–R34 are `FIXED`,
+hardware rather than on a decision. R1–R5, R7–R21 and R23–R35 are `FIXED`,
 R6 is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at
 the bottom are where the next round should start.
 
@@ -1097,6 +1097,32 @@ otherwise invisible to the compiler, and all four of these sat in code
 paths — an empty state, two failure toasts — that nobody looks at twice.
 Confirmed it actually bites by putting one of the defects back: it fails
 and names the key.
+
+### R35 · `Shift`+digit could not be bound either — `FIXED`
+
+R29 fixed the shifted punctuation and stopped there. The number row has
+the identical hole: on a US layout `Shift+1` is `!` on the winit side and
+the keysym `exclam` on the Wayland side, and neither was mapped.
+
+Verified the same way: open the Keybindings tab, press **+ Add**, hold
+`Shift+1`. The widget goes on saying *"Press a chord… (Esc to cancel)"*
+forever, because nothing it can convert ever arrives.
+
+Nothing binds a digit by default, so this costs nobody a working
+shortcut — but the rebinder invites the user to press any chord, and a
+third of the keyboard silently refused. Each digit now lists its shifted
+form alongside the plain one, the same rule R29 applied: the key keeps its
+identity and `Shift` lives in the modifier mask, which is where the chord
+already records it.
+
+**A limitation worth stating plainly, because this fix does not remove
+it.** These tables are US-layout-shaped, and always have been —
+`bracketleft`, `grave` and now `exclam` are only those keys on a US
+layout. On AZERTY the unshifted number row gives `&é"'(-è_çà`, none of
+which is mapped, so those keys cannot be bound at all. Fixing *that*
+means keying chords off the physical key rather than the symbol, which
+changes what every stored chord means and is a different piece of work.
+Recorded here rather than implied away.
 
 ## Still unexamined
 

@@ -51,16 +51,21 @@ pub fn keysym_to_egui_key(keysym: Keysym) -> Option<egui::Key> {
         Keysym::y | Keysym::Y => E::Y,
         Keysym::z | Keysym::Z => E::Z,
         // ── Digits
-        Keysym::_0 => E::Num0,
-        Keysym::_1 => E::Num1,
-        Keysym::_2 => E::Num2,
-        Keysym::_3 => E::Num3,
-        Keysym::_4 => E::Num4,
-        Keysym::_5 => E::Num5,
-        Keysym::_6 => E::Num6,
-        Keysym::_7 => E::Num7,
-        Keysym::_8 => E::Num8,
-        Keysym::_9 => E::Num9,
+        // Each digit lists its shifted keysym too. `event.keysym` is
+        // resolved against the modifier state, so Shift+1 arrives as
+        // `exclam`, and with only the plain form listed the press was
+        // never turned into an event at all (R35) — the same hole the
+        // punctuation below had.
+        Keysym::_0 | Keysym::parenright => E::Num0,
+        Keysym::_1 | Keysym::exclam => E::Num1,
+        Keysym::_2 | Keysym::at => E::Num2,
+        Keysym::_3 | Keysym::numbersign => E::Num3,
+        Keysym::_4 | Keysym::dollar => E::Num4,
+        Keysym::_5 | Keysym::percent => E::Num5,
+        Keysym::_6 | Keysym::asciicircum => E::Num6,
+        Keysym::_7 | Keysym::ampersand => E::Num7,
+        Keysym::_8 | Keysym::asterisk => E::Num8,
+        Keysym::_9 | Keysym::parenleft => E::Num9,
         // ── Named control keys
         Keysym::Escape => E::Escape,
         Keysym::Tab => E::Tab,
@@ -179,6 +184,25 @@ mod tests {
             keysym_to_egui_key(Keysym::bracketleft),
             Some(egui::Key::OpenBracket)
         );
+    }
+
+    /// Same hole as the punctuation, on the number row: Shift+1 resolves
+    /// to `exclam`, which was unmapped, so the press never became an
+    /// event at all.
+    #[test]
+    fn shifted_digits_keep_their_key_identity() {
+        assert_eq!(keysym_to_egui_key(Keysym::exclam), Some(egui::Key::Num1));
+        assert_eq!(keysym_to_egui_key(Keysym::at), Some(egui::Key::Num2));
+        assert_eq!(
+            keysym_to_egui_key(Keysym::parenright),
+            Some(egui::Key::Num0)
+        );
+        assert_eq!(
+            keysym_to_egui_key(Keysym::asciicircum),
+            Some(egui::Key::Num6)
+        );
+        // The plain forms must still work.
+        assert_eq!(keysym_to_egui_key(Keysym::_1), Some(egui::Key::Num1));
     }
 
     #[test]

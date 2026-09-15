@@ -30,6 +30,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`Shift`+a digit could not be bound.** Pressing it in the Keybindings
+  tab left the widget waiting for a chord forever, the same way
+  `Shift`+punctuation used to. Note that the chord tables assume a US
+  layout throughout, so keys that move on other layouts still cannot be
+  bound — that is a known limitation, not something this changes.
 - **Some messages showed `{$path}` instead of a path.** The Inspector's
   script-path hint and both Shimeji "no asset library" errors printed the
   placeholder rather than filling it in, as did one of the two import

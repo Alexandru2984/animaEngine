@@ -210,6 +210,32 @@ mod tests {
         }
     }
 
+    /// Digits have the same hole the punctuation had: on a US layout
+    /// Shift+1 is reported as '!', which was unmapped, so recording
+    /// Shift+1 in the rebinder simply never completed (R35).
+    #[test]
+    fn shifted_digits_keep_their_key_identity() {
+        use winit::keyboard::Key;
+        for (shifted, digit) in [
+            ("!", 1u8),
+            ("@", 2),
+            ("#", 3),
+            ("$", 4),
+            ("%", 5),
+            ("^", 6),
+            ("&", 7),
+            ("*", 8),
+            ("(", 9),
+            (")", 0),
+        ] {
+            assert_eq!(
+                KeyCode::from_winit(Key::Character(shifted)),
+                Some(KeyCode::Digit(digit)),
+                "{shifted} is the shifted form of {digit}"
+            );
+        }
+    }
+
     /// End to end: the chord the default binding is written as has to be
     /// what a user pressing that key actually produces, on both backends.
     #[test]

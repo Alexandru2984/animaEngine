@@ -231,6 +231,20 @@ impl KeyCode {
                     'a'..='z' => Self::Letter(c.to_ascii_uppercase()),
                     'A'..='Z' => Self::Letter(c),
                     '0'..='9' => Self::Digit(c.to_digit(10)? as u8),
+                    // Shifted digits, same rule as the punctuation below:
+                    // the key keeps its identity and Shift lives in the
+                    // mask. Without these, recording Shift+1 in the
+                    // rebinder simply never completed (R35).
+                    '!' => Self::Digit(1),
+                    '@' => Self::Digit(2),
+                    '#' => Self::Digit(3),
+                    '$' => Self::Digit(4),
+                    '%' => Self::Digit(5),
+                    '^' => Self::Digit(6),
+                    '&' => Self::Digit(7),
+                    '*' => Self::Digit(8),
+                    '(' => Self::Digit(9),
+                    ')' => Self::Digit(0),
                     '+' => Self::Symbol(SymbolKey::Plus),
                     // The shifted forms name the same physical key, and
                     // winit reports the *logical* character — so with only
