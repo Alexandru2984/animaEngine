@@ -215,6 +215,18 @@ impl KeyCode {
             E::OpenBracket => Self::Symbol(SymbolKey::BracketLeft),
             E::CloseBracket => Self::Symbol(SymbolKey::BracketRight),
             E::Backtick => Self::Symbol(SymbolKey::Backquote),
+            // egui reports the *shifted* symbol as its own key, so these
+            // fold back onto the key that produced them — same rule the
+            // winit and keysym tables follow.
+            //
+            // Only the rebinder goes through egui on the winit path, which
+            // is why Shift+[ could be recorded on native Wayland (that
+            // backend builds the egui key itself, from the keysym) and not
+            // on winit, where egui handed us an `OpenCurlyBracket` nothing
+            // matched (R36).
+            E::Exclamationmark => Self::Digit(1),
+            E::OpenCurlyBracket => Self::Symbol(SymbolKey::BracketLeft),
+            E::CloseCurlyBracket => Self::Symbol(SymbolKey::BracketRight),
             _ => return None,
         })
     }

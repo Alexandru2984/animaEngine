@@ -236,6 +236,36 @@ mod tests {
         }
     }
 
+    /// The two backends must record the *same* chord for the same
+    /// physical press.
+    ///
+    /// Only the rebinder goes through egui on the winit path, and egui
+    /// reports a shifted symbol as its own key — `OpenCurlyBracket`, not
+    /// `OpenBracket` plus Shift. Native Wayland never produces those
+    /// variants, because it folds the keysym itself, so Shift+[ recorded
+    /// there and silently refused to record on winit (R36).
+    #[test]
+    fn both_backends_record_a_shifted_chord_identically() {
+        let shift = egui::Modifiers {
+            shift: true,
+            ..egui::Modifiers::NONE
+        };
+        for (winit_side, egui_side) in [
+            // (what native Wayland folds the keysym to, what egui hands winit)
+            (egui::Key::OpenBracket, egui::Key::OpenCurlyBracket),
+            (egui::Key::CloseBracket, egui::Key::CloseCurlyBracket),
+            (egui::Key::Num1, egui::Key::Exclamationmark),
+        ] {
+            let from_wayland = KeyChord::from_egui(winit_side, shift);
+            let from_winit = KeyChord::from_egui(egui_side, shift);
+            assert!(from_winit.is_some(), "{egui_side:?} was not recordable");
+            assert_eq!(
+                from_wayland, from_winit,
+                "{winit_side:?} and {egui_side:?} must record as one chord"
+            );
+        }
+    }
+
     /// End to end: the chord the default binding is written as has to be
     /// what a user pressing that key actually produces, on both backends.
     #[test]

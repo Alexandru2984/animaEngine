@@ -30,6 +30,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A shortcut you could record on Wayland, X11 refused.** `Shift`+`[`
+  and `Shift`+`1` recorded fine on native Wayland and silently would not
+  record on X11, because egui reports a shifted symbol as its own key and
+  the converter did not know those. Both backends now record one chord for
+  one press. A few shifted symbols — `~`, `@`, `#` and friends — still
+  cannot be *recorded* on X11 at all, since egui emits no key for them;
+  they still work when already bound.
 - **`Shift`+a digit could not be bound.** Pressing it in the Keybindings
   tab left the widget waiting for a chord forever, the same way
   `Shift`+punctuation used to. Note that the chord tables assume a US

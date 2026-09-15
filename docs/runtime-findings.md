@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 in error, kept so the mistake isn't repeated.
 
 **Current state: R22 is the only thing `OPEN`**, and it is blocked on
-hardware rather than on a decision. R1–R5, R7–R21 and R23–R35 are `FIXED`,
+hardware rather than on a decision. R1–R5, R7–R21 and R23–R36 are `FIXED`,
 R6 is `BY DESIGN`, R6b is `RETRACTED`. The unexplored surfaces listed at
 the bottom are where the next round should start.
 
@@ -44,6 +44,38 @@ Two things make this harder than it looks, and are worth writing down:
 
 Absolute positioning (`zwlr_virtual_pointer_v1::motion_absolute`) is required
 to aim at a widget; `wlrctl`'s motion is relative only.
+
+### The winit/X11 path is drivable too
+
+Earlier rounds recorded it as untestable: under Xvfb + picom the surface
+offers only `Opaque`, and the renderer refuses by design rather than
+painting the desktop black. That conclusion was about *Xvfb*, not about
+X11.
+
+Run it as an X client of **sway's own XWayland** instead and it works —
+that is an xcb surface rather than a wayland one, a different WSI path
+entirely:
+
+```sh
+# sway starts XWayland lazily, so ask a client rather than guessing :N.
+# Never :0 — that is the real session, and the overlay would land on it.
+swaymsg exec "sh -c 'echo \$DISPLAY > .../xdisplay'"
+
+env -u WAYLAND_DISPLAY -u ANIMA_USE_WAYLAND_NATIVE DISPLAY=:2 \
+    VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json ./anima_engine
+```
+
+**The driver has to be pinned to lavapipe.** On the same surface the
+NVIDIA and RADV ICDs both still answer `Available alpha modes: [Opaque]`;
+only `lvp` offers `[PreMultiplied, Inherit]`. That is worth remembering
+next to R22, which could not distinguish "this machine has three GPUs"
+from "this surface has no transparent mode" — here the three disagree on
+one surface, which is evidence the adapter really is the variable.
+
+Input works through the same virtual devices, since XWayland forwards the
+seat. One difference: the window must be **clicked once** before it takes
+keyboard focus — sway does not focus it on map, so a keystroke sent first
+goes nowhere and looks exactly like a dead shortcut.
 
 ---
 
@@ -1124,6 +1156,41 @@ means keying chords off the physical key rather than the symbol, which
 changes what every stored chord means and is a different piece of work.
 Recorded here rather than implied away.
 
+### R36 · A chord you could record on one backend, the other refused — `FIXED`
+
+The first thing the newly-drivable X11 path turned up. Record `Shift+[` in
+the Keybindings tab: on native Wayland it lands as `Shift+[`, on
+winit/X11 the widget waits for a chord that never arrives. R35's
+`Shift+1` behaved the same way.
+
+Only the **rebinder** goes through egui. Dispatch on the winit path reads
+winit events directly, so R29 and R35 already made those chords *fire*
+there — it was recording one that was impossible, which is a worse
+failure, because the user cannot even ask for the binding.
+
+The cause is that egui reports a shifted symbol as **its own key**:
+`Key::OpenCurlyBracket`, not `OpenBracket` with Shift; `Exclamationmark`,
+not `Num1`. `KeyCode::from_egui` knew none of them and returned `None`.
+Native Wayland never hit it because that backend builds the egui key
+itself out of the keysym, and R29/R35 had already folded `braceleft` and
+`exclam` onto the plain keys before egui saw anything. Two paths into one
+function, and only one of them was exercised.
+
+**Fixed** by folding egui's shifted variants onto the same `KeyCode`, so
+both backends record one chord for one physical press. The new test
+asserts exactly that equivalence rather than each side separately —
+checking them apart is what let this hide.
+
+**What is still not recordable on winit, and cannot be fixed here:**
+egui's `Key` has no variant for `~`, `@`, `#`, `$`, `%`, `^`, `&`, `*`,
+`(`, `)` or `_`, so egui produces no key event at all for those presses
+and the rebinder has nothing to catch. `Shift`+`` ` ``, the perf
+overlay's own default, is in that list — it *fires* on both backends, but
+on winit it cannot be re-recorded if the user ever clears it. Native
+Wayland has no such gap, because it does its own keysym folding. Removing
+it means either upstream variants or capturing from winit instead of
+egui, which is a larger change than this.
+
 ## Still unexamined
 
 Verified since, on the headless rig:
@@ -1159,10 +1226,15 @@ reaching disk: an `actions.xml` that is a symlink to `/etc/passwd`, a
 sprite path of `../../../../etc/hostname`, and a FIFO where a sprite
 should be. The threat-model claims there hold up.
 
-Still unexamined: drag-and-drop of files onto the overlay, and the whole
-winit/X11 path interactively — Vulkan reports only `Opaque` composite alpha under
-Xvfb+picom with both the NVIDIA and software drivers, so the renderer
-refuses by design and the path cannot be driven here.
+Still unexamined: drag-and-drop of files onto the overlay.
+
+**The winit/X11 path is no longer on this list.** It was, for several
+rounds, on the strength of an Xvfb result; running it under sway's own
+XWayland drives it fine (see the rig section above), and doing so
+immediately produced R36. Everything fixed in the R25–R35 range that
+touches shared code has now been re-checked there: the perf-overlay
+chord, the chord chips, the script-path hint and `Shift`+digit all behave
+the same on both backends.
 
 The rig now drives the keyboard as well as the pointer, which is what made
 R14 findable. Two traps in doing so are written up under R14; the short
