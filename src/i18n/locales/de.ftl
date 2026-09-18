@@ -88,7 +88,7 @@ theme-light = Hell
 theme-dark-hc = Dunkel · Hoher Kontrast
 theme-light-hc = Hell · Hoher Kontrast
 
-onboarding-tabs = Die Einstellungen verteilen sich auf fünf Tabs — Inspector, Szene, Bibliothek, Darstellung, Tastenkürzel.
+onboarding-tabs = Die Einstellungen verteilen sich auf fünf Tabs — Inspektor, Szene, Bibliothek, Darstellung, Kurzbefehle.
 onboarding-quick-toggles = Tipp: V schaltet die Sichtbarkeit um, G die Schwerkraft — ohne dieses Panel zu öffnen.
 onboarding-theme = Themes greifen sofort — kein Neustart nötig.
 onboarding-coach-step1 = Willkommen! Ihre Figuren leben auf dem Desktop. Klicken Sie auf das Zahnrad oben rechts, um den Bearbeitungsmodus zu öffnen.

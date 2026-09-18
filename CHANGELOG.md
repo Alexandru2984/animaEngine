@@ -30,6 +30,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The welcome tip pointed at tabs that do not exist** in German,
+  Italian, Japanese and Dutch. It told you settings live in five named
+  tabs and then named five things two of which were labelled differently
+  on screen — German sent you to "Tastenkürzel" and "Inspector" for tabs
+  reading "Kurzbefehle" and "Inspektor". Each locale's tip now uses that
+  locale's own tab labels.
 - **A file dropped on X11 landed at the wrong place.** The character
   appeared wherever the cursor had last been seen over the overlay rather
   than where the file was released — during a drag the pointer is grabbed

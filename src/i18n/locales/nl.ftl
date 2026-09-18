@@ -88,7 +88,7 @@ theme-light = Licht
 theme-dark-hc = Donker · Hoog contrast
 theme-light-hc = Licht · Hoog contrast
 
-onboarding-tabs = Instellingen staan in vijf tabbladen — Inspector, Scène, Bibliotheek, Uiterlijk, Sneltoetsen.
+onboarding-tabs = Instellingen staan in vijf tabbladen — Inspector, Scène, Bibliotheek, Weergave, Sneltoetsen.
 onboarding-quick-toggles = Tip: V wisselt zichtbaarheid, G wisselt zwaartekracht — zonder dit paneel te openen.
 onboarding-theme = Thema's worden direct toegepast — geen herstart nodig.
 onboarding-coach-step1 = Welkom! Uw personages leven op het bureaublad. Klik op het tandwiel rechtsboven om de bewerkmodus te openen.

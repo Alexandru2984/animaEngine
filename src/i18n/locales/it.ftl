@@ -88,7 +88,7 @@ theme-light = Chiaro
 theme-dark-hc = Scuro · Contrasto elevato
 theme-light-hc = Chiaro · Contrasto elevato
 
-onboarding-tabs = Le impostazioni sono su cinque schede — Inspector, Scena, Libreria, Aspetto, Scorciatoie.
+onboarding-tabs = Le impostazioni sono su cinque schede — Ispettore, Scena, Libreria, Aspetto, Scorciatoie.
 onboarding-quick-toggles = Suggerimento: V alterna la visibilità, G la gravità — senza aprire questo pannello.
 onboarding-theme = I temi si applicano subito — nessun riavvio richiesto.
 onboarding-coach-step1 = Benvenuto! I tuoi personaggi vivono sul desktop. Fai clic sull’ingranaggio in alto a destra per entrare in modalità modifica.

@@ -286,6 +286,58 @@ fn load_source(code: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
 
+    /// The onboarding tip's whole job is "here are the five tabs, go find
+    /// them", so it has to name them the way the tabs are actually
+    /// labelled — in every locale, not just English.
+    ///
+    /// Five names were wrong across four languages: German told you to
+    /// open "Tastenkürzel" and "Inspector" while the tabs read
+    /// "Kurzbefehle" and "Inspektor", Italian said "Inspector" for
+    /// "Ispettore", Japanese said キー割り当て for ショートカット, and Dutch
+    /// said "Uiterlijk" for "Weergave" (R38). Nothing catches this by
+    /// reading one file: it is a cross-reference between two strings that
+    /// are translated independently.
+    #[test]
+    fn the_onboarding_tip_names_the_tabs_as_they_are_labelled() {
+        const TAB_KEYS: &[&str] = &[
+            "settings-tab-inspector",
+            "settings-tab-scene",
+            "settings-tab-library",
+            "settings-tab-appearance",
+            "settings-tab-keybindings",
+        ];
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/i18n/locales");
+        let mut problems: Vec<String> = Vec::new();
+
+        for entry in std::fs::read_dir(&root).expect("locales dir").flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e != "ftl") {
+                continue;
+            }
+            let locale = path.file_stem().unwrap().to_string_lossy().into_owned();
+            let text = std::fs::read_to_string(&path).expect("locale is readable");
+            let value = |key: &str| -> Option<String> {
+                text.lines()
+                    .find_map(|l| l.strip_prefix(&format!("{key} = ")))
+                    .map(|v| v.trim().to_string())
+            };
+            let Some(tip) = value("onboarding-tabs") else {
+                problems.push(format!("{locale}: no onboarding-tabs"));
+                continue;
+            };
+            for key in TAB_KEYS {
+                match value(key) {
+                    Some(label) if tip.contains(&label) => {}
+                    Some(label) => problems.push(format!(
+                        "{locale}: the tip does not mention the {key} tab, labelled {label:?}"
+                    )),
+                    None => problems.push(format!("{locale}: no {key}")),
+                }
+            }
+        }
+        assert!(problems.is_empty(), "{problems:#?}");
+    }
+
     /// A message that declares `{ $var }` must never be rendered through
     /// plain `t()` — Fluent has no value to substitute and prints the
     /// placeholder, so the user sees a literal `{$path}` on screen.

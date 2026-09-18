@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R36 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1351,3 +1351,42 @@ lot of state: entities repinned between outputs, the virtual keyboard
 restarted under the running app, the app killed and relaunched several
 times. Recorded rather than filed, because "nothing renders on two
 monitors" is worth recognising fast if it turns up again.
+
+### R38 · The onboarding tip named tabs that do not exist — `FIXED`
+
+R24 fixed one concept expressed with three words in Romanian and noted
+that *"the other eight non-English locales have had no such check"*. This
+is that check, done the one way it can be done without being fluent in
+eight languages: not by judging word choice, but by testing a
+**cross-reference** the strings make to each other.
+
+`onboarding-tabs` exists to say "settings live across five tabs —
+Inspector, Scene, Library, Appearance, Keybindings", i.e. go and find
+them. Four locales named a tab something the tab is not:
+
+| locale | the tip says | the tab reads |
+|---|---|---|
+| de | Inspector | **Inspektor** |
+| de | Tastenkürzel | **Kurzbefehle** |
+| it | Inspector | **Ispettore** |
+| ja | キー割り当て | **ショートカット** |
+| nl | Uiterlijk | **Weergave** |
+
+Five wrong names across four languages, in the one string whose entire
+job is to be followed.
+
+Nothing catches this by reading a file: the tip and the tab labels are
+separate messages, translated independently, and each is perfectly
+reasonable on its own. Only the relationship between them is wrong.
+
+**Fixed** by copying each locale's own tab label into its own tip — no
+translation invented, the words were already in the file. A test now
+asserts every `settings-tab-*` value appears in that locale's
+`onboarding-tabs`, and it was confirmed to bite by putting the Dutch
+defect back.
+
+A broader terminology sweep found the rest healthy. Most locales use one
+dominant word for "shortcut" plus "combination" for the key sequence
+itself, which is the distinction R24 deliberately kept in Romanian.
+Polish uses a single term throughout. German was the outlier with four
+competing words, and the two that mattered are the ones fixed above.
