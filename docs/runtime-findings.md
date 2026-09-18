@@ -1272,6 +1272,33 @@ the platform it targets and inert on the one that can be tested, which is
 an uncomfortable combination — it wants one drag on a real X11 session
 before being trusted.
 
+## Swept and clean
+
+Checks that found nothing, recorded so the next round does not repeat
+them. Each is the *class* behind a real defect, re-run across the whole
+surface after the fix.
+
+**Backend asymmetry** — the class behind R19, R27 and R28, where one
+loop handled something the other silently ignored. Every shared
+enum is now handled on both paths: all 28 rebindable `Action`s (bar the
+perf overlay's own sampler, R27), the six `MenuAction`s, both
+`PaletteOutcome`s, `LibraryOutcome`, and all eight `AnimaEvent`s.
+
+**Names promised to the user vs names the code uses** — the class behind
+R32 and R34. All six `ANIMA_*` environment variables read by the code are
+documented and none is documented that is not read; the only CLI flags
+parsed are `--help` and `--recover`, exactly what the stability policy
+guarantees (`--frobnicate` and `--recovr` in the source are test fixtures
+for the unknown-flag rejection); every key in `docs/config.md` maps to a
+real field.
+
+No test guards the config-key half, deliberately. The schema does **not**
+set `deny_unknown_fields`, because the stability policy promises a config
+written by a newer release still loads in an older one — so "a documented
+key that does not exist" cannot be detected by loading it, and the
+alternative, a shadow schema in the test, would rot faster than it would
+catch anything.
+
 ## Still unexamined
 
 Verified since, on the headless rig:
