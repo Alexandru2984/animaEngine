@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36, R38 and R39 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1390,3 +1390,38 @@ dominant word for "shortcut" plus "combination" for the key sequence
 itself, which is the distinction R24 deliberately kept in Romanian.
 Polish uses a single term throughout. German was the outlier with four
 competing words, and the two that mattered are the ones fixed above.
+
+### R39 · One shortcut, two names, in one language — `FIXED` (with a question left open)
+
+Following R38's method — test the *relationships* between strings, not
+their wording — to the next kind of cross-reference: prose that spells a
+chord out in words.
+
+Five strings do it (the coach marks, the palette footer, the what's-new
+panel), and each is duplicated across ten locales. German said
+**`Strg+K`** in one of them and **`Ctrl+K`** in the others, in the same
+file. The app renders every chord through `KeyChord::display_str`, which
+is not localised, so the Keybindings tab, the palette and the help all
+read `Ctrl+K` — a German user met the same shortcut under two names one
+panel apart.
+
+**Fixed narrowly**, by making the German prose match what the app
+displays. That uses the word already dominant in its own file and agrees
+with the UI.
+
+**The larger question is deliberately left to the maintainer.** On a
+German keyboard the key really is labelled `Strg`, and every German
+desktop application says so; the honest fix is arguably to localise the
+*display*, not to anglicise the prose. That means giving
+`display_str` per-locale modifier names — and **only** `display_str`:
+`canonical_str` is the on-disk config format and must not move, which the
+stability policy pins. A real feature, a real decision, not something to
+slip in under a consistency fix.
+
+The test guards both halves. It pulls every `Ctrl+…`-shaped token out of
+every locale and asserts it parses *and* is still a current default
+binding, so changing a default makes the stale sentences fail rather than
+quietly lie in languages nobody here reads. Confirmed by re-pointing the
+command palette at `Ctrl+J`: it named every locale still saying `Ctrl+K`.
+`Ctrl+A/C/V` is skipped on purpose — that is egui's own text editing, not
+one of our bindings.

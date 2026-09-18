@@ -286,6 +286,61 @@ fn load_source(code: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
 
+    /// A chord spelled out in prose has to still be a real default.
+    ///
+    /// Five strings name chords in words — the coach marks, the palette
+    /// footer, the what's-new panel — and each is duplicated across ten
+    /// locales. Change a default binding and forty-odd sentences quietly
+    /// start lying, in languages nobody on the project reads. Nothing
+    /// links the prose to `Action::default_chords()` except this.
+    ///
+    /// It also pins the spelling. German had the same modifier as both
+    /// "Strg+K" and "Ctrl+K" in one file while the app renders every
+    /// chord as "Ctrl", so one shortcut wore two names in one UI (R39).
+    /// Whether the *display* should be localised is a separate question;
+    /// what cannot stand is a locale disagreeing with itself.
+    #[test]
+    fn chords_named_in_prose_are_still_default_bindings() {
+        use crate::keybindings::{Action, KeyBindings, KeyChord};
+
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/i18n/locales");
+        let bindings = KeyBindings::default();
+        let is_default = |chord: KeyChord| {
+            Action::ALL
+                .iter()
+                .any(|a| bindings.chords_for(*a).contains(&chord))
+        };
+
+        let mut problems: Vec<String> = Vec::new();
+        for entry in std::fs::read_dir(&root).expect("locales dir").flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e != "ftl") {
+                continue;
+            }
+            let locale = path.file_stem().unwrap().to_string_lossy().into_owned();
+            let text = std::fs::read_to_string(&path).expect("locale is readable");
+
+            // `Ctrl+Shift+A`-shaped runs. Deliberately anchored on a
+            // modifier name: bare words would sweep up ordinary prose.
+            for token in text.split(|c: char| c.is_whitespace() || c == '(' || c == ')') {
+                let token = token.trim_end_matches([',', '.', '·', '。', '、', '؟', '?', '!']);
+                if !token.starts_with("Ctrl+") && !token.starts_with("Shift+") {
+                    continue;
+                }
+                // "Ctrl+A/C/V" is egui's own editing set, not one of ours.
+                if token.contains('/') {
+                    continue;
+                }
+                match token.parse::<KeyChord>() {
+                    Ok(chord) if is_default(chord) => {}
+                    Ok(_) => problems.push(format!("{locale}: {token} is not a default binding")),
+                    Err(e) => problems.push(format!("{locale}: {token} does not parse: {e}")),
+                }
+            }
+        }
+        assert!(problems.is_empty(), "{problems:#?}");
+    }
+
     /// The onboarding tip's whole job is "here are the five tabs, go find
     /// them", so it has to name them the way the tabs are actually
     /// labelled — in every locale, not just English.
