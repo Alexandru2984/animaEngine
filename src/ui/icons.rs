@@ -245,6 +245,11 @@ pub const BEHAVIOR_WALK: &str = ph::FOOTPRINTS;
 pub const BEHAVIOR_FOLLOW: &str = ph::CURSOR_CLICK;
 pub const BEHAVIOR_WANDER: &str = ph::ARROWS_OUT_CARDINAL;
 pub const BEHAVIOR_BOUNCE: &str = ph::ARROWS_DOWN_UP;
+pub const BEHAVIOR_SCRIPT: &str = ph::CODE;
+
+// What behavior scripts can reach (the what's-new panel).
+pub const SOUND: &str = ph::SPEAKER_HIGH;
+pub const MACHINE_LOAD: &str = ph::GAUGE;
 
 // Presets (used in the Scene tab preset gallery).
 pub const HEART: &str = ph::HEART;

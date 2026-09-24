@@ -27,22 +27,20 @@ struct Highlight {
 
 const HIGHLIGHTS: &[Highlight] = &[
     Highlight {
-        icon: icons::BEHAVIOR_FOLLOW,
-        body_key: "whats-new-poke",
+        icon: icons::BEHAVIOR_SCRIPT,
+        body_key: "whats-new-scripts",
     },
     Highlight {
-        icon: icons::GHOST,
-        body_key: "whats-new-startle",
+        icon: icons::SOUND,
+        body_key: "whats-new-sound",
     },
-    // Not `CURSOR`: it reads almost identically to the `CURSOR_CLICK`
-    // behind the poke row two lines up. Cardinal arrows say "drag".
     Highlight {
-        icon: icons::BEHAVIOR_WANDER,
-        body_key: "whats-new-wayland-drag",
+        icon: icons::MACHINE_LOAD,
+        body_key: "whats-new-machine-load",
     },
     Highlight {
         icon: icons::KEYBOARD,
-        body_key: "whats-new-shortcuts",
+        body_key: "whats-new-layouts",
     },
 ];
 

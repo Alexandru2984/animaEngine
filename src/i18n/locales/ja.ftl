@@ -192,11 +192,12 @@ warning-hot-reload-disconnected = ホットリロードのワーカーが予期�
 action-toggle-perf-overlay = パフォーマンス表示を切り替え
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = 1.1 の新機能
-whats-new-poke = 編集モードで軽くタップすると、マスコットが反応します。
-whats-new-startle = カーソルが近づくとマスコットが後ずさりします。「表示」で無効にできます。
-whats-new-wayland-drag = ネイティブ Wayland でようやくクリック選択とドラッグに対応しました。
-whats-new-shortcuts = Ctrl+K でコマンドパレットが再び開き、テキスト欄で Ctrl+A/C/V が使えます。
+# 1.2 highlights: machine-translated, pending native review.
+whats-new-header = 1.2 の新機能
+whats-new-scripts = キャラクターをスクリプトで動かせるようになりました。インスペクターでふるまいに「スクリプト」を選び、ライブラリ内の Rhai ファイルを指定します。
+whats-new-sound = スクリプトから音を再生できます。音はキャラクターが画面上にいる位置から聞こえます。
+whats-new-machine-load = スクリプトがコンピューターの負荷に反応できます。わかるのは全体の負荷だけで、何が実行中かはわかりません。
+whats-new-layouts = ショートカットが AZERTY や QWERTZ など、US 以外のキーボード配列でも使えるようになりました。
 onboarding-keybindings = ショートカットをクリックすると削除、キーの組み合わせを押すと新規登録できます。
 onboarding-perf-overlay = Ctrl+Shift+` でライブのパフォーマンス表示を開けます。
 appearance-reset-onboarding = オンボーディングのヒントをリセット

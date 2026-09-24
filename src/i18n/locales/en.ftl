@@ -205,11 +205,11 @@ warning-hot-reload-disconnected = The hot-reload worker stopped unexpectedly; in
 action-toggle-perf-overlay = Toggle perf overlay
 
 # ── What's new panel (D.7) ────────────────────────────────────────────
-whats-new-header = What's new in 1.1
-whats-new-poke = Poke your mascots — a quick tap in edit mode makes them react.
-whats-new-startle = Mascots now recoil when the cursor comes close. Turn it off in Appearance.
-whats-new-wayland-drag = Native Wayland finally supports click-to-select and dragging your characters.
-whats-new-shortcuts = Ctrl+K opens the command palette again, and text fields regained Ctrl+A/C/V.
+whats-new-header = What's new in 1.2
+whats-new-scripts = Characters can move by script: choose Script as the behavior in the Inspector and point it at a Rhai file in your library.
+whats-new-sound = Scripts can play sounds, heard from wherever the character is on your screen.
+whats-new-machine-load = Scripts can react to how busy your computer is — overall load only, never what is running.
+whats-new-layouts = Shortcuts now work on non-US keyboard layouts such as AZERTY and QWERTZ.
 
 # ── New onboarding hints (D.7) ────────────────────────────────────────
 onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.

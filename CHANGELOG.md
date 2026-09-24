@@ -27,6 +27,34 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     The comparison runs in the scheduled benchmark canary.
   - `docs/threat-model.md` gains a section saying plainly that a script is
     code and a real widening of what an installed file can do.
+- **Scripts can see how busy the machine is.** Two new script values,
+  `cpu` and `mem`, run from 0.0 to 1.0 — so a mascot can pace faster
+  while you compile and doze when you stop
+  ([busy_pacing.rhai](docs/examples/behaviors/busy_pacing.rhai)).
+  - Totals only, by construction: they are read from `/proc/stat` and
+    `/proc/meminfo`, which hold nothing but aggregates, so there is no
+    way for a script to learn *what* is running.
+  - Linux only. The BSDs report zero, and scripts there see an idle
+    machine rather than a wrong number.
+- **Sounds, from where the character is.** A script can call
+  `play("chirp.ogg")`, and the sound is panned by the character's position
+  — a mascot on the left of the desktop is heard on the left
+  ([chirpy.rhai](docs/examples/behaviors/chirpy.rhai)). WAV, OGG, FLAC,
+  MP3 and the audio track of an MP4 all play.
+  - Bounded, because a script runs sixty times a second: four sounds per
+    run, eight new voices per tick across the scene, a 150 ms per-character
+    cooldown, 4 MB per file and 8 MB decoded.
+  - Playback only. The microphone code that the audio library ships by
+    default is not compiled in.
+  - The `audio` build feature is on by default and needs ALSA headers to
+    build. Without it, or without a sound card, `play()` is silent rather
+    than an error.
+- **The asset library folder is created on first start**
+  (`~/.local/share/animaengine/assets/`). Scripts and sounds are looked up
+  there, and before this nothing created it, so they could not be used on
+  a fresh install. A folder named by `$ANIMA_ASSETS_DIR` is still never
+  created for you: a path you gave that does not exist is a mistake worth
+  hearing about.
 
 ### Fixed
 

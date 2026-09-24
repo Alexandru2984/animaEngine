@@ -192,11 +192,12 @@ warning-hot-reload-disconnected = Proces przeładowywania na gorąco zatrzymał 
 action-toggle-perf-overlay = Przełącz nakładkę wydajności
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Nowości w 1.1
-whats-new-poke = Szturchnij maskotki — krótkie stuknięcie w trybie edycji sprawia, że reagują.
-whats-new-startle = Maskotki cofają się teraz przed zbliżającym się kursorem. Można to wyłączyć w Wyglądzie.
-whats-new-wayland-drag = Natywny Wayland wreszcie obsługuje zaznaczanie kliknięciem i przeciąganie postaci.
-whats-new-shortcuts = Ctrl+K znów otwiera paletę poleceń, a pola tekstowe odzyskały Ctrl+A/C/V.
+# 1.2 highlights: machine-translated, pending native review.
+whats-new-header = Nowości w 1.2
+whats-new-scripts = Postacie mogą poruszać się według skryptu: wybierz zachowanie „Skrypt” w Inspektorze i wskaż plik Rhai ze swojej biblioteki.
+whats-new-sound = Skrypty mogą odtwarzać dźwięki, słyszalne z miejsca, w którym postać jest na ekranie.
+whats-new-machine-load = Skrypty mogą reagować na obciążenie komputera — tylko łączne obciążenie, nigdy to, co jest uruchomione.
+whats-new-layouts = Skróty działają teraz z układami klawiatury innymi niż amerykański, takimi jak AZERTY i QWERTZ.
 onboarding-keybindings = Kliknij skrót, aby go usunąć; naciśnij kombinację, aby nagrać nowy.
 onboarding-perf-overlay = Naciśnij Ctrl+Shift+`, aby otworzyć nakładkę wydajności na żywo.
 appearance-reset-onboarding = Przywróć wskazówki startowe

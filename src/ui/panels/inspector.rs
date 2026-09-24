@@ -671,7 +671,7 @@ fn behavior_label_with_icon(b: &Behavior) -> String {
         Behavior::FollowCursor { .. } => (icons::BEHAVIOR_FOLLOW, "behavior-follow"),
         Behavior::BoundedWander { .. } => (icons::BEHAVIOR_WANDER, "behavior-wander"),
         Behavior::Bounce { .. } => (icons::BEHAVIOR_BOUNCE, "behavior-bounce"),
-        Behavior::Script { .. } => (icons::KEYBOARD, "behavior-script"),
+        Behavior::Script { .. } => (icons::BEHAVIOR_SCRIPT, "behavior-script"),
     };
     format!("{icon}  {}", t(key))
 }

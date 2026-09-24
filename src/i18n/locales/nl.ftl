@@ -192,11 +192,12 @@ warning-hot-reload-disconnected = De hot-reload-worker is onverwacht gestopt; lo
 action-toggle-perf-overlay = Prestatie-overlay omschakelen
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-whats-new-header = Nieuw in 1.1
-whats-new-poke = Por je mascottes aan — een korte tik in de bewerkmodus laat ze reageren.
-whats-new-startle = Mascottes deinzen nu terug als de cursor dichtbij komt. Uit te zetten bij Weergave.
-whats-new-wayland-drag = Native Wayland ondersteunt eindelijk klikken om te selecteren en het slepen van figuren.
-whats-new-shortcuts = Ctrl+K opent weer het opdrachtenpalet, en tekstvelden hebben Ctrl+A/C/V terug.
+# 1.2 highlights: machine-translated, pending native review.
+whats-new-header = Nieuw in 1.2
+whats-new-scripts = Figuren kunnen bewegen via een script: kies het gedrag 'Script' in de Inspector en wijs een Rhai-bestand uit je bibliotheek aan.
+whats-new-sound = Scripts kunnen geluiden afspelen, te horen vanaf de plek waar de figuur op je scherm staat.
+whats-new-machine-load = Scripts kunnen reageren op hoe druk je computer bezig is — alleen de totale belasting, nooit wat er draait.
+whats-new-layouts = Sneltoetsen werken nu ook met niet-Amerikaanse toetsenbordindelingen zoals AZERTY en QWERTZ.
 onboarding-keybindings = Klik op een sneltoets om hem te verwijderen; druk een combinatie om een nieuwe op te nemen.
 onboarding-perf-overlay = Druk Ctrl+Shift+` om de live prestatie-overlay te openen.
 appearance-reset-onboarding = Introductietips herstellen
