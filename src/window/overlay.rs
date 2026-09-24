@@ -13,7 +13,10 @@
 //! own run loop and its own input-region handling; it does not go through
 //! this trait and stays Linux/BSD-only.
 //!
-//! First implementor: [`crate::window::x11_input::X11InputManager`].
+//! Implementors: `X11InputManager` in `window::x11_input` (unix) and
+//! `WinOverlay` in `window::win_overlay` (Windows). Plain names rather
+//! than links, because each exists only on its own platform and a link
+//! would break the docs built for the other.
 
 use crate::error::Result;
 use winit::window::Window;

@@ -140,6 +140,11 @@ jobs:
           key: ${{ matrix.target }}
       - run: cargo clippy --locked --target "$TARGET" --no-default-features --all-targets -- -D warnings
       - run: cargo clippy --locked --target "$TARGET" --no-default-features --features audio --all-targets -- -D warnings
+      # Docs too: a link to a unix-only item broke the Windows build of
+      # them, and the Linux `doc` job cannot see that.
+      - run: cargo doc --locked --target "$TARGET" --no-default-features --no-deps --document-private-items
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   doc:
     name: rustdoc
