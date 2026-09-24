@@ -509,7 +509,8 @@ impl App {
                     }
                     if let Some(path) = shimeji_import {
                         let expanded = crate::config::AppConfig::resolve_asset_path(&path);
-                        self.import_shimeji_pack(&expanded);
+                        let at = (self.mouse_x.max(50.0), self.mouse_y.max(50.0));
+                        self.import_shimeji_pack(&expanded, at);
                     }
                 }
                 // Surface needs reconfiguring against the current size

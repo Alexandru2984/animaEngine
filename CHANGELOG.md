@@ -22,6 +22,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   edit simply never took.
 - **Hot-reload messages were English in every language,** on both
   backends. A test now fails if any toast is built from untranslated text.
+- **A file dropped on native Wayland was not marked for saving.** The
+  character appeared, but the scene was never flagged as changed, so it
+  was written to disk only if something else was edited before quitting.
+  The drop also gave no confirmation or error and did not select the new
+  character; it now does all of this, the same way as on X11.
+- **Shimeji import on native Wayland froze the overlay** while it copied
+  the pack's sprites, and put every character at the same fixed corner.
+  It now runs off the UI thread as on X11, and a pack folder can be
+  dropped onto the Wayland overlay too, which it used to refuse.
 
 ### Changed
 
@@ -30,6 +39,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the drift above is what the copies had produced. About 170 lines fewer.
 - Config hot-reload runs on one watcher for both backends, where the
   winit path used to keep its own.
+- File drops and Shimeji imports go through that same shared module.
 
 ## [1.2.0] — 2026-09-24
 

@@ -55,14 +55,14 @@
 
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
-use crate::drop_validate::{pre_validate_dropped_file, redact_path};
+use crate::drop_validate::redact_path;
 use crate::entity::Entity;
 use crate::error::{AnimaError, Result};
 use crate::event::AnimaEvent;
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyChord};
 use crate::monitor::{self, MonitorInfo, WindowPlan};
-use crate::outcomes::{self, OutcomeCtx};
+use crate::outcomes::{self, OutcomeCtx, ShimejiImport};
 use crate::renderer::wgpu_renderer::{SurfaceState, WgpuRenderer};
 use crate::scene::Scene;
 use crate::ui::{panels, ToastQueue, Warning};
@@ -165,6 +165,8 @@ pub fn run_native(
     // Errors are logged but never fatal — an empty library is fine.
     let mut library: Option<crate::asset_library::LibraryIndex> = None;
     let mut library_root: Option<std::path::PathBuf> = None;
+    // A Shimeji pack import running off the UI thread, if any.
+    let mut pending_shimeji: Option<ShimejiImport> = None;
     // Rhai host for `Behavior::Script`, mirroring the winit path's
     // `App::script_host`. Scripts resolve against `library_root`.
     let mut script_host = crate::scripting::ScriptHost::new();
@@ -282,6 +284,11 @@ pub fn run_native(
         // Wayland did nothing (R28).
         let poll = config_watch.poll(config_dirty);
         crate::config_watch::handle(poll, &mut outcome_ctx!(), &mut config, &mut warnings);
+        if let Some(import) = &pending_shimeji {
+            if import.poll(&mut outcome_ctx!()).is_some() {
+                pending_shimeji = None;
+            }
+        }
 
         // Rebuild PerMonitor extras whenever the user switches mode or
         // the output topology changes (hotplug) — mirrors the X11
@@ -340,37 +347,22 @@ pub fn run_native(
             .last_drag_pos()
             .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1));
         for path in layer.drain_dropped_files() {
-            // F.1 fix: run the same pre-validate gate the X11 path
-            // uses (size cap + extension whitelist + regular-file
-            // check). Pre-0.5.1 this was skipped on the Wayland path,
-            // so a `.png` of arbitrary size could reach the decoder.
-            let label = redact_path(&path);
-            if let Err(reason) = pre_validate_dropped_file(&path) {
-                tracing::warn!("Drop rejected for {label}: {reason}");
-                tracing::debug!("Rejected drop full path: {}", path.display());
-                {
-                    let mut args = fluent::FluentArgs::new();
-                    args.set("reason", reason.clone());
-                    toasts.warn(crate::i18n::t_args("toast-rejected", &args));
-                }
-                continue;
-            }
-            let (x, y) = drop_pos.unwrap_or((
+            let at = drop_pos.unwrap_or((
                 renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
                 renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
             ));
-            match scene.add_entity_from_path(&path, x, y) {
-                Ok(idx) => {
-                    renderer.ensure_texture(&scene.entities[idx]);
-                    scene.entities[idx].texture_dirty = false;
-                    tracing::info!("Spawned entity from drop: {label} at ({x:.0}, {y:.0})");
-                    tracing::debug!("Drop full path: {}", path.display());
+            // Same as the winit path, through the same code: a Shimeji pack
+            // folder goes to the importer, anything else is validated,
+            // added, selected, toasted and marked for saving. This loop
+            // used to skip all but the validation and the add.
+            if outcomes::is_shimeji_pack(&path) {
+                if pending_shimeji.is_none() {
+                    pending_shimeji =
+                        ShimejiImport::start(&path, library_root.as_deref(), at, &mut toasts);
                 }
-                Err(e) => {
-                    tracing::warn!("Drop rejected for {label}: {e}");
-                    tracing::debug!("Rejected drop full path: {}", path.display());
-                }
+                continue;
             }
+            outcomes::add_dropped_file(&path, at, &mut outcome_ctx!());
         }
 
         // Drain any D-Bus actions arriving from compositor bindings
@@ -1051,65 +1043,20 @@ pub fn run_native(
                 // closure where we can take &mut renderer + &mut toasts
                 // without conflicting.
                 if let Some(path) = shimeji_import {
-                    // Path-paste import on the native path: same
-                    // importer, library root discovered fresh (the
-                    // native loop doesn't hold one).
-                    if let Some(root) = crate::asset_library::discover_asset_root() {
-                        match crate::shimeji::import_pack(
-                            &crate::config::AppConfig::resolve_asset_path(&path),
-                            &root,
-                        ) {
-                            Ok(report) => {
-                                let mut ok = 0usize;
-                                for mut cfg in report.characters {
-                                    cfg.x = 100.0;
-                                    cfg.y = 100.0;
-                                    cfg.id = scene.unique_id(&cfg.id);
-                                    match scene.append_character_config(&cfg) {
-                                        Ok(()) => ok += 1,
-                                        Err(e) => {
-                                            let mut args = fluent::FluentArgs::new();
-                                            args.set("name", cfg.name.clone());
-                                            args.set("error", e.to_string());
-                                            toasts.error(crate::i18n::t_args(
-                                                "toast-entity-load-failed",
-                                                &args,
-                                            ));
-                                        }
-                                    }
-                                }
-                                for (what, why) in &report.skipped {
-                                    tracing::info!("Shimeji import skip [{what}]: {why}");
-                                }
-                                if ok > 0 {
-                                    let mut args = fluent::FluentArgs::new();
-                                    args.set("name", report.pack_name.clone());
-                                    args.set("n", report.skipped.len() as i64);
-                                    toasts.success(crate::i18n::t_args(
-                                        "shimeji-imported-toast",
-                                        &args,
-                                    ));
-                                    config_dirty = true;
-                                }
-                            }
-                            Err(reason) => {
-                                let mut args = fluent::FluentArgs::new();
-                                args.set("reason", reason);
-                                toasts.error(crate::i18n::t_args(
-                                    "shimeji-import-failed-toast",
-                                    &args,
-                                ));
-                            }
-                        }
-                    } else {
-                        let mut args = fluent::FluentArgs::new();
-                        args.set(
-                            "path",
-                            crate::asset_library::asset_root_hint()
-                                .display()
-                                .to_string(),
+                    // Off the UI thread, like a dropped pack. This used to
+                    // import synchronously right here, freezing the overlay
+                    // for as long as the sprite copy took.
+                    if pending_shimeji.is_none() {
+                        let at = (
+                            renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                            renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
                         );
-                        toasts.error(crate::i18n::t_args("shimeji-no-library-toast", &args));
+                        pending_shimeji = ShimejiImport::start(
+                            &crate::config::AppConfig::resolve_asset_path(&path),
+                            library_root.as_deref(),
+                            at,
+                            &mut toasts,
+                        );
                     }
                 }
                 if let Some(out) = menu_outcome {

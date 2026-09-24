@@ -32,7 +32,6 @@ use crate::scene::Scene;
 use crate::ui::Warning;
 use crate::ui::{EguiRenderer, ToastQueue};
 use crate::window::overlay::OverlayPlatform;
-use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::Instant;
 use winit::application::ApplicationHandler;
@@ -105,7 +104,7 @@ pub struct App {
     /// In-flight off-thread Shimeji import. `Some` while a worker copies a
     /// pack's sprites (the slow part) so a large pack can't freeze the UI;
     /// the result is applied on the UI thread at the captured drop point.
-    pending_shimeji: Option<PendingShimejiImport>,
+    pending_shimeji: Option<crate::outcomes::ShimejiImport>,
     /// egui integration. Paints in BOTH modes — the ⚙ toggle button is an
     /// egui widget that lives in pass-through too. Other UI (settings panel,
     /// context menu, toasts) is gated to edit mode inside the build closure.
@@ -218,14 +217,6 @@ pub struct App {
     /// on a slow cadence guarantees click-through recovers within this
     /// window no matter what the compositor did. Pass-through only.
     last_shape_refresh: Instant,
-}
-
-/// An off-thread Shimeji import in flight: the worker's result channel and
-/// the drop position to spawn the imported characters at when it lands.
-struct PendingShimejiImport {
-    rx: mpsc::Receiver<std::result::Result<crate::shimeji::ImportReport, String>>,
-    x: f32,
-    y: f32,
 }
 
 /// Transient UI state owned by `App` (vs the persistent settings panel

@@ -267,6 +267,186 @@ pub fn apply_library_outcome(
     }
 }
 
+/// Whether a dropped path is a Shimeji pack — a directory with `conf/` and
+/// `img/` — rather than an asset (U.4).
+pub fn is_shimeji_pack(path: &Path) -> bool {
+    path.is_dir() && path.join("conf").is_dir() && path.join("img").is_dir()
+}
+
+/// Add a dropped file as a character at `at`, and select it.
+///
+/// The native Wayland loop used to do less than half of this: the new
+/// character was not selected, nothing said whether the drop worked, and
+/// the scene was never marked dirty — so a drop was only written to disk
+/// if something else happened to be edited before quitting.
+pub fn add_dropped_file(path: &Path, at: (f32, f32), ctx: &mut OutcomeCtx<'_>) -> Option<usize> {
+    let label = redact_path(path);
+    tracing::info!("File dropped: {label}");
+    tracing::debug!("Dropped full path: {}", path.display());
+
+    // The fast, clear refusal (extension, size, not a regular file) before
+    // a decoder spins up and fails somewhere deeper.
+    if let Err(reason) = pre_validate_dropped_file(path) {
+        tracing::warn!("Rejecting dropped file {label}: {reason}");
+        let mut args = fluent::FluentArgs::new();
+        args.set("reason", reason);
+        ctx.toasts
+            .error(crate::i18n::t_args("toast-rejected", &args));
+        return None;
+    }
+
+    match ctx.scene.add_entity_from_path(path, at.0, at.1) {
+        Ok(idx) => {
+            if let Some(renderer) = ctx.renderer.as_deref_mut() {
+                if let Some(entity) = ctx.scene.entities.get(idx) {
+                    renderer.ensure_texture(entity);
+                }
+                if let Some(entity) = ctx.scene.entities.get_mut(idx) {
+                    entity.texture_dirty = false;
+                }
+            }
+            ctx.selection.select(idx);
+            *ctx.config_dirty = true;
+            let name = ctx
+                .scene
+                .entities
+                .get(idx)
+                .map(|e| e.name.clone())
+                .unwrap_or_default();
+            tracing::info!("Added '{name}' at ({:.0}, {:.0})", at.0, at.1);
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", name);
+            ctx.toasts
+                .success(crate::i18n::t_args("toast-added", &args));
+            Some(idx)
+        }
+        Err(e) => {
+            tracing::error!("Failed to load dropped file {label}: {e}");
+            let mut args = fluent::FluentArgs::new();
+            args.set("error", e.to_string());
+            ctx.toasts
+                .error(crate::i18n::t_args("toast-load-failed", &args));
+            None
+        }
+    }
+}
+
+type ImportResult = Result<crate::shimeji::ImportReport, String>;
+
+/// A Shimeji pack import running off the UI thread.
+///
+/// Copying a pack's sprites is the slow part, and a large (still capped)
+/// pack must not freeze the overlay. The winit path did this on a worker;
+/// the native Wayland loop imported synchronously on the UI thread and
+/// dropped every character at a fixed (100, 100).
+pub struct ShimejiImport {
+    rx: std::sync::mpsc::Receiver<ImportResult>,
+    at: (f32, f32),
+}
+
+impl ShimejiImport {
+    /// Start importing `pack` into the library, to land at `at`.
+    ///
+    /// `None` when it could not start; the reason is already on screen.
+    pub fn start(
+        pack: &Path,
+        library_root: Option<&Path>,
+        at: (f32, f32),
+        toasts: &mut ToastQueue,
+    ) -> Option<Self> {
+        let Some(library_root) = library_root.map(Path::to_path_buf) else {
+            let mut args = fluent::FluentArgs::new();
+            args.set(
+                "path",
+                crate::asset_library::asset_root_hint()
+                    .display()
+                    .to_string(),
+            );
+            toasts.error(crate::i18n::t_args("shimeji-no-library-toast", &args));
+            return None;
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let pack = pack.to_path_buf();
+        let spawned = std::thread::Builder::new()
+            .name("anima-shimeji-import".into())
+            .spawn(move || {
+                let _ = tx.send(crate::shimeji::import_pack(&pack, &library_root));
+            });
+        match spawned {
+            Ok(_) => Some(Self { rx, at }),
+            Err(e) => {
+                tracing::warn!("Shimeji import worker failed to spawn: {e}");
+                let mut args = fluent::FluentArgs::new();
+                args.set("reason", e.to_string());
+                toasts.error(crate::i18n::t_args("shimeji-import-failed-toast", &args));
+                None
+            }
+        }
+    }
+
+    /// Apply the import if it has finished.
+    ///
+    /// `None` while it is still running. Once it is done — imported,
+    /// failed, or the worker vanished — `Some(n)` with the number of
+    /// characters added, and the caller drops this.
+    pub fn poll(&self, ctx: &mut OutcomeCtx<'_>) -> Option<usize> {
+        let result = match self.rx.try_recv() {
+            Ok(result) => result,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                tracing::warn!("Shimeji import worker disconnected before delivering");
+                return Some(0);
+            }
+        };
+        Some(apply_shimeji_import(result, self.at, ctx))
+    }
+}
+
+/// Add an import's characters at `at`. Returns how many were added.
+fn apply_shimeji_import(result: ImportResult, at: (f32, f32), ctx: &mut OutcomeCtx<'_>) -> usize {
+    let report = match result {
+        Ok(report) => report,
+        Err(reason) => {
+            tracing::warn!("Shimeji import failed: {reason}");
+            let mut args = fluent::FluentArgs::new();
+            args.set("reason", reason);
+            ctx.toasts
+                .error(crate::i18n::t_args("shimeji-import-failed-toast", &args));
+            return 0;
+        }
+    };
+    let mut added = 0;
+    for mut cfg in report.characters {
+        cfg.x = at.0;
+        cfg.y = at.1;
+        // Importing the same pack twice must not collide on ids.
+        cfg.id = ctx.scene.unique_id(&cfg.id);
+        match ctx.scene.append_character_config(&cfg) {
+            Ok(()) => added += 1,
+            Err(e) => {
+                tracing::warn!("Imported character '{}' rejected: {e}", cfg.name);
+                let mut args = fluent::FluentArgs::new();
+                args.set("name", cfg.name.clone());
+                args.set("error", e.to_string());
+                ctx.toasts
+                    .error(crate::i18n::t_args("toast-entity-load-failed", &args));
+            }
+        }
+    }
+    for (what, why) in &report.skipped {
+        tracing::info!("Shimeji import skip [{what}]: {why}");
+    }
+    if added > 0 {
+        let mut args = fluent::FluentArgs::new();
+        args.set("name", report.pack_name);
+        args.set("n", report.skipped.len() as i64);
+        ctx.toasts
+            .success(crate::i18n::t_args("shimeji-imported-toast", &args));
+        *ctx.config_dirty = true;
+    }
+    added
+}
+
 fn reject(toasts: &mut ToastQueue, reason: String) {
     let mut args = fluent::FluentArgs::new();
     args.set("reason", reason);
@@ -432,6 +612,89 @@ mod tests {
         };
         apply_library_outcome(outcome, &mut w.ctx(), None, &mut None, (0.0, 0.0));
         assert!(w.scene.entities.is_empty());
+        assert!(!w.dirty);
+    }
+
+    /// The Wayland loop never marked a drop dirty, so a dropped character
+    /// was only saved if something else was edited before quitting.
+    #[test]
+    fn a_rejected_drop_changes_nothing_and_says_so() {
+        let mut w = World::new(0);
+        let bogus = std::path::Path::new("/definitely/not/here.png");
+        assert_eq!(add_dropped_file(bogus, (10.0, 10.0), &mut w.ctx()), None);
+        assert!(w.scene.entities.is_empty());
+        assert!(!w.dirty);
+        assert_eq!(w.messages().len(), 1);
+    }
+
+    #[test]
+    fn a_dropped_image_is_added_selected_and_marked_dirty() {
+        let dir = std::env::temp_dir().join(format!("anima-drop-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let png = dir.join("dot.png");
+        image::RgbaImage::from_pixel(2, 2, image::Rgba([255, 0, 0, 255]))
+            .save(&png)
+            .unwrap();
+        let mut w = World::new(1);
+        let idx = add_dropped_file(&png, (40.0, 50.0), &mut w.ctx());
+        let _ = std::fs::remove_dir_all(&dir);
+        let idx = idx.expect("a valid PNG is added");
+        assert_eq!(w.scene.entities.len(), 2);
+        assert_eq!(
+            (w.scene.entities[idx].x, w.scene.entities[idx].y),
+            (40.0, 50.0)
+        );
+        assert_eq!(w.selection.selected_index(), Some(idx));
+        assert!(w.dirty, "a drop has to reach the next save");
+    }
+
+    #[test]
+    fn a_pack_needs_both_conf_and_img() {
+        let dir = std::env::temp_dir().join(format!("anima-pack-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("img")).unwrap();
+        let half = is_shimeji_pack(&dir);
+        std::fs::create_dir_all(dir.join("conf")).unwrap();
+        let whole = is_shimeji_pack(&dir);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!half);
+        assert!(whole);
+    }
+
+    #[test]
+    fn an_import_lands_where_it_was_dropped_with_fresh_ids() {
+        let dir = std::env::temp_dir().join(format!("anima-import-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let png = dir.join("sprite.png");
+        image::RgbaImage::from_pixel(2, 2, image::Rgba([0, 255, 0, 255]))
+            .save(&png)
+            .unwrap();
+        let mut w = World::new(1);
+        let mut cfg = crate::config::AppConfig::default().characters[0].clone();
+        cfg.id = "e0".into(); // already in the scene
+        cfg.asset_type = crate::config::AssetType::PngStatic;
+        cfg.asset_path = png.display().to_string();
+        let report = crate::shimeji::ImportReport {
+            pack_name: "pack".into(),
+            characters: vec![cfg],
+            skipped: vec![],
+        };
+        let added = apply_shimeji_import(Ok(report), (300.0, 400.0), &mut w.ctx());
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(added, 1, "{:?}", w.messages());
+        let e = w.scene.entities.last().unwrap();
+        assert_eq!((e.x, e.y), (300.0, 400.0));
+        assert_ne!(e.id, "e0", "an id already in the scene is not reused");
+        assert!(w.dirty);
+    }
+
+    #[test]
+    fn a_failed_import_is_reported() {
+        let mut w = World::new(0);
+        assert_eq!(
+            apply_shimeji_import(Err("nope".into()), (0.0, 0.0), &mut w.ctx()),
+            0
+        );
+        assert_eq!(w.messages().len(), 1);
         assert!(!w.dirty);
     }
 

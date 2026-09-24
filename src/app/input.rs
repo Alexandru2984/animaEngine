@@ -8,7 +8,6 @@
 //! modifier tracking.
 
 use super::{App, ContextMenuState};
-use crate::drop_validate::{pre_validate_dropped_file, redact_path};
 use std::path::PathBuf;
 use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, Modifiers, MouseButton, MouseScrollDelta};
@@ -175,160 +174,40 @@ impl App {
         self.config_dirty = true;
     }
 
-    /// Drag-drop entry point. Runs the validation gate, then enters
-    /// edit mode and adds the entity at the current cursor position.
-    /// Import a dropped/typed Shimeji pack directory (U.4): run the
-    /// importer against the asset-library root, spawn the resulting
-    /// characters at the cursor, toast the summary. Skip reasons go
-    /// to the log at info — the toast keeps the count only.
-    pub(super) fn import_shimeji_pack(&mut self, pack: &std::path::Path) {
-        let Some(library_root) = self.library_root.clone() else {
-            // The message names the directory to create, so it needs the
-            // path — through `t()` it printed the literal `{ $path }`.
-            let mut args = fluent::FluentArgs::new();
-            args.set(
-                "path",
-                crate::asset_library::asset_root_hint()
-                    .display()
-                    .to_string(),
-            );
-            self.toasts
-                .error(crate::i18n::t_args("shimeji-no-library-toast", &args));
-            return;
-        };
-        // One import at a time — the sprite copy is the slow part. A second
-        // pack dropped while one is in flight is ignored; the first still
-        // lands its toast.
+    /// Start importing a Shimeji pack directory (U.4) off the UI thread,
+    /// to land at `at`. One import at a time — a second pack dropped while
+    /// one is in flight is ignored, and the first still lands its toast.
+    pub(super) fn import_shimeji_pack(&mut self, pack: &std::path::Path, at: (f32, f32)) {
         if self.pending_shimeji.is_some() {
             return;
         }
-        let (tx, rx) = std::sync::mpsc::channel();
-        let pack = pack.to_path_buf();
-        // Read the pack + copy its sprites off the UI thread so a large
-        // (still-capped) pack can't freeze the overlay mid-drop.
-        let spawned = std::thread::Builder::new()
-            .name("anima-shimeji-import".into())
-            .spawn(move || {
-                let _ = tx.send(crate::shimeji::import_pack(&pack, &library_root));
-            });
-        match spawned {
-            Ok(_) => {
-                self.pending_shimeji = Some(super::PendingShimejiImport {
-                    rx,
-                    x: self.mouse_x.max(50.0),
-                    y: self.mouse_y.max(50.0),
-                });
-            }
-            Err(e) => {
-                tracing::warn!("Shimeji import worker failed to spawn: {e}");
-                let mut args = fluent::FluentArgs::new();
-                args.set("reason", e.to_string());
-                self.toasts
-                    .error(crate::i18n::t_args("shimeji-import-failed-toast", &args));
-            }
-        }
+        self.pending_shimeji = crate::outcomes::ShimejiImport::start(
+            pack,
+            self.library_root.as_deref(),
+            at,
+            &mut self.toasts,
+        );
     }
 
-    /// Drain a finished off-thread Shimeji import and apply it on the UI
-    /// thread: spawn the imported characters at the captured drop point and
-    /// toast the outcome. Called once per frame beside the hot-reload check.
+    /// Apply a finished Shimeji import. Called once per frame beside the
+    /// hot-reload check.
     pub(super) fn check_shimeji_import(&mut self) {
-        // Phase 1 (immutable borrow): is a result ready?
-        let outcome = match self.pending_shimeji.as_ref() {
-            None => return,
-            Some(p) => match p.rx.try_recv() {
-                Ok(r) => Some((r, p.x, p.y)),
-                Err(std::sync::mpsc::TryRecvError::Empty) => return, // still working
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => None, // worker died
-            },
-        };
-        // Phase 2: the borrow is over — clear the slot and apply.
-        self.pending_shimeji = None;
-        let Some((result, drop_x, drop_y)) = outcome else {
-            tracing::warn!("Shimeji import worker disconnected before delivering");
+        let Some(import) = &self.pending_shimeji else {
             return;
         };
-
-        match result {
-            Ok(report) => {
-                if !self.edit_mode {
-                    self.toggle_edit_mode();
-                }
-                let mut imported_names: Vec<String> = Vec::new();
-                for mut cfg in report.characters {
-                    cfg.x = drop_x;
-                    cfg.y = drop_y;
-                    // Avoid id collisions with an already-imported copy.
-                    cfg.id = self.scene.unique_id(&cfg.id);
-                    match self.scene.append_character_config(&cfg) {
-                        Ok(()) => imported_names.push(cfg.name.clone()),
-                        Err(e) => {
-                            tracing::warn!("Imported character '{}' rejected: {e}", cfg.name);
-                            let mut args = fluent::FluentArgs::new();
-                            args.set("name", cfg.name.clone());
-                            args.set("error", e.to_string());
-                            self.toasts
-                                .error(crate::i18n::t_args("toast-entity-load-failed", &args));
-                        }
-                    }
-                }
-                for (what, why) in &report.skipped {
-                    tracing::info!("Shimeji import skip [{what}]: {why}");
-                }
-                if !imported_names.is_empty() {
-                    let mut args = fluent::FluentArgs::new();
-                    args.set("name", report.pack_name.clone());
-                    args.set("n", report.skipped.len() as i64);
-                    self.toasts
-                        .success(crate::i18n::t_args("shimeji-imported-toast", &args));
-                    self.config_dirty = true;
-                    self.save_config_if_needed();
-                }
+        let Some(added) = import.poll(&mut outcome_ctx!(self)) else {
+            return;
+        };
+        self.pending_shimeji = None;
+        if added > 0 {
+            if !self.edit_mode {
+                self.toggle_edit_mode();
             }
-            Err(reason) => {
-                tracing::warn!("Shimeji import failed: {reason}");
-                let mut args = fluent::FluentArgs::new();
-                args.set("reason", reason);
-                self.toasts
-                    .error(crate::i18n::t_args("shimeji-import-failed-toast", &args));
-            }
+            self.save_config_if_needed();
         }
     }
 
     pub(super) fn handle_dropped_file(&mut self, path: PathBuf) {
-        let label = redact_path(&path);
-        tracing::info!("File dropped: {label}");
-        tracing::debug!("Dropped full path: {}", path.display());
-
-        // U.4: a dropped *directory* shaped like a Shimeji pack
-        // (conf/ + img/) routes to the importer instead of the asset
-        // decoders. Any other directory keeps the existing rejection.
-        if path.is_dir() && path.join("conf").is_dir() && path.join("img").is_dir() {
-            self.import_shimeji_pack(&path);
-            return;
-        }
-
-        // Pre-validate before we hand the path to the decoders.
-        // Catches the obvious bad cases (wrong extension, huge
-        // file) with a fast, clear error toast instead of letting
-        // the decoder spin up and fail somewhere deeper.
-        if let Err(reason) = pre_validate_dropped_file(&path) {
-            tracing::warn!("Rejecting dropped file {label}: {reason}");
-            tracing::debug!("Rejected full path: {}", path.display());
-            {
-                let mut args = fluent::FluentArgs::new();
-                args.set("reason", reason.clone());
-                self.toasts
-                    .error(crate::i18n::t_args("toast-rejected", &args));
-            }
-            return;
-        }
-
-        // If not in edit mode, enter it automatically
-        if !self.edit_mode {
-            self.toggle_edit_mode();
-        }
-
         // Where the file was actually dropped.
         //
         // winit's `DroppedFile` carries a path and nothing else: XDND does
@@ -344,46 +223,19 @@ impl App {
         // The native Wayland path needs none of this: `wl_data_device`
         // delivers motion during the drag, so that backend has always
         // placed the drop correctly.
-        let (drop_x, drop_y) = drop_position().unwrap_or((self.mouse_x, self.mouse_y));
+        let at = drop_position().unwrap_or((self.mouse_x, self.mouse_y));
 
-        match self.scene.add_entity_from_path(&path, drop_x, drop_y) {
-            Ok(idx) => {
-                // Create texture for the new entity
-                if let Some(renderer) = &mut self.renderer {
-                    renderer.ensure_texture(&self.scene.entities[idx]);
-                    self.scene.entities[idx].texture_dirty = false;
-                }
-                // Select the new entity
-                self.selection.select(idx);
-                self.config_dirty = true;
-                let added_name = self.scene.entities[idx].name.clone();
-                self.save_config_if_needed();
-                tracing::info!(
-                    "Added '{}' at ({:.0}, {:.0})",
-                    added_name,
-                    self.mouse_x,
-                    self.mouse_y
-                );
-                {
-                    let mut args = fluent::FluentArgs::new();
-                    args.set("name", added_name.clone());
-                    self.toasts
-                        .success(crate::i18n::t_args("toast-added", &args));
-                }
+        // A Shimeji pack folder goes to the importer; anything else to the
+        // decoders, through the same code the Wayland loop uses.
+        if crate::outcomes::is_shimeji_pack(&path) {
+            self.import_shimeji_pack(&path, at);
+            return;
+        }
+        if crate::outcomes::add_dropped_file(&path, at, &mut outcome_ctx!(self)).is_some() {
+            if !self.edit_mode {
+                self.toggle_edit_mode();
             }
-            Err(e) => {
-                tracing::error!(
-                    "Failed to load dropped file {}: {}",
-                    crate::drop_validate::redact_path(&path),
-                    e
-                );
-                {
-                    let mut args = fluent::FluentArgs::new();
-                    args.set("error", e.to_string());
-                    self.toasts
-                        .error(crate::i18n::t_args("toast-load-failed", &args));
-                }
-            }
+            self.save_config_if_needed();
         }
     }
 
