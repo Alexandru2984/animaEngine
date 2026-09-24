@@ -181,6 +181,8 @@ action-show-help = キーボードヘルプを表示
 appearance-accessibility-header = アクセシビリティ
 appearance-accesskit-label = AccessKit ツリー更新を生成
 appearance-accesskit-hint = AT-SPI スクリーンリーダー（Orca など）に情報を提供します。リソースを節約したい場合やデスクトップに AT-SPI バスがない場合を除き、オンのままにしてください。注意：パネルに入力したテキストも AT-SPI バスに流れ、同じユーザーのプロセスなら読み取れます。
+# Machine-translated, pending native review.
+appearance-accesskit-unsupported = ネイティブ Wayland バックエンドではスクリーンリーダーを使えません。使う場合は ANIMA_USE_WAYLAND_NATIVE なしで起動してください。
 appearance-reduced-motion-label = 動きを減らす
 appearance-reduced-motion-hint = UI のトランジション（パネルのスライド、フェード、パレットのポップ）を省略し、装飾的な揺れを止めます。状態を伝えるアニメーションは動き続けます。
 appearance-hover-startle-label = ホバーでびっくり

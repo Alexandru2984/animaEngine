@@ -19,6 +19,7 @@ pub(super) fn appearance_tab(
     config_dirty: &mut bool,
     onboarding: &mut OnboardingProgress,
     accesskit_enabled: &mut bool,
+    accesskit_supported: bool,
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
 ) {
@@ -44,11 +45,20 @@ pub(super) fn appearance_tab(
     // ── Accessibility ────────────────────────────────────────────────
     ui.label(egui::RichText::new(t("appearance-accessibility-header")).text_style(h2()));
     ui.add_space(SPACE_S);
-    if ui
-        .checkbox(accesskit_enabled, t("appearance-accesskit-label"))
-        .on_hover_text(t("appearance-accesskit-hint"))
-        .changed()
-    {
+    // Disabled, with the reason on hover, where there is no bridge to
+    // drive: a checkbox that changes nothing tells a screen-reader user
+    // the feature exists here when it does not (same pattern as Span on
+    // this backend).
+    let accesskit = ui.add_enabled(
+        accesskit_supported,
+        egui::Checkbox::new(accesskit_enabled, t("appearance-accesskit-label")),
+    );
+    let accesskit = if accesskit_supported {
+        accesskit.on_hover_text(t("appearance-accesskit-hint"))
+    } else {
+        accesskit.on_disabled_hover_text(t("appearance-accesskit-unsupported"))
+    };
+    if accesskit.changed() {
         *config_dirty = true;
     }
     ui.add_space(SPACE_S);

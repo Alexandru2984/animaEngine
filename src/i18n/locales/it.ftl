@@ -181,6 +181,8 @@ action-show-help = Mostra la guida della tastiera
 appearance-accessibility-header = Accessibilità
 appearance-accesskit-label = Genera gli aggiornamenti dell’albero AccessKit
 appearance-accesskit-hint = Alimenta gli screen reader AT-SPI (Orca ecc.). Lascialo attivo, a meno che tu non voglia ridurre le risorse o il tuo desktop non abbia un bus AT-SPI. Nota: il testo digitato nei pannelli appare anche sul bus AT-SPI, dove ogni processo del tuo utente può leggerlo.
+# Machine-translated, pending native review.
+appearance-accesskit-unsupported = I lettori di schermo non sono disponibili sul backend Wayland nativo. Avvia senza ANIMA_USE_WAYLAND_NATIVE per usarne uno.
 appearance-reduced-motion-label = Riduci il movimento
 appearance-reduced-motion-hint = Salta le transizioni dell’interfaccia (scorrimento del pannello, dissolvenze, comparsa della palette) e ferma l’oscillazione decorativa. Le animazioni che comunicano uno stato restano attive.
 appearance-hover-startle-label = Sussulto al passaggio

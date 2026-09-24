@@ -415,6 +415,8 @@ impl App {
                                     keybindings_mut,
                                     collapse_state_mut,
                                     accesskit_mut,
+                                    // egui-winit carries the AT-SPI adapter.
+                                    true,
                                     warnings_ref,
                                     last_seen_whats_new_mut,
                                     hotkey_backend_ref,

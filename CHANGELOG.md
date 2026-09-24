@@ -18,6 +18,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The screen-reader setting pretended to work on native Wayland.** That
+  backend has no AT-SPI bridge — egui's comes with winit, which it does
+  not use — yet the Appearance checkbox was live and the docs said the
+  toggle worked there. It is now disabled on that backend, with the
+  reason on hover: use the X11 path (the default) with a screen reader.
+  The Wayland docs also stop calling multi-monitor untested and stop
+  describing Hide/Show as they worked before hiding was fixed.
 - **`Ctrl+M` made a character disappear.** Pinning a character to
   another monitor — with `Ctrl+M` or the Inspector's "Pin to monitor" —
   changed which screen draws it without moving it there, so it was drawn

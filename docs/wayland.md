@@ -50,14 +50,14 @@ set the env var.
 | Animated sprites | ✓ | ✓ |
 | Click-through (toggle ⚙) | XShape | `wl_surface::set_input_region` |
 | Keyboard shortcuts (in-app) | winit input | xkb decoded via sctk |
-| Drag-drop files | winit `DroppedFile` | `wl_data_device` + `text/uri-list` |
+| Drag-drop files | winit `DroppedFile` | `wl_data_device` + `text/uri-list`; in pass-through, drag over the ⚙ corner first |
 | Settings panel + presets + Keybindings tab | ✓ | ✓ |
 | Perf overlay (`Ctrl+Shift+\``) | ✓ | ✓ |
 | Multi-monitor info | XRandR | `wl_output` enumeration |
-| `MonitorMode::PerMonitor` distribution | extra `winit::Window` per monitor | extra layer-shell surface per `wl_output` (**untested** — see below) |
+| `MonitorMode::PerMonitor` distribution | extra `winit::Window` per monitor | extra layer-shell surface per `wl_output` (headless sway, 2–3 outputs — see below) |
 | Global hotkeys | XGrabKey (`Ctrl+Shift+A/H/P`) | **GlobalShortcuts portal** (preferred) or compositor bindings + D-Bus (see below) |
 | Tray icon (StatusNotifierItem) | ✓ | ✓ |
-| AccessKit / AT-SPI | ✓ | toggle still works; native screen-reader pickup compositor-dependent |
+| AccessKit / AT-SPI | ✓ | ✗ — no AT-SPI bridge on this path (see below) |
 
 ## XWayland caveat: fractional / mixed scaling and click-through
 
@@ -114,8 +114,8 @@ running:
 | Method | Effect |
 |---|---|
 | `ToggleEditMode` | Switch between pass-through and edit mode |
-| `HideOverlay` | Drop the surface into pass-through (toggle-corner only) |
-| `ShowOverlay` | (No-op on wlroots — layer surface is always present) |
+| `HideOverlay` | Hide the overlay: nothing is drawn and it takes no input |
+| `ShowOverlay` | Show it again |
 | `ToggleGlobalPlayback` | Pause / resume every animation |
 | `Activate` | Single-instance handshake; the second launch invokes this |
 
@@ -222,8 +222,10 @@ with the compositor-compatibility report template above.
 
 ## What's not (yet) parity with X11
 
-- **Native AccessKit on wlroots.** The runtime toggle still applies;
-  whether AT-SPI actually picks the surface up is compositor-side.
+- **Screen readers.** egui's AT-SPI adapter comes with egui-winit, and
+  this path does not use winit, so nothing here registers with AT-SPI
+  at all — the Appearance toggle is saved but has no effect on this
+  backend. With a screen reader, use the X11 path (the default).
   GNOME Mutter routes everything via the X11 path anyway.
 - **IME composition popups.** xkbcommon composes dead-keys / latin
   diacritics correctly through `KeyEvent::utf8`; full text-input-v3

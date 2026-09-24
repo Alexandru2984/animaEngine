@@ -191,6 +191,9 @@ pub fn settings(
     keybindings: &mut KeyBindings,
     collapse_state: &mut CollapseState,
     accesskit_enabled: &mut bool,
+    // Whether this backend has a screen-reader bridge. egui's comes with
+    // egui-winit; the native Wayland loop has none.
+    accesskit_supported: bool,
     warnings: &std::collections::BTreeSet<Warning>,
     last_seen_whats_new: &mut Option<String>,
     hotkey_backend: &str,
@@ -341,6 +344,7 @@ pub fn settings(
                                 config_dirty,
                                 onboarding,
                                 accesskit_enabled,
+                                accesskit_supported,
                                 reduced_motion,
                                 hover_startle,
                             );

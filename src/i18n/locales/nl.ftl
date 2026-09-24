@@ -181,6 +181,8 @@ action-show-help = Toetsenbordhulp tonen
 appearance-accessibility-header = Toegankelijkheid
 appearance-accesskit-label = AccessKit-boomupdates genereren
 appearance-accesskit-hint = Voedt AT-SPI-schermlezers (Orca enz.). Laat dit aan, tenzij u minder resources wilt gebruiken of uw desktop geen AT-SPI-bus heeft. Let op: tekst die u in panelen typt verschijnt ook op de AT-SPI-bus, waar elk proces van uw gebruiker hem kan lezen.
+# Machine-translated, pending native review.
+appearance-accesskit-unsupported = Schermlezers zijn niet beschikbaar op de native Wayland-backend. Start zonder ANIMA_USE_WAYLAND_NATIVE om er een te gebruiken.
 appearance-reduced-motion-label = Beweging verminderen
 appearance-reduced-motion-hint = Slaat UI-overgangen over (paneel schuiven, fades, palet-pop) en stopt decoratief wiebelen. Animaties die een toestand tonen blijven actief.
 appearance-hover-startle-label = Schrikken bij zweven

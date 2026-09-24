@@ -981,6 +981,8 @@ pub fn run_native(
                                 keybindings_mut,
                                 collapse_state_mut,
                                 accesskit_mut,
+                                // No winit, so no AT-SPI adapter on this path.
+                                false,
                                 warnings_ref,
                                 last_seen_whats_new_mut,
                                 hotkey_backend_ref,
