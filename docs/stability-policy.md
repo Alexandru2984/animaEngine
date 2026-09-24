@@ -31,8 +31,9 @@ change to any of them is a breaking change and waits for 2.0 (see
   `ShowOverlay`, `ToggleGlobalPlayback` — keeps its names and (empty)
   signatures. Methods may be *added*; existing ones aren't removed or
   repurposed.
-- **CLI flags.** `--help` / `-h` and `--recover` / `-r` keep their
-  meaning. New flags may be added; these two don't change under you.
+- **CLI flags.** `--help` / `-h`, `--recover` / `-r` and `--version` /
+  `-V` keep their meaning. New flags may be added; these
+  don't change under you.
 - **Asset formats accepted.** The `asset_type` values — `png_static`,
   `png_sequence`, `gif`, `webp_animated`, `webp_static`, `spritesheet`,
   `video` — and the drag-drop extension allowlist (`png`, `jpg`,

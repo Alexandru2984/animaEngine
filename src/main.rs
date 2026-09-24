@@ -66,6 +66,12 @@ fn main() {
         print_help();
         std::process::exit(0);
     }
+    // On stdout, one line, nothing else: what packagers' smoke checks and
+    // bug reports reach for first. It used to answer "Unknown option".
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("anima-engine {}", env!("CARGO_PKG_VERSION"));
+        std::process::exit(0);
+    }
     // Reject anything flag-shaped we don't recognise instead of
     // silently launching the overlay: pre-fix, a typo like `--recovr`
     // started the app as if nothing was wrong — the worst possible
@@ -407,6 +413,7 @@ USAGE:
 
 OPTIONS:
     -h, --help       Print this help and exit
+    -V, --version    Print the version and exit
     -r, --recover    Restore a crash-recovery snapshot over the live
                      config (the live config is backed up to
                      config.toml.bak), then exit.
@@ -495,7 +502,7 @@ fn portal_bridge(
 /// `anima-engine scene.toml` shouldn't be rejected by this gate).
 /// Extracted from `main` so the decision is unit-testable.
 fn unknown_flags(args: &[String]) -> Vec<String> {
-    const KNOWN: &[&str] = &["-h", "--help", "-r", "--recover"];
+    const KNOWN: &[&str] = &["-h", "--help", "-V", "--version", "-r", "--recover"];
     args.iter()
         .filter(|a| a.starts_with('-') && !KNOWN.contains(&a.as_str()))
         .cloned()
@@ -514,6 +521,7 @@ mod cli_tests {
     fn known_flags_pass() {
         assert!(unknown_flags(&v(&["--recover"])).is_empty());
         assert!(unknown_flags(&v(&["-h", "--help", "-r"])).is_empty());
+        assert!(unknown_flags(&v(&["--version", "-V"])).is_empty());
         assert!(unknown_flags(&v(&[])).is_empty());
     }
 

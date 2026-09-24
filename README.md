@@ -116,8 +116,8 @@ cargo build --release
 | Move a character | Drag it (edit mode) or use the X/Y sliders |
 | Adjust scale / opacity / FPS | Sliders in the settings panel |
 | Toggle visibility / playback | `V` / `P` keys, or checkboxes |
-| Set behavior | Dropdown in panel (Idle / Walk / Follow / Bounded) |
-| Delete | `Delete`, right-click → Delete, or the `×` button in the list |
+| Set behavior | Dropdown in the Inspector (Idle / Walk / Follow / Bounded / Bounce / Script) |
+| Delete | `Delete`, right-click → Delete, or the trash button in the Scene list |
 | Hide overlay | `Ctrl+Shift+H` (global) or tray menu |
 | Pause animations | `Space` (edit mode), `Ctrl+Shift+P` (global), or tray |
 | Save & quit | `Q` (edit mode), tray → Quit, or close the window |

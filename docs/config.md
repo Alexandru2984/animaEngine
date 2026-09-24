@@ -54,6 +54,9 @@ window_awareness = false    # X11 only: physics characters land on
                             # window top edges and walk along them.
                             # No effect on Wayland (the protocol
                             # exposes no global window geometry).
+hover_startle = false       # characters recoil from an approaching
+                            # cursor. Cursor tracking is X11-only, so
+                            # on native Wayland it reacts in edit mode.
 ```
 
 | Key | Values | Notes |
@@ -216,7 +219,21 @@ amplitude_px = 24.0         # peak displacement, applied symmetrically
 period_sec = 1.5            # one full cycle; clamped to >= 0.05
 axis = "vertical"           # vertical (default) | horizontal | both
                             # ("both" = 90°-offset circular motion)
+
+# A Rhai script from your asset library moves the character instead.
+[characters.behavior]
+type = "script"
+path = "behaviors/busy_pacing.rhai" # relative to the asset library;
+                                    # anything that escapes it is refused
+[characters.behavior.params]        # numbers only, handed to the script
+idle_speed = 20.0                   # as `params.idle_speed`
+busy_speed = 160.0
 ```
+
+Each example in [docs/examples/behaviors/](examples/behaviors/) lists
+the `params` it expects in its header; what a script may and may not do
+is in CONTRIBUTING's scripting section and
+[threat-model.md](threat-model.md).
 
 ## `[[windows]]`
 

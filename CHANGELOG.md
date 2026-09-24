@@ -8,6 +8,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`--version` / `-V`** prints `anima-engine <version>` and exits. It
+  used to be rejected as an unknown option.
 - **Windows: a tray icon and a single instance.** The notification-area
   icon has the same menu as the Linux tray, and a second launch now hands
   off to the running overlay and raises it instead of starting another.
@@ -25,6 +27,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reason on hover: use the X11 path (the default) with a screen reader.
   The Wayland docs also stop calling multi-monitor untested and stop
   describing Hide/Show as they worked before hiding was fixed.
+- **The config reference was missing two settings**: `hover_startle` in
+  `[global]`, and the `script` behavior with its `params` table.
+  `docs/config.md` now documents both; the README's behavior list names
+  all six.
 - **`Ctrl+M` made a character disappear.** Pinning a character to
   another monitor — with `Ctrl+M` or the Inspector's "Pin to monitor" —
   changed which screen draws it without moving it there, so it was drawn
