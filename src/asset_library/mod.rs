@@ -232,8 +232,8 @@ impl LibraryIndex {
 /// Pick the first asset directory that exists. Discovery order:
 ///
 /// 1. `$ANIMA_ASSETS_DIR` — env override, useful in tests and CI
-/// 2. `$XDG_DATA_HOME/animaEngine/assets/` (defaults to
-///    `~/.local/share/animaEngine/assets/`)
+/// 2. `$XDG_DATA_HOME/animaengine/assets/` (defaults to
+///    `~/.local/share/animaengine/assets/`; lower-case, see R32)
 /// 3. `assets/` next to the executable (development convenience)
 ///
 /// Returns `None` when none of the candidates exist on disk. The

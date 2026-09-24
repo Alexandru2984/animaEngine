@@ -69,10 +69,14 @@ pub fn warn_no_library_once(path: &str) {
     let seen = SEEN.get_or_init(|| Mutex::new(std::collections::BTreeSet::new()));
     if let Ok(mut seen) = seen.lock() {
         if seen.insert(path.to_string()) {
+            // The real path, not a spelled-out one: the directory is
+            // lower-case `animaengine`, and a hand-written
+            // `animaEngine/assets` sent people to a folder the app never
+            // reads (R32).
             tracing::warn!(
                 "behavior script {path}: no asset library, so it cannot be loaded. \
-                 Expected under $XDG_DATA_HOME/animaEngine/assets/ \
-                 (or $ANIMA_ASSETS_DIR)."
+                 Expected at {} (or set $ANIMA_ASSETS_DIR).",
+                crate::asset_library::asset_root_hint().display()
             );
         }
     }
