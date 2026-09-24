@@ -22,7 +22,6 @@ use smithay_client_toolkit::{
     seat::{keyboard::Modifiers as SctkModifiers, SeatState},
     shell::wlr_layer::{LayerShell, LayerSurface},
 };
-use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -86,15 +85,17 @@ pub struct WaylandState {
     pub edit_mode: bool,
     /// Drag-and-drop wiring (E.3). `data_device_manager` is the global
     /// once bound; `data_device` is the per-seat handle we set actions /
-    /// accept mime on. `last_drag_pos` follows the latest motion event
-    /// during a drag so the drop landing coordinate matches what the
-    /// user sees. `drop_rx` carries parsed file paths from the worker
-    /// thread that drains the receive-pipe back to the main loop.
+    /// accept mime on. `drop_rx` carries each drop's parsed paths, and
+    /// where it landed, from the worker thread that drains the
+    /// receive-pipe back to the main loop.
     pub data_device_manager: DataDeviceManagerState,
     pub data_device: Option<DataDevice>,
-    pub last_drag_pos: Option<(f32, f32)>,
-    pub drop_tx: mpsc::SyncSender<Vec<PathBuf>>,
-    pub drop_rx: mpsc::Receiver<Vec<PathBuf>>,
+    /// A drag is over the surface right now. In pass-through the main loop
+    /// widens the input region while this holds (`drag_region`), so a
+    /// drag that reaches the ⚙ corner can be dropped anywhere.
+    pub drag_over: bool,
+    pub drop_tx: mpsc::SyncSender<super::drag_drop::DroppedFiles>,
+    pub drop_rx: mpsc::Receiver<super::drag_drop::DroppedFiles>,
     /// Number of drop-reader worker threads currently in flight (F.2,
     /// 0.5.1). Bounds the per-drop `std::thread::spawn` so a tight
     /// loop of drag events from a hostile source can't exhaust

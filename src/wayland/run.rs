@@ -167,6 +167,9 @@ pub fn run_native(
     let mut library_root: Option<std::path::PathBuf> = None;
     // A Shimeji pack import running off the UI thread, if any.
     let mut pending_shimeji: Option<ShimejiImport> = None;
+    // Whether the input region is currently widened for a drag
+    // (`drag_region`).
+    let mut drag_widened = false;
     // Rhai host for `Behavior::Script`, mirroring the winit path's
     // `App::script_host`. Scripts resolve against `library_root`.
     let mut script_host = crate::scripting::ScriptHost::new();
@@ -271,8 +274,13 @@ pub fn run_native(
                 // click-through, and a resize while hidden made it
                 // clickable again.
                 let button = toggle_button_units(&layer.monitors());
-                let region =
-                    region_for_state(overlay_hidden, layer.state.edit_mode, new_w, new_h, button);
+                let region = region_for_state(
+                    overlay_hidden,
+                    layer.state.edit_mode || drag_widened,
+                    new_w,
+                    new_h,
+                    button,
+                );
                 layer.set_input_region(region)?;
                 tracing::info!("Layer surface resized to {new_w}×{new_h}");
             }
@@ -336,33 +344,60 @@ pub fn run_native(
         // can flip in lock-step. Scan key-press events, match against
         // the user's bindings, dispatch the few actions that make
         // sense without a UI thread (just edit mode for now).
-        // Process any files dropped over the surface (E.3). Each path
-        // routes through the same `add_entity_from_path` validation
-        // gate as the X11 drag-drop path, so frame caps + extension
-        // whitelist still apply. `drop_pos` is surface-local (same
-        // space as `cursor_pos`); add `primary_origin` so the spawned
-        // entity lands in the same coordinate space every other entity
-        // uses once PerMonitor extras exist.
-        let drop_pos = layer
-            .last_drag_pos()
-            .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1));
-        for path in layer.drain_dropped_files() {
-            let at = drop_pos.unwrap_or((
-                renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
-                renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
-            ));
-            // Same as the winit path, through the same code: a Shimeji pack
-            // folder goes to the importer, anything else is validated,
-            // added, selected, toasted and marked for saving. This loop
-            // used to skip all but the validation and the add.
-            if outcomes::is_shimeji_pack(&path) {
-                if pending_shimeji.is_none() {
-                    pending_shimeji =
-                        ShimejiImport::start(&path, library_root.as_deref(), at, &mut toasts);
-                }
-                continue;
+        // Widen the input region while a drag is over us in pass-through,
+        // and put it back when the drag ends.
+        let widen = drag_region(overlay_hidden, layer.state.edit_mode, layer.state.drag_over);
+        if widen != drag_widened {
+            drag_widened = widen;
+            let region = region_for_state(
+                overlay_hidden,
+                layer.state.edit_mode || widen,
+                renderer.primary.window_width,
+                renderer.primary.window_height,
+                toggle_button_units(&monitors_now),
+            );
+            if let Err(e) = layer.set_input_region(region) {
+                tracing::warn!("drag region: {e}");
             }
-            outcomes::add_dropped_file(&path, at, &mut outcome_ctx!());
+        }
+
+        // Files dropped on the surface (E.3). Each drop carries the
+        // surface-local point it landed on; `primary_origin` turns that
+        // into the global space the scene uses. Same as the winit path,
+        // through the same code: a Shimeji pack folder goes to the
+        // importer, anything else is validated, added, selected, toasted
+        // and marked for saving.
+        for dropped in layer.drain_dropped_files() {
+            let at = (
+                dropped.at.0 + primary_origin.0,
+                dropped.at.1 + primary_origin.1,
+            );
+            let mut added = false;
+            for path in &dropped.paths {
+                if outcomes::is_shimeji_pack(path) {
+                    if pending_shimeji.is_none() {
+                        pending_shimeji =
+                            ShimejiImport::start(path, library_root.as_deref(), at, &mut toasts);
+                    }
+                } else if outcomes::add_dropped_file(path, at, &mut outcome_ctx!()).is_some() {
+                    added = true;
+                }
+            }
+            // As on winit, a drop opens edit mode so the new character can
+            // be moved into place straight away. It matters more here: in
+            // pass-through the overlay only takes input — drops included —
+            // on the ⚙ corner, so that is where a drop lands.
+            if added && !layer.state.edit_mode {
+                flip_edit_mode(
+                    &mut layer,
+                    &monitors_now,
+                    &mut config,
+                    &scene,
+                    &mut config_dirty,
+                    &mut config_watch,
+                    "Wayland, file drop",
+                );
+            }
         }
 
         // Drain any D-Bus actions arriving from compositor bindings
@@ -464,7 +499,7 @@ pub fn run_native(
                 // recognise.
                 let region = region_for_state(
                     overlay_hidden,
-                    layer.state.edit_mode,
+                    layer.state.edit_mode || drag_widened,
                     renderer.primary.window_width,
                     renderer.primary.window_height,
                     toggle_button_units(&monitors_now),
@@ -1237,6 +1272,22 @@ fn region_for_state(
     }
 }
 
+/// Whether a drag should widen the input region to the whole surface.
+///
+/// In pass-through the overlay takes input — drops included — only on the
+/// ⚙ corner, because the compositor offers a drop only to a surface whose
+/// input region is under the pointer. So a file could be dropped there and
+/// nowhere else, and landed under the button. Once a drag reaches the
+/// corner, the whole surface becomes the target for the rest of that drag:
+/// drop it where the character should be. The region goes back when the
+/// drag ends, dropped or not.
+///
+/// In edit mode the region is already the whole surface, and a hidden
+/// overlay takes no input at all, so neither needs it.
+fn drag_region(hidden: bool, edit_mode: bool, drag_over: bool) -> bool {
+    drag_over && !edit_mode && !hidden
+}
+
 /// Dispatch Wayland events, waiting at most `timeout` for the socket.
 ///
 /// This replaces `EventQueue::blocking_dispatch`, which waits for a
@@ -1612,6 +1663,15 @@ mod tests {
     /// The resize path used to re-apply the pass-through corner
     /// unconditionally, so resizing in edit mode reverted the surface to
     /// click-through and resizing while hidden made it clickable again.
+    /// A drag in pass-through widens the region; nothing else does.
+    #[test]
+    fn only_a_pass_through_drag_widens_the_region() {
+        assert!(drag_region(false, false, true));
+        assert!(!drag_region(false, false, false), "no drag, no widening");
+        assert!(!drag_region(false, true, true), "edit mode is already full");
+        assert!(!drag_region(true, false, true), "hidden takes no input");
+    }
+
     #[test]
     fn region_follows_hidden_and_edit_state() {
         // Hidden wins over everything: no region at all.

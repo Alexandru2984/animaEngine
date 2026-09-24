@@ -5,12 +5,19 @@
 //! 1. `DataDeviceHandler::enter` — compositor advertises the drag entry;
 //!    we accept the `text/uri-list` mime type and set `DndAction::Copy`
 //!    as our preferred action.
-//! 2. `motion` — cache the latest surface-local position so the drop
-//!    coordinate matches what the user sees.
-//! 3. `drop_performed` — pull the receive-pipe out of the drag offer,
-//!    hand it off to a worker thread that reads + parses, and pushes
-//!    the resulting `Vec<PathBuf>` back over `drop_tx`. The main loop
-//!    drains `drop_rx` each frame.
+//! 2. `drop_performed` — take the drop point and the receive-pipe from
+//!    the drag offer, and hand both to a worker thread that reads and
+//!    parses the list, sends [`DroppedFiles`] back over `drop_tx`, and
+//!    finishes the offer. The main loop drains `drop_rx` each frame.
+//!
+//! The drop point travels *with* the paths. It used to be read from a
+//! "last drag position" the main loop looked up when the paths arrived —
+//! by which time the `leave` that follows every drop had cleared it, so
+//! each drop landed at the fallback, the middle of the screen.
+//!
+//! `finish` matters as much as the read: under `wl_data_offer` v3 the
+//! source only learns the drop succeeded through it. Without it the
+//! source never receives `dnd_finished`.
 //!
 //! F.2 (0.5.1) hardening:
 //!
@@ -36,6 +43,7 @@ use smithay_client_toolkit::data_device_manager::{
     WritePipe,
 };
 use std::io::Read;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use wayland_client::{
@@ -74,17 +82,24 @@ impl Drop for DropCounterGuard {
     }
 }
 
+/// One drop: the files, and the surface-local point they were dropped at.
+#[derive(Debug)]
+pub struct DroppedFiles {
+    pub paths: Vec<PathBuf>,
+    pub at: (f32, f32),
+}
+
 impl DataDeviceHandler for WaylandState {
     fn enter(
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
         _data_device: &wayland_client::protocol::wl_data_device::WlDataDevice,
-        x: f64,
-        y: f64,
+        _x: f64,
+        _y: f64,
         _surface: &wl_surface::WlSurface,
     ) {
-        self.last_drag_pos = Some((x as f32, y as f32));
+        self.drag_over = true;
         let Some(device) = self.data_device.as_ref() else {
             return;
         };
@@ -98,15 +113,16 @@ impl DataDeviceHandler for WaylandState {
         offer.accept_mime_type(offer.serial, Some(URI_LIST_MIME.to_string()));
     }
 
+    // The toolkit records the position on the offer itself, which is where
+    // `drop_performed` reads it from.
     fn motion(
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
         _data_device: &wayland_client::protocol::wl_data_device::WlDataDevice,
-        x: f64,
-        y: f64,
+        _x: f64,
+        _y: f64,
     ) {
-        self.last_drag_pos = Some((x as f32, y as f32));
     }
 
     fn leave(
@@ -115,7 +131,7 @@ impl DataDeviceHandler for WaylandState {
         _qh: &QueueHandle<Self>,
         _data_device: &wayland_client::protocol::wl_data_device::WlDataDevice,
     ) {
-        self.last_drag_pos = None;
+        self.drag_over = false;
     }
 
     fn selection(
@@ -134,6 +150,8 @@ impl DataDeviceHandler for WaylandState {
         _qh: &QueueHandle<Self>,
         _data_device: &wayland_client::protocol::wl_data_device::WlDataDevice,
     ) {
+        // The drag is over whether or not the read below works.
+        self.drag_over = false;
         let Some(device) = self.data_device.as_ref() else {
             return;
         };
@@ -160,6 +178,7 @@ impl DataDeviceHandler for WaylandState {
                 return;
             }
         };
+        let at = (offer.x as f32, offer.y as f32);
         let tx = self.drop_tx.clone();
         let guard = DropCounterGuard {
             counter: self.active_drop_workers.clone(),
@@ -177,7 +196,13 @@ impl DataDeviceHandler for WaylandState {
                 // drag (hundreds of paths fit comfortably).
                 let mut capped = pipe.take(MAX_URI_LIST_BYTES);
                 let mut buf = Vec::with_capacity(512);
-                if let Err(e) = capped.read_to_end(&mut buf) {
+                let read = capped.read_to_end(&mut buf);
+                // Tell the source it is over either way; wayland-client
+                // proxies may be used from any thread, and the main loop
+                // flushes the requests on its next pass.
+                offer.finish();
+                offer.destroy();
+                if let Err(e) = read {
                     tracing::warn!("Drop: read pipe failed: {e}");
                     return;
                 }
@@ -186,7 +211,7 @@ impl DataDeviceHandler for WaylandState {
                     // `try_send` so a stuck consumer (main loop) can't
                     // make us block here; bounded channel = bounded
                     // memory.
-                    if let Err(e) = tx.try_send(paths) {
+                    if let Err(e) = tx.try_send(DroppedFiles { paths, at }) {
                         tracing::warn!("Drop: result queue full, dropping batch: {e}");
                     }
                 }

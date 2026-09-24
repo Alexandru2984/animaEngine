@@ -18,6 +18,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Dropping a file on the native Wayland overlay never worked.** The
+  overlay never asked the compositor for the object that delivers drag
+  events, so no drop reached it; the feature matrix called it stable. It
+  works now, and lands where you release it. In pass-through, drag over
+  the ⚙ corner first: from there the whole screen accepts the drop for
+  the rest of that drag. A successful drop opens edit mode, as on X11,
+  and the file manager is told the drop completed.
 - **Applying a preset on native Wayland kept a stale selection.** With
   *Replace*, the scene is rebuilt from the preset but the selection still
   pointed at the old index — so the Inspector showed, and `Delete` would
@@ -32,11 +39,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   edit simply never took.
 - **Hot-reload messages were English in every language,** on both
   backends. A test now fails if any toast is built from untranslated text.
-- **A file dropped on native Wayland was not marked for saving.** The
-  character appeared, but the scene was never flagged as changed, so it
-  was written to disk only if something else was edited before quitting.
-  The drop also gave no confirmation or error and did not select the new
-  character; it now does all of this, the same way as on X11.
+- **A file dropped on native Wayland would not have been saved.** That
+  code never marked the scene as changed, gave no confirmation and did
+  not select the new character — moot until now, since no drop reached
+  it (above), but fixed along with it: drops go through the same code as
+  on X11.
 - **Shimeji import on native Wayland froze the overlay** while it copied
   the pack's sprites, and put every character at the same fixed corner.
   It now runs off the UI thread as on X11, and a pack folder can be

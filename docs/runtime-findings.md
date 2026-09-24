@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R41 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R42 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1587,8 +1587,64 @@ survived: toasts are the one UI surface assembled in plain Rust.
 
 Verified on the rig: keyboard duplicate and delete on both backends, the
 X11 context menu, hot-reload on both, and a real XDND drop on X11 that
-added, selected and saved the file. **Unverified:** the Wayland drop
-itself. The rig has a virtual pointer, keyboard and an X11 drag source,
-but no Wayland one, so that path is covered by the shared unit tests
-(`a_dropped_image_is_added_selected_and_marked_dirty`) and not by a drop.
-A wl_data_device source for the rig would close it.
+added, selected and saved the file. The Wayland drop was left
+unverified, because the rig had no Wayland drag source — and building one
+(R42) showed the fix above could never have mattered: the native overlay
+had never received a drop at all.
+
+### R42 · Native Wayland never received a single file drop — `FIXED`
+
+The README's feature matrix called drag-and-drop **stable** on the
+native Wayland backend. It had never worked, not once, since it was
+written in phase E.3.
+
+Found by closing the last "unverified" in R41: the rig gained `wldnd`, a
+Wayland drag source (a surface that starts a drag on the first press,
+serves `text/uri-list`, and prints what the target did), alongside
+`xdnd` for X11. Every drag onto the overlay ended `cancelled`. A protocol
+trace of the app showed why: it bound `wl_data_device_manager` and never
+called `get_data_device`. Without a data device a Wayland client gets no
+drag events of any kind.
+
+The data device was created in `SeatHandler::new_seat`, and
+smithay-client-toolkit calls that only for a seat that appears *after*
+startup. The seat that exists at startup — in practice the only one — is
+bound without it. The overlay's pointer and keyboard work because they
+are made in `new_capability`, which fires for every seat; the data device
+now is too. Nothing in the tests could see this: it is one missing
+request on a live connection.
+
+With drops arriving, three more defects surfaced, each hidden behind the
+first:
+
+- **Every drop landed in the middle of the screen.** The position was
+  read from a "last drag position" that the `leave` following each drop
+  had already cleared by the time the main loop saw the files. It now
+  travels with the files, taken from the offer at drop time.
+- **The source never heard the drop succeed.** Under `wl_data_offer` v3
+  the target must call `finish`; the overlay never did, so the source got
+  no `dnd_finished`. It now finishes and destroys the offer after
+  reading.
+- **In pass-through, a drop could only land on the ⚙ corner.** A
+  compositor offers a drop only to a surface whose input region is under
+  the pointer, and in pass-through that region is the corner. So the one
+  place a file could be dropped put the character under the button.
+  Now a drag that reaches the corner widens the region to the whole
+  surface until it ends, so the file can be dropped where it should go,
+  and the region goes back afterwards whether the drop succeeded or not.
+  A successful drop also opens edit mode, as it does on X11.
+
+Verified on the rig with `wldnd`, one case each:
+
+| case | result |
+|---|---|
+| pass-through, dropped on the ⚙ corner | added at the corner, edit mode on, source `finished` |
+| pass-through, dropped elsewhere without touching the corner | reaches the window beneath, as it should |
+| pass-through, over the corner then dropped at (900, 600) | added at (900, 600) |
+| edit mode, dropped at (720, 300) | added at (720, 300) |
+| a `.txt` over the corner | rejected; a click afterwards passes through to the window beneath, so the region was restored |
+
+Drops on a per-monitor *extra* surface are still placed as if on the
+primary one, the same limit every other pointer event on this backend
+has.
+

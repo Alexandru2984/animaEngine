@@ -170,13 +170,14 @@ impl SeatHandler for WaylandState {
         &mut self.seat_state
     }
 
-    fn new_seat(&mut self, _conn: &Connection, qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
-        // One DataDevice per seat; overlay is single-seat in practice so
-        // we keep just the first. The handle stays alive for the seat's
-        // lifetime — drop happens in `remove_seat`.
-        if self.data_device.is_none() {
-            self.data_device = Some(self.data_device_manager.get_data_device(qh, &seat));
-        }
+    fn new_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {
+        // Nothing to do here, and this is not where the data device is
+        // made. smithay-client-toolkit calls `new_seat` only for a seat
+        // that appears *after* startup; the seat that already exists — in
+        // practice the only one — is bound without it. The data device
+        // used to be created here, so it never existed, and a file dropped
+        // on the native Wayland overlay was never even offered to it.
+        // `new_capability` runs for every seat, so it is made there.
     }
 
     fn new_capability(
@@ -186,6 +187,11 @@ impl SeatHandler for WaylandState {
         seat: wl_seat::WlSeat,
         capability: Capability,
     ) {
+        // One data device, for the first seat that shows up; the overlay is
+        // single-seat in practice. It lives for the seat's lifetime.
+        if self.data_device.is_none() {
+            self.data_device = Some(self.data_device_manager.get_data_device(qh, &seat));
+        }
         if capability == Capability::Pointer && self.pointer.is_none() {
             match self
                 .seat_state

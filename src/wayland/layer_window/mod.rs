@@ -50,7 +50,6 @@ use smithay_client_toolkit::{
         WaylandSurface,
     },
 };
-use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -125,7 +124,7 @@ impl LayerWindow {
         // without bound between two frames of the event loop. F.2
         // (0.5.1) hardening.
         let (drop_tx, drop_rx) =
-            mpsc::sync_channel::<Vec<PathBuf>>(drag_drop::DROP_RESULT_QUEUE_CAP);
+            mpsc::sync_channel::<drag_drop::DroppedFiles>(drag_drop::DROP_RESULT_QUEUE_CAP);
         let output_state = OutputState::new(&globals, &qh);
         let seat_state = SeatState::new(&globals, &qh);
         let data_device_manager = DataDeviceManagerState::bind(&globals, &qh).map_err(|e| {
@@ -191,7 +190,7 @@ impl LayerWindow {
             edit_mode: false,
             data_device_manager,
             data_device: None,
-            last_drag_pos: None,
+            drag_over: false,
             drop_tx,
             drop_rx,
             active_drop_workers: Arc::new(AtomicUsize::new(0)),
@@ -332,23 +331,14 @@ impl LayerWindow {
         crate::wayland::keyboard::modifiers_to_egui(self.state.last_modifiers)
     }
 
-    /// Drain any file paths the drag-drop worker thread parsed since
-    /// the last call (E.3). Each call returns ownership of the paths
-    /// alongside the last drag position, so the caller can spawn
-    /// entities at the cursor's landing coordinate.
-    pub fn drain_dropped_files(&mut self) -> Vec<PathBuf> {
+    /// Drain the drops the drag-drop worker thread parsed since the last
+    /// call (E.3), each with the surface-local point it landed on.
+    pub fn drain_dropped_files(&mut self) -> Vec<drag_drop::DroppedFiles> {
         let mut out = Vec::new();
         while let Ok(batch) = self.state.drop_rx.try_recv() {
-            out.extend(batch);
+            out.push(batch);
         }
         out
-    }
-
-    /// Last surface-local position the drag cursor reported. Returns
-    /// `None` once the drag leaves or completes; call this right after
-    /// `drain_dropped_files` to anchor newly-spawned entities.
-    pub fn last_drag_pos(&self) -> Option<(f32, f32)> {
-        self.state.last_drag_pos
     }
 
     /// Snapshot every `wl_output` the compositor has advertised so far

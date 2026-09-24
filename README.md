@@ -201,7 +201,7 @@ flag needed there.
 |---------|-------------------------|------------------------------|
 | Click-through overlay | stable | stable (wlroots) |
 | Tray icon | stable | stable |
-| Drag-and-drop assets | stable | stable |
+| Drag-and-drop assets | stable | stable (in pass-through, drag over the ⚙ corner first) |
 | Keyboard input | stable (winit) | stable (sctk + xkbcommon) |
 | egui settings panel | stable | stable |
 | Multi-monitor distribution | stable | stable |
