@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R40 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R41 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1560,3 +1560,35 @@ the wrong caption. R39 localised the modifier names; key names would need
 the layout at render time, a larger change. One default is affected: the
 perf overlay reads `` Ctrl+Shift+` `` on keyboards where that key says
 `^` (German) or `²` (French).
+
+### R41 · What the two backends' copies disagreed on — `FIXED` (one part unverified)
+
+Not found on screen, unlike everything above: found by *reading*, while
+folding the handlers each backend kept its own copy of into shared
+modules (`src/outcomes.rs`, `src/config_watch.rs`). Recorded here because
+it is the same class of defect as R19, R27, R28, R30 and R37 — a fix
+that reached one copy — and because the count is the argument for having
+done it:
+
+| where | winit | native Wayland |
+|---|---|---|
+| preset applied with *Replace* | clears the selection | kept an index into the rebuilt scene, so `Delete` could remove a character nobody selected |
+| "preset loaded" toast | hard-coded English | translated |
+| `D` (duplicate) | no toast | toast |
+| hot-reload worker dies | banner | a log line only |
+| hot-reload toasts | English | English |
+| dropped file | added, selected, toasted, saved | added only — **never marked dirty**, so not saved unless something else was edited |
+| dropped Shimeji pack folder | imported off-thread | refused |
+| pasted Shimeji pack path | imported off-thread | imported on the UI thread (the freeze winit had fixed), all at (100, 100) |
+
+All eight now run from one copy. A new test fails if any toast is built
+from a literal or `format!`, which is how the four English toasts
+survived: toasts are the one UI surface assembled in plain Rust.
+
+Verified on the rig: keyboard duplicate and delete on both backends, the
+X11 context menu, hot-reload on both, and a real XDND drop on X11 that
+added, selected and saved the file. **Unverified:** the Wayland drop
+itself. The rig has a virtual pointer, keyboard and an X11 drag source,
+but no Wayland one, so that path is covered by the shared unit tests
+(`a_dropped_image_is_added_selected_and_marked_dirty`) and not by a drop.
+A wl_data_device source for the rig would close it.
