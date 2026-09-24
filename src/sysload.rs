@@ -47,6 +47,8 @@ struct CpuTimes {
 #[derive(Debug, Default)]
 pub struct SystemLoad {
     last_sampled: Option<Instant>,
+    // Read only by the Linux sampler.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     previous: Option<CpuTimes>,
     cpu: f32,
     mem: f32,
@@ -112,6 +114,9 @@ impl SystemLoad {
 /// Fields are cumulative jiffies: user, nice, system, idle, iowait, irq,
 /// softirq, steal, … `iowait` counts as idle — a machine waiting on disk
 /// is not one a mascot should react to as busy.
+// Pure, so the tests run it on every platform; only Linux has a `/proc`
+// to feed it at runtime.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn parse_cpu_times(stat: &str) -> Option<CpuTimes> {
     let line = stat.lines().find(|l| l.starts_with("cpu "))?;
     let values: Vec<u64> = line
@@ -135,6 +140,9 @@ fn parse_cpu_times(stat: &str) -> Option<CpuTimes> {
 ///
 /// Returns `None` when the window is empty or the counters moved
 /// backwards, which happens across a suspend/resume.
+// Pure, so the tests run it on every platform; only Linux has a `/proc`
+// to feed it at runtime.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn cpu_usage(prev: CpuTimes, current: CpuTimes) -> Option<f32> {
     let total = current.total.checked_sub(prev.total)?;
     let idle = current.idle.checked_sub(prev.idle)?;
@@ -149,6 +157,9 @@ fn cpu_usage(prev: CpuTimes, current: CpuTimes) -> Option<f32> {
 /// `MemAvailable` rather than `MemFree`: free memory excludes reclaimable
 /// cache, so a healthy machine looks 95% full and every script would think
 /// it is under pressure.
+// Pure, so the tests run it on every platform; only Linux has a `/proc`
+// to feed it at runtime.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn mem_usage(meminfo: &str) -> Option<f32> {
     let field = |name: &str| -> Option<u64> {
         meminfo
