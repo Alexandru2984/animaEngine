@@ -28,3 +28,43 @@ pub enum AnimaEvent {
     /// knows why the system shortcut dialog had no effect.
     PortalShortcutsDenied,
 }
+
+/// Where a background thread — the tray, the D-Bus service — sends its
+/// events: the winit loop's proxy, or the native Wayland loop's channel.
+///
+/// The tray used to take a winit proxy only, so the native Wayland path,
+/// which has no winit event loop, never started one (the README listed it
+/// as supported there all the same).
+#[derive(Clone)]
+pub enum EventSink {
+    Winit(winit::event_loop::EventLoopProxy<AnimaEvent>),
+    Channel(std::sync::mpsc::SyncSender<AnimaEvent>),
+}
+
+impl EventSink {
+    /// Deliver `event`. `false` if the receiving loop is gone, or — for the
+    /// bounded channel — momentarily full: a background thread must never
+    /// block on the UI, and a dropped click is better than a stalled tray.
+    pub fn send(&self, event: AnimaEvent) -> bool {
+        match self {
+            Self::Winit(proxy) => proxy.send_event(event).is_ok(),
+            Self::Channel(tx) => tx.try_send(event).is_ok(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_channel_sink_delivers_and_never_blocks() {
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        let sink = EventSink::Channel(tx);
+        assert!(sink.send(AnimaEvent::Quit));
+        assert!(!sink.send(AnimaEvent::Quit), "full: refused, not blocked");
+        assert!(matches!(rx.try_recv(), Ok(AnimaEvent::Quit)));
+        drop(rx);
+        assert!(!sink.send(AnimaEvent::Quit), "receiver gone");
+    }
+}

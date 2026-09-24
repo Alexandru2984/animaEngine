@@ -79,11 +79,12 @@ use wayland_client::EventQueue;
 /// globals, wgpu surface creation refused, …). The caller falls back to
 /// the X11 path on error. A successful return means the user closed
 /// the layer surface (or the compositor disconnected).
-#[tracing::instrument(skip(scene, config, dbus_rx, portal_rx))]
+#[tracing::instrument(skip(scene, config, command_rx, portal_rx))]
 pub fn run_native(
     mut scene: Scene,
     mut config: AppConfig,
-    dbus_rx: Option<mpsc::Receiver<AnimaEvent>>,
+    // Outside commands: the D-Bus activation service and the tray both send here.
+    command_rx: Option<mpsc::Receiver<AnimaEvent>>,
     portal_rx: Option<mpsc::Receiver<crate::hotkeys::portal::PortalMsg>>,
 ) -> Result<()> {
     // Tracks the parity of portal HideOverlay toggles — the portal
@@ -417,7 +418,7 @@ pub fn run_native(
             let mut toggle_playback_xor = false;
             let mut last_visibility: Option<AnimaEvent> = None;
             let mut quit = false;
-            if let Some(rx) = &dbus_rx {
+            if let Some(rx) = &command_rx {
                 while let Ok(ev) = rx.try_recv() {
                     match ev {
                         AnimaEvent::ToggleEditMode => toggle_edit_xor ^= true,
@@ -471,10 +472,19 @@ pub fn run_native(
                 }
             }
             if toggle_edit_xor {
-                let new_mode = !layer.state.edit_mode;
-                if let Err(e) = layer.set_edit_mode(new_mode, toggle_button_units(&monitors_now)) {
-                    tracing::warn!("dbus toggle: {e}");
-                }
+                // Through `flip_edit_mode`, like the keyboard and the ⚙
+                // button. This path used to set the mode directly, so
+                // leaving edit mode from the tray, a D-Bus call or a portal
+                // shortcut skipped the save — R30 on a third entry point.
+                flip_edit_mode(
+                    &mut layer,
+                    &monitors_now,
+                    &mut config,
+                    &scene,
+                    &mut config_dirty,
+                    &mut config_watch,
+                    "Wayland, tray / D-Bus / portal",
+                );
             }
             if toggle_playback_xor {
                 scene.toggle_global_playback();
@@ -1492,7 +1502,8 @@ fn rebuild_extra_surfaces(
 
 /// Flip edit mode, persisting on the way out.
 ///
-/// Both the keyboard shortcut and the ⚙ button come through here. The
+/// Every way in comes through here — the keyboard shortcut, the ⚙ button,
+/// a file drop, and the tray / D-Bus / portal channel. The
 /// save used to live in the button's handler alone, so leaving edit mode
 /// with the keyboard kept every change in memory only — rebind a
 /// shortcut, press Escape, and the binding was gone (R30). The winit path

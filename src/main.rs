@@ -179,12 +179,16 @@ fn main() {
     {
         if native_wayland_active {
             tracing::info!("ANIMA_USE_WAYLAND_NATIVE=1 set — trying native layer-shell path");
-            // Wire the D-Bus activation service for the Wayland path so
-            // compositor bindings (sway/Hyprland) can dispatch the same
-            // actions the X11 path's global hotkeys produce.
-            let dbus_rx = instance
-                .take()
-                .map(single_instance::install_wayland_service);
+            // One channel into the native loop, fed by the D-Bus activation
+            // service (so compositor bindings on sway/Hyprland can dispatch
+            // the same actions the X11 path's global hotkeys produce) and by
+            // the tray, which this path never used to start.
+            let (event_tx, event_rx) = single_instance::wayland_event_channel();
+            if let Some(conn) = instance.take() {
+                single_instance::install_wayland_service(conn, event_tx.clone());
+            }
+            let _tray_thread = tray::spawn(anima_engine::event::EventSink::Channel(event_tx));
+            let command_rx = Some(event_rx);
             // T.2: the portal is the only global-hotkey mechanism that
             // exists on the native path — XGrabKey has no X server here.
             let portal_strategy = hotkeys::probe::resolve(
@@ -199,7 +203,7 @@ fn main() {
                 }
                 _ => None,
             };
-            match wayland::run_native(scene, config.clone(), dbus_rx, portal_rx) {
+            match wayland::run_native(scene, config.clone(), command_rx, portal_rx) {
                 Ok(()) => {
                     tracing::info!("Native Wayland session ended cleanly.");
                     return;
@@ -272,7 +276,9 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     // the process.
     #[cfg(unix)]
     {
-        let _tray_thread = tray::spawn(event_loop.create_proxy());
+        let _tray_thread = tray::spawn(anima_engine::event::EventSink::Winit(
+            event_loop.create_proxy(),
+        ));
     }
     // Held to the end of this function: dropping it removes the icon,
     // which Windows would otherwise leave behind as a dead entry.

@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R42 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R43 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1647,4 +1647,33 @@ Verified on the rig with `wldnd`, one case each:
 Drops on a per-monitor *extra* surface are still placed as if on the
 primary one, the same limit every other pointer event on this backend
 has.
+
+### R43 · No tray on native Wayland, and R30 on a third entry point — `FIXED`
+
+Found while verifying the tray-menu refactor. The rig has no panel, so it
+gained `snihost.py`: a stub `StatusNotifierWatcher` on the rig's private
+bus that lets the app's tray register, after which the published menu can
+be read and clicked over D-Bus with `gdbus` (`GetLayout`, `Event`,
+`Activate`).
+
+**The native Wayland backend never started a tray.** `tray::spawn` took a
+winit `EventLoopProxy`, and only the winit path had one; the README's
+feature matrix listed the tray as stable on both. The tray now sends
+through an `EventSink` — winit's proxy, or a channel — and on the native
+path it shares one channel with the D-Bus activation service, which the
+native loop already reads and whose events are exactly the tray menu's.
+
+**Leaving edit mode from that channel did not save.** A toggle arriving
+through it — from the tray, a D-Bus call or a portal shortcut — set the
+mode directly instead of going through `flip_edit_mode`, which is where
+the save on the way out lives. That is R30 again: the keyboard and the ⚙
+button were fixed, a third way in was not. It now goes through the same
+function.
+
+Verified on the rig, both backends: the menu reads back exactly as
+`tray_menu::MENU` defines it; "Toggle edit mode" from the menu and
+activating the icon both toggle; on native Wayland, a character nudged in
+edit mode was on disk the moment the tray left edit mode (x 200 → 272);
+and Quit from the tray exits. What the rig cannot show is a real panel
+drawing the icon.
 

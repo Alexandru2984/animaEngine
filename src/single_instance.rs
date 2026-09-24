@@ -275,8 +275,8 @@ const DBUS_QUEUE_CAP: usize = 64;
 /// reachable for `gdbus call` invocations from compositor bindings.
 pub fn install_wayland_service(
     connection: zbus::Connection,
-) -> std::sync::mpsc::Receiver<AnimaEvent> {
-    let (tx, rx) = std::sync::mpsc::sync_channel::<AnimaEvent>(DBUS_QUEUE_CAP);
+    tx: std::sync::mpsc::SyncSender<AnimaEvent>,
+) {
     // Spawn failure (e.g. RLIMIT_NPROC exhaustion — the same condition
     // F.2's thread-spawn hardening elsewhere in the codebase guards
     // against) degrades to "no D-Bus activation service" instead of
@@ -300,7 +300,16 @@ pub fn install_wayland_service(
     {
         tracing::warn!("Failed to spawn Wayland activation service thread: {e}");
     }
-    rx
+}
+
+/// The channel the native Wayland loop reads its outside commands from —
+/// the D-Bus activation service and the tray both send into it. Bounded
+/// (F.3): a caller spamming methods cannot grow memory between frames.
+pub fn wayland_event_channel() -> (
+    std::sync::mpsc::SyncSender<AnimaEvent>,
+    std::sync::mpsc::Receiver<AnimaEvent>,
+) {
+    std::sync::mpsc::sync_channel(DBUS_QUEUE_CAP)
 }
 
 /// Mount the `Activate` method onto the connection and keep it alive on a

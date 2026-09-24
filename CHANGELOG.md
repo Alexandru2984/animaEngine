@@ -18,6 +18,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The native Wayland backend had no tray icon.** The tray was only ever
+  started on the X11 path, although the feature matrix listed it for
+  both. It now appears on native Wayland too, with the same menu.
+- **Leaving edit mode from the tray, a D-Bus call or a global shortcut
+  did not save** on native Wayland. The ⚙ button and the keyboard save
+  on the way out (fixed in 1.2); this third route set the mode without
+  saving, so changes stayed in memory until something else wrote them.
 - **Dropping a file on the native Wayland overlay never worked.** The
   overlay never asked the compositor for the object that delivers drag
   events, so no drop reached it; the feature matrix called it stable. It
