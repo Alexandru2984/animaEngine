@@ -140,6 +140,13 @@ keybindings-reset-all = Resetează tot la implicit
 keybindings-reset-one = Resetează la implicit
 keybindings-remove-chord = Elimină această combinație
 keybindings-help = Scurtăturile personalizate se salvează în config.toml
+# Modifier names as this language's keyboards print them. Display only:
+# config.toml always stores the English names. Kept in English unless
+# the convention is certain; see R39 in docs/runtime-findings.md.
+key-mod-ctrl = Ctrl
+key-mod-shift = Shift
+key-mod-alt = Alt
+key-mod-super = Super
 
 # ── Etichete acțiuni (D.1.7) ──────────────────────────────────────────
 action-toggle-edit-mode = Comută modul editare

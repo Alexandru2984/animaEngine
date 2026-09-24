@@ -26,7 +26,7 @@ pub mod shared;
 
 pub use action::Action;
 pub use bindings::KeyBindings;
-pub use chord::{ChordParseError, KeyChord};
+pub use chord::{ChordParseError, KeyChord, ModifierNames};
 pub use keys::{KeyCode, ModifierMask, NamedKey, SymbolKey};
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -340,6 +340,33 @@ mod tests {
             );
         }
     }
+    // ── localized modifier names (R39) ───────────────────────────────
+
+    fn german() -> ModifierNames {
+        ModifierNames {
+            ctrl: "Strg".into(),
+            ..ModifierNames::CANONICAL
+        }
+    }
+
+    /// The display follows the language; the config file never does.
+    #[test]
+    fn german_display_says_strg_but_the_config_says_ctrl() {
+        let chord: KeyChord = "Ctrl+Shift+A".parse().unwrap();
+        assert_eq!(chord.display_str(&german()), "Strg+Shift+A");
+        assert_eq!(chord.canonical_str(), "Ctrl+Shift+A");
+        assert_eq!(chord.display_str(&ModifierNames::CANONICAL), "Ctrl+Shift+A");
+    }
+
+    /// Someone who reads `Strg+K` in the UI may type it into config.toml.
+    /// It is accepted, and written back in the one canonical form.
+    #[test]
+    fn strg_parses_as_ctrl_and_is_written_back_as_ctrl() {
+        let chord: KeyChord = "Strg+K".parse().unwrap();
+        assert_eq!(chord, "Ctrl+K".parse().unwrap());
+        assert_eq!(chord.canonical_str(), "Ctrl+K");
+    }
+
     // ── egui → chord (R26) ───────────────────────────────────────────
 
     /// Off macOS, egui sets `command` to the same value as `ctrl`. It must

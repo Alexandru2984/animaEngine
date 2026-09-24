@@ -93,13 +93,13 @@ onboarding-quick-toggles = Tipp: V schaltet die Sichtbarkeit um, G die Schwerkra
 onboarding-theme = Themes greifen sofort — kein Neustart nötig.
 onboarding-coach-step1 = Willkommen! Ihre Figuren leben auf dem Desktop. Klicken Sie auf das Zahnrad oben rechts, um den Bearbeitungsmodus zu öffnen.
 onboarding-coach-step2 = Ziehen Sie ein PNG, GIF, WebP oder MP4 irgendwo auf den Bildschirm, um es als Figur hinzuzufügen. Das Seitenpanel bearbeitet alles, was Sie auswählen.
-onboarding-coach-step3 = Ctrl+K öffnet die Befehlspalette. Ctrl+Shift+A schaltet den Bearbeitungsmodus von überall um, Ctrl+Shift+H blendet das Overlay aus.
+onboarding-coach-step3 = Strg+K öffnet die Befehlspalette. Strg+Shift+A schaltet den Bearbeitungsmodus von überall um, Strg+Shift+H blendet das Overlay aus.
 onboarding-coach-next = Weiter
 onboarding-coach-skip = Tour überspringen
 onboarding-coach-done = Verstanden
 palette-replace-row = Szene ersetzen durch: { $preset }
 palette-append-row = Preset anhängen: { $preset }
-palette-footer-hint = Esc schließt · Ctrl+K schaltet um · ↑↓ + Enter wählt
+palette-footer-hint = Esc schließt · Strg+K schaltet um · ↑↓ + Enter wählt
 onboarding-dismiss = Schließen
 
 menu-duplicate = Duplizieren
@@ -140,6 +140,13 @@ keybindings-reset-all = Alle auf Standard zurücksetzen
 keybindings-reset-one = Auf Standard zurücksetzen
 keybindings-remove-chord = Diese Zuweisung entfernen
 keybindings-help = Eigene Kurzbefehle werden in config.toml gespeichert
+# Modifier names as this language's keyboards print them. Display only:
+# config.toml always stores the English names. Kept in English unless
+# the convention is certain; see R39 in docs/runtime-findings.md.
+key-mod-ctrl = Strg
+key-mod-shift = Shift
+key-mod-alt = Alt
+key-mod-super = Super
 
 # ── Action labels (D.1.7) — placeholder pending D.4 native-speaker audit
 action-toggle-edit-mode = Bearbeitungsmodus umschalten
@@ -189,9 +196,9 @@ whats-new-header = Neu in 1.1
 whats-new-poke = Stups deine Maskottchen an — ein kurzes Tippen im Bearbeitungsmodus lässt sie reagieren.
 whats-new-startle = Maskottchen weichen jetzt zurück, wenn der Cursor näher kommt. Abschaltbar unter Darstellung.
 whats-new-wayland-drag = Natives Wayland unterstützt endlich Auswählen per Klick und das Ziehen deiner Figuren.
-whats-new-shortcuts = Ctrl+K öffnet wieder die Befehlspalette, und Textfelder können wieder Ctrl+A/C/V.
+whats-new-shortcuts = Strg+K öffnet wieder die Befehlspalette, und Textfelder können wieder Strg+A/C/V.
 onboarding-keybindings = Klicken Sie auf ein Kürzel, um es zu entfernen; drücken Sie eine Kombination, um ein neues aufzunehmen.
-onboarding-perf-overlay = Ctrl+Shift+` öffnet das Live-Performance-Overlay.
+onboarding-perf-overlay = Strg+Shift+` öffnet das Live-Performance-Overlay.
 appearance-reset-onboarding = Einführungshinweise zurücksetzen
 
 scene-empty-action-browse-presets = Presets durchstöbern

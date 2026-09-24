@@ -140,6 +140,13 @@ keybindings-reset-all = Przywróć wszystkie wartości domyślne
 keybindings-reset-one = Przywróć domyślne
 keybindings-remove-chord = Usuń ten skrót
 keybindings-help = Własne skróty są zapisywane w config.toml
+# Modifier names as this language's keyboards print them. Display only:
+# config.toml always stores the English names. Kept in English unless
+# the convention is certain; see R39 in docs/runtime-findings.md.
+key-mod-ctrl = Ctrl
+key-mod-shift = Shift
+key-mod-alt = Alt
+key-mod-super = Super
 
 # ── Action labels (D.1.7) — placeholder pending D.4 native-speaker audit
 action-toggle-edit-mode = Przełącz tryb edycji

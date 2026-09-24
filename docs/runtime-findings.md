@@ -1437,7 +1437,7 @@ itself, which is the distinction R24 deliberately kept in Romanian.
 Polish uses a single term throughout. German was the outlier with four
 competing words, and the two that mattered are the ones fixed above.
 
-### R39 · One shortcut, two names, in one language — `FIXED` (with a question left open)
+### R39 · One shortcut, two names, in one language — `FIXED`
 
 Following R38's method — test the *relationships* between strings, not
 their wording — to the next kind of cross-reference: prose that spells a
@@ -1471,6 +1471,30 @@ quietly lie in languages nobody here reads. Confirmed by re-pointing the
 command palette at `Ctrl+J`: it named every locale still saying `Ctrl+K`.
 `Ctrl+A/C/V` is skipped on purpose — that is egui's own text editing, not
 one of our bindings.
+
+**The open question, answered: the display is localised now.** The
+maintainer's plan for 1.2 took the honest fix. Modifier names come from
+four Fluent messages (`key-mod-ctrl`, `-shift`, `-alt`, `-super`) and go
+into `KeyChord::display_str`, which now takes the names as a parameter so
+the Keybindings tab looks them up once a frame rather than four times a
+chip. `canonical_str` does not read them — it writes the English names
+unconditionally, so `config.toml` is byte-for-byte what it was in every
+language. Parsing additionally accepts `Strg`, because a German user who
+reads `Strg+K` in the UI may well type it into the file; it is written
+back as `Ctrl+K`.
+
+Only German changes: `Strg` is the one name certain enough to ship
+without a native speaker. French `Maj`, Spanish `Mayús`, Italian `Maiusc`
+and German `Umschalt` for Shift are real conventions in large
+applications, and are left for the native review rather than guessed.
+
+The narrow fix above is reversed accordingly — German prose says `Strg`
+again — and the test is stricter than before. It no longer asks only
+whether a chord in prose parses to a default binding; it asks whether the
+token is *exactly* how that locale displays one. German `Ctrl+K` now
+fails, confirmed by putting it back in the palette footer. Checked on the
+rig in German: the Keybindings tab and the coach mark above it both say
+`Strg+K` and `Strg+Shift+A`, and the saved config still says `Ctrl`.
 
 ### R40 · Every shortcut table assumed a US keyboard — `FIXED`
 
@@ -1532,4 +1556,7 @@ whole series kept producing.
 What is still US-centred is the *name*, not the key. A key the app has
 no name for is shown under its US name, so AZERTY's `²` reads as `` ` ``
 in the Keybindings tab and German `ü` as `[`. It is the right key with
-the wrong caption — the same kind of question as R39, and left with it.
+the wrong caption. R39 localised the modifier names; key names would need
+the layout at render time, a larger change. One default is affected: the
+perf overlay reads `` Ctrl+Shift+` `` on keyboards where that key says
+`^` (German) or `²` (French).

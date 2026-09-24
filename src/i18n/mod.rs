@@ -286,7 +286,8 @@ fn load_source(code: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
 
-    /// A chord spelled out in prose has to still be a real default.
+    /// A chord spelled out in prose has to be a real default binding,
+    /// written exactly the way the app displays it in that language.
     ///
     /// Five strings name chords in words — the coach marks, the palette
     /// footer, the what's-new panel — and each is duplicated across ten
@@ -294,47 +295,62 @@ mod tests {
     /// start lying, in languages nobody on the project reads. Nothing
     /// links the prose to `Action::default_chords()` except this.
     ///
-    /// It also pins the spelling. German had the same modifier as both
-    /// "Strg+K" and "Ctrl+K" in one file while the app renders every
-    /// chord as "Ctrl", so one shortcut wore two names in one UI (R39).
-    /// Whether the *display* should be localised is a separate question;
-    /// what cannot stand is a locale disagreeing with itself.
+    /// It also pins the spelling. German once had "Strg+K" and "Ctrl+K"
+    /// in one file, so one shortcut wore two names one panel apart (R39).
+    /// The display is localised now, so the prose must use the locale's
+    /// own modifier names: German `Ctrl+K` fails here just as a stale
+    /// binding does.
     #[test]
-    fn chords_named_in_prose_are_still_default_bindings() {
-        use crate::keybindings::{Action, KeyBindings, KeyChord};
+    fn chords_named_in_prose_match_the_displayed_default_bindings() {
+        use crate::keybindings::{Action, KeyBindings, ModifierNames};
 
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/i18n/locales");
         let bindings = KeyBindings::default();
-        let is_default = |chord: KeyChord| {
-            Action::ALL
-                .iter()
-                .any(|a| bindings.chords_for(*a).contains(&chord))
-        };
+        let english = build_bundle(FALLBACK);
 
         let mut problems: Vec<String> = Vec::new();
-        for entry in std::fs::read_dir(&root).expect("locales dir").flatten() {
-            let path = entry.path();
-            if path.extension().is_some_and(|e| e != "ftl") {
-                continue;
-            }
-            let locale = path.file_stem().unwrap().to_string_lossy().into_owned();
-            let text = std::fs::read_to_string(&path).expect("locale is readable");
+        for (locale, _) in SUPPORTED {
+            let bundle = build_bundle(locale);
+            let name = |key: &str| -> std::borrow::Cow<'static, str> {
+                format_in(&bundle, key, None)
+                    .or_else(|| format_in(&english, key, None))
+                    .expect("key-mod-* exists in en")
+                    .into()
+            };
+            let names = ModifierNames {
+                ctrl: name("key-mod-ctrl"),
+                shift: name("key-mod-shift"),
+                alt: name("key-mod-alt"),
+                sup: name("key-mod-super"),
+            };
+            let displayed: HashSet<String> = Action::ALL
+                .iter()
+                .flat_map(|a| bindings.chords_for(*a))
+                .map(|c| c.display_str(&names))
+                .collect();
 
-            // `Ctrl+Shift+A`-shaped runs. Deliberately anchored on a
-            // modifier name: bare words would sweep up ordinary prose.
+            // Chord-shaped runs, anchored on a modifier name — the locale's
+            // own or the English one, so a locale that slipped back into
+            // English is caught too. Bare words would sweep up ordinary prose.
+            let prefixes = [
+                format!("{}+", names.ctrl),
+                format!("{}+", names.shift),
+                "Ctrl+".to_string(),
+                "Shift+".to_string(),
+            ];
+            let text = load_source(locale);
             for token in text.split(|c: char| c.is_whitespace() || c == '(' || c == ')') {
                 let token = token.trim_end_matches([',', '.', '·', '。', '、', '؟', '?', '!']);
-                if !token.starts_with("Ctrl+") && !token.starts_with("Shift+") {
+                if !prefixes.iter().any(|p| token.starts_with(p.as_str())) {
                     continue;
                 }
                 // "Ctrl+A/C/V" is egui's own editing set, not one of ours.
                 if token.contains('/') {
                     continue;
                 }
-                match token.parse::<KeyChord>() {
-                    Ok(chord) if is_default(chord) => {}
-                    Ok(_) => problems.push(format!("{locale}: {token} is not a default binding")),
-                    Err(e) => problems.push(format!("{locale}: {token} does not parse: {e}")),
+                if !displayed.contains(token) {
+                    problems.push(format!(
+                        "{locale}: `{token}` is not how this locale displays any default binding"
+                    ));
                 }
             }
         }

@@ -12,6 +12,7 @@
 
 use super::keys::{KeyCode, ModifierMask};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
@@ -68,39 +69,74 @@ impl KeyChord {
     }
 
     /// Render the chord in canonical TOML form (`Ctrl+Shift+A`).
+    ///
+    /// Always the English modifier names, whatever the UI language: this is
+    /// the on-disk format, and the stability policy pins it.
     pub fn canonical_str(&self) -> String {
         // `.as_str()` rather than `&…`: `smartstring` (pulled in by `rhai`)
         // legally adds `impl Add<SmartString<_>> for String`, which gives
         // `String`'s `Add` a second candidate. Deref coercion from `&String`
         // to `&str` only fires when there is exactly one, so `s + &string`
         // stops inferring crate-wide. Being explicit is immune to it.
-        self.modifier_prefix() + self.key.canonical_str().as_str()
+        self.modifier_prefix(&ModifierNames::CANONICAL) + self.key.canonical_str().as_str()
     }
 
     /// The `Ctrl+Shift+Alt+Super+` prefix both renderings share. Order is
     /// fixed so a chord always round-trips to the same string — parsing
     /// accepts any order, but serialising must not vary.
-    fn modifier_prefix(&self) -> String {
+    fn modifier_prefix(&self, names: &ModifierNames) -> String {
         let mut s = String::new();
-        if self.mods.ctrl() {
-            s.push_str("Ctrl+");
-        }
-        if self.mods.shift() {
-            s.push_str("Shift+");
-        }
-        if self.mods.alt() {
-            s.push_str("Alt+");
-        }
-        if self.mods.sup() {
-            s.push_str("Super+");
+        for (held, name) in [
+            (self.mods.ctrl(), &names.ctrl),
+            (self.mods.shift(), &names.shift),
+            (self.mods.alt(), &names.alt),
+            (self.mods.sup(), &names.sup),
+        ] {
+            if held {
+                s.push_str(name);
+                s.push('+');
+            }
         }
         s
     }
 
-    /// Render with arrow glyphs / abbreviations for the UI.
-    pub fn display_str(&self) -> String {
+    /// Render for the UI: arrow glyphs, short key names, and the modifiers
+    /// under `names` — [`ModifierNames::localized`] for the current
+    /// language, which says `Strg+K` in German (R39). The names are a
+    /// parameter so a caller rendering a whole table looks them up once.
+    pub fn display_str(&self, names: &ModifierNames) -> String {
         // See `canonical_str` for why this is `.as_str()`.
-        self.modifier_prefix() + self.key.display_str().as_str()
+        self.modifier_prefix(names) + self.key.display_str().as_str()
+    }
+}
+
+/// What each modifier is called: in the config file (always English), or
+/// on the keyboard of the current UI language.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModifierNames {
+    pub ctrl: Cow<'static, str>,
+    pub shift: Cow<'static, str>,
+    pub alt: Cow<'static, str>,
+    pub sup: Cow<'static, str>,
+}
+
+impl ModifierNames {
+    /// The names `canonical_str` writes and `FromStr` expects.
+    pub const CANONICAL: Self = Self {
+        ctrl: Cow::Borrowed("Ctrl"),
+        shift: Cow::Borrowed("Shift"),
+        alt: Cow::Borrowed("Alt"),
+        sup: Cow::Borrowed("Super"),
+    };
+
+    /// The current UI language's names, from the `key-mod-*` messages.
+    pub fn localized() -> Self {
+        Self {
+            ctrl: crate::i18n::t("key-mod-ctrl").into(),
+            shift: crate::i18n::t("key-mod-shift").into(),
+            alt: crate::i18n::t("key-mod-alt").into(),
+            sup: crate::i18n::t("key-mod-super").into(),
+        }
     }
 }
 
@@ -137,7 +173,10 @@ impl FromStr for KeyChord {
         while let Some(plus_idx) = rest.find('+') {
             let prefix = &rest[..plus_idx];
             let bit = match prefix {
-                "Ctrl" | "Control" => ModifierMask::CTRL,
+                // `Strg` is what a German keyboard prints and what the UI
+                // shows in German, so a hand-edited config may well say it.
+                // Accepted, never written.
+                "Ctrl" | "Control" | "Strg" => ModifierMask::CTRL,
                 "Shift" => ModifierMask::SHIFT,
                 "Alt" | "Option" => ModifierMask::ALT,
                 "Super" | "Cmd" | "Meta" | "Win" => ModifierMask::SUPER,

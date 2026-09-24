@@ -152,6 +152,12 @@ keybindings-reset-all = Reset all to defaults
 keybindings-reset-one = Reset to default
 keybindings-remove-chord = Remove this binding
 keybindings-help = Custom shortcuts persist in config.toml
+# Modifier names as this language's keyboards print them. Display only:
+# config.toml always stores the English names.
+key-mod-ctrl = Ctrl
+key-mod-shift = Shift
+key-mod-alt = Alt
+key-mod-super = Super
 
 # ── Action labels (D.1.7) ─────────────────────────────────────────────
 # Used by the Keybindings tab and the command palette. Keep aligned

@@ -32,9 +32,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **German showed one shortcut under two names.** The what's-new panel
   said `Strg+K` while every other German string, and the app's own
-  shortcut display, said `Ctrl+K`. The prose now matches what the app
-  renders. Whether the display itself should say `Strg` on a German
-  keyboard is a separate question, noted in `docs/runtime-findings.md`.
+  shortcut display, said `Ctrl+K`. The app now names modifiers the way
+  the language's keyboards print them, so German reads `Strg+K`
+  everywhere — the Keybindings tab, the tips and the palette alike.
+  `config.toml` keeps the English names in every language, and a
+  hand-written `Strg+K` there is accepted and saved back as `Ctrl+K`.
+  The other languages keep `Ctrl`/`Shift` until a native speaker
+  confirms their convention.
 - **The welcome tip pointed at tabs that do not exist** in German,
   Italian, Japanese and Dutch. It told you settings live in five named
   tabs and then named five things two of which were labelled differently

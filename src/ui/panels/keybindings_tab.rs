@@ -8,7 +8,7 @@
 //! re-builds of this widget tree without an extra field on `App`.
 
 use crate::i18n::{t, t_args};
-use crate::keybindings::{Action, KeyBindings, KeyChord};
+use crate::keybindings::{Action, KeyBindings, KeyChord, ModifierNames};
 use crate::ui::icons;
 use crate::ui::theme::{self, SPACE_M, SPACE_S, SPACE_XS};
 
@@ -97,6 +97,8 @@ pub(super) fn keybindings_tab(
     // Pre-compute conflicts once per frame — the table queries it
     // per chord cell to colour the chip and surface a warning row.
     let conflicts = bindings.conflicts();
+    // Looked up once per frame, not four Fluent lookups per chip.
+    let mod_names = ModifierNames::localized();
 
     // ── Per-action rows
     //
@@ -168,6 +170,7 @@ pub(super) fn keybindings_tab(
                                 recording_for,
                                 recording_id,
                                 &conflicts,
+                                &mod_names,
                                 warn_color,
                                 caption_color,
                             );
@@ -192,9 +195,13 @@ pub(super) fn keybindings_tab(
             args.set("action", conflict_with);
             ui.horizontal(|ui| {
                 ui.label(
-                    egui::RichText::new(format!("{}  {}", icons::WARN, chord.display_str()))
-                        .text_style(egui::TextStyle::Monospace)
-                        .color(crate::ui::theme::palette_of(ui.ctx()).semantic_warn),
+                    egui::RichText::new(format!(
+                        "{}  {}",
+                        icons::WARN,
+                        chord.display_str(&mod_names)
+                    ))
+                    .text_style(egui::TextStyle::Monospace)
+                    .color(crate::ui::theme::palette_of(ui.ctx()).semantic_warn),
                 );
                 ui.label(
                     egui::RichText::new(t_args("keybindings-conflict", &args))
@@ -236,6 +243,7 @@ fn chord_cell(
     recording_for: Option<Action>,
     recording_id: egui::Id,
     conflicts: &[(KeyChord, Vec<Action>)],
+    mod_names: &ModifierNames,
     warn_color: egui::Color32,
     caption_color: egui::Color32,
 ) {
@@ -268,9 +276,12 @@ fn chord_cell(
                 // It also makes the onboarding coach mark true. That has
                 // always said "Click any chord to remove it", while the
                 // chord itself was inert and only the ✕ did anything.
-                let mut chip =
-                    egui::RichText::new(format!("{}  {}", chord.display_str(), icons::CLOSE))
-                        .text_style(egui::TextStyle::Monospace);
+                let mut chip = egui::RichText::new(format!(
+                    "{}  {}",
+                    chord.display_str(mod_names),
+                    icons::CLOSE
+                ))
+                .text_style(egui::TextStyle::Monospace);
                 if conflict {
                     chip = chip.color(warn_color);
                 }
