@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-24
+
+Characters can now be scripted. A behavior can be a small
+[Rhai](https://rhai.rs) program from your asset library, and a script can
+play sounds that come from where the character is and react to how busy
+the machine is — aggregate totals only, never what is running. The rest is
+fixes found the way 1.1's were, by running the overlay: shortcuts work on
+non-US keyboard layouts, native Wayland gained hot-reload and several
+shortcuts it had silently ignored, and a malformed MP4 can no longer close
+the app.
+
+Existing configs, D-Bus, CLI flags, accepted asset formats and XDG paths
+are unchanged; the script behavior is a new, additive config variant, per
+[the stability policy](docs/stability-policy.md).
+
 ### Added
 
 - **Scripted behaviors.** A character's motion can be a

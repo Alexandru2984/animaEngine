@@ -19,7 +19,14 @@ parallel feature tracks.
 
 ## Released
 
-**1.1.0 (current)** — the first release after 1.0 (2026-09), and the
+**1.2.0 (current)** — scripting (2026-09). A character's behavior can be
+a sandboxed Rhai script that plays position-panned sounds and reads
+aggregate machine load — three of the four post-1.0 roadmap items,
+delivered as script capabilities rather than one-off behaviors.
+Shortcuts became layout-independent. Additive only: no change to the 1.x
+config, D-Bus, CLI or path guarantees.
+
+**1.1.0** — the first release after 1.0 (2026-09), and the
 first shaped by running the overlay rather than only testing it. A
 headless-compositor harness with a virtual pointer and keyboard found
 eighteen defects the suite could not see; two new interactions (poke,

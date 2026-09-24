@@ -57,6 +57,17 @@
   </recommends>
 
   <releases>
+    <release version="1.2.0" date="2026-09-24">
+      <description>
+        <p>Scripted characters, sound, and shortcuts that work on every keyboard layout.</p>
+        <ul>
+          <li>A character's motion can be a small Rhai script from your asset library, sandboxed and bounded.</li>
+          <li>Scripts can play sounds, panned to where the character is on screen.</li>
+          <li>Scripts can react to overall machine load; they cannot see what is running.</li>
+          <li>Shortcuts now work on AZERTY, QWERTZ and other non-US layouts; German shows Strg.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.1.0" date="2026-09-08">
       <description>
         <p>Two new interactions, and eighteen defects found by running the overlay on a screen instead of only testing it.</p>
