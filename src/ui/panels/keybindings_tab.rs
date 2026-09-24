@@ -49,26 +49,31 @@ pub(super) fn keybindings_tab(
     // the chord for the target action. Esc cancels. Repeat events are
     // ignored so holding a key doesn't keep firing captures.
     if let Some(action) = recording_for {
-        let captured: Option<(egui::Key, egui::Modifiers)> = ctx.input(|i| {
+        type Captured = (egui::Key, Option<egui::Key>, egui::Modifiers);
+        let captured: Option<Captured> = ctx.input(|i| {
             let mods = i.modifiers;
             i.events.iter().find_map(|e| {
                 if let egui::Event::Key {
                     key,
+                    physical_key,
                     pressed: true,
                     repeat: false,
                     ..
                 } = e
                 {
-                    Some((*key, mods))
+                    Some((*key, *physical_key, mods))
                 } else {
                     None
                 }
             })
         });
-        if let Some((key, mods)) = captured {
+        if let Some((key, physical, mods)) = captured {
             if key == egui::Key::Escape {
                 recording_for = None;
-            } else if let Some(chord) = KeyChord::from_egui(key, mods) {
+            // The physical key goes in too, so a chord is recorded exactly
+            // as it will later be dispatched — the number row by position,
+            // everything else by label when it has one (`KeyCode::resolve`).
+            } else if let Some(chord) = KeyChord::from_egui_event(key, physical, mods) {
                 bindings.add_chord(action, chord);
                 *config_dirty = true;
                 recording_for = None;

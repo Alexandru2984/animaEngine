@@ -363,10 +363,18 @@ impl App {
     fn dispatch_key(
         &mut self,
         logical_key: winit::keyboard::Key<&str>,
+        physical_key: winit::keyboard::PhysicalKey,
         event_loop: &ActiveEventLoop,
         redraw_all: bool,
     ) {
-        let Some(keycode) = KeyCode::from_winit(logical_key) else {
+        // The number row by position, everything else by label when it has
+        // one — the same rule the rebinder uses, so a chord fires from the
+        // key it was recorded on whatever the layout. See `KeyCode::resolve`.
+        let physical = match physical_key {
+            winit::keyboard::PhysicalKey::Code(code) => KeyCode::from_physical_winit(code),
+            winit::keyboard::PhysicalKey::Unidentified(_) => None,
+        };
+        let Some(keycode) = KeyCode::resolve(KeyCode::from_winit(logical_key), physical) else {
             return;
         };
         let chord = KeyChord::new(self.modifier_mask(), keycode);
@@ -717,11 +725,12 @@ impl ApplicationHandler<AnimaEvent> for App {
                         winit::event::KeyEvent {
                             state: ElementState::Pressed,
                             ref logical_key,
+                            physical_key,
                             ..
                         },
                     ..
                 } if self.edit_mode => {
-                    self.dispatch_key(logical_key.as_ref(), event_loop, true);
+                    self.dispatch_key(logical_key.as_ref(), physical_key, event_loop, true);
                 }
                 _ => {}
             }
@@ -799,11 +808,12 @@ impl ApplicationHandler<AnimaEvent> for App {
                     winit::event::KeyEvent {
                         state: ElementState::Pressed,
                         ref logical_key,
+                        physical_key,
                         ..
                     },
                 ..
             } if self.edit_mode => {
-                self.dispatch_key(logical_key.as_ref(), event_loop, false);
+                self.dispatch_key(logical_key.as_ref(), physical_key, event_loop, false);
             }
 
             WindowEvent::MouseWheel { delta, .. } => {

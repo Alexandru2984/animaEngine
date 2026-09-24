@@ -1288,10 +1288,11 @@ fn binding_chord(event: &egui::Event, egui_owns_keyboard: bool) -> Option<KeyCho
     match event {
         egui::Event::Key {
             key,
+            physical_key,
             pressed: true,
             modifiers,
             ..
-        } => KeyChord::from_egui(*key, *modifiers),
+        } => KeyChord::from_egui_event(*key, *physical_key, *modifiers),
         _ => None,
     }
 }

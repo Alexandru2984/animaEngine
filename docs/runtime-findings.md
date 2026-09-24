@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36, R38 and R39 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R40 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1169,7 +1169,7 @@ paths — an empty state, two failure toasts — that nobody looks at twice.
 Confirmed it actually bites by putting one of the defects back: it fails
 and names the key.
 
-### R35 · `Shift`+digit could not be bound either — `FIXED`
+### R35 · `Shift`+digit could not be bound either — `FIXED` (superseded by R40)
 
 R29 fixed the shifted punctuation and stopped there. The number row has
 the identical hole: on a US layout `Shift+1` is `!` on the winit side and
@@ -1195,7 +1195,16 @@ means keying chords off the physical key rather than the symbol, which
 changes what every stored chord means and is a different piece of work.
 Recorded here rather than implied away.
 
-### R36 · A chord you could record on one backend, the other refused — `FIXED`
+**Correction, from R40.** The fix above was wrong in a way this entry
+did not see. Listing `!`→1 … `&`→7 is the *US* shifted row, and on AZERTY
+`&` is the **unshifted** 1 key — so the "fix" made that key record as 7.
+Binding the wrong key is worse than refusing it. And the last paragraph
+overstated the cost of doing it properly: keying the number row off the
+physical position does **not** change what stored chords mean, because
+they were always written with US names and on a US layout position and
+symbol agree. R40 does that and removes these aliases.
+
+### R36 · A chord you could record on one backend, the other refused — `FIXED` (superseded by R40)
 
 The first thing the newly-drivable X11 path turned up. Record `Shift+[` in
 the Keybindings tab: on native Wayland it lands as `Shift+[`, on
@@ -1229,6 +1238,16 @@ on winit it cannot be re-recorded if the user ever clears it. Native
 Wayland has no such gap, because it does its own keysym folding. Removing
 it means either upstream variants or capturing from winit instead of
 egui, which is a larger change than this.
+
+**Correction, from R40: that last paragraph is false.** egui-winit emits
+`logical_key.or(physical_key)` — when a symbol has no egui variant it
+falls back to the physical key rather than emitting nothing (its own
+comment calls this the fallback for non-Latin layouts). So `~`, `@` and the
+rest *were* recordable on winit; the limitation described above never
+existed. It was written from the shape of egui's `Key` enum without
+reading the one function that decides what gets emitted. The aliases this
+entry added (`OpenCurlyBracket`→`[`, `Exclamationmark`→1) are US-only and
+are removed by R40, which falls back to the physical key instead.
 
 ### R37 · A dropped file did not land where you dropped it (X11) — `FIXED, unverified`
 
@@ -1452,3 +1471,65 @@ quietly lie in languages nobody here reads. Confirmed by re-pointing the
 command palette at `Ctrl+J`: it named every locale still saying `Ctrl+K`.
 `Ctrl+A/C/V` is skipped on purpose — that is egui's own text editing, not
 one of our bindings.
+
+### R40 · Every shortcut table assumed a US keyboard — `FIXED`
+
+R29 and R35 made shifted keys bindable by listing what Shift produces on
+each key: `~` is the backquote key, `!` is 1, `&` is 7. That is a US
+keyboard. The rig's virtual keyboard can load any xkb layout, and on
+French AZERTY the key left of 2 types `&` **without** Shift, so R35 made
+Ctrl+that-key record and fire as `Ctrl+7`. A binding that silently lands
+on the wrong key is worse than one that refuses.
+
+Both earlier entries had also stated things that were not so. R36 said
+egui emits no key at all for `~`, `@` and the like on winit, which is why
+it thought they could not be recorded there; egui-winit in fact sends
+`logical.or(physical)`, falling back to the physical key exactly when the
+symbol has no egui name. R35 said keying off the physical key "changes
+what every stored chord means"; it does not, since stored chords were
+always written with US names and on US position and symbol agree. Both
+entries now carry a correction.
+
+**Fixed** by giving the key one rule, applied in one place
+(`KeyCode::resolve`) and fed by every path — winit dispatch, the native
+Wayland loop, the rebinder:
+
+- **letters and named keys follow the label** — AZERTY Ctrl+A is the key
+  with A printed on it, which sits where US has Q;
+- **the number row follows the position** — AZERTY digits are shifted, so
+  going by label would leave the whole row unbindable;
+- **a symbol we have a name for follows the label, and anything else
+  falls back to the position** — `²`, `$`, dead keys, `é`, and every
+  non-Latin letter, so Cyrillic Ctrl+С is still Ctrl+C.
+
+The third rule is not the obvious one, and the obvious one was tried
+first. Putting *all* symbols on their position looked more uniform and
+passed every AZERTY check; then a German layout showed the problem. German
+`+` sits where US has `]`, so by position the key the Keybindings tab calls
+`+` (opacity up) fired `]` (FPS up). The label has to win when we
+understand it.
+
+The native Wayland path needed a physical key it never had: it always
+sent `physical_key: None`. It now reads the evdev scancode `wl_keyboard`
+delivers, and the US-only keysym aliases are gone from both the keysym
+table and the winit converter.
+
+Checked on the rig, both backends, with the virtual keyboard's layout
+switched rather than simulated:
+
+| layout | pressed | result |
+|---|---|---|
+| fr | Ctrl + the `&` key | recorded as `Ctrl+1` |
+| fr | Ctrl+Shift + the `²` key | perf overlay opens |
+| fr | Ctrl+Shift + the key labelled A | edit mode toggles |
+| de | `-`, `-`, `+` on a selected entity | opacity 80 %, 70 %, 80 % |
+
+Unit tests pin each rule, and one asserts that recording (through egui)
+and dispatch (through winit) agree for the same press on every layout
+listed — a binding that records and then never fires is the failure this
+whole series kept producing.
+
+What is still US-centred is the *name*, not the key. A key the app has
+no name for is shown under its US name, so AZERTY's `²` reads as `` ` ``
+in the Keybindings tab and German `ü` as `[`. It is the right key with
+the wrong caption — the same kind of question as R39, and left with it.

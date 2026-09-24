@@ -32,6 +32,23 @@ impl KeyChord {
     /// and by the native Wayland loop, which reads egui's event list
     /// directly rather than going through winit.
     pub fn from_egui(key: egui::Key, mods: egui::Modifiers) -> Option<Self> {
+        Self::from_egui_event(key, None, mods)
+    }
+
+    /// Build a chord from an egui key event, **including its physical key**.
+    ///
+    /// This is the entry point both the rebinder and the native Wayland
+    /// loop should use: `KeyCode::resolve` takes the number row from the
+    /// physical position and everything else from the label when it has
+    /// one, so the same press records and dispatches as the same chord on
+    /// every layout and on both backends. Without the physical key it
+    /// degrades to the label alone, which is right on a US layout and
+    /// leaves AZERTY's number row unbindable.
+    pub fn from_egui_event(
+        key: egui::Key,
+        physical: Option<egui::Key>,
+        mods: egui::Modifiers,
+    ) -> Option<Self> {
         // Only `mac_cmd` means Super. `command` does NOT: off macOS egui
         // defines it as an alias for `ctrl`, so treating it as Super
         // turned every Ctrl chord into Ctrl+Super — which matches nothing
@@ -43,7 +60,11 @@ impl KeyChord {
         // On macOS `mac_cmd` is set for the real Cmd key, so Super still
         // round-trips there.
         let mask = ModifierMask::from_state(mods.ctrl, mods.shift, mods.alt, mods.mac_cmd);
-        Some(Self::new(mask, KeyCode::from_egui(key)?))
+        let code = KeyCode::resolve(
+            KeyCode::from_egui(key),
+            physical.and_then(KeyCode::from_egui),
+        )?;
+        Some(Self::new(mask, code))
     }
 
     /// Render the chord in canonical TOML form (`Ctrl+Shift+A`).

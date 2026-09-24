@@ -49,18 +49,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Native Wayland was always correct here. Not yet confirmed on a real X11
   session; see `docs/runtime-findings.md` for why the test rig cannot show
   it.
-- **A shortcut you could record on Wayland, X11 refused.** `Shift`+`[`
-  and `Shift`+`1` recorded fine on native Wayland and silently would not
-  record on X11, because egui reports a shifted symbol as its own key and
-  the converter did not know those. Both backends now record one chord for
-  one press. A few shifted symbols — `~`, `@`, `#` and friends — still
-  cannot be *recorded* on X11 at all, since egui emits no key for them;
-  they still work when already bound.
-- **`Shift`+a digit could not be bound.** Pressing it in the Keybindings
-  tab left the widget waiting for a chord forever, the same way
-  `Shift`+punctuation used to. Note that the chord tables assume a US
-  layout throughout, so keys that move on other layouts still cannot be
-  bound — that is a known limitation, not something this changes.
+- **Shortcuts work on non-US keyboard layouts.** The key tables assumed
+  a US layout: `Shift`+a digit or `Shift`+`[` could not be recorded at
+  all, and on AZERTY — where the 1 key types `&` without Shift — the
+  number row either would not record or recorded a shortcut that then
+  never fired. A key now means its
+  position on the number row, and elsewhere what is printed on it when
+  the app knows that name, falling back to its position when it does not
+  (`²`, `$`, dead keys, Cyrillic letters). So on AZERTY `Ctrl`+`&` is
+  `Ctrl+1` and `Ctrl`+`A` is the key labelled A; on a German keyboard `+`
+  is `+`. Recording and firing use the same rule on both backends, so a
+  shortcut always fires from the key it was recorded on. Nothing changes
+  on a US layout, and saved bindings keep their meaning. Checked on
+  AZERTY and German layouts, on both backends.
 - **Some messages showed `{$path}` instead of a path.** The Inspector's
   script-path hint and both Shimeji "no asset library" errors printed the
   placeholder rather than filling it in, as did one of the two import

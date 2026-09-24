@@ -215,20 +215,103 @@ impl KeyCode {
             E::OpenBracket => Self::Symbol(SymbolKey::BracketLeft),
             E::CloseBracket => Self::Symbol(SymbolKey::BracketRight),
             E::Backtick => Self::Symbol(SymbolKey::Backquote),
-            // egui reports the *shifted* symbol as its own key, so these
-            // fold back onto the key that produced them — same rule the
-            // winit and keysym tables follow.
-            //
-            // Only the rebinder goes through egui on the winit path, which
-            // is why Shift+[ could be recorded on native Wayland (that
-            // backend builds the egui key itself, from the keysym) and not
-            // on winit, where egui handed us an `OpenCurlyBracket` nothing
-            // matched (R36).
-            E::Exclamationmark => Self::Digit(1),
-            E::OpenCurlyBracket => Self::Symbol(SymbolKey::BracketLeft),
-            E::CloseCurlyBracket => Self::Symbol(SymbolKey::BracketRight),
+            // No aliases for egui's shifted-symbol keys (`Exclamationmark`,
+            // `OpenCurlyBracket`, …). R36 added them to make Shift+[ record
+            // on winit, but they assume a US layout — on AZERTY `!` is not
+            // on the 1 key. Every egui key event also carries the physical
+            // key, and `KeyChord::from_egui_event` resolves digits and
+            // symbols from that, so the aliases were never needed.
             _ => return None,
         })
+    }
+
+    /// The key at this **physical position**, named as it is on a US
+    /// layout. Letters, the digit row and the punctuation we bind; `None`
+    /// for anything else.
+    ///
+    /// Letters are here for layouts with no Latin letters at all — on a
+    /// Cyrillic layout the logical key for C is `с`, which maps to nothing,
+    /// and falling back to the position is what lets Ctrl+C work there.
+    pub fn from_physical_winit(code: winit::keyboard::KeyCode) -> Option<Self> {
+        use winit::keyboard::KeyCode as P;
+        let letter = |c: char| Some(Self::Letter(c));
+        match code {
+            P::KeyA => letter('A'),
+            P::KeyB => letter('B'),
+            P::KeyC => letter('C'),
+            P::KeyD => letter('D'),
+            P::KeyE => letter('E'),
+            P::KeyF => letter('F'),
+            P::KeyG => letter('G'),
+            P::KeyH => letter('H'),
+            P::KeyI => letter('I'),
+            P::KeyJ => letter('J'),
+            P::KeyK => letter('K'),
+            P::KeyL => letter('L'),
+            P::KeyM => letter('M'),
+            P::KeyN => letter('N'),
+            P::KeyO => letter('O'),
+            P::KeyP => letter('P'),
+            P::KeyQ => letter('Q'),
+            P::KeyR => letter('R'),
+            P::KeyS => letter('S'),
+            P::KeyT => letter('T'),
+            P::KeyU => letter('U'),
+            P::KeyV => letter('V'),
+            P::KeyW => letter('W'),
+            P::KeyX => letter('X'),
+            P::KeyY => letter('Y'),
+            P::KeyZ => letter('Z'),
+            P::Digit0 => Some(Self::Digit(0)),
+            P::Digit1 => Some(Self::Digit(1)),
+            P::Digit2 => Some(Self::Digit(2)),
+            P::Digit3 => Some(Self::Digit(3)),
+            P::Digit4 => Some(Self::Digit(4)),
+            P::Digit5 => Some(Self::Digit(5)),
+            P::Digit6 => Some(Self::Digit(6)),
+            P::Digit7 => Some(Self::Digit(7)),
+            P::Digit8 => Some(Self::Digit(8)),
+            P::Digit9 => Some(Self::Digit(9)),
+            P::Minus => Some(Self::Symbol(SymbolKey::Minus)),
+            P::Equal => Some(Self::Symbol(SymbolKey::Equal)),
+            P::BracketLeft => Some(Self::Symbol(SymbolKey::BracketLeft)),
+            P::BracketRight => Some(Self::Symbol(SymbolKey::BracketRight)),
+            P::Backquote => Some(Self::Symbol(SymbolKey::Backquote)),
+            _ => None,
+        }
+    }
+
+    /// The one rule that turns a key press into the key a chord names.
+    ///
+    /// **A key means what is printed on it when we know that name, and
+    /// its position when we don't — except the number row, which is always
+    /// its position.** On AZERTY, Ctrl+Z is the key with Z printed on it,
+    /// while Ctrl+1 is the top-row key left of 2 even though it types `&`:
+    /// AZERTY digits are *shifted*, so reading the label would leave the
+    /// number row unbindable. That is what browsers and most desktop
+    /// applications do.
+    ///
+    /// Symbols try the label first because the position can be actively
+    /// wrong. German `+` sits where US has `]`; going by position, the key
+    /// the Keybindings tab calls "+" (opacity up) would fire `]` (FPS up).
+    /// A symbol we have no name for — AZERTY `²`, `)`, `$`, a dead key, any
+    /// US shifted symbol — falls back to the position, as does a non-Latin
+    /// letter; the same fallback egui-winit uses for non-Latin layouts.
+    ///
+    /// It replaces two rounds of guessing (R29, R35) that listed the *US*
+    /// shifted symbols as aliases: correct on US, and on AZERTY it turned
+    /// the unshifted `&` into a 7.
+    ///
+    /// Stored chords keep their meaning: they were always written with US
+    /// names, and on a US layout every case above agrees with what the
+    /// aliases used to produce.
+    pub fn resolve(logical: Option<Self>, physical: Option<Self>) -> Option<Self> {
+        match (logical, physical) {
+            (Some(key @ (Self::Letter(_) | Self::Named(_))), _) => Some(key),
+            (_, Some(digit @ Self::Digit(_))) => Some(digit),
+            (Some(symbol @ Self::Symbol(_)), _) => Some(symbol),
+            (logical, physical) => physical.or(logical),
+        }
     }
 
     /// Build from winit's logical `Key`. Returns `None` for inputs not
@@ -243,33 +326,19 @@ impl KeyCode {
                     'a'..='z' => Self::Letter(c.to_ascii_uppercase()),
                     'A'..='Z' => Self::Letter(c),
                     '0'..='9' => Self::Digit(c.to_digit(10)? as u8),
-                    // Shifted digits, same rule as the punctuation below:
-                    // the key keeps its identity and Shift lives in the
-                    // mask. Without these, recording Shift+1 in the
-                    // rebinder simply never completed (R35).
-                    '!' => Self::Digit(1),
-                    '@' => Self::Digit(2),
-                    '#' => Self::Digit(3),
-                    '$' => Self::Digit(4),
-                    '%' => Self::Digit(5),
-                    '^' => Self::Digit(6),
-                    '&' => Self::Digit(7),
-                    '*' => Self::Digit(8),
-                    '(' => Self::Digit(9),
-                    ')' => Self::Digit(0),
+                    // Only the unshifted US symbols. Shifted forms ('!',
+                    // '~', '{') used to be listed here too (R29, R35), which
+                    // is a US-layout guess: on AZERTY '&' is the *unshifted*
+                    // 1 key, and mapping it to 7 bound the wrong key. Digits
+                    // and symbols are now decided by physical position in
+                    // `resolve`, so this logical form only matters when no
+                    // position is known.
                     '+' => Self::Symbol(SymbolKey::Plus),
-                    // The shifted forms name the same physical key, and
-                    // winit reports the *logical* character — so with only
-                    // the plain form listed, Shift+` produced '~' and fell
-                    // through to `None`. The default perf-overlay chord is
-                    // Ctrl+Shift+`, so it never fired on this path either
-                    // (R29). Shift stays in the chord's modifier mask; it
-                    // is the key identity that must not change with it.
-                    '-' | '_' => Self::Symbol(SymbolKey::Minus),
+                    '-' => Self::Symbol(SymbolKey::Minus),
                     '=' => Self::Symbol(SymbolKey::Equal),
-                    '[' | '{' => Self::Symbol(SymbolKey::BracketLeft),
-                    ']' | '}' => Self::Symbol(SymbolKey::BracketRight),
-                    '`' | '~' => Self::Symbol(SymbolKey::Backquote),
+                    '[' => Self::Symbol(SymbolKey::BracketLeft),
+                    ']' => Self::Symbol(SymbolKey::BracketRight),
+                    '`' => Self::Symbol(SymbolKey::Backquote),
                     _ => return None,
                 }
             }

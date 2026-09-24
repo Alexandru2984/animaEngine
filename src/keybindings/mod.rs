@@ -193,101 +193,153 @@ mod tests {
         );
     }
 
-    /// winit reports the *logical* character, so Shift+` arrives as '~'.
-    /// With only the plain forms listed it fell through to `None`, and
-    /// the default perf-overlay chord — Ctrl+Shift+` — never fired on
-    /// this path either (R29). Shift stays in the modifier mask; the key
-    /// identity must not change with it.
-    #[test]
-    fn shifted_punctuation_keeps_its_key_identity() {
-        use winit::keyboard::Key;
-        for (shifted, plain) in [("~", "`"), ("{", "["), ("}", "]"), ("_", "-")] {
-            assert_eq!(
-                KeyCode::from_winit(Key::Character(shifted)),
-                KeyCode::from_winit(Key::Character(plain)),
-                "{shifted} and {plain} must name the same key"
-            );
-        }
+    // ── layout independence: `KeyCode::resolve` ─────────────────────
+    //
+    // The number row follows the position; letters and known symbols follow
+    // the label; anything unnamed falls back to the position.
+    // These replace tests that pinned US-only aliases (R29, R35, R36);
+    // the aliases bound the wrong key on AZERTY, and pinning them is what
+    // made that look like correct behaviour.
+
+    fn winit_press(logical: &str, physical: winit::keyboard::KeyCode) -> Option<KeyCode> {
+        KeyCode::resolve(
+            KeyCode::from_winit(winit::keyboard::Key::Character(logical)),
+            KeyCode::from_physical_winit(physical),
+        )
     }
 
-    /// Digits have the same hole the punctuation had: on a US layout
-    /// Shift+1 is reported as '!', which was unmapped, so recording
-    /// Shift+1 in the rebinder simply never completed (R35).
+    /// On a US layout nothing changes: position and symbol agree, and the
+    /// shifted symbol no longer needs an alias because the position
+    /// decides.
     #[test]
-    fn shifted_digits_keep_their_key_identity() {
-        use winit::keyboard::Key;
-        for (shifted, digit) in [
-            ("!", 1u8),
-            ("@", 2),
-            ("#", 3),
-            ("$", 4),
-            ("%", 5),
-            ("^", 6),
-            ("&", 7),
-            ("*", 8),
-            ("(", 9),
-            (")", 0),
-        ] {
-            assert_eq!(
-                KeyCode::from_winit(Key::Character(shifted)),
-                Some(KeyCode::Digit(digit)),
-                "{shifted} is the shifted form of {digit}"
-            );
-        }
+    fn on_us_the_shifted_symbol_is_the_same_key() {
+        use winit::keyboard::KeyCode as P;
+        assert_eq!(
+            winit_press("~", P::Backquote),
+            winit_press("`", P::Backquote)
+        );
+        assert_eq!(winit_press("!", P::Digit1), Some(KeyCode::Digit(1)));
+        assert_eq!(
+            winit_press("{", P::BracketLeft),
+            Some(KeyCode::Symbol(SymbolKey::BracketLeft))
+        );
     }
 
-    /// The two backends must record the *same* chord for the same
-    /// physical press.
-    ///
-    /// Only the rebinder goes through egui on the winit path, and egui
-    /// reports a shifted symbol as its own key — `OpenCurlyBracket`, not
-    /// `OpenBracket` plus Shift. Native Wayland never produces those
-    /// variants, because it folds the keysym itself, so Shift+[ recorded
-    /// there and silently refused to record on winit (R36).
+    /// The defect this replaces: AZERTY types `&` on the 1 key unshifted,
+    /// and the US alias turned that into a 7 — the wrong key, silently.
     #[test]
-    fn both_backends_record_a_shifted_chord_identically() {
-        let shift = egui::Modifiers {
-            shift: true,
-            ..egui::Modifiers::NONE
-        };
-        for (winit_side, egui_side) in [
-            // (what native Wayland folds the keysym to, what egui hands winit)
-            (egui::Key::OpenBracket, egui::Key::OpenCurlyBracket),
-            (egui::Key::CloseBracket, egui::Key::CloseCurlyBracket),
-            (egui::Key::Num1, egui::Key::Exclamationmark),
-        ] {
-            let from_wayland = KeyChord::from_egui(winit_side, shift);
-            let from_winit = KeyChord::from_egui(egui_side, shift);
-            assert!(from_winit.is_some(), "{egui_side:?} was not recordable");
-            assert_eq!(
-                from_wayland, from_winit,
-                "{winit_side:?} and {egui_side:?} must record as one chord"
-            );
-        }
+    fn on_azerty_the_number_row_is_its_position() {
+        use winit::keyboard::KeyCode as P;
+        assert_eq!(winit_press("&", P::Digit1), Some(KeyCode::Digit(1)));
+        assert_eq!(winit_press("é", P::Digit2), Some(KeyCode::Digit(2)));
+        assert_eq!(winit_press("\"", P::Digit3), Some(KeyCode::Digit(3)));
     }
 
-    /// End to end: the chord the default binding is written as has to be
-    /// what a user pressing that key actually produces, on both backends.
+    /// The number row stays positional even where the label is a symbol
+    /// we know: AZERTY's 6 key types `-`, and reading that label would
+    /// make Ctrl+6 unreachable and fire opacity-down instead.
     #[test]
-    fn the_default_perf_overlay_chord_is_reachable() {
+    fn azerty_six_is_six_not_minus() {
+        use winit::keyboard::KeyCode as P;
+        assert_eq!(winit_press("-", P::Digit6), Some(KeyCode::Digit(6)));
+        assert_eq!(
+            winit_press(")", P::Minus),
+            Some(KeyCode::Symbol(SymbolKey::Minus))
+        );
+    }
+
+    /// A symbol we have a name for keeps it. German `+` sits where US has
+    /// `]`; by position it would fire FPS-up while the Keybindings tab
+    /// told the user `+` is opacity-up. A wrong action is worse than an
+    /// unreachable one.
+    #[test]
+    fn a_known_symbol_follows_its_label() {
+        use winit::keyboard::KeyCode as P;
         let bindings = KeyBindings::default();
+        let plus = KeyChord::new(
+            ModifierMask::NONE,
+            winit_press("+", P::BracketRight).unwrap(),
+        );
+        assert_eq!(bindings.lookup(plus), Some(Action::OpacityUp));
+    }
 
-        // winit side: Ctrl+Shift held, winit hands us '~'.
-        let key = KeyCode::from_winit(winit::keyboard::Key::Character("~")).unwrap();
-        let chord = KeyChord::new(ModifierMask::CTRL | ModifierMask::SHIFT, key);
-        assert_eq!(bindings.lookup(chord), Some(Action::TogglePerfOverlay));
+    /// Letters follow the label: on AZERTY Ctrl+A is the key with A on
+    /// it, which sits where US has Q.
+    #[test]
+    fn letters_follow_the_label_not_the_position() {
+        use winit::keyboard::KeyCode as P;
+        assert_eq!(winit_press("a", P::KeyQ), Some(KeyCode::Letter('A')));
+        assert_eq!(winit_press("z", P::KeyW), Some(KeyCode::Letter('Z')));
+    }
 
-        // egui/Wayland side: the same chord, built the way that loop does.
-        let mods = egui::Modifiers {
+    /// A layout with no Latin letters falls back to the position, so
+    /// Ctrl+C still exists on Cyrillic.
+    #[test]
+    fn non_latin_letters_fall_back_to_the_position() {
+        use winit::keyboard::KeyCode as P;
+        assert_eq!(winit_press("с", P::KeyC), Some(KeyCode::Letter('C')));
+    }
+
+    /// Recording (through egui) and dispatch (through winit or the
+    /// keysym table) must land on the same chord for the same press, or
+    /// a binding records and then never fires. egui reports AZERTY's
+    /// unshifted `&` as the physical `Num1`, because it has no key for `&`.
+    #[test]
+    fn recording_and_dispatch_agree_on_every_layout() {
+        use winit::keyboard::KeyCode as P;
+        let ctrl = egui::Modifiers {
             ctrl: true,
             command: true,
-            shift: true,
             ..egui::Modifiers::NONE
         };
-        let chord = KeyChord::from_egui(egui::Key::Backtick, mods).unwrap();
-        assert_eq!(bindings.lookup(chord), Some(Action::TogglePerfOverlay));
+        let cases = [
+            // (egui key, egui physical, winit logical, winit physical)
+            (egui::Key::Num1, Some(egui::Key::Num1), "&", P::Digit1),
+            (
+                egui::Key::Exclamationmark,
+                Some(egui::Key::Num1),
+                "!",
+                P::Digit1,
+            ),
+            (
+                egui::Key::OpenCurlyBracket,
+                Some(egui::Key::OpenBracket),
+                "{",
+                P::BracketLeft,
+            ),
+            (egui::Key::A, Some(egui::Key::Q), "a", P::KeyQ),
+            (egui::Key::Minus, Some(egui::Key::Num6), "-", P::Digit6),
+            (
+                egui::Key::Plus,
+                Some(egui::Key::CloseBracket),
+                "+",
+                P::BracketRight,
+            ),
+        ];
+        for (key, physical, logical, pos) in cases {
+            let recorded = KeyChord::from_egui_event(key, physical, ctrl).unwrap();
+            let dispatched = KeyChord::new(ModifierMask::CTRL, winit_press(logical, pos).unwrap());
+            assert_eq!(recorded, dispatched, "{logical:?} at {pos:?}");
+        }
     }
 
+    /// End to end: the default perf-overlay chord, Ctrl+Shift+`, has to be
+    /// reachable from the key that types it — on US (`~` with Shift) and
+    /// now also on layouts where that position types something else.
+    #[test]
+    fn the_default_perf_overlay_chord_is_reachable() {
+        use winit::keyboard::KeyCode as P;
+        let bindings = KeyBindings::default();
+        let cs = ModifierMask::CTRL | ModifierMask::SHIFT;
+        for logical in ["~", "°", "|"] {
+            let chord = KeyChord::new(cs, winit_press(logical, P::Backquote).unwrap());
+            assert_eq!(
+                bindings.lookup(chord),
+                Some(Action::TogglePerfOverlay),
+                "{logical}"
+            );
+        }
+    }
     // ── egui → chord (R26) ───────────────────────────────────────────
 
     /// Off macOS, egui sets `command` to the same value as `ctrl`. It must

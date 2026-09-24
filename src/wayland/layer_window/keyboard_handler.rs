@@ -13,7 +13,7 @@
 //! mask when egui processes it.
 
 use super::state::WaylandState;
-use crate::wayland::keyboard::{keysym_to_egui_key, modifiers_to_egui};
+use crate::wayland::keyboard::{egui_key_for, modifiers_to_egui};
 use smithay_client_toolkit::seat::keyboard::{
     KeyEvent, KeyboardHandler, Keymap, Keysym, Modifiers as SctkModifiers,
 };
@@ -49,13 +49,18 @@ impl WaylandState {
     /// Queue one `egui::Event::Key`. Press and release differ only in the
     /// flag, so they share this rather than the block being written twice.
     fn push_key_event(&mut self, event: &KeyEvent, pressed: bool) {
-        let Some(key) = keysym_to_egui_key(event.keysym) else {
+        // Logical key if we know it, else the physical position, and the
+        // position always attached — what egui-winit produces on the other
+        // backend, so chords resolve identically on both. `physical_key`
+        // used to be `None` here, which left a keysym we did not map (an
+        // AZERTY `&`, a Cyrillic letter) with no event at all.
+        let Some((key, physical_key)) = egui_key_for(event.keysym, event.raw_code) else {
             return;
         };
         let modifiers = modifiers_to_egui(self.last_modifiers);
         self.pending_egui_events.push(egui::Event::Key {
             key,
-            physical_key: None,
+            physical_key,
             pressed,
             repeat: false,
             modifiers,

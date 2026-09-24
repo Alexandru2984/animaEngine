@@ -51,21 +51,16 @@ pub fn keysym_to_egui_key(keysym: Keysym) -> Option<egui::Key> {
         Keysym::y | Keysym::Y => E::Y,
         Keysym::z | Keysym::Z => E::Z,
         // ── Digits
-        // Each digit lists its shifted keysym too. `event.keysym` is
-        // resolved against the modifier state, so Shift+1 arrives as
-        // `exclam`, and with only the plain form listed the press was
-        // never turned into an event at all (R35) — the same hole the
-        // punctuation below had.
-        Keysym::_0 | Keysym::parenright => E::Num0,
-        Keysym::_1 | Keysym::exclam => E::Num1,
-        Keysym::_2 | Keysym::at => E::Num2,
-        Keysym::_3 | Keysym::numbersign => E::Num3,
-        Keysym::_4 | Keysym::dollar => E::Num4,
-        Keysym::_5 | Keysym::percent => E::Num5,
-        Keysym::_6 | Keysym::asciicircum => E::Num6,
-        Keysym::_7 | Keysym::ampersand => E::Num7,
-        Keysym::_8 | Keysym::asterisk => E::Num8,
-        Keysym::_9 | Keysym::parenleft => E::Num9,
+        Keysym::_0 => E::Num0,
+        Keysym::_1 => E::Num1,
+        Keysym::_2 => E::Num2,
+        Keysym::_3 => E::Num3,
+        Keysym::_4 => E::Num4,
+        Keysym::_5 => E::Num5,
+        Keysym::_6 => E::Num6,
+        Keysym::_7 => E::Num7,
+        Keysym::_8 => E::Num8,
+        Keysym::_9 => E::Num9,
         // ── Named control keys
         Keysym::Escape => E::Escape,
         Keysym::Tab => E::Tab,
@@ -83,21 +78,87 @@ pub fn keysym_to_egui_key(keysym: Keysym) -> Option<egui::Key> {
         Keysym::Right => E::ArrowRight,
         // ── Punctuation bound by animaEngine actions
         //
-        // Both the plain and the shifted keysym map to the same key, the
-        // way the letters above list `a | A`. `event.keysym` is *resolved*
-        // against the modifier state, so holding Shift turns ` into ~ and
-        // [ into { — and with only the plain form listed, the key stopped
-        // being an egui event at all. That is why the default perf-overlay
-        // chord, Ctrl+Shift+`, did nothing: not one event ever reached the
-        // shortcut table (R29).
+        // Unshifted forms only. The shifted keysyms (`asciitilde`,
+        // `exclam`, `braceleft`…) were listed here for R29 and R35, and
+        // that assumed a US layout: on AZERTY `ampersand` is the plain 1
+        // key, and folding it onto 7 bound the wrong key. A keysym this
+        // table does not know now falls back to the physical position
+        // instead — see `egui_key_for` — which is right on every layout.
         Keysym::plus => E::Plus,
-        Keysym::minus | Keysym::underscore => E::Minus,
+        Keysym::minus => E::Minus,
         Keysym::equal => E::Equals,
-        Keysym::bracketleft | Keysym::braceleft => E::OpenBracket,
-        Keysym::bracketright | Keysym::braceright => E::CloseBracket,
-        Keysym::grave | Keysym::asciitilde => E::Backtick,
+        Keysym::bracketleft => E::OpenBracket,
+        Keysym::bracketright => E::CloseBracket,
+        Keysym::grave => E::Backtick,
         _ => return None,
     })
+}
+
+/// The key at this physical position, named as on a US layout, from the
+/// Linux evdev scancode `wl_keyboard` delivers (`KeyEvent::raw_code`).
+///
+/// Letters, the digit row and the punctuation we bind. Letters matter for
+/// layouts with no Latin keysyms at all: on Cyrillic the C key produces
+/// `Cyrillic_es`, which `keysym_to_egui_key` does not know, and without
+/// the position Ctrl+C would never become a key event.
+pub fn evdev_to_egui_key(code: u32) -> Option<egui::Key> {
+    use egui::Key as E;
+    Some(match code {
+        2 => E::Num1,
+        3 => E::Num2,
+        4 => E::Num3,
+        5 => E::Num4,
+        6 => E::Num5,
+        7 => E::Num6,
+        8 => E::Num7,
+        9 => E::Num8,
+        10 => E::Num9,
+        11 => E::Num0,
+        12 => E::Minus,
+        13 => E::Equals,
+        16 => E::Q,
+        17 => E::W,
+        18 => E::E,
+        19 => E::R,
+        20 => E::T,
+        21 => E::Y,
+        22 => E::U,
+        23 => E::I,
+        24 => E::O,
+        25 => E::P,
+        26 => E::OpenBracket,
+        27 => E::CloseBracket,
+        30 => E::A,
+        31 => E::S,
+        32 => E::D,
+        33 => E::F,
+        34 => E::G,
+        35 => E::H,
+        36 => E::J,
+        37 => E::K,
+        38 => E::L,
+        41 => E::Backtick,
+        44 => E::Z,
+        45 => E::X,
+        46 => E::C,
+        47 => E::V,
+        48 => E::B,
+        49 => E::N,
+        50 => E::M,
+        _ => return None,
+    })
+}
+
+/// The egui key to report for a press, and its physical key.
+///
+/// The same shape egui-winit produces on the other backend — logical key
+/// if known, else the position, with the position always attached — so
+/// `KeyChord::from_egui_event` sees identical input from both. `None`
+/// when neither is anything we bind.
+pub fn egui_key_for(keysym: Keysym, raw_code: u32) -> Option<(egui::Key, Option<egui::Key>)> {
+    let physical = evdev_to_egui_key(raw_code);
+    let key = keysym_to_egui_key(keysym).or(physical)?;
+    Some((key, physical))
 }
 
 /// Project sctk's `Modifiers` struct onto egui's. `command` mirrors
@@ -158,53 +219,54 @@ mod tests {
         assert_eq!(keysym_to_egui_key(Keysym::grave), Some(egui::Key::Backtick));
     }
 
-    /// Holding Shift *changes the keysym*, so the shifted form of every
-    /// bound punctuation key has to resolve to the same egui key — the
-    /// way `a | A` already did for letters. Without this the default
-    /// Ctrl+Shift+` produced no event at all.
+    /// Shifted keysyms are no longer aliased; the position decides. On US
+    /// Shift+` arrives as `asciitilde` at evdev 41 and still resolves to
+    /// the backtick key, which is what the perf-overlay chord needs.
     #[test]
-    fn shifted_punctuation_keeps_its_key_identity() {
+    fn an_unmapped_keysym_falls_back_to_its_position() {
         assert_eq!(
-            keysym_to_egui_key(Keysym::asciitilde),
-            Some(egui::Key::Backtick)
+            egui_key_for(Keysym::asciitilde, 41),
+            Some((egui::Key::Backtick, Some(egui::Key::Backtick)))
         );
         assert_eq!(
-            keysym_to_egui_key(Keysym::braceleft),
-            Some(egui::Key::OpenBracket)
-        );
-        assert_eq!(
-            keysym_to_egui_key(Keysym::braceright),
-            Some(egui::Key::CloseBracket)
-        );
-        assert_eq!(
-            keysym_to_egui_key(Keysym::underscore),
-            Some(egui::Key::Minus)
-        );
-        assert_eq!(
-            keysym_to_egui_key(Keysym::bracketleft),
-            Some(egui::Key::OpenBracket)
+            egui_key_for(Keysym::exclam, 2),
+            Some((egui::Key::Num1, Some(egui::Key::Num1)))
         );
     }
 
-    /// Same hole as the punctuation, on the number row: Shift+1 resolves
-    /// to `exclam`, which was unmapped, so the press never became an
-    /// event at all.
+    /// The AZERTY case R35 got wrong: `ampersand` on the 1 key (evdev 2)
+    /// must come out as 1, not the 7 a US-shift alias made of it.
     #[test]
-    fn shifted_digits_keep_their_key_identity() {
-        assert_eq!(keysym_to_egui_key(Keysym::exclam), Some(egui::Key::Num1));
-        assert_eq!(keysym_to_egui_key(Keysym::at), Some(egui::Key::Num2));
+    fn azerty_number_row_reports_its_position() {
         assert_eq!(
-            keysym_to_egui_key(Keysym::parenright),
-            Some(egui::Key::Num0)
+            egui_key_for(Keysym::ampersand, 2),
+            Some((egui::Key::Num1, Some(egui::Key::Num1)))
         );
         assert_eq!(
-            keysym_to_egui_key(Keysym::asciicircum),
-            Some(egui::Key::Num6)
+            egui_key_for(Keysym::eacute, 3),
+            Some((egui::Key::Num2, Some(egui::Key::Num2)))
         );
-        // The plain forms must still work.
-        assert_eq!(keysym_to_egui_key(Keysym::_1), Some(egui::Key::Num1));
     }
 
+    /// A letter keeps its label even where its position differs (AZERTY A
+    /// sits at US Q), and carries the position along for the resolver.
+    #[test]
+    fn letters_keep_their_label() {
+        assert_eq!(
+            egui_key_for(Keysym::a, 16),
+            Some((egui::Key::A, Some(egui::Key::Q)))
+        );
+    }
+
+    /// A non-Latin letter has no keysym mapping at all; without the
+    /// position there would be no key event, and no Ctrl+C.
+    #[test]
+    fn non_latin_letters_fall_back_to_the_position() {
+        assert_eq!(
+            egui_key_for(Keysym::Cyrillic_es, 46),
+            Some((egui::Key::C, Some(egui::Key::C)))
+        );
+    }
     #[test]
     fn unmapped_keysym_returns_none() {
         // F1 isn't in our bind table — silent drop.
