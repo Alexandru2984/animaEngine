@@ -176,6 +176,10 @@ Briefly:
 - `src/sysload.rs` — aggregate CPU / memory load, read from `/proc`
 - `src/renderer/` — wgpu pipeline (sprite shader, batched quads)
 - `src/ui/` — egui integration (settings panel, context menu, toasts)
+- `src/outcomes.rs`, `src/keybindings/shared.rs`, `src/config_watch.rs` —
+  behaviour both backends run from one copy. A fix that lands in only one
+  backend's copy of something is how R19, R27, R28, R30 and R37 happened,
+  so new shared behaviour goes here, not into `src/app/` or `src/wayland/`
 - `src/wayland/` — native Wayland backend (opt-in, wlroots only)
 - `src/window/` — X11-side input shape + EWMH hints
 - `src/app/` — the `ApplicationHandler` that ties it all together

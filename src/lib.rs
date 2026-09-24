@@ -19,6 +19,7 @@ pub mod i18n;
 pub mod input;
 pub mod keybindings;
 pub mod monitor;
+pub mod outcomes;
 pub mod perf;
 pub mod physics;
 pub mod platforms;

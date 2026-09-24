@@ -62,6 +62,7 @@ use crate::event::AnimaEvent;
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyChord};
 use crate::monitor::{self, MonitorInfo, WindowPlan};
+use crate::outcomes::{self, OutcomeCtx};
 use crate::renderer::wgpu_renderer::{SurfaceState, WgpuRenderer};
 use crate::scene::Scene;
 use crate::ui::{panels, ToastQueue, Warning};
@@ -128,6 +129,19 @@ pub fn run_native(
     let mut drag = crate::input::drag::DragController::new();
     let mut toasts = ToastQueue::default();
     let mut config_dirty = false;
+    // What a panel outcome may touch (`crate::outcomes`), borrowed per
+    // call so the loop keeps using these locals in between.
+    macro_rules! outcome_ctx {
+        () => {
+            OutcomeCtx {
+                scene: &mut scene,
+                selection: &mut selection,
+                toasts: &mut toasts,
+                config_dirty: &mut config_dirty,
+                renderer: Some(&mut renderer),
+            }
+        };
+    }
     let mut config_watch = crate::config_watch::ConfigWatcher::new();
     // Frame timings for the perf overlay (R27). This loop had no sampler
     // at all, so `TogglePerfOverlay` was one of five rebindable actions
@@ -580,23 +594,15 @@ pub fn run_native(
                 }
                 Action::DeleteSelected | Action::DuplicateSelected => {
                     if let Some(idx) = selection.selected_index() {
-                        let menu_action = if action == Action::DeleteSelected {
-                            panels::MenuAction::Delete(idx)
+                        // The same functions the right-click menu and the
+                        // winit path use (`crate::outcomes`), so none of
+                        // the three can drift from the others.
+                        let mut ctx = outcome_ctx!();
+                        if action == Action::DeleteSelected {
+                            outcomes::delete_entity(idx, &mut ctx);
                         } else {
-                            panels::MenuAction::Duplicate(idx)
-                        };
-                        // Same handler the right-click menu uses, so the
-                        // keyboard and the menu cannot drift apart — it
-                        // already evicts the texture, fixes up the
-                        // selection and raises the toast.
-                        handle_menu_action(
-                            menu_action,
-                            &mut scene,
-                            &mut renderer,
-                            &mut selection,
-                            &mut toasts,
-                            &mut config_dirty,
-                        );
+                            outcomes::duplicate_entity(idx, &mut ctx);
+                        }
                     }
                 }
                 // Everything that only touches the scene and the selection
@@ -1149,34 +1155,27 @@ pub fn run_native(
                             context_menu_state = None;
                         }
                         panels::ContextMenuOutcome::Action(action) => {
-                            handle_menu_action(
-                                action,
-                                &mut scene,
-                                &mut renderer,
-                                &mut selection,
-                                &mut toasts,
-                                &mut config_dirty,
-                            );
+                            outcomes::apply_menu_action(action, &mut outcome_ctx!());
                             context_menu_state = None;
                         }
                     }
                 }
                 if let Some(out) = palette_outcome {
-                    handle_palette_outcome(out, &mut scene, &mut config, &mut toasts);
-                    config_dirty = true;
+                    outcomes::apply_palette_outcome(out, &mut outcome_ctx!(), &mut config);
                 }
                 if let Some(out) = library_outcome {
-                    handle_library_outcome(
+                    // The middle of the primary output, in the global
+                    // coordinates the scene uses.
+                    let at = (
+                        renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                        renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
+                    );
+                    outcomes::apply_library_outcome(
                         out,
+                        &mut outcome_ctx!(),
                         library_root.as_deref(),
                         &mut library,
-                        &mut scene,
-                        &mut toasts,
-                        &mut config_dirty,
-                        (
-                            renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
-                            renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
-                        ),
+                        at,
                     );
                 }
             }
@@ -1616,232 +1615,6 @@ fn apply_reload(
     let n = scene.entities.len();
     tracing::info!("Hot-reload applied: {n} entities");
     toasts.info(format!("Reloaded {n} entities from config"));
-}
-
-/// Apply a context-menu action to scene + renderer + selection +
-/// toast queue. Mirrors `app/outcomes.rs::apply_menu_action` (X11
-/// path) exactly, including the `.get`/`.get_mut` everywhere
-/// hardening — a stale `entity_idx` (menu opened, then the entity
-/// disappeared via hot-reload before the user picked an action)
-/// degrades to a no-op rather than a panic. `renderer` isn't
-/// `Option` here (unlike the X11 path's `self.renderer`) since the
-/// native Wayland loop always has one by this point in the run.
-fn handle_menu_action(
-    action: panels::MenuAction,
-    scene: &mut Scene,
-    renderer: &mut WgpuRenderer,
-    selection: &mut SelectionState,
-    toasts: &mut ToastQueue,
-    config_dirty: &mut bool,
-) {
-    match action {
-        panels::MenuAction::Duplicate(idx) => {
-            let Some(src) = scene.entities.get(idx) else {
-                return;
-            };
-            let src_name = src.name.clone();
-            let src_path = std::path::PathBuf::from(&src.asset_path);
-            let new_x = src.x + 30.0;
-            let new_y = src.y + 30.0;
-            let orig_scale = src.scale;
-            let orig_opacity = src.opacity;
-
-            match scene.add_entity_from_path(&src_path, new_x, new_y) {
-                Ok(new_idx) => {
-                    if let Some(entity) = scene.entities.get_mut(new_idx) {
-                        entity.scale = orig_scale;
-                        entity.opacity = orig_opacity;
-                    }
-                    if let Some(entity) = scene.entities.get(new_idx) {
-                        renderer.ensure_texture(entity);
-                    }
-                    if let Some(entity) = scene.entities.get_mut(new_idx) {
-                        entity.texture_dirty = false;
-                    }
-                    selection.select(new_idx);
-                    *config_dirty = true;
-                    let mut args = fluent::FluentArgs::new();
-                    args.set("name", src_name.clone());
-                    toasts.success(crate::i18n::t_args("toast-duplicated", &args));
-                }
-                Err(e) => {
-                    tracing::error!("Context menu duplicate failed: {}", e);
-                    let mut args = fluent::FluentArgs::new();
-                    args.set("error", e.to_string());
-                    toasts.error(crate::i18n::t_args("toast-duplicate-failed", &args));
-                }
-            }
-        }
-        panels::MenuAction::Delete(idx) => {
-            let removed_name = scene
-                .entities
-                .get(idx)
-                .map(|e| e.name.clone())
-                .unwrap_or_default();
-            if let Some(entity) = scene.entities.get(idx) {
-                renderer.shared.textures.remove(&entity.id);
-            }
-            if scene.remove_entity(idx).is_some() {
-                selection.deselect();
-                *config_dirty = true;
-                let mut args = fluent::FluentArgs::new();
-                args.set("name", removed_name.clone());
-                toasts.info(crate::i18n::t_args("toast-deleted", &args));
-            }
-        }
-        panels::MenuAction::ResetTransform(idx) => {
-            if let Some(e) = scene.entities.get_mut(idx) {
-                e.scale = 1.0;
-                e.opacity = 1.0;
-                *config_dirty = true;
-            }
-        }
-        panels::MenuAction::ToggleGravity(idx) => {
-            if let Some(e) = scene.entities.get_mut(idx) {
-                e.physics.toggle();
-                *config_dirty = true;
-            }
-        }
-        panels::MenuAction::BringForward(idx) => {
-            if let Some(e) = scene.entities.get_mut(idx) {
-                e.z_index += 10;
-                scene.mark_visible_dirty();
-                *config_dirty = true;
-            }
-        }
-        panels::MenuAction::SendBackward(idx) => {
-            if let Some(e) = scene.entities.get_mut(idx) {
-                e.z_index -= 10;
-                scene.mark_visible_dirty();
-                *config_dirty = true;
-            }
-        }
-    }
-}
-
-/// Apply a library "Add to scene" outcome to scene + library index +
-/// toast queue. Mirrors `app/outcomes.rs::handle_library_outcome`
-/// (X11 path), adapted to free-function locals instead of `&mut self`
-/// — there's no `App` on this run loop. `center` is the drop position
-/// (window-local, since the native path has no multi-window origin to
-/// translate by).
-fn handle_library_outcome(
-    outcome: panels::LibraryOutcome,
-    library_root: Option<&std::path::Path>,
-    library: &mut Option<crate::asset_library::LibraryIndex>,
-    scene: &mut Scene,
-    toasts: &mut ToastQueue,
-    config_dirty: &mut bool,
-    center: (f32, f32),
-) {
-    use crate::drop_validate::resolve_library_asset;
-
-    let Some(root) = library_root else {
-        tracing::warn!("Library outcome received but no library_root is set; ignoring.");
-        return;
-    };
-    // Same M2 hardening as the X11 path: canonicalise both sides and
-    // reject anything that escapes the asset root before this ever
-    // reaches a decoder.
-    let rel_path = std::path::Path::new(&outcome.relative_path);
-    let abs_path = match resolve_library_asset(root, rel_path) {
-        Ok(p) => p,
-        Err(reason) => {
-            tracing::warn!("Library asset {} rejected: {reason}", redact_path(rel_path));
-            tracing::debug!("Rejected library relative path: {}", outcome.relative_path);
-            let mut args = fluent::FluentArgs::new();
-            args.set("reason", reason.clone());
-            toasts.warn(crate::i18n::t_args("toast-rejected", &args));
-            return;
-        }
-    };
-    if let Err(reason) = pre_validate_dropped_file(&abs_path) {
-        tracing::warn!(
-            "Library asset {} rejected: {reason}",
-            redact_path(&abs_path)
-        );
-        tracing::debug!("Rejected library full path: {}", abs_path.display());
-        let mut args = fluent::FluentArgs::new();
-        args.set("reason", reason.clone());
-        toasts.warn(crate::i18n::t_args("toast-rejected", &args));
-        return;
-    }
-    match scene.add_entity_from_path(&abs_path, center.0, center.1) {
-        Ok(_) => {
-            let mut args = fluent::FluentArgs::new();
-            args.set("name", outcome.display_name.clone());
-            toasts.success(crate::i18n::t_args("library-asset-added-toast", &args));
-            if let Some(idx) = library.as_mut() {
-                if let Some(asset) = idx.assets.iter_mut().find(|a| a.id == outcome.asset_id) {
-                    asset.last_used_at = Some(std::time::SystemTime::now());
-                }
-                let _ = idx.save(&crate::asset_library::LibraryIndex::default_path());
-            }
-            *config_dirty = true;
-        }
-        Err(e) => {
-            tracing::warn!(
-                "Library add failed for {}: {e}",
-                redact_path(std::path::Path::new(&outcome.relative_path))
-            );
-            tracing::debug!("Failed relative path: {}", outcome.relative_path);
-            let mut args = fluent::FluentArgs::new();
-            args.set("name", outcome.display_name);
-            toasts.error(crate::i18n::t_args("library-asset-add-failed-toast", &args));
-        }
-    }
-}
-
-/// Apply a command-palette outcome to scene + config + toast queue.
-/// Mirrors the X11 path in `app.rs::handle_palette_outcome` but with
-/// loose-typed handles since the Wayland loop doesn't go through `App`.
-fn handle_palette_outcome(
-    outcome: panels::PaletteOutcome,
-    scene: &mut Scene,
-    config: &mut AppConfig,
-    toasts: &mut ToastQueue,
-) {
-    use crate::presets::{self, Preset};
-    match outcome {
-        panels::PaletteOutcome::SwitchTheme(theme) => {
-            config.global.theme = theme;
-            {
-                let mut args = fluent::FluentArgs::new();
-                args.set("theme", theme.label());
-                toasts.success(crate::i18n::t_args("toast-theme-switched", &args));
-            }
-        }
-        panels::PaletteOutcome::ApplyPreset(id, mode) => {
-            let preset = Preset::for_id(id);
-            let existing = scene.to_character_configs();
-            let new = presets::apply_to_scene(existing, &preset, mode);
-            match mode {
-                presets::ApplyMode::Replace => {
-                    scene.reset_to_configs(&new);
-                }
-                presets::ApplyMode::Append => {
-                    let already: std::collections::HashSet<String> =
-                        scene.entities.iter().map(|e| e.id.clone()).collect();
-                    for cfg in new.iter().filter(|c| !already.contains(&c.id)) {
-                        if let Err(e) = scene.append_character_config(cfg) {
-                            tracing::warn!("Palette preset append failed: {e}");
-                            {
-                                let mut args = fluent::FluentArgs::new();
-                                args.set("error", e.to_string());
-                                toasts
-                                    .warn(crate::i18n::t_args("toast-preset-entry-failed", &args));
-                            }
-                        }
-                    }
-                }
-            }
-            {
-                let mut args = fluent::FluentArgs::new();
-                args.set("name", preset.name);
-                toasts.success(crate::i18n::t_args("toast-preset-loaded", &args));
-            }
-        }
-    }
 }
 
 #[cfg(test)]

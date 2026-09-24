@@ -32,49 +32,9 @@ impl App {
                     self.delete_entity(idx);
                 }
             }
-            // Arrow nudges: Shift = 1 px fine, normal = 10 px. Every
-            // nudge invalidates Bounce rest so the entity doesn't
-            // snap back after the keypress. All selection-driven arms
-            // go through `get_mut` — the deselect-on-removal invariant
-            // holds everywhere today, but a panic on a stale index is
-            // the wrong failure mode for a keypress either way.
             Action::DuplicateSelected => {
                 if let Some(idx) = self.selection.selected_index() {
-                    let Some(src) = self.scene.entities.get(idx) else {
-                        return;
-                    };
-                    let src_path = std::path::PathBuf::from(&src.asset_path);
-                    let new_x = src.x + 30.0;
-                    let new_y = src.y + 30.0;
-                    // Copy before the add — push can't invalidate idx
-                    // today, but reading through the stale borrow after
-                    // a Vec mutation is exactly the pattern get/get_mut
-                    // is here to retire.
-                    let orig_scale = src.scale;
-                    let orig_opacity = src.opacity;
-                    match self.scene.add_entity_from_path(&src_path, new_x, new_y) {
-                        Ok(new_idx) => {
-                            self.scene.entities[new_idx].scale = orig_scale;
-                            self.scene.entities[new_idx].opacity = orig_opacity;
-                            if let Some(renderer) = &mut self.renderer {
-                                renderer.ensure_texture(&self.scene.entities[new_idx]);
-                                self.scene.entities[new_idx].texture_dirty = false;
-                            }
-                            self.selection.select(new_idx);
-                            self.config_dirty = true;
-                            self.save_config_if_needed();
-                            tracing::info!("Duplicated entity at ({:.0}, {:.0})", new_x, new_y);
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to duplicate: {}", e);
-                            {
-                                let mut args = fluent::FluentArgs::new();
-                                args.set("error", e.to_string());
-                                self.toasts
-                                    .error(crate::i18n::t_args("toast-duplicate-failed", &args));
-                            }
-                        }
-                    }
+                    self.duplicate_entity(idx);
                 }
             }
             Action::TogglePerfOverlay => {

@@ -6,6 +6,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Applying a preset on native Wayland kept a stale selection.** With
+  *Replace*, the scene is rebuilt from the preset but the selection still
+  pointed at the old index — so the Inspector showed, and `Delete` would
+  remove, a character you had never selected. The winit backend always
+  cleared it.
+- **"Loaded preset" was English in every language** on the winit backend.
+- **Duplicating with `D` on the winit backend gave no confirmation,**
+  while the context menu's Duplicate did.
+
+### Changed
+
+- The context menu, the Library's "Add to scene" and the command palette
+  are now applied by one shared module instead of a copy per backend —
+  the drift above is what the copies had produced. About 170 lines fewer.
+
 ## [1.2.0] — 2026-09-24
 
 Characters can now be scripted. A behavior can be a small
