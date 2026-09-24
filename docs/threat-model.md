@@ -278,6 +278,12 @@ Sound playback is **output only**. rodio's default features include
 here, so no audio-capture code is linked into the binary at all. Only
 `playback` plus the decoders are enabled.
 
+The **Flatpak** needs `--socket=pulseaudio` to make any sound, and that
+socket carries recording as well as playback: Flatpak has no
+playback-only permission. So inside the sandbox the guarantee is the same
+as on the native builds — no capture code is linked — not a sandbox that
+would forbid capture if there were.
+
 Scripts can also read **aggregate machine load** — `cpu` and `mem`, as
 fractions. This is deliberately not the `sysinfo` crate: its `system`
 feature bundles the process API with CPU and memory, so there would be no

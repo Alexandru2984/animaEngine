@@ -9,7 +9,8 @@ pkgdesc="Linux-first animated desktop overlay engine — render animated charact
 arch=('x86_64' 'aarch64')
 url="https://github.com/Alexandru2984/animaEngine"
 license=('MIT')
-depends=('libxkbcommon-x11' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'libxrandr')
+# alsa-lib: the default `audio` feature links libasound (script sounds).
+depends=('libxkbcommon-x11' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'libxrandr' 'alsa-lib')
 makedepends=('cargo' 'cmake' 'librsvg' 'vulkan-headers' 'libxkbcommon' 'libx11' 'libxcb')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('c6c8d00986960422e646c242938a1e3065cbc0c5710d89ac074cb9a202a19a50')

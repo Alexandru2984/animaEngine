@@ -32,6 +32,11 @@ finish-args:
   - --socket=wayland
   # GPU for wgpu (Vulkan / OpenGL).
   - --device=dri
+  # Sound for behavior scripts' play(): ALSA inside the runtime plays
+  # through this socket. It is also the socket a recorder would use —
+  # Flatpak has no playback-only permission — so the guarantee here is
+  # the native one: no capture code is linked (docs/threat-model.md).
+  - --socket=pulseaudio
   # System tray via StatusNotifierItem — host KDE / GNOME need to
   # see our DBus name.
   - --talk-name=org.kde.StatusNotifierWatcher

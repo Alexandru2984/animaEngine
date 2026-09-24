@@ -7,7 +7,7 @@ doesn't exist yet.
 ## Ready ✅
 
 - `com.animaengine.Anima.flathub.yml` — offline manifest building the
-  `v0.5.5` tag, crates pinned in `cargo-sources.json` (887 entries,
+  `v0.5.5` tag, crates pinned in `cargo-sources.json` (1045 entries,
   regenerate on every release: see header comment in the manifest).
 - Metainfo passes `appstreamcli validate` with release entries up to
   0.5.5, OARS rating, launchable, provides, URLs.
@@ -71,6 +71,22 @@ flatpak run com.animaengine.Anima
 Things to verify inside the sandbox: tray icon appears, drag-drop
 works from ~/Downloads, config persists across restarts, the overlay
 is click-through.
+
+Two more since 1.2:
+
+- **A script's `play()` is audible.** The manifest grants
+  `--socket=pulseaudio` for it; without that the sandbox is silent.
+- **Where the asset library actually lands.** The manifest grants
+  `xdg-data/animaEngine`, `xdg-config/animaEngine` and
+  `xdg-cache/animaEngine`, but the app's directories are lower-case
+  (`animaengine`, from `directories::ProjectDirs` — the same casing R32
+  in `docs/runtime-findings.md` corrected in the UI), and inside a
+  Flatpak `XDG_DATA_HOME` and friends point into
+  `~/.var/app/com.animaengine.Anima/` anyway. If `flatpak run` logs
+  `Created asset library at ~/.var/app/…/data/animaengine/assets`, those
+  three grants reach nothing the app reads and can be dropped, which
+  tightens the sandbox. Not changed blind: it needs this build to
+  confirm.
 
 ## Submission steps
 

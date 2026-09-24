@@ -204,6 +204,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Packages now need ALSA**, for script sounds: the AUR package depends
+  on `alsa-lib`, and the `.deb` picks up `libasound2` automatically.
+  Building with `--no-default-features --features video` leaves audio out
+  and drops the dependency.
+- **The Flatpak asks for the PulseAudio socket**, without which it cannot
+  make a sound. That socket also carries recording — Flatpak has no
+  playback-only permission — so what stands between the app and your
+  microphone is that no capture code is compiled in, not the sandbox. See
+  `docs/threat-model.md`.
 - Accepted RUSTSEC-2026-0249 (`smartstring` unmaintained), which arrives
   transitively with the script engine. Unlike the other accepted
   advisories this one is reachable, so the rationale is recorded
