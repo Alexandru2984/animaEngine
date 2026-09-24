@@ -189,14 +189,20 @@ smithay-client-toolkit = { version = "0.19", default-features = false, features 
 
 # ── Windows overlay integration (cross-platform port, C4) ────────────
 # Click-through (WS_EX_LAYERED | WS_EX_TRANSPARENT), the topmost
-# re-assert and the global cursor read — see src/window/win_overlay.rs.
-# Pinned to the same major winit 0.30 already links so the build carries
-# one copy of the Win32 bindings, and so `HWND` is the same `isize` on
-# both sides of the raw-window-handle boundary.
+# re-assert and the global cursor read — see src/window/win_overlay.rs —
+# plus the tray (Shell_NotifyIcon, src/win_tray.rs) and the single-
+# instance mutex (src/win_instance.rs). Pinned to the same major winit
+# 0.30 already links so the build carries one copy of the Win32 bindings,
+# and so `HWND` is the same `isize` on both sides of the raw-window-handle
+# boundary.
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
+    "Win32_Security",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

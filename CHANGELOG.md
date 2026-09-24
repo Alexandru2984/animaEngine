@@ -6,6 +6,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Windows: a tray icon and a single instance.** The notification-area
+  icon has the same menu as the Linux tray, and a second launch now hands
+  off to the running overlay and raises it instead of starting another.
+  Both are built on the Win32 bindings the port already links. The
+  Windows port compiles and its unit tests pass under Wine, but it has
+  **not yet been run on a real Windows machine**; see
+  `docs/porting-windows.md`.
+
 ### Fixed
 
 - **Applying a preset on native Wayland kept a stale selection.** With
@@ -40,6 +50,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Config hot-reload runs on one watcher for both backends, where the
   winit path used to keep its own.
 - File drops and Shimeji imports go through that same shared module.
+- CI now compiles the Windows and FreeBSD ports on every push — with and
+  without audio, lint-clean, docs included. Neither was built anywhere
+  before, so a Linux-only change could break them unnoticed.
+- The tray menu is defined once, and both platforms' trays render it.
 
 ## [1.2.0] — 2026-09-24
 

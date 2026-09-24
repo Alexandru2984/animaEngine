@@ -32,16 +32,22 @@ pub mod sysload;
 // The D-Bus single-instance handshake, the StatusNotifierItem tray and the
 // native wlr-layer-shell path are unix-desktop-only (zbus / ksni /
 // wayland-client, target-gated in Cargo.toml). The Windows equivalents —
-// named mutex and Shell_NotifyIcon — arrive with the Windows backend (C4).
+// a named mutex and Shell_NotifyIcon — are `win_instance` and `win_tray`;
+// both trays render the one menu in `tray_menu`.
 #[cfg(unix)]
 pub mod single_instance;
 pub mod soak;
 #[cfg(unix)]
 pub mod tray;
+pub mod tray_menu;
 pub mod ui;
 pub mod util;
 #[cfg(unix)]
 pub mod wayland;
+#[cfg(windows)]
+pub mod win_instance;
+#[cfg(windows)]
+pub mod win_tray;
 pub mod window;
 
 pub use error::{AnimaError, Result};

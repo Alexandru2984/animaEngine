@@ -19,6 +19,8 @@ use anima_engine::{demo, hotkeys, window};
 use anima_engine::single_instance::{self, AcquireOutcome};
 #[cfg(unix)]
 use anima_engine::{tray, wayland};
+#[cfg(windows)]
+use anima_engine::{win_instance, win_tray};
 
 // Force X11 backend — XWayland on Wayland systems.
 // This is required because:
@@ -94,9 +96,19 @@ fn main() {
             std::process::exit(0);
         }
     };
-    // No handshake off unix yet: a second launch starts a second overlay
-    // until the named-mutex backend lands (C4).
-    #[cfg(not(unix))]
+    // The same handshake over a named mutex and event (`win_instance`).
+    #[cfg(windows)]
+    let instance: InstanceHandle = match win_instance::try_acquire() {
+        Some(win_instance::Acquire::Claimed(instance)) => Some(instance),
+        Some(win_instance::Acquire::HandedOff) => {
+            tracing::info!("Another instance is already running. Asked it to raise.");
+            std::process::exit(0);
+        }
+        // The kernel objects could not be created: run anyway, since a
+        // second overlay is a smaller failure than none.
+        None => None,
+    };
+    #[cfg(not(any(unix, windows)))]
     let instance: InstanceHandle = None;
 
     // Probe native Wayland capabilities before the platform-info log so
@@ -208,11 +220,12 @@ fn main() {
 
 /// What the single-instance handshake hands back to be kept alive for the
 /// process lifetime: on unix the owned D-Bus connection the activation
-/// service is installed on. Off unix there is no handshake yet, so the
-/// handle carries nothing — the Windows named mutex lands in C4.
+/// service is installed on, on Windows the named mutex and raise event.
 #[cfg(unix)]
 type InstanceHandle = Option<zbus::Connection>;
-#[cfg(not(unix))]
+#[cfg(windows)]
+type InstanceHandle = Option<win_instance::Instance>;
+#[cfg(not(any(unix, windows)))]
 type InstanceHandle = Option<()>;
 
 /// X11 / XWayland path — the default. Factored into its own function so
@@ -261,6 +274,10 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     {
         let _tray_thread = tray::spawn(event_loop.create_proxy());
     }
+    // Held to the end of this function: dropping it removes the icon,
+    // which Windows would otherwise leave behind as a dead entry.
+    #[cfg(windows)]
+    let _tray = win_tray::spawn(event_loop.create_proxy());
 
     // T.2: resolve the hotkey backend (config preference + portal
     // probe) and wire whichever mechanism won. The portal handshake
@@ -330,8 +347,13 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
             single_instance::install_service(conn, event_loop.create_proxy());
         }
     }
-    // Nothing to install off unix yet — the handle is inert until C4.
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        if let Some(instance) = instance {
+            instance.listen(event_loop.create_proxy());
+        }
+    }
+    #[cfg(not(any(unix, windows)))]
     let _ = instance;
 
     let mut app = App::new(config, scene);

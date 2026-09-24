@@ -34,70 +34,43 @@ impl ksni::Tray for AnimaTray {
     }
 
     fn title(&self) -> String {
-        "animaEngine".into()
+        crate::tray_menu::TITLE.into()
     }
 
     fn tool_tip(&self) -> ksni::ToolTip {
         ksni::ToolTip {
-            title: "animaEngine".into(),
+            title: crate::tray_menu::TITLE.into(),
             description: "Right-click for options".into(),
             ..Default::default()
         }
     }
 
-    /// Default activation (single click on KDE, double click on GNOME)
-    /// flips edit mode — the most-used action.
+    /// Default activation (single click on KDE, double click on GNOME).
     fn activate(&mut self, _x: i32, _y: i32) {
-        let _ = self.proxy.send_event(AnimaEvent::ToggleEditMode);
+        let _ = self.proxy.send_event(crate::tray_menu::ACTIVATE);
     }
 
+    /// Rendered from `tray_menu::MENU`, which the Windows tray shares.
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
+        use crate::tray_menu::{TrayItem, MENU};
         use ksni::menu::*;
-        vec![
-            StandardItem {
-                label: "Toggle edit mode".into(),
-                activate: Box::new(|this: &mut Self| {
-                    let _ = this.proxy.send_event(AnimaEvent::ToggleEditMode);
-                }),
-                ..Default::default()
-            }
-            .into(),
-            StandardItem {
-                label: "Toggle playback".into(),
-                activate: Box::new(|this: &mut Self| {
-                    let _ = this.proxy.send_event(AnimaEvent::ToggleGlobalPlayback);
-                }),
-                ..Default::default()
-            }
-            .into(),
-            MenuItem::Separator,
-            StandardItem {
-                label: "Show overlay".into(),
-                activate: Box::new(|this: &mut Self| {
-                    let _ = this.proxy.send_event(AnimaEvent::ShowOverlay);
-                }),
-                ..Default::default()
-            }
-            .into(),
-            StandardItem {
-                label: "Hide overlay".into(),
-                activate: Box::new(|this: &mut Self| {
-                    let _ = this.proxy.send_event(AnimaEvent::HideOverlay);
-                }),
-                ..Default::default()
-            }
-            .into(),
-            MenuItem::Separator,
-            StandardItem {
-                label: "Quit".into(),
-                icon_name: "application-exit".into(),
-                activate: Box::new(|this: &mut Self| {
-                    let _ = this.proxy.send_event(AnimaEvent::Quit);
-                }),
-                ..Default::default()
-            }
-            .into(),
-        ]
+        MENU.iter()
+            .map(|item| match *item {
+                TrayItem::Separator => MenuItem::Separator,
+                TrayItem::Action { label, event } => StandardItem {
+                    label: label.into(),
+                    icon_name: match event {
+                        AnimaEvent::Quit => "application-exit".into(),
+                        _ => String::new(),
+                    },
+                    activate: Box::new(move |this: &mut Self| {
+                        let _ = this.proxy.send_event(event);
+                    }),
+                    ..Default::default()
+                }
+                .into(),
+            })
+            .collect()
     }
 }
 

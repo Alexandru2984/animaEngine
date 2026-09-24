@@ -94,6 +94,38 @@ RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --document-private-items
 Run it before committing anything that removes, renames or moves a
 documented item, or that edits a module-level doc comment.
 
+### Windows and FreeBSD
+
+Nothing in CI *runs* on either, so the `cross` job at least compiles
+both, lint-clean and with their docs, on every push. To do the same
+before pushing a change that touches `cfg(unix)` / `cfg(windows)` code:
+
+```bash
+rustup target add x86_64-pc-windows-gnu x86_64-unknown-freebsd
+for t in x86_64-pc-windows-gnu x86_64-unknown-freebsd; do
+  PKG_CONFIG_ALLOW_CROSS=1 cargo clippy --locked --target $t \
+      --no-default-features --features audio --all-targets -- -D warnings
+done
+```
+
+Without `video`, whose openh264 needs a C cross toolchain. The Windows
+unit tests can also be *run*, under Wine — named mutexes, events and the
+rest behave there as on Windows, which a compile check cannot show. Use
+a throwaway prefix, and no display, so nothing reaches your desktop:
+
+```bash
+sudo apt install --no-install-recommends gcc-mingw-w64-x86-64 wine64
+env -u DISPLAY -u WAYLAND_DISPLAY WINEPREFIX="$(mktemp -d)" WINEDEBUG=-all \
+    WINEDLLOVERRIDES="mscoree,mshtml=" \
+    CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc \
+    CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine64 \
+    cargo test --locked --target x86_64-pc-windows-gnu \
+        --no-default-features --features audio --lib
+```
+
+The prefix is about 1 GB; delete it afterwards. Running the overlay
+itself still needs real Windows: Wine has no GPU path worth testing on.
+
 ### Alpine / musl
 
 On Alpine (or any musl target) the deps are:

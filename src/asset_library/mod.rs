@@ -680,6 +680,13 @@ mod ensure_root_tests {
     /// process — the same reason `demo_generation` keeps its two steps
     /// together. Split, they raced and one saw the other's XDG_DATA_HOME.
     #[test]
+    // The data directory is scoped through XDG_DATA_HOME, which Windows and
+    // macOS ignore: there the test would reach, and create, the user's real
+    // application-data folder.
+    #[cfg_attr(
+        any(windows, target_os = "macos"),
+        ignore = "scopes the data dir through XDG_DATA_HOME, which this OS ignores"
+    )]
     fn ensure_asset_root_creates_xdg_but_never_an_explicit_override() {
         fn scratch(tag: &str) -> PathBuf {
             std::env::temp_dir().join(format!(
