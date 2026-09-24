@@ -234,6 +234,10 @@ inspector-group-hint = Composto pelo grupo { $group }: { $transform }
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
 toast-config-saved = Configuração salva
+# Hot-reload toasts: machine-translated, pending native review.
+toast-config-reloaded = Configuração recarregada do disco
+toast-config-reload-failed = Configuração não recarregada — o arquivo é inválido ou ainda está sendo gravado. A cena atual foi mantida.
+toast-config-reload-discarded = Configuração não recarregada — você editou a cena enquanto ela carregava.
 toast-save-failed = Falha ao salvar: { $error }
 toast-rejected = Rejeitado: { $reason }
 toast-added = { $name } adicionado

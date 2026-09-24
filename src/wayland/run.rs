@@ -154,7 +154,7 @@ pub fn run_native(
     // memory-regression harness covered one of the two backends and gave
     // no indication it was skipping the other.
     let mut soak = crate::soak::SoakRecorder::from_env();
-    let warnings: BTreeSet<Warning> = BTreeSet::new();
+    let mut warnings: BTreeSet<Warning> = BTreeSet::new();
     // Right-click context menu state, mirroring `app::ContextMenuState`
     // on the X11 path. Persists across frames while the menu is open.
     let mut context_menu_state: Option<crate::app::ContextMenuState> = None;
@@ -280,37 +280,8 @@ pub fn run_native(
         // table calls it stable on both backends; this loop never did it
         // at all, so editing config.toml with the overlay running on
         // Wayland did nothing (R28).
-        match config_watch.poll(config_dirty) {
-            crate::config_watch::Poll::Ready(result) => {
-                apply_reload(
-                    *result,
-                    &mut config,
-                    &mut scene,
-                    &mut renderer,
-                    &mut selection,
-                    &mut toasts,
-                );
-            }
-            crate::config_watch::Poll::Failed(reason) => {
-                // Nothing was written and the running scene is untouched —
-                // `try_reload` never touches the file — but the user needs
-                // to know their edit has not taken.
-                tracing::warn!("Hot-reload skipped: {reason}; keeping current scene");
-                // Raw English, matching the winit path's wording for the
-                // same two events. Hot-reload toasts are untranslated on
-                // both backends; adding keys for one of them only would
-                // make that worse, not better.
-                toasts.warn("Config not reloaded (invalid or mid-save); keeping current scene");
-            }
-            crate::config_watch::Poll::Discarded => {
-                tracing::info!("Hot-reload discarded: the scene was edited while it was loading");
-                toasts.warn("Config not reloaded — you edited the scene meanwhile");
-            }
-            crate::config_watch::Poll::WorkerLost => {
-                tracing::warn!("Hot-reload worker disconnected unexpectedly");
-            }
-            crate::config_watch::Poll::Idle => {}
-        }
+        let poll = config_watch.poll(config_dirty);
+        crate::config_watch::handle(poll, &mut outcome_ctx!(), &mut config, &mut warnings);
 
         // Rebuild PerMonitor extras whenever the user switches mode or
         // the output topology changes (hotplug) — mirrors the X11
@@ -1573,48 +1544,6 @@ fn flip_edit_mode(
 /// is two booleans.
 fn should_persist_on_exit(new_mode: bool, config_dirty: bool) -> bool {
     !new_mode && config_dirty
-}
-
-/// Install a finished hot-reload. Mirrors `App::apply_hot_reload` on the
-/// winit path, including the texture diff: entities whose id survives
-/// keep their GPU memory instead of being re-uploaded, which is the
-/// difference between a seamless reload and a visible hitch on a scene
-/// with a few large sprites.
-fn apply_reload(
-    result: crate::config_watch::Reloaded,
-    config: &mut AppConfig,
-    scene: &mut Scene,
-    renderer: &mut WgpuRenderer,
-    selection: &mut SelectionState,
-    toasts: &mut ToastQueue,
-) {
-    // Drop textures whose entity id is gone from the new scene, before
-    // the new entities claim their own.
-    let new_ids: std::collections::HashSet<&str> = result
-        .scene
-        .entities
-        .iter()
-        .map(|e| e.id.as_str())
-        .collect();
-    renderer
-        .shared
-        .textures
-        .retain(|id, _| new_ids.contains(id.as_str()));
-
-    *config = result.config;
-    *scene = result.scene;
-    // The reloaded scene is a different list; an index into the old one
-    // means nothing against it.
-    selection.deselect();
-
-    for entity in &mut scene.entities {
-        renderer.ensure_texture(entity);
-        entity.texture_dirty = false;
-    }
-
-    let n = scene.entities.len();
-    tracing::info!("Hot-reload applied: {n} entities");
-    toasts.info(format!("Reloaded {n} entities from config"));
 }
 
 #[cfg(test)]

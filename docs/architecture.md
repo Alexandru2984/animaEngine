@@ -305,7 +305,7 @@ toast).
 | `anima-tray` | ksni async runtime + DBus | `EventLoopProxy<AnimaEvent>` |
 | `anima-instance` | zbus connection holding `com.animaengine.Anima` | `EventLoopProxy<AnimaEvent>` |
 | Hotkey global handler | `GlobalHotKeyEvent::set_event_handler` closure | `EventLoopProxy<AnimaEvent>` |
-| Hot-reload worker | One-shot per mtime change: load + decode | `mpsc::Sender<HotReloadResult>` |
+| Hot-reload worker | One-shot per mtime change: load + decode | `mpsc::Sender<config_watch::Reloaded>` (`src/config_watch.rs`, both backends) |
 
 All cross-thread messages are typed (`AnimaEvent` / `HotReloadResult`).
 No shared mutable state outside `mpsc` channels.

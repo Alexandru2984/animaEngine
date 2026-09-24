@@ -7,23 +7,8 @@
 //! viewport.
 
 use super::App;
-use crate::outcomes::{self, OutcomeCtx};
+use crate::outcomes;
 use crate::ui::panels;
-
-/// The fields of `App` an outcome may touch, borrowed one by one — a
-/// method returning this would borrow all of `self`, and the library and
-/// palette handlers need `config` / `library` alongside it.
-macro_rules! outcome_ctx {
-    ($app:expr) => {
-        OutcomeCtx {
-            scene: &mut $app.scene,
-            selection: &mut $app.selection,
-            toasts: &mut $app.toasts,
-            config_dirty: &mut $app.config_dirty,
-            renderer: $app.renderer.as_mut(),
-        }
-    };
-}
 
 impl App {
     pub(super) fn handle_menu_outcome(&mut self, outcome: panels::ContextMenuOutcome) {

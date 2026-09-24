@@ -234,6 +234,10 @@ inspector-group-hint = Złożone przez grupę { $group }: { $transform }
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
 toast-config-saved = Konfiguracja zapisana
+# Hot-reload toasts: machine-translated, pending native review.
+toast-config-reloaded = Konfiguracja wczytana ponownie z dysku
+toast-config-reload-failed = Konfiguracja nie została wczytana ponownie — plik jest nieprawidłowy lub wciąż zapisywany. Bieżąca scena pozostaje.
+toast-config-reload-discarded = Konfiguracja nie została wczytana ponownie — scena została zmieniona podczas wczytywania.
 toast-save-failed = Zapis nie powiódł się: { $error }
 toast-rejected = Odrzucono: { $reason }
 toast-added = Dodano { $name }

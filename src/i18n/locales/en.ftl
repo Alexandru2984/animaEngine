@@ -250,6 +250,9 @@ inspector-group-hint = Composed by group { $group }: { $transform }
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
 toast-config-saved = Config saved
+toast-config-reloaded = Config reloaded from disk
+toast-config-reload-failed = Config not reloaded — the file is invalid or still being written. Keeping the current scene.
+toast-config-reload-discarded = Config not reloaded — you edited the scene while it was loading.
 toast-save-failed = Save failed: { $error }
 toast-rejected = Rejected: { $reason }
 toast-added = Added { $name }

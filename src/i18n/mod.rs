@@ -595,6 +595,50 @@ mod tests {
         );
     }
 
+    /// No toast may be built from untranslated text.
+    ///
+    /// Toasts are the one UI surface assembled in plain Rust rather than a
+    /// panel, which is how four of them stayed English in every language:
+    /// "Loaded preset" on winit and the three hot-reload messages on both
+    /// backends — the Wayland copy even carried a comment saying adding
+    /// keys to one backend only would make things worse. A toast now takes
+    /// a `t(…)` / `t_args(…)` result; a string literal or a `format!` in
+    /// its place fails here.
+    ///
+    /// Test modules are skipped: they queue raw strings on purpose.
+    #[test]
+    fn no_toast_is_built_from_untranslated_text() {
+        fn scan(dir: &std::path::Path, hits: &mut Vec<String>) {
+            for entry in std::fs::read_dir(dir).expect("src is readable").flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    scan(&path, hits);
+                    continue;
+                }
+                if path.extension().is_none_or(|e| e != "rs") {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path).expect("source is readable");
+                let body = text.split("\n#[cfg(test)]").next().unwrap_or("");
+                for method in [".info(", ".success(", ".warn(", ".error("] {
+                    for (at, _) in body.match_indices(method) {
+                        let arg = body[at + method.len()..].trim_start();
+                        if arg.starts_with('"') || arg.starts_with("format!(") {
+                            let line = body[..at].lines().count();
+                            hits.push(format!("{}:{line}", path.display()));
+                        }
+                    }
+                }
+            }
+        }
+        let mut hits = Vec::new();
+        scan(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+            &mut hits,
+        );
+        assert!(hits.is_empty(), "toasts with untranslated text: {hits:#?}");
+    }
+
     /// Map each message key to the multiset of `$variable` references in
     /// its value (continuation lines included). Used to prove every
     /// locale interpolates exactly the arguments English does.

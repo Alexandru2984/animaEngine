@@ -1,3 +1,18 @@
+/// The fields of `App` a panel outcome or a reload may touch, borrowed
+/// one by one: a method returning this would borrow all of `self`, and the
+/// callers need `config`, `library` or `warnings` alongside it.
+macro_rules! outcome_ctx {
+    ($app:expr) => {
+        crate::outcomes::OutcomeCtx {
+            scene: &mut $app.scene,
+            selection: &mut $app.selection,
+            toasts: &mut $app.toasts,
+            config_dirty: &mut $app.config_dirty,
+            renderer: $app.renderer.as_mut(),
+        }
+    };
+}
+
 mod dispatch;
 mod hot_reload;
 mod input;
@@ -19,7 +34,7 @@ use crate::ui::{EguiRenderer, ToastQueue};
 use crate::window::overlay::OverlayPlatform;
 use std::sync::mpsc;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
@@ -84,13 +99,9 @@ pub struct App {
     super_held: bool,
     /// Pooled X11 input manager (holds a single X11 connection)
     x11_input: Option<Box<dyn OverlayPlatform>>,
-    /// Last time we checked config file for hot-reload
-    last_config_check: Instant,
-    /// Last known modification time of config file
-    config_mtime: Option<SystemTime>,
-    /// Receiver for an in-flight async hot-reload. `Some` means a worker
-    /// thread is currently decoding the new config + assets off the UI thread.
-    hot_reload_rx: Option<mpsc::Receiver<Result<HotReloadResult, String>>>,
+    /// Watches config.toml and reloads it off the UI thread — the same
+    /// watcher the native Wayland loop uses.
+    config_watch: crate::config_watch::ConfigWatcher,
     /// In-flight off-thread Shimeji import. `Some` while a worker copies a
     /// pack's sprites (the slow part) so a large pack can't freeze the UI;
     /// the result is applied on the UI thread at the captured drop point.
@@ -209,13 +220,6 @@ pub struct App {
     last_shape_refresh: Instant,
 }
 
-/// Result of an async hot-reload — produced by a worker thread, consumed by
-/// the UI thread on the next frame.
-struct HotReloadResult {
-    config: AppConfig,
-    scene: Scene,
-}
-
 /// An off-thread Shimeji import in flight: the worker's result channel and
 /// the drop position to spawn the imported characters at when it lands.
 struct PendingShimejiImport {
@@ -267,9 +271,7 @@ impl App {
             alt_held: false,
             super_held: false,
             x11_input: None,
-            last_config_check: Instant::now(),
-            config_mtime: Self::get_config_mtime(),
-            hot_reload_rx: None,
+            config_watch: crate::config_watch::ConfigWatcher::new(),
             pending_shimeji: None,
             ui: None,
             ui_state: UiState::default(),
@@ -341,11 +343,10 @@ impl App {
     // `impl App` block, split across files so this module stays
     // focused on lifecycle / event-loop wiring.
 
-    // Hot-reload (`get_config_mtime`, `check_hot_reload`,
-    // `apply_hot_reload`) lives in `src/app/hot_reload.rs` (H.3).
-
-    // Outcome handlers (`handle_{menu,library,palette}_outcome` +
-    // `apply_menu_action`) live in `src/app/outcomes.rs` (H.2).
+    // Hot-reload (`check_hot_reload`) lives in `src/app/hot_reload.rs`,
+    // outcome handlers (`handle_{menu,library,palette}_outcome`) in
+    // `src/app/outcomes.rs`; both apply through the modules the Wayland
+    // loop shares, `crate::config_watch` and `crate::outcomes`.
 
     /// Resolve a pressed key to a bound action and dispatch it.
     ///
@@ -450,8 +451,8 @@ impl App {
                     // Saves fire on discrete edits, not per frame, so a
                     // persistent failure re-toasts per edit, not per frame.
                     self.config_dirty = false;
-                    // Update mtime so hot-reload doesn't trigger on our own save
-                    self.config_mtime = Self::get_config_mtime();
+                    // Or hot-reload mistakes our own save for an edit.
+                    self.config_watch.note_saved();
                 }
                 Err(e) => {
                     tracing::warn!("Failed to save config: {}", e);

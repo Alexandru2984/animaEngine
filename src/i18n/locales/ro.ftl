@@ -238,6 +238,10 @@ inspector-group-hint = Compus de grupul { $group }: { $transform }
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
 toast-config-saved = Configurație salvată
+# Hot-reload toasts: machine-translated, pending native review.
+toast-config-reloaded = Configurație reîncărcată de pe disc
+toast-config-reload-failed = Configurația nu a fost reîncărcată — fișierul e invalid sau încă se scrie. Scena curentă rămâne.
+toast-config-reload-discarded = Configurația nu a fost reîncărcată — ai editat scena cât se încărca.
 toast-save-failed = Salvarea a eșuat: { $error }
 toast-rejected = Respins: { $reason }
 toast-added = Adăugat { $name }

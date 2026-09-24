@@ -234,6 +234,10 @@ inspector-group-hint = グループ { $group } による合成: { $transform }
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
 toast-config-saved = 設定を保存しました
+# Hot-reload toasts: machine-translated, pending native review.
+toast-config-reloaded = 設定をディスクから再読み込みしました
+toast-config-reload-failed = 設定を再読み込みしませんでした。ファイルが無効か、書き込み中です。現在のシーンをそのまま使います。
+toast-config-reload-discarded = 設定を再読み込みしませんでした。読み込み中にシーンが編集されました。
 toast-save-failed = 保存に失敗しました: { $error }
 toast-rejected = 拒否されました: { $reason }
 toast-added = { $name } を追加しました

@@ -16,12 +16,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **"Loaded preset" was English in every language** on the winit backend.
 - **Duplicating with `D` on the winit backend gave no confirmation,**
   while the context menu's Duplicate did.
+- **A dead hot-reload worker went unmentioned on native Wayland.** The
+  winit backend raises a banner saying edits to `config.toml` will not
+  apply until restart; the Wayland loop only wrote a log line, so a saved
+  edit simply never took.
+- **Hot-reload messages were English in every language,** on both
+  backends. A test now fails if any toast is built from untranslated text.
 
 ### Changed
 
 - The context menu, the Library's "Add to scene" and the command palette
   are now applied by one shared module instead of a copy per backend —
   the drift above is what the copies had produced. About 170 lines fewer.
+- Config hot-reload runs on one watcher for both backends, where the
+  winit path used to keep its own.
 
 ## [1.2.0] — 2026-09-24
 

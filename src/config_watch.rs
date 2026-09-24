@@ -12,14 +12,18 @@
 //! neither backend, rather than being copied a second time into a loop
 //! that already duplicates enough of the other one.
 //!
-//! Deliberately *not* retrofitted onto the winit path in the same change.
-//! That path works today and its version is entangled with `App`'s
-//! warning banners and toasts; swapping it out is a refactor of something
-//! healthy, which is a different risk from giving a second backend a
-//! feature it never had.
+//! The winit path kept its own copy at first — it worked, and swapping a
+//! healthy path is a different risk from giving a backend a feature it
+//! never had. It now runs on this too, and [`handle`] is what both loops
+//! do with a result, because the copies had already drifted: only winit
+//! raised the banner when the worker died, and the toasts were English on
+//! both.
 
 use crate::config::AppConfig;
+use crate::outcomes::OutcomeCtx;
 use crate::scene::Scene;
+use crate::ui::Warning;
+use std::collections::{BTreeSet, HashSet};
 use std::sync::mpsc;
 use std::time::{Instant, SystemTime};
 
@@ -149,6 +153,82 @@ impl ConfigWatcher {
     }
 }
 
+/// Act on what [`ConfigWatcher::poll`] found — the same way on both
+/// backends.
+pub fn handle(
+    poll: Poll,
+    ctx: &mut OutcomeCtx<'_>,
+    config: &mut AppConfig,
+    warnings: &mut BTreeSet<Warning>,
+) {
+    match poll {
+        Poll::Idle => {}
+        Poll::Ready(result) => {
+            install(*result, ctx, config);
+            // A worker answered, so whatever made the last one vanish has
+            // passed; the banner says it goes away when that happens.
+            warnings.remove(&Warning::HotReloadDisconnected);
+        }
+        Poll::Discarded => {
+            tracing::info!("Hot-reload discarded: the scene was edited while it was loading");
+            ctx.toasts
+                .warn(crate::i18n::t("toast-config-reload-discarded"));
+            warnings.remove(&Warning::HotReloadDisconnected);
+        }
+        Poll::Failed(reason) => {
+            // Nothing was written and the running scene is untouched —
+            // `try_reload` never touches the file — but the user needs to
+            // know their edit has not taken.
+            tracing::warn!("Hot-reload skipped: {reason}; keeping current scene");
+            ctx.toasts
+                .warn(crate::i18n::t("toast-config-reload-failed"));
+        }
+        Poll::WorkerLost => {
+            tracing::warn!("Hot-reload worker disconnected unexpectedly");
+            // Without the banner the edit just silently does not apply,
+            // and the user assumes the save took.
+            warnings.insert(Warning::HotReloadDisconnected);
+        }
+    }
+}
+
+/// Swap in a finished reload.
+///
+/// Textures are diffed by entity id, so characters that survive the
+/// reload keep their GPU memory instead of being re-uploaded, and ones
+/// that are gone do not stay resident.
+fn install(result: Reloaded, ctx: &mut OutcomeCtx<'_>, config: &mut AppConfig) {
+    if let Some(renderer) = ctx.renderer.as_deref_mut() {
+        let new_ids: HashSet<&str> = result
+            .scene
+            .entities
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect();
+        renderer
+            .shared
+            .textures
+            .retain(|id, _| new_ids.contains(id.as_str()));
+    }
+
+    *config = result.config;
+    *ctx.scene = result.scene;
+    // The reloaded scene is a different list; an index into the old one
+    // means nothing against it.
+    ctx.selection.deselect();
+
+    // `ensure_texture` creates, updates in place (same size) or recreates.
+    if let Some(renderer) = ctx.renderer.as_deref_mut() {
+        for entity in &mut ctx.scene.entities {
+            renderer.ensure_texture(entity);
+            entity.texture_dirty = false;
+        }
+    }
+
+    tracing::info!("Hot-reload applied: {} entities", ctx.scene.entities.len());
+    ctx.toasts.info(crate::i18n::t("toast-config-reloaded"));
+}
+
 fn current_mtime() -> Option<SystemTime> {
     std::fs::metadata(AppConfig::config_path())
         .ok()?
@@ -185,6 +265,103 @@ mod tests {
     fn a_dirty_scene_is_never_checked() {
         assert!(!should_check(CHECK_INTERVAL_SECS, true));
         assert!(!should_check(u64::MAX, true));
+    }
+
+    fn watcher_with(result: Result<Reloaded, String>) -> ConfigWatcher {
+        let (tx, rx) = mpsc::channel();
+        tx.send(result).unwrap();
+        ConfigWatcher {
+            last_check: Instant::now(),
+            mtime: None,
+            rx: Some(rx),
+        }
+    }
+
+    fn reloaded() -> Reloaded {
+        let config = AppConfig::default();
+        let scene = Scene::from_config(&config);
+        Reloaded { config, scene }
+    }
+
+    #[test]
+    fn a_clean_scene_accepts_a_finished_reload() {
+        let mut w = watcher_with(Ok(reloaded()));
+        assert!(matches!(w.poll(false), Poll::Ready(_)));
+    }
+
+    /// The case that lost work: the reload started while the scene was
+    /// clean, the user nudged something while it ran, and the result
+    /// landed on top of the edit.
+    #[test]
+    fn an_edit_made_while_loading_wins() {
+        let mut w = watcher_with(Ok(reloaded()));
+        assert!(matches!(w.poll(true), Poll::Discarded));
+    }
+
+    #[test]
+    fn a_worker_that_vanishes_is_reported() {
+        let (tx, rx) = mpsc::channel::<Result<Reloaded, String>>();
+        drop(tx);
+        let mut w = ConfigWatcher {
+            last_check: Instant::now(),
+            mtime: None,
+            rx: Some(rx),
+        };
+        assert!(matches!(w.poll(false), Poll::WorkerLost));
+    }
+
+    /// The banner goes up when the worker is lost and comes down with the
+    /// next answer — on both backends now; Wayland never raised it.
+    #[test]
+    fn the_disconnect_banner_follows_the_worker() {
+        let mut scene = Scene::from_config(&AppConfig::default());
+        let mut selection = crate::input::selection::SelectionState::default();
+        let mut toasts = crate::ui::ToastQueue::default();
+        let mut dirty = false;
+        let mut config = AppConfig::default();
+        let mut warnings = BTreeSet::new();
+        let mut ctx = OutcomeCtx {
+            scene: &mut scene,
+            selection: &mut selection,
+            toasts: &mut toasts,
+            config_dirty: &mut dirty,
+            renderer: None,
+        };
+        handle(Poll::WorkerLost, &mut ctx, &mut config, &mut warnings);
+        assert!(warnings.contains(&Warning::HotReloadDisconnected));
+        handle(
+            Poll::Ready(Box::new(reloaded())),
+            &mut ctx,
+            &mut config,
+            &mut warnings,
+        );
+        assert!(!warnings.contains(&Warning::HotReloadDisconnected));
+    }
+
+    /// A reload replaces the scene wholesale, so the selection cannot
+    /// survive it.
+    #[test]
+    fn a_reload_clears_the_selection() {
+        let mut scene = Scene::from_config(&AppConfig::default());
+        let mut selection = crate::input::selection::SelectionState::default();
+        selection.select(0);
+        let mut toasts = crate::ui::ToastQueue::default();
+        let mut dirty = false;
+        let mut config = AppConfig::default();
+        let mut ctx = OutcomeCtx {
+            scene: &mut scene,
+            selection: &mut selection,
+            toasts: &mut toasts,
+            config_dirty: &mut dirty,
+            renderer: None,
+        };
+        handle(
+            Poll::Ready(Box::new(reloaded())),
+            &mut ctx,
+            &mut config,
+            &mut BTreeSet::new(),
+        );
+        assert_eq!(selection.selected_index(), None);
     }
 
     /// A fresh watcher must not fire immediately: it records the file's
