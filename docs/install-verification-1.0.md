@@ -27,7 +27,7 @@ artifact changes before the final tag.
 - [ ] Drop a PNG/GIF onto the overlay → it becomes an animated entity
       (from an allowed source dir — see the Flatpak note).
 - [ ] Tray icon appears; quit via the tray works.
-- [ ] `~/.config/animaEngine/config.toml` is written.
+- [ ] `~/.config/animaengine/config.toml` is written.
 - [ ] No missing-library / missing-portal error in
       `RUST_LOG=anima_engine=info` output.
 

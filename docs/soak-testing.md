@@ -156,7 +156,7 @@ soak catches what only a live desktop surfaces. Run once before 1.0:
 4. Pass criteria: RSS flat after the first hour's warm-up (day-7 RSS
    within ~5% of day-1's post-warm-up reading); no growth in texture
    count or decoded bytes with a steady scene; no crash report left
-   in `~/.cache/animaEngine/crashes/`.
+   in `~/.cache/animaengine/crashes/`.
 
 Record the run (dates, machine, compositor, day-by-day numbers) in the
 release notes' soak section.

@@ -25,8 +25,8 @@ animaEngine is a single-user desktop overlay. It assumes:
 - The X11 / Wayland display server is trusted. Other processes on the
   same display can already trivially read your screen and inject input;
   the overlay engine doesn't change that.
-- The on-disk config at `~/.config/animaEngine/config.toml` and the
-  cache at `~/.cache/animaEngine/` are user-writable. They're not
+- The on-disk config at `~/.config/animaengine/config.toml` and the
+  cache at `~/.cache/animaengine/` are user-writable. They're not
   considered hostile inputs, but the loaders below still validate
   them because programs misbehave.
 
@@ -302,7 +302,7 @@ is confinement and termination, not good taste.
 The binary never makes outbound network connections. No telemetry,
 no crash reporting back home, no update check. The `--recover` flag
 operates strictly on local files. Crash reports
-(`~/.cache/animaEngine/crashes/`, newest five kept) are written and
+(`~/.cache/animaengine/crashes/`, newest five kept) are written and
 read locally only — panic messages may contain asset paths, which is
 acceptable because the file never leaves the machine unless the user
 attaches it to an issue themselves. Pin this in your firewall if you
@@ -314,8 +314,8 @@ care.
 
 Any process running as the same user can:
 
-- Read or write `~/.config/animaEngine/config.toml` and the
-  `~/.cache/animaEngine/` tree.
+- Read or write `~/.config/animaengine/config.toml` and the
+  `~/.cache/animaengine/` tree.
 - Call `Activate()` on our D-Bus name to make us focus / show our
   window.
 - Send arbitrary input via the X11 display (or the Wayland portal,

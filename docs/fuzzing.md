@@ -8,7 +8,7 @@ that sit closest to untrusted input:
 | `keychord_parse` | `KeyChord::FromStr` | `[keybindings.map]` entries in user-edited `config.toml` |
 | `uri_list_parse` | `wayland::data_device::parse_uri_list` | `text/uri-list` payloads from file-manager drags |
 | `asset_type_detect` | `animation::loader::detect_asset_type` | dropped or library file paths |
-| `cache_deserialize` | `animation::cache::deserialize_frames` | `~/.cache/animaEngine/textures/*.bin` — our own binary format, corruptible by a crash mid-write or a tampered cache |
+| `cache_deserialize` | `animation::cache::deserialize_frames` | `~/.cache/animaengine/textures/*.bin` — our own binary format, corruptible by a crash mid-write or a tampered cache |
 | `avcc_nalu_walk` | `animation::video_loader::avcc_to_annex_b` | one MP4 sample's length-prefixed NALU bytes (hand-written length/offset walk) |
 | `shimeji_xml` | `shimeji::fuzz_parse_actions` | `actions.xml` inside downloaded third-party mascot packs |
 

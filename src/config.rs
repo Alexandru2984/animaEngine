@@ -623,7 +623,7 @@ fn backup_unreadable_config(path: &Path) {
 }
 
 impl AppConfig {
-    /// Get the config file path: ~/.config/animaEngine/config.toml
+    /// Get the config file path: ~/.config/animaengine/config.toml
     pub fn config_path() -> PathBuf {
         if let Some(proj_dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
             return proj_dirs.config_dir().to_path_buf().join("config.toml");

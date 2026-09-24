@@ -29,10 +29,17 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   the only widget that catches input in pass-through mode is the ⚙
   toggle button in the top-right.
 - **Edit mode** exposes a tabbed settings panel (Inspector / Scene /
-  Library / Appearance), right-click context menus, collapsible
+  Library / Appearance / Keybindings), right-click context menus, collapsible
   inspector sections, sliders for every field, drag-and-drop placement.
 - **Autonomous behaviors** per entity: `Idle` (default), `WalkAround`,
   `FollowCursor`, `BoundedWander`, `Bounce` — wired through the UI.
+- **Scripted behaviors**: a character's motion can be a small
+  [Rhai](https://rhai.rs) script from your asset library, sandboxed and
+  bounded (no files, no network, capped operations). Scripts can play
+  **sounds**, panned to where the character is on screen, and react to
+  **how busy the machine is** — overall CPU and memory load only, never
+  what is running. Examples in
+  [docs/examples/behaviors/](docs/examples/behaviors/).
 - **Animation curves**: six easing options (Linear / Ease in / Ease out
   / Ease in-out / Sine / Bounce out) distort per-frame timing while
   preserving the loop's total duration.
@@ -55,9 +62,11 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 - **Ten UI languages**: English, Română, Español, Deutsch, Français,
   Italiano, Português (BR), Polski, Nederlands, 日本語 — auto-detected
   from `LANG`, switchable in Appearance.
+- **Rebindable shortcuts** that work on any keyboard layout — AZERTY,
+  QWERTZ, Cyrillic — and are shown the way your keyboard labels them.
 - **System integration**: tray icon (StatusNotifierItem),
   `Ctrl+Shift+A/H/P` global hotkeys, single-instance D-Bus handshake.
-- **Hot-reload**: edit `~/.config/animaEngine/config.toml` while the app
+- **Hot-reload**: edit `~/.config/animaengine/config.toml` while the app
   runs; changes are decoded off the UI thread and applied seamlessly.
 - **Accessibility**: AccessKit bridge for AT-SPI screen readers,
   visible focus rings, full keyboard reference table. See
@@ -117,7 +126,7 @@ Full keyboard reference: press `H` in edit mode.
 
 ## Configuration
 
-A TOML config lives at `~/.config/animaEngine/config.toml`. Hand-editing
+A TOML config lives at `~/.config/animaengine/config.toml`. Hand-editing
 works — the app polls every 2 s and reloads off-thread.
 
 ```toml
@@ -163,7 +172,7 @@ the [stability policy](docs/stability-policy.md).
 | Spritesheet | `.png` + `columns` × `rows` | Grid auto-sliced |
 | Video | `.mp4`, `.m4v`, `.mov` | H.264 only, audio ignored, capped at ~20 s |
 
-Decoded RGBA frames are cached on disk under `~/.cache/animaEngine/`
+Decoded RGBA frames are cached on disk under `~/.cache/animaengine/`
 so subsequent starts are limited by disk read speed. Set
 `ANIMA_NO_CACHE=1` to skip both reads and writes.
 

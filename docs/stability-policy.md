@@ -38,11 +38,15 @@ change to any of them is a breaking change and waits for 2.0 (see
   `video` — and the drag-drop extension allowlist (`png`, `jpg`,
   `jpeg`, `gif`, `webp`, `mp4`, `m4v`, `mov`) stay accepted. Formats may
   be added; an accepted format won't be dropped.
-- **XDG file locations.** Config at `~/.config/animaEngine/config.toml`,
-  cache under `~/.cache/animaEngine/`, the asset library under
+- **XDG file locations.** Config at `~/.config/animaengine/config.toml`,
+  cache under `~/.cache/animaengine/`, the asset library under
   `~/.local/share/animaengine/assets/` (all via the XDG base-directory
   spec, overridable by the standard `XDG_*` variables). These paths
-  don't move within 1.x.
+  don't move within 1.x. All three are lower-case on Linux and the BSDs:
+  the XDG lookup lower-cases the application name. Until 1.2 this page,
+  the README and most of the docs spelled the first two `animaEngine`,
+  which is not a directory the app has ever read — the paths themselves
+  never changed. On Windows the folder is `%APPDATA%\animaEngine\`.
 
 ## Not guaranteed
 

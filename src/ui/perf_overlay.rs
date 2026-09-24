@@ -26,7 +26,7 @@
 //!
 //! Snapshot export and RAM tracking live in [`crate::perf`] helpers;
 //! the overlay only triggers them. A snapshot writes one chrome-
-//! tracing JSON file at `~/.cache/animaEngine/perf-<unix_ts>.json`.
+//! tracing JSON file at `~/.cache/animaengine/perf-<unix_ts>.json`.
 
 use crate::perf::{Category, PerfSampler};
 use std::time::Duration;
@@ -155,10 +155,11 @@ pub fn show(
             ui.horizontal(|ui| {
                 if ui
                     .button("Export snapshot")
-                    .on_hover_text(
-                        "Writes the ring buffer to ~/.cache/animaEngine/perf-<ts>.json \
-                        in chrome-tracing format. Open in chrome://tracing or perfetto.",
-                    )
+                    .on_hover_text(format!(
+                        "Writes the ring buffer to {}/perf-<ts>.json in chrome-tracing \
+                         format. Open in chrome://tracing or perfetto.",
+                        crate::perf::snapshot_dir().display()
+                    ))
                     .clicked()
                 {
                     export_clicked = true;

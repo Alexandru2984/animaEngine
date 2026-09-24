@@ -887,7 +887,7 @@ Two notes on method, both mistakes worth not repeating:
 ### R28 · Hot-reload was absent on native Wayland while the README called it stable — `FIXED`
 
 Run the overlay on the native Wayland backend, edit
-`~/.config/animaEngine/config.toml`, wait. Nothing happens — no log line,
+`~/.config/animaengine/config.toml`, wait. Nothing happens — no log line,
 no toast, no moved character. There is not one reference to hot-reload
 anywhere under `src/wayland/`.
 

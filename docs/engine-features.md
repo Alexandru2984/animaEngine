@@ -195,7 +195,7 @@ last_used_at = 2026-06-20T08:30:00Z
 `tags` are user-editable from the library UI. `added_at` /
 `last_used_at` enable sorting by recency / frequency. The library
 **caches no decoded frame data** — that stays in the existing
-`~/.cache/animaEngine/` per-frame RGBA cache.
+`~/.cache/animaengine/` per-frame RGBA cache.
 
 ### 3.4 Thumbnails
 
@@ -203,7 +203,7 @@ last_used_at = 2026-06-20T08:30:00Z
 library UI. Cached at:
 
 ```
-~/.cache/animaEngine/thumbs/<asset_id>.png
+~/.cache/animaengine/thumbs/<asset_id>.png
 ```
 
 Cache invalidation: mtime of the source file > mtime of the thumbnail.

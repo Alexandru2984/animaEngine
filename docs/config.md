@@ -1,6 +1,6 @@
 # Configuration reference
 
-The config file lives at `~/.config/animaEngine/config.toml`. It's
+The config file lives at `~/.config/animaengine/config.toml`. It's
 auto-created on first run and hot-reloaded every 2 seconds. Decoding
 runs on a worker thread, so even large GIF changes don't freeze the UI.
 

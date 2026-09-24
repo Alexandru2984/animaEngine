@@ -3,7 +3,7 @@
 //! Owned by `App`, ticked once per frame around the render loop.
 //! The overlay widget in `ui::perf_overlay` reads the sampler each
 //! frame; the snapshot exporter walks the ring buffer and writes a
-//! chrome-tracing compatible JSON to `~/.cache/animaEngine/`.
+//! chrome-tracing compatible JSON to `~/.cache/animaengine/`.
 //!
 //! Design notes:
 //!
@@ -274,7 +274,7 @@ pub fn read_rss_kib() -> Option<u64> {
 }
 
 /// Write a chrome-tracing compatible JSON snapshot of the current
-/// history at `~/.cache/animaEngine/perf-<unix-ts>.json`. Returns the
+/// history at `~/.cache/animaengine/perf-<unix-ts>.json`. Returns the
 /// path on success. Format spec:
 /// <https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU>
 ///
@@ -283,7 +283,7 @@ pub fn read_rss_kib() -> Option<u64> {
 /// is hand-written to avoid pulling serde_json just for this export
 /// surface — the schema is tiny and stable.
 pub fn export_snapshot(sampler: &PerfSampler) -> std::io::Result<PathBuf> {
-    let dir = cache_dir();
+    let dir = snapshot_dir();
     let ts_nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
@@ -343,7 +343,10 @@ pub fn export_snapshot_to(sampler: &PerfSampler, path: &Path) -> std::io::Result
     Ok(path.to_path_buf())
 }
 
-fn cache_dir() -> PathBuf {
+/// Where [`export_snapshot`] writes. Public so the UI can show the real
+/// directory instead of spelling one out, which is how its hint came to
+/// name `~/.cache/animaEngine` for a directory that is lower-case.
+pub fn snapshot_dir() -> PathBuf {
     if let Some(proj) = directories::ProjectDirs::from("", "", "animaEngine") {
         return proj.cache_dir().to_path_buf();
     }

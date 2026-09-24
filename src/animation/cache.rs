@@ -2,7 +2,7 @@
 //!
 //! Decoding a 60-frame PNG sequence or a 5 MB GIF takes hundreds of
 //! milliseconds even with rayon. After the first run we write the raw RGBA
-//! pixels under `~/.cache/animaEngine/textures/<hash>.bin` so subsequent
+//! pixels under `~/.cache/animaengine/textures/<hash>.bin` so subsequent
 //! starts are limited only by disk read speed.
 //!
 //! ## Cache key

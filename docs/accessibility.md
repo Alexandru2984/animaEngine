@@ -88,7 +88,7 @@ surfaces read that table:
   inline, and offers per-row + global "reset to defaults" buttons.
 - **Ctrl+K command palette** — fuzzy-searches across actions, themes,
   and presets; uses the same metadata so rebinds show up immediately.
-- **Config file** (`~/.config/animaEngine/config.toml`) — the
+- **Config file** (`~/.config/animaengine/config.toml`) — the
   `[keybindings.map]` table mirrors the in-memory `BTreeMap<Action,
   Vec<KeyChord>>`. Chord strings round-trip through
   `KeyChord::FromStr` (`"Ctrl+Shift+A"`, `"Esc"`, `"ArrowUp"`, …) so

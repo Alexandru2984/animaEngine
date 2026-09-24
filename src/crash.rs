@@ -5,7 +5,7 @@
 //! 1. `install_panic_hook()` runs once at startup. It chains in front of
 //!    whatever hook is currently installed (`std::panic::take_hook`) and
 //!    dumps the last-known-good `AppConfig` to
-//!    `~/.cache/animaEngine/crash-recovery.toml` before letting the
+//!    `~/.cache/animaengine/crash-recovery.toml` before letting the
 //!    default hook print the panic message and unwind.
 //!
 //! 2. Whenever the running scene reaches a clean, saveable state —
@@ -20,7 +20,7 @@
 //!    second `--recover` is a no-op.
 //!
 //! 4. The hook also writes a **crash report** —
-//!    `~/.cache/animaEngine/crashes/crash-<ts>-<pid>.log` with version,
+//!    `~/.cache/animaengine/crashes/crash-<ts>-<pid>.log` with version,
 //!    panic message, location and backtrace. Launched from a desktop
 //!    icon there is no terminal: without this file the panic text
 //!    evaporates. The next launch shows a one-time toast pointing at

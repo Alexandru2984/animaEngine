@@ -73,6 +73,13 @@ are unchanged; the script behavior is a new, additive config variant, per
 
 ### Fixed
 
+- **The docs named directories that do not exist.** The README, the
+  stability policy and most of the docs gave the config and cache
+  directories as `~/.config/animaEngine/` and `~/.cache/animaEngine/`.
+  On Linux they are lower-case — `~/.config/animaengine/config.toml` —
+  and always have been; a config edited at the documented path was never
+  read. The docs now give the real paths, and the perf overlay's export
+  hint shows the actual directory instead of spelling one out.
 - **German showed one shortcut under two names.** The what's-new panel
   said `Strg+K` while every other German string, and the app's own
   shortcut display, said `Ctrl+K`. The app now names modifiers the way
