@@ -48,7 +48,7 @@ behavior-bounce-vertical = Verticaal
 behavior-bounce-both = Beide (cirkel)
 behavior-script = Script
 behavior-script-path-label = Pad
-behavior-script-path-hint = Relatief aan je assetbibliotheek — { $path }
+behavior-script-path-hint = Relatief aan uw assetbibliotheek — { $path }
 behavior-script-params = Parameters
 behavior-script-param-name = naam
 behavior-script-add-param = Toevoegen
@@ -196,9 +196,9 @@ action-toggle-perf-overlay = Prestatie-overlay omschakelen
 # ── What's new (D.7) — placeholder pending native-speaker audit
 # 1.2 highlights: machine-translated, pending native review.
 whats-new-header = Nieuw in 1.2
-whats-new-scripts = Figuren kunnen bewegen via een script: kies het gedrag 'Script' in de Inspector en wijs een Rhai-bestand uit je bibliotheek aan.
-whats-new-sound = Scripts kunnen geluiden afspelen, te horen vanaf de plek waar de figuur op je scherm staat.
-whats-new-machine-load = Scripts kunnen reageren op hoe druk je computer bezig is — alleen de totale belasting, nooit wat er draait.
+whats-new-scripts = Figuren kunnen bewegen via een script: kies het gedrag 'Script' in de Inspector en wijs een Rhai-bestand uit uw bibliotheek aan.
+whats-new-sound = Scripts kunnen geluiden afspelen, te horen vanaf de plek waar de figuur op uw scherm staat.
+whats-new-machine-load = Scripts kunnen reageren op hoe druk uw computer bezig is — alleen de totale belasting, nooit wat er draait.
 whats-new-layouts = Sneltoetsen werken nu ook met niet-Amerikaanse toetsenbordindelingen zoals AZERTY en QWERTZ.
 onboarding-keybindings = Klik op een sneltoets om hem te verwijderen; druk een combinatie om een nieuwe op te nemen.
 onboarding-perf-overlay = Druk Ctrl+Shift+` om de live prestatie-overlay te openen.
@@ -239,7 +239,7 @@ toast-config-saved = Configuratie opgeslagen
 # Hot-reload toasts: machine-translated, pending native review.
 toast-config-reloaded = Configuratie opnieuw geladen van schijf
 toast-config-reload-failed = Configuratie niet opnieuw geladen — het bestand is ongeldig of wordt nog geschreven. De huidige scène blijft.
-toast-config-reload-discarded = Configuratie niet opnieuw geladen — je hebt de scène bewerkt terwijl die werd geladen.
+toast-config-reload-discarded = Configuratie niet opnieuw geladen — u hebt de scène bewerkt terwijl die werd geladen.
 toast-save-failed = Opslaan mislukt: { $error }
 toast-rejected = Geweigerd: { $reason }
 toast-added = { $name } toegevoegd

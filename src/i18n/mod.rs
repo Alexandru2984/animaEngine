@@ -595,6 +595,67 @@ mod tests {
         );
     }
 
+    /// Each language addresses the user one way throughout.
+    ///
+    /// German mixed "Ziehen Sie ein PNG …" in the tour with "Klicke eine
+    /// Entität an" one panel away; Dutch had "uw" in older strings and "je"
+    /// in newer ones; Spanish switched between "haz clic" and "haga clic".
+    /// Strings were translated at different times, some by machine, and
+    /// nothing compared them. Now German and Dutch keep the formal
+    /// register their older strings use, and Spanish the informal one its
+    /// majority and current software use; a new string that slips fails
+    /// here.
+    ///
+    /// Only unambiguous words are listed — pronouns, and Spanish formal
+    /// imperatives. Informal German imperatives like "Klicke" are too
+    /// close to other words to match reliably; the pronouns catch most
+    /// slips. French, Italian, Portuguese, Polish and Romanian were
+    /// already consistent.
+    #[test]
+    fn each_language_keeps_one_register() {
+        const WRONG_REGISTER: &[(&str, &[&str])] = &[
+            (
+                "de",
+                &[
+                    "du", "dich", "dir", "dein", "deine", "deinen", "deiner", "deinem", "deines",
+                ],
+            ),
+            ("nl", &["je", "jij", "jou", "jouw"]),
+            (
+                "es",
+                &[
+                    "usted",
+                    "ustedes",
+                    "haga",
+                    "pulse",
+                    "suelte",
+                    "arrastre",
+                    "seleccione",
+                    "pegue",
+                    "elija",
+                ],
+            ),
+        ];
+        let mut hits = Vec::new();
+        for (code, words) in WRONG_REGISTER {
+            for (n, line) in load_source(code).lines().enumerate() {
+                if line.trim_start().starts_with('#') {
+                    continue;
+                }
+                let lower = line.to_lowercase();
+                // `_` joins, so an identifier like ANIMA_ASSETS_DIR stays
+                // one word instead of yielding a "dir".
+                let found = lower
+                    .split(|c: char| !(c.is_alphabetic() || c == '_'))
+                    .any(|w| words.contains(&w));
+                if found {
+                    hits.push(format!("{code}.ftl:{}: {line}", n + 1));
+                }
+            }
+        }
+        assert!(hits.is_empty(), "{hits:#?}");
+    }
+
     /// No toast may be built from untranslated text.
     ///
     /// Toasts are the one UI surface assembled in plain Rust rather than a

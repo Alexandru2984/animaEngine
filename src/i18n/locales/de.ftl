@@ -35,7 +35,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-Index
 inspector-nothing-selected-headline = Nichts ausgewählt
-inspector-nothing-selected-hint = Klicke eine Entität im Tab „Szene“ an oder drücke Tab, um sie durchzugehen.
+inspector-nothing-selected-hint = Klicken Sie eine Entität im Tab „Szene“ an oder drücken Sie Tab, um sie durchzugehen.
 
 behavior-idle = Untätig
 behavior-walk = Umherlaufen
@@ -48,7 +48,7 @@ behavior-bounce-vertical = Vertikal
 behavior-bounce-both = Beide (Kreis)
 behavior-script = Skript
 behavior-script-path-label = Pfad
-behavior-script-path-hint = Relativ zu deiner Asset-Bibliothek — { $path }
+behavior-script-path-hint = Relativ zu Ihrer Asset-Bibliothek — { $path }
 behavior-script-params = Parameter
 behavior-script-param-name = Name
 behavior-script-add-param = Hinzufügen
@@ -56,8 +56,8 @@ behavior-script-remove-param = Diesen Parameter entfernen
 script-failed-toast = Verhaltensskript { $script } fehlgeschlagen: { $error }
 
 scene-empty-headline = Leere Szene
-scene-empty-hint = Ziehe eine PNG- / GIF- / WebP- / MP4-Datei auf das Overlay — oder probiere unten ein Preset.
-scene-drop-hint = Ziehe eine PNG- / GIF- / WebP-Datei auf das Overlay, um eine Entität hinzuzufügen.
+scene-empty-hint = Ziehen Sie eine PNG- / GIF- / WebP- / MP4-Datei auf das Overlay — oder probieren Sie unten ein Preset.
+scene-drop-hint = Ziehen Sie eine PNG- / GIF- / WebP-Datei auf das Overlay, um eine Entität hinzuzufügen.
 scene-presets-header = Presets
 scene-groups-header = Gruppen
 scene-preset-append = Hinzufügen
@@ -119,8 +119,8 @@ settings-tab-library = Bibliothek
 
 # Asset library tab
 library-empty-headline = Keine Assets indexiert
-library-empty-hint = Lege Dateien in { $path } ab oder setze ANIMA_ASSETS_DIR.
-library-no-asset-root = Kein Asset-Verzeichnis gefunden. Erstelle eines unter { $path }
+library-empty-hint = Legen Sie Dateien in { $path } ab oder setzen Sie ANIMA_ASSETS_DIR.
+library-no-asset-root = Kein Asset-Verzeichnis gefunden. Erstellen Sie eines unter { $path }
 library-search-placeholder = Assets suchen…
 library-add-to-scene = Zur Szene hinzufügen
 library-kind-image = Bild

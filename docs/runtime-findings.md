@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R44 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R45 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1711,4 +1711,25 @@ at the first output's origin, ignoring the position each asks for. Real
 X11 window managers place them where they ask. The fix is the same shared
 code on both backends; the X11 extra windows draw with the same
 `entity_on_monitor` rule the Wayland ones do.
+
+### R45 · Three languages addressed the user two ways — `FIXED`
+
+The next cross-reference after R38 (tab names) and R39 (chord names):
+how a language addresses the user, which only has to agree with itself.
+
+- **German** mixed formal and informal: "Ziehen Sie ein PNG …" in the
+  tour, "Klicke eine Entität im Tab „Szene“ an" in the Inspector one
+  panel away. 11 strings formal, 6 informal; the six are now formal.
+- **Dutch** had "uw" in its older strings and "je" in newer ones — four
+  of them written for 1.2 in this same round of work. Now "u" throughout.
+- **Spanish** switched between "haz clic" and "haga clic", sometimes
+  within the onboarding tour. Its majority, and current Spanish software,
+  use "tú"; the six formal strings now do too.
+
+French, Italian, Portuguese, Polish and Romanian were already consistent.
+A test lists the unambiguous wrong-register words for each of the three
+(pronouns, plus Spanish formal imperatives) and fails on any string that
+uses one; confirmed by putting one Dutch "je" back. As with R38, this is
+consistency, not quality: whether each sentence reads well is still the
+native review's job.
 
