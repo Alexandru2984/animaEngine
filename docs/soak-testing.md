@@ -109,6 +109,32 @@ CI runs a 10-minute variant nightly (`soak` job, schedule-only) and
 uploads the report. The threshold there is 1024 KiB/min over ~30
 samples on llvmpipe.
 
+### Unattended runs (the 7-day homelab soak)
+
+The script is safe to leave running for a week on a machine you are not
+watching:
+
+- **Bounded output.** The CSV is one row per interval (about 10,000 rows,
+  under 1 MB, for a week at 60 s). The app's log goes to
+  `build/soak-<date>.log` and is rotated at `SOAK_LOG_MAX_MB` (default
+  20) to a single `.old`, so it stays under twice that at any log level.
+  The app logs at `warn` unless `SOAK_RUST_LOG` says otherwise; the
+  numbers come from the CSV, not the log.
+- **Isolated.** It starts its own Xvfb when `DISPLAY` is unset, and its
+  own D-Bus session bus. On a shared bus an overlay already running
+  would win the single-instance handshake and the soak would measure
+  nothing.
+
+```bash
+sudo apt install xvfb dbus mesa-vulkan-drivers   # software GPU, as in CI
+env -u DISPLAY -u WAYLAND_DISPLAY \
+    LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe \
+    scripts/soak.sh 604800 60 512      # 7 days, one sample a minute
+```
+
+Run it in `tmux` or `screen` so it survives the SSH session. The report
+and the CSV are what to hand over for the graphs.
+
 ### W.2 leak audit (boundedness ledger)
 
 The short soak ran flat, so W.2 was a proactive code audit of the

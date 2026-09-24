@@ -25,9 +25,26 @@
 # (flat enough), 1 if it drifts above it — so CI can gate on it. A run
 # with too few post-warmup samples to regress also fails.
 #
-# Output: build/soak-report-<date>.md and the raw build/soak-<date>.csv.
+# Output: build/soak-report-<date>.md, the raw build/soak-<date>.csv, and
+# the app's log as build/soak-<date>.log.
+#
+# Safe to leave unattended for days: the CSV is one row per interval
+# (about 10,000 rows for a week at 60 s), and the log is rotated at
+# SOAK_LOG_MAX_MB (default 20) to one `.old`, so it never exceeds twice
+# that whatever the log level. An uncapped log from a long unattended run
+# is how this project has filled a disk before. The app logs at `warn`
+# unless SOAK_RUST_LOG says otherwise — the metrics come from the CSV,
+# not the log.
 
 set -euo pipefail
+
+# A private session bus. On the caller's own bus the soaked app asks for
+# `com.animaengine.Anima` like any launch — so with an overlay already
+# running, the single-instance handshake hands off to it and the soak
+# measures nothing. CI wraps the script the same way.
+if [[ -z "${ANIMA_SOAK_PRIVATE_BUS:-}" ]] && command -v dbus-run-session >/dev/null 2>&1; then
+  exec env ANIMA_SOAK_PRIVATE_BUS=1 dbus-run-session -- "$0" "$@"
+fi
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
@@ -44,6 +61,16 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p build
 CSV="$REPO/build/soak-${STAMP}.csv"
 REPORT="$REPO/build/soak-report-${STAMP}.md"
+LOG="$REPO/build/soak-${STAMP}.log"
+LOG_MAX_BYTES=$(( ${SOAK_LOG_MAX_MB:-20} * 1024 * 1024 ))
+
+# stdin → $LOG, rotated to $LOG.old once it passes LOG_MAX_BYTES. Bytes,
+# not characters, hence LC_ALL=C.
+cap_log() {
+  LC_ALL=C awk -v f="$LOG" -v max="$LOG_MAX_BYTES" '
+    { print > f; fflush(f); n += length($0) + 1
+      if (n > max) { close(f); system("mv -f \"" f "\" \"" f ".old\""); n = 0 } }'
+}
 
 # ── 1) Build ─────────────────────────────────────────────────────────
 log "Building (debug — a leak shows regardless of optimisation)…"
@@ -58,7 +85,13 @@ BIN="$REPO/target/debug/anima_engine"
 
 # ── 2) Scratch session + 16-entity synthetic config ─────────────────
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/anima-soak.XXXXXX")"
-trap 'rm -rf "$SCRATCH"' EXIT
+XVFB_PID=""
+# Stops Xvfb too: `die` used to leave it running.
+cleanup() {
+  [[ -n "$XVFB_PID" ]] && kill "$XVFB_PID" 2>/dev/null
+  rm -rf "$SCRATCH"
+}
+trap cleanup EXIT
 mkdir -p "$SCRATCH/config/animaengine" "$SCRATCH/cache" "$SCRATCH/data"
 CONF="$SCRATCH/config/animaengine/config.toml"
 
@@ -98,12 +131,10 @@ CONF="$SCRATCH/config/animaengine/config.toml"
 log "Synthetic config: 16 entities at $CONF"
 
 # ── 3) Xvfb ──────────────────────────────────────────────────────────
-OWN_XVFB=0
 if [[ -z "${DISPLAY:-}" ]]; then
   command -v Xvfb >/dev/null 2>&1 || die "Xvfb not found (install xvfb)"
   Xvfb :99 -screen 0 1280x720x24 >/dev/null 2>&1 &
   XVFB_PID=$!
-  OWN_XVFB=1
   export DISPLAY=:99
   sleep 2
   log "Started Xvfb on :99 (pid $XVFB_PID)"
@@ -115,22 +146,21 @@ XDG_CONFIG_HOME="$SCRATCH/config" \
 XDG_CACHE_HOME="$SCRATCH/cache" \
 XDG_DATA_HOME="$SCRATCH/data" \
 ANIMA_SOAK_METRICS="$CSV" \
+XDG_SESSION_TYPE=x11 \
 ANIMA_SOAK_INTERVAL_SECS="$INTERVAL" \
-RUST_LOG="anima_engine=info" \
-  timeout --preserve-status -k 5s "${DURATION}s" "$BIN" >"$SCRATCH/app.log" 2>&1 || true
+RUST_LOG="${SOAK_RUST_LOG:-anima_engine=warn}" \
+  timeout --preserve-status -k 5s "${DURATION}s" "$BIN" 2>&1 | cap_log || true
 
-if [[ $OWN_XVFB -eq 1 ]]; then
-  kill "${XVFB_PID}" 2>/dev/null || true
-fi
-
-[[ -s "$CSV" ]] || die "no metrics written — check $SCRATCH/app.log"
+# Kept after the run, unlike the scratch dir: it is what "no metrics"
+# below tells you to read.
+[[ -s "$CSV" ]] || die "no metrics written — check $LOG"
 log "Collected $(($(wc -l < "$CSV") - 1)) samples → $CSV"
 
 # ── 5) Regress RSS vs time, write report ────────────────────────────
 # Least-squares slope of rss_kib over elapsed_secs (→ KiB/min), fit over
 # the post-warmup samples only (see header). Full-range first/last is
 # kept for the report. awk keeps the harness dependency-free.
-awk -F, -v thr="$SLOPE_THRESHOLD" -v report="$REPORT" -v csv="$CSV" \
+awk -F, -v thr="$SLOPE_THRESHOLD" -v report="$REPORT" -v csv="$CSV" -v logfile="$LOG" \
         -v dur="$DURATION" -v iv="$INTERVAL" -v warm="$WARMUP_FRAC" '
   BEGIN { cutoff = dur * warm }          # discard samples before this elapsed time
   NR == 1 { next }                       # header
@@ -164,6 +194,7 @@ awk -F, -v thr="$SLOPE_THRESHOLD" -v report="$REPORT" -v csv="$CSV" \
     printf("- Frame p95 (final): %s us\n", p95) >> report;
     printf("- **Verdict: %s**\n", verdict) >> report;
     printf("\nRaw samples: %s\n", csv) >> report;
+    printf("App log: %s (rotated past the cap to .old)\n", logfile) >> report;
 
     printf("Verdict: %s (steady-state slope %.2f KiB/min, threshold %d)\n", verdict, slope_per_min, thr);
     exit (verdict == "FLAT") ? 0 : 1;
