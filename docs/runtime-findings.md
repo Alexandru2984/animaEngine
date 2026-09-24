@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R43 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R44 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1676,4 +1676,39 @@ activating the icon both toggle; on native Wayland, a character nudged in
 edit mode was on disk the moment the tray left edit mode (x 200 → 272);
 and Quit from the tray exits. What the rig cannot show is a real panel
 drawing the icon.
+
+### R44 · `Ctrl+M` made the character disappear — `FIXED`
+
+The README: "a per-entity pin and `Ctrl+M` to cycle the selected entity
+through monitors". On the rig with two outputs, native Wayland, the ghost
+selected on the left monitor:
+
+1. first `Ctrl+M` → toast "Entity pinned to HEADLESS-2", nothing moves —
+   the cycle starts at the first monitor in the list, which here is the
+   one it is already on;
+2. second `Ctrl+M` → "Entity pinned to HEADLESS-1", and the ghost is
+   **gone**: not on the left monitor, not on the right one.
+
+Both the shortcut and the Inspector's "Pin to monitor" picker only ever
+rewrote the pin. Positions are global, and each monitor's surface draws
+the entities pinned to it offset by its own origin, so an entity pinned to
+a monitor its position is not on was drawn off the edge of that surface.
+The Inspector still showed x = 158, on the left monitor, for an entity
+the left monitor no longer drew.
+
+**Fixed** where the pin changes: `move_to_pinned_monitor` carries the
+entity onto the newly pinned monitor, keeping its offset from the corner
+of the monitor it was shown on and clamping the whole sprite inside the
+new one (`monitor::carry_to_monitor`). Clearing a pin, or pinning to the
+monitor it is already on, moves nothing. Both entry points use it.
+Verified on native Wayland: two presses carry the ghost from x 158 to
+1758, visible and still selected on the right monitor.
+
+Not checked on X11 in the rig, and the reason is worth keeping: sway
+tiled the two X11 overlay windows side by side (each got 800 px, so the
+primary's ⚙ was drawn mid-screen), and with a floating rule it puts both
+at the first output's origin, ignoring the position each asks for. Real
+X11 window managers place them where they ask. The fix is the same shared
+code on both backends; the X11 extra windows draw with the same
+`entity_on_monitor` rule the Wayland ones do.
 

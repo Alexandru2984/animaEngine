@@ -318,8 +318,14 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
         Action::CycleMonitor => {
             if let Some(idx) = selection.selected_index() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
+                    let previous = entity.monitor.clone();
                     let toast =
                         crate::ui::panels::cycle_entity_monitor(&mut entity.monitor, monitors);
+                    crate::ui::panels::move_to_pinned_monitor(
+                        entity,
+                        previous.as_deref(),
+                        monitors,
+                    );
                     toasts.info(toast);
                     *config_dirty = true;
                 }

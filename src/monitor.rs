@@ -164,6 +164,31 @@ pub fn resolve_monitor_for_position<'a>(
         .or_else(|| monitors.first())
 }
 
+/// Where a sprite at top-left `(x, y)` and `size` lands when it moves from
+/// `from` to `to`: the same offset from the monitor's top-left corner,
+/// clamped so the whole sprite stays on `to`.
+///
+/// Positions are global, and a pinned entity is drawn on its monitor's
+/// surface offset by that monitor's origin. So a pin alone, without
+/// moving the entity, draws it off the edge of the surface it is pinned
+/// to — it vanishes.
+pub fn carry_to_monitor(
+    (x, y): (f32, f32),
+    (w, h): (f32, f32),
+    from: &MonitorInfo,
+    to: &MonitorInfo,
+) -> (f32, f32) {
+    let clamp = |v: f32, lo: i32, span: u32, size: f32| {
+        let lo = lo as f32;
+        let hi = (lo + span as f32 - size).max(lo);
+        v.clamp(lo, hi)
+    };
+    (
+        clamp(x - from.x as f32 + to.x as f32, to.x, to.width, w),
+        clamp(y - from.y as f32 + to.y as f32, to.y, to.height, h),
+    )
+}
+
 /// Log the detected monitor topology at startup. Always runs once,
 /// even if multi-monitor support is disabled at the config level —
 /// the info is useful for bug reports either way.
@@ -569,6 +594,28 @@ pub(crate) mod tests {
                 is_primary: false,
             },
         ]
+    }
+
+    #[test]
+    fn carrying_keeps_the_offset_from_the_corner() {
+        let m = left_right_setup();
+        assert_eq!(
+            carry_to_monitor((200.0, 300.0), (50.0, 50.0), &m[0], &m[1]),
+            (2120.0, 300.0)
+        );
+        assert_eq!(
+            carry_to_monitor((2120.0, 300.0), (50.0, 50.0), &m[1], &m[0]),
+            (200.0, 300.0)
+        );
+    }
+
+    /// The right monitor is taller; carrying a sprite from its bottom to
+    /// the shorter left one keeps it on screen rather than below the edge.
+    #[test]
+    fn carrying_clamps_the_whole_sprite_inside() {
+        let m = left_right_setup();
+        let (x, y) = carry_to_monitor((4400.0, 1400.0), (100.0, 80.0), &m[1], &m[0]);
+        assert_eq!((x, y), (1820.0, 1000.0));
     }
 
     #[test]

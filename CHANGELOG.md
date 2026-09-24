@@ -18,6 +18,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`Ctrl+M` made a character disappear.** Pinning a character to
+  another monitor — with `Ctrl+M` or the Inspector's "Pin to monitor" —
+  changed which screen draws it without moving it there, so it was drawn
+  off the edge of that screen. It now moves onto the monitor it is pinned
+  to, at the same spot relative to the corner.
 - **The native Wayland backend had no tray icon.** The tray was only ever
   started on the X11 path, although the feature matrix listed it for
   both. It now appears on native Wayland too, with the same menu.

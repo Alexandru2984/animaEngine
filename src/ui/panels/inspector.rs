@@ -183,7 +183,9 @@ fn entity_inspector(
             });
             // Monitor pin lives in the Position section because it's
             // conceptually a 3rd axis: x / y / which-screen.
+            let previous = entity.monitor.clone();
             if entity_monitor_picker(ui, &mut entity.monitor, monitors) {
+                super::monitor::move_to_pinned_monitor(entity, previous.as_deref(), monitors);
                 change.any_field = true;
             }
             if let Some(hint) = group_hint {

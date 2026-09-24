@@ -205,6 +205,44 @@ pub(super) fn pulse_alpha_at(t: f64) -> f32 {
     MIN_ALPHA + (1.0 - MIN_ALPHA) * wave
 }
 
+/// Move `entity` onto the monitor it is now pinned to, after its pin
+/// changed from `previous`.
+///
+/// Both ways of pinning — `Ctrl+M` and the Inspector's picker — only ever
+/// rewrote the pin. Positions are global, so an entity pinned to a monitor
+/// it was not on was drawn off the edge of that monitor's surface: pressing
+/// `Ctrl+M` to move a character to the next screen made it disappear. It
+/// now keeps its offset from the corner of the monitor it was shown on.
+/// Clearing the pin moves nothing — position decides again, and the
+/// entity is already where it is.
+pub fn move_to_pinned_monitor(
+    entity: &mut crate::entity::Entity,
+    previous: Option<&str>,
+    monitors: &[MonitorInfo],
+) {
+    let Some(to) = entity
+        .monitor
+        .as_deref()
+        .and_then(|name| monitors.iter().find(|m| m.name == name))
+    else {
+        return;
+    };
+    let size = (entity.scaled_width(), entity.scaled_height());
+    let centroid = (entity.x + size.0 / 2.0, entity.y + size.1 / 2.0);
+    let Some(from) =
+        crate::monitor::resolve_monitor_for_position(monitors, centroid.0, centroid.1, previous)
+    else {
+        return;
+    };
+    if from.name == to.name {
+        return;
+    }
+    let (x, y) = crate::monitor::carry_to_monitor((entity.x, entity.y), size, from, to);
+    entity.x = x;
+    entity.y = y;
+    entity.behavior_state.bounce_invalidate();
+}
+
 /// Localised footer label like "5 entities". Falls back to English
 /// plural rules because we have no `{$n} ->` switches in the FTL files
 /// yet — that's a future enhancement once we know which locales need
@@ -228,6 +266,43 @@ mod tests {
     // Shared with `crate::monitor`'s own tests rather than kept as a
     // second, byte-identical copy that could drift.
     use crate::monitor::tests::left_right_setup as two_monitors;
+
+    fn entity_at(x: f32, y: f32) -> crate::entity::Entity {
+        let mut cfg = crate::config::AppConfig::default().characters[0].clone();
+        cfg.x = x;
+        cfg.y = y;
+        cfg.monitor = None;
+        let frame = crate::animation::frame::Frame::new(vec![0u8; 4 * 40 * 40], 40, 40);
+        let anim = crate::animation::Animation::new(vec![frame], 1.0, false);
+        crate::entity::Entity::from_config(&cfg, anim)
+    }
+
+    /// The defect: Ctrl+M pinned the entity to the next screen without
+    /// moving it, so it was drawn off that screen's surface and vanished.
+    #[test]
+    fn pinning_to_another_monitor_moves_the_entity_there() {
+        let monitors = two_monitors();
+        let mut e = entity_at(200.0, 300.0);
+        let previous = e.monitor.clone();
+        e.monitor = Some("HDMI-A-1".into());
+        move_to_pinned_monitor(&mut e, previous.as_deref(), &monitors);
+        assert_eq!((e.x, e.y), (2120.0, 300.0));
+        assert!(monitors[1].contains(e.x, e.y));
+    }
+
+    /// Pinning to the monitor it is already on, or clearing the pin,
+    /// leaves the entity where it is.
+    #[test]
+    fn pinning_in_place_or_unpinning_moves_nothing() {
+        let monitors = two_monitors();
+        let mut e = entity_at(200.0, 300.0);
+        e.monitor = Some("eDP-1".into());
+        move_to_pinned_monitor(&mut e, None, &monitors);
+        assert_eq!((e.x, e.y), (200.0, 300.0));
+        e.monitor = None;
+        move_to_pinned_monitor(&mut e, Some("eDP-1"), &monitors);
+        assert_eq!((e.x, e.y), (200.0, 300.0));
+    }
 
     #[test]
     fn cycle_from_none_picks_first_monitor() {

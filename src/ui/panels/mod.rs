@@ -19,7 +19,7 @@ mod toggle_button;
 pub use command_palette::{command_palette, PaletteOutcome};
 pub(crate) use context_menu::context_menu;
 pub use library::LibraryOutcome;
-pub use monitor::cycle_entity_monitor;
+pub use monitor::{cycle_entity_monitor, move_to_pinned_monitor};
 pub use toasts::toasts;
 pub use toggle_button::toggle_button;
 
