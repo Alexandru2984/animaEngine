@@ -23,8 +23,12 @@ parallel feature tracks.
 a sandboxed Rhai script that plays position-panned sounds and reads
 aggregate machine load — three of the four post-1.0 roadmap items,
 delivered as script capabilities rather than one-off behaviors.
-Shortcuts became layout-independent. Additive only: no change to the 1.x
-config, D-Bus, CLI or path guarantees.
+Shortcuts became layout-independent. The native Wayland backend gained
+the file drops and tray icon its feature list had claimed, the two
+backends' event handling was merged into one copy, and the Windows port
+now compiles in CI with a tray and a single instance (not yet run on
+Windows). Additive only: no change to the 1.x config, D-Bus, CLI or path
+guarantees.
 
 **1.1.0** — the first release after 1.0 (2026-09), and the
 first shaped by running the overlay rather than only testing it. A

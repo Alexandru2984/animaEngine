@@ -6,115 +6,28 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
-
-- **`--version` / `-V`** prints `anima-engine <version>` and exits. It
-  used to be rejected as an unknown option.
-- **Windows: a tray icon and a single instance.** The notification-area
-  icon has the same menu as the Linux tray, and a second launch now hands
-  off to the running overlay and raises it instead of starting another.
-  Both are built on the Win32 bindings the port already links. The
-  Windows port compiles and its unit tests pass under Wine, but it has
-  **not yet been run on a real Windows machine**; see
-  `docs/porting-windows.md`.
-
-### Fixed
-
-- **The screen-reader setting pretended to work on native Wayland.** That
-  backend has no AT-SPI bridge — egui's comes with winit, which it does
-  not use — yet the Appearance checkbox was live and the docs said the
-  toggle worked there. It is now disabled on that backend, with the
-  reason on hover: use the X11 path (the default) with a screen reader.
-  The Wayland docs also stop calling multi-monitor untested and stop
-  describing Hide/Show as they worked before hiding was fixed.
-- **A config naming only some settings was replaced by the demo scene.**
-  Three `[global]` keys (`always_on_top`, `transparent`,
-  `playback_enabled`), the `[global]` table and the `characters` list
-  were mandatory, though nothing said so. Leave one out and at the next
-  launch the file was backed up and overwritten with the defaults, with
-  only a log line to say why. They all default now. When a config really
-  cannot be read, a banner says so and where the original was kept.
-- **The hover-startle hint promised mascots "settle back".** They scoot
-  away and stay; six languages even said they come back. The hint now
-  says what happens.
-- **German, Dutch and Spanish addressed you two ways.** German mixed
-  "Sie" and "du", Dutch "u" and "je", Spanish "tú" and "usted" — some
-  panels one way, the next the other. Each now uses one register
-  throughout, and a test keeps it that way.
-- **The config reference was missing two settings**: `hover_startle` in
-  `[global]`, and the `script` behavior with its `params` table.
-  `docs/config.md` now documents both; the README's behavior list names
-  all six.
-- **`Ctrl+M` made a character disappear.** Pinning a character to
-  another monitor — with `Ctrl+M` or the Inspector's "Pin to monitor" —
-  changed which screen draws it without moving it there, so it was drawn
-  off the edge of that screen. It now moves onto the monitor it is pinned
-  to, at the same spot relative to the corner.
-- **The native Wayland backend had no tray icon.** The tray was only ever
-  started on the X11 path, although the feature matrix listed it for
-  both. It now appears on native Wayland too, with the same menu.
-- **Leaving edit mode from the tray, a D-Bus call or a global shortcut
-  did not save** on native Wayland. The ⚙ button and the keyboard save
-  on the way out (fixed in 1.2); this third route set the mode without
-  saving, so changes stayed in memory until something else wrote them.
-- **Dropping a file on the native Wayland overlay never worked.** The
-  overlay never asked the compositor for the object that delivers drag
-  events, so no drop reached it; the feature matrix called it stable. It
-  works now, and lands where you release it. In pass-through, drag over
-  the ⚙ corner first: from there the whole screen accepts the drop for
-  the rest of that drag. A successful drop opens edit mode, as on X11,
-  and the file manager is told the drop completed.
-- **Applying a preset on native Wayland kept a stale selection.** With
-  *Replace*, the scene is rebuilt from the preset but the selection still
-  pointed at the old index — so the Inspector showed, and `Delete` would
-  remove, a character you had never selected. The winit backend always
-  cleared it.
-- **"Loaded preset" was English in every language** on the winit backend.
-- **Duplicating with `D` on the winit backend gave no confirmation,**
-  while the context menu's Duplicate did.
-- **A dead hot-reload worker went unmentioned on native Wayland.** The
-  winit backend raises a banner saying edits to `config.toml` will not
-  apply until restart; the Wayland loop only wrote a log line, so a saved
-  edit simply never took.
-- **Hot-reload messages were English in every language,** on both
-  backends. A test now fails if any toast is built from untranslated text.
-- **A file dropped on native Wayland would not have been saved.** That
-  code never marked the scene as changed, gave no confirmation and did
-  not select the new character — moot until now, since no drop reached
-  it (above), but fixed along with it: drops go through the same code as
-  on X11.
-- **Shimeji import on native Wayland froze the overlay** while it copied
-  the pack's sprites, and put every character at the same fixed corner.
-  It now runs off the UI thread as on X11, and a pack folder can be
-  dropped onto the Wayland overlay too, which it used to refuse.
-
-### Changed
-
-- The context menu, the Library's "Add to scene" and the command palette
-  are now applied by one shared module instead of a copy per backend —
-  the drift above is what the copies had produced. About 170 lines fewer.
-- Config hot-reload runs on one watcher for both backends, where the
-  winit path used to keep its own.
-- File drops and Shimeji imports go through that same shared module.
-- CI now compiles the Windows and FreeBSD ports on every push — with and
-  without audio, lint-clean, docs included. Neither was built anywhere
-  before, so a Linux-only change could break them unnoticed.
-- The tray menu is defined once, and both platforms' trays render it.
-
-## [1.2.0] — 2026-09-24
+## [1.2.0] — 2026-09-25
 
 Characters can now be scripted. A behavior can be a small
 [Rhai](https://rhai.rs) program from your asset library, and a script can
 play sounds that come from where the character is and react to how busy
-the machine is — aggregate totals only, never what is running. The rest is
-fixes found the way 1.1's were, by running the overlay: shortcuts work on
-non-US keyboard layouts, native Wayland gained hot-reload and several
-shortcuts it had silently ignored, and a malformed MP4 can no longer close
-the app.
+the machine is — aggregate totals only, never what is running.
 
-Existing configs, D-Bus, CLI flags, accepted asset formats and XDG paths
-are unchanged; the script behavior is a new, additive config variant, per
-[the stability policy](docs/stability-policy.md).
+The rest is fixes found the way 1.1's were, by running the overlay — and,
+for X11 behaviour the test compositor cannot show, on a real X server. A
+config that named only some settings was being replaced by the defaults.
+The native Wayland backend gets what its feature list had long claimed:
+file drops and a tray icon both work there for the first time, as does
+hot-reload, and the event handling it used to duplicate from the X11 path
+now runs from one shared copy, which ended the places where the two
+disagreed. Shortcuts work on non-US keyboard layouts, `Ctrl+M`
+no longer makes a character vanish, and a malformed MP4 can no longer
+close the app. The Windows port compiles, with a tray icon and a single
+instance, but has not been run on Windows yet.
+
+Existing configs, D-Bus methods, CLI flags, accepted asset formats and XDG
+paths keep working unchanged; the script behavior and `--version` are
+additions, per [the stability policy](docs/stability-policy.md).
 
 ### Added
 
@@ -165,9 +78,80 @@ are unchanged; the script behavior is a new, additive config variant, per
   a fresh install. A folder named by `$ANIMA_ASSETS_DIR` is still never
   created for you: a path you gave that does not exist is a mistake worth
   hearing about.
+- **`--version` / `-V`** prints `anima-engine <version>` and exits. It
+  used to be rejected as an unknown option.
+- **Windows: a tray icon and a single instance.** The notification-area
+  icon has the same menu as the Linux tray, and a second launch now hands
+  off to the running overlay and raises it instead of starting another.
+  Both are built on the Win32 bindings the port already links. The
+  Windows port compiles and its unit tests pass under Wine, but it has
+  **not yet been run on a real Windows machine**; see
+  `docs/porting-windows.md`.
 
 ### Fixed
 
+- **A config naming only some settings was replaced by the demo scene.**
+  Three `[global]` keys (`always_on_top`, `transparent`,
+  `playback_enabled`), the `[global]` table and the `characters` list
+  were mandatory, though nothing said so. Leave one out and at the next
+  launch the file was backed up and overwritten with the defaults, with
+  only a log line to say why. They all default now. When a config really
+  cannot be read, a banner says so and where the original was kept.
+- **Dropping a file on the native Wayland overlay never worked.** The
+  overlay never asked the compositor for the object that delivers drag
+  events, so no drop reached it; the feature matrix called it stable. It
+  works now, and lands where you release it. In pass-through, drag over
+  the ⚙ corner first: from there the whole screen accepts the drop for
+  the rest of that drag. A successful drop opens edit mode, as on X11,
+  and the file manager is told the drop completed.
+- **The native Wayland backend had no tray icon.** The tray was only ever
+  started on the X11 path, although the feature matrix listed it for
+  both. It now appears on native Wayland too, with the same menu.
+- **Leaving edit mode from the tray, a D-Bus call or a global shortcut
+  did not save** on native Wayland. The ⚙ button and the keyboard now
+  save on the way out (below); this third route set the mode without
+  saving, so changes stayed in memory until something else wrote them.
+- **`Ctrl+M` made a character disappear.** Pinning a character to
+  another monitor — with `Ctrl+M` or the Inspector's "Pin to monitor" —
+  changed which screen draws it without moving it there, so it was drawn
+  off the edge of that screen. It now moves onto the monitor it is pinned
+  to, at the same spot relative to the corner.
+- **The screen-reader setting pretended to work on native Wayland.** That
+  backend has no AT-SPI bridge — egui's comes with winit, which it does
+  not use — yet the Appearance checkbox was live and the docs said the
+  toggle worked there. It is now disabled on that backend, with the
+  reason on hover: use the X11 path (the default) with a screen reader.
+  The Wayland docs also stop calling multi-monitor untested and stop
+  describing Hide/Show as they worked before hiding was fixed.
+- **The hover-startle hint promised mascots "settle back".** They scoot
+  away and stay; six languages even said they come back. The hint now
+  says what happens.
+- **German, Dutch and Spanish addressed you two ways.** German mixed
+  "Sie" and "du", Dutch "u" and "je", Spanish "tú" and "usted" — some
+  panels one way, the next the other. Each now uses one register
+  throughout, and a test keeps it that way.
+- **The config reference was missing two settings**: `hover_startle` in
+  `[global]`, and the `script` behavior with its `params` table.
+  `docs/config.md` now documents both; the README's behavior list names
+  all six.
+- **Applying a preset on native Wayland kept a stale selection.** With
+  *Replace*, the scene is rebuilt from the preset but the selection still
+  pointed at the old index — so the Inspector showed, and `Delete` would
+  remove, a character you had never selected. The winit backend always
+  cleared it.
+- **"Loaded preset" was English in every language** on the winit backend.
+- **Duplicating with `D` on the winit backend gave no confirmation,**
+  while the context menu's Duplicate did.
+- **A dead hot-reload worker went unmentioned on native Wayland.** The
+  winit backend raises a banner saying edits to `config.toml` will not
+  apply until restart; the Wayland loop only wrote a log line, so a saved
+  edit simply never took.
+- **Hot-reload messages were English in every language,** on both
+  backends. A test now fails if any toast is built from untranslated text.
+- **Shimeji import on native Wayland froze the overlay** while it copied
+  the pack's sprites, and put every character at the same fixed corner.
+  It now runs off the UI thread as on X11, and a pack folder can be
+  dropped onto the Wayland overlay too, which it used to refuse.
 - **The docs named directories that do not exist.** The README, the
   stability policy and most of the docs gave the config and cache
   directories as `~/.config/animaEngine/` and `~/.cache/animaEngine/`.
@@ -194,10 +178,8 @@ are unchanged; the script behavior is a new, additive config variant, per
   appeared wherever the cursor had last been seen over the overlay rather
   than where the file was released — during a drag the pointer is grabbed
   by the source, so the overlay sees no cursor movement at all, and winit
-  does not pass the drop position on. The X server is now asked directly.
-  Native Wayland was always correct here. Not yet confirmed on a real X11
-  session; see `docs/runtime-findings.md` for why the test rig cannot show
-  it.
+  does not pass the drop position on. The X server is now asked
+  directly; confirmed on a real X server.
 - **Shortcuts work on non-US keyboard layouts.** The key tables assumed
   a US layout: `Shift`+a digit or `Shift`+`[` could not be recorded at
   all, and on AZERTY — where the 1 key types `&` without Shift — the
@@ -335,6 +317,16 @@ are unchanged; the script behavior is a new, additive config variant, per
   advisories this one is reachable, so the rationale is recorded
   separately in `.github/workflows/ci.yml`: unmaintained is not
   vulnerable, and script strings are capped inside a sandbox with no I/O.
+- The context menu, the Library's "Add to scene" and the command palette
+  are now applied by one shared module instead of a copy per backend —
+  the drift above is what the copies had produced. About 170 lines fewer.
+- Config hot-reload runs on one watcher for both backends, where the
+  winit path used to keep its own.
+- File drops and Shimeji imports go through that same shared module.
+- CI now compiles the Windows and FreeBSD ports on every push — with and
+  without audio, lint-clean, docs included. Neither was built anywhere
+  before, so a Linux-only change could break them unnoticed.
+- The tray menu is defined once, and both platforms' trays render it.
 
 ## [1.1.0] — 2026-09-08
 

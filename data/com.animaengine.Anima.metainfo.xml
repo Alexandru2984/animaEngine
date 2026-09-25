@@ -57,7 +57,7 @@
   </recommends>
 
   <releases>
-    <release version="1.2.0" date="2026-09-24">
+    <release version="1.2.0" date="2026-09-25">
       <description>
         <p>Scripted characters, sound, and shortcuts that work on every keyboard layout.</p>
         <ul>
@@ -65,6 +65,8 @@
           <li>Scripts can play sounds, panned to where the character is on screen.</li>
           <li>Scripts can react to overall machine load; they cannot see what is running.</li>
           <li>Shortcuts now work on AZERTY, QWERTZ and other non-US layouts; German shows Strg.</li>
+          <li>A config that lists only some settings is no longer replaced by the defaults.</li>
+          <li>On native Wayland, file drops and the tray icon work for the first time.</li>
         </ul>
       </description>
     </release>
