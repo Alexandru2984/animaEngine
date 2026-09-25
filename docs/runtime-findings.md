@@ -1314,10 +1314,20 @@ perf overlay's own sampler, R27), the six `MenuAction`s, both
 **Names promised to the user vs names the code uses** — the class behind
 R32 and R34. All six `ANIMA_*` environment variables read by the code are
 documented and none is documented that is not read; the only CLI flags
-parsed are `--help` and `--recover`, exactly what the stability policy
-guarantees (`--frobnicate` and `--recovr` in the source are test fixtures
+parsed are `--help`, `--version` and `--recover`, exactly what the
+stability policy guarantees (`--frobnicate` and `--recovr` in the source are test fixtures
 for the unknown-flag rejection); every key in `docs/config.md` maps to a
 real field.
+
+**X11 behaviour XWayland cannot show** — the class behind R37, where the
+rig's XWayland answers stale pointer positions for a click-through
+surface and has no window manager. Re-run on a real X server (Xvfb, the
+pointer moved through XTest; openbox as the EWMH window manager), each
+with a harness kept in the rig: drops land at the pointer (R37);
+FollowCursor and hover-startle track the pointer in pass-through (R46);
+and **window-awareness** works — a physics sprite dropped above an
+`xlogo` window landed on its frame's top edge (bottom at y 499, frame top
+≈ 500) while one beside it fell to the screen bottom (999).
 
 No test guards the config-key half, deliberately. The schema does **not**
 set `deny_unknown_fields`, because the stability policy promises a config
