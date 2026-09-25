@@ -34,6 +34,11 @@ pub enum Warning {
     /// in-flight config edit silently won't apply — they'd think
     /// it took until the next manual save or restart.
     HotReloadDisconnected,
+    /// The config file on disk could not be read at startup, so the
+    /// default scene was loaded; the original was kept beside it as
+    /// `config.toml.bak-corrupt`. Without this the user just saw the demo
+    /// where their own characters had been.
+    ConfigUnreadable,
 }
 
 impl Warning {
@@ -42,6 +47,7 @@ impl Warning {
         match self {
             Self::GlobalHotkeysUnavailable => Severity::Warn,
             Self::HotReloadDisconnected => Severity::Warn,
+            Self::ConfigUnreadable => Severity::Error,
         }
     }
 
@@ -51,6 +57,7 @@ impl Warning {
         match self {
             Self::GlobalHotkeysUnavailable => "warning-global-hotkeys-unavailable",
             Self::HotReloadDisconnected => "warning-hot-reload-disconnected",
+            Self::ConfigUnreadable => "warning-config-unreadable",
         }
     }
 }

@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R45 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R46 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1740,4 +1740,38 @@ A test lists the unambiguous wrong-register words for each of the three
 uses one; confirmed by putting one Dutch "je" back. As with R38, this is
 consistency, not quality: whether each sentence reads well is still the
 native review's job.
+
+### R46 · A config that named only what it changed was replaced by the demo — `FIXED`
+
+Found by a test harness, not by a user: writing a config for the real-X
+cursor check (below), `[global]` got only the one key the test needed,
+`hover_startle = true`. The app logged `decode error: missing field
+always_on_top` and started with the demo scene.
+
+`always_on_top`, `transparent` and `playback_enabled` had no serde
+default, nor did the `[global]` table or the `characters` array. Leave
+any of them out and the file does not decode — and at startup that means
+backed up to `config.toml.bak-corrupt` and **overwritten with the
+defaults**, with a log line as the only trace. `docs/config.md` presents
+every key as an individual setting; nothing said three of them were
+mandatory. Hot-reload was never the danger — it ignores an unreadable
+edit without writing — but the next launch was.
+
+**Fixed** both ways. Those keys and tables now default, so a config can
+name only what it changes; a character still needs `id`, `name`,
+`asset_type`, `asset_path`, `x` and `y`, and the docs now say so. And when
+a file really is unreadable, a banner says what happened and where the
+original went (`Warning::ConfigUnreadable`), on both backends — checked on
+the rig with a file of garbage.
+
+**The cursor features, on a real X server.** The same harness
+(`xvfb-cursor.sh`, Xvfb with the pointer moved through XTest) observed
+for the first time what XWayland cannot show for a click-through surface:
+in pass-through, a `follow_cursor` character went to the pointer at
+(900, 700) and stopped at its comfort distance, then turned for (5, 5);
+with hover-startle on, a character the pointer landed on jumped about
+80 px away. It stayed there — which is the design (the code calls it "a
+scoot away", like poke) — but the Appearance hint said the mascots
+"settle back", and six languages said they "come back". The hint no
+longer promises either.
 

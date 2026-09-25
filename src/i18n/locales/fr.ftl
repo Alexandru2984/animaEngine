@@ -186,11 +186,13 @@ appearance-accesskit-unsupported = Les lecteurs d'écran ne sont pas disponibles
 appearance-reduced-motion-label = Réduire les animations
 appearance-reduced-motion-hint = Ignore les transitions de l’interface (glissement du panneau, fondus, apparition de la palette) et arrête le balancement décoratif. Les animations qui portent un état restent actives.
 appearance-hover-startle-label = Sursaut au survol
-appearance-hover-startle-hint = Les mascottes reculent devant le pointeur quand il s'approche, puis reviennent. Le suivi du curseur est réservé à X11, donc sous Wayland natif cela ne réagit qu'en mode édition.
+appearance-hover-startle-hint = Les mascottes reculent devant le pointeur quand il s'approche. Le suivi du curseur est réservé à X11, donc sous Wayland natif cela ne réagit qu'en mode édition.
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Les raccourcis globaux n’ont pas pu être enregistrés (typique d’une session Wayland native). Le menu de la zone de notification et le bouton ⚙ fonctionnent toujours.
 warning-hot-reload-disconnected = Le processus de rechargement à chaud s’est arrêté de façon inattendue ; les modifications de configuration en cours ne s’appliqueront qu’après un redémarrage.
+# Machine-translated, pending native review.
+warning-config-unreadable = Votre fichier de configuration n'a pas pu être lu ; la scène par défaut a été chargée. L'original est conservé à côté sous le nom config.toml.bak-corrupt.
 action-toggle-perf-overlay = Basculer l’overlay de performance
 
 # ── What's new (D.7) — placeholder pending native-speaker audit

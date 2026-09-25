@@ -27,6 +27,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reason on hover: use the X11 path (the default) with a screen reader.
   The Wayland docs also stop calling multi-monitor untested and stop
   describing Hide/Show as they worked before hiding was fixed.
+- **A config naming only some settings was replaced by the demo scene.**
+  Three `[global]` keys (`always_on_top`, `transparent`,
+  `playback_enabled`), the `[global]` table and the `characters` list
+  were mandatory, though nothing said so. Leave one out and at the next
+  launch the file was backed up and overwritten with the defaults, with
+  only a log line to say why. They all default now. When a config really
+  cannot be read, a banner says so and where the original was kept.
+- **The hover-startle hint promised mascots "settle back".** They scoot
+  away and stay; six languages even said they come back. The hint now
+  says what happens.
 - **German, Dutch and Spanish addressed you two ways.** German mixed
   "Sie" and "du", Dutch "u" and "je", Spanish "tú" and "usted" — some
   panels one way, the next the other. Each now uses one register

@@ -186,11 +186,13 @@ appearance-accesskit-unsupported = ネイティブ Wayland バックエンドで
 appearance-reduced-motion-label = 動きを減らす
 appearance-reduced-motion-hint = UI のトランジション（パネルのスライド、フェード、パレットのポップ）を省略し、装飾的な揺れを止めます。状態を伝えるアニメーションは動き続けます。
 appearance-hover-startle-label = ホバーでびっくり
-appearance-hover-startle-hint = カーソルが近づくとマスコットが後ずさりし、その後落ち着きます。カーソル追跡はX11のみのため、ネイティブWaylandでは編集モードでのみ反応します。
+appearance-hover-startle-hint = カーソルが近づくとマスコットが後ずさりします。カーソル追跡はX11のみのため、ネイティブWaylandでは編集モードでのみ反応します。
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = グローバルホットキーを登録できませんでした（ネイティブ Wayland セッションでは一般的）。トレイメニューと ⚙ ボタンは引き続き使えます。
 warning-hot-reload-disconnected = ホットリロードのワーカーが予期せず停止しました。進行中の設定変更はアプリの再起動後に反映されます。
+# Machine-translated, pending native review.
+warning-config-unreadable = 設定ファイルを読み込めなかったため、既定のシーンを読み込みました。元のファイルは同じ場所に config.toml.bak-corrupt として残してあります。
 action-toggle-perf-overlay = パフォーマンス表示を切り替え
 
 # ── What's new (D.7) — placeholder pending native-speaker audit

@@ -186,11 +186,13 @@ appearance-accesskit-unsupported = Cititoarele de ecran nu sunt disponibile pe b
 appearance-reduced-motion-label = Redu mișcarea
 appearance-reduced-motion-hint = Sare peste tranzițiile UI (glisarea panoului, fade-uri, pop-ul paletei) și oprește săltatul decorativ. Animațiile care transmit stare rulează în continuare.
 appearance-hover-startle-label = Tresărire la hover
-appearance-hover-startle-hint = Mascotele se feresc de cursor când se apropie de ele, apoi revin. Urmărirea cursorului e doar pe X11, deci pe Wayland nativ reacționează doar în modul editare.
+appearance-hover-startle-hint = Mascotele se feresc de cursor când se apropie de ele. Urmărirea cursorului e doar pe X11, deci pe Wayland nativ reacționează doar în modul editare.
 
 # ── Avertismente persistente (D.5) ────────────────────────────────────
 warning-global-hotkeys-unavailable = Scurtăturile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.
 warning-hot-reload-disconnected = Procesul de reîncărcare la cald s-a oprit pe neașteptate; modificările pe config nu se vor aplica până la repornire.
+# Machine-translated, pending native review.
+warning-config-unreadable = Fișierul de configurare nu a putut fi citit, așa că s-a încărcat scena implicită. Originalul e păstrat alături ca config.toml.bak-corrupt.
 action-toggle-perf-overlay = Comută suprapunerea de performanță
 
 # ── Panou "What's new" (D.7) ──────────────────────────────────────────

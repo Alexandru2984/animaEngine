@@ -369,6 +369,9 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     let _ = instance;
 
     let mut app = App::new(config, scene);
+    if anima_engine::config::loaded_defaults_over_unreadable_config() {
+        app.push_warning(anima_engine::ui::Warning::ConfigUnreadable);
+    }
     app.set_hotkey_backend_status(strategy.describe());
     if !hotkeys_available {
         // hotkeys::register returned None — typically a native Wayland

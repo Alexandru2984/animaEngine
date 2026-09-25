@@ -11,8 +11,11 @@ use std::path::{Path, PathBuf};
 /// Global application settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalConfig {
+    #[serde(default = "default_true")]
     pub always_on_top: bool,
+    #[serde(default = "default_true")]
     pub transparent: bool,
+    #[serde(default = "default_true")]
     pub playback_enabled: bool,
     /// Window width (0 = auto-detect from monitor)
     #[serde(default = "default_window_width")]
@@ -315,8 +318,13 @@ pub struct AppConfig {
     /// migrated on load; always re-written as [`CURRENT_SCHEMA_VERSION`].
     #[serde(rename = "version", default = "schema_version_legacy")]
     pub schema_version: u32,
+    // Every table and key a person might leave out has a default. These
+    // three and the `[global]` table itself used not to, so a hand-written
+    // config naming only the settings it cared about failed to decode —
+    // and at startup that means backed up and replaced by the demo scene.
+    #[serde(default)]
     pub global: GlobalConfig,
-    #[serde(rename = "characters")]
+    #[serde(rename = "characters", default)]
     pub characters: Vec<CharacterConfig>,
     /// Multi-window roster. Empty (or absent) means "legacy single
     /// overlay backed by `characters` above" — 0.2 configs decode
@@ -611,6 +619,16 @@ fn migrate_v1_v2(_table: &mut toml::Table) {}
 /// nets are the migration `.bak-v<n>` and crash-recovery snapshots).
 /// Extracted from `AppConfig::load` so the decision is unit-testable
 /// without redirecting the real config path.
+/// Set when startup found a config it could not read and loaded the
+/// defaults instead (the original is kept as `config.toml.bak-corrupt`).
+static LOAD_FELL_BACK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether this run's config was unreadable and replaced by the defaults.
+/// Each backend turns it into a banner at startup.
+pub fn loaded_defaults_over_unreadable_config() -> bool {
+    LOAD_FELL_BACK.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 fn backup_unreadable_config(path: &Path) {
     let backup = path.with_extension("toml.bak-corrupt");
     match fs::copy(path, &backup) {
@@ -753,6 +771,10 @@ impl AppConfig {
         let fresh_install = !path.exists();
         if path.exists() {
             backup_unreadable_config(&path);
+            // The UI says so on screen (Warning::ConfigUnreadable): the log
+            // line alone left a user looking at the demo scene in place of
+            // their own, with no idea why.
+            LOAD_FELL_BACK.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         let mut config = AppConfig::default();
         if fresh_install {
@@ -1195,6 +1217,37 @@ mod migration_tests {
             Some(&toml::Value::Integer(42)),
             "unknown future keys survive the no-op migration"
         );
+    }
+
+    /// A hand-written config names only what it wants to change. Leaving
+    /// out a `[global]` key — or the whole table, or `characters` — used to
+    /// fail to decode, and at startup that means backed up and replaced by
+    /// the demo scene.
+    #[test]
+    fn a_config_that_names_only_what_it_changes_loads() {
+        let (cfg, _) =
+            AppConfig::decode_config_str("version = 2\n[global]\nhover_startle = true\n")
+                .expect("a partial [global] is a valid config");
+        assert!(cfg.global.hover_startle);
+        assert!(cfg.global.always_on_top && cfg.global.transparent && cfg.global.playback_enabled);
+        assert!(
+            cfg.characters.is_empty(),
+            "no characters named, none invented"
+        );
+
+        assert!(
+            AppConfig::decode_config_str("version = 2\n").is_ok(),
+            "no [global] table"
+        );
+        assert!(AppConfig::decode_config_str("").is_ok(), "an empty file");
+    }
+
+    /// A character still needs what makes it a character.
+    #[test]
+    fn a_character_without_its_asset_is_still_rejected() {
+        let toml = "version = 2\n[[characters]]\nid = \"a\"\nname = \"A\"\n\
+                    asset_type = \"png_static\"\nx = 0.0\ny = 0.0\n";
+        assert!(AppConfig::decode_config_str(toml).is_err());
     }
 
     #[test]

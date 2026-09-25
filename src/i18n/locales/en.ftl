@@ -198,11 +198,12 @@ appearance-accesskit-unsupported = Screen readers are not available on the nativ
 appearance-reduced-motion-label = Reduce motion
 appearance-reduced-motion-hint = Skips UI transitions (panel slide, fades, palette pop) and stops decorative bouncing. Animations that convey state still play.
 appearance-hover-startle-label = Startle on hover
-appearance-hover-startle-hint = Mascots recoil from the mouse pointer when it comes near them, then settle back. Cursor tracking is X11-only, so on native Wayland this only reacts in edit mode.
+appearance-hover-startle-hint = Mascots scoot away from the mouse pointer when it comes near them. Cursor tracking is X11-only, so on native Wayland this only reacts in edit mode.
 
 # ── Persistent warning banners (D.5) ──────────────────────────────────
 warning-global-hotkeys-unavailable = Global hotkeys couldn't register (typical on a native Wayland session). The tray menu and the ⚙ button still work.
 warning-hot-reload-disconnected = The hot-reload worker stopped unexpectedly; in-flight config edits won't apply until you restart the app.
+warning-config-unreadable = Your config file could not be read, so the default scene was loaded. The original is kept next to it as config.toml.bak-corrupt.
 action-toggle-perf-overlay = Toggle perf overlay
 
 # ── What's new panel (D.7) ────────────────────────────────────────────

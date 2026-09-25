@@ -156,6 +156,9 @@ pub fn run_native(
     // no indication it was skipping the other.
     let mut soak = crate::soak::SoakRecorder::from_env();
     let mut warnings: BTreeSet<Warning> = BTreeSet::new();
+    if crate::config::loaded_defaults_over_unreadable_config() {
+        warnings.insert(Warning::ConfigUnreadable);
+    }
     // Right-click context menu state, mirroring `app::ContextMenuState`
     // on the X11 path. Persists across frames while the menu is open.
     let mut context_menu_state: Option<crate::app::ContextMenuState> = None;

@@ -31,6 +31,20 @@ than dropped, so downgrading doesn't silently strip newer settings.
 (This applies to whole `[section]` tables; unknown bare keys at the
 very top of the file are not preserved.)
 
+## What you can leave out
+
+Everything except what makes a character a character. Every `[global]`
+key has a default, the `[global]` table itself can be omitted, and so can
+`characters` — write only the settings you want to change. A
+`[[characters]]` entry needs `id`, `name`, `asset_type`, `asset_path`,
+`x` and `y`; the rest default.
+
+If the file cannot be read at all — a TOML syntax error, a character
+missing one of those keys — the app starts with the default scene,
+keeps your file beside it as `config.toml.bak-corrupt`, and says so in a
+banner at the top of the settings panel. Hot-reload is gentler: an edit
+that doesn't parse is ignored, with a toast, and nothing is written.
+
 ## `[global]`
 
 ```toml

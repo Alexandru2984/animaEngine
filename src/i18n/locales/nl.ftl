@@ -186,11 +186,13 @@ appearance-accesskit-unsupported = Schermlezers zijn niet beschikbaar op de nati
 appearance-reduced-motion-label = Beweging verminderen
 appearance-reduced-motion-hint = Slaat UI-overgangen over (paneel schuiven, fades, palet-pop) en stopt decoratief wiebelen. Animaties die een toestand tonen blijven actief.
 appearance-hover-startle-label = Schrikken bij zweven
-appearance-hover-startle-hint = Mascottes deinzen terug voor de muisaanwijzer als die dichtbij komt en komen daarna weer tot rust. Cursorvolging werkt alleen op X11, dus op native Wayland reageert dit alleen in de bewerkmodus.
+appearance-hover-startle-hint = Mascottes deinzen terug voor de muisaanwijzer als die dichtbij komt. Cursorvolging werkt alleen op X11, dus op native Wayland reageert dit alleen in de bewerkmodus.
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Globale sneltoetsen konden niet worden geregistreerd (gebruikelijk in een native Wayland-sessie). Het traymenu en de ⚙-knop blijven werken.
 warning-hot-reload-disconnected = De hot-reload-worker is onverwacht gestopt; lopende configuratiewijzigingen gelden pas na een herstart.
+# Machine-translated, pending native review.
+warning-config-unreadable = Uw configuratiebestand kon niet worden gelezen, dus de standaardscène is geladen. Het origineel staat ernaast als config.toml.bak-corrupt.
 action-toggle-perf-overlay = Prestatie-overlay omschakelen
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
