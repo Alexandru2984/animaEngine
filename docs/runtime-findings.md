@@ -10,12 +10,12 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21, R23–R36 and R38–R45 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R45 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
-its entry. R37 is `FIXED, unverified` and wants one drag on a real X11
-session. Nothing on the list is unexplored any more.
+its entry. R37, long `FIXED, unverified`, was confirmed on a real X server
+(Xvfb). Nothing on the list is unexplored any more.
 
 ## How these were reproduced
 
@@ -1249,7 +1249,7 @@ reading the one function that decides what gets emitted. The aliases this
 entry added (`OpenCurlyBracket`→`[`, `Exclamationmark`→1) are US-only and
 are removed by R40, which falls back to the physical key instead.
 
-### R37 · A dropped file did not land where you dropped it (X11) — `FIXED, unverified`
+### R37 · A dropped file did not land where you dropped it (X11) — `FIXED`
 
 The last unexamined surface, reached by writing an XDND drag source for
 the rig (nothing packaged does this headlessly).
@@ -1290,6 +1290,14 @@ the query is authoritative there. The fix is correct by construction for
 the platform it targets and inert on the one that can be tested, which is
 an uncomfortable combination — it wants one drag on a real X11 session
 before being trusted.
+
+**Verified later, on a real X server.** A real X11 session did not have
+to mean a desktop: Xvfb is one, and there the pointer is the server's own
+state, which `xdotool mousemove` sets through XTest. With the overlay in
+pass-through — so it saw no motion at all — the pointer was moved to
+(400, 600) and the rig's `xdnd` source dropped a PNG, then again at
+(1200, 300). The log: `Added 'r37' at (400, 600)`, then `(1200, 300)`.
+The harness is kept as the rig's `xvfb-drop.sh`.
 
 ## Swept and clean
 
@@ -1561,7 +1569,7 @@ the layout at render time, a larger change. One default is affected: the
 perf overlay reads `` Ctrl+Shift+` `` on keyboards where that key says
 `^` (German) or `²` (French).
 
-### R41 · What the two backends' copies disagreed on — `FIXED` (one part unverified)
+### R41 · What the two backends' copies disagreed on — `FIXED`
 
 Not found on screen, unlike everything above: found by *reading*, while
 folding the handlers each backend kept its own copy of into shared

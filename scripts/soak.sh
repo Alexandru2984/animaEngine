@@ -42,8 +42,12 @@ set -euo pipefail
 # `com.animaengine.Anima` like any launch — so with an overlay already
 # running, the single-instance handshake hands off to it and the soak
 # measures nothing. CI wraps the script the same way.
+# Its config lists no service directories, so nothing is auto-started on
+# it: with the stock one, the app's portal probe launched
+# xdg-desktop-portal and its desktop backend there.
 if [[ -z "${ANIMA_SOAK_PRIVATE_BUS:-}" ]] && command -v dbus-run-session >/dev/null 2>&1; then
-  exec env ANIMA_SOAK_PRIVATE_BUS=1 dbus-run-session -- "$0" "$@"
+  exec env ANIMA_SOAK_PRIVATE_BUS=1 dbus-run-session \
+    --config-file="$(dirname "${BASH_SOURCE[0]}")/soak-dbus.conf" -- "$0" "$@"
 fi
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
