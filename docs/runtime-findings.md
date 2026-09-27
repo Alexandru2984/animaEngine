@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R46 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R47 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1808,3 +1808,45 @@ scoot away", like poke) — but the Appearance hint said the mascots
 "settle back", and six languages said they "come back". The hint no
 longer promises either.
 
+
+### R47 · The overlay held a sound device from start to exit, even a raw one — `FIXED`
+
+Found while verifying script sounds end to end (see "Swept and clean"),
+by looking at which files the rig's app had open: `/dev/snd/pcmC0D3p`,
+the NVidia card's HDMI output, in state `RUNNING`. Three separate things
+were wrong.
+
+- **It opened the device at startup, and kept it.** `AudioHost::new`
+  opened the default output whether or not any character would ever make
+  a sound, and rodio cannot pause a stream, so the app played silence to
+  the sound server for as long as it ran. A stream that never stops keeps
+  the server's sink from suspending: no power saving on a laptop, a
+  wake-up every few milliseconds on an app that says it is light, and on
+  some DACs an audible hiss.
+- **When the default device failed, it took any other.** rodio's
+  `open_default_sink` falls back to every output device in turn, and on
+  Linux those are raw ALSA hardware. The rig's private runtime directory
+  keeps the app away from PipeWire, so the default failed and the app
+  opened the HDMI output directly, behind the sound server. A user whose
+  sound server is down or late at login would get the same: a device
+  held open from under PipeWire, outside its volume and routing.
+- **A stream that broke flooded stderr.** rodio's default error callback
+  prints every error, and a stream whose device is gone errors on every
+  buffer. In the harness, a closed capture pipe filled the 1 MB log cap
+  in seconds; for a user, an unplugged USB headset would do the same to
+  wherever stderr goes, the journal included.
+
+**Fixed.** The host opens nothing until the first sound, and closes the
+device once nothing has played for 30 s. Only the default device is
+tried; if it fails, sounds are skipped, logged once, and the open retried
+a minute later. A stream error is reported once and closes the stream,
+so the next sound reopens the default — the new one, if it changed.
+Checked on the real-X harness: the device opens with the first sound
+(2.7 s in, not at startup), a broken stream costs one warning and is
+closed on the next tick, and the log stays at 6 KB. The unit tests no
+longer open the sound card of whoever runs them, which they did through
+`AudioHost::new`.
+
+The rig had the same hole, independent of the app: it now runs the app
+under `bwrap` with an empty `/dev/snd`, and refuses to continue if the
+app holds a sound device anyway.

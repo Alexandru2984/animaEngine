@@ -14,9 +14,24 @@
 //!
 //! A missing audio device is normal, not exceptional — CI runners, most
 //! VMs, and a machine with audio muted at the system level all have none.
-//! `AudioHost::new` therefore cannot fail: it logs once and every later
-//! call becomes a no-op. An overlay that refused to start because it could
-//! not open ALSA would be a worse bug than silence.
+//! Nothing here can fail: when the device cannot be opened, that is logged
+//! once and the sound is skipped. An overlay that refused to start because
+//! it could not open ALSA would be a worse bug than silence.
+//!
+//! # The device is open only while there is sound
+//!
+//! `AudioHost::new` opens nothing. The device is opened by the first sound
+//! and closed once nothing has played for `LINGER`. rodio cannot pause a
+//! stream, so an open device plays silence without end, and a stream that
+//! never stops keeps the sound server's sink awake: no power saving, and
+//! on some hardware an audible hiss, from an app that may never make a
+//! sound. The first sound after a quiet spell pays for the open.
+//!
+//! Only the *default* device is used. rodio's `open_default_sink` falls
+//! back to every other output when the default fails, and on Linux those
+//! are raw ALSA hardware: with the sound server out of reach, the overlay
+//! opened a GPU's HDMI output directly, behind PipeWire's back, and held it
+//! for as long as it ran. Silence is the better failure.
 //!
 //! # Feature gate
 //!
@@ -71,6 +86,18 @@ const RETRIGGER_COOLDOWN: Duration = Duration::from_millis(150);
 /// Sounds allowed to start within one tick, across the whole scene.
 #[cfg(feature = "audio")]
 const MAX_VOICES_PER_TICK: usize = 8;
+/// How long the device stays open after the last sound has finished.
+///
+/// Long enough that a script chirping every few seconds does not reopen
+/// the device for each chirp; short enough that the sound server gets its
+/// sink back soon after the scene goes quiet.
+#[cfg(feature = "audio")]
+const LINGER: Duration = Duration::from_secs(30);
+/// How long after a failed open the next sound tries again — so a sound
+/// server started after the overlay is picked up, without a script that
+/// plays every frame retrying sixty times a second.
+#[cfg(feature = "audio")]
+const RETRY_AFTER: Duration = Duration::from_secs(60);
 
 /// A decoded sound, kept ready to play again without touching the disk.
 #[cfg(feature = "audio")]
@@ -86,6 +113,14 @@ struct Cached {
 impl Cached {
     fn bytes(&self) -> usize {
         self.samples.len() * std::mem::size_of::<f32>()
+    }
+
+    fn duration(&self) -> Duration {
+        // Both are `NonZero` in rodio 0.22, which is exactly why `Cached`
+        // keeps them in that form rather than as plain integers — no
+        // zero-guard is needed here.
+        let frames = self.samples.len() / self.channels.get() as usize;
+        Duration::from_secs_f64(frames as f64 / f64::from(self.sample_rate.get()))
     }
 }
 
@@ -148,22 +183,40 @@ impl rodio::Source for SharedSamples {
 
     #[inline]
     fn total_duration(&self) -> Option<Duration> {
-        // Both are `NonZero` in rodio 0.22, which is exactly why `Cached`
-        // keeps them in that form rather than as plain integers — no
-        // zero-guard is needed here.
-        let frames = self.sound.samples.len() / self.sound.channels.get() as usize;
-        Some(Duration::from_secs_f64(
-            frames as f64 / f64::from(self.sound.sample_rate.get()),
-        ))
+        Some(self.sound.duration())
     }
+}
+
+/// The output device's state. See "The device is open only while there
+/// is sound" in the module docs.
+#[cfg(feature = "audio")]
+enum Output {
+    /// Nothing open: no sound has played yet, or the scene went quiet.
+    Closed,
+    Open {
+        sink: rodio::MixerDeviceSink,
+        /// When the last sound still playing ends, plus [`LINGER`].
+        close_at: Instant,
+        /// Set from the audio thread when the stream fails — the device
+        /// was unplugged, the sound server went away.
+        failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    },
+    /// The last open failed; sounds are skipped until `retry_at`.
+    Unavailable { retry_at: Instant },
 }
 
 /// Owns the output device and the decoded-sound cache.
 pub struct AudioHost {
-    /// `None` when no device could be opened, and absent entirely on a
-    /// build without the `audio` feature. Every play is then a no-op.
+    /// Absent entirely on a build without the `audio` feature, where every
+    /// play is a no-op.
     #[cfg(feature = "audio")]
-    sink: Option<rodio::MixerDeviceSink>,
+    output: Output,
+    /// Whether the device's settings and a failure to open have been
+    /// logged — each once per process, not on every reopen.
+    #[cfg(feature = "audio")]
+    logged_open: bool,
+    #[cfg(feature = "audio")]
+    logged_unavailable: bool,
     #[cfg(feature = "audio")]
     cache: BTreeMap<String, std::sync::Arc<Cached>>,
     #[cfg(feature = "audio")]
@@ -185,7 +238,7 @@ pub struct AudioHost {
 impl std::fmt::Debug for AudioHost {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AudioHost")
-            .field("available", &self.is_available())
+            .field("open", &self.is_open())
             .finish()
     }
 }
@@ -197,39 +250,15 @@ impl Default for AudioHost {
 }
 
 impl AudioHost {
-    /// Open the default output device, or fall back to silence.
+    /// A host with nothing open yet: the device waits for the first sound.
     pub fn new() -> Self {
-        #[cfg(feature = "audio")]
-        let sink = match rodio::DeviceSinkBuilder::open_default_sink() {
-            Ok(mut s) => {
-                // rodio prints "Dropping DeviceSink, audio playing through
-                // this sink will stop" whenever the sink is dropped, and
-                // recommends leaving it on — it catches a sink dropped by
-                // accident while you still expect sound.
-                //
-                // That is not the shape here: the host is owned for the
-                // whole process, so the only drop is at exit, where the
-                // message is pure noise on the user's terminal every time
-                // they quit.
-                s.log_on_drop(false);
-                let c = s.config();
-                tracing::info!(
-                    "Audio output: {} channel(s) at {} Hz",
-                    c.channel_count(),
-                    c.sample_rate()
-                );
-                Some(s)
-            }
-            Err(e) => {
-                // Info, not warn: having no audio device is an ordinary
-                // configuration, not a fault to draw attention to.
-                tracing::info!("No audio output device ({e}); sounds will be silent.");
-                None
-            }
-        };
         Self {
             #[cfg(feature = "audio")]
-            sink,
+            output: Output::Closed,
+            #[cfg(feature = "audio")]
+            logged_open: false,
+            #[cfg(feature = "audio")]
+            logged_unavailable: false,
             #[cfg(feature = "audio")]
             cache: BTreeMap::new(),
             #[cfg(feature = "audio")]
@@ -244,12 +273,13 @@ impl AudioHost {
         }
     }
 
-    /// Whether a device was opened. False means every play is silent —
-    /// either no device, or a build without the `audio` feature.
-    pub fn is_available(&self) -> bool {
+    /// Whether the output device is open right now. It opens on the first
+    /// sound and closes once the scene is quiet, so a fresh host says no —
+    /// as does a build without the `audio` feature, always.
+    pub fn is_open(&self) -> bool {
         #[cfg(feature = "audio")]
         {
-            self.sink.is_some()
+            matches!(self.output, Output::Open { .. })
         }
         #[cfg(not(feature = "audio"))]
         {
@@ -257,11 +287,26 @@ impl AudioHost {
         }
     }
 
-    /// Reset the per-tick voice budget. Called once per scene tick.
+    /// Once per scene tick, paused or not: reset the voice budget, and
+    /// close the device once nothing has played for `LINGER`.
     pub fn begin_tick(&mut self) {
         #[cfg(feature = "audio")]
         {
             self.voices_this_tick = 0;
+            if let Output::Open {
+                close_at, failed, ..
+            } = &self.output
+            {
+                // A failed stream is dropped too, not kept: the next sound
+                // then opens whatever the default device is by then.
+                if failed.load(std::sync::atomic::Ordering::Relaxed) {
+                    self.output = Output::Closed;
+                    tracing::debug!("Audio output closed after a stream error");
+                } else if Instant::now() >= *close_at {
+                    self.output = Output::Closed;
+                    tracing::debug!("Audio output closed: nothing has played for a while");
+                }
+            }
         }
     }
 
@@ -305,7 +350,10 @@ impl AudioHost {
         min_x: f32,
         max_x: f32,
     ) {
-        if self.sink.is_none() || rel.is_empty() {
+        let now = Instant::now();
+        if rel.is_empty()
+            || matches!(self.output, Output::Unavailable { retry_at } if now < retry_at)
+        {
             return;
         }
         // A sound already known to be unloadable is not retried; the entry
@@ -318,7 +366,6 @@ impl AudioHost {
         }
 
         let key = (entity_id.to_string(), rel.to_string());
-        let now = Instant::now();
         if let Some(last) = self.last_played.get(&key) {
             if now.duration_since(*last) < RETRIGGER_COOLDOWN {
                 return;
@@ -356,10 +403,15 @@ impl AudioHost {
             }
         }
 
-        let Some(sound) = self.cache.get(rel) else {
+        let Some(sound) = self.cache.get(rel).map(std::sync::Arc::clone) else {
             return;
         };
-        let Some(sink) = &self.sink else { return };
+        // Opened only now, once there is a sound that decoded: a script
+        // naming a broken file never touches the device.
+        self.ensure_open(now);
+        let Output::Open { sink, close_at, .. } = &mut self.output else {
+            return;
+        };
 
         let (left, right) = pan_gains(centre_x, min_x, max_x);
         tracing::debug!(
@@ -367,15 +419,90 @@ impl AudioHost {
         );
         // Shares the decoded buffer rather than copying it — see
         // `SharedSamples`.
-        let buffer = SharedSamples {
-            sound: std::sync::Arc::clone(sound),
-            pos: 0,
-        };
+        *close_at = (*close_at).max(now + sound.duration() + LINGER);
+        let buffer = SharedSamples { sound, pos: 0 };
         sink.mixer().add(panned(buffer, left, right));
 
         self.last_played.insert(key, now);
         self.voices_this_tick += 1;
     }
+}
+
+#[cfg(feature = "audio")]
+impl AudioHost {
+    /// Open the device unless it is open already, or failed too recently.
+    fn ensure_open(&mut self, now: Instant) {
+        match self.output {
+            Output::Open { .. } => return,
+            Output::Unavailable { retry_at } if now < retry_at => return,
+            Output::Closed | Output::Unavailable { .. } => {}
+        }
+        let failed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        match open_default_output(std::sync::Arc::clone(&failed)) {
+            Ok(sink) => {
+                let c = sink.config();
+                if !self.logged_open {
+                    self.logged_open = true;
+                    tracing::info!(
+                        "Audio output: {} channel(s) at {} Hz",
+                        c.channel_count(),
+                        c.sample_rate()
+                    );
+                } else {
+                    tracing::debug!("Audio output reopened");
+                }
+                self.output = Output::Open {
+                    sink,
+                    close_at: now + LINGER,
+                    failed,
+                };
+            }
+            Err(e) => {
+                if !self.logged_unavailable {
+                    self.logged_unavailable = true;
+                    // Info, not warn: having no audio device is an
+                    // ordinary configuration, not a fault to draw
+                    // attention to.
+                    tracing::info!("No audio output device ({e}); sounds will be silent.");
+                } else {
+                    tracing::debug!("Audio output still unavailable ({e})");
+                }
+                self.output = Output::Unavailable {
+                    retry_at: now + RETRY_AFTER,
+                };
+            }
+        }
+    }
+}
+
+/// The default output device, and only that — see the module docs for
+/// why rodio's fallback to other devices is not used. `failed` is set if
+/// the stream breaks later.
+#[cfg(feature = "audio")]
+fn open_default_output(
+    failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) -> Result<rodio::MixerDeviceSink, rodio::DeviceSinkError> {
+    // rodio's own error callback prints every error, and a stream whose
+    // device is gone errors on every buffer — a hundred lines a second,
+    // into a log that may be the journal. Here the first failure of a
+    // stream is reported (once per process) and the host closes it.
+    let on_error = move |e: rodio::cpal::StreamError| {
+        static REPORTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        use std::sync::atomic::Ordering::Relaxed;
+        if !failed.swap(true, Relaxed) && !REPORTED.swap(true, Relaxed) {
+            tracing::warn!("Audio output failed ({e}); it is reopened for the next sound.");
+        }
+    };
+    let mut sink = rodio::DeviceSinkBuilder::from_default_device()?
+        .with_error_callback(on_error)
+        .open_sink_or_fallback()?;
+    // rodio prints "Dropping DeviceSink, audio playing through this sink
+    // will stop" whenever the sink is dropped, to catch one dropped by
+    // accident. Here every drop is deliberate — the scene went quiet, or
+    // the app is quitting — and the message would be noise on the user's
+    // terminal each time.
+    sink.log_on_drop(false);
+    Ok(sink)
 }
 
 /// `sound` as a stereo source at the given gains.
@@ -577,15 +704,13 @@ mod pan_tests {
 mod host_tests {
     use super::*;
 
-    /// Constructing the host must never fail, because a machine with no
-    /// sound card is an ordinary machine — and neither must a build
-    /// without the feature.
+    /// A host touches no device until a sound plays: an app that never
+    /// makes a sound never holds a stream — and neither do these tests,
+    /// which would otherwise open the sound card of whoever runs them.
     #[test]
-    fn a_machine_without_audio_still_gets_a_host() {
+    fn a_new_host_opens_no_device() {
         let host = AudioHost::new();
-        // Either outcome is valid; what matters is that it did not panic
-        // and that playing is safe either way.
-        let _ = host.is_available();
+        assert!(!host.is_open());
     }
 
     /// Every format we claim to accept must actually decode.
@@ -676,5 +801,6 @@ mod host_tests {
             1920.0,
         );
         assert!(host.take_new_failures().is_empty());
+        assert!(!host.is_open(), "an empty path must not open the device");
     }
 }

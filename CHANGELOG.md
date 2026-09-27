@@ -11,6 +11,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The log names the audio output the app opened (channels and rate), next
   to the GPU adapter line, for bug reports about sound.
 
+### Fixed
+
+- The app held a sound device open from start to exit, playing silence,
+  even if no character ever made a sound — which kept the sound server's
+  output from suspending. The device now opens with the first sound and
+  closes 30 s after the last one (R47).
+- When the default audio device could not be opened, the app opened
+  another output directly — on Linux, the raw hardware behind PipeWire or
+  PulseAudio. It now uses the default device or stays silent, and tries
+  again a minute later.
+- An audio stream that broke (a headset unplugged) printed an error on
+  every buffer. It is now reported once, and the next sound reopens the
+  default device.
+
 ### Tests
 
 - Script sounds are verified end to end on a real X server: a script's

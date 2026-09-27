@@ -333,6 +333,9 @@ top-level `Makefile`. AppImage and `.deb` both go through it.
 - Sound: `src/audio.rs` — one-shot playback panned by on-screen position,
   behind the optional `audio` feature. The module is always compiled; only
   the `rodio` parts are gated, so no caller's signature changes with it.
+  The default output device is opened by the first sound and closed once
+  the scene has been quiet for 30 s; a stream error closes it too, and the
+  next sound reopens it.
 - Machine load: `src/sysload.rs` — aggregate CPU / memory for scripts that
   react to it. Reads `/proc` directly rather than taking a dependency, so
   "we cannot enumerate processes" is structural rather than a promise.

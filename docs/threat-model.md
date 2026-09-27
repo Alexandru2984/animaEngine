@@ -278,6 +278,14 @@ Sound playback is **output only**. rodio's default features include
 here, so no audio-capture code is linked into the binary at all. Only
 `playback` plus the decoders are enabled.
 
+It plays through the **default output device only**, and only while a
+sound is playing (the device is closed 30 s after the last one ends).
+When the default device cannot be opened, the app stays silent: it does
+not try the other devices, which on Linux are the raw ALSA hardware
+behind the sound server — opening one would bypass the user's
+PipeWire or PulseAudio routing and volume, and hold the device from them.
+1.2.0 did try them (R47 in `docs/runtime-findings.md`).
+
 The **Flatpak** needs `--socket=pulseaudio` to make any sound, and that
 socket carries recording as well as playback: Flatpak has no
 playback-only permission. So inside the sandbox the guarantee is the same

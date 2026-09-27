@@ -262,22 +262,26 @@ impl Scene {
         // Clamp dt to prevent physics / behavior explosion after long pauses.
         let dt = dt.min(0.1);
 
-        if !self.global_playing {
-            return;
-        }
-
         let (mut host, mut audio, root) = match scripts {
             Some(c) => (Some(c.host), Some(c.audio), Some(c.root)),
             None => (None, None, None),
         };
 
+        // Before the pause check: this is also what closes the audio
+        // device once the scene is quiet, and a paused scene is the
+        // quietest there is.
+        if let Some(a) = audio.as_deref_mut() {
+            a.begin_tick();
+        }
+
+        if !self.global_playing {
+            return;
+        }
+
         // Once per tick, not once per entity — every scripted character
         // reads the same machine, and the sampler throttles anyway.
         if let Some(h) = host.as_deref_mut() {
             h.refresh_load();
-        }
-        if let Some(a) = audio.as_deref_mut() {
-            a.begin_tick();
         }
 
         for entity in &mut self.entities {
