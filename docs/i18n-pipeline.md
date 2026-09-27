@@ -108,6 +108,12 @@ Issues are tracked via the
 File one issue per locale that wants attention; link any related
 PRs that introduced the placeholder strings.
 
+After a release, `scripts/locale-review.py --since <last reviewed tag>`
+writes those issues' bodies, one per locale, into `build/locale-review/`:
+every message new or changed since that tag, next to its English, plus
+any whose English changed while the translation did not. The first line
+of each file is the issue title. `--since v1.1.0` covers what 1.2 added.
+
 ## Glossary anchors (terminology stability)
 
 These terms appear repeatedly across the UI and must translate
