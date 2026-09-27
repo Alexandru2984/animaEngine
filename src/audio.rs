@@ -672,9 +672,9 @@ mod pan_tests {
         assert_eq!(out.channels().get(), 2);
         let (mut l, mut r) = (0.0, 0.0);
         let frames: Vec<f32> = out.take(44_100).collect();
-        for pair in frames.chunks_exact(2) {
-            l += pair[0] * pair[0];
-            r += pair[1] * pair[1];
+        for [left, right] in frames.as_chunks::<2>().0 {
+            l += left * left;
+            r += right * right;
         }
         (l, r)
     }
