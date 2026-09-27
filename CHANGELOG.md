@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-09-27
+
+A patch release: fixes found by finally checking the parts of 1.2 that
+had only been tested, not run. Script sounds were verified end to end,
+and doing so showed the app holding a sound device open for as long as
+it ran — sometimes a raw one, behind PipeWire. The first Flatpak built
+from the current code could not start on a Wayland session and had no
+tray; both are fixed, and the Flatpak now asks for less. The AppImage
+uses the system's libxkbcommon, and a relaunch right after Quit no
+longer leaves nothing running. The metainfo gained the screenshots
+Flathub requires.
+
+No change to the config, the D-Bus methods, the CLI or the file
+locations.
+
 ### Added
 
 - The log names the audio output the app opened (channels and rate), next

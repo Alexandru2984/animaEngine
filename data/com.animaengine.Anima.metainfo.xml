@@ -76,6 +76,17 @@
   </recommends>
 
   <releases>
+    <release version="1.2.1" date="2026-09-27">
+      <description>
+        <p>Fixes found by running what 1.2 had only tested.</p>
+        <ul>
+          <li>The sound device is opened only while a character plays a sound, and only the default one.</li>
+          <li>Relaunching right after Quit no longer leaves nothing running.</li>
+          <li>The Flatpak starts on Wayland sessions and shows its tray icon, with fewer permissions.</li>
+          <li>The AppImage uses the system's keyboard library and no longer prints xkbcommon errors.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-09-25">
       <description>
         <p>Scripted characters, sound, and shortcuts that work on every keyboard layout.</p>

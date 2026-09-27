@@ -3,7 +3,7 @@
 # truth; the AUR repo mirrors it per release).
 
 pkgname=anima-engine
-pkgver=1.2.0
+pkgver=1.2.1
 pkgrel=1
 pkgdesc="Linux-first animated desktop overlay engine — render animated characters over your desktop"
 arch=('x86_64' 'aarch64')
@@ -13,7 +13,9 @@ license=('MIT')
 depends=('libxkbcommon-x11' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'libxrandr' 'alsa-lib')
 makedepends=('cargo' 'cmake' 'librsvg' 'vulkan-headers' 'libxkbcommon' 'libx11' 'libxcb')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('9fdd381067b491aed7a5457f9d843869196a142e835ba9eade21b172b34858f6')
+# Checksum of the v1.2.1 tarball — only computable once the tag is pushed:
+#   curl -sL https://github.com/Alexandru2984/animaEngine/archive/refs/tags/v1.2.1.tar.gz | sha256sum
+sha256sums=('TODO-after-tagging-v1.2.1')
 
 _srcdir="animaEngine-$pkgver"
 

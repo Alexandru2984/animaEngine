@@ -19,7 +19,13 @@ parallel feature tracks.
 
 ## Released
 
-**1.2.0 (current)** — scripting (2026-09). A character's behavior can be
+**1.2.1 (current)** — fixes from running what 1.2 had only tested
+(2026-09): the sound device is held only while there is sound, the
+Flatpak starts on Wayland sessions, the AppImage uses the system's
+libxkbcommon, and a relaunch right after Quit takes over from the
+exiting instance.
+
+**1.2.0** — scripting (2026-09). A character's behavior can be
 a sandboxed Rhai script that plays position-panned sounds and reads
 aggregate machine load — three of the four post-1.0 roadmap items,
 delivered as script capabilities rather than one-off behaviors.
