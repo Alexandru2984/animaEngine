@@ -18,11 +18,14 @@ sdk-extensions:
 command: anima-engine
 
 finish-args:
-  # Display servers (both, so the binary picks at runtime).
+  # X11 only. The app's default path draws through X11 (XWayland on a
+  # Wayland session) for XShape click-through and always-on-top; its
+  # native Wayland backend is an opt-in for wlroots compositors. The
+  # previous `x11` + `wayland` + `fallback-x11` meant no X11 at all on a
+  # Wayland session — fallback-x11 withdraws X11 whenever a Wayland
+  # socket exists — and the app could not start on GNOME or KDE.
   - --share=ipc
   - --socket=x11
-  - --socket=fallback-x11
-  - --socket=wayland
   # GPU for wgpu (Vulkan / OpenGL).
   - --device=dri
   # Sound for behavior scripts' play(): ALSA inside the runtime plays
@@ -35,18 +38,13 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   # Single-instance handshake — we own the bus name matching our app-id.
   - --own-name=com.animaengine.Anima
-  # Scoped asset access, not blanket-home. The asset library is
-  # read+write (the Shimeji importer copies sprites here; a read-only
-  # `home` silently broke that); Pictures + Downloads are read-only for
-  # drag-drop / config paths. Keeps ~/.ssh, ~/.gnupg, browser profiles
-  # out of reach so a decoder exploit can't exfiltrate them. Other
-  # locations go through the library or the post-1.0 file-chooser portal.
-  - --filesystem=xdg-data/animaEngine:create
+  # Read-only access to the two usual sources of a dropped file. The
+  # app's own config, cache and asset library need no grant: inside the
+  # sandbox they live in ~/.var/app/com.animaengine.Anima/, which the
+  # app always owns. Nothing else in home is reachable, so a decoder
+  # exploit cannot read ~/.ssh, ~/.gnupg or browser profiles.
   - --filesystem=xdg-pictures:ro
   - --filesystem=xdg-download:ro
-  # Config + cache at the same XDG paths the native build uses.
-  - --filesystem=xdg-config/animaEngine
-  - --filesystem=xdg-cache/animaEngine
 
 modules:
   - name: anima-engine

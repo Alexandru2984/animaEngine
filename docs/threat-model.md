@@ -388,9 +388,10 @@ recorded here so the residual is explicit, not implied. Users who don't
 play video are unaffected — nothing reaches the decoder.
 
 Defence in depth: the **Flatpak** build scopes filesystem access away
-from `$HOME` (the asset library plus `xdg-pictures`/`xdg-download`
-read-only — see `flatpak/com.animaengine.Anima.yml`), so even a decoder
-RCE there can't read `~/.ssh`, GPG keys or browser profiles. The `.deb`
+from `$HOME` (only `xdg-pictures` and `xdg-download`, read-only; the
+app's own files live in its `~/.var/app` directory — see
+`flatpak/com.animaengine.Anima.yml`), so even a decoder RCE there can't
+read `~/.ssh`, GPG keys or browser profiles. The `.deb`
 / AppImage builds run unconfined like any native app.
 
 **Patent note (legal, not security):** H.264/AVC decoding is covered

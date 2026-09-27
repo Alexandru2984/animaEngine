@@ -49,15 +49,17 @@ sees in Flatseal / GNOME Software:
 
 | Arg | Why we need it |
 |-----|----------------|
-| `--socket=x11` + `--socket=wayland` + `--socket=fallback-x11` | Two display servers; binary picks at runtime. |
+| `--socket=x11` | The overlay draws through X11 — XWayland on a Wayland session — for XShape click-through and always-on-top. X11 only: adding `wayland` + `fallback-x11` withdraws X11 on every Wayland session, and the app could not start on GNOME or KDE. The opt-in native Wayland backend is therefore not available in the Flatpak. |
 | `--share=ipc` | Required for X11 shared memory. |
 | `--device=dri` | wgpu needs GPU access (Vulkan / OpenGL). |
-| `--talk-name=org.kde.StatusNotifierWatcher` | System tray icon. |
+| `--socket=pulseaudio` | Sound for scripts' `play()`. Flatpak has no playback-only socket; no capture code is linked (docs/threat-model.md). |
+| `--talk-name=org.kde.StatusNotifierWatcher` | System tray icon. Inside Flatpak the item registers under its connection's unique name, since the sandbox cannot own the usual `org.kde.StatusNotifierItem-PID-N`. |
 | `--talk-name=org.freedesktop.Notifications` | Future: toast → desktop notification on minimize. |
-| `--own-name=com.animaengine.Anima` | Single-instance D-Bus name (Faza 6.3). |
-| `--filesystem=home:ro` | Read assets the user drops on the overlay from anywhere in their home. Read-only so we can never delete or overwrite the user's files. |
-| `--filesystem=xdg-config/animaEngine` | Persistent config at `~/.config/animaEngine/config.toml`. |
-| `--filesystem=xdg-cache/animaEngine` | On-disk decoded-frame cache (Faza 2.4). |
+| `--own-name=com.animaengine.Anima` | Single-instance D-Bus name, and the D-Bus methods compositor keybinds call. |
+| `--filesystem=xdg-pictures:ro`, `--filesystem=xdg-download:ro` | Files dropped on the overlay usually come from these. Read-only. |
+
+Config, cache and the asset library need no grant: inside the sandbox
+they live under `~/.var/app/com.animaengine.Anima/`, which the app owns.
 
 What we explicitly **don't** request:
 

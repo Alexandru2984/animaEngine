@@ -84,7 +84,14 @@ pub fn spawn(sink: EventSink) -> thread::JoinHandle<()> {
         .spawn(move || {
             async_io::block_on(async move {
                 let tray = AnimaTray { sink };
-                match tray.spawn().await {
+                // A tray item normally owns a per-process bus name,
+                // `org.kde.StatusNotifierItem-PID-N`. Flatpak's bus proxy
+                // lets an app own only the names its manifest declares, so
+                // inside one the registration failed and there was no tray.
+                // There the item registers under the connection's unique
+                // name instead, as ksni documents and Chromium does.
+                let in_flatpak = std::path::Path::new("/.flatpak-info").exists();
+                match tray.disable_dbus_name(in_flatpak).spawn().await {
                     Ok(_handle) => {
                         tracing::info!("System tray registered (StatusNotifierItem)");
                         // Park the executor — ksni keeps a server task alive

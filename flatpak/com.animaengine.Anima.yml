@@ -19,11 +19,14 @@ command: anima-engine
 # What the sandbox sees from the host. Keep this list minimal —
 # every entry is an attack surface from the user's POV.
 finish-args:
-  # Display servers (both, so the binary picks at runtime).
+  # X11 only. The app's default path draws through X11 (XWayland on a
+  # Wayland session) for XShape click-through and always-on-top; its
+  # native Wayland backend is an opt-in for wlroots compositors. The
+  # previous `x11` + `wayland` + `fallback-x11` meant no X11 at all on a
+  # Wayland session — fallback-x11 withdraws X11 whenever a Wayland
+  # socket exists — and the app could not start on GNOME or KDE.
   - --share=ipc
   - --socket=x11
-  - --socket=fallback-x11
-  - --socket=wayland
   # GPU for wgpu (Vulkan / OpenGL).
   - --device=dri
   # Sound for behavior scripts' play(): ALSA inside the runtime plays
@@ -38,21 +41,13 @@ finish-args:
   # Single-instance handshake (Faza 6.3) — we own the bus name that
   # matches our app-id.
   - --own-name=com.animaengine.Anima
-  # Asset access is scoped, not blanket-home. The curated asset library
-  # is read+write (the Shimeji importer copies sprites here — this also
-  # fixes import, which a read-only `home` silently broke); the two
-  # common source dirs are read-only for drag-drop / config paths. This
-  # keeps ~/.ssh, ~/.gnupg, browser profiles etc. out of reach, so a
-  # decoder exploit (openh264 / image) can't exfiltrate them. Assets
-  # kept elsewhere go through the library, or the file-chooser portal
-  # once that lands (post-1.0).
-  - --filesystem=xdg-data/animaEngine:create
+  # Read-only access to the two usual sources of a dropped file. The
+  # app's own config, cache and asset library need no grant: inside the
+  # sandbox they live in ~/.var/app/com.animaengine.Anima/, which the
+  # app always owns. Nothing else in home is reachable, so a decoder
+  # exploit cannot read ~/.ssh, ~/.gnupg or browser profiles.
   - --filesystem=xdg-pictures:ro
   - --filesystem=xdg-download:ro
-  # XDG dirs for the config + cache so the sandboxed app finds the
-  # same paths as the native build.
-  - --filesystem=xdg-config/animaEngine
-  - --filesystem=xdg-cache/animaEngine
 
 modules:
   - name: anima-engine
