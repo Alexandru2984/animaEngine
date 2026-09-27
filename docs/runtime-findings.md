@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R47 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R48 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1850,3 +1850,42 @@ longer open the sound card of whoever runs them, which they did through
 The rig had the same hole, independent of the app: it now runs the app
 under `bwrap` with an empty `/dev/snd`, and refuses to continue if the
 app holds a sound device anyway.
+
+### R48 · Relaunching right after Quit could leave no overlay at all — `FIXED`
+
+Found while staging the Flathub screenshots: the rig restarted the app, and
+the desktop came back empty. The new launch had found the old instance's
+D-Bus name still taken, called `Activate` on it, got `NoReply: Message
+recipient disconnected` — the old instance was exiting — and exited too,
+as if the hand-off had worked. Nothing was left running.
+
+An overlay does not let go of its name quickly. Measured on the rig, a
+process killed with SIGKILL stays alive for over a second while its GPU
+context is torn down, and the name is held until it is gone. So "Quit
+from the tray, click the launcher" is enough to hit this; so is a login
+where a session restore and an autostart entry race. A second, related
+gap: an instance that holds the name but does not answer — shutting down,
+or still starting up — kept the new launch waiting for the bus's own
+25-second call timeout.
+
+**Fixed.** A launch whose `Activate` fails keeps trying for up to five
+seconds: each attempt first tries to claim the name, so it wins as soon as
+the old owner is gone, and otherwise calls `Activate` again, allowing one
+second for an answer. Checked on the rig with the owner frozen
+(`SIGSTOP`), which holds the name without answering: killed 1.5 s in, the
+new launch claimed the name at 1.6 s and started; never killed, the new
+launch gave up after 5.5 s and left the frozen instance alone. An ordinary
+second launch against a live instance still hands off in about 10 ms.
+
+The rig had its own version of the race, which hid this for a while: its
+restart waited a fixed second after `pkill` and took the *old* instance's
+log line as the new one's readiness. It now waits for the process to be
+gone and clears the log first.
+
+The Windows port had the same shape — a named mutex exists until the
+exiting process has closed it, and a signalled event cannot say whether
+anyone took it. The running instance now acknowledges each raise on a
+third named event, and a launch without an answer retries the mutex the
+same way. Four new tests cover it under Wine, including an instance that
+exits 1.5 s into the wait; the old code handed off to it and ended with
+nothing running.

@@ -24,6 +24,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - An audio stream that broke (a headset unplugged) printed an error on
   every buffer. It is now reported once, and the next sound reopens the
   default device.
+- Launching the app while a previous instance was still exiting — Quit,
+  then the launcher straight away — left nothing running: the new launch
+  handed off to the dying one and exited. It now waits for the old
+  instance to go and starts. A running instance that does not answer
+  delays a launch by at most five seconds, not the bus's 25 (R48). The
+  same on Windows.
 
 ### Tests
 

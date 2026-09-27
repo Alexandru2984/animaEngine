@@ -1,9 +1,15 @@
 //! Single-instance lock via D-Bus name ownership.
 //!
-//! At startup we try to claim the well-known name `org.animaengine.Anima`
+//! At startup we try to claim the well-known name `com.animaengine.Anima`
 //! on the session bus. If we win the claim we keep the connection alive
 //! and expose an `Activate` method; if someone else already owns it, we
 //! call `Activate` on them so they raise their window, then exit.
+//!
+//! Unless that call fails. The owner may be on its way out — a relaunch
+//! right after Quit — or still starting up, with its interfaces not yet
+//! registered. Exiting then left no overlay at all (R48), so a failed
+//! hand-off is retried for `HANDOFF_PATIENCE`: the claim wins once the
+//! old owner's name is released, the hand-off once the new owner answers.
 //!
 //! Falls back to "no lock, proceed" when the user has no session bus
 //! (rare on graphical Linux systems but possible in containers / CI).
@@ -18,6 +24,19 @@ use zbus::names::WellKnownName;
 // manifest at flatpak/com.animaengine.Anima.yml). Flatpak only lets a
 // sandboxed app own the bus name that matches its app-id.
 const SERVICE_NAME: &str = "com.animaengine.Anima";
+/// How long a launch keeps trying when the instance it found does not
+/// answer — see the module docs. An exiting instance holds its name
+/// until the process is fully gone, which for an overlay with a GPU
+/// context took over a second even after SIGKILL on the rig; a real hang
+/// is rare enough that waiting it out once is cheaper than a second
+/// overlay.
+const HANDOFF_PATIENCE: std::time::Duration = std::time::Duration::from_secs(5);
+/// Pause between attempts inside [`HANDOFF_PATIENCE`].
+const HANDOFF_RETRY: std::time::Duration = std::time::Duration::from_millis(100);
+/// How long the running instance gets to answer one `Activate`. A healthy
+/// one answers in milliseconds; without a bound, one that is shutting
+/// down held a new launch for the bus's own 25-second call timeout.
+const ACTIVATE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 const OBJECT_PATH: &str = "/com/animaengine/Anima";
 // The D-Bus *interface* the methods live on. Distinct from the bus name
 // above: the bus name must match the Flatpak app-id (`com.…`), but the
@@ -222,39 +241,58 @@ pub fn try_acquire() -> AcquireOutcome {
             }
         };
 
-        let reply = connection
-            .request_name_with_flags(&name, RequestNameFlags::DoNotQueue.into())
-            .await;
-
-        match reply {
-            Ok(RequestNameReply::PrimaryOwner) => {
-                tracing::info!("Claimed single-instance name {SERVICE_NAME}");
-                AcquireOutcome::Claimed(Some(connection))
+        let deadline = std::time::Instant::now() + HANDOFF_PATIENCE;
+        let mut last_error: Option<zbus::Error> = None;
+        loop {
+            let reply = connection
+                .request_name_with_flags(&name, RequestNameFlags::DoNotQueue.into())
+                .await;
+            // Every arm but "taken" decides the outcome here.
+            match reply {
+                Ok(RequestNameReply::PrimaryOwner) => {
+                    tracing::info!("Claimed single-instance name {SERVICE_NAME}");
+                    return AcquireOutcome::Claimed(Some(connection));
+                }
+                Ok(RequestNameReply::Exists) | Ok(RequestNameReply::AlreadyOwner) => {}
+                // zbus 5 never returns `Ok(Exists)` for a `DoNotQueue`
+                // request — it converts the taken-name reply into
+                // `Err(NameTaken)` before we see it. Pre-fix this fell
+                // into the generic Err arm below ("proceeding without
+                // lock"), so every second launch started a full duplicate
+                // overlay instead of raising the first — the exact thing
+                // the single-instance handshake exists to prevent, and a
+                // silent break of the stability policy's `Activate`
+                // contract. Found by a live dual-launch probe post-rc1.
+                Err(zbus::Error::NameTaken) => {}
+                Ok(other) => {
+                    tracing::warn!("Unexpected RequestName reply: {other:?}. Proceeding.");
+                    return AcquireOutcome::Claimed(Some(connection));
+                }
+                Err(e) => {
+                    tracing::warn!("RequestName failed ({e}). Proceeding without lock.");
+                    return AcquireOutcome::Claimed(None);
+                }
             }
-            Ok(RequestNameReply::Exists) | Ok(RequestNameReply::AlreadyOwner) => {
-                signal_existing(&connection).await;
-                AcquireOutcome::HandedOff
+            // Checked here, after the claim, not after the call: the
+            // owner can let go of the name while a call to it times out,
+            // and the next claim then wins.
+            if let Some(e) = last_error
+                .take()
+                .filter(|_| std::time::Instant::now() >= deadline)
+            {
+                // The owner holds its name but never answered. Exit
+                // anyway: it is running, and a second overlay on top of
+                // it is the worse outcome.
+                tracing::warn!("Activate call failed: {e}");
+                return AcquireOutcome::HandedOff;
             }
-            // zbus 5 never returns `Ok(Exists)` for a `DoNotQueue`
-            // request — it converts the taken-name reply into
-            // `Err(NameTaken)` before we see it. Pre-fix this fell
-            // into the generic Err arm below ("proceeding without
-            // lock"), so every second launch started a full duplicate
-            // overlay instead of raising the first — the exact thing
-            // the single-instance handshake exists to prevent, and a
-            // silent break of the stability policy's `Activate`
-            // contract. Found by a live dual-launch probe post-rc1.
-            Err(zbus::Error::NameTaken) => {
-                signal_existing(&connection).await;
-                AcquireOutcome::HandedOff
-            }
-            Ok(other) => {
-                tracing::warn!("Unexpected RequestName reply: {other:?}. Proceeding.");
-                AcquireOutcome::Claimed(Some(connection))
-            }
-            Err(e) => {
-                tracing::warn!("RequestName failed ({e}). Proceeding without lock.");
-                AcquireOutcome::Claimed(None)
+            match signal_existing(&connection).await {
+                Ok(()) => return AcquireOutcome::HandedOff,
+                Err(e) => {
+                    tracing::debug!("Activate failed ({e}); trying again");
+                    last_error = Some(e);
+                    async_io::Timer::after(HANDOFF_RETRY).await;
+                }
             }
         }
     })
@@ -342,19 +380,18 @@ pub fn install_service(connection: zbus::Connection, proxy: EventLoopProxy<Anima
 }
 
 /// Tell the existing primary instance to raise its window.
-async fn signal_existing(connection: &zbus::Connection) {
-    let proxy = match zbus::Proxy::new(connection, SERVICE_NAME, OBJECT_PATH, INTERFACE_NAME).await
-    {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::warn!("Couldn't reach existing instance: {e}");
-            return;
-        }
+async fn signal_existing(connection: &zbus::Connection) -> zbus::Result<()> {
+    let proxy = zbus::Proxy::new(connection, SERVICE_NAME, OBJECT_PATH, INTERFACE_NAME).await?;
+    let call = async { proxy.call_method("Activate", &()).await.map(drop) };
+    let timeout = async {
+        async_io::Timer::after(ACTIVATE_TIMEOUT).await;
+        Err(zbus::Error::Failure(format!(
+            "no answer within {ACTIVATE_TIMEOUT:?}"
+        )))
     };
-    match proxy.call_method("Activate", &()).await {
-        Ok(_) => tracing::info!("Asked existing instance to raise its window"),
-        Err(e) => tracing::warn!("Activate call failed: {e}"),
-    }
+    futures_lite::future::or(call, timeout).await?;
+    tracing::info!("Asked existing instance to raise its window");
+    Ok(())
 }
 
 #[cfg(test)]
