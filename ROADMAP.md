@@ -19,7 +19,13 @@ parallel feature tracks.
 
 ## Released
 
-**1.2.1 (current)** — fixes from running what 1.2 had only tested
+**1.3.0 (current)** — editing on every monitor, and input methods on
+native Wayland (2026-09). Characters on a second monitor were drawn but
+could not be touched on the native backend; now they can be selected
+and dragged across screens on both. Chinese, Japanese and Korean input
+methods reach the native backend through text-input-v3. Additive only.
+
+**1.2.1** — fixes from running what 1.2 had only tested
 (2026-09): the sound device is held only while there is sound, the
 Flatpak starts on Wayland sessions, the AppImage uses the system's
 libxkbcommon, and a relaunch right after Quit takes over from the

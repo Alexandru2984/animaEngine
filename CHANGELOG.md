@@ -6,6 +6,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-27
+
+Two things that were missing for real, not only in the documentation.
+Characters on a second or third monitor can now be edited — selected,
+dragged, also from one screen to another — on both backends; on native
+Wayland they used to be drawn and nothing more. And input methods for
+Chinese, Japanese and Korean work on the native Wayland backend, which
+until now had none.
+
+Building them turned up two older defects: native Wayland could leave a
+monitor uncovered when launched with another one focused, and a context
+menu drawn away from the pointer closed itself.
+
+Additive: no change to the config, the D-Bus methods, the CLI or the
+file locations.
+
 ### Added
 
 - **Input methods on native Wayland** — fcitx5, ibus and others, for

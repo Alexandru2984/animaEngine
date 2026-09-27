@@ -7,10 +7,10 @@ doesn't exist yet.
 ## Ready ✅
 
 - `com.animaengine.Anima.flathub.yml` — offline manifest building the
-  `v1.2.1` tag, crates pinned in `cargo-sources.json` (1045 entries,
+  `v1.3.0` tag, crates pinned in `cargo-sources.json` (1045 entries,
   regenerate on every release: see header comment in the manifest).
 - Metainfo passes `appstreamcli validate` with release entries up to
-  1.2.1, OARS rating, launchable, provides, URLs.
+  1.3.0, OARS rating, launchable, provides, URLs.
 - Desktop file + scalable icon installed under the app-id name (the
   manifest rewrites `Icon=` accordingly).
 - **Built and run locally** (2026-09-27, from the commit after 1.2.0,
