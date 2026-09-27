@@ -23,6 +23,8 @@ pub mod outcomes;
 pub mod perf;
 pub mod physics;
 pub mod platforms;
+#[cfg(unix)]
+pub mod portal;
 pub mod presets;
 pub mod renderer;
 pub mod scene;

@@ -27,9 +27,9 @@
 //! before the 0.6 release (see docs/plans/v0.6-platform.md, risks).
 
 use crate::keybindings::{Action, KeyBindings, KeyChord, KeyCode, NamedKey, SymbolKey};
+use crate::portal::{next_handle_token, portal_request, sanitize_sender, vardict_str};
 use futures_lite::StreamExt;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use zbus::zvariant::{OwnedValue, Value};
 
@@ -59,6 +59,11 @@ pub enum PortalMsg {
 /// Same cap + drop-on-overflow semantics as the D-Bus activation
 /// service in `single_instance.rs`.
 const PORTAL_QUEUE_CAP: usize = 64;
+
+/// How long a shortcuts request may go unanswered. A portal that takes
+/// the call and never replies (a buggy or hung backend) would otherwise
+/// block the hotkey thread for good, and the fallback would never run.
+const SHORTCUTS_TIMEOUT: Option<std::time::Duration> = Some(std::time::Duration::from_secs(15));
 
 /// Portal shortcut id for an action. Stable public identifiers —
 /// they show up in the desktop's shortcut settings UI, so changing
@@ -143,34 +148,6 @@ pub fn chord_to_xdg_trigger(chord: KeyChord) -> Option<String> {
     };
     parts.push(&key);
     Some(parts.join("+"))
-}
-
-/// Unique, spec-legal handle token (`[A-Za-z0-9_]`). The portal uses
-/// it to pre-compute the Request object path.
-fn next_handle_token() -> String {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    format!("anima_{}_{n}", std::process::id())
-}
-
-/// `:1.42` → `1_42`, per the portal Request-path convention.
-fn sanitize_sender(unique_name: &str) -> String {
-    unique_name
-        .trim_start_matches(':')
-        .replace('.', "_")
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect()
-}
-
-/// Extract a string entry from a portal response vardict.
-fn vardict_str(results: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
-    let v = results.get(key)?;
-    match &**v {
-        Value::Str(s) => Some(s.to_string()),
-        Value::ObjectPath(p) => Some(p.to_string()),
-        _ => None,
-    }
 }
 
 /// Spawn the portal client in the background. Returns the message
@@ -265,12 +242,19 @@ async fn portal_handshake(
 
     // ── CreateSession ────────────────────────────────────────────────
     let session_token = next_handle_token();
-    let results = portal_request(&conn, &sender, &shortcuts_proxy, "CreateSession", |token| {
-        let mut opts: HashMap<&str, Value<'_>> = HashMap::new();
-        opts.insert("handle_token", Value::from(token));
-        opts.insert("session_handle_token", Value::from(session_token.clone()));
-        (opts,)
-    })
+    let results = portal_request(
+        &conn,
+        &sender,
+        &shortcuts_proxy,
+        "CreateSession",
+        SHORTCUTS_TIMEOUT,
+        |token| {
+            let mut opts: HashMap<&str, Value<'_>> = HashMap::new();
+            opts.insert("handle_token", Value::from(token));
+            opts.insert("session_handle_token", Value::from(session_token.clone()));
+            (opts,)
+        },
+    )
     .await?;
 
     let session_handle = vardict_str(&results, "session_handle")
@@ -278,28 +262,35 @@ async fn portal_handshake(
     tracing::debug!("Portal session: {session_handle}");
 
     // ── BindShortcuts ────────────────────────────────────────────────
-    let results = portal_request(&conn, &sender, &shortcuts_proxy, "BindShortcuts", |token| {
-        let shortcuts: Vec<(String, HashMap<&str, Value<'_>>)> = rows
-            .iter()
-            .map(|(slug, desc, trigger)| {
-                let mut m: HashMap<&str, Value<'_>> = HashMap::new();
-                m.insert("description", Value::from(desc.clone()));
-                if let Some(t) = trigger {
-                    m.insert("preferred_trigger", Value::from(t.clone()));
-                }
-                (slug.clone(), m)
-            })
-            .collect();
-        let mut opts: HashMap<&str, Value<'_>> = HashMap::new();
-        opts.insert("handle_token", Value::from(token));
-        (
-            zbus::zvariant::ObjectPath::try_from(session_handle.clone())
-                .expect("portal returned a valid object path"),
-            shortcuts,
-            "", // parent_window: none — overlay isn't a normal toplevel
-            opts,
-        )
-    })
+    let results = portal_request(
+        &conn,
+        &sender,
+        &shortcuts_proxy,
+        "BindShortcuts",
+        SHORTCUTS_TIMEOUT,
+        |token| {
+            let shortcuts: Vec<(String, HashMap<&str, Value<'_>>)> = rows
+                .iter()
+                .map(|(slug, desc, trigger)| {
+                    let mut m: HashMap<&str, Value<'_>> = HashMap::new();
+                    m.insert("description", Value::from(desc.clone()));
+                    if let Some(t) = trigger {
+                        m.insert("preferred_trigger", Value::from(t.clone()));
+                    }
+                    (slug.clone(), m)
+                })
+                .collect();
+            let mut opts: HashMap<&str, Value<'_>> = HashMap::new();
+            opts.insert("handle_token", Value::from(token));
+            (
+                zbus::zvariant::ObjectPath::try_from(session_handle.clone())
+                    .expect("portal returned a valid object path"),
+                shortcuts,
+                "", // parent_window: none — overlay isn't a normal toplevel
+                opts,
+            )
+        },
+    )
     .await?;
     tracing::info!(
         "Portal shortcuts bound ({} entries)",
@@ -349,71 +340,6 @@ async fn pump_activations(
     Ok(())
 }
 
-/// One portal request round-trip: subscribe on the predicted Request
-/// path, fire the method, await the `Response` signal, return its
-/// results vardict. `build_args` receives the generated handle_token
-/// by value so the argument tuple owns every string it serializes.
-async fn portal_request<A>(
-    conn: &zbus::Connection,
-    sender: &str,
-    proxy: &zbus::Proxy<'_>,
-    method: &str,
-    build_args: impl FnOnce(String) -> A,
-) -> Result<HashMap<String, OwnedValue>, String>
-where
-    A: serde::Serialize + zbus::zvariant::DynamicType,
-{
-    let token = next_handle_token();
-    let request_path = format!("/org/freedesktop/portal/desktop/request/{sender}/{token}");
-
-    let request_proxy = zbus::Proxy::new(
-        conn,
-        "org.freedesktop.portal.Desktop",
-        request_path.as_str(),
-        "org.freedesktop.portal.Request",
-    )
-    .await
-    .map_err(|e| format!("Request proxy: {e}"))?;
-    let mut responses = request_proxy
-        .receive_signal("Response")
-        .await
-        .map_err(|e| format!("subscribe Response: {e}"))?;
-
-    proxy
-        .call_method(method, &build_args(token.clone()))
-        .await
-        .map_err(|e| format!("{method}: {e}"))?;
-
-    // Bound the wait: a portal that accepts the call but never emits a
-    // Response (buggy / hung backend) would otherwise block this hotkey
-    // thread forever and the fallback would never fire. Race the response
-    // against a timer.
-    const PORTAL_TIMEOUT_SECS: u64 = 15;
-    let next_fut = async { Some(responses.next().await) };
-    let timeout_fut = async {
-        async_io::Timer::after(std::time::Duration::from_secs(PORTAL_TIMEOUT_SECS)).await;
-        None
-    };
-    let msg = match futures_lite::future::or(next_fut, timeout_fut).await {
-        None => {
-            return Err(format!(
-                "{method}: portal did not respond within {PORTAL_TIMEOUT_SECS}s"
-            ))
-        }
-        Some(None) => return Err(format!("{method}: response stream closed")),
-        Some(Some(m)) => m,
-    };
-    let (code, results) = msg
-        .body()
-        .deserialize::<(u32, HashMap<String, OwnedValue>)>()
-        .map_err(|e| format!("{method} response decode: {e}"))?;
-    match code {
-        0 => Ok(results),
-        1 => Err(format!("{method}: cancelled by user")),
-        other => Err(format!("{method}: portal error code {other}")),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,38 +371,5 @@ mod tests {
     fn xdg_trigger_super_maps_to_logo() {
         let chord = KeyChord::new(ModifierMask::SUPER, KeyCode::Letter('K'));
         assert_eq!(chord_to_xdg_trigger(chord).as_deref(), Some("LOGO+k"));
-    }
-
-    #[test]
-    fn handle_tokens_are_unique_and_legal() {
-        let a = next_handle_token();
-        let b = next_handle_token();
-        assert_ne!(a, b);
-        for t in [&a, &b] {
-            assert!(
-                t.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
-                "token {t} carries an illegal char"
-            );
-        }
-    }
-
-    #[test]
-    fn sender_sanitization_matches_portal_convention() {
-        assert_eq!(sanitize_sender(":1.42"), "1_42");
-        assert_eq!(sanitize_sender(":1.5-weird"), "1_5_weird");
-    }
-
-    #[test]
-    fn vardict_reads_strings_and_object_paths() {
-        let mut m: HashMap<String, OwnedValue> = HashMap::new();
-        m.insert(
-            "session_handle".into(),
-            Value::from("/org/fdo/session/x").try_into().unwrap(),
-        );
-        assert_eq!(
-            vardict_str(&m, "session_handle").as_deref(),
-            Some("/org/fdo/session/x")
-        );
-        assert_eq!(vardict_str(&m, "missing"), None);
     }
 }
