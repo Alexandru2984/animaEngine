@@ -212,6 +212,12 @@ impl AudioHost {
                 // message is pure noise on the user's terminal every time
                 // they quit.
                 s.log_on_drop(false);
+                let c = s.config();
+                tracing::info!(
+                    "Audio output: {} channel(s) at {} Hz",
+                    c.channel_count(),
+                    c.sample_rate()
+                );
                 Some(s)
             }
             Err(e) => {
@@ -356,18 +362,26 @@ impl AudioHost {
         let Some(sink) = &self.sink else { return };
 
         let (left, right) = pan_gains(centre_x, min_x, max_x);
+        tracing::debug!(
+            "sound {rel}: x {centre_x:.0} in [{min_x:.0}, {max_x:.0}], gains L {left:.2} R {right:.2}"
+        );
         // Shares the decoded buffer rather than copying it — see
         // `SharedSamples`.
         let buffer = SharedSamples {
             sound: std::sync::Arc::clone(sound),
             pos: 0,
         };
-        sink.mixer()
-            .add(rodio::source::ChannelVolume::new(buffer, vec![left, right]));
+        sink.mixer().add(panned(buffer, left, right));
 
         self.last_played.insert(key, now);
         self.voices_this_tick += 1;
     }
+}
+
+/// `sound` as a stereo source at the given gains.
+#[cfg(feature = "audio")]
+fn panned(sound: SharedSamples, left: f32, right: f32) -> impl rodio::Source + Send + 'static {
+    rodio::source::ChannelVolume::new(sound, vec![left, right])
 }
 
 /// Per-channel gains for a character centred at `centre_x`.
@@ -509,6 +523,53 @@ mod pan_tests {
         let (l, r) = pan_gains(100.0, 100.0, 100.0);
         assert!(l.is_finite() && r.is_finite());
         assert!((l - r).abs() < 1e-5);
+    }
+
+    /// Energy per output channel of a mono tone played through a stereo
+    /// mixer at the given gains — the path `play` takes, minus the device.
+    fn mixed_energy(rate: u32, left: f32, right: f32) -> (f32, f32) {
+        use rodio::Source;
+        let samples: Vec<f32> = (0..rate / 10)
+            .map(|i| (i as f32 * 440.0 * std::f32::consts::TAU / rate as f32).sin() * 0.5)
+            .collect();
+        let sound = std::sync::Arc::new(Cached {
+            samples,
+            channels: rodio::ChannelCount::new(1).unwrap(),
+            sample_rate: rodio::SampleRate::new(rate).unwrap(),
+        });
+        let (mixer, out) = rodio::mixer::mixer(
+            rodio::ChannelCount::new(2).unwrap(),
+            rodio::SampleRate::new(44_100).unwrap(),
+        );
+        mixer.add(panned(SharedSamples { sound, pos: 0 }, left, right));
+        assert_eq!(out.channels().get(), 2);
+        let (mut l, mut r) = (0.0, 0.0);
+        let frames: Vec<f32> = out.take(44_100).collect();
+        for pair in frames.chunks_exact(2) {
+            l += pair[0] * pair[0];
+            r += pair[1] * pair[1];
+        }
+        (l, r)
+    }
+
+    /// The gains have to survive rodio's mixer, not just `pan_gains`: the
+    /// tests above never ran the chain `play` hands them to, and a mono
+    /// sound through a stereo mixer at a different rate is exactly where a
+    /// channel-count or resampling slip would centre every sound.
+    #[test]
+    fn a_panned_sound_is_louder_on_its_side_after_mixing() {
+        for rate in [22_050, 44_100, 48_000] {
+            let (l, r) = mixed_energy(rate, 1.0, 0.15);
+            assert!(
+                l > 10.0 * r,
+                "{rate} Hz: left {l} was not louder than right {r}"
+            );
+            let (l, r) = mixed_energy(rate, 0.15, 1.0);
+            assert!(
+                r > 10.0 * l,
+                "{rate} Hz: right {r} was not louder than left {l}"
+            );
+        }
     }
 }
 

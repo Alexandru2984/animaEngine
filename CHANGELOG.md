@@ -6,6 +6,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The log names the audio output the app opened (channels and rate), next
+  to the GPU adapter line, for bug reports about sound.
+
+### Tests
+
+- Script sounds are verified end to end on a real X server: a script's
+  `play()` reaches the audio device on time, panned to the character's
+  side (R/L 0.21 at the left edge, as computed). A unit test covers the
+  path through rodio's mixer, which the panning tests never exercised.
+
 ## [1.2.0] — 2026-09-25
 
 Characters can now be scripted. A behavior can be a small

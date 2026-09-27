@@ -1329,6 +1329,29 @@ and **window-awareness** works — a physics sprite dropped above an
 `xlogo` window landed on its frame's top edge (bottom at y 499, frame top
 ≈ 500) while one beside it fell to the screen bottom (999).
 
+**Script sounds, end to end** — listed as unverified in the 1.2.0 notes,
+because the rig has no sound card. Now checked on the same real-X setup,
+with ALSA's default device pointed at a file through an `.asoundrc` in a
+sandbox `HOME`: a script that calls `play("tone.wav")` two seconds in is
+heard at two seconds, for 0.1 s, at the fixture's own peak (0.125). A
+character centred at x 70 of a 1600-px desktop comes out at R/L 0.209,
+one at x 1530 at the mirror image — the 1.00 / 0.21 `pan_gains` computes,
+to the third decimal. A unit test now runs the same chain through rodio's
+mixer, which the panning tests never did. Three traps in capturing it,
+each of which produced a false result first:
+
+- ALSA's `null` device has no clock, so a plain file sink is written as
+  fast as the CPU goes (4.3 GB in eight seconds). The harness has ALSA
+  write into a FIFO that a reader drains at the stream's own byte rate.
+- `ulimit -f` does not just cap files on disk: it also covers
+  memory-backed ones, and lavapipe sizes a 140 MB one when it starts. The
+  app died of `SIGXFSZ` before drawing, which looked like a hang. A
+  watchdog on the sandbox's size replaces it.
+- The `file` plugin labels a float stream as integer PCM in the WAV
+  header. Read as integers, a quiet float signal looks like a loud,
+  near-constant one on both channels. It looked like a centred mix until
+  the samples were read as the floats they are.
+
 No test guards the config-key half, deliberately. The schema does **not**
 set `deny_unknown_fields`, because the stability policy promises a config
 written by a newer release still loads in an older one — so "a documented
