@@ -370,6 +370,7 @@ impl LayerWindow {
                     .map(|m| m.dimensions)
                     .unwrap_or((0, 0))
             });
+            let is_primary = self.state.primary_output_name.as_deref() == Some(name.as_str());
             out.push(crate::monitor::MonitorInfo {
                 name,
                 x,
@@ -377,10 +378,16 @@ impl LayerWindow {
                 width: w.max(0) as u32,
                 height: h.max(0) as u32,
                 scale_factor: info.scale_factor as f64,
-                // wl_output protocol has no "primary" notion; the
-                // compositor decides placement. Mark none — picker UI
-                // shows them in advertised order.
-                is_primary: false,
+                // wl_output has no "primary" notion, so the primary is the
+                // output the primary surface actually landed on — the
+                // compositor's choice, usually the focused output. Marking
+                // none made `plan_windows` assume the first output listed:
+                // launched while another monitor had focus, the overlay
+                // put an extra surface on the primary's own output and
+                // left the first one uncovered, its characters invisible.
+                // Until `surface_enter` names the output, nothing is
+                // marked, and the plan corrects itself once it does.
+                is_primary,
             });
         }
         out
