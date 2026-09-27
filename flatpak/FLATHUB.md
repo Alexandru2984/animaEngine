@@ -13,6 +13,17 @@ doesn't exist yet.
   1.2.0, OARS rating, launchable, provides, URLs.
 - Desktop file + scalable icon installed under the app-id name (the
   manifest rewrites `Icon=` accordingly).
+- **Built and run locally** (2026-09-27, from the commit after 1.2.0,
+  runtime 24.08): starts on the X11 path, draws with transparency, tray
+  registered and its menu readable, a PNG dropped from `~/Downloads`
+  added, config kept across a restart, click-through in place. The run
+  found and fixed two blockers — no X11 on any Wayland session, and no
+  tray (R49 in `docs/runtime-findings.md`) — and confirmed that the
+  `xdg-config`/`xdg-cache`/`xdg-data` grants reached nothing, so they
+  are gone. **Not checked:** sound inside the sandbox (the test setup
+  has no PulseAudio server). To rebuild the same way, point a copy of
+  the manifest's git source at a local commit (`url: file://…`,
+  `commit: <sha>`) and run `flatpak-builder --repo=… <build-dir> <copy>`.
 - Three screenshots in `screenshots/` (pass-through, edit mode, command
   palette; 1600×1000, taken on the headless rig over a generated
   wallpaper) and in the metainfo. Their URLs point at the **`v1.2.1`**
@@ -36,42 +47,6 @@ Flathub's verification rules:
   `io.github.alexandru2984.animaEngine` is painful (desktop file,
   D-Bus name, icon names, existing users' config paths). Decide
   *before* submitting.
-
-### 2. Local build test (needs flatpak-builder)
-
-```bash
-sudo apt install flatpak-builder
-flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install -y flathub org.freedesktop.{Platform,Sdk}//24.08 \
-    org.freedesktop.Sdk.Extension.rust-stable//24.08
-
-flatpak-builder --force-clean --install-deps-from=flathub \
-    --repo=/tmp/anima-repo /tmp/anima-build \
-    flatpak/com.animaengine.Anima.flathub.yml
-flatpak build-bundle /tmp/anima-repo /tmp/anima.flatpak com.animaengine.Anima
-flatpak install --user -y /tmp/anima.flatpak
-flatpak run com.animaengine.Anima
-```
-
-Things to verify inside the sandbox: tray icon appears, drag-drop
-works from ~/Downloads, config persists across restarts, the overlay
-is click-through.
-
-Two more since 1.2:
-
-- **A script's `play()` is audible.** The manifest grants
-  `--socket=pulseaudio` for it; without that the sandbox is silent.
-- **Where the asset library actually lands.** The manifest grants
-  `xdg-data/animaEngine`, `xdg-config/animaEngine` and
-  `xdg-cache/animaEngine`, but the app's directories are lower-case
-  (`animaengine`, from `directories::ProjectDirs` — the same casing R32
-  in `docs/runtime-findings.md` corrected in the UI), and inside a
-  Flatpak `XDG_DATA_HOME` and friends point into
-  `~/.var/app/com.animaengine.Anima/` anyway. If `flatpak run` logs
-  `Created asset library at ~/.var/app/…/data/animaengine/assets`, those
-  three grants reach nothing the app reads and can be dropped, which
-  tightens the sandbox. Not changed blind: it needs this build to
-  confirm.
 
 ## Submission steps
 

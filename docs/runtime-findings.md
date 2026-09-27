@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R48 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R49 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1893,3 +1893,40 @@ third named event, and a launch without an answer retries the mutex the
 same way. Four new tests cover it under Wine, including an instance that
 exits 1.5 s into the wait; the old code handed off to it and ended with
 nothing running.
+
+### R49 · The Flatpak could not start on a Wayland session, and had no tray — `FIXED`
+
+No Flatpak had been built from the current code until the Flathub
+preparation; the first one, run in the rig, exited at once:
+`Failed to open connection to X server`.
+
+- **No X11 on Wayland.** The manifest granted `x11`, `wayland` and
+  `fallback-x11`. `fallback-x11` withdraws X11 whenever a Wayland socket
+  exists, so on a Wayland session the sandbox had no `DISPLAY`. The
+  overlay's default path is X11 — XWayland on Wayland — and GNOME and
+  KDE have no layer-shell for the native one, so there it had nothing to
+  draw with. Checked inside the sandbox: `DISPLAY` empty with the
+  manifest as it was, `:2` once Wayland is taken away. The manifest now
+  asks for `x11` alone; the opt-in native backend is not available in
+  the Flatpak.
+- **No tray.** ksni owns `org.kde.StatusNotifierItem-PID-N`, and
+  Flatpak's bus proxy lets an app own only the names its manifest
+  declares, so registration failed. Inside Flatpak the item now
+  registers under its connection's unique name, as ksni documents for
+  sandboxes (Chromium does the same); the rig's stub host then read the
+  full menu through the proxy.
+- **Grants that reached nothing.** The run showed config, cache and the
+  asset library under `~/.var/app/com.animaengine.Anima/`, where the
+  sandbox always puts them; the `xdg-config`, `xdg-cache` and `xdg-data`
+  grants for `animaEngine` are gone.
+
+Checked after the fix, on the rig's X11 display: the overlay draws with
+transparency, a PNG dropped from `~/Downloads` is added, the config
+survives a restart, and click-through is in place. **Not fixed, and not
+fixable in the app:** a file dropped from outside Pictures and
+Downloads is invisible inside the sandbox, and winit discards the drop
+before the app sees it — while telling the drag source it was accepted.
+Nothing happens and nothing says why. `flatpak/README.md` says so;
+putting the file in the asset library is the way round it. Sound inside
+the sandbox was not checked: the rig has no PulseAudio server, and the
+real one belongs to the maintainer's session.

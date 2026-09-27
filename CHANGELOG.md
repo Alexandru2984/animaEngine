@@ -30,6 +30,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   instance to go and starts. A running instance that does not answer
   delays a launch by at most five seconds, not the bus's 25 (R48). The
   same on Windows.
+- **The Flatpak could not start on a Wayland session**: its manifest
+  asked for X11 in a way that withdraws it whenever Wayland is present,
+  and the overlay draws through X11 (XWayland). It now asks for X11
+  alone. Its tray icon also failed to register inside the sandbox, and
+  now does (R49).
 
 ### Packaging
 
@@ -41,6 +46,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the first window. The AppImage now needs `libxkbcommon-x11` installed —
   every desktop with Qt, GNOME or KDE has it — and says which package to
   install if it is missing, instead of the panic 0.2.1 fixed by bundling.
+- The Flatpak no longer asks for access to `~/.config/animaEngine`,
+  `~/.cache/animaEngine` and `~/.local/share/animaEngine`: inside the
+  sandbox the app keeps those under `~/.var/app/com.animaengine.Anima/`,
+  so the grants reached nothing. What remains is read-only Pictures and
+  Downloads, for dropped files.
 - The AppStream metainfo has screenshots — pass-through, edit mode and
   the command palette, in `screenshots/` — which Flathub requires, and a
   description that matches the app as it is now.
