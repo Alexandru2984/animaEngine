@@ -14,6 +14,7 @@ use crate::i18n::{t, t_args};
 use crate::input::selection::SelectionState;
 use crate::monitor::MonitorInfo;
 use crate::scene::Scene;
+use crate::ui::accessible::AccessibleName;
 use crate::ui::collapse::CollapseState;
 use crate::ui::icons;
 use crate::ui::onboarding::{self, OnboardingProgress};
@@ -328,7 +329,8 @@ fn easing_picker(ui: &mut egui::Ui, easing: &mut Option<crate::anim::EasingCurve
     };
     ui.horizontal(|ui| {
         ui.label(t("animation-easing-label"));
-        egui::ComboBox::from_id_salt("anima.animation().easing")
+        let combo_value = active_label.clone();
+        let combo = egui::ComboBox::from_id_salt("anima.animation().easing")
             .selected_text(active_label)
             .show_ui(ui, |ui| {
                 let is_linear = easing.is_none() || matches!(easing, Some(EasingCurve::Linear));
@@ -347,6 +349,11 @@ fn easing_picker(ui: &mut egui::Ui, easing: &mut Option<crate::anim::EasingCurve
                     }
                 }
             });
+        crate::ui::accessible::name_combo(
+            &combo.response,
+            &t("animation-easing-label"),
+            &combo_value,
+        );
     });
     changed
 }
@@ -406,9 +413,11 @@ fn script_controls(
     let mut remove: Option<String> = None;
     for (name, value) in params.iter_mut() {
         ui.horizontal(|ui| {
+            let remove_label = t("behavior-script-remove-param");
             if ui
                 .small_button(icons::TRASH)
-                .on_hover_text(t("behavior-script-remove-param"))
+                .named(format!("{remove_label}: {name}"))
+                .on_hover_text(remove_label)
                 .clicked()
             {
                 remove = Some(name.clone());
@@ -469,7 +478,8 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
     // ComboBox with the three concrete variants. selectable_value compares
     // via PartialEq, so picking the same variant a second time is a no-op.
     let current_label = behavior_label_with_icon(behavior);
-    egui::ComboBox::from_id_salt("behavior_picker")
+    let combo_value = current_label.clone();
+    let combo = egui::ComboBox::from_id_salt("behavior_picker")
         .selected_text(current_label)
         .show_ui(ui, |ui| {
             let prev = behavior.clone();
@@ -513,6 +523,11 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                 changed = true;
             }
         });
+    crate::ui::accessible::name_combo(
+        &combo.response,
+        &t("inspector-section-behavior"),
+        &combo_value,
+    );
 
     // Variant-specific sliders.
     match behavior {

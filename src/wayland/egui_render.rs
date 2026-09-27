@@ -33,6 +33,10 @@ pub struct WaylandEguiRenderer {
     /// Caret of the focused text field in the last frame, for the input
     /// method; see [`WaylandEguiRenderer::ime_caret`].
     ime_caret: Option<(i32, i32, i32, i32)>,
+    /// Screen readers: this surface's tree on AT-SPI (`crate::a11y`).
+    screen_reader: crate::a11y::ScreenReaderBridge,
+    /// The Appearance setting that allows the tree at all.
+    accesskit_allowed: bool,
 }
 
 impl WaylandEguiRenderer {
@@ -50,7 +54,29 @@ impl WaylandEguiRenderer {
             renderer,
             current_theme: theme,
             ime_caret: None,
+            // No wake needed: this loop never sleeps longer than a frame.
+            screen_reader: crate::a11y::ScreenReaderBridge::new(|| {}),
+            accesskit_allowed: true,
         }
+    }
+
+    /// Follow the Appearance setting that allows screen readers the tree.
+    /// Applies from the next frame.
+    pub fn set_accesskit_allowed(&mut self, allowed: bool) {
+        self.accesskit_allowed = allowed;
+    }
+
+    /// Tell the screen reader whether the surface has the keyboard, and
+    /// where it is: `origin` is its output's position in the layout.
+    /// Unchanged values send nothing.
+    pub fn set_window_state(&mut self, focused: bool, origin: (f32, f32), size: [u32; 2]) {
+        self.screen_reader.set_focused(focused);
+        self.screen_reader.set_bounds(
+            f64::from(origin.0),
+            f64::from(origin.1),
+            f64::from(size[0]),
+            f64::from(size[1]),
+        );
     }
 
     /// Whether egui owns the pointer right now, i.e. it is over a panel,
@@ -109,13 +135,15 @@ impl WaylandEguiRenderer {
         view: &wgpu::TextureView,
         size_in_pixels: [u32; 2],
         pixels_per_point: f32,
-        events: Vec<egui::Event>,
+        mut events: Vec<egui::Event>,
         modifiers: egui::Modifiers,
         build_ui: F,
     ) where
         F: FnMut(&egui::Context),
     {
         let modifiers = effective_modifiers(&events, modifiers);
+        crate::a11y::sync_egui(&self.context, self.accesskit_allowed, &self.screen_reader);
+        events.extend(self.screen_reader.drain_requests());
         let pixels_per_point = pixels_per_point.max(0.5);
         let logical_size = egui::vec2(
             size_in_pixels[0] as f32 / pixels_per_point,
@@ -151,7 +179,11 @@ impl WaylandEguiRenderer {
             system_theme: None,
         };
 
-        let full_output = self.context.run(raw_input, build_ui);
+        let mut full_output = self.context.run(raw_input, build_ui);
+        self.screen_reader.publish(
+            self.accesskit_allowed,
+            full_output.platform_output.accesskit_update.take(),
+        );
         self.ime_caret = full_output.platform_output.ime.map(|ime| {
             let r = ime.cursor_rect;
             (

@@ -58,7 +58,7 @@ set the env var.
 | `MonitorMode::PerMonitor` distribution | extra `winit::Window` per monitor | extra layer-shell surface per `wl_output` (headless sway, 2–3 outputs — see below) |
 | Global hotkeys | XGrabKey (`Ctrl+Shift+A/H/P`) | **GlobalShortcuts portal** (preferred) or compositor bindings + D-Bus (see below) |
 | Tray icon (StatusNotifierItem) | ✓ | ✓ |
-| AccessKit / AT-SPI | ✓ | ✗ — no AT-SPI bridge on this path (see below) |
+| AccessKit / AT-SPI (screen readers) | ✓ (since 1.4) | ✓ (since 1.4) |
 
 ## XWayland caveat: fractional / mixed scaling and click-through
 
@@ -267,11 +267,6 @@ the caret (for reconversion, say) get none.
 
 ## What's not (yet) parity with X11
 
-- **Screen readers.** egui's AT-SPI adapter comes with egui-winit, and
-  this path does not use winit, so nothing here registers with AT-SPI
-  at all — the Appearance toggle is saved but has no effect on this
-  backend. With a screen reader, use the X11 path (the default).
-  GNOME Mutter routes everything via the X11 path anyway.
 - **`FollowCursor` in pass-through mode.** X11 polls `XQueryPointer`
   to keep this behavior accurate even when the click-through region
   excludes the rest of the surface. No Wayland protocol hands a

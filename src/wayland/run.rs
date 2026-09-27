@@ -913,7 +913,8 @@ pub fn run_native(
                 let edit_mode_snapshot = layer.state.edit_mode;
                 let hidden_snapshot = overlay_hidden;
                 // Snapshot the AccessKit flag BEFORE taking its mutable
-                // borrow, same trick as the X11 path uses.
+                // borrow, same trick as the X11 path uses; the renderer
+                // gates egui's tree on it.
                 let accesskit_snapshot = config.global.accesskit_enabled;
                 let mut toggle_requested = false;
                 let mut palette_outcome: Option<panels::PaletteOutcome> = None;
@@ -962,6 +963,8 @@ pub fn run_native(
                 let perf_export_ref = &mut perf_export_request;
                 let perf_visible_snapshot = perf_overlay_visible;
                 let egui_start = Instant::now();
+                egui_renderer.set_accesskit_allowed(accesskit_snapshot);
+                egui_renderer.set_window_state(layer.has_keyboard_focus(), primary_origin, size);
                 egui_renderer.render(
                     &renderer.shared.device,
                     &renderer.shared.queue,
@@ -971,11 +974,6 @@ pub fn run_native(
                     events,
                     modifiers,
                     |ctx| {
-                        if accesskit_snapshot {
-                            ctx.enable_accesskit();
-                        } else {
-                            ctx.disable_accesskit();
-                        }
                         crate::ui::motion::set_reduced(ctx, *reduced_motion_mut);
                         if hidden_snapshot {
                             // Hidden means hidden: no sprites (the draw
@@ -1021,8 +1019,8 @@ pub fn run_native(
                                 keybindings_mut,
                                 collapse_state_mut,
                                 accesskit_mut,
-                                // No winit, so no AT-SPI adapter on this path.
-                                false,
+                                // `crate::a11y` carries the AT-SPI bridge.
+                                true,
                                 warnings_ref,
                                 last_seen_whats_new_mut,
                                 hotkey_backend_ref,

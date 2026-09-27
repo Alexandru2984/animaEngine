@@ -6,10 +6,11 @@
 //! to `Scene::reset_to_configs` (Replace) or repeated
 //! `Scene::append_character_config` (Append, skipping duplicates).
 
-use crate::i18n::t;
+use crate::i18n::{t, t_args};
 use crate::input::selection::SelectionState;
 use crate::presets::{self, ApplyMode, Preset, PresetId};
 use crate::scene::Scene;
+use crate::ui::accessible::AccessibleName;
 use crate::ui::icons;
 use crate::ui::theme::{self, h2, SPACE_M, SPACE_S, SPACE_XS};
 
@@ -70,14 +71,24 @@ fn preset_card(
                 });
             });
             ui.add_space(SPACE_XS);
+            // Every card has the same two buttons; a screen reader,
+            // stepping through them, needs to hear which preset each is for.
+            // The palette's rows already say exactly that.
+            let mut args = fluent::FluentArgs::new();
+            args.set("preset", preset.name);
             ui.horizontal(|ui| {
-                if ui.button(t("scene-preset-append")).clicked() {
+                if ui
+                    .button(t("scene-preset-append"))
+                    .named(t_args("palette-append-row", &args))
+                    .clicked()
+                {
                     apply_preset(scene, selection, &preset, ApplyMode::Append);
                     *config_dirty = true;
                 }
                 let error_color = ui.visuals().error_fg_color;
                 if ui
                     .button(egui::RichText::new(t("scene-preset-replace")).color(error_color))
+                    .named(t_args("palette-replace-row", &args))
                     .on_hover_text(t("scene-preset-replace-tooltip"))
                     .clicked()
                 {

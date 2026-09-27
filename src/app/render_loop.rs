@@ -320,12 +320,10 @@ impl App {
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
                         // Snapshot the AccessKit flag BEFORE taking
-                        // its mutable borrow — the render closure
-                        // syncs egui's runtime gate from this copy
-                        // each frame, and the closure also writes
-                        // back through `accesskit_mut`. A new toggle
-                        // therefore applies one frame later, which
-                        // is below any perceivable lag.
+                        // its mutable borrow — the renderer gates
+                        // egui's tree on this copy, and the closure
+                        // writes back through `accesskit_mut`. A new
+                        // toggle applies one frame later.
                         let accesskit_enabled = self.config.global.accesskit_enabled;
                         let keybindings_mut = &mut self.config.keybindings;
                         let collapse_state_mut = &mut self.config.collapse_state;
@@ -352,6 +350,7 @@ impl App {
                         // the Scope guard would conflict with the
                         // perf_sampler_ref the overlay needs to read.
                         let egui_start = std::time::Instant::now();
+                        ui.set_accesskit_allowed(accesskit_enabled);
                         ui.render(
                             window,
                             &renderer.shared.device,
@@ -359,18 +358,6 @@ impl App {
                             &view,
                             size,
                             |ctx| {
-                                // Sync the runtime AccessKit gate
-                                // with the persisted preference each
-                                // frame — both calls are idempotent
-                                // flag writes, so the cost is
-                                // negligible compared to leaving
-                                // tree-update generation running
-                                // when the user has it off.
-                                if accesskit_enabled {
-                                    ctx.enable_accesskit();
-                                } else {
-                                    ctx.disable_accesskit();
-                                }
                                 crate::ui::motion::set_reduced(ctx, *reduced_motion_mut);
                                 // Toggle button is the only UI in
                                 // pass-through; in edit mode it sits
@@ -417,8 +404,9 @@ impl App {
                                     keybindings_mut,
                                     collapse_state_mut,
                                     accesskit_mut,
-                                    // egui-winit carries the AT-SPI adapter.
-                                    true,
+                                    // `crate::a11y` carries the AT-SPI
+                                    // bridge; nothing does elsewhere yet.
+                                    cfg!(unix),
                                     warnings_ref,
                                     last_seen_whats_new_mut,
                                     hotkey_backend_ref,

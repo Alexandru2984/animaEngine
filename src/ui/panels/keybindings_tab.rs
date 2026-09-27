@@ -9,6 +9,7 @@
 
 use crate::i18n::{t, t_args};
 use crate::keybindings::{Action, KeyBindings, KeyChord, ModifierNames};
+use crate::ui::accessible::AccessibleName;
 use crate::ui::icons;
 use crate::ui::theme::{self, SPACE_M, SPACE_S, SPACE_XS};
 
@@ -151,9 +152,11 @@ pub(super) fn keybindings_tab(
                     // edge, and the chord column then wraps inside whatever
                     // width is left.
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
+                        let reset_label = t("keybindings-reset-one");
                         if ui
                             .small_button(icons::RESET)
-                            .on_hover_text(t("keybindings-reset-one"))
+                            .named(format!("{reset_label}: {}", t(action.i18n_key())))
+                            .on_hover_text(reset_label)
                             .clicked()
                         {
                             bindings.reset_action(action);
@@ -291,6 +294,11 @@ fn chord_cell(
                             .small()
                             .wrap_mode(egui::TextWrapMode::Extend),
                     )
+                    .named(format!(
+                        "{}: {}",
+                        t("keybindings-remove-chord"),
+                        chord.display_str(mod_names)
+                    ))
                     .on_hover_text(t("keybindings-remove-chord"))
                     .clicked()
                 {

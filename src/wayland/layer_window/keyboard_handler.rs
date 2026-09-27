@@ -17,6 +17,7 @@ use crate::wayland::keyboard::{egui_key_for, modifiers_to_egui};
 use smithay_client_toolkit::seat::keyboard::{
     KeyEvent, KeyboardHandler, Keymap, Keysym, Modifiers as SctkModifiers,
 };
+use smithay_client_toolkit::shell::WaylandSurface;
 use wayland_client::{
     protocol::{wl_keyboard, wl_surface},
     Connection, QueueHandle,
@@ -74,11 +75,12 @@ impl KeyboardHandler for WaylandState {
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
         _keyboard: &wl_keyboard::WlKeyboard,
-        _surface: &wl_surface::WlSurface,
+        surface: &wl_surface::WlSurface,
         _serial: u32,
         _raw: &[u32],
         _keysyms: &[Keysym],
     ) {
+        self.keyboard_on_primary = surface == self.layer.wl_surface();
         // Pre-pressed keys at focus enter are deliberately ignored —
         // synthesising press events for them would fire shortcuts the
         // user didn't intend (e.g. holding Tab while alt-tabbing into
@@ -96,6 +98,7 @@ impl KeyboardHandler for WaylandState {
         // Reset modifiers so a key released elsewhere doesn't leave us
         // thinking Ctrl is still down on the next focus.
         self.last_modifiers = SctkModifiers::default();
+        self.keyboard_on_primary = false;
     }
 
     fn press_key(

@@ -40,13 +40,26 @@ strobe under their assistive tech. We turn them off unconditionally,
 not as a separate setting — the assumption is that anyone who wants
 reduced motion will also want HC, and the reverse is rarely false.
 
-### 4. AccessKit screen-reader bridge (runtime-toggleable in 0.4)
+### 4. Screen readers, over AT-SPI (both backends since 1.4)
 
-The `accesskit` feature on `egui-winit` is enabled by default in our
-Cargo.toml. This wires `AccessKit` into the egui input loop, which
-on Linux means AT-SPI events get emitted for every widget egui paints
-— buttons, sliders, text fields, the lot. Orca, Speakup, and other
-ATs read the UI without any extra work from us.
+egui describes every widget it draws as an AccessKit tree.
+[src/a11y.rs](../src/a11y.rs) publishes that tree on AT-SPI, the Linux
+accessibility bus, and hands a screen reader's requests — focus this,
+press that — back to egui. Orca and other ATs can read the settings
+panel, the command palette and the tour, follow focus as Tab moves it,
+and operate the controls. One bridge serves the X11 path and native
+Wayland alike; each egui renderer owns one.
+
+**Before 1.4 there was none.** From 0.2 on this page said that
+egui-winit's `accesskit` feature was enough. It is not: egui-winit's
+adapter exists only once `init_accesskit` is called, and nothing ever
+called it. egui built its tree and dropped it, and no screen reader
+ever saw the app, on either backend (R53 in
+[runtime-findings.md](runtime-findings.md)).
+
+The bridge is idle until an assistive technology turns AT-SPI on
+(`org.a11y.Status.IsEnabled`): only then does egui build a tree. Without
+one it costs a thread and a session-bus connection watching that flag.
 
 Sprite content (the animated characters themselves) stays
 deliberately outside this tree. They are visual decoration with no
@@ -54,26 +67,25 @@ semantic meaning; surfacing them as widgets would only pollute the
 focus order. The accessible tree describes the *controls*, not the
 canvas.
 
-**0.4 runtime toggle.** Users who don't run a screen reader and want
-a tighter footprint can flip the bridge off from
-**Appearance → Accessibility → Generate AccessKit tree updates**.
-That setting drives `egui::Context::enable_accesskit()` /
-`disable_accesskit()` each frame, so toggles apply without restart.
-The AT-SPI registration itself stays alive (it's wired in by
-egui-winit at init); disabling stops tree-update generation, which
-is the bulk of the overhead. Persisted in `[global]` as
-`accesskit_enabled = true/false`.
+**Names.** The icons are private-use characters from an icon font, for
+which a reader has nothing to say. The bridge drops them from every
+name and value, so "+  Add file…" reads "Add file…", and hides what is
+left with nothing to read: labels that were only an icon, and the empty
+backdrops egui gives its floating areas. Controls that are *only* an
+icon are named where they are built — see section 6.
 
-**Native Wayland path.** No screen-reader bridge. egui-winit owns the
-accesskit-winit adapter that publishes the tree onto the session bus,
-and the native Wayland path has no winit, so nothing registers with
-AT-SPI there. The Appearance toggle is saved but has no effect on that
-backend (`run_native` never reads it; an earlier version of this page
-said it did).
-Screen-reader users on wlroots compositors should stay on the X11
-backend (the default) for AT-SPI pickup until upstream egui ships a
-Wayland-side adapter. The native-Wayland AT-SPI gap is documented
-in [docs/wayland.md](wayland.md) under "What's not (yet) parity".
+**The Appearance setting** — **Appearance → Accessibility → Generate
+AccessKit tree updates** — decides whether a listening reader gets the
+tree. Off, it gets the application's window with nothing in it, so the
+last tree does not stay readable and nothing typed in the panels
+reaches the bus. Applies from the next frame; persisted in `[global]`
+as `accesskit_enabled = true/false`.
+
+**Screen coordinates.** On X11 the reader gets the window's position.
+On native Wayland a client is not told where its surfaces are; the
+bridge reports the primary output's position in the layout, which is
+right for the settings panel. Reading, navigating and pressing do not
+depend on either.
 
 ### 5. Discoverable & rebindable keyboard model
 
@@ -109,14 +121,25 @@ would steal the key from every focused app. The default global set
 `ToggleEditMode` / `HideOverlay` / `PauseAll`; rebinding any of those
 onto an unmodifier chord silently demotes it to in-app-only.
 
-### 6. Icon-only buttons get tooltips
+### 6. Icon-only controls get names
 
 Any control rendered with a Phosphor glyph as its only visible label
-(toggle button ⚙, trash button, palette close, tab switcher chips)
-carries an `on_hover_text` tooltip that names the action. Egui
-surfaces those tooltips through AccessKit, so screen readers see
-"Delete entity" instead of "U+E4A6". The lint is informal — please
-keep it.
+(toggle button ⚙, trash button, ✕ dismiss, the per-row reset, tab
+switcher chips) carries a tooltip that names the action — and, since
+1.4, the same name for screen readers. A tooltip alone is not enough:
+egui does not pass hover text to AccessKit, and until 1.4 these
+buttons read as nothing. [src/ui/accessible.rs](../src/ui/accessible.rs)
+has the helpers:
+
+- `on_hover_name(text)` — the tooltip, and the name.
+- `named(name)` — a name that says more than the tooltip, where a
+  panel repeats one icon: "Delete: Ghost Demo", "Reset to default:
+  Pause all animations", "Append preset: Cozy Companion".
+- `name_combo(response, name, value)` — a combo box built without a
+  label of its own, named after the label beside it, its current
+  choice as the value.
+
+The lint is informal — please keep it.
 
 ## Non-goals (deliberately not done)
 
@@ -154,15 +177,24 @@ cargo test --lib ui::theme    # contrast + HC palettes
 cargo test --lib keybindings  # action metadata, chord round-trip, conflict detect
 ```
 
-Manual screen-reader smoke test on Linux:
+```bash
+cargo test --lib a11y         # the AT-SPI bridge: activation, requests, names
+```
+
+Manual screen-reader smoke test on Linux, on either backend:
 
 ```bash
 # Start Orca on an empty workspace
 orca &
 RUST_LOG=anima_engine=info cargo run
-# Tab through the settings panel; Orca should speak each widget label.
+# Enter edit mode, Tab through the settings panel; Orca should speak
+# each widget's name.
 ```
 
-If a control reads as "unlabelled" or "graphic", add `on_hover_text`
-to its construction site under `src/ui/panels/` (one file per tab) —
-that's almost always the fix.
+Without Orca, any AT-SPI client shows what a reader gets — Python's
+`gi.repository.Atspi` lists the application, walks its tree, and can
+focus and press nodes, which is how 1.4 was checked.
+
+If a control reads as "unlabelled", or as nothing, give it a name with
+the helpers in section 6 at its construction site under
+`src/ui/panels/` (one file per tab).

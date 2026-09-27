@@ -17,6 +17,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that has a shortcut, with the shortcut beside it, and runs the one you
   pick exactly as the shortcut would. The actions on the selected
   character are listed while one is selected. "Add file…" is there too.
+- **Screen readers.** Orca and other AT-SPI screen readers can read and
+  operate the settings panel, the command palette and the tour, on both
+  backends, and follow the focus as Tab moves it. This is new, not a
+  repaired regression: the screen-reader bridge the documentation has
+  described since 0.2 was never connected, and no screen reader ever
+  saw the app (R53). Icon-only buttons have names ("Exit edit mode",
+  "Delete: Ghost Demo"), combo boxes are named after their labels, and
+  icons are left out of what is read.
+
+### Changed
+
+- **Appearance → Generate AccessKit tree updates**, turned off, now
+  shows a screen reader an empty window instead of doing nothing. With
+  it on, the tree is built only while a screen reader is running.
 
 ### Fixed
 

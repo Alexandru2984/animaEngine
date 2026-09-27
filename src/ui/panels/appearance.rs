@@ -118,7 +118,8 @@ fn language_picker(ui: &mut egui::Ui, locale: &mut Option<String>) -> bool {
         .map(|(_, name)| (*name).to_string())
         .unwrap_or_else(|| active_code.clone());
 
-    egui::ComboBox::from_id_salt("anima.language.picker")
+    let combo_value = active_label.clone();
+    let combo = egui::ComboBox::from_id_salt("anima.language.picker")
         .selected_text(active_label)
         .show_ui(ui, |ui| {
             // A language whose script the machine has no font for would
@@ -161,6 +162,11 @@ fn language_picker(ui: &mut egui::Ui, locale: &mut Option<String>) -> bool {
                 }
             }
         });
+    crate::ui::accessible::name_combo(
+        &combo.response,
+        &t("appearance-language-header"),
+        &combo_value,
+    );
     changed
 }
 
@@ -195,7 +201,8 @@ fn theme_picker(ui: &mut egui::Ui, theme: &mut Theme) -> bool {
             icons::PALETTE,
             t("appearance-theme-label")
         ));
-        egui::ComboBox::from_id_salt("theme_picker")
+        let combo_value = theme_label_with_icon(*theme);
+        let combo = egui::ComboBox::from_id_salt("theme_picker")
             .selected_text(theme_label_with_icon(*theme))
             .show_ui(ui, |ui| {
                 for option in Theme::ALL {
@@ -209,6 +216,11 @@ fn theme_picker(ui: &mut egui::Ui, theme: &mut Theme) -> bool {
                     }
                 }
             });
+        crate::ui::accessible::name_combo(
+            &combo.response,
+            &t("appearance-theme-label"),
+            &combo_value,
+        );
     });
     changed
 }

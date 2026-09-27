@@ -193,6 +193,10 @@ smithay-client-toolkit = { version = "0.19", default-features = false, features 
 # before the X11 event loop starts, that libxkbcommon-x11 can be loaded —
 # winit panics when it cannot. See `run_winit_path` in src/main.rs.
 xkbcommon-dl = { version = "0.4", features = ["x11"] }
+# Screen readers: publishes egui's AccessKit tree on AT-SPI, on both
+# backends (src/a11y.rs). Already in the tree through egui-winit's
+# `accesskit` feature, at this version.
+accesskit_unix = "0.13"
 
 # ── Windows overlay integration (cross-platform port, C4) ────────────
 # Click-through (WS_EX_LAYERED | WS_EX_TRANSPARENT), the topmost

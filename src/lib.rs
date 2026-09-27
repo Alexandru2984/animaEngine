@@ -1,3 +1,5 @@
+#[cfg(unix)]
+pub mod a11y;
 pub mod anim;
 pub mod animation;
 pub mod app;

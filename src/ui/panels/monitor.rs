@@ -42,7 +42,8 @@ pub(super) fn monitor_mode_picker(
 
     ui.horizontal(|ui| {
         ui.label(t("monitor-mode-label"));
-        egui::ComboBox::from_id_salt("anima.monitor.mode")
+        let combo_value = monitor_mode_label_localised(mode);
+        let combo = egui::ComboBox::from_id_salt("anima.monitor.mode")
             .selected_text(monitor_mode_label_localised(mode))
             .show_ui(ui, |ui| {
                 let mut new_mode = mode.clone();
@@ -93,6 +94,7 @@ pub(super) fn monitor_mode_picker(
                     *config_dirty = true;
                 }
             });
+        crate::ui::accessible::name_combo(&combo.response, &t("monitor-mode-label"), &combo_value);
     });
 
     // Compact list of detected monitors for orientation.
@@ -121,7 +123,8 @@ pub(super) fn entity_monitor_picker(
     };
     ui.horizontal(|ui| {
         ui.label(t("monitor-pin-label"));
-        egui::ComboBox::from_id_salt("anima.entity.monitor")
+        let combo_value = active_label.clone();
+        let combo = egui::ComboBox::from_id_salt("anima.entity.monitor")
             .selected_text(active_label)
             .show_ui(ui, |ui| {
                 if ui
@@ -140,6 +143,7 @@ pub(super) fn entity_monitor_picker(
                     }
                 }
             });
+        crate::ui::accessible::name_combo(&combo.response, &t("monitor-pin-label"), &combo_value);
     });
     changed
 }

@@ -198,8 +198,8 @@ action-show-help = Show keyboard help
 # ── Accessibility section in Appearance tab (D.3) ─────────────────────
 appearance-accessibility-header = Accessibility
 appearance-accesskit-label = Generate AccessKit tree updates
-appearance-accesskit-hint = Powers AT-SPI screen readers (Orca etc.). Leave on unless you want a tighter footprint or your desktop doesn't run an AT-SPI bus. Note: text you type in panels also appears on the AT-SPI bus, where any process running as your user can read it.
-appearance-accesskit-unsupported = Screen readers are not available on the native Wayland backend. Start without ANIMA_USE_WAYLAND_NATIVE to use one.
+appearance-accesskit-hint = Lets screen readers (Orca and others, over AT-SPI) read and operate the panels. Off, a screen reader sees an empty window. Note: while one is running, text you type in the panels is on the AT-SPI bus, where any process running as your user can read it.
+appearance-accesskit-unsupported = Screen readers are not supported on this system yet.
 appearance-reduced-motion-label = Reduce motion
 appearance-reduced-motion-hint = Skips UI transitions (panel slide, fades, palette pop) and stops decorative bouncing. Animations that convey state still play.
 appearance-hover-startle-label = Startle on hover

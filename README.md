@@ -70,8 +70,8 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   `Ctrl+Shift+A/H/P` global hotkeys, single-instance D-Bus handshake.
 - **Hot-reload**: edit `~/.config/animaengine/config.toml` while the app
   runs; changes are decoded off the UI thread and applied seamlessly.
-- **Accessibility**: AccessKit bridge for AT-SPI screen readers,
-  visible focus rings, full keyboard reference table. See
+- **Accessibility**: screen readers (Orca and others, over AT-SPI) on
+  both backends, visible focus rings, full keyboard reference table. See
   [docs/accessibility.md](docs/accessibility.md).
 
 ## Install

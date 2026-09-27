@@ -78,7 +78,7 @@ hover_startle = false       # characters recoil from an approaching
 | `theme` | `dark` (default), `light`, `dark_high_contrast`, `light_high_contrast` | |
 | `locale` | any shipped language code | Omit to auto-detect from the environment; an unknown code falls back to English. |
 | `monitor_mode` | `per_monitor` (default), `span`, `single` | `single` pins the overlay to one output — see below. |
-| `accesskit_enabled` | `true` (default) / `false` | Toggling applies live; off trims the AT-SPI registration. |
+| `accesskit_enabled` | `true` (default) / `false` | Whether a screen reader gets the panels (AT-SPI). Off, it sees an empty window. Applies live. |
 | `hotkey_backend` | `auto` (default), `portal`, `x11`, `none` | `auto` probes the GlobalShortcuts portal, then XGrabKey on X11. `none` = tray + D-Bus only. |
 
 Pinning the overlay to a single output uses the struct form:

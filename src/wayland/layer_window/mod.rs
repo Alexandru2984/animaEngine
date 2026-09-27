@@ -191,6 +191,7 @@ impl LayerWindow {
             cursor_pos: None,
             primary_output_name: None,
             pending_egui_events: Vec::new(),
+            keyboard_on_primary: false,
             close_requested: false,
             edit_mode: false,
             data_device_manager,
@@ -335,6 +336,12 @@ impl LayerWindow {
     /// event at all in the frames between.
     pub fn modifiers(&self) -> egui::Modifiers {
         crate::wayland::keyboard::modifiers_to_egui(self.state.last_modifiers)
+    }
+
+    /// Whether the primary surface — the one with the panels — has the
+    /// keyboard.
+    pub fn has_keyboard_focus(&self) -> bool {
+        self.state.keyboard_on_primary
     }
 
     /// Drain the drops the drag-drop worker thread parsed since the last

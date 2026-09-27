@@ -211,14 +211,18 @@ the pre-existing edit-mode-only behavior there.
 
 ### D-Bus accessibility tree (AT-SPI) — opt-out only
 
-Since 0.2.0 (Phase A.9) we enable the `accesskit` feature on
-`egui-winit`, which makes Linux screen readers like Orca work without
-extra plumbing. The mechanism is `accesskit_unix` registering an
-`org.a11y.atspi.*` object on the session bus. **Every egui widget
-label, hover text, focus event, and `TextEdit` keystroke is broadcast
-on that bus** so assistive technologies can read them.
+Since 1.4.0, `src/a11y.rs` publishes egui's AccessKit tree on AT-SPI,
+so screen readers like Orca work, on both backends. (From 0.2.0 this
+section said the `accesskit` feature on `egui-winit` already did; it
+did not — the adapter was never initialised, and nothing reached the
+bus. See R53 in runtime-findings.md.) The mechanism is `accesskit_unix`
+registering `org.a11y.atspi.*` objects on the accessibility bus. It
+does so only while an assistive technology has AT-SPI turned on
+(`org.a11y.Status.IsEnabled`). Then **every widget label, focus event
+and `TextEdit` keystroke is broadcast on that bus** so assistive
+technologies can read them.
 
-What this widens, vs. pre-0.2.0:
+What this widens, vs. before 1.4.0:
 
 - The Ctrl+K command-palette query is published character by character
   as the user types. A user who pastes a secret into the palette by
@@ -237,9 +241,10 @@ What it does *not* widen:
 
 **Operators who need to disable this** (e.g. a kiosk with no AT
 requirements) can set `accesskit_enabled = false` under `[global]` —
-the change applies live, no rebuild — or, for a binary that never links
-the bridge at all, depend on `egui-winit` without the `accesskit`
-feature and rebuild.
+the change applies live, no rebuild: a reader then gets an empty window,
+and the last tree does not stay readable. A binary that never registers
+on the bus at all needs `src/a11y.rs` and the `accesskit_unix`
+dependency removed.
 
 ### Behavior scripts — sandboxed, bounded, but still code (1.2.0)
 

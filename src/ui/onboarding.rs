@@ -19,6 +19,7 @@
 //! brand-new install — populates it with `OnboardingProgress::default()`
 //! (all flags `false`), giving fresh users the full tour.
 
+use crate::ui::accessible::AccessibleName;
 use serde::{Deserialize, Serialize};
 
 use crate::ui::icons;
@@ -149,7 +150,7 @@ pub fn hint(ui: &mut egui::Ui, body: &str, seen: &mut bool) -> bool {
                             egui::Button::new(egui::RichText::new(icons::CLOSE).size(12.0).weak())
                                 .frame(false),
                         )
-                        .on_hover_text(crate::i18n::t("onboarding-dismiss"))
+                        .on_hover_name(crate::i18n::t("onboarding-dismiss"))
                         .clicked()
                     {
                         *seen = true;

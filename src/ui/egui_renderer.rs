@@ -17,6 +17,12 @@ pub struct EguiRenderer {
     /// `ensure_theme` can be called on every frame for free — only an
     /// actual theme switch reaches `theme::apply`.
     current_theme: Theme,
+    /// Screen readers: this window's tree on AT-SPI (`crate::a11y`).
+    #[cfg(unix)]
+    screen_reader: crate::a11y::ScreenReaderBridge,
+    /// The Appearance setting that allows the tree at all.
+    #[cfg(unix)]
+    accesskit_allowed: bool,
 }
 
 impl EguiRenderer {
@@ -46,12 +52,43 @@ impl EguiRenderer {
         icons::install(&context);
         theme::apply(&context, theme);
 
+        // A reader's request needs a frame to be answered, and the paced
+        // loop may be asleep. `request_redraw` may be called from any
+        // thread; the weak handle lets the window go when the app does.
+        #[cfg(unix)]
+        let screen_reader = {
+            let weak = Arc::downgrade(&window);
+            let mut bridge = crate::a11y::ScreenReaderBridge::new(move || {
+                if let Some(window) = weak.upgrade() {
+                    window.request_redraw();
+                }
+            });
+            update_bounds(&mut bridge, &window);
+            bridge
+        };
+
         Self {
             context,
             state,
             renderer,
             current_theme: theme,
+            #[cfg(unix)]
+            screen_reader,
+            #[cfg(unix)]
+            accesskit_allowed: true,
         }
+    }
+
+    /// Follow the Appearance setting that allows screen readers the tree.
+    /// Applies from the next frame.
+    pub fn set_accesskit_allowed(&mut self, allowed: bool) {
+        #[cfg(unix)]
+        {
+            self.accesskit_allowed = allowed;
+        }
+        // No bridge elsewhere yet: the tree is never built.
+        #[cfg(not(unix))]
+        let _ = allowed;
     }
 
     /// Re-apply the design-system style if the active theme changed.
@@ -73,6 +110,16 @@ impl EguiRenderer {
         event: &winit::event::WindowEvent,
     ) -> bool {
         let response = self.state.on_window_event(window, event);
+        #[cfg(unix)]
+        match event {
+            winit::event::WindowEvent::Focused(focused) => {
+                self.screen_reader.set_focused(*focused);
+            }
+            winit::event::WindowEvent::Moved(_) | winit::event::WindowEvent::Resized(_) => {
+                update_bounds(&mut self.screen_reader, window);
+            }
+            _ => {}
+        }
         // The open command palette takes every key, its search box focused
         // or not — see `panels::command_palette_open`.
         response.consumed
@@ -96,8 +143,22 @@ impl EguiRenderer {
     ) where
         F: FnMut(&egui::Context),
     {
+        #[cfg(unix)]
+        {
+            crate::a11y::sync_egui(&self.context, self.accesskit_allowed, &self.screen_reader);
+            let requests = self.screen_reader.drain_requests();
+            self.state.egui_input_mut().events.extend(requests);
+        }
+        #[cfg(not(unix))]
+        self.context.disable_accesskit();
         let raw_input = self.state.take_egui_input(window);
-        let full_output = self.context.run(raw_input, build_ui);
+        #[cfg_attr(not(unix), allow(unused_mut))]
+        let mut full_output = self.context.run(raw_input, build_ui);
+        #[cfg(unix)]
+        self.screen_reader.publish(
+            self.accesskit_allowed,
+            full_output.platform_output.accesskit_update.take(),
+        );
 
         // Apply platform-side effects (cursor, clipboard, IME requests).
         self.state
@@ -154,5 +215,19 @@ impl EguiRenderer {
         for id in &full_output.textures_delta.free {
             self.renderer.free_texture(id);
         }
+    }
+}
+
+/// The window's content area on the screen, for the screen reader.
+#[cfg(unix)]
+fn update_bounds(bridge: &mut crate::a11y::ScreenReaderBridge, window: &winit::window::Window) {
+    if let Ok(position) = window.inner_position() {
+        let size = window.inner_size();
+        bridge.set_bounds(
+            f64::from(position.x),
+            f64::from(position.y),
+            f64::from(size.width),
+            f64::from(size.height),
+        );
     }
 }

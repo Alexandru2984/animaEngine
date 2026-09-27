@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R52 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R53 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2046,3 +2046,53 @@ character; "Add file…" from the palette went through the stand-in portal
 and added the file at the screen's centre. The German UI shows `Strg`.
 After Enter on a search that matched nothing, H and Escape: no help
 dump, the palette closed, edit mode kept.
+
+### R53 · No screen reader had ever seen the app, on either backend — `FIXED`
+
+Found when starting on screen readers for native Wayland (1.4), which
+the docs presented as the one backend without them. Reading how the X11
+path does it turned up nothing to read: egui-winit's `accesskit`
+feature makes its `State` *able* to publish the tree, but the AT-SPI
+adapter exists only once `State::init_accesskit` is called, and no
+version of this program ever called it. egui built its tree every frame
+and dropped it. The claim goes back to 0.2 — README, accessibility.md,
+the threat model and the Appearance setting's hint all rested on it.
+
+Confirmed before changing anything, with the rig's own AT-SPI stack:
+`at-spi-bus-launcher` on the private session bus (memory GSettings
+backend, no display, so nothing reaches the real session), and a small
+Python client on `gi.repository.Atspi` that lists applications, walks a
+tree, focuses and presses nodes. A GTK window was listed and its button
+pressed through it — the harness works — while animaEngine on the X11
+path, the default, was not listed at all.
+
+**Fixed** with one bridge for both backends (`src/a11y.rs`), straight on
+`accesskit_unix`, the crate egui-winit would have used: each egui
+renderer owns one, builds the tree only while an assistive technology
+has AT-SPI on, feeds the reader's requests into egui's input, and wakes
+the loop for them — on X11 through `request_redraw` from the adapter's
+thread, since the paced loop may be asleep. The window's focus and
+position go with it.
+
+A reader seeing the tree for the first time then showed what it
+contained. Every icon-only button read as a private-use glyph — the ⚙
+toggle, ✕, the trash and reset buttons — since egui names a button
+after its text and does not pass tooltips on; the six combo boxes had
+no name at all; the window had none; labels began with a glyph. The
+bridge now drops icon-font characters from every name and value and
+hides what is left with nothing to say (labels that were only an icon,
+egui's empty area backdrops); the buttons are named where they are built
+(`ui::accessible`), the ones repeated per row after what they act on.
+accessibility.md's "egui surfaces those tooltips through AccessKit" was
+never true either.
+
+**Checked on the rig**, both backends, with that client: the
+application is listed as "animaEngine"; on all five tabs no focusable
+node is left without a name; pressing a tab through AT-SPI switches to
+it (on X11 also with every animation paused, answered within 0.25 s);
+a focus request from the reader focuses the widget, with its ring
+drawn; Tab in the app emits the focus events a reader follows; turning
+the Appearance setting off through the reader itself leaves an empty
+window, and turning it back on restores the tree; without an AT-SPI bus
+the app starts as before. Not checked: Orca itself, the Flatpak's
+accessibility-bus proxy, and hardware other than the rig.

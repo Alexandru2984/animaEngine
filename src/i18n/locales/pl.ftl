@@ -187,9 +187,10 @@ action-show-help = Pokaż pomoc klawiatury
 # ── Accessibility section (D.3) — placeholder pending D.4 native-speaker audit
 appearance-accessibility-header = Dostępność
 appearance-accesskit-label = Generuj aktualizacje drzewa AccessKit
-appearance-accesskit-hint = Zasila czytniki ekranu AT-SPI (Orca itd.). Zostaw włączone, chyba że chcesz mniejsze zużycie zasobów albo twój pulpit nie ma magistrali AT-SPI. Uwaga: tekst wpisywany w panelach pojawia się też na magistrali AT-SPI, gdzie może go odczytać każdy proces twojego użytkownika.
+# Screen readers (1.4): machine-translated, pending native review.
+appearance-accesskit-hint = Pozwala czytnikom ekranu (Orca i innym, przez AT-SPI) czytać i obsługiwać panele. Wyłączone — czytnik ekranu widzi puste okno. Uwaga: gdy czytnik działa, tekst wpisywany w panelach trafia na magistralę AT-SPI, gdzie może go odczytać każdy proces twojego użytkownika.
 # Machine-translated, pending native review.
-appearance-accesskit-unsupported = Czytniki ekranu nie są dostępne w natywnym backendzie Wayland. Aby z nich korzystać, uruchom bez ANIMA_USE_WAYLAND_NATIVE.
+appearance-accesskit-unsupported = Czytniki ekranu nie są jeszcze obsługiwane w tym systemie.
 appearance-reduced-motion-label = Ogranicz ruch
 appearance-reduced-motion-hint = Pomija przejścia interfejsu (wysuwanie panelu, przenikanie, wyskakiwanie palety) i zatrzymuje dekoracyjne bujanie. Animacje przekazujące stan nadal działają.
 appearance-hover-startle-label = Płoszenie po najechaniu

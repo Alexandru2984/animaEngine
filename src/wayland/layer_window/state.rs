@@ -80,6 +80,9 @@ pub struct WaylandState {
     /// `KeyEvent::utf8` — xkbcommon has already composed dead-keys /
     /// IME by then, so widget text input is correct without extra work.
     pub pending_egui_events: Vec<egui::Event>,
+    /// Whether the primary surface has the keyboard, between `enter` and
+    /// `leave`. A screen reader follows focus only in the active window.
+    pub keyboard_on_primary: bool,
     /// True after a layer-surface `closed` event. Caller polls this to
     /// know when to tear down.
     pub close_requested: bool,

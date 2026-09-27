@@ -11,6 +11,7 @@
 //! configs with no `last_seen_whats_new` field default through serde
 //! to `None`, which triggers the panel exactly once — desired.
 
+use crate::ui::accessible::AccessibleName;
 use crate::ui::icons;
 use crate::ui::theme::{self, RADIUS_MD, SPACE_M, SPACE_S, SPACE_XS};
 
@@ -77,7 +78,7 @@ pub fn show(ui: &mut egui::Ui, last_seen: &mut Option<String>) -> bool {
                             egui::Button::new(egui::RichText::new(icons::CLOSE).size(12.0).weak())
                                 .frame(false),
                         )
-                        .on_hover_text(crate::i18n::t("onboarding-dismiss"))
+                        .on_hover_name(crate::i18n::t("onboarding-dismiss"))
                         .clicked()
                     {
                         *last_seen = Some(WHATS_NEW_VERSION.to_string());

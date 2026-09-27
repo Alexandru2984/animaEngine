@@ -6,6 +6,7 @@
 //! `App::edit_mode`.
 
 use crate::constants::TOGGLE_BUTTON_SIZE;
+use crate::ui::accessible::AccessibleName;
 use crate::ui::icons;
 
 pub fn toggle_button(ctx: &egui::Context, edit_mode: bool) -> bool {
@@ -46,7 +47,7 @@ pub fn toggle_button(ctx: &egui::Context, edit_mode: bool) -> bool {
                         .fill(bg)
                         .corner_radius(0.0),
                 )
-                .on_hover_text(tooltip);
+                .on_hover_name(tooltip);
             // Visible focus for keyboard users (F8): the custom fill
             // swallows egui's subtle default, so paint an explicit
             // ring with the theme's selection stroke (HC-aware).

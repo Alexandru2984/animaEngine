@@ -10,6 +10,7 @@ use crate::i18n::t;
 use crate::input::selection::SelectionState;
 use crate::monitor::{MonitorInfo, MonitorMode};
 use crate::scene::Scene;
+use crate::ui::accessible::AccessibleName;
 use crate::ui::collapse::CollapseState;
 use crate::ui::icons;
 use crate::ui::states;
@@ -193,6 +194,7 @@ fn scene_list(
             }
             if ui
                 .small_button(icons::TRASH)
+                .named(format!("{delete_tooltip}: {}", entity.name))
                 .on_hover_text(&delete_tooltip)
                 .clicked()
             {
