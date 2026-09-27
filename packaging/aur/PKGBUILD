@@ -13,9 +13,7 @@ license=('MIT')
 depends=('libxkbcommon-x11' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'libxrandr' 'alsa-lib')
 makedepends=('cargo' 'cmake' 'librsvg' 'vulkan-headers' 'libxkbcommon' 'libx11' 'libxcb')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-# Checksum of the v1.3.0 tarball — only computable once the tag is pushed:
-#   curl -sL https://github.com/Alexandru2984/animaEngine/archive/refs/tags/v1.3.0.tar.gz | sha256sum
-sha256sums=('TODO-after-tagging-v1.3.0')
+sha256sums=('153fbd64b57501c31e0b114b3228e22baf79c9299c05bc8e0a07ff5434d29018')
 
 _srcdir="animaEngine-$pkgver"
 
