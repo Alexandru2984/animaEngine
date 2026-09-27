@@ -105,6 +105,8 @@ pub struct App {
     /// pack's sprites (the slow part) so a large pack can't freeze the UI;
     /// the result is applied on the UI thread at the captured drop point.
     pending_shimeji: Option<crate::outcomes::ShimejiImport>,
+    /// The desktop's file chooser, open after "Add file…" until it answers.
+    pending_file_chooser: Option<crate::outcomes::FileChooserAdd>,
     /// egui integration. Paints in BOTH modes — the ⚙ toggle button is an
     /// egui widget that lives in pass-through too. Other UI (settings panel,
     /// context menu, toasts) is gated to edit mode inside the build closure.
@@ -270,6 +272,7 @@ impl App {
             x11_input: None,
             config_watch: crate::config_watch::ConfigWatcher::new(),
             pending_shimeji: None,
+            pending_file_chooser: None,
             ui: None,
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),
@@ -573,6 +576,7 @@ impl ApplicationHandler<AnimaEvent> for App {
             ));
             self.check_hot_reload();
             self.check_shimeji_import();
+            self.check_file_chooser();
             self.request_redraw();
         }
     }

@@ -171,6 +171,8 @@ pub fn run_native(
     let mut library_root: Option<std::path::PathBuf> = None;
     // A Shimeji pack import running off the UI thread, if any.
     let mut pending_shimeji: Option<ShimejiImport> = None;
+    // The desktop's file chooser, open after "Add file…" until it answers.
+    let mut pending_file_chooser: Option<crate::outcomes::FileChooserAdd> = None;
     // Whether the input region is currently widened for a drag
     // (`drag_region`).
     let mut drag_widened = false;
@@ -299,6 +301,14 @@ pub fn run_native(
         if let Some(import) = &pending_shimeji {
             if import.poll(&mut outcome_ctx!()).is_some() {
                 pending_shimeji = None;
+            }
+        }
+        if let Some(chooser) = &pending_file_chooser {
+            if let Some(added) = chooser.poll(&mut outcome_ctx!()) {
+                pending_file_chooser = None;
+                if added > 0 {
+                    config_dirty = true;
+                }
             }
         }
 
@@ -913,6 +923,7 @@ pub fn run_native(
                     draws_last_frame: gpu_draws,
                 };
                 let mut shimeji_import: Option<String> = None;
+                let mut add_file_requested = false;
                 let menu_state = context_menu_state.clone();
                 // Disjoint mut borrows for the closure.
                 let scene_mut = &mut scene;
@@ -932,6 +943,7 @@ pub fn run_native(
                 let warnings_ref = &warnings;
                 let hotkey_backend_ref = hotkey_backend_status.as_str();
                 let shimeji_import_ref = &mut shimeji_import;
+                let add_file_requested_ref = &mut add_file_requested;
                 let monitors_ref = monitors.as_slice();
                 let toasts_ref = &toasts;
                 let toggle_requested_ref = &mut toggle_requested;
@@ -1007,6 +1019,7 @@ pub fn run_native(
                                 last_seen_whats_new_mut,
                                 hotkey_backend_ref,
                                 shimeji_import_ref,
+                                add_file_requested_ref,
                             );
                             if edit_mode_snapshot {
                                 if let Some(state) = &menu_state {
@@ -1112,6 +1125,12 @@ pub fn run_native(
                 // Palette / library outcomes apply outside the egui
                 // closure where we can take &mut renderer + &mut toasts
                 // without conflicting.
+                if add_file_requested && pending_file_chooser.is_none() {
+                    pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
+                        renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                        renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
+                    )));
+                }
                 if let Some(path) = shimeji_import {
                     // Off the UI thread, like a dropped pack. This used to
                     // import synchronously right here, freezing the overlay

@@ -33,6 +33,7 @@ pub(super) fn scene_tab(
     span_supported: bool,
     monitors: &[MonitorInfo],
     collapse_state: &mut CollapseState,
+    add_file_requested: &mut bool,
 ) {
     // ── Monitor distribution section ─────────────────────────────────
     monitor_mode_picker(ui, monitor_mode, monitors, span_supported, config_dirty);
@@ -68,6 +69,19 @@ pub(super) fn scene_tab(
     }
     ui.add_space(SPACE_L);
     ui.separator();
+    ui.add_space(SPACE_M);
+
+    // The way in that needs no dragging — and, in the Flatpak, the one
+    // that reaches files outside Pictures and Downloads. Unix only: it
+    // goes through the XDG desktop portal.
+    if cfg!(unix)
+        && ui
+            .button(format!("{}  {}", icons::ADD, t("scene-add-file")))
+            .on_hover_text(t("scene-add-file-tooltip"))
+            .clicked()
+    {
+        *add_file_requested = true;
+    }
     ui.add_space(SPACE_M);
 
     let is_empty = scene.entities.is_empty();

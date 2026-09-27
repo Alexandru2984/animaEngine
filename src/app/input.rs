@@ -196,6 +196,42 @@ impl App {
         );
     }
 
+    /// "Add file…": open the desktop's file chooser. What is picked lands
+    /// in the middle of the primary window. One dialog at a time.
+    pub(super) fn open_file_chooser(&mut self) {
+        if self.pending_file_chooser.is_some() {
+            return;
+        }
+        let (w, h) = self
+            .window
+            .as_ref()
+            .map(|w| {
+                let s = w.inner_size();
+                (s.width as f32, s.height as f32)
+            })
+            .unwrap_or((1920.0, 1080.0));
+        let (ox, oy) = self.primary_origin();
+        self.pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
+            w / 2.0 + ox,
+            h / 2.0 + oy,
+        )));
+    }
+
+    /// Apply the file chooser's answer once it closes. Called once per
+    /// frame beside the Shimeji check.
+    pub(super) fn check_file_chooser(&mut self) {
+        let Some(chooser) = &self.pending_file_chooser else {
+            return;
+        };
+        let Some(added) = chooser.poll(&mut outcome_ctx!(self)) else {
+            return;
+        };
+        self.pending_file_chooser = None;
+        if added > 0 {
+            self.save_config_if_needed();
+        }
+    }
+
     /// Apply a finished Shimeji import. Called once per frame beside the
     /// hot-reload check.
     pub(super) fn check_shimeji_import(&mut self) {

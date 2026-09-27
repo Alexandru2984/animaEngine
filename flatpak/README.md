@@ -64,8 +64,9 @@ they live under `~/.var/app/com.animaengine.Anima/`, which the app owns.
 **Drops from anywhere else do nothing.** A file dragged in from outside
 Pictures and Downloads is not visible inside the sandbox, and the
 windowing toolkit discards such a drop before the app sees it, so no
-message appears either. Copy the file into Pictures, Downloads or the
-asset library first.
+message appears either. Use **Add file…** in the Scene tab instead: it
+goes through the desktop's file chooser portal, which grants the sandbox
+exactly the files picked, wherever they are.
 
 What we explicitly **don't** request:
 

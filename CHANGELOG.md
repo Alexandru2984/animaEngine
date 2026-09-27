@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Add file…** in the Scene tab opens the desktop's own file chooser
+  (through the XDG portal) and adds what you pick as characters, the way
+  a drop would. No dragging needed — and in the Flatpak, the way to reach
+  files outside Pictures and Downloads, which a drop cannot. Without a
+  portal on the session, a message says what is missing.
+
 ## [1.3.0] — 2026-09-27
 
 Two things that were missing for real, not only in the documentation.

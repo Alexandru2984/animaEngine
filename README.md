@@ -24,7 +24,8 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 ## What it does
 
 - **Drop any image or short MP4** onto the overlay → it becomes an
-  animated character. PNG / GIF / WebP / JPEG / MP4 (H.264).
+  animated character. PNG / GIF / WebP / JPEG / MP4 (H.264). Or pick it
+  with **Add file…** in the Scene tab, through the desktop's file chooser.
 - **Click-through by default**: clicks pass straight to your desktop;
   the only widget that catches input in pass-through mode is the ⚙
   toggle button in the top-right.

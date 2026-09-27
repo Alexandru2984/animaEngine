@@ -2005,3 +2005,13 @@ before it was right, neither ever shipped:
   next `enable` was no change and never reached the input method. The
   same would follow any focus change away from the overlay and back.
   The text input is now disabled before every enable.
+
+**Add file… (1.4), checked on the rig** against a stand-in for the XDG
+portal (`fakeportal.py`, in the rig beside `snihost.py`): the request
+carries the dialog title, multiple selection and a filter with every
+format a drop accepts, in both cases; two files picked are added through
+the drop path, selected and toasted, a little apart; a dismissed dialog
+adds nothing and says nothing; and with no portal on the session a
+message names what is missing. Both backends. Not checked here: a real
+portal's dialog, and the Flatpak, where the point is the document
+portal granting the picked files — that needs a real desktop.

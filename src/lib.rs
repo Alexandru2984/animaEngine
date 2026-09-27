@@ -13,6 +13,7 @@ pub mod drop_validate;
 pub mod entity;
 pub mod error;
 pub mod event;
+pub mod file_chooser;
 pub mod group;
 pub mod hotkeys;
 pub mod i18n;

@@ -201,6 +201,8 @@ pub fn settings(
     last_seen_whats_new: &mut Option<String>,
     hotkey_backend: &str,
     shimeji_import: &mut Option<String>,
+    // Set when "Add file…" is clicked; the caller opens the chooser.
+    add_file_requested: &mut bool,
 ) {
     // Both backends run this every frame, so this is where an input
     // method composing Chinese, Japanese or Korean gets the face it needs.
@@ -338,6 +340,7 @@ pub fn settings(
                                 span_supported,
                                 monitors,
                                 collapse_state,
+                                add_file_requested,
                             );
                         }
                         SettingsTab::Library => {

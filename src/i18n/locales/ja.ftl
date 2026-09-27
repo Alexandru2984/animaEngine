@@ -58,6 +58,12 @@ script-failed-toast = 動作スクリプト { $script } が失敗しました: {
 scene-empty-headline = シーンは空です
 scene-empty-hint = PNG / GIF / WebP / MP4 をオーバーレイにドロップ — もしくは下のプリセットをお試しください。
 scene-drop-hint = PNG / GIF / WebP をオーバーレイにドロップしてエンティティを追加できます。
+# "Add file…" (1.4): machine-translated, pending native review.
+scene-add-file = ファイルを追加…
+scene-add-file-tooltip = キャラクターとして追加する画像や動画を選びます。
+file-chooser-title = キャラクターを追加
+file-chooser-filter = 画像と動画
+file-chooser-unavailable-toast = ファイル選択ダイアログを開けませんでした。xdg-desktop-portal が必要です。
 scene-presets-header = プリセット
 scene-groups-header = グループ
 scene-preset-append = 追加

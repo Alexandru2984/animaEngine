@@ -58,6 +58,12 @@ script-failed-toast = El script de comportamiento { $script } falló: { $error }
 scene-empty-headline = Escena vacía
 scene-empty-hint = Arrastra un PNG / GIF / WebP / MP4 sobre el overlay — o prueba un preset abajo.
 scene-drop-hint = Arrastra un PNG / GIF / WebP sobre el overlay para añadir una entidad.
+# "Add file…" (1.4): machine-translated, pending native review.
+scene-add-file = Añadir archivo…
+scene-add-file-tooltip = Elige imágenes o vídeos para añadirlos como personajes.
+file-chooser-title = Añadir personajes
+file-chooser-filter = Imágenes y vídeos
+file-chooser-unavailable-toast = No se pudo abrir el selector de archivos. Necesita xdg-desktop-portal.
 scene-presets-header = Presets
 scene-groups-header = Grupos
 scene-preset-append = Añadir

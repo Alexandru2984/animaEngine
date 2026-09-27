@@ -58,6 +58,12 @@ script-failed-toast = Gedragsscript { $script } is mislukt: { $error }
 scene-empty-headline = Lege scène
 scene-empty-hint = Sleep een PNG / GIF / WebP / MP4 naar de overlay — of probeer hieronder een preset.
 scene-drop-hint = Sleep een PNG / GIF / WebP naar de overlay om een entiteit toe te voegen.
+# "Add file…" (1.4): machine-translated, pending native review.
+scene-add-file = Bestand toevoegen…
+scene-add-file-tooltip = Kies afbeeldingen of video's om als figuren toe te voegen.
+file-chooser-title = Figuren toevoegen
+file-chooser-filter = Afbeeldingen en video's
+file-chooser-unavailable-toast = De bestandskiezer kon niet worden geopend. Daarvoor is xdg-desktop-portal nodig.
 scene-presets-header = Presets
 scene-groups-header = Groepen
 scene-preset-append = Toevoegen

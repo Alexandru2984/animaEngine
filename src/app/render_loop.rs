@@ -126,6 +126,7 @@ impl App {
         // Check for external config changes (hot-reload)
         self.check_hot_reload();
         self.check_shimeji_import();
+        self.check_file_chooser();
 
         // Appearance-tab monitor-mode switches rebuild the extra
         // overlay windows (T.6); topology changes do the same (T.9).
@@ -293,6 +294,7 @@ impl App {
                     let mut palette_outcome: Option<panels::PaletteOutcome> = None;
                     let mut library_outcome: Option<panels::LibraryOutcome> = None;
                     let mut shimeji_import: Option<String> = None;
+                    let mut add_file_requested = false;
                     let mut toggle_requested = false;
 
                     if let (Some(ui), Some(window)) = (self.ui.as_mut(), self.window.as_ref()) {
@@ -421,6 +423,7 @@ impl App {
                                     last_seen_whats_new_mut,
                                     hotkey_backend_ref,
                                     &mut shimeji_import,
+                                    &mut add_file_requested,
                                 );
                                 if edit_mode {
                                     if let Some(state) = &menu_state {
@@ -513,6 +516,9 @@ impl App {
                         let expanded = crate::config::AppConfig::resolve_asset_path(&path);
                         let at = (self.mouse_x.max(50.0), self.mouse_y.max(50.0));
                         self.import_shimeji_pack(&expanded, at);
+                    }
+                    if add_file_requested {
+                        self.open_file_chooser();
                     }
                 }
                 // Surface needs reconfiguring against the current size

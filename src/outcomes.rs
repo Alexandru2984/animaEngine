@@ -331,6 +331,52 @@ pub fn add_dropped_file(path: &Path, at: (f32, f32), ctx: &mut OutcomeCtx<'_>) -
     }
 }
 
+/// "Add file…" in progress: the desktop's file chooser is up, and its
+/// answer is applied like a drop when it comes.
+pub struct FileChooserAdd {
+    chooser: crate::file_chooser::FileChooser,
+    at: (f32, f32),
+}
+
+impl FileChooserAdd {
+    /// Open the chooser; what is picked lands around `at`.
+    pub fn start(at: (f32, f32)) -> Self {
+        Self {
+            chooser: crate::file_chooser::FileChooser::open(
+                crate::i18n::t("file-chooser-title"),
+                crate::i18n::t("file-chooser-filter"),
+            ),
+            at,
+        }
+    }
+
+    /// Apply the answer if the dialog has closed: `None` while it is up,
+    /// then `Some(n)` with the number of characters added, and the caller
+    /// drops this. Each file goes through the drop path — validation,
+    /// selection, toast — a little apart from the one before, so several
+    /// files do not land on top of each other.
+    pub fn poll(&self, ctx: &mut OutcomeCtx<'_>) -> Option<usize> {
+        use crate::file_chooser::Chosen;
+        Some(match self.chooser.poll()? {
+            Chosen::Files(paths) => paths
+                .iter()
+                .enumerate()
+                .filter(|(i, path)| {
+                    let step = 48.0 * (*i % 8) as f32;
+                    add_dropped_file(path, (self.at.0 + step, self.at.1 + step), ctx).is_some()
+                })
+                .count(),
+            Chosen::Cancelled => 0,
+            Chosen::Unavailable(reason) => {
+                tracing::warn!("File chooser unavailable: {reason}");
+                ctx.toasts
+                    .error(crate::i18n::t("file-chooser-unavailable-toast"));
+                0
+            }
+        })
+    }
+}
+
 type ImportResult = Result<crate::shimeji::ImportReport, String>;
 
 /// A Shimeji pack import running off the UI thread.
