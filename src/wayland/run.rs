@@ -1033,6 +1033,9 @@ pub fn run_native(
                     },
                 );
                 perf_sampler.add(crate::perf::Category::EguiPaint, egui_start.elapsed());
+                // A focused text field turns the input method on, at its
+                // caret; losing it turns it off.
+                layer.sync_ime(egui_renderer.ime_caret());
                 if perf_export_request {
                     match crate::perf::export_snapshot(&perf_sampler) {
                         Ok(path) => {

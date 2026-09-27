@@ -210,6 +210,9 @@ impl SeatHandler for WaylandState {
                 Ok(k) => self.keyboard = Some(k),
                 Err(e) => tracing::warn!("Failed to bind wl_keyboard: {e}"),
             }
+            // Text reaches us through the keyboard; so does an input
+            // method's, through this seat's text input.
+            self.ime.attach_seat(&seat, qh);
         }
     }
 

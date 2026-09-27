@@ -50,6 +50,7 @@ set the env var.
 | Animated sprites | ✓ | ✓ |
 | Click-through (toggle ⚙) | XShape | `wl_surface::set_input_region` |
 | Keyboard shortcuts (in-app) | winit input | xkb decoded via sctk |
+| Input methods (fcitx5, ibus) | winit IME | `zwp_text_input_v3` (see below) |
 | Drag-drop files | winit `DroppedFile` | `wl_data_device` + `text/uri-list`; in pass-through, drag over the ⚙ corner first |
 | Settings panel + presets + Keybindings tab | ✓ | ✓ |
 | Perf overlay (`Ctrl+Shift+\``) | ✓ | ✓ |
@@ -237,6 +238,33 @@ monitor setup, and the other three compositors in the table above
 hit a problem on any of those, please file an issue tagged `wayland`
 with the compositor-compatibility report template above.
 
+## Input methods (IME)
+
+Chinese, Japanese and Korean input through fcitx5, ibus and the like
+works on this path too, over `zwp_text_input_v3` — the protocol through
+which a compositor relays its input method to the focused client. Dead
+keys and accented letters never needed it (xkbcommon composes those);
+input methods did, and until 1.3 this path had none.
+
+- The text input is enabled only while a text field has focus — the
+  command palette's search box, an entity name in the Inspector — and
+  tells the compositor where the caret is, so the candidate window
+  appears beside the text.
+- Composition text shows in the field as it is typed and is replaced by
+  the committed text; cancelling it clears it.
+- The CJK font is loaded the first time a composition contains CJK
+  characters. It is ~19 MB, so, as for the language picker (R33), a
+  user who never types CJK never loads it.
+- The compositor has to support both halves (`text-input-v3` for us,
+  `input-method-v2` for the input method): sway, Hyprland and KWin do.
+
+Checked on the rig's sway with a minimal test input method (`imtest`,
+input-method-v2): a Latin and a Japanese composition, each shown and
+then committed, ordinary typing and Backspace untouched afterwards, and
+a second input method activated after the first one left. No
+surrounding text is sent, so input methods that use the text around
+the caret (for reconversion, say) get none.
+
 ## What's not (yet) parity with X11
 
 - **Screen readers.** egui's AT-SPI adapter comes with egui-winit, and
@@ -244,9 +272,6 @@ with the compositor-compatibility report template above.
   at all — the Appearance toggle is saved but has no effect on this
   backend. With a screen reader, use the X11 path (the default).
   GNOME Mutter routes everything via the X11 path anyway.
-- **IME composition popups.** xkbcommon composes dead-keys / latin
-  diacritics correctly through `KeyEvent::utf8`; full text-input-v3
-  IME popups (for CJK candidates etc.) aren't wired yet.
 - **`FollowCursor` in pass-through mode.** X11 polls `XQueryPointer`
   to keep this behavior accurate even when the click-through region
   excludes the rest of the surface. No Wayland protocol hands a

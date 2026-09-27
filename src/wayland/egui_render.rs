@@ -30,6 +30,9 @@ pub struct WaylandEguiRenderer {
     /// Last applied theme — guards `theme::apply` so it only fires on
     /// a real change. Matches the X11 path's `ensure_theme` pattern.
     current_theme: theme::Theme,
+    /// Caret of the focused text field in the last frame, for the input
+    /// method; see [`WaylandEguiRenderer::ime_caret`].
+    ime_caret: Option<(i32, i32, i32, i32)>,
 }
 
 impl WaylandEguiRenderer {
@@ -46,6 +49,7 @@ impl WaylandEguiRenderer {
             context,
             renderer,
             current_theme: theme,
+            ime_caret: None,
         }
     }
 
@@ -58,6 +62,12 @@ impl WaylandEguiRenderer {
     /// return value. Panels do not move between frames, so it holds.
     pub fn owns_pointer(&self) -> bool {
         self.context.is_pointer_over_area()
+    }
+
+    /// The caret of the focused text field, from the last frame — `None`
+    /// when no field wants text. Drives the input method (`text_input`).
+    pub fn ime_caret(&self) -> Option<(i32, i32, i32, i32)> {
+        self.ime_caret
     }
 
     /// Whether egui is collecting text right now — a focused text field,
@@ -139,6 +149,15 @@ impl WaylandEguiRenderer {
         };
 
         let full_output = self.context.run(raw_input, build_ui);
+        self.ime_caret = full_output.platform_output.ime.map(|ime| {
+            let r = ime.cursor_rect;
+            (
+                r.min.x.round() as i32,
+                r.min.y.round() as i32,
+                r.width().round().max(1.0) as i32,
+                r.height().round().max(1.0) as i32,
+            )
+        });
 
         let paint_jobs = self
             .context

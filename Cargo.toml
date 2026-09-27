@@ -185,6 +185,9 @@ x11rb = { version = "0.13", features = ["shape"] }
 ksni = { version = "0.3", default-features = false, features = ["async-io"] }
 zbus = { version = "5", default-features = false, features = ["async-io"] }
 wayland-client = "0.31"
+# text-input-v3, for input methods on the native Wayland path. Already
+# in the tree through winit and sctk, with the `unstable` set enabled.
+wayland-protocols = { version = "0.32", features = ["client", "unstable"] }
 smithay-client-toolkit = { version = "0.19", default-features = false, features = ["xkbcommon"] }
 # Already linked through winit, at the same version: used only to check,
 # before the X11 event loop starts, that libxkbcommon-x11 can be loaded —

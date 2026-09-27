@@ -204,6 +204,7 @@ flag needed there.
 | Tray icon | stable | stable |
 | Drag-and-drop assets | stable | stable (in pass-through, drag over the ⚙ corner first) |
 | Keyboard input | stable (winit) | stable (sctk + xkbcommon) |
+| Input methods (CJK) | stable (winit) | stable (text-input-v3) |
 | egui settings panel | stable | stable |
 | Multi-monitor distribution | stable | stable |
 | Perf overlay | stable | stable |

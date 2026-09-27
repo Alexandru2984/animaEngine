@@ -119,6 +119,8 @@ pub struct WaylandState {
     /// headless sway session including output hotplug; see
     /// docs/wayland.md.
     pub extra_layers: Vec<ExtraLayer>,
+    /// Input methods through `zwp_text_input_v3` (C8). See `text_input`.
+    pub ime: super::text_input::Ime,
 }
 
 impl WaylandState {

@@ -33,8 +33,10 @@ mod handlers;
 mod keyboard_handler;
 mod pointer_handler;
 mod state;
+mod text_input;
 
 pub use state::{InputRect, WaylandState};
+pub use text_input::CaretRect;
 
 use crate::error::{AnimaError, Result};
 use smithay_client_toolkit::{
@@ -136,6 +138,9 @@ impl LayerWindow {
             .map_err(|e| AnimaError::other(format!("no wl_compositor: {e}")))?;
         let layer_shell = LayerShell::bind(&globals, &qh)
             .map_err(|e| AnimaError::other(format!("no zwlr_layer_shell_v1: {e}")))?;
+        // Optional: without it there are no input methods, and nothing
+        // else changes.
+        let ime = text_input::Ime::new(globals.bind(&qh, 1..=1, ()).ok());
 
         // Create the wl_surface that the layer is built on.
         let wl_surface = compositor.create_surface(&qh);
@@ -195,6 +200,7 @@ impl LayerWindow {
             drop_rx,
             active_drop_workers: Arc::new(AtomicUsize::new(0)),
             extra_layers: Vec::new(),
+            ime,
         };
 
         // Learn the output list before the wgpu surface is built.
@@ -497,6 +503,15 @@ impl LayerWindow {
             region.destroy();
             extra.input_full = input;
         }
+    }
+
+    /// Keep the input-method state in step with egui, once per frame:
+    /// `caret` is where egui's focused text field has its caret, `None`
+    /// when no field wants text. See `text_input`.
+    pub fn sync_ime(&mut self, caret: Option<CaretRect>) {
+        self.state
+            .ime
+            .sync(caret, &mut self.state.pending_egui_events);
     }
 
     /// Tear down the extra layer surface for `monitor_name`, if any.

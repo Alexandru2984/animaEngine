@@ -8,6 +8,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Input methods on native Wayland** — fcitx5, ibus and others, for
+  Chinese, Japanese and Korean — through `text-input-v3`: composition
+  text shows in the field and is replaced by the committed text, and the
+  candidate window follows the caret. The X11 path already had them.
+  On both backends the CJK font is now loaded when a composition needs
+  it, instead of the text arriving as empty boxes.
 - **Characters on every monitor can be edited** — selected, dragged
   (across monitors too), poked, and dropped onto — on both backends.
   The settings panel stays on the primary monitor; a right-click on

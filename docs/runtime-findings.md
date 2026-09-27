@@ -1986,3 +1986,22 @@ X11 positions): select, drag across both ways, the right-click menu,
 and a file dropped onto the second monitor's window — which used to be
 dropped silently, since the extra windows' event handler had no branch
 for it.
+
+**Input methods on native Wayland (1.3), checked on the rig** with a
+minimal input method written for it (`imtest`, input-method-v2, in the
+rig beside `wldnd`): a Latin preedit and commit into the command
+palette's search box, then a Japanese one (にほん → 日本語), with
+ordinary typing and Backspace working after both. Two things turned up
+before it was right, neither ever shipped:
+
+- The Japanese arrived but drew as empty boxes: the CJK face is loaded
+  only for a CJK locale and while the language picker is open (R23,
+  R33). It now also loads the first time a composition contains CJK
+  characters — on both backends, since the X11 path's input methods
+  had the same gap.
+- An input method started after the first one had gone was never
+  activated. Its departure had sent the overlay `leave` and `enter`, and
+  a wlroots compositor still counted the text input as enabled, so the
+  next `enable` was no change and never reached the input method. The
+  same would follow any focus change away from the overlay and back.
+  The text input is now disabled before every enable.

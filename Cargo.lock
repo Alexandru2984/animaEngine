@@ -235,6 +235,7 @@ dependencies = [
  "tracing-subscriber",
  "unic-langid",
  "wayland-client",
+ "wayland-protocols",
  "wgpu",
  "windows-sys 0.52.0",
  "winit",
