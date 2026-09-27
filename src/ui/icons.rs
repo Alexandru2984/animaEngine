@@ -62,6 +62,41 @@ pub fn locale_needs_cjk(code: &str) -> bool {
     matches!(lang, "ja" | "zh" | "ko")
 }
 
+/// Whether `text` has characters only the CJK face can draw: the CJK,
+/// kana and Hangul blocks, and the full-width forms.
+pub fn text_needs_cjk(text: &str) -> bool {
+    text.chars().any(|c| {
+        matches!(u32::from(c),
+            0x2E80..=0x9FFF      // radicals, kana, CJK symbols, unified ideographs
+            | 0xAC00..=0xD7AF    // Hangul syllables
+            | 0xF900..=0xFAFF    // compatibility ideographs
+            | 0xFF00..=0xFFEF    // half- and full-width forms
+            | 0x2_0000..=0x3_134F) // the supplementary ideograph planes
+    })
+}
+
+/// Load the CJK face when an input method is composing text that needs
+/// it. Call every frame; cheap until it matters.
+///
+/// A composition in Chinese, Japanese or Korean is as deliberate as
+/// opening the language picker (R33), and without the face the text
+/// arrives but reads as empty boxes. Typing accented Latin through an
+/// input method pays nothing: the check is on the characters, not on the
+/// input method being active.
+pub fn load_cjk_for_ime(ctx: &egui::Context) {
+    let composing_cjk = ctx.input(|i| {
+        i.events.iter().any(|e| match e {
+            egui::Event::Ime(egui::ImeEvent::Preedit(t) | egui::ImeEvent::Commit(t)) => {
+                text_needs_cjk(t)
+            }
+            _ => false,
+        })
+    });
+    if composing_cjk {
+        install_with_cjk(ctx);
+    }
+}
+
 /// Load the first CJK face we can find, if any.
 ///
 /// `None` means the machine has no CJK font installed — which is normal on
@@ -268,6 +303,16 @@ pub const ADD: &str = ph::PLUS;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cjk_text_is_recognised_and_latin_is_not() {
+        for text in ["日本語", "にほん", "中文", "한국어", "ＡＢＣ"] {
+            assert!(text_needs_cjk(text), "{text} should need the CJK face");
+        }
+        for text in ["zen", "héllo", "Ärger", "ñandú", "Привет", ""] {
+            assert!(!text_needs_cjk(text), "{text} should not need it");
+        }
+    }
 
     /// The bundled stack is Latin plus emoji, so only the CJK locales need
     /// a font from outside it. Every other shipped language must not pay

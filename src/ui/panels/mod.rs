@@ -202,6 +202,10 @@ pub fn settings(
     hotkey_backend: &str,
     shimeji_import: &mut Option<String>,
 ) {
+    // Both backends run this every frame, so this is where an input
+    // method composing Chinese, Japanese or Korean gets the face it needs.
+    crate::ui::icons::load_cjk_for_ime(ctx);
+
     // Frosted, semi-transparent panel: the overlay feels lighter and the
     // desktop reads through behind the settings instead of a solid slab.
     // Alpha kept high (≈92%) so text contrast survives over a busy
