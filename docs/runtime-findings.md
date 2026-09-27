@@ -1317,7 +1317,11 @@ documented and none is documented that is not read; the only CLI flags
 parsed are `--help`, `--version` and `--recover`, exactly what the
 stability policy guarantees (`--frobnicate` and `--recovr` in the source are test fixtures
 for the unknown-flag rejection); every key in `docs/config.md` maps to a
-real field.
+real field. One more turned up staging the Flathub screenshots:
+`docs/accessibility.md` said the `Ctrl+K` palette searches actions as
+well as themes and presets. It never listed actions — typing "tog" finds
+nothing — and the doc now says so; the README and the metainfo had it
+right.
 
 **X11 behaviour XWayland cannot show** — the class behind R37, where the
 rig's XWayland answers stale pointer positions for a click-through

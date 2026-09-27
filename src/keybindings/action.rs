@@ -3,7 +3,7 @@
 //! Adding a new action requires updating:
 //! - the enum body,
 //! - `ALL`,
-//! - `label` and `description` (for the command palette),
+//! - `label` and `description` (the English name and a one-line summary),
 //! - the `C_*` static chord array + the `default_chords` arm,
 //! - the `i18n_key` arm,
 //! - a Fluent message in every locale file.
@@ -73,8 +73,8 @@ pub enum Action {
 }
 
 impl Action {
-    /// Every variant in canonical display order. Drives the settings
-    /// table, the rebinding UI, and the command palette listing.
+    /// Every variant in canonical display order. Drives the Keybindings
+    /// tab: its table and the rebinding UI.
     pub const ALL: &'static [Self] = &[
         Self::ToggleEditMode,
         Self::HideOverlay,
@@ -150,7 +150,9 @@ impl Action {
             Self::PauseAll => "Freeze every animation. Useful for screenshots.",
             Self::QuitWithSave => "Persist any pending edits and exit.",
             Self::SaveNow => "Force-write the config without exiting.",
-            Self::OpenCommandPalette => "Search and run any action from one prompt.",
+            Self::OpenCommandPalette => {
+                "Search themes and presets, and apply one from the keyboard."
+            }
             Self::CycleEntity => "Step through every entity in z-order.",
             Self::DeleteSelected => "Remove the selected entity from the scene.",
             Self::NudgeUp => "Move the selection 10 px up (1 px with Shift).",
@@ -307,7 +309,7 @@ impl Action {
     }
 
     /// Stable Fluent message id like `action-toggle-edit-mode`. Used
-    /// by the rebind UI and command palette so the action label
+    /// by the Keybindings tab so the action label
     /// localizes without forcing every locale file to retain English
     /// fallbacks. Fluent restricts message ids to ASCII letters,
     /// digits, `-`, and `_`; we use `-` to match the existing locale

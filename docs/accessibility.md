@@ -85,8 +85,9 @@ surfaces read that table:
 - **Keybindings tab** in the settings sidebar — renders the live
   chord table, lets the user record new bindings, surfaces conflicts
   inline, and offers per-row + global "reset to defaults" buttons.
-- **Ctrl+K command palette** — fuzzy-searches across actions, themes,
-  and presets; uses the same metadata so rebinds show up immediately.
+- **Ctrl+K command palette** — fuzzy-searches themes and presets, and
+  applies one from the keyboard. It does not list the actions above; those
+  are reached by their chords or from the Keybindings tab.
 - **Config file** (`~/.config/animaengine/config.toml`) — the
   `[keybindings.map]` table mirrors the in-memory `BTreeMap<Action,
   Vec<KeyChord>>`. Chord strings round-trip through
