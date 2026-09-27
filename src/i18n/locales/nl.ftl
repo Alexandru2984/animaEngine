@@ -118,7 +118,8 @@ menu-delete = Verwijderen
 toggle-enter-edit = Bewerkingsmodus openen
 toggle-exit-edit = Bewerkingsmodus verlaten
 
-palette-search-placeholder = Typ om thema's / presets te zoeken…
+# Palette placeholder (1.4): machine-translated, pending native review.
+palette-search-placeholder = Typ om acties, thema's en presets te zoeken…
 palette-switch-theme = Wisselen naar thema { $theme }
 
 settings-tab-library = Bibliotheek

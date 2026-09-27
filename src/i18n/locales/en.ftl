@@ -144,7 +144,7 @@ toggle-enter-edit = Enter edit mode
 toggle-exit-edit = Exit edit mode
 
 # ── Command palette ───────────────────────────────────────────────────
-palette-search-placeholder = Type to search themes / presets…
+palette-search-placeholder = Type to search actions, themes and presets…
 palette-switch-theme = Switch to { $theme } theme
 
 # ── Keybindings tab (D.1) ─────────────────────────────────────────────

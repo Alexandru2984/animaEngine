@@ -118,7 +118,8 @@ menu-delete = Excluir
 toggle-enter-edit = Entrar no modo edição
 toggle-exit-edit = Sair do modo edição
 
-palette-search-placeholder = Digite para buscar temas / presets…
+# Palette placeholder (1.4): machine-translated, pending native review.
+palette-search-placeholder = Digite para buscar ações, temas e presets…
 palette-switch-theme = Mudar para o tema { $theme }
 
 settings-tab-library = Biblioteca

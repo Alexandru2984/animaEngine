@@ -106,6 +106,43 @@ impl Action {
         Self::TogglePerfOverlay,
     ];
 
+    /// Whether the action works on the selected character, and so does
+    /// nothing while none is selected. The command palette lists these
+    /// only when something is selected, rather than offer what cannot
+    /// happen.
+    pub fn acts_on_selection(self) -> bool {
+        matches!(
+            self,
+            Self::DeleteSelected
+                | Self::NudgeUp
+                | Self::NudgeDown
+                | Self::NudgeLeft
+                | Self::NudgeRight
+                | Self::CenterOnScreen
+                | Self::ToggleVisible
+                | Self::ToggleGravity
+                | Self::TogglePlayback
+                | Self::DuplicateSelected
+                | Self::ResetTransform
+                | Self::BringForward
+                | Self::SendBackward
+                | Self::FpsUp
+                | Self::FpsDown
+                | Self::OpacityUp
+                | Self::OpacityDown
+                | Self::CycleMonitor
+                | Self::ShowEntityInfo
+        )
+    }
+
+    /// Whether the command palette offers this action. Not the palette's
+    /// own shortcut, and not Hide overlay: that one is a global shortcut
+    /// by design, because a hidden overlay can only be brought back from
+    /// outside it — by the shortcut, the tray or D-Bus.
+    pub fn in_palette(self) -> bool {
+        !matches!(self, Self::OpenCommandPalette | Self::HideOverlay)
+    }
+
     /// Short human-readable label for the settings panel and command
     /// palette. Stays under ~35 chars so the right column never wraps.
     pub fn label(self) -> &'static str {

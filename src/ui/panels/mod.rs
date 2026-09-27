@@ -16,7 +16,7 @@ mod scene;
 mod toasts;
 mod toggle_button;
 
-pub use command_palette::{command_palette, PaletteOutcome};
+pub use command_palette::{command_palette, command_palette_open, PaletteOutcome};
 pub(crate) use context_menu::context_menu;
 pub use library::LibraryOutcome;
 pub use monitor::{cycle_entity_monitor, move_to_pinned_monitor};

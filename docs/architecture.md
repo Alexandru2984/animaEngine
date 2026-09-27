@@ -66,7 +66,7 @@ EguiRenderer (src/ui/egui_renderer.rs)
 Panels (src/ui/panels/ — one file per tab/widget)
   ├─ scene.rs / inspector.rs / appearance.rs — tabbed sidebar
   ├─ context_menu.rs    — right-click popup
-  ├─ command_palette.rs — Ctrl+K fuzzy search over themes + presets
+  ├─ command_palette.rs — Ctrl+K search over actions, themes + presets
   ├─ toasts.rs          — bottom-right notification stack
   ├─ library.rs / monitor.rs / presets.rs / keybindings_tab.rs
   └─ toggle_button.rs   — the ⚙ widget in pass-through mode

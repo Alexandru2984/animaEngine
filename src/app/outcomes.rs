@@ -74,7 +74,18 @@ impl App {
         );
     }
 
-    pub(super) fn handle_palette_outcome(&mut self, outcome: panels::PaletteOutcome) {
-        outcomes::apply_palette_outcome(outcome, &mut outcome_ctx!(self), &mut self.config);
+    pub(super) fn handle_palette_outcome(
+        &mut self,
+        outcome: panels::PaletteOutcome,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+    ) {
+        match outcome {
+            // The same function its shortcut goes through.
+            panels::PaletteOutcome::RunAction(action) => self.dispatch_action(action, event_loop),
+            panels::PaletteOutcome::AddFile => self.open_file_chooser(),
+            other => {
+                outcomes::apply_palette_outcome(other, &mut outcome_ctx!(self), &mut self.config)
+            }
+        }
     }
 }

@@ -165,6 +165,10 @@ pub fn apply_palette_outcome(
             ctx.toasts
                 .success(crate::i18n::t_args("toast-theme-switched", &args));
         }
+        // Each backend runs these itself before calling this — an action
+        // through the same code as its shortcut, "Add file…" through its
+        // own chooser — so nothing reaches this arm.
+        PaletteOutcome::RunAction(_) | PaletteOutcome::AddFile => return,
         PaletteOutcome::ApplyPreset(id, mode) => {
             let preset = Preset::for_id(id);
             let existing = ctx.scene.to_character_configs();

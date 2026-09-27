@@ -59,8 +59,8 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 - **Bundled presets**: six curated one-click scenes (Cozy Companion,
   Productivity Zen, Halloween Party, Birthday Confetti, Studio
   Session, Cursor Follower) — Append or Replace.
-- **Command palette** (`Ctrl+K`): fuzzy-search themes and presets,
-  execute in one keystroke.
+- **Command palette** (`Ctrl+K`): search every action, theme and
+  preset, and run it in one keystroke.
 - **Ten UI languages**: English, Română, Español, Deutsch, Français,
   Italiano, Português (BR), Polski, Nederlands, 日本語 — auto-detected
   from `LANG`, switchable in Appearance.

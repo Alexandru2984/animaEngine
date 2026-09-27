@@ -73,7 +73,11 @@ impl EguiRenderer {
         event: &winit::event::WindowEvent,
     ) -> bool {
         let response = self.state.on_window_event(window, event);
+        // The open command palette takes every key, its search box focused
+        // or not — see `panels::command_palette_open`.
         response.consumed
+            || (matches!(event, winit::event::WindowEvent::KeyboardInput { .. })
+                && crate::ui::panels::command_palette_open(&self.context))
     }
 
     /// Paint the UI for one frame on top of the already-rendered scene.

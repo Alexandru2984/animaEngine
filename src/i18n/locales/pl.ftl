@@ -118,7 +118,8 @@ menu-delete = Usuń
 toggle-enter-edit = Wejdź w tryb edycji
 toggle-exit-edit = Wyjdź z trybu edycji
 
-palette-search-placeholder = Wpisz, aby wyszukać motywy / presety…
+# Palette placeholder (1.4): machine-translated, pending native review.
+palette-search-placeholder = Wpisz, aby wyszukać akcje, motywy i presety…
 palette-switch-theme = Przełącz na motyw { $theme }
 
 settings-tab-library = Biblioteka

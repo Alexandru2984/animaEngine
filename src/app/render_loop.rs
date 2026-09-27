@@ -430,7 +430,11 @@ impl App {
                                         *menu_outcome_ref = Some(panels::context_menu(ctx, state));
                                     }
                                     // Ctrl+K opens the command palette.
-                                    *palette_outcome_ref = panels::command_palette(ctx);
+                                    *palette_outcome_ref = panels::command_palette(
+                                        ctx,
+                                        keybindings_mut,
+                                        selection_mut.selected_index().is_some(),
+                                    );
                                     panels::toasts(ctx, toasts_ref);
                                 }
                                 // Perf overlay sits on top of every
@@ -507,7 +511,7 @@ impl App {
                         self.handle_menu_outcome(outcome);
                     }
                     if let Some(outcome) = palette_outcome {
-                        self.handle_palette_outcome(outcome);
+                        self.handle_palette_outcome(outcome, event_loop);
                     }
                     if let Some(outcome) = library_outcome {
                         self.handle_library_outcome(outcome);

@@ -13,6 +13,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a drop would. No dragging needed — and in the Flatpak, the way to reach
   files outside Pictures and Downloads, which a drop cannot. Without a
   portal on the session, a message says what is missing.
+- **The command palette runs actions.** `Ctrl+K` now lists every action
+  that has a shortcut, with the shortcut beside it, and runs the one you
+  pick exactly as the shortcut would. The actions on the selected
+  character are listed while one is selected. "Add file…" is there too.
+
+### Fixed
+
+- **Arrow keys in the command palette** moved the highlight, but Enter
+  still picked the first row.
+- **Keys typed into the command palette could run shortcuts** once its
+  search box had lost the focus, as it does after Enter on a search that
+  matched nothing: Escape then also left edit mode, and Q would have
+  quit. The palette now keeps every key while it is open.
+- The command palette no longer reopens filtered by the last search.
 
 ## [1.3.0] — 2026-09-27
 

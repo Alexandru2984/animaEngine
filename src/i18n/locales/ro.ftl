@@ -118,7 +118,8 @@ menu-delete = Șterge
 toggle-enter-edit = Intră în mod editare
 toggle-exit-edit = Ieși din mod editare
 
-palette-search-placeholder = Scrie pentru a căuta teme / preseturi…
+# Palette placeholder (1.4): machine-translated, pending native review.
+palette-search-placeholder = Scrie pentru a căuta acțiuni, teme și preseturi…
 palette-switch-theme = Schimbă pe tema { $theme }
 
 settings-tab-library = Bibliotecă

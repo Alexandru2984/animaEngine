@@ -173,6 +173,9 @@ pub fn run_native(
     let mut pending_shimeji: Option<ShimejiImport> = None;
     // The desktop's file chooser, open after "Add file…" until it answers.
     let mut pending_file_chooser: Option<crate::outcomes::FileChooserAdd> = None;
+    // Actions picked in the command palette, run next frame through the
+    // same `match` as the ones bound to keys.
+    let mut palette_actions: Vec<Action> = Vec::new();
     // Whether the input region is currently widened for a drag
     // (`drag_region`).
     let mut drag_widened = false;
@@ -561,15 +564,20 @@ pub fn run_native(
         // shortcut — typing "vi" into the command palette also toggled the
         // selection's visibility and dumped its info to the log (R25).
         // `egui_winit` reports key events as consumed on exactly this
-        // condition, which is why the winit path never had the bug.
+        // condition, which is why the winit path never had the bug. The
+        // open palette owns it too, even with its search box unfocused.
         let egui_owns_keyboard = egui_renderer.wants_keyboard();
-        for event in &events {
-            let Some(chord) = binding_chord(event, egui_owns_keyboard) else {
-                continue;
-            };
-            let Some(action) = config.keybindings.lookup(chord) else {
-                continue;
-            };
+        // Last frame's palette picks first, then this frame's keys — one
+        // path for both, so an action cannot behave differently depending
+        // on how it was asked for.
+        let mut actions = std::mem::take(&mut palette_actions);
+        actions.extend(
+            events
+                .iter()
+                .filter_map(|event| binding_chord(event, egui_owns_keyboard))
+                .filter_map(|chord| config.keybindings.lookup(chord)),
+        );
+        for action in actions {
             match action {
                 Action::ToggleEditMode => {
                     flip_edit_mode(
@@ -1025,7 +1033,11 @@ pub fn run_native(
                                 if let Some(state) = &menu_state {
                                     *menu_outcome_ref = Some(panels::context_menu(ctx, state));
                                 }
-                                *palette_ref = panels::command_palette(ctx);
+                                *palette_ref = panels::command_palette(
+                                    ctx,
+                                    keybindings_mut,
+                                    selection_mut.selected_index().is_some(),
+                                );
                                 panels::toasts(ctx, toasts_ref);
                             }
                             // Above every panel, so someone chasing a
@@ -1166,8 +1178,20 @@ pub fn run_native(
                         }
                     }
                 }
-                if let Some(out) = palette_outcome {
-                    outcomes::apply_palette_outcome(out, &mut outcome_ctx!(), &mut config);
+                match palette_outcome {
+                    Some(panels::PaletteOutcome::RunAction(action)) => palette_actions.push(action),
+                    Some(panels::PaletteOutcome::AddFile) => {
+                        if pending_file_chooser.is_none() {
+                            pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
+                                renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                                renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
+                            )));
+                        }
+                    }
+                    Some(out) => {
+                        outcomes::apply_palette_outcome(out, &mut outcome_ctx!(), &mut config)
+                    }
+                    None => {}
                 }
                 if let Some(out) = library_outcome {
                     // The middle of the primary output, in the global

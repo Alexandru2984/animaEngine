@@ -407,23 +407,12 @@ mod tests {
     fn selection_actions_are_no_ops_without_a_selection() {
         let mut scene = scene_with(1);
         let mut sel = SelectionState::default();
-        for action in [
-            Action::NudgeUp,
-            Action::NudgeDown,
-            Action::NudgeLeft,
-            Action::NudgeRight,
-            Action::ToggleVisible,
-            Action::ToggleGravity,
-            Action::TogglePlayback,
-            Action::ResetTransform,
-            Action::OpacityUp,
-            Action::OpacityDown,
-            Action::BringForward,
-            Action::SendBackward,
-            Action::FpsUp,
-            Action::FpsDown,
-            Action::ShowEntityInfo,
-        ] {
+        // Every action the palette hides without a selection, except the
+        // two the backends dispatch themselves (delete, duplicate).
+        for &action in Action::ALL.iter().filter(|a| {
+            a.acts_on_selection()
+                && !matches!(a, Action::DeleteSelected | Action::DuplicateSelected)
+        }) {
             assert!(run(action, &mut scene, &mut sel, false), "{action:?}");
         }
         assert_eq!(

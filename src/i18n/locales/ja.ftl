@@ -118,7 +118,8 @@ menu-delete = 削除
 toggle-enter-edit = 編集モードに入る
 toggle-exit-edit = 編集モードを終了
 
-palette-search-placeholder = テーマ / プリセットを検索…
+# Palette placeholder (1.4): machine-translated, pending native review.
+palette-search-placeholder = 操作・テーマ・プリセットを検索…
 palette-switch-theme = { $theme } テーマに切替
 
 settings-tab-library = ライブラリ

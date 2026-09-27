@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R51 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R52 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2015,3 +2015,34 @@ adds nothing and says nothing; and with no portal on the session a
 message names what is missing. Both backends. Not checked here: a real
 portal's dialog, and the Flatpak, where the point is the document
 portal granting the picked files — that needs a real desktop.
+
+### R52 · The command palette's arrow keys chose nothing, and keys got past it — `FIXED`
+
+Found while giving the palette every action (1.4), which made its list
+some 45 rows long and made both defects matter.
+
+- **Enter always picked the first row.** The arrow keys moved the
+  highlight for the frame they were pressed in: the index was read from
+  egui's memory each frame and never written back, so Enter — always a
+  later frame — found the old one. With themes and presets alone the
+  first match was often the one wanted, which is how it went unnoticed;
+  only a click reached the others. A test now runs the palette headless,
+  one key per frame, and fails on the old code.
+- **An open palette let keys through to the shortcuts** once its search
+  box lost the focus, which Enter on a search that matched nothing does.
+  Both backends ask egui whether a text field wants the keyboard, and
+  none did: Escape closed the palette *and* left edit mode (seen on the
+  X11 path in the rig), and a Q would have quit. The palette now keeps
+  every key while it is open, focused or not.
+- The last search stayed across closes, so reopening showed only what it
+  had matched. Each open now starts from the full list.
+
+**Palette actions (1.4), checked on the rig**, both backends. With
+nothing selected the list has "Add file…", the global actions with their
+first shortcut as the Keybindings tab spells it, the themes and the
+presets; with a character selected, the actions on it as well. "theme",
+Down, Enter switched to Light; "dup", Enter duplicated the selected
+character; "Add file…" from the palette went through the stand-in portal
+and added the file at the screen's centre. The German UI shows `Strg`.
+After Enter on a search that matched nothing, H and Escape: no help
+dump, the palette closed, edit mode kept.
