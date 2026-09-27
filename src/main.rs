@@ -241,6 +241,20 @@ type InstanceHandle = Option<()>;
 /// X11 / XWayland path — the default. Factored into its own function so
 /// the native-Wayland branch above can fall back to it cleanly.
 fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
+    // winit loads libxkbcommon-x11 with dlopen() for X11 keyboard input,
+    // and panics when it is missing. The AppImage uses the system's copy
+    // (scripts/build-appimage.sh says why), and a desktop without any Qt
+    // app may not have it: say what to install, instead of a panic.
+    #[cfg(target_os = "linux")]
+    if xkbcommon_dl::x11::xkbcommon_x11_option().is_none() {
+        let msg = "animaEngine needs libxkbcommon-x11, which is not installed. \
+                   Install the package (Debian/Ubuntu: libxkbcommon-x11-0; Fedora: \
+                   libxkbcommon-x11; Arch: libxkbcommon-x11) and start it again.";
+        tracing::error!("{msg}");
+        eprintln!("{msg}");
+        std::process::exit(1);
+    }
+
     // Force X11 backend for reliable overlay support.
     // On Wayland systems, XWayland provides all the window hints we need.
     // Use `with_user_event` so the tray (and future global hotkeys) can

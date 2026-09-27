@@ -33,6 +33,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Packaging
 
+- **The AppImage uses the system's libxkbcommon** instead of the copy
+  from its Ubuntu 22.04 build base, which fell behind current keyboard
+  data and printed five `xkbcommon: ERROR … dead_hamza` lines on every
+  start. Both halves of the library come from the system, because they
+  must match: the bundled x11 half over a newer system base crashed on
+  the first window. The AppImage now needs `libxkbcommon-x11` installed —
+  every desktop with Qt, GNOME or KDE has it — and says which package to
+  install if it is missing, instead of the panic 0.2.1 fixed by bundling.
 - The AppStream metainfo has screenshots — pass-through, edit mode and
   the command palette, in `screenshots/` — which Flathub requires, and a
   description that matches the app as it is now.

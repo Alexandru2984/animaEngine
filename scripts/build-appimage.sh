@@ -115,15 +115,24 @@ log "Packing AppImage with linuxdeploy…"
 # `--output appimage` triggers the embedded appimagetool step.
 # `--executable` lists every binary linuxdeploy should walk for deps.
 #
-# `--library` lists dlopen()'d libraries that linuxdeploy can't discover
-# by walking the ELF NEEDED tags. accesskit_unix opens libxkbcommon-x11
-# this way; we resolve a candidate path on the build host and bundle it
-# so the AppImage runs on systems that don't ship the package.
-XKB_X11_LIB="$(ldconfig -p | awk '/libxkbcommon-x11\.so\.0/ {print $NF; exit}')"
-if [[ -z "$XKB_X11_LIB" || ! -f "$XKB_X11_LIB" ]]; then
-    die "libxkbcommon-x11.so.0 not found on the build host (install libxkbcommon-x11-dev)."
-fi
-log "Bundling $XKB_X11_LIB"
+# libxkbcommon is NOT bundled — neither libxkbcommon.so.0, which the
+# binary links, nor libxkbcommon-x11.so.0, which winit opens with dlopen()
+# for X11 keyboard input.
+#
+# The base library compiles keymaps from the system's keyboard data in
+# /usr/share/X11/xkb, and a copy from the build base falls behind that
+# data: the 1.4 from Ubuntu 22.04 logged five errors about symbols it did
+# not know (`dead_hamza`) on every start on a current system, and a
+# native Wayland compositor hands over keymaps compiled by its own, newer
+# libxkbcommon. The x11 library cannot be bundled on its own either: it
+# fills the base library's internal structures directly, so the two must
+# be the same version — a bundled 1.4 x11 library over a system 1.7 base
+# library crashed on the first window.
+#
+# Every Linux desktop ships the base library (GTK, Qt, mutter, kwin and
+# sway depend on it). The x11 one is nearly as universal, but a desktop
+# without any Qt app may lack it; the app checks for it before starting
+# the X11 path and says which package to install (src/main.rs).
 
 OUTPUT_DIR="$BUILD_DIR" \
 ARCH="$ARCH" \
@@ -133,8 +142,15 @@ VERSION="$VERSION" \
     --desktop-file "$APPDIR/com.animaengine.Anima.desktop" \
     --icon-file "$APPDIR/anima-engine.svg" \
     --executable "$APPDIR/usr/bin/anima-engine" \
-    --library "$XKB_X11_LIB" \
+    --exclude-library 'libxkbcommon.so*' \
+    --exclude-library 'libxkbcommon-x11.so*' \
     --output appimage
+
+# Check the exclusion held rather than trust it.
+if find "$APPDIR" -name 'libxkbcommon*.so*' | grep -q .; then
+    rm -f "$REPO"/animaEngine*"${ARCH}".AppImage
+    die "libxkbcommon was bundled despite the exclusion: $(find "$APPDIR" -name 'libxkbcommon*.so*' | tr '\n' ' ')"
+fi
 
 # linuxdeploy writes animaEngine-<version>-x86_64.AppImage into the cwd
 # unless OUTPUT_DIR is honored. Move it explicitly to be safe.

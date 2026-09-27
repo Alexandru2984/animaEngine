@@ -239,6 +239,7 @@ dependencies = [
  "windows-sys 0.52.0",
  "winit",
  "x11rb",
+ "xkbcommon-dl",
  "zbus 5.16.0",
 ]
 

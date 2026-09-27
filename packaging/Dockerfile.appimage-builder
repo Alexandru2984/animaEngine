@@ -5,9 +5,10 @@
 # 1. glibc 2.35 — the AppImage will run on any distro shipping a glibc
 #    ≥ this (every supported Debian/Ubuntu/Fedora/Arch release in
 #    2026 satisfies that).
-# 2. libxkbcommon-x11 sha256 is stable per Ubuntu release pocket; building
-#    against the same base means the bundled .so is byte-identical
-#    across maintainer machines (M2 from the 0.2.1 security audit).
+# 2. The same base on every maintainer machine, so the toolchain and
+#    whatever linuxdeploy picks up are identical (M2 from the 0.2.1
+#    security audit). The AppImage no longer bundles libxkbcommon-x11,
+#    the library that finding was about; it uses the system's.
 # 3. linuxdeploy + appimagetool both work cleanly on this base.
 #
 # Build the image once:

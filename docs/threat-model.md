@@ -482,10 +482,13 @@ The `.deb` is reproducible: `cargo-deb` consumes the committed
 maintainers building the same git tag on the same Rust toolchain
 produce byte-identical packages.
 
-The **AppImage** is *not* byte-reproducible by default — its bundled
-`libxkbcommon-x11.so.0` is whatever the build host's `ldconfig` returns,
-which differs across Ubuntu point releases and across distros. To
-narrow this:
+The **AppImage** is *not* byte-reproducible by default — whatever
+linuxdeploy bundles comes from the build host, and that differs across
+Ubuntu point releases and across distros. Since 1.2.1 it bundles no
+shared library of its own (libxkbcommon, the last one, is now taken
+from the system; `scripts/build-appimage.sh` says why), which removes
+the largest source of drift, but the toolchain and linuxdeploy's
+AppRun still vary with the host. To narrow this:
 
 - A pinned build container ships at [`packaging/Dockerfile.appimage-builder`](
   ../packaging/Dockerfile.appimage-builder). Building inside that image
