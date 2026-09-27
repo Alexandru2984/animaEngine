@@ -4,15 +4,9 @@
 #   make flatpak             # uses the flatpak-builder one-liner in
 #                            # scripts/build-flatpak.sh
 #
-# Flathub submission (later):
-#   1. Run `flatpak-cargo-generator.py` on Cargo.lock to produce
-#      cargo-sources.json with every crate pinned by hash, then add
-#      it as a source below — Flathub forbids network access during
-#      build, so we can't `cargo fetch` at build time.
-#   2. Confirm the app-id matches a domain you control (or use the
-#      io.github.<USER>.AnimaEngine pattern if you don't own
-#      animaengine.com).
-#   3. Add screenshots + a release entry to the metainfo.
+# Flathub submission: not this file, which lets cargo use the network
+# while building. See com.animaengine.Anima.flathub.yml (offline, from
+# cargo-sources.json) and FLATHUB.md.
 
 app-id: com.animaengine.Anima
 runtime: org.freedesktop.Platform

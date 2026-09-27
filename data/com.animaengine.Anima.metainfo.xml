@@ -10,21 +10,40 @@
 
   <description>
     <p>
-      animaEngine renders multiple animated characters or sprites on top of your
-      desktop using transparent, always-on-top windows with GPU acceleration. It's
-      written in Rust with wgpu and winit — no Electron, no Chromium, minimal RAM
-      footprint.
+      animaEngine puts animated characters on top of your desktop. Drop in a
+      PNG, GIF, WebP or short MP4 and it becomes a mascot that walks around,
+      wanders, follows the cursor or runs a small script of your own. Clicks
+      pass straight through to the desktop, so the characters stay out of
+      the way until you open edit mode.
     </p>
     <p>Features:</p>
     <ul>
       <li>Click-through by default — your desktop stays fully usable</li>
-      <li>Drag-and-drop PNG, GIF, WebP, JPEG, or H.264 MP4 files to add characters</li>
-      <li>Per-entity behaviors: walk-around, follow-cursor, bounded-wander</li>
-      <li>System tray icon and global hotkeys (Ctrl+Shift+A/H/P)</li>
-      <li>Hot-reload of the TOML config — edit live</li>
-      <li>Native X11 (XShape click-through) and experimental wlr-layer-shell paths</li>
+      <li>Add characters by dropping PNG, GIF, WebP, JPEG or H.264 MP4 files on the screen</li>
+      <li>Behaviors: walk around, wander, follow the cursor, bounce, or a sandboxed Rhai script</li>
+      <li>Scripts can play sounds, panned to where the character is on screen</li>
+      <li>Edit mode with an inspector, a scene list, an asset library and six ready-made scenes</li>
+      <li>Dark, light and two high-contrast themes, and ten interface languages</li>
+      <li>Rebindable shortcuts that work on any keyboard layout</li>
+      <li>Tray icon, global hotkeys, and a config file that reloads while the app runs</li>
+      <li>Runs on X11, and on Wayland through XWayland or natively on wlroots compositors</li>
     </ul>
   </description>
+
+  <screenshots>
+    <screenshot type="default">
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/Alexandru2984/animaEngine/v1.2.1/screenshots/overlay.png</image>
+      <caption>Characters on the desktop; clicks pass through to what is underneath</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/Alexandru2984/animaEngine/v1.2.1/screenshots/edit-mode.png</image>
+      <caption>Edit mode: select a character and adjust it in the Inspector</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/Alexandru2984/animaEngine/v1.2.1/screenshots/command-palette.png</image>
+      <caption>The command palette applies themes and scene presets from the keyboard</caption>
+    </screenshot>
+  </screenshots>
 
   <launchable type="desktop-id">com.animaengine.Anima.desktop</launchable>
 

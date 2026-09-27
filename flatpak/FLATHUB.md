@@ -13,32 +13,17 @@ doesn't exist yet.
   1.2.0, OARS rating, launchable, provides, URLs.
 - Desktop file + scalable icon installed under the app-id name (the
   manifest rewrites `Icon=` accordingly).
+- Three screenshots in `screenshots/` (pass-through, edit mode, command
+  palette; 1600×1000, taken on the headless rig over a generated
+  wallpaper) and in the metainfo. Their URLs point at the **`v1.2.1`**
+  tag, so they resolve once that tag is pushed — the next release has to
+  carry that name, or the URLs change with it. To retake them, stage the
+  demo scene on the rig (onboarding dismissed, the star moved out from
+  under the panel) and keep the same file names.
 
 ## Blockers ☐
 
-### 1. Screenshots in the metainfo (hard requirement)
-
-Flathub rejects metainfo without at least one `<screenshot>`. After
-recording the demo (see `docs/demo-recording.md`), capture 2–3 stills:
-
-- overlay with characters over a desktop (pass-through),
-- edit mode with the settings panel open,
-- the command palette.
-
-Host them at a stable URL — the conventional choice is raw URLs from a
-`screenshots/` directory in this repo at a tagged ref — then add to
-`data/com.animaengine.Anima.metainfo.xml`:
-
-```xml
-<screenshots>
-  <screenshot type="default">
-    <image>https://raw.githubusercontent.com/Alexandru2984/animaEngine/v0.5.5/screenshots/overlay.png</image>
-    <caption>Animated characters over the desktop, click-through</caption>
-  </screenshot>
-</screenshots>
-```
-
-### 2. App-id / domain decision
+### 1. App-id / domain decision
 
 The id `com.animaengine.Anima` implies control of `animaengine.com`.
 Flathub's verification rules:
@@ -52,7 +37,7 @@ Flathub's verification rules:
   D-Bus name, icon names, existing users' config paths). Decide
   *before* submitting.
 
-### 3. Local build test (needs flatpak-builder)
+### 2. Local build test (needs flatpak-builder)
 
 ```bash
 sudo apt install flatpak-builder

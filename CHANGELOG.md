@@ -31,6 +31,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   delays a launch by at most five seconds, not the bus's 25 (R48). The
   same on Windows.
 
+### Packaging
+
+- The AppStream metainfo has screenshots — pass-through, edit mode and
+  the command palette, in `screenshots/` — which Flathub requires, and a
+  description that matches the app as it is now.
+
 ### Tests
 
 - Script sounds are verified end to end on a real X server: a script's

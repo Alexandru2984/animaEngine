@@ -27,26 +27,20 @@ flatpak install --user -y build/com.animaengine.Anima.flatpak
 flatpak run com.animaengine.Anima
 ```
 
-## Flathub submission checklist (for later)
+## Flathub submission
 
-The local manifest **lets cargo fetch crates over the network at build
-time** — Flathub forbids that. Before submitting:
+The local manifest (`com.animaengine.Anima.yml`) **lets cargo fetch
+crates over the network at build time**, which Flathub forbids. The
+submission manifest is `com.animaengine.Anima.flathub.yml`: it builds
+offline from `cargo-sources.json`. What is done and what is still open —
+the domain decision and a local build test — is tracked in
+[FLATHUB.md](FLATHUB.md).
 
-1. **Generate `cargo-sources.json`** from `Cargo.lock` using
-   [`flatpak-cargo-generator.py`](https://github.com/flatpak/flatpak-builder-tools/tree/master/cargo)
-   and add it as a source in the manifest, then drop `--offline=false`
-   from the build commands.
-2. **Verify the app-id** — Flathub requires the reverse-DNS prefix
-   matches a domain you actually control. If `animaengine.com` isn't
-   yours, rename to `io.github.<USER>.AnimaEngine` (and update the
-   `.desktop` / metainfo / DBus name to match).
-3. **Add screenshots** to `data/com.animaengine.Anima.metainfo.xml`
-   under a `<screenshots>` block — Flathub rejects metainfo without at
-   least one.
-4. **Pin the runtime version** in the manifest (already done:
-   `runtime-version: '24.08'`).
-5. **Run `flatpak run --command=appstreamcli`** against your local build
-   to validate the installed metainfo path.
+The app-id stays `com.animaengine.Anima`. Flatpak lets an app own only
+the D-Bus name equal to its id, and the
+[stability policy](../docs/stability-policy.md) keeps that bus name for
+the whole 1.x series, so a rename would break every compositor keybind
+that calls it.
 
 ## Permissions explained
 
