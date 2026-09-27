@@ -20,13 +20,16 @@ use smithay_client_toolkit::{
     output::OutputState,
     registry::RegistryState,
     seat::{keyboard::Modifiers as SctkModifiers, SeatState},
-    shell::wlr_layer::{LayerShell, LayerSurface},
+    shell::{
+        wlr_layer::{LayerShell, LayerSurface},
+        WaylandSurface,
+    },
 };
 use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc;
 use std::sync::Arc;
 use wayland_client::{
-    protocol::{wl_keyboard, wl_pointer, wl_region},
+    protocol::{wl_keyboard, wl_pointer, wl_region, wl_surface},
     Connection, Dispatch, QueueHandle,
 };
 
@@ -57,7 +60,10 @@ pub struct WaylandState {
     pub last_modifiers: SctkModifiers,
     /// Last size we got from a `configure` event — drives wgpu resize.
     pub pending_size: Option<(u32, u32)>,
-    /// Current cursor position in surface-local logical pixels.
+    /// Current cursor position in the *primary* surface's logical
+    /// pixels — also when the pointer is over an extra surface, whose
+    /// events are shifted by [`WaylandState::surface_offset`]; the point
+    /// then lies outside the primary's bounds, on the other monitor.
     pub cursor_pos: Option<(f32, f32)>,
     /// Name of the output the primary surface is currently displayed
     /// on, learned from `CompositorHandler::surface_enter` (the
@@ -115,11 +121,35 @@ pub struct WaylandState {
     pub extra_layers: Vec<ExtraLayer>,
 }
 
+impl WaylandState {
+    /// Offset that turns a point local to `surface` into the primary
+    /// surface's local space: zero for the primary itself, and the
+    /// extra's position relative to the primary for an extra layer.
+    ///
+    /// Everything downstream — egui, entity picking, dragging, drops —
+    /// works in primary-local coordinates plus the primary's origin, so
+    /// shifting at the edge is all an extra surface needs to take part.
+    pub fn surface_offset(&self, surface: &wl_surface::WlSurface) -> (f32, f32) {
+        self.extra_layers
+            .iter()
+            .find(|e| e.layer.wl_surface() == surface)
+            .map(|e| e.offset)
+            .unwrap_or((0.0, 0.0))
+    }
+}
+
 /// Protocol-side half of one extra (non-primary) layer surface. See
 /// [`WaylandState::extra_layers`].
 pub struct ExtraLayer {
     pub layer: LayerSurface,
     pub output_name: String,
+    /// Where this layer's origin sits in the primary surface's local
+    /// space (its output's position minus the primary's). Refreshed
+    /// every frame by `LayerWindow::sync_extra_layers`.
+    pub offset: (f32, f32),
+    /// Whether the input region currently covers the whole surface
+    /// (edit mode, or a drag over the overlay) or nothing.
+    pub input_full: bool,
     /// Last size from this layer's own `configure` event, drained by
     /// `LayerWindow::drain_extra_resizes` each frame.
     pub pending_size: Option<(u32, u32)>,

@@ -82,7 +82,9 @@ impl Drop for DropCounterGuard {
     }
 }
 
-/// One drop: the files, and the surface-local point they were dropped at.
+/// One drop: the files, and the point they were dropped at, in the
+/// primary surface's local space (outside its bounds for a drop on an
+/// extra surface — see `WaylandState::surface_offset`).
 #[derive(Debug)]
 pub struct DroppedFiles {
     pub paths: Vec<PathBuf>,
@@ -178,7 +180,8 @@ impl DataDeviceHandler for WaylandState {
                 return;
             }
         };
-        let at = (offer.x as f32, offer.y as f32);
+        let (dx, dy) = self.surface_offset(&offer.surface);
+        let at = (offer.x as f32 + dx, offer.y as f32 + dy);
         let tx = self.drop_tx.clone();
         let guard = DropCounterGuard {
             counter: self.active_drop_workers.clone(),

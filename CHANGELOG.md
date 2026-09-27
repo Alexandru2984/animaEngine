@@ -6,6 +6,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Characters on every monitor can be edited** — selected, dragged
+  (across monitors too), poked, and dropped onto — on both backends.
+  The settings panel stays on the primary monitor; a right-click on
+  another opens the menu at the primary's nearest edge. On native
+  Wayland those characters used to be drawn but could not be touched,
+  and on X11 a file dropped on another monitor was ignored.
+
+### Fixed
+
+- Native Wayland with several monitors: launched while a monitor other
+  than the first was focused, the overlay covered one output twice and
+  another not at all, so the characters there were invisible (R50).
+- A context menu drawn away from the pointer closed as soon as the
+  right-click that opened it was released (R51). On X11 it was also
+  misplaced when the primary monitor is not at the desktop's top-left.
+
 ## [1.2.1] — 2026-09-27
 
 A patch release: fixes found by finally checking the parts of 1.2 that

@@ -285,7 +285,12 @@ that claimed Span):
 **Input:** every window forwards events tagged by `WindowId`;
 cursor coordinates translate window-local → global before
 hit-testing. Edit mode is global (all windows flip input regions
-together); the settings panel lives on the primary window.
+together); the settings panel lives on the primary window. The native
+Wayland backend met this only for the primary surface until 1.3: its
+extras now shift pointer and drop positions into the primary
+surface's space at the edge (`WaylandState::surface_offset`), and one
+per-frame sync keeps their input regions in step with the primary's
+(`LayerWindow::sync_extra_layers`).
 
 **Pacing:** `RedrawPacing` is computed per window — only entities
 resolved to that window's monitor hold it awake; `request_redraw`

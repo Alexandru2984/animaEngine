@@ -365,9 +365,26 @@ pub fn run_native(
             }
         }
 
-        // Files dropped on the surface (E.3). Each drop carries the
-        // surface-local point it landed on; `primary_origin` turns that
-        // into the global space the scene uses. Same as the winit path,
+        // The per-monitor extra surfaces follow the primary: open to
+        // input in edit mode, or while a drag is over the overlay, and
+        // click-through otherwise. Their offsets into the primary's
+        // space come from the same output snapshot as `primary_origin`,
+        // so a click, drag or drop on another monitor lands in the
+        // right global place.
+        layer.sync_extra_layers(
+            extras_take_input(overlay_hidden, layer.state.edit_mode, widen),
+            |name| {
+                monitors_now
+                    .iter()
+                    .find(|m| m.name == name)
+                    .map(|m| (m.x as f32 - primary_origin.0, m.y as f32 - primary_origin.1))
+            },
+        );
+
+        // Files dropped on the overlay (E.3). Each drop carries the point
+        // it landed on in the primary surface's space (shifted there from
+        // an extra surface's); `primary_origin` turns that into the global
+        // space the scene uses. Same as the winit path,
         // through the same code: a Shimeji pack folder goes to the
         // importer, anything else is validated, added, selected, toasted
         // and marked for saving.
@@ -1302,6 +1319,13 @@ fn drag_region(hidden: bool, edit_mode: bool, drag_over: bool) -> bool {
     drag_over && !edit_mode && !hidden
 }
 
+/// Whether the per-monitor extra surfaces take input: whenever the
+/// primary takes it over its whole surface — edit mode, or a drag that
+/// has widened the pass-through region — and the overlay is showing.
+fn extras_take_input(hidden: bool, edit_mode: bool, drag_widened: bool) -> bool {
+    !hidden && (edit_mode || drag_widened)
+}
+
 /// Dispatch Wayland events, waiting at most `timeout` for the socket.
 ///
 /// This replaces `EventQueue::blocking_dispatch`, which waits for a
@@ -1703,6 +1727,19 @@ mod tests {
             (corner.x, corner.y, corner.w, corner.h),
             (1792, 0, 128, 128)
         );
+    }
+
+    /// A second monitor takes clicks exactly when the primary takes them
+    /// everywhere: edit mode, or a drag in progress — never while hidden,
+    /// and never in plain pass-through, where it must not swallow clicks
+    /// meant for the desktop.
+    #[test]
+    fn extras_take_input_only_when_the_primary_is_fully_open() {
+        assert!(extras_take_input(false, true, false));
+        assert!(extras_take_input(false, false, true));
+        assert!(!extras_take_input(false, false, false));
+        assert!(!extras_take_input(true, true, false));
+        assert!(!extras_take_input(true, false, true));
     }
 
     #[test]

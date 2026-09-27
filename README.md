@@ -45,7 +45,8 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   preserving the loop's total duration.
 - **Multi-monitor distribution**: `PerMonitor` (default) / `Span` /
   `Single { name }`, plus a per-entity pin and `Ctrl+M` to cycle the
-  selected entity through monitors.
+  selected entity through monitors. Characters on every monitor can be
+  selected and dragged, across monitors too.
 - **Asset library**: scans `~/.local/share/animaengine/assets/` (or
   `$ANIMA_ASSETS_DIR`) and surfaces a search-filtered grid; "Add to
   scene" routes through the same drag-drop validation path so asset

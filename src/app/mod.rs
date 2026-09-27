@@ -684,6 +684,15 @@ impl ApplicationHandler<AnimaEvent> for App {
                     self.handle_mouse_wheel(delta);
                     self.request_redraw_all();
                 }
+                // A file dropped on another monitor. It used to fall
+                // into the catch-all below and vanish; the handler asks
+                // the X server where the pointer is, in global
+                // coordinates, so the window it arrived through does
+                // not matter.
+                WindowEvent::DroppedFile(path) => {
+                    self.handle_dropped_file(path);
+                    self.request_redraw_all();
+                }
                 WindowEvent::ModifiersChanged(modifiers) => {
                     self.handle_modifiers_changed(modifiers);
                 }

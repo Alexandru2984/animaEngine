@@ -205,8 +205,25 @@ When you hit a compositor-specific quirk, file a GitHub issue tagged
 non-primary `wl_output`, mirroring the X11 path's extra windows
 exactly: entities resolve to a monitor (pin first, then centroid) and
 each surface draws only its own monitor's entities, translated by
-that output's logical position. Extras carry no input region (fully
-click-through) and no egui — same as the X11 extras.
+that output's logical position. Extras carry no egui — the settings
+panel, and any context menu, stay on the primary surface.
+
+Characters on every monitor can be edited. In edit mode an extra
+surface takes input over its whole area, like the primary; in
+pass-through it is fully click-through, until a file dragged over the
+⚙ corner widens the overlay for that drag. Pointer and drop positions
+on an extra are shifted into the primary surface's space, so selecting,
+dragging, poking and dropping work the same everywhere, and a drag
+carries a character across the boundary: the compositor keeps sending
+motion to the surface the press began on. A right-click on another
+monitor opens the menu at the nearest edge of the primary.
+
+Which output is the primary is the compositor's choice — usually the
+focused one — and the overlay follows it: the primary is the output its
+main surface actually entered, and the extras cover every other one.
+(It used to assume the first output listed, and when launched with
+another monitor focused, covered one output twice and another not at
+all; R50 in `docs/runtime-findings.md`.)
 
 Tested against a real headless `sway` session (`WLR_BACKENDS=headless`,
 apt-installed locally, no GNOME-Mutter-class compositor on hand

@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R49 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R51 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -1930,3 +1930,59 @@ Nothing happens and nothing says why. `flatpak/README.md` says so;
 putting the file in the asset library is the way round it. Sound inside
 the sandbox was not checked: the rig has no PulseAudio server, and the
 real one belongs to the maintainer's session.
+
+### R50 · Launched with another monitor focused, native Wayland left an output uncovered — `FIXED`
+
+Found while building editing on secondary monitors (below), after an app
+restart with the pointer on the rig's right output: the ⚙ appeared on the
+right, and the four characters living on the left output were not drawn
+at all.
+
+A layer surface created without an output goes where the compositor
+puts it — on sway, the focused output. The primary does exactly that in
+`PerMonitor` mode. But `wl_output` has no notion of a primary, so every
+monitor was listed with `is_primary: false`, and `plan_windows` fell back
+to the first output advertised as the primary and planned the extras for
+the rest. Whenever the focused output was not the first one listed, an
+extra surface went onto the primary's own output and the first output
+got none.
+
+**Fixed:** the primary is the output the primary surface actually
+entered, which `surface_enter` already reported for its origin. Until it
+arrives nothing is marked, and the plan rebuilds the extras once it does
+— on the rig, the wrong extra lived for 28 ms before the right one
+replaced it.
+
+### R51 · A context menu opened away from the pointer closed at once — `FIXED`
+
+Found the same way: a right-click on a character on the second monitor
+selected it, and the menu flashed for one frame and was gone.
+
+The menu is armed — allowed to close on a click outside it — after its
+first frame, so that the release of the right-click that opened it does
+not close it. That only worked because the menu is drawn 2 px from the
+click point, well inside egui's interaction margin, so the late release
+still counted as on the menu. A menu for a character on another monitor
+is drawn at the nearest edge of the primary, far from the pointer, and
+the release closed it. A real mouse, whose release comes frames after
+the press, would do the same to any menu that ended up away from the
+cursor.
+
+**Fixed** on both backends: the menu is armed only once it is showing
+*and* no pointer button is held. On the X11 path the menu was also
+placed at the global cursor position, which is only the primary
+window's own position when that window sits at 0,0; it now subtracts
+the primary's origin.
+
+**Editing on secondary monitors (1.3), checked on both backends** with
+two 1600×1000 outputs. Native Wayland: select, drag within the second
+monitor, drag across the boundary in both directions, a key acting on
+the character just clicked there, the right-click menu (at the
+primary's edge, and usable — Duplicate worked from it), a file dropped
+onto the second monitor, and in pass-through a drag straight onto it
+refused while one through the ⚙ corner was accepted. X11 (the rig's
+sway XWayland, the two windows placed with `swaymsg` since sway ignores
+X11 positions): select, drag across both ways, the right-click menu,
+and a file dropped onto the second monitor's window — which used to be
+dropped silently, since the extra windows' event handler had no branch
+for it.

@@ -25,26 +25,25 @@ impl PointerHandler for WaylandState {
         events: &[PointerEvent],
     ) {
         for event in events {
+            // Positions arrive local to the surface under the pointer;
+            // an extra (per-monitor) surface's are shifted into the
+            // primary's space, where the rest of the loop works.
+            let (dx, dy) = self.surface_offset(&event.surface);
+            let (x, y) = (event.position.0 as f32 + dx, event.position.1 as f32 + dy);
             match &event.kind {
                 PointerEventKind::Enter { .. } => {
-                    self.cursor_pos = Some((event.position.0 as f32, event.position.1 as f32));
+                    self.cursor_pos = Some((x, y));
                     self.pending_egui_events
-                        .push(egui::Event::PointerMoved(egui::pos2(
-                            event.position.0 as f32,
-                            event.position.1 as f32,
-                        )));
+                        .push(egui::Event::PointerMoved(egui::pos2(x, y)));
                 }
                 PointerEventKind::Leave { .. } => {
                     self.cursor_pos = None;
                     self.pending_egui_events.push(egui::Event::PointerGone);
                 }
                 PointerEventKind::Motion { .. } => {
-                    self.cursor_pos = Some((event.position.0 as f32, event.position.1 as f32));
+                    self.cursor_pos = Some((x, y));
                     self.pending_egui_events
-                        .push(egui::Event::PointerMoved(egui::pos2(
-                            event.position.0 as f32,
-                            event.position.1 as f32,
-                        )));
+                        .push(egui::Event::PointerMoved(egui::pos2(x, y)));
                 }
                 PointerEventKind::Press { button, .. } => {
                     if let Some(b) = linux_button_to_egui(*button) {

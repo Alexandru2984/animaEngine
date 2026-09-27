@@ -417,10 +417,11 @@ impl LayerWindow {
 
     /// Create a sprite-only extra layer surface bound to `output` —
     /// the `MonitorMode::PerMonitor` equivalent of the X11 path's
-    /// extra windows (`app::windows::WindowSlot`, fully click-through,
-    /// no egui). Registers the protocol side in `state.extra_layers`
-    /// and returns the raw `wl_surface` so the caller can build a
-    /// wgpu surface from it via `build_wgpu_surface`.
+    /// extra windows (`app::windows::WindowSlot`, no egui). It starts
+    /// click-through; `sync_extra_layers` opens it to input in edit
+    /// mode. Registers the protocol side in `state.extra_layers` and
+    /// returns the raw `wl_surface` so the caller can build a wgpu
+    /// surface from it via `build_wgpu_surface`.
     pub fn create_extra_layer(
         &mut self,
         output: &wl_output::WlOutput,
@@ -436,10 +437,12 @@ impl LayerWindow {
             Some(output),
         );
         layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
-        // Extras never receive input — same rationale as the X11
-        // path's `set_passthrough_total` extras: the ⚙ toggle and
-        // every other interactive surface live on the primary only.
-        layer.set_keyboard_interactivity(KeyboardInteractivity::None);
+        // On demand, like the primary: a click on a character on this
+        // monitor gives it keyboard focus, so Delete, the arrow keys
+        // and the rest act on what was just selected. In pass-through
+        // the region is empty, so it is never clicked and never
+        // focused.
+        layer.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
         layer.set_exclusive_zone(-1);
         // Empty region (no `add` calls) → every pixel is click-through.
         let region = self.state.compositor.wl_compositor().create_region(&qh, ());
@@ -450,9 +453,50 @@ impl LayerWindow {
         self.state.extra_layers.push(state::ExtraLayer {
             layer,
             output_name: monitor_name.to_string(),
+            offset: (0.0, 0.0),
+            input_full: false,
             pending_size: None,
         });
         Ok(wl_surface)
+    }
+
+    /// Bring every extra layer up to date, once per frame: its offset
+    /// into the primary's space (`offset_of(output_name)`, `None` when
+    /// the output is unknown and the layer keeps its last offset), and
+    /// its input region — the whole surface when `input` is true, none
+    /// otherwise. The region is only sent when it changes, so calling
+    /// this every frame costs nothing, and a layer created mid-session
+    /// picks up the current state on its first frame.
+    ///
+    /// Before this, extras stayed click-through in edit mode too: the
+    /// characters on a second monitor were drawn but could not be
+    /// selected, dragged or dropped onto.
+    pub fn sync_extra_layers(
+        &mut self,
+        input: bool,
+        offset_of: impl Fn(&str) -> Option<(f32, f32)>,
+    ) {
+        let qh = self.event_queue.handle();
+        for extra in &mut self.state.extra_layers {
+            if let Some(offset) = offset_of(&extra.output_name) {
+                extra.offset = offset;
+            }
+            if extra.input_full == input {
+                continue;
+            }
+            let region = self.state.compositor.wl_compositor().create_region(&qh, ());
+            if input {
+                // Larger than any output: the compositor clips the
+                // region to the surface, and this way a resize never
+                // leaves a strip that ignores the pointer.
+                const ANY_OUTPUT: i32 = 1 << 20;
+                region.add(0, 0, ANY_OUTPUT, ANY_OUTPUT);
+            }
+            extra.layer.wl_surface().set_input_region(Some(&region));
+            extra.layer.commit();
+            region.destroy();
+            extra.input_full = input;
+        }
     }
 
     /// Tear down the extra layer surface for `monitor_name`, if any.
