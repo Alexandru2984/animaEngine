@@ -196,12 +196,10 @@ warning-config-unreadable = Ihre Konfigurationsdatei konnte nicht gelesen werden
 action-toggle-perf-overlay = Performance-Overlay umschalten
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-# 1.2 highlights: machine-translated, pending native review.
-whats-new-header = Neu in 1.2
-whats-new-scripts = Figuren können sich per Skript bewegen: Wählen Sie im Inspektor das Verhalten „Skript“ und eine Rhai-Datei aus Ihrer Bibliothek.
-whats-new-sound = Skripte können Töne abspielen, zu hören von dort, wo die Figur auf dem Bildschirm steht.
-whats-new-machine-load = Skripte können darauf reagieren, wie ausgelastet Ihr Computer ist — nur die Gesamtlast, nie was gerade läuft.
-whats-new-layouts = Kurzbefehle funktionieren jetzt mit QWERTZ, AZERTY und anderen Nicht-US-Layouts, und die Steuerungstaste heißt überall Strg.
+# 1.3 highlights: machine-translated, pending native review.
+whats-new-header = Neu in 1.3
+whats-new-monitors = Figuren auf jedem Monitor lassen sich jetzt auswählen und verschieben – auch von einem Bildschirm auf einen anderen.
+whats-new-ime = Eingabemethoden für Chinesisch, Japanisch und Koreanisch funktionieren jetzt auch im nativen Wayland-Backend.
 onboarding-keybindings = Klicken Sie auf ein Kürzel, um es zu entfernen; drücken Sie eine Kombination, um ein neues aufzunehmen.
 onboarding-perf-overlay = Strg+Shift+` öffnet das Live-Performance-Overlay.
 appearance-reset-onboarding = Einführungshinweise zurücksetzen

@@ -207,11 +207,9 @@ warning-config-unreadable = Your config file could not be read, so the default s
 action-toggle-perf-overlay = Toggle perf overlay
 
 # ── What's new panel (D.7) ────────────────────────────────────────────
-whats-new-header = What's new in 1.2
-whats-new-scripts = Characters can move by script: choose Script as the behavior in the Inspector and point it at a Rhai file in your library.
-whats-new-sound = Scripts can play sounds, heard from wherever the character is on your screen.
-whats-new-machine-load = Scripts can react to how busy your computer is — overall load only, never what is running.
-whats-new-layouts = Shortcuts now work on non-US keyboard layouts such as AZERTY and QWERTZ.
+whats-new-header = What's new in 1.3
+whats-new-monitors = Characters on every monitor can now be selected and moved, and dragged from one screen to another.
+whats-new-ime = Input methods for Chinese, Japanese and Korean work on the native Wayland backend too.
 
 # ── New onboarding hints (D.7) ────────────────────────────────────────
 onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.

@@ -196,12 +196,10 @@ warning-config-unreadable = Não foi possível ler o arquivo de configuração, 
 action-toggle-perf-overlay = Alternar overlay de desempenho
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-# 1.2 highlights: machine-translated, pending native review.
-whats-new-header = Novidades da 1.2
-whats-new-scripts = Os personagens podem se mover por script: escolha o comportamento “Script” no Inspetor e aponte para um arquivo Rhai da sua biblioteca.
-whats-new-sound = Scripts podem tocar sons, ouvidos a partir de onde o personagem está na tela.
-whats-new-machine-load = Scripts podem reagir ao quanto seu computador está ocupado — apenas a carga total, nunca o que está em execução.
-whats-new-layouts = Os atalhos agora funcionam em layouts de teclado não americanos, como AZERTY e QWERTZ.
+# 1.3 highlights: machine-translated, pending native review.
+whats-new-header = Novidades da 1.3
+whats-new-monitors = Os personagens em qualquer monitor agora podem ser selecionados e movidos, inclusive arrastados de uma tela para outra.
+whats-new-ime = Os métodos de entrada para chinês, japonês e coreano agora também funcionam no backend nativo do Wayland.
 onboarding-keybindings = Clique em um atalho para removê-lo; pressione uma combinação para gravar um novo.
 onboarding-perf-overlay = Pressione Ctrl+Shift+` para abrir o overlay de desempenho ao vivo.
 appearance-reset-onboarding = Restaurar dicas de boas-vindas

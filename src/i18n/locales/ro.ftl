@@ -196,12 +196,10 @@ warning-config-unreadable = Fișierul de configurare nu a putut fi citit, așa c
 action-toggle-perf-overlay = Comută suprapunerea de performanță
 
 # ── Panou "What's new" (D.7) ──────────────────────────────────────────
-# 1.2 highlights: machine-translated, pending native review.
-whats-new-header = Noutăți în 1.2
-whats-new-scripts = Personajele se pot mișca după un script: alege comportamentul „Script” în Inspector și indică un fișier Rhai din biblioteca ta.
-whats-new-sound = Scripturile pot reda sunete, auzite din locul în care se află personajul pe ecran.
-whats-new-machine-load = Scripturile pot reacționa la cât de ocupat e calculatorul tău — doar încărcarea totală, niciodată ce rulează.
-whats-new-layouts = Scurtăturile funcționează acum și pe tastaturi cu alt aranjament decât cel american, precum AZERTY și QWERTZ.
+# 1.3 highlights: machine-translated, pending native review.
+whats-new-header = Noutăți în 1.3
+whats-new-monitors = Personajele de pe orice monitor pot fi acum selectate și mutate, chiar trase de pe un ecran pe altul.
+whats-new-ime = Metodele de input pentru chineză, japoneză și coreeană funcționează acum și pe backendul Wayland nativ.
 
 # ── Hint-uri onboarding noi (D.7) ─────────────────────────────────────
 onboarding-keybindings = Apasă × pe o combinație ca s-o elimini; apasă o combinație nouă ca s-o înregistrezi.

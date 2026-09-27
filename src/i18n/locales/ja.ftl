@@ -196,12 +196,10 @@ warning-config-unreadable = 設定ファイルを読み込めなかったため�
 action-toggle-perf-overlay = パフォーマンス表示を切り替え
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-# 1.2 highlights: machine-translated, pending native review.
-whats-new-header = 1.2 の新機能
-whats-new-scripts = キャラクターをスクリプトで動かせるようになりました。インスペクターでふるまいに「スクリプト」を選び、ライブラリ内の Rhai ファイルを指定します。
-whats-new-sound = スクリプトから音を再生できます。音はキャラクターが画面上にいる位置から聞こえます。
-whats-new-machine-load = スクリプトがコンピューターの負荷に反応できます。わかるのは全体の負荷だけで、何が実行中かはわかりません。
-whats-new-layouts = ショートカットが AZERTY や QWERTZ など、US 以外のキーボード配列でも使えるようになりました。
+# 1.3 highlights: machine-translated, pending native review.
+whats-new-header = 1.3 の新機能
+whats-new-monitors = どのモニター上のキャラクターも選択・移動でき、画面をまたいでドラッグできるようになりました。
+whats-new-ime = 中国語・日本語・韓国語の入力メソッドが、ネイティブ Wayland バックエンドでも使えるようになりました。
 onboarding-keybindings = ショートカットをクリックすると削除、キーの組み合わせを押すと新規登録できます。
 onboarding-perf-overlay = Ctrl+Shift+` でライブのパフォーマンス表示を開けます。
 appearance-reset-onboarding = オンボーディングのヒントをリセット

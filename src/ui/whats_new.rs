@@ -27,20 +27,12 @@ struct Highlight {
 
 const HIGHLIGHTS: &[Highlight] = &[
     Highlight {
-        icon: icons::BEHAVIOR_SCRIPT,
-        body_key: "whats-new-scripts",
+        icon: icons::MONITOR,
+        body_key: "whats-new-monitors",
     },
     Highlight {
-        icon: icons::SOUND,
-        body_key: "whats-new-sound",
-    },
-    Highlight {
-        icon: icons::MACHINE_LOAD,
-        body_key: "whats-new-machine-load",
-    },
-    Highlight {
-        icon: icons::KEYBOARD,
-        body_key: "whats-new-layouts",
+        icon: icons::INPUT_METHOD,
+        body_key: "whats-new-ime",
     },
 ];
 

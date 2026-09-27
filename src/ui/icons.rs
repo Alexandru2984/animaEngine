@@ -285,6 +285,8 @@ pub const BEHAVIOR_SCRIPT: &str = ph::CODE;
 // What behavior scripts can reach (the what's-new panel).
 pub const SOUND: &str = ph::SPEAKER_HIGH;
 pub const MACHINE_LOAD: &str = ph::GAUGE;
+pub const MONITOR: &str = ph::MONITOR;
+pub const INPUT_METHOD: &str = ph::TRANSLATE;
 
 // Presets (used in the Scene tab preset gallery).
 pub const HEART: &str = ph::HEART;

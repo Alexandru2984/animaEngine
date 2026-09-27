@@ -196,12 +196,10 @@ warning-config-unreadable = Nie udało się odczytać pliku konfiguracji, więc 
 action-toggle-perf-overlay = Przełącz nakładkę wydajności
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-# 1.2 highlights: machine-translated, pending native review.
-whats-new-header = Nowości w 1.2
-whats-new-scripts = Postacie mogą poruszać się według skryptu: wybierz zachowanie „Skrypt” w Inspektorze i wskaż plik Rhai ze swojej biblioteki.
-whats-new-sound = Skrypty mogą odtwarzać dźwięki, słyszalne z miejsca, w którym postać jest na ekranie.
-whats-new-machine-load = Skrypty mogą reagować na obciążenie komputera — tylko łączne obciążenie, nigdy to, co jest uruchomione.
-whats-new-layouts = Skróty działają teraz z układami klawiatury innymi niż amerykański, takimi jak AZERTY i QWERTZ.
+# 1.3 highlights: machine-translated, pending native review.
+whats-new-header = Nowości w 1.3
+whats-new-monitors = Postacie na każdym monitorze można teraz zaznaczać i przesuwać, także przeciągać z jednego ekranu na drugi.
+whats-new-ime = Metody wprowadzania dla chińskiego, japońskiego i koreańskiego działają teraz także w natywnym backendzie Wayland.
 onboarding-keybindings = Kliknij skrót, aby go usunąć; naciśnij kombinację, aby nagrać nowy.
 onboarding-perf-overlay = Naciśnij Ctrl+Shift+`, aby otworzyć nakładkę wydajności na żywo.
 appearance-reset-onboarding = Przywróć wskazówki startowe
