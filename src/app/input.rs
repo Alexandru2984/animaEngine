@@ -68,9 +68,16 @@ impl App {
         if button == MouseButton::Right && state == ElementState::Pressed {
             if let Some(entity_idx) = self.scene.entity_at_point(self.mouse_x, self.mouse_y) {
                 self.selection.select(entity_idx);
+                // egui draws in the primary window's own coordinates, and
+                // `mouse_x/y` are global: without the origin a primary
+                // monitor that is not at 0,0 put the menu off to one
+                // side. A right-click on another monitor lands outside
+                // the primary; egui then keeps the menu on screen, at
+                // the primary's edge nearest the click.
+                let (ox, oy) = self.primary_origin();
                 self.ui_state.context_menu = Some(ContextMenuState {
                     entity_idx,
-                    pos: egui::pos2(self.mouse_x, self.mouse_y),
+                    pos: egui::pos2(self.mouse_x - ox, self.mouse_y - oy),
                     // Armed after the first showing — see ContextMenuState.
                     armed: false,
                 });

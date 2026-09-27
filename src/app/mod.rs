@@ -236,10 +236,16 @@ pub(crate) struct ContextMenuState {
     /// The menu opens on the right *press*, and the matching *release*
     /// completes a click a few frames later. Without this guard that
     /// release dismissed the menu it had just opened, so a normal
-    /// right-click made the menu flash and vanish — it was only usable
-    /// while the button was physically held. The caller arms the state
-    /// once the menu has been shown, so only a click that *begins*
-    /// afterwards can close it.
+    /// right-click made the menu flash and vanish. The caller arms the
+    /// state once the menu is showing *and* no button is held, so only a
+    /// click that begins afterwards can close it.
+    ///
+    /// Arming after the first frame alone was not enough. It only held
+    /// while the release landed inside the menu's hit area, which the
+    /// menu's 2 px offset from the click point happened to guarantee —
+    /// until a right-click on another monitor put the menu at the edge of
+    /// the primary, far from the pointer, and the late release closed it
+    /// before it could be used.
     pub armed: bool,
 }
 

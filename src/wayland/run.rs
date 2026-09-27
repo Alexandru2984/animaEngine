@@ -1111,12 +1111,11 @@ pub fn run_native(
                 }
                 if let Some(out) = menu_outcome {
                     match out {
-                        panels::ContextMenuOutcome::Open => {
-                            // The menu survived a frame, so a *subsequent*
-                            // click may now dismiss it — but not the one
-                            // that opened it.
+                        panels::ContextMenuOutcome::Open { settled } => {
+                            // Showing, and the click that opened it is
+                            // over: a *subsequent* click may now dismiss it.
                             if let Some(state) = context_menu_state.as_mut() {
-                                state.armed = true;
+                                state.armed |= settled;
                             }
                         }
                         panels::ContextMenuOutcome::Close => {

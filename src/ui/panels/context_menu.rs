@@ -117,6 +117,8 @@ pub(crate) fn context_menu(ctx: &egui::Context, state: &ContextMenuState) -> Con
     if dismissed {
         ContextMenuOutcome::Close
     } else {
-        ContextMenuOutcome::Open
+        ContextMenuOutcome::Open {
+            settled: ctx.input(|i| !i.pointer.any_down()),
+        }
     }
 }

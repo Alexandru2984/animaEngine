@@ -49,8 +49,11 @@ pub enum MenuAction {
 
 /// What `context_menu` decided about its own state for this frame.
 pub enum ContextMenuOutcome {
-    /// Menu remains visible — nothing happened this frame.
-    Open,
+    /// Menu remains visible — nothing happened this frame. `settled`
+    /// is true once no pointer button is held: from then on, and not
+    /// before, a click outside the menu may dismiss it (see
+    /// `ContextMenuState::armed`).
+    Open { settled: bool },
     /// User dismissed the menu (clicked outside).
     Close,
     /// User picked an action — caller should apply it and close the menu.
