@@ -329,6 +329,12 @@ menu act on `selected_indices()`, toggles taking the primary's new
 state. The renderer draws a highlight per selected entity, so
 `MAX_QUADS` is `2 × MAX_ENTITIES + 1`.
 
+A gesture holds entity indices, so `multi::cancel` lets go of it
+whenever those could change or the release could be lost: before an
+action that adds, removes or reselects characters
+(`Action::interrupts_drag`: undo, redo, cycle, delete, duplicate), when
+edit mode ends, and when the overlay hides or steps aside (R56).
+
 ### Undo (`src/undo.rs`)
 
 Edits reach the scene from dozens of places, so undo watches *gestures*

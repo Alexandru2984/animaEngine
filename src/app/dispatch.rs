@@ -14,6 +14,14 @@ impl App {
     /// `QuitWithSave` tears down GPU/X11 state before calling
     /// `event_loop.exit()`, etc.
     pub(super) fn dispatch_action(&mut self, action: Action, event_loop: &ActiveEventLoop) {
+        if action.interrupts_drag() {
+            self.config_dirty |= crate::input::multi::cancel(
+                &mut self.scene,
+                &mut self.selection,
+                &mut self.drag,
+                &mut self.marquee,
+            );
+        }
         match action {
             Action::ToggleEditMode => {
                 self.toggle_edit_mode();

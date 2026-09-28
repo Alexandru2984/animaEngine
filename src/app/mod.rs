@@ -412,9 +412,6 @@ impl App {
         }
     }
 
-    /// Remove entity `idx`: drop its GPU texture, take it out of the
-    /// scene, clear the selection, toast, and persist.
-    ///
     /// Show or hide **every** overlay surface — the primary window and
     /// each per-monitor extra.
     ///
@@ -441,6 +438,16 @@ impl App {
         if visible {
             self.reapply_input_shape();
             self.reapply_extra_input_shapes();
+        } else {
+            // An unmapped window gets no release: let go of a drag now, or
+            // the character jumps to the pointer at the first move after
+            // it shows again.
+            self.config_dirty |= crate::input::multi::cancel(
+                &mut self.scene,
+                &mut self.selection,
+                &mut self.drag,
+                &mut self.marquee,
+            );
         }
     }
 
@@ -599,10 +606,7 @@ impl App {
             // a drag of the whole selection, a selection rectangle. Ending
             // the drag alone left the characters frozen and in their Drag
             // state.
-            if self.drag.is_dragging() {
-                self.config_dirty = true;
-            }
-            crate::input::multi::cancel(
+            self.config_dirty |= crate::input::multi::cancel(
                 &mut self.scene,
                 &mut self.selection,
                 &mut self.drag,

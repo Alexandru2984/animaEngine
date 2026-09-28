@@ -52,6 +52,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   only the main one: characters on the other monitors stayed on screen,
   frozen. They hide with the rest now, and so does stepping aside for a
   full-screen app. X11 was not affected.
+- **Hiding the overlay in the middle of a drag**, on X11, lost the
+  button's release: the first move after showing it again carried the
+  character to the pointer. The drag is let go when the overlay hides.
 - The pulse on the selected row in the Scene tab ignored **Reduce
   motion**. It holds still now, and otherwise runs at ten frames a
   second instead of every frame.

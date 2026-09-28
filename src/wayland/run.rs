@@ -660,6 +660,14 @@ pub fn run_native(
                 .filter_map(|chord| config.keybindings.lookup(chord)),
         );
         for action in actions {
+            if action.interrupts_drag() {
+                config_dirty |= crate::input::multi::cancel(
+                    &mut scene,
+                    &mut selection,
+                    &mut drag,
+                    &mut marquee,
+                );
+            }
             match action {
                 Action::ToggleEditMode => {
                     flip_edit_mode(
@@ -783,11 +791,21 @@ pub fn run_native(
         // drag used to stay open until the next move in edit mode, which
         // made the character jump to the pointer.
         if was_editing && !layer.state.edit_mode {
-            crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
+            config_dirty |=
+                crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
             selection.deselect();
             context_menu_state = None;
         }
         was_editing = layer.state.edit_mode;
+        // Hidden, nothing is dragged on. Sway still delivers the release —
+        // the button's implicit grab outlives the empty input region — but
+        // on X11 an unmapped window gets none, and the character jumped to
+        // the pointer at the first move once shown; let go here too rather
+        // than count on every compositor.
+        if overlay_hidden || aside.hidden {
+            config_dirty |=
+                crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
+        }
         let egui_owns_pointer = egui_renderer.owns_pointer();
         if layer.state.edit_mode {
             for event in &events {

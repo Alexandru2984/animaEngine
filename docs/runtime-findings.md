@@ -2180,3 +2180,55 @@ second. With frames on demand its clock crawled, and a half-second
 tooltip delay took fifteen seconds. It gets real time now; the tooltip
 appears as on X11. This had come in with the pass-through change above
 and was never released.
+
+### R55 · Hiding the overlay left the other monitors showing, on native Wayland — `FIXED`
+
+Found reviewing how the 1.5 features meet the multi-monitor path. With
+several outputs, native Wayland draws the characters on the others
+through sprite-only extra layer surfaces. Hiding the overlay emptied
+only the primary surface; the extras kept drawing every visible
+character. On the rig with two outputs and the heart moved onto the
+second, HideOverlay left it there, frozen. Stepping aside for a
+full-screen app went through the same frame and had the same hole.
+X11 was not affected: it unmaps its extra windows, which is what this
+same bug was fixed with there, long ago. A layer surface stays mapped,
+so the extras now draw nothing while the overlay is hidden or stepped
+aside, as the primary does. **Checked on the rig**, two outputs: the
+second is empty after HideOverlay, in edit mode too, and the heart is
+back after ShowOverlay.
+
+### R56 · An undo, a duplicate or a hide in the middle of a drag — `FIXED`
+
+Found in the same review. A drag holds the index of the character
+pressed, and since 1.5 moves the whole selection with it; undo can
+bring back a different selection and duplicate replaces it with the
+copies. Nothing let go of the drag when that happened. Measured on the
+rig, both backends, the heart dragged and a key pressed halfway:
+
+- **Ctrl+Z** put the scene back — and at the next pointer move the drag
+  carried the heart on under the pointer, so the undo was lost (heart
+  already selected: expected 1100,250, got 1200,300). With nothing
+  selected before the press it happened to work: undo brought back the
+  empty selection, and a drag moves only what is selected.
+- **D** selected the copy while the original, no longer selected, stood
+  still, and each move shifted the copy by the original's whole offset
+  from the pointer again: 60 px of pointer took it 120 px, and faster
+  at every step.
+- **Hiding the overlay** mid-drag, on a real X server (Xvfb, the
+  pointer moved through XTest): the unmapped window got no release, and
+  at the first move after showing again the heart jumped to the pointer
+  (1040,220 → 1256,540). Under XWayland and on sway the release still
+  arrived — the button's implicit grab outlives the surface's input —
+  so the rig alone did not show it.
+
+Undo and duplicate moving a selection were never released; the hide
+case was, on X11. **Fixed:** `multi::cancel` — already what leaving
+edit mode used — now runs before undo, redo, cycle, delete and
+duplicate (`Action::interrupts_drag`, from a key or the palette), and
+whenever the overlay is hidden or steps aside, on both backends; it
+reports whether a drag was let go, so its moves are saved. And
+`multi::drag_to` moves nothing once the pressed character has left the
+selection, whatever changed it. **Checked**, same cases: Ctrl+Z leaves
+the heart at 1100,250, D leaves the copy beside the original, and the
+hide lets go at 1040,220 — on native Wayland, on X11 under XWayland,
+and on real X.

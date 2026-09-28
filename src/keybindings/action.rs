@@ -143,6 +143,23 @@ impl Action {
         )
     }
 
+    /// Whether a drag or selection rectangle in progress lets go before
+    /// this runs (`crate::input::multi::cancel`). These change which
+    /// characters exist or are selected, and a gesture holds indices into
+    /// both: Undo pressed mid-drag was lost at the next pointer move, which
+    /// put the characters back under it, and Duplicate sent the copies
+    /// flying.
+    pub fn interrupts_drag(self) -> bool {
+        matches!(
+            self,
+            Self::Undo
+                | Self::Redo
+                | Self::CycleEntity
+                | Self::DeleteSelected
+                | Self::DuplicateSelected
+        )
+    }
+
     /// Whether the command palette offers this action. Not the palette's
     /// own shortcut, and not Hide overlay: that one is a global shortcut
     /// by design, because a hidden overlay can only be brought back from

@@ -51,6 +51,10 @@ pub fn press_on(
 
 /// The pointer moved during a drag: the pressed character follows it and
 /// the rest of the selection keeps its place around it.
+///
+/// Nothing moves once the pressed character has left the selection:
+/// something else changed it mid-drag, and the rest would be moved by the
+/// pressed one's whole offset again at every step, flying off.
 pub fn drag_to(
     scene: &mut Scene,
     selection: &SelectionState,
@@ -60,6 +64,9 @@ pub fn drag_to(
     let Some((idx, new_x, new_y)) = drag.update(x, y) else {
         return;
     };
+    if !selection.is_selected(idx) {
+        return;
+    }
     let Some(entity) = scene.entities.get(idx) else {
         return;
     };
@@ -101,22 +108,30 @@ pub fn end_drag(
     drag.end_drag();
 }
 
-/// Edit mode ended in the middle of a gesture — Escape, the tray, a
-/// shortcut, with the button still down. Let go of what the pointer held:
-/// every selected character unfrozen and out of its Drag state, and any
-/// selection rectangle dropped. The release will not come: in pass-through
-/// the overlay no longer receives the pointer, and a drag left open made
-/// the character jump to the pointer on the next move in edit mode.
+/// Something ended or overtook a gesture with the button still down. Let
+/// go of what the pointer held: every selected character unfrozen and out
+/// of its Drag state, and any selection rectangle dropped. Returns whether
+/// a drag was let go, having moved characters that need saving.
+///
+/// - Edit mode ended, or the overlay hid — Escape, the tray, a shortcut, a
+///   full-screen app. The release will not come: the overlay no longer
+///   receives the pointer, and a drag left open made the character jump
+///   to the pointer on the next move.
+/// - A shortcut is about to change which characters exist or are selected
+///   ([`crate::keybindings::Action::interrupts_drag`]), and a gesture
+///   holds indices into both.
 pub fn cancel(
     scene: &mut Scene,
     selection: &mut SelectionState,
     drag: &mut DragController,
     marquee: &mut Option<Marquee>,
-) {
-    if drag.is_dragging() {
-        end_drag(scene, selection, drag, false, false);
-    }
+) -> bool {
     *marquee = None;
+    if !drag.is_dragging() {
+        return false;
+    }
+    end_drag(scene, selection, drag, false, false);
+    true
 }
 
 /// A selection rectangle being dragged over empty space.
@@ -313,6 +328,23 @@ mod tests {
         // No drag left to move anything on the next pointer motion.
         drag_to(&mut s, &sel, &drag, (500.0, 500.0));
         assert_eq!(s.entities[0].x, 0.0);
+    }
+
+    #[test]
+    fn a_selection_changed_mid_drag_is_not_moved() {
+        let mut s = scene();
+        let (mut sel, mut drag) = (SelectionState::default(), DragController::new());
+        press_on(&mut s, &mut sel, &mut drag, 0, (1.0, 1.0), false);
+        drag_to(&mut s, &sel, &drag, (21.0, 1.0));
+        assert_eq!(s.entities[0].x, 20.0);
+        // What Duplicate does: the copy — here "c" — becomes the selection
+        // while the pressed one stays where it is.
+        sel.select(2);
+        for step in 1..=3 {
+            drag_to(&mut s, &sel, &drag, (21.0 + 10.0 * step as f32, 1.0));
+        }
+        assert_eq!(s.entities[2].x, 200.0, "not sent flying");
+        assert_eq!(s.entities[0].x, 20.0);
     }
 
     #[test]
