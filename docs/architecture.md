@@ -308,6 +308,23 @@ windows for new monitors, despawn for vanished ones, re-resolve
 entity pins (stale pins fall back to centroid resolution with a
 toast).
 
+### Undo (`src/undo.rs`)
+
+Edits reach the scene from dozens of places, so undo watches *gestures*
+instead of hooking each one. The first input of a gesture — a press, a
+key, a drop, a screen reader's request, not pointer motion — snapshots
+the scene as character configs before the input is applied; the gesture
+closes once no button is held, no text field or list has the keyboard,
+no file chooser or import is running, and `SETTLE` (350 ms) has passed.
+A snapshot that differs from the scene then is one step. Characters
+that move by themselves (a behavior, physics) have their positions left
+out of the comparison and out of the restore. A tap closes the gesture
+before the poke's hop, which is play rather than an edit. Restoring
+(`Scene::restore_configs`) sets properties back in place where a
+character still shows the same asset and reloads only the rest. Both
+loops feed it (`input`, `settle`); Undo and Redo are shared actions
+(`keybindings::shared`). A config hot-reload clears the history.
+
 ## Threads
 
 | Thread | Purpose | Communication |

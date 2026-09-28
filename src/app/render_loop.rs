@@ -55,6 +55,15 @@ impl App {
         // ring buffer so it's safe to begin/end every frame
         // regardless of whether the overlay is visible.
         self.perf_sampler.begin_frame();
+        // A screen reader's request is input too; it is applied in this
+        // frame's egui pass.
+        if self
+            .ui
+            .as_ref()
+            .is_some_and(|ui| ui.has_screen_reader_requests())
+        {
+            self.history.input(&self.scene, Instant::now());
+        }
         // Refresh RSS once a second at 60 fps. /proc syscall is
         // cheap but per-frame would still be visible at the
         // microsecond scale the overlay reports.
@@ -555,6 +564,11 @@ impl App {
         // actually animates, deadline-based for playing sprites, and a
         // 2 s heartbeat (hot-reload poll) when fully static. Input
         // events re-trigger redraws from `window_event` / `user_event`.
+        let busy = self.ui.as_ref().is_some_and(|ui| ui.input_in_progress())
+            || self.pending_file_chooser.is_some()
+            || self.pending_shimeji.is_some();
+        self.history.settle(&self.scene, busy, Instant::now());
+
         match self.redraw_pacing() {
             RedrawPacing::Continuous => {
                 event_loop.set_control_flow(ControlFlow::Wait);

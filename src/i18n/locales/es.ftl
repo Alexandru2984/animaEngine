@@ -162,6 +162,9 @@ action-pause-all = Pausar todas las animaciones
 action-quit-with-save = Salir (guardando la configuración)
 action-save-now = Guardar la configuración ahora
 action-open-command-palette = Paleta de comandos
+# Undo (1.5): machine-translated, pending native review.
+action-undo = Deshacer
+action-redo = Rehacer
 action-cycle-entity = Pasar al siguiente personaje
 action-delete-selected = Eliminar el personaje seleccionado
 action-nudge-up = Empujar la selección hacia arriba
@@ -262,6 +265,11 @@ toast-duplicate-failed = La duplicación falló: { $error }
 toast-deleted = { $name } eliminado
 toast-playback-resumed = Reproducción reanudada
 toast-playback-paused = Reproducción en pausa
+# Undo (1.5): machine-translated, pending native review.
+toast-undone = Deshecho
+toast-redone = Rehecho
+toast-nothing-to-undo = No hay nada que deshacer
+toast-nothing-to-redo = No hay nada que rehacer
 inspector-wander-box = Zona de paseo
 toast-perf-snapshot = Captura de rendimiento: { $path }
 toast-perf-snapshot-failed = La captura falló: { $error }

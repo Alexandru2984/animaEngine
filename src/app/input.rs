@@ -120,6 +120,10 @@ impl App {
                     self.mouse_y,
                     crate::constants::POKE_TAP_RADIUS,
                 );
+                if tapped {
+                    // The hop that follows is play, not an edit.
+                    self.history.finish(&self.scene);
+                }
                 // Same bounds the simulation tick uses, so a poke can't
                 // shove a mascot off the region it's allowed to occupy —
                 // and, on a multi-monitor desktop, doesn't clamp one that

@@ -76,6 +76,7 @@ impl App {
                     bounds,
                     monitors: &self.monitors,
                     toasts: &mut self.toasts,
+                    history: &mut self.history,
                 };
                 crate::keybindings::shared::dispatch_shared(other, &mut ctx);
             }

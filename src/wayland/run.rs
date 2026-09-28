@@ -178,6 +178,8 @@ pub fn run_native(
     let mut palette_actions: Vec<Action> = Vec::new();
     // Whether an iteration draws (`FrameGate`).
     let mut frame_gate = FrameGate::default();
+    // Edits to the scene, for undo and redo (`crate::undo`).
+    let mut history = crate::undo::UndoHistory::default();
     // Whether the input region is currently widened for a drag
     // (`drag_region`).
     let mut drag_widened = false;
@@ -269,6 +271,11 @@ pub fn run_native(
         // show. Input and every other compositor event count; so does
         // whatever the loop picks up from its channels below.
         let mut activity = dispatched > 0;
+        // A step to undo opens at the first thing someone does, before it
+        // is applied (`crate::undo`).
+        if layer.has_user_action() || egui_renderer.has_screen_reader_requests() {
+            history.input(&scene, Instant::now());
+        }
 
         // Capture-and-reset the previous frame's GPU op counters. The
         // counters are `Cell`s, so this is a shared borrow and does not
@@ -308,7 +315,13 @@ pub fn run_native(
         // Wayland did nothing (R28).
         let poll = config_watch.poll(config_dirty);
         activity |= !matches!(poll, crate::config_watch::Poll::Idle);
+        let reloaded = matches!(poll, crate::config_watch::Poll::Ready(_));
         crate::config_watch::handle(poll, &mut outcome_ctx!(), &mut config, &mut warnings);
+        if reloaded {
+            // The scene was replaced from the file: the steps no longer
+            // describe it.
+            history.clear();
+        }
         if let Some(import) = &pending_shimeji {
             if import.poll(&mut outcome_ctx!()).is_some() {
                 pending_shimeji = None;
@@ -413,6 +426,7 @@ pub fn run_native(
         // and marked for saving.
         for dropped in layer.drain_dropped_files() {
             activity = true;
+            history.input(&scene, Instant::now());
             let at = (
                 dropped.at.0 + primary_origin.0,
                 dropped.at.1 + primary_origin.1,
@@ -687,6 +701,7 @@ pub fn run_native(
                         ),
                         monitors: &monitors_now,
                         toasts: &mut toasts,
+                        history: &mut history,
                     };
                     crate::keybindings::shared::dispatch_shared(other, &mut ctx);
                 }
@@ -766,6 +781,10 @@ pub fn run_native(
                         // A press/release that never moved is a *tap*, not a
                         // drag — poke the mascot instead of just dropping it.
                         let tapped = drag.was_tap(gx, gy, crate::constants::POKE_TAP_RADIUS);
+                        if tapped {
+                            // The hop that follows is play, not an edit.
+                            history.finish(&scene);
+                        }
                         let poke_bounds = monitor::covered_bounds(
                             &plan,
                             (
@@ -875,6 +894,13 @@ pub fn run_native(
         toasts.prune();
         activity |= egui_renderer.screen_reader_woke();
         let now = Instant::now();
+        history.settle(
+            &scene,
+            egui_renderer.input_in_progress()
+                || pending_file_chooser.is_some()
+                || pending_shimeji.is_some(),
+            now,
+        );
         let moving = !overlay_hidden
             && matches!(
                 crate::pacing::redraw_pacing(

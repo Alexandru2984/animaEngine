@@ -120,6 +120,16 @@ impl ScreenReaderBridge {
         self.shared.listening.load(Ordering::Acquire)
     }
 
+    /// Whether the reader has requests waiting for the next frame.
+    pub fn has_requests(&self) -> bool {
+        !self
+            .shared
+            .requests
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_empty()
+    }
+
     /// The reader's pending requests, as egui input for this frame.
     pub fn drain_requests(&self) -> impl Iterator<Item = egui::Event> {
         std::mem::take(

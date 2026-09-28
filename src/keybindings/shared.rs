@@ -1,8 +1,9 @@
 //! Keyboard actions that both backends can run.
 //!
-//! These twenty touch only the scene, the selection, the dirty flag and
-//! the toast queue — nothing about a window, a renderer or an event loop —
-//! so they belong to neither backend in particular.
+//! These twenty-two touch only the scene, the selection, the dirty flag,
+//! the toast queue and the undo history — nothing about a window, a
+//! renderer or an event loop — so they belong to neither backend in
+//! particular.
 //!
 //! They live here because they were living in `app::dispatch` instead,
 //! reachable only from the winit path. The native Wayland loop consulted
@@ -45,6 +46,8 @@ pub struct ActionCtx<'a> {
     pub bounds: DesktopBounds,
     pub monitors: &'a [MonitorInfo],
     pub toasts: &'a mut ToastQueue,
+    /// Edits so far, for undo and redo.
+    pub history: &'a mut crate::undo::UndoHistory,
 }
 
 /// Run `action` if it is one of the backend-independent ones.
@@ -60,6 +63,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
         bounds,
         monitors,
         toasts,
+        history,
     } = ctx;
     let shift_held = *shift_held;
     let bounds = *bounds;
@@ -67,6 +71,29 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
     // keep writing `*config_dirty = true` as they did before the move.
     let config_dirty: &mut bool = config_dirty;
     match action {
+        Action::Undo | Action::Redo => {
+            // The selection is an index; keep it on the same character,
+            // wherever the restore puts it — or drop it if it is gone.
+            let selected_id = selection
+                .selected_index()
+                .and_then(|idx| scene.entities.get(idx))
+                .map(|e| e.id.clone());
+            let (done, done_key, none_key) = if action == Action::Undo {
+                (history.undo(scene), "toast-undone", "toast-nothing-to-undo")
+            } else {
+                (history.redo(scene), "toast-redone", "toast-nothing-to-redo")
+            };
+            if done {
+                match selected_id.and_then(|id| scene.entities.iter().position(|e| e.id == id)) {
+                    Some(idx) => selection.select(idx),
+                    None => selection.deselect(),
+                }
+                toasts.info(crate::i18n::t(done_key));
+                *config_dirty = true;
+            } else {
+                toasts.info(crate::i18n::t(none_key));
+            }
+        }
         Action::PauseAll => {
             scene.toggle_global_playback();
             *config_dirty = true;
@@ -286,6 +313,8 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                 \n\n  Physics:\n\
                 \n    G          — Toggle gravity (off by default)\n\
                 \n\n  Actions:\n\
+                \n    Ctrl+Z     — Undo\n\
+                \n    Ctrl+Shift+Z — Redo\n\
                 \n    D          — Duplicate\n\
                 \n    Del/Bksp   — Delete\n\
                 \n    I          — Show entity info\n\
@@ -376,6 +405,22 @@ mod tests {
     }
 
     fn run(action: Action, scene: &mut Scene, sel: &mut SelectionState, shift: bool) -> bool {
+        run_with(
+            action,
+            scene,
+            sel,
+            shift,
+            &mut crate::undo::UndoHistory::default(),
+        )
+    }
+
+    fn run_with(
+        action: Action,
+        scene: &mut Scene,
+        sel: &mut SelectionState,
+        shift: bool,
+        history: &mut crate::undo::UndoHistory,
+    ) -> bool {
         let mut dirty = false;
         let mut toasts = ToastQueue::default();
         let mut ctx = ActionCtx {
@@ -386,8 +431,55 @@ mod tests {
             bounds: DesktopBounds::from_size(1920.0, 1080.0),
             monitors: &[],
             toasts: &mut toasts,
+            history,
         };
         dispatch_shared(action, &mut ctx)
+    }
+
+    #[test]
+    fn undo_takes_back_a_nudge_and_keeps_the_selection_on_its_character() {
+        use crate::undo::SETTLE;
+        use std::time::Instant;
+        let mut scene = scene_with(2);
+        let mut sel = SelectionState::default();
+        let mut history = crate::undo::UndoHistory::default();
+        sel.select(1);
+        let t0 = Instant::now();
+        history.input(&scene, t0);
+        assert!(run_with(
+            Action::NudgeRight,
+            &mut scene,
+            &mut sel,
+            false,
+            &mut history
+        ));
+        assert!(history.settle(&scene, false, t0 + SETTLE));
+        assert!(run_with(
+            Action::Undo,
+            &mut scene,
+            &mut sel,
+            false,
+            &mut history
+        ));
+        assert_eq!(scene.entities[1].x, 100.0);
+        assert_eq!(sel.selected_index(), Some(1));
+        assert!(run_with(
+            Action::Redo,
+            &mut scene,
+            &mut sel,
+            false,
+            &mut history
+        ));
+        assert_eq!(scene.entities[1].x, 110.0);
+        // Nothing more to redo: still handled, it only says so.
+        assert!(run_with(
+            Action::Redo,
+            &mut scene,
+            &mut sel,
+            false,
+            &mut history
+        ));
+        assert_eq!(scene.entities[1].x, 110.0);
     }
 
     #[test]
@@ -479,6 +571,7 @@ mod tests {
             bounds: DesktopBounds::from_size(1920.0, 1080.0),
             monitors: &[],
             toasts: &mut toasts,
+            history: &mut crate::undo::UndoHistory::default(),
         };
         dispatch_shared(Action::NudgeUp, &mut ctx);
         assert!(dirty, "a move that changes the scene must persist");
@@ -522,6 +615,7 @@ mod tests {
             bounds,
             monitors: &[],
             toasts: &mut toasts,
+            history: &mut crate::undo::UndoHistory::default(),
         };
         assert!(dispatch_shared(Action::CenterOnScreen, &mut ctx));
         assert_eq!(scene.entities[0].x, 1920.0 + (1280.0 - w) / 2.0);
@@ -567,6 +661,7 @@ mod tests {
             bounds: DesktopBounds::from_size(3840.0, 1080.0),
             monitors: &mons,
             toasts: &mut toasts,
+            history: &mut crate::undo::UndoHistory::default(),
         };
         assert!(dispatch_shared(Action::CycleMonitor, &mut ctx));
         let first = scene.entities[0].monitor.clone();

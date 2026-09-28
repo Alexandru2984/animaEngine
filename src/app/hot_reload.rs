@@ -11,11 +11,17 @@ impl App {
     #[tracing::instrument(skip(self))]
     pub(super) fn check_hot_reload(&mut self) {
         let poll = self.config_watch.poll(self.config_dirty);
+        let reloaded = matches!(poll, crate::config_watch::Poll::Ready(_));
         crate::config_watch::handle(
             poll,
             &mut outcome_ctx!(self),
             &mut self.config,
             &mut self.warnings,
         );
+        if reloaded {
+            // The scene was replaced from the file: the steps no longer
+            // describe it.
+            self.history.clear();
+        }
     }
 }

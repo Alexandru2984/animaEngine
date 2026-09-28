@@ -507,6 +507,46 @@ impl Entity {
             animations: self.state_configs.clone(),
         }
     }
+
+    /// Whether this entity shows the asset `config` describes: the same
+    /// file, type and sheet layout, every animation state included. Then
+    /// its properties can be set back from `config` without loading
+    /// anything (`Scene::restore_configs`).
+    pub fn shows_asset_of(&self, config: &CharacterConfig) -> bool {
+        self.asset_type == config.asset_type
+            && self.asset_path == config.asset_path
+            && self.spritesheet_columns == config.spritesheet_columns
+            && self.spritesheet_rows == config.spritesheet_rows
+            && self.state_configs == config.animations
+    }
+
+    /// Set every property [`Entity::to_config`] reads back from `config`,
+    /// the asset aside (see [`Entity::shows_asset_of`]).
+    pub fn set_properties(&mut self, config: &CharacterConfig) {
+        self.name = config.name.clone();
+        self.x = config.x;
+        self.y = config.y;
+        self.scale = config.scale;
+        self.opacity = config.opacity;
+        self.visible = config.visible;
+        self.z_index = config.z_index;
+        self.monitor = config.monitor.clone();
+        if self.physics.enabled != config.physics_enabled {
+            if config.physics_enabled {
+                self.physics.enable();
+            } else {
+                self.physics.disable();
+            }
+        }
+        self.behavior = config.behavior.clone();
+        // A bounce oscillates around where it started; moved, it starts
+        // again from here — as after a nudge.
+        self.behavior_state.bounce_invalidate();
+        let animation = self.animation_mut();
+        animation.set_fps(config.fps);
+        animation.playing = config.playing;
+        animation.easing = config.easing;
+    }
 }
 
 /// Recoil push for hover-startle: the (dx, dy) to add to an entity whose

@@ -607,6 +607,42 @@ impl Scene {
         self.mark_visible_dirty();
     }
 
+    /// Make the scene match `configs`, in their order — undo and redo
+    /// (`crate::undo`). Unlike [`Scene::reset_to_configs`], a character
+    /// still showing the same asset is kept and only its properties are
+    /// set back, so undoing a slider change reloads nothing; one whose
+    /// asset differs, or that is gone, is loaded again (from the asset
+    /// cache, usually), and one not in `configs` is removed.
+    ///
+    /// SECURITY: same trust assumption as `reset_to_configs` — the configs
+    /// are snapshots of this scene, whose assets were validated when they
+    /// were added.
+    pub fn restore_configs(&mut self, configs: &[CharacterConfig]) {
+        let mut current: std::collections::HashMap<String, Entity> =
+            self.entities.drain(..).map(|e| (e.id.clone(), e)).collect();
+        for cfg in configs {
+            let entity = match current.remove(&cfg.id) {
+                Some(mut entity) if entity.shows_asset_of(cfg) => {
+                    entity.set_properties(cfg);
+                    entity
+                }
+                _ => Self::load_entity(cfg).unwrap_or_else(|err| {
+                    tracing::warn!(
+                        "Entity '{}' failed to reload: {}; using fallback",
+                        cfg.id,
+                        err
+                    );
+                    Self::create_fallback_entity(cfg)
+                }),
+            };
+            self.entities.push(entity);
+        }
+        for id in current.keys() {
+            crate::group::cleanup_after_entity_removal(&mut self.groups, id);
+        }
+        self.mark_visible_dirty();
+    }
+
     /// Append one character config to the scene. Mirrors the success
     /// path of `add_entity_from_path` but skips the path-resolution +
     /// type-detection dance because the caller already has a finished

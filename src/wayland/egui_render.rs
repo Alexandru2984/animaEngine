@@ -73,6 +73,18 @@ impl WaylandEguiRenderer {
         }
     }
 
+    /// Whether an input is under way that an edit is still coming from:
+    /// a pointer button held, a text field focused, a list or the palette
+    /// open. Holds an undo step open (`crate::undo`).
+    pub fn input_in_progress(&self) -> bool {
+        self.context.input(|i| i.pointer.any_down()) || self.wants_keyboard()
+    }
+
+    /// Whether a screen reader has requests waiting for the next frame.
+    pub fn has_screen_reader_requests(&self) -> bool {
+        self.screen_reader.has_requests()
+    }
+
     /// Whether a screen reader asked for something since the last call.
     pub fn screen_reader_woke(&self) -> bool {
         self.screen_reader_wake

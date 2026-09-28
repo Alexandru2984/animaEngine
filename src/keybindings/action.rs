@@ -33,6 +33,12 @@ pub enum Action {
     SaveNow,
     OpenCommandPalette,
 
+    // ── Edit history ──
+    /// Undo the last edit to the scene (`crate::undo`).
+    Undo,
+    /// Redo the last undone edit.
+    Redo,
+
     // ── Selection / navigation ──
     CycleEntity,
     DeleteSelected,
@@ -82,6 +88,8 @@ impl Action {
         Self::QuitWithSave,
         Self::SaveNow,
         Self::OpenCommandPalette,
+        Self::Undo,
+        Self::Redo,
         Self::CycleEntity,
         Self::DeleteSelected,
         Self::NudgeUp,
@@ -153,6 +161,8 @@ impl Action {
             Self::QuitWithSave => "Quit (save config)",
             Self::SaveNow => "Save config now",
             Self::OpenCommandPalette => "Command palette",
+            Self::Undo => "Undo",
+            Self::Redo => "Redo",
             Self::CycleEntity => "Cycle to next entity",
             Self::DeleteSelected => "Delete selected entity",
             Self::NudgeUp => "Nudge selection up",
@@ -190,6 +200,8 @@ impl Action {
             Self::OpenCommandPalette => {
                 "Search themes and presets, and apply one from the keyboard."
             }
+            Self::Undo => "Take back the last change to the scene.",
+            Self::Redo => "Put back the last change you undid.",
             Self::CycleEntity => "Step through every entity in z-order.",
             Self::DeleteSelected => "Remove the selected entity from the scene.",
             Self::NudgeUp => "Move the selection 10 px up (1 px with Shift).",
@@ -237,6 +249,11 @@ impl Action {
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('S'))];
     const C_OPEN_CMD_PALETTE: &'static [KeyChord] =
         &[KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('K'))];
+    const C_UNDO: &'static [KeyChord] = &[KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('Z'))];
+    const C_REDO: &'static [KeyChord] = &[
+        KeyChord::new(ModifierMask(0b0011), KeyCode::Letter('Z')),
+        KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('Y')),
+    ];
     const C_CYCLE_ENTITY: &'static [KeyChord] = &[KeyChord::new(
         ModifierMask::NONE,
         KeyCode::Named(NamedKey::Tab),
@@ -320,6 +337,8 @@ impl Action {
             Self::QuitWithSave => Self::C_QUIT_WITH_SAVE,
             Self::SaveNow => Self::C_SAVE_NOW,
             Self::OpenCommandPalette => Self::C_OPEN_CMD_PALETTE,
+            Self::Undo => Self::C_UNDO,
+            Self::Redo => Self::C_REDO,
             Self::CycleEntity => Self::C_CYCLE_ENTITY,
             Self::DeleteSelected => Self::C_DELETE_SELECTED,
             Self::NudgeUp => Self::C_NUDGE_UP,
@@ -359,6 +378,8 @@ impl Action {
             Self::QuitWithSave => "action-quit-with-save",
             Self::SaveNow => "action-save-now",
             Self::OpenCommandPalette => "action-open-command-palette",
+            Self::Undo => "action-undo",
+            Self::Redo => "action-redo",
             Self::CycleEntity => "action-cycle-entity",
             Self::DeleteSelected => "action-delete-selected",
             Self::NudgeUp => "action-nudge-up",

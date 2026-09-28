@@ -79,6 +79,27 @@ impl EguiRenderer {
         }
     }
 
+    /// Whether an input is under way that an edit is still coming from:
+    /// a pointer button held, a text field focused, a list or the palette
+    /// open. Holds an undo step open (`crate::undo`).
+    pub fn input_in_progress(&self) -> bool {
+        self.context.input(|i| i.pointer.any_down())
+            || self.context.wants_keyboard_input()
+            || crate::ui::panels::keyboard_held(&self.context)
+    }
+
+    /// Whether a screen reader has requests waiting for the next frame.
+    pub fn has_screen_reader_requests(&self) -> bool {
+        #[cfg(unix)]
+        {
+            self.screen_reader.has_requests()
+        }
+        #[cfg(not(unix))]
+        {
+            false
+        }
+    }
+
     /// Follow the Appearance setting that allows screen readers the tree.
     /// Applies from the next frame.
     pub fn set_accesskit_allowed(&mut self, allowed: bool) {

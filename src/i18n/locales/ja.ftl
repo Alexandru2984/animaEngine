@@ -162,6 +162,9 @@ action-pause-all = すべてのアニメーションを一時停止
 action-quit-with-save = 終了（設定を保存）
 action-save-now = 設定を今すぐ保存
 action-open-command-palette = コマンドパレット
+# Undo (1.5): machine-translated, pending native review.
+action-undo = 元に戻す
+action-redo = やり直す
 action-cycle-entity = 次のキャラクターへ
 action-delete-selected = 選択したキャラクターを削除
 action-nudge-up = 選択を上へ移動
@@ -262,6 +265,11 @@ toast-duplicate-failed = 複製に失敗しました: { $error }
 toast-deleted = { $name } を削除しました
 toast-playback-resumed = 再生を再開しました
 toast-playback-paused = 再生を一時停止しました
+# Undo (1.5): machine-translated, pending native review.
+toast-undone = 元に戻しました
+toast-redone = やり直しました
+toast-nothing-to-undo = 元に戻す操作はありません
+toast-nothing-to-redo = やり直す操作はありません
 inspector-wander-box = 徘徊範囲
 toast-perf-snapshot = パフォーマンススナップショット: { $path }
 toast-perf-snapshot-failed = スナップショットに失敗しました: { $error }

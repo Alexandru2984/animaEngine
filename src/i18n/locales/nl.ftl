@@ -162,6 +162,9 @@ action-pause-all = Alle animaties pauzeren
 action-quit-with-save = Afsluiten (configuratie opslaan)
 action-save-now = Configuratie nu opslaan
 action-open-command-palette = Opdrachtenpalet
+# Undo (1.5): machine-translated, pending native review.
+action-undo = Ongedaan maken
+action-redo = Opnieuw
 action-cycle-entity = Naar het volgende personage
 action-delete-selected = Geselecteerd personage verwijderen
 action-nudge-up = Selectie omhoog duwen
@@ -262,6 +265,11 @@ toast-duplicate-failed = Dupliceren mislukt: { $error }
 toast-deleted = { $name } verwijderd
 toast-playback-resumed = Afspelen hervat
 toast-playback-paused = Afspelen gepauzeerd
+# Undo (1.5): machine-translated, pending native review.
+toast-undone = Ongedaan gemaakt
+toast-redone = Opnieuw uitgevoerd
+toast-nothing-to-undo = Niets om ongedaan te maken
+toast-nothing-to-redo = Niets om opnieuw uit te voeren
 inspector-wander-box = Zwerfgebied
 toast-perf-snapshot = Prestatie-snapshot: { $path }
 toast-perf-snapshot-failed = Snapshot mislukt: { $error }

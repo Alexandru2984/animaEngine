@@ -6,6 +6,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Undo and redo.** `Ctrl+Z` takes back the last edit to the scene,
+  `Ctrl+Shift+Z` (or `Ctrl+Y`) puts it back; both are in the command
+  palette and rebindable. A drag, a slider moved across many frames or a
+  burst of arrow-key nudges is one step; so is a delete, a drop, an added
+  file or a preset's Replace. Characters that walk or fall are not
+  pulled back to where they were, and a poke's hop is not an edit. Up to
+  100 steps; a reload of the config file starts the history over.
+
 ### Fixed
 
 - **Native Wayland drew sixty frames a second whatever the scene did.**

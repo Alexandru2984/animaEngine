@@ -47,6 +47,7 @@ pub mod soak;
 pub mod tray;
 pub mod tray_menu;
 pub mod ui;
+pub mod undo;
 pub mod util;
 #[cfg(unix)]
 pub mod wayland;

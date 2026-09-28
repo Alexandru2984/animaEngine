@@ -117,6 +117,8 @@ pub struct App {
     /// Toast notification queue. Persistent across edit/pass-through
     /// transitions but only painted when in edit mode (no UI otherwise).
     toasts: ToastQueue,
+    /// Edits to the scene, for undo and redo (`crate::undo`).
+    history: crate::undo::UndoHistory,
     /// Session-lifetime warnings rendered as a banner at the top of
     /// the settings panel (D.5). Distinct from toasts: these persist
     /// until the underlying condition clears or the user dismisses
@@ -276,6 +278,7 @@ impl App {
             ui: None,
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),
+            history: crate::undo::UndoHistory::default(),
             warnings: std::collections::BTreeSet::new(),
             perf_sampler: crate::perf::PerfSampler::default(),
             perf_overlay_visible: false,
@@ -651,6 +654,19 @@ impl ApplicationHandler<AnimaEvent> for App {
         window_id: WindowId,
         event: WindowEvent,
     ) {
+        // A step to undo opens at the first thing someone does, on any
+        // window, before it is applied (`crate::undo`). Pointer motion
+        // does not count: it would merge the edits either side of it.
+        if matches!(
+            event,
+            WindowEvent::MouseInput { .. }
+                | WindowEvent::KeyboardInput { .. }
+                | WindowEvent::MouseWheel { .. }
+                | WindowEvent::DroppedFile(_)
+                | WindowEvent::Ime(_)
+        ) {
+            self.history.input(&self.scene, std::time::Instant::now());
+        }
         // Events from extra (PerMonitor) windows get a narrow handler:
         // sprites repaint on expose, surfaces resize, shapes re-apply.
         // Pointer/keyboard routing for extras (T.8, below) only

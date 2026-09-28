@@ -322,6 +322,15 @@ pub(crate) fn build_wgpu_surface(
 impl LayerWindow {
     /// Drain pointer events accumulated since the previous call. Frame
     /// callbacks invoke this and feed the result into egui.
+    /// Whether the input waiting to be drained holds anything someone did,
+    /// beyond the pointer moving (`crate::undo::is_user_action`).
+    pub fn has_user_action(&self) -> bool {
+        self.state
+            .pending_egui_events
+            .iter()
+            .any(crate::undo::is_user_action)
+    }
+
     pub fn drain_egui_events(&mut self) -> Vec<egui::Event> {
         std::mem::take(&mut self.state.pending_egui_events)
     }

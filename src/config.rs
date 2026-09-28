@@ -135,7 +135,7 @@ pub enum AssetType {
 }
 
 /// Configuration for a single character/entity
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CharacterConfig {
     pub id: String,
     pub name: String,
@@ -199,7 +199,7 @@ pub struct CharacterConfig {
 /// One animation state's asset source (U.1). A miniature of the
 /// legacy per-character asset fields; anything omitted inherits from
 /// the character (fps) or the loader defaults.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateSequenceConfig {
     pub asset_type: AssetType,
     pub asset_path: String,

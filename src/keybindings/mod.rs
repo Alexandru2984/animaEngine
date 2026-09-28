@@ -56,7 +56,7 @@ mod tests {
         let set: HashSet<&Action> = Action::ALL.iter().collect();
         assert_eq!(set.len(), Action::ALL.len(), "ALL contains duplicates");
         // Bumped manually when a variant is added.
-        assert_eq!(Action::ALL.len(), 28);
+        assert_eq!(Action::ALL.len(), 30);
     }
 
     #[test]

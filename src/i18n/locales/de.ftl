@@ -162,6 +162,9 @@ action-pause-all = Alle Animationen pausieren
 action-quit-with-save = Beenden (Konfiguration speichern)
 action-save-now = Konfiguration jetzt speichern
 action-open-command-palette = Befehlspalette
+# Undo (1.5): machine-translated, pending native review.
+action-undo = Rückgängig
+action-redo = Wiederholen
 action-cycle-entity = Zur nächsten Figur wechseln
 action-delete-selected = Ausgewählte Figur löschen
 action-nudge-up = Auswahl nach oben schieben
@@ -262,6 +265,11 @@ toast-duplicate-failed = Duplizieren fehlgeschlagen: { $error }
 toast-deleted = { $name } gelöscht
 toast-playback-resumed = Wiedergabe fortgesetzt
 toast-playback-paused = Wiedergabe pausiert
+# Undo (1.5): machine-translated, pending native review.
+toast-undone = Rückgängig gemacht
+toast-redone = Wiederhergestellt
+toast-nothing-to-undo = Nichts rückgängig zu machen
+toast-nothing-to-redo = Nichts zu wiederholen
 inspector-wander-box = Streifbereich
 toast-perf-snapshot = Performance-Snapshot: { $path }
 toast-perf-snapshot-failed = Snapshot fehlgeschlagen: { $error }
