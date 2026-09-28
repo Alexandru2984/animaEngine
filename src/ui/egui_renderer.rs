@@ -23,6 +23,8 @@ pub struct EguiRenderer {
     /// The Appearance setting that allows the tree at all.
     #[cfg(unix)]
     accesskit_allowed: bool,
+    /// When egui asked to be run again; `None` when it asked for nothing.
+    repaint_at: Option<std::time::Instant>,
 }
 
 impl EguiRenderer {
@@ -76,7 +78,14 @@ impl EguiRenderer {
             screen_reader,
             #[cfg(unix)]
             accesskit_allowed: true,
+            repaint_at: None,
         }
+    }
+
+    /// When egui asked to be run again — a tooltip's delay, a caret's
+    /// blink, an animation. The render loop schedules its next frame by it.
+    pub fn repaint_at(&self) -> Option<std::time::Instant> {
+        self.repaint_at
     }
 
     /// Whether an input is under way that an edit is still coming from:
@@ -175,6 +184,12 @@ impl EguiRenderer {
         let raw_input = self.state.take_egui_input(window);
         #[cfg_attr(not(unix), allow(unused_mut))]
         let mut full_output = self.context.run(raw_input, build_ui);
+        // `Duration::MAX` means "not unless something happens"; the add
+        // overflows then, and there is nothing to schedule.
+        self.repaint_at = full_output
+            .viewport_output
+            .get(&self.context.viewport_id())
+            .and_then(|v| std::time::Instant::now().checked_add(v.repaint_delay));
         #[cfg(unix)]
         self.screen_reader.publish(
             self.accesskit_allowed,

@@ -30,7 +30,8 @@ pub enum RedrawPacing {
 pub const IDLE_HEARTBEAT: Duration = Duration::from_secs(2);
 
 /// What `scene` needs next. `ui_animating` is true while something outside
-/// the scene moves every frame: edit mode, a toast, the perf overlay.
+/// the scene moves every frame: a toast, the perf overlay. Edit mode is not
+/// one of them: egui asks for the frames the panel needs ([`sooner`]).
 pub fn redraw_pacing(scene: &Scene, ui_animating: bool) -> RedrawPacing {
     if ui_animating {
         return RedrawPacing::Continuous;
@@ -51,6 +52,23 @@ pub fn redraw_pacing(scene: &Scene, ui_animating: bool) -> RedrawPacing {
     match deadline {
         Some(due) => RedrawPacing::Deadline(due),
         None => RedrawPacing::Idle,
+    }
+}
+
+/// `pacing`, or sooner if something outside the scene needs a frame by
+/// `at` — egui's next repaint (a tooltip's delay, a caret's blink, an
+/// animation), a result waiting to be polled.
+pub fn sooner(pacing: RedrawPacing, at: Option<Instant>, now: Instant) -> RedrawPacing {
+    let Some(at) = at else {
+        return pacing;
+    };
+    if at <= now {
+        return RedrawPacing::Continuous;
+    }
+    match pacing {
+        RedrawPacing::Continuous => RedrawPacing::Continuous,
+        RedrawPacing::Deadline(due) => RedrawPacing::Deadline(due.min(at)),
+        RedrawPacing::Idle => RedrawPacing::Deadline(at),
     }
 }
 
@@ -92,6 +110,34 @@ mod tests {
         let mut scene = Scene::from_config(&crate::config::AppConfig::default());
         scene.entities = entities;
         scene
+    }
+
+    #[test]
+    fn a_repaint_asked_for_comes_first() {
+        let now = Instant::now();
+        let soon = now + Duration::from_millis(500);
+        let later = now + Duration::from_secs(1);
+        assert_eq!(sooner(RedrawPacing::Idle, None, now), RedrawPacing::Idle);
+        assert_eq!(
+            sooner(RedrawPacing::Idle, Some(soon), now),
+            RedrawPacing::Deadline(soon)
+        );
+        assert_eq!(
+            sooner(RedrawPacing::Deadline(later), Some(soon), now),
+            RedrawPacing::Deadline(soon)
+        );
+        assert_eq!(
+            sooner(RedrawPacing::Deadline(soon), Some(later), now),
+            RedrawPacing::Deadline(soon)
+        );
+        assert_eq!(
+            sooner(RedrawPacing::Idle, Some(now), now),
+            RedrawPacing::Continuous
+        );
+        assert_eq!(
+            sooner(RedrawPacing::Continuous, Some(later), now),
+            RedrawPacing::Continuous
+        );
     }
 
     #[test]

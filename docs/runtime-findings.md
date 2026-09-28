@@ -2161,3 +2161,22 @@ startup; the ⚙ hover highlight and tooltip appear and clear; hide and
 show clear and restore the overlay. X11 unchanged: 0.8% paused, 30%
 playing. Edit mode still draws continuously on both backends, as
 before.
+
+**Then edit mode**, on both backends: with the panel open and nothing
+moving, 148% of a core in the rig. Edit mode was on the list of things
+that "move every frame"; it now draws on input and when egui asks for a
+frame, which it does for a hover, a tooltip's delay, an animation, a
+caret's blink (`pacing::sooner`; the winit path had been ignoring egui's
+repaint requests, which did not matter while it drew every frame). A
+chooser or an import in progress is polled every 100 ms. Measured the
+same way: 1.8% on native Wayland, 1.3% on X11. The Scene tab's pulse on
+the selected row asked for every frame and ignored Reduce motion; it
+now asks for ten a second, and none with Reduce motion.
+
+Drawing on demand showed one more thing: on native Wayland a tooltip
+never appeared. That loop gave egui no time (`RawInput::time: None`),
+so egui counted 1/60 s per frame — right only while there were sixty a
+second. With frames on demand its clock crawled, and a half-second
+tooltip delay took fifteen seconds. It gets real time now; the tooltip
+appears as on X11. This had come in with the pass-through change above
+and was never released.

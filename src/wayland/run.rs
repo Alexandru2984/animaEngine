@@ -952,10 +952,7 @@ pub fn run_native(
         );
         let moving = !(overlay_hidden || aside.hidden)
             && matches!(
-                crate::pacing::redraw_pacing(
-                    &scene,
-                    layer.state.edit_mode || perf_overlay_visible || !toasts.is_empty(),
-                ),
+                crate::pacing::redraw_pacing(&scene, perf_overlay_visible || !toasts.is_empty(),),
                 crate::pacing::RedrawPacing::Continuous
             );
         if !frame_gate.should_draw(now, activity || moving || egui_renderer.repaint_due(now)) {

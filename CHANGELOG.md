@@ -31,6 +31,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (software rendering), against 0.9% on X11. It now draws only when
   something changes, as the X11 path does: 1% paused, animations at
   their own frame rate, nothing while the overlay is hidden (R54).
+- **Edit mode drew sixty frames a second too**, on both backends,
+  whatever the panel was doing — 148% of a core in the rig with nothing
+  moving. It now draws on input and when the panel asks for a frame (a
+  hover, a tooltip's delay, an animation): 1–2% idle.
+- The pulse on the selected row in the Scene tab ignored **Reduce
+  motion**. It holds still now, and otherwise runs at ten frames a
+  second instead of every frame.
 
 ## [1.4.0] — 2026-09-28
 

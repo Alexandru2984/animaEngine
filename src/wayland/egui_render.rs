@@ -43,6 +43,8 @@ pub struct WaylandEguiRenderer {
     /// When egui asked to be run again — an animation, a tooltip's delay.
     /// `None` when it asked for nothing.
     repaint_at: Option<std::time::Instant>,
+    /// egui's clock starts here (`RawInput::time`).
+    started: std::time::Instant,
 }
 
 impl WaylandEguiRenderer {
@@ -70,6 +72,7 @@ impl WaylandEguiRenderer {
             accesskit_allowed: true,
             screen_reader_wake,
             repaint_at: None,
+            started: std::time::Instant::now(),
         }
     }
 
@@ -195,7 +198,10 @@ impl WaylandEguiRenderer {
             ))
             .collect(),
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, logical_size)),
-            time: None,
+            // Real time. `None` makes egui add 1/60 s per frame, which was
+            // right only while this loop drew sixty a second; drawing on
+            // demand, a tooltip's half-second delay took fifteen.
+            time: Some(self.started.elapsed().as_secs_f64()),
             predicted_dt: 1.0 / 60.0,
             // egui answers `input.modifiers` from here, NOT from the
             // modifiers carried on individual key events. This was hardcoded

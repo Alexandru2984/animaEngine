@@ -173,10 +173,16 @@ fn scene_list(
     // after the row itself has been laid out, so a keyboard-only user
     // can spot which row Tab landed on without scanning opacity / weight
     // differences.
+    // Reduced motion holds it still. Otherwise a slow, faint wave needs
+    // no more than ten frames a second; asking for every frame kept the
+    // whole overlay drawing at the display's rate while a row was
+    // selected.
+    let reduced = crate::ui::motion::reduced(ui.ctx());
     let now = ui.ctx().input(|i| i.time);
-    let pulse_alpha = pulse_alpha_at(now);
-    if selection.selected_index().is_some() {
-        ui.ctx().request_repaint();
+    let pulse_alpha = if reduced { 1.0 } else { pulse_alpha_at(now) };
+    if selection.selected_index().is_some() && !reduced {
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(100));
     }
     let accent = ui.visuals().selection.stroke.color;
     let delete_tooltip = t("menu-delete");

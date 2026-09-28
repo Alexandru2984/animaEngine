@@ -669,10 +669,21 @@ impl App {
     /// (the 0.1 s dt clamp in `Scene::tick` absorbs the gap when they
     /// come back).
     fn redraw_pacing(&self) -> RedrawPacing {
-        crate::pacing::redraw_pacing(
+        let now = Instant::now();
+        let scene = crate::pacing::redraw_pacing(
             &self.scene,
-            self.edit_mode || self.perf_overlay_visible || !self.toasts.is_empty(),
-        )
+            self.perf_overlay_visible || !self.toasts.is_empty(),
+        );
+        // Edit mode used to draw every frame whatever happened. Now the
+        // panel gets the frames egui asks for, and a chooser or an import
+        // is polled often enough that its result is not left waiting for
+        // the heartbeat.
+        let mut at = self.ui.as_ref().and_then(|ui| ui.repaint_at());
+        if self.pending_file_chooser.is_some() || self.pending_shimeji.is_some() {
+            let poll = now + std::time::Duration::from_millis(100);
+            at = Some(at.map_or(poll, |a| a.min(poll)));
+        }
+        crate::pacing::sooner(scene, at, now)
     }
 }
 
