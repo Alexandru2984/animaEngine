@@ -19,7 +19,14 @@ parallel feature tracks.
 
 ## Released
 
-**1.3.0 (current)** — editing on every monitor, and input methods on
+**1.4.0 (current)** — screen readers, a file chooser, and a command
+palette that runs actions (2026-09). Orca and other AT-SPI screen
+readers can read and operate the settings on both backends — for the
+first time: the bridge described since 0.2 had never been connected.
+"Add file…" picks characters through the desktop's file chooser, and
+Ctrl+K runs any action. Additive only.
+
+**1.3.0** — editing on every monitor, and input methods on
 native Wayland (2026-09). Characters on a second monitor were drawn but
 could not be touched on the native backend; now they can be selected
 and dragged across screens on both. Chinese, Japanese and Korean input

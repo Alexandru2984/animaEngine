@@ -6,6 +6,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-09-28
+
+Screen readers can read animaEngine, on both backends — for the first
+time. The documentation has said since 0.2 that they could; the bridge
+it described was never connected, and no screen reader ever saw the app.
+Two smaller additions: "Add file…" picks characters through the
+desktop's file chooser, and the command palette runs any action.
+
+Additive: no change to the config, the D-Bus methods, the CLI or the
+file locations. The Appearance setting for screen readers keeps its
+name and default; turned off, it now shows a reader an empty window.
+
 ### Added
 
 - **Add file…** in the Scene tab opens the desktop's own file chooser

@@ -19,12 +19,13 @@
     <p>Features:</p>
     <ul>
       <li>Click-through by default — your desktop stays fully usable</li>
-      <li>Add characters by dropping PNG, GIF, WebP, JPEG or H.264 MP4 files on the screen</li>
+      <li>Add characters by dropping PNG, GIF, WebP, JPEG or H.264 MP4 files on the screen, or by picking them in the file chooser</li>
       <li>Behaviors: walk around, wander, follow the cursor, bounce, or a sandboxed Rhai script</li>
       <li>Scripts can play sounds, panned to where the character is on screen</li>
       <li>Edit mode with an inspector, a scene list, an asset library and six ready-made scenes</li>
       <li>Dark, light and two high-contrast themes, and ten interface languages</li>
-      <li>Rebindable shortcuts that work on any keyboard layout</li>
+      <li>Rebindable shortcuts that work on any keyboard layout, and a command palette that runs any of them</li>
+      <li>Works with screen readers such as Orca</li>
       <li>Tray icon, global hotkeys, and a config file that reloads while the app runs</li>
       <li>Runs on X11, and on Wayland through XWayland or natively on wlroots compositors</li>
     </ul>
@@ -76,6 +77,17 @@
   </recommends>
 
   <releases>
+    <release version="1.4.0" date="2026-09-28">
+      <description>
+        <p>Screen readers, a file chooser, and a command palette that runs actions.</p>
+        <ul>
+          <li>Screen readers such as Orca can read and operate the settings panel, on X11 and on native Wayland.</li>
+          <li>Add file… in the Scene tab adds characters through the desktop's file chooser.</li>
+          <li>The command palette (Ctrl+K) runs any action and shows its shortcut.</li>
+          <li>The arrow keys in the command palette now choose the row that Enter picks.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.3.0" date="2026-09-27">
       <description>
         <p>Editing on every monitor, and input methods on native Wayland.</p>
