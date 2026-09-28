@@ -48,6 +48,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   its Drag state on X11, and on native Wayland still attached to the
   pointer: the next move in edit mode made it jump there. Both let go of
   it now.
+- **Hiding the overlay on native Wayland with several monitors** cleared
+  only the main one: characters on the other monitors stayed on screen,
+  frozen. They hide with the rest now, and so does stepping aside for a
+  full-screen app. X11 was not affected.
 - The pulse on the selected row in the Scene tab ignored **Reduce
   motion**. It holds still now, and otherwise runs at ten frames a
   second instead of every frame.

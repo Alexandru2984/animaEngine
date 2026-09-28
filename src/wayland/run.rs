@@ -1259,8 +1259,15 @@ pub fn run_native(
                 // entities pinned (or resolved by position) to that
                 // monitor, translated by its own origin. Mirrors
                 // `app::windows::render_extra_windows` on the X11 path.
+                // Hidden, they clear like the primary: the X11 path unmaps
+                // its extra windows, but these stay mapped, and they kept
+                // showing the characters on the other monitors.
                 if !extra_surfaces.is_empty() {
-                    let extra_visible = scene.visible_entities();
+                    let extra_visible = if overlay_hidden || aside.hidden {
+                        Vec::new()
+                    } else {
+                        scene.visible_entities()
+                    };
                     for (name, surface) in extra_surfaces.iter_mut() {
                         let Some(mon) = monitors_now.iter().find(|m| &m.name == name) else {
                             continue;
