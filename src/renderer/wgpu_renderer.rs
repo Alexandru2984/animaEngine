@@ -52,6 +52,9 @@ pub struct GpuShared {
     edit_bar_tex: GpuTexture,
     /// UI: selection highlight texture (semi-transparent border).
     selection_tex: GpuTexture,
+    /// UI: the selection rectangle's colour (1x1 stretched), drawn faint
+    /// for its fill and solid for its edges.
+    marquee_tex: GpuTexture,
     /// Per-frame GPU op counters for the perf HUD (W.3). `Cell` because
     /// `SurfaceState::render` borrows `&GpuShared`; single-threaded
     /// (renderer lives on the event-loop thread), reset once per frame
@@ -134,6 +137,28 @@ impl AcquiredFrame {
         }
     }
 }
+
+/// What edit mode marks on top of the characters.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct EditMarks<'a> {
+    /// Ids of the selected characters; each is drawn with a highlight.
+    pub selected: &'a [&'a str],
+    /// The selection rectangle being dragged (`crate::input::multi`):
+    /// left, top, right, bottom in global coordinates. Drawn here rather
+    /// than by the panel, so it shows on every monitor it crosses — the
+    /// panel exists on the primary alone, and on another monitor the
+    /// rectangle selected what it touched without being seen.
+    pub marquee: Option<(f32, f32, f32, f32)>,
+}
+
+/// Width of the selection rectangle's edges, in pixels.
+const MARQUEE_EDGE: f32 = 2.0;
+/// Opacity of the selection rectangle's fill.
+const MARQUEE_FILL: f32 = 0.12;
+
+/// Quads drawn after every entity: the selection rectangle's fill and
+/// four edges, then the edit-mode bar.
+const UI_QUADS: usize = 6;
 
 /// Per-window render state.
 pub struct SurfaceState {
@@ -459,6 +484,17 @@ impl GpuShared {
             "selection_highlight",
         );
 
+        // Selection rectangle: the highlight's cyan, opaque; each quad
+        // sets how much of it shows.
+        let marquee_frame = Frame::new(vec![80, 200, 255, 255], 1, 1);
+        let marquee_tex = GpuTexture::from_frame(
+            &device,
+            &queue,
+            &marquee_frame,
+            &texture_bind_group_layout,
+            "marquee",
+        );
+
         Ok(Self {
             instance,
             adapter,
@@ -473,6 +509,7 @@ impl GpuShared {
             alpha_mode,
             edit_bar_tex,
             selection_tex,
+            marquee_tex,
             uploads_this_frame: std::cell::Cell::new(0),
             draws_this_frame: std::cell::Cell::new(0),
         })
@@ -747,7 +784,7 @@ impl SurfaceState {
         entities: &[&'e Entity],
         groups: &[crate::group::GroupConfig],
         edit_mode: bool,
-        selected_ids: &[&str],
+        marks: EditMarks<'_>,
         origin: (f32, f32),
     ) -> std::result::Result<AcquiredFrame, wgpu::SurfaceError> {
         let output = match &mut self.target {
@@ -776,11 +813,15 @@ impl SurfaceState {
         // every frame, so a clone here is a heap alloc per entity per
         // frame for no reason; `HashMap<String, _>::get` takes `&str`
         // through `Borrow`, so the borrow is all the lookup needs.
+        enum Texture<'e> {
+            Entity(&'e str),
+            EditBar,
+            Selection,
+            Marquee,
+        }
         struct DrawCmd<'e> {
             quad_index: usize,
-            texture_entity_id: Option<&'e str>, // entity ID or special UI element
-            is_edit_bar: bool,
-            is_selection: bool,
+            texture: Texture<'e>,
         }
 
         let mut draws: Vec<DrawCmd<'e>> = Vec::with_capacity(entities.len() + 2);
@@ -789,8 +830,8 @@ impl SurfaceState {
         for entity in entities {
             if !room_for_entity(quad_idx) {
                 // MAX_QUADS has room for every entity, its highlight and
-                // the edit bar, so a legal scene never lands here;
-                // reaching it means an internal accounting bug.
+                // the quads drawn after them, so a legal scene never lands
+                // here; reaching it means an internal accounting bug.
                 overflowed = true;
                 if !self.quad_overflow_logged {
                     tracing::warn!(
@@ -820,15 +861,13 @@ impl SurfaceState {
                 );
                 draws.push(DrawCmd {
                     quad_index: quad_idx,
-                    texture_entity_id: Some(entity.id.as_str()),
-                    is_edit_bar: false,
-                    is_selection: false,
+                    texture: Texture::Entity(entity.id.as_str()),
                 });
                 quad_idx += 1;
 
                 // Selection highlight overlay (drawn right after each
                 // selected entity)
-                if edit_mode && selected_ids.contains(&entity.id.as_str()) {
+                if edit_mode && marks.selected.contains(&entity.id.as_str()) {
                     let pad = 6.0; // padding around entity
                     self.write_quad(
                         shared,
@@ -844,9 +883,7 @@ impl SurfaceState {
                     );
                     draws.push(DrawCmd {
                         quad_index: quad_idx,
-                        texture_entity_id: None,
-                        is_edit_bar: false,
-                        is_selection: true,
+                        texture: Texture::Selection,
                     });
                     quad_idx += 1;
                 }
@@ -854,6 +891,29 @@ impl SurfaceState {
         }
 
         self.quad_overflow_logged = overflowed;
+
+        // The selection rectangle, over the characters it selects: a faint
+        // fill and four solid edges, in this window's coordinates. What
+        // lies outside the window is clipped, so a rectangle across two
+        // monitors shows its part on each.
+        if let Some((l, t, r, b)) = marks.marquee.filter(|_| edit_mode) {
+            let (l, t, r, b) = (l - origin.0, t - origin.1, r - origin.0, b - origin.1);
+            let (w, h, e) = (r - l, b - t, MARQUEE_EDGE);
+            for (rect, opacity) in [
+                ((l, t, w, h), MARQUEE_FILL),
+                ((l, t, w, e), 1.0),
+                ((l, b - e, w, e), 1.0),
+                ((l, t, e, h), 1.0),
+                ((r - e, t, e, h), 1.0),
+            ] {
+                self.write_quad(shared, quad_idx, rect, opacity, false);
+                draws.push(DrawCmd {
+                    quad_index: quad_idx,
+                    texture: Texture::Marquee,
+                });
+                quad_idx += 1;
+            }
+        }
 
         // Edit mode indicator bar
         if edit_mode {
@@ -866,9 +926,7 @@ impl SurfaceState {
             );
             draws.push(DrawCmd {
                 quad_index: quad_idx,
-                texture_entity_id: None,
-                is_edit_bar: true,
-                is_selection: false,
+                texture: Texture::EditBar,
             });
             // quad_idx += 1; // last UI quad, no need to increment
         }
@@ -905,19 +963,16 @@ impl SurfaceState {
             // Issue draw calls from the pre-computed list
             for cmd in &draws {
                 // Bind the right texture
-                if cmd.is_edit_bar {
-                    render_pass.set_bind_group(1, &shared.edit_bar_tex.bind_group, &[]);
-                } else if cmd.is_selection {
-                    render_pass.set_bind_group(1, &shared.selection_tex.bind_group, &[]);
-                } else if let Some(entity_id) = cmd.texture_entity_id {
-                    if let Some(gpu_tex) = shared.textures.get(entity_id) {
-                        render_pass.set_bind_group(1, &gpu_tex.bind_group, &[]);
-                    } else {
-                        continue;
-                    }
-                } else {
-                    continue;
-                }
+                let texture = match cmd.texture {
+                    Texture::EditBar => &shared.edit_bar_tex,
+                    Texture::Selection => &shared.selection_tex,
+                    Texture::Marquee => &shared.marquee_tex,
+                    Texture::Entity(id) => match shared.textures.get(id) {
+                        Some(gpu_tex) => gpu_tex,
+                        None => continue,
+                    },
+                };
+                render_pass.set_bind_group(1, &texture.bind_group, &[]);
 
                 // Set the vertex buffer slice for this quad
                 let byte_offset = (cmd.quad_index * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
@@ -1027,17 +1082,11 @@ impl WgpuRenderer {
         entities: &[&Entity],
         groups: &[crate::group::GroupConfig],
         edit_mode: bool,
-        selected_ids: &[&str],
+        marks: EditMarks<'_>,
         origin: (f32, f32),
     ) -> std::result::Result<AcquiredFrame, wgpu::SurfaceError> {
-        self.primary.render(
-            &self.shared,
-            entities,
-            groups,
-            edit_mode,
-            selected_ids,
-            origin,
-        )
+        self.primary
+            .render(&self.shared, entities, groups, edit_mode, marks, origin)
     }
 
     /// Present the primary window's frame. See [`SurfaceState::present`].
@@ -1085,10 +1134,10 @@ mod alpha_mode_tests {
 }
 
 /// Whether one more entity fits in the quad batch starting at `quad_idx`:
-/// its sprite, its selection highlight, and the edit bar drawn after all
-/// of them.
+/// its sprite, its selection highlight, and the quads drawn after all of
+/// them ([`UI_QUADS`]).
 fn room_for_entity(quad_idx: usize) -> bool {
-    quad_idx + 3 <= MAX_QUADS
+    quad_idx + 2 + UI_QUADS <= MAX_QUADS
 }
 
 #[cfg(test)]
@@ -1096,12 +1145,15 @@ mod quad_budget_tests {
     use super::*;
 
     #[test]
-    fn every_entity_selected_still_fits_with_the_edit_bar() {
+    fn every_entity_selected_still_fits_with_the_rectangle_and_edit_bar() {
         let mut quad = 0;
         for _ in 0..crate::constants::MAX_ENTITIES {
             assert!(room_for_entity(quad), "entity dropped at quad {quad}");
             quad += 2; // sprite + highlight
         }
-        assert!(quad < MAX_QUADS, "no room left for the edit bar");
+        assert!(
+            quad + UI_QUADS <= MAX_QUADS,
+            "no room left for the rectangle and the edit bar"
+        );
     }
 }

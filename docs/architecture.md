@@ -326,8 +326,12 @@ single-entity code reads through `selected_index()` — and the others
 selected with it. Press, drag and the selection rectangle go through
 `input::multi` on both backends; the shared actions and the right-click
 menu act on `selected_indices()`, toggles taking the primary's new
-state. The renderer draws a highlight per selected entity, so
-`MAX_QUADS` is `2 × MAX_ENTITIES + 1`.
+state. The renderer draws a highlight per selected entity and the
+selection rectangle (`EditMarks`) — on every surface, cut to each by its
+origin, so it shows on whichever monitors it crosses; the panel, which
+drew it before, exists on the primary alone. `MAX_QUADS` is
+`2 × MAX_ENTITIES + 6`: a sprite and a highlight each, then the
+rectangle's fill and four edges and the edit bar.
 
 A gesture holds entity indices, so `multi::cancel` lets go of it
 whenever those could change or the release could be lost: before an

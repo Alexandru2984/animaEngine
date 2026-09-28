@@ -234,6 +234,10 @@ impl App {
             // Selected entity ids, for the highlight
             let selected_owned = self.selection.selected_ids(&self.scene);
             let selected_ids: Vec<&str> = selected_owned.iter().map(String::as_str).collect();
+            let marks = crate::renderer::wgpu_renderer::EditMarks {
+                selected: &selected_ids,
+                marquee: self.marquee.as_ref().map(|m| m.rect()),
+            };
 
             // Render all visible entities. WgpuRenderer hands back the
             // surface texture without presenting so egui can overlay on
@@ -260,7 +264,7 @@ impl App {
                     &drawn,
                     &self.scene.groups,
                     self.edit_mode,
-                    &selected_ids,
+                    marks,
                     primary_origin,
                 )
             };
@@ -332,7 +336,6 @@ impl App {
                         let perf_export_request_ref = &mut perf_export_request;
                         let monitors_ref = self.monitors.as_slice();
                         let toasts_ref = &self.toasts;
-                        let marquee_rect = self.marquee.as_ref().map(|m| m.rect());
                         let menu_state = self.ui_state.context_menu.clone();
                         let menu_outcome_ref = &mut menu_outcome;
                         let palette_outcome_ref = &mut palette_outcome;
@@ -420,19 +423,6 @@ impl App {
                                         selection_mut.selected_index().is_some(),
                                     );
                                     panels::toasts(ctx, toasts_ref);
-                                    // Global physical pixels → this
-                                    // window's egui points.
-                                    if let Some((l, t, r, b)) = marquee_rect {
-                                        let ppp = ctx.pixels_per_point();
-                                        let (ox, oy) = primary_origin;
-                                        panels::marquee(
-                                            ctx,
-                                            egui::Rect::from_min_max(
-                                                egui::pos2((l - ox) / ppp, (t - oy) / ppp),
-                                                egui::pos2((r - ox) / ppp, (b - oy) / ppp),
-                                            ),
-                                        );
-                                    }
                                 }
                                 // Perf overlay sits on top of every
                                 // other surface so a user investigating

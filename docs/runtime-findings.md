@@ -2232,3 +2232,22 @@ selection, whatever changed it. **Checked**, same cases: Ctrl+Z leaves
 the heart at 1100,250, D leaves the copy beside the original, and the
 hide lets go at 1040,220 — on native Wayland, on X11 under XWayland,
 and on real X.
+
+### R57 · The selection rectangle could not be seen on other monitors — `FIXED`
+
+Found in the same review, on the rig with two outputs. The rectangle
+dragged over empty space to select several characters (1.5) was painted
+by the panel's egui pass, and egui runs on the primary surface alone —
+the per-monitor extras draw sprites only. Dragged on the second monitor,
+it selected what it touched, and the highlights appeared, but the
+rectangle itself never did; dragged across both, only the primary's part
+showed. Never released.
+
+**Fixed:** the sprite renderer draws it (`EditMarks`), on every surface,
+translated by each one's origin like the characters, so each monitor
+shows its part — a faint fill and 2 px edges in the highlight's cyan.
+Being drawn in the same coordinates the rectangle selects in also drops
+the points conversion the X11 path needed at other scales. It now lies
+under the panel, with the characters, where egui had put it over.
+**Checked on the rig**, two outputs, native Wayland and X11: on the
+second monitor alone and across both.

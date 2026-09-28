@@ -1030,6 +1030,10 @@ pub fn run_native(
         let monitors = &monitors_now;
         let selected_owned = selection.selected_ids(&scene);
         let selected_ids: Vec<&str> = selected_owned.iter().map(String::as_str).collect();
+        let marks = crate::renderer::wgpu_renderer::EditMarks {
+            selected: &selected_ids,
+            marquee: marquee.as_ref().map(|m| m.rect()),
+        };
         let visible = scene.visible_entities();
         // In PerMonitor mode the primary surface covers exactly its
         // own output: entities live in global coords (once extras
@@ -1065,7 +1069,7 @@ pub fn run_native(
             &drawn,
             &scene.groups,
             layer.state.edit_mode,
-            &selected_ids,
+            marks,
             primary_origin,
         ) {
             Ok(output) => {
@@ -1129,7 +1133,6 @@ pub fn run_native(
                 let add_file_requested_ref = &mut add_file_requested;
                 let monitors_ref = monitors.as_slice();
                 let toasts_ref = &toasts;
-                let marquee_rect = marquee.as_ref().map(|m| m.rect());
                 let toggle_requested_ref = &mut toggle_requested;
                 let palette_ref = &mut palette_outcome;
                 let library_ref = &mut library_outcome;
@@ -1213,19 +1216,6 @@ pub fn run_native(
                                     selection_mut.selected_index().is_some(),
                                 );
                                 panels::toasts(ctx, toasts_ref);
-                                // Global → this surface's egui space; the
-                                // pointer events it came from were already
-                                // in points.
-                                if let Some((l, t, r, b)) = marquee_rect {
-                                    let (ox, oy) = primary_origin;
-                                    panels::marquee(
-                                        ctx,
-                                        egui::Rect::from_min_max(
-                                            egui::pos2(l - ox, t - oy),
-                                            egui::pos2(r - ox, b - oy),
-                                        ),
-                                    );
-                                }
                             }
                             // Above every panel, so someone chasing a
                             // stutter doesn't have to hunt for it behind
@@ -1303,7 +1293,7 @@ pub fn run_native(
                             &drawn,
                             &scene.groups,
                             layer.state.edit_mode,
-                            &selected_ids,
+                            marks,
                             origin,
                         ) {
                             Ok(extra_output) => surface.present(&renderer.shared, extra_output),

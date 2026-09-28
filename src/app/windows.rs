@@ -321,6 +321,10 @@ impl App {
         };
         let selected_owned = self.selection.selected_ids(&self.scene);
         let selected_ids: Vec<&str> = selected_owned.iter().map(String::as_str).collect();
+        let marks = crate::renderer::wgpu_renderer::EditMarks {
+            selected: &selected_ids,
+            marquee: self.marquee.as_ref().map(|m| m.rect()),
+        };
 
         let visible = self.scene.visible_entities();
         for slot in self.extra_windows.values_mut() {
@@ -335,7 +339,7 @@ impl App {
                 &drawn,
                 &self.scene.groups,
                 self.edit_mode,
-                &selected_ids,
+                marks,
                 origin,
             ) {
                 Ok(output) => slot.surface.present(&renderer.shared, output),
@@ -358,6 +362,10 @@ impl App {
         };
         let selected_owned = self.selection.selected_ids(&self.scene);
         let selected_ids: Vec<&str> = selected_owned.iter().map(String::as_str).collect();
+        let marks = crate::renderer::wgpu_renderer::EditMarks {
+            selected: &selected_ids,
+            marquee: self.marquee.as_ref().map(|m| m.rect()),
+        };
         let visible = self.scene.visible_entities();
         let Some(slot) = self.extra_windows.get_mut(&id) else {
             return;
@@ -373,7 +381,7 @@ impl App {
             &drawn,
             &self.scene.groups,
             self.edit_mode,
-            &selected_ids,
+            marks,
             origin,
         ) {
             slot.surface.present(&renderer.shared, output);
