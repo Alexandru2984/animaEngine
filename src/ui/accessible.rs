@@ -32,6 +32,32 @@ impl AccessibleName for egui::Response {
     }
 }
 
+/// Options in a combo box's list.
+pub trait ComboOption {
+    /// Whether the option was picked this frame; if it was, the list
+    /// closes. egui closes it only on a pointer click: picked from the
+    /// keyboard or by a screen reader, it stayed open over the panel.
+    fn picked(&self) -> bool;
+}
+
+impl ComboOption for egui::Response {
+    fn picked(&self) -> bool {
+        let clicked = self.clicked();
+        if clicked {
+            self.ctx.memory_mut(|m| m.close_popup());
+        }
+        clicked
+    }
+}
+
+/// Name a text field that has no label of its own, only an icon beside
+/// it and a hint inside. A hint is not a name to a screen reader; the
+/// field read as an unnamed entry. What was typed stays its value.
+pub fn name_text_field(response: &egui::Response, name: &str) {
+    let enabled = response.enabled();
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::TextEdit, enabled, name));
+}
+
 /// Name a combo box after its label, with its current choice as the
 /// value — what a screen reader says on reaching it.
 pub fn name_combo(response: &egui::Response, name: &str, value: &str) {

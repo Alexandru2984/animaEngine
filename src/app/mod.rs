@@ -378,6 +378,14 @@ impl App {
         let Some(keycode) = KeyCode::resolve(KeyCode::from_winit(logical_key), physical) else {
             return;
         };
+        // The open right-click menu takes every key, as the palette and an
+        // open list do (`panels::keyboard_held`): Escape closed it and also
+        // left edit mode. egui has the key already; draw the frame that
+        // acts on it.
+        if self.ui_state.context_menu.is_some() {
+            self.request_redraw();
+            return;
+        }
         let chord = KeyChord::new(self.modifier_mask(), keycode);
         let Some(action) = self.config.keybindings.lookup(chord) else {
             return;

@@ -166,12 +166,14 @@ pub fn command_palette(
                 ui.horizontal(|ui| {
                     ui.label(icons::SETTINGS);
                     // G.5 (0.5.3): same cap as the library search box.
+                    let placeholder = crate::i18n::t("palette-search-placeholder");
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut query)
-                            .hint_text(crate::i18n::t("palette-search-placeholder"))
+                            .hint_text(placeholder.as_str())
                             .desired_width(380.0)
                             .char_limit(256),
                     );
+                    crate::ui::accessible::name_text_field(&response, &placeholder);
                     let focus_id = id.with("focus_pending");
                     if ctx.memory(|m| m.data.get_temp(focus_id).unwrap_or(false)) {
                         response.request_focus();

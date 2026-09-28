@@ -49,7 +49,8 @@ pub(super) fn library_tab(
                 .hint_text("~/Downloads/MyMascot")
                 .char_limit(512)
                 .desired_width(200.0);
-            ui.add(edit);
+            let field = ui.add(edit);
+            crate::ui::accessible::name_text_field(&field, &t("library-import-shimeji-header"));
             if ui.button(t("library-import-shimeji-button")).clicked() && !path.trim().is_empty() {
                 *import_request = Some(path.trim().to_string());
                 path.clear();
@@ -107,12 +108,14 @@ pub(super) fn library_tab(
         // G.5 (0.5.3): cap the search query at 256 chars. Without it
         // a programmatic clipboard inject could grow the egui text
         // buffer without bound.
-        ui.add(
+        let placeholder = t("library-search-placeholder");
+        let field = ui.add(
             egui::TextEdit::singleline(&mut query)
-                .hint_text(t("library-search-placeholder"))
+                .hint_text(placeholder.as_str())
                 .desired_width(ui.available_width())
                 .char_limit(256),
         );
+        crate::ui::accessible::name_text_field(&field, &placeholder);
     });
     ui.memory_mut(|m| m.data.insert_temp(query_id, query.clone()));
     ui.add_space(SPACE_S);

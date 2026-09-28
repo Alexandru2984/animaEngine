@@ -23,6 +23,14 @@ pub use monitor::{cycle_entity_monitor, move_to_pinned_monitor};
 pub use toasts::toasts;
 pub use toggle_button::toggle_button;
 
+/// Whether the panels hold the keyboard even with no text field focused:
+/// the command palette while it is open, and an open list (a combo box's).
+/// No key reaches a shortcut then. With a list open, Escape closed the
+/// list and also left edit mode.
+pub fn keyboard_held(ctx: &egui::Context) -> bool {
+    command_palette_open(ctx) || ctx.memory(|m| m.any_popup_open())
+}
+
 use crate::asset_library::LibraryIndex;
 use crate::i18n::t;
 use crate::input::selection::SelectionState;

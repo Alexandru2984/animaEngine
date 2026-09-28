@@ -13,6 +13,7 @@
 
 use crate::i18n::t;
 use crate::monitor::{MonitorInfo, MonitorMode};
+use crate::ui::accessible::ComboOption;
 use crate::ui::theme::{self, h2, SPACE_S};
 
 /// Scene-tab section that picks the global monitor distribution
@@ -52,7 +53,7 @@ pub(super) fn monitor_mode_picker(
                         matches!(mode, MonitorMode::PerMonitor),
                         t("monitor-mode-per-monitor"),
                     )
-                    .clicked()
+                    .picked()
                 {
                     new_mode = MonitorMode::PerMonitor;
                 }
@@ -73,7 +74,7 @@ pub(super) fn monitor_mode_picker(
                 } else {
                     span_resp.on_disabled_hover_text(t("monitor-mode-span-unsupported"))
                 };
-                if span_resp.clicked() {
+                if span_resp.picked() {
                     new_mode = MonitorMode::Span;
                 }
                 // Single-mode requires a named monitor; offer one entry
@@ -83,7 +84,7 @@ pub(super) fn monitor_mode_picker(
                     let is_current =
                         matches!(mode, MonitorMode::Single { name } if name == &m.name);
                     let label = format!("{} — {}", t("monitor-mode-single"), m.name);
-                    if ui.selectable_label(is_current, label).clicked() {
+                    if ui.selectable_label(is_current, label).picked() {
                         new_mode = MonitorMode::Single {
                             name: m.name.clone(),
                         };
@@ -129,7 +130,7 @@ pub(super) fn entity_monitor_picker(
             .show_ui(ui, |ui| {
                 if ui
                     .selectable_label(pin.is_none(), t("monitor-pin-auto"))
-                    .clicked()
+                    .picked()
                     && pin.is_some()
                 {
                     *pin = None;
@@ -137,7 +138,7 @@ pub(super) fn entity_monitor_picker(
                 }
                 for m in monitors {
                     let is_current = pin.as_deref() == Some(m.name.as_str());
-                    if ui.selectable_label(is_current, &m.name).clicked() && !is_current {
+                    if ui.selectable_label(is_current, &m.name).picked() && !is_current {
                         *pin = Some(m.name.clone());
                         changed = true;
                     }

@@ -196,6 +196,14 @@ fn prepared(mut update: TreeUpdate) -> TreeUpdate {
         let emptied = without_icons(node);
         if is_decorative(node, emptied) {
             node.set_hidden();
+            // A reader announces the focused node even when hidden. egui
+            // focuses the ⚙ corner's backdrop once the button is clicked,
+            // and "unknown" was all there was to say; the window says more.
+            if update.focus == *id {
+                if let Some(root) = root {
+                    update.focus = root;
+                }
+            }
         }
     }
     update
@@ -402,6 +410,20 @@ mod tests {
         // there is a bug to fix at the button (`ui::accessible`), not to
         // hide.
         assert_eq!(hidden, [true, false, true, false, false]);
+    }
+
+    #[test]
+    fn focus_on_a_hidden_node_moves_to_the_window() {
+        let update = prepared(TreeUpdate {
+            nodes: vec![
+                (NodeId(1), Node::new(Role::Window)),
+                (NodeId(12), Node::new(Role::Unknown)),
+            ],
+            tree: Some(Tree::new(NodeId(1))),
+            focus: NodeId(12),
+        });
+        assert!(update.nodes[1].1.is_hidden());
+        assert_eq!(update.focus, NodeId(1));
     }
 
     #[test]

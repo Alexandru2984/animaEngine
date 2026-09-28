@@ -6,6 +6,7 @@
 //! the theme-label helpers shared with the command palette.
 
 use crate::i18n::t;
+use crate::ui::accessible::ComboOption;
 use crate::ui::banner::{Severity, Warning};
 use crate::ui::icons;
 use crate::ui::onboarding::{self, OnboardingProgress};
@@ -151,7 +152,7 @@ fn language_picker(ui: &mut egui::Ui, locale: &mut Option<String>) -> bool {
                 } else {
                     resp.on_disabled_hover_text(t("appearance-language-no-font"))
                 };
-                if resp.clicked() && !selected {
+                if resp.picked() && !selected {
                     set_locale(code);
                     *locale = Some((*code).to_string());
                     // Fonts are chosen per locale, so the stack has to be
@@ -208,7 +209,7 @@ fn theme_picker(ui: &mut egui::Ui, theme: &mut Theme) -> bool {
                 for option in Theme::ALL {
                     if ui
                         .selectable_label(*theme == *option, theme_label_with_icon(*option))
-                        .clicked()
+                        .picked()
                         && *theme != *option
                     {
                         *theme = *option;

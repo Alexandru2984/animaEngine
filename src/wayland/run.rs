@@ -565,8 +565,9 @@ pub fn run_native(
         // selection's visibility and dumped its info to the log (R25).
         // `egui_winit` reports key events as consumed on exactly this
         // condition, which is why the winit path never had the bug. The
-        // open palette owns it too, even with its search box unfocused.
-        let egui_owns_keyboard = egui_renderer.wants_keyboard();
+        // open palette, an open list and the right-click menu own it too:
+        // Escape there closed them and also left edit mode.
+        let egui_owns_keyboard = egui_renderer.wants_keyboard() || context_menu_state.is_some();
         // Last frame's palette picks first, then this frame's keys — one
         // path for both, so an action cannot behave differently depending
         // on how it was asked for.

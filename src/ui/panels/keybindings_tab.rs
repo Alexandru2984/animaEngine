@@ -322,6 +322,8 @@ fn chord_cell(
                     .small()
                     .wrap_mode(egui::TextWrapMode::Extend),
             )
+            // One "Add" per row: say which action it records a shortcut for.
+            .named(format!("{}: {}", t("keybindings-add"), t(action.i18n_key())))
             .clicked()
         {
             ctx.memory_mut(|m| m.data.insert_temp(recording_id, action));

@@ -138,6 +138,16 @@ has the helpers:
 - `name_combo(response, name, value)` — a combo box built without a
   label of its own, named after the label beside it, its current
   choice as the value.
+- `name_text_field(response, name)` — a text field with only an icon
+  beside it and a hint inside, like the palette's search box. A hint is
+  not a name to a screen reader.
+- `picked()` in place of `clicked()` on a combo box's options — it also
+  closes the list. egui closes it on a pointer click only, so an option
+  chosen from the keyboard or by a screen reader left it open.
+
+A field with a separate label before it — `ui.label(…)`, then a
+`DragValue` or `TextEdit` — has no name of its own either; tie the two
+with egui's `.labelled_by(label.id)`, as the Inspector's z-index does.
 
 The lint is informal — please keep it.
 

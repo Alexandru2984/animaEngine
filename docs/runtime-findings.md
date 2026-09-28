@@ -2096,3 +2096,34 @@ the Appearance setting off through the reader itself leaves an empty
 window, and turning it back on restores the tree; without an AT-SPI bus
 the app starts as before. Not checked: Orca itself, the Flatpak's
 accessibility-bus proxy, and hardware other than the rig.
+
+**Then the rest of the panel, walked the same way** — the Inspector with
+a character selected and every behavior's fields, the open palette, the
+right-click menu, recording a shortcut, the Shimeji import. Unnamed:
+the z-index field, the Script path and parameter fields and each
+parameter's value (a label beside them, not tied to them), the
+palette's and the library's search boxes (an icon and a hint only), and
+one "Add" per Keybindings row with nothing to tell them apart. Now each
+is tied to its label (`labelled_by`) or named. egui also gave the ⚙
+corner's hidden backdrop the focus after a click on ⚙; the reader is
+told the window has it instead.
+
+Two defects that were not about names came with it, both reproduced on
+the rig before the fix:
+
+- An option picked in a combo box's list **from the keyboard or by a
+  screen reader** changed the value and left the list open: egui closes
+  it on a pointer click elsewhere, and neither is one. Options close
+  the list themselves now (`ComboOption::picked`).
+- **Escape with a list or the right-click menu open** closed it and also
+  left edit mode — the palette's R52 defect again, in two more places.
+  An open list or menu now holds the keyboard as the palette does, on
+  both backends.
+
+Checked on the rig afterwards: no unnamed focusable node with a
+character selected, under each behavior, with the palette or the menu
+open, while recording a shortcut, or in the Shimeji import; a Script
+parameter added entirely through AT-SPI (focus the field, type, press
+Add); a list closing when an option is picked through AT-SPI; Escape
+with a list or the menu open leaving edit mode on — on both backends
+for the last.

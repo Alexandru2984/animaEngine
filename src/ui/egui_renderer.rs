@@ -120,11 +120,11 @@ impl EguiRenderer {
             }
             _ => {}
         }
-        // The open command palette takes every key, its search box focused
-        // or not — see `panels::command_palette_open`.
+        // The open command palette, or an open list, takes every key — see
+        // `panels::keyboard_held`.
         response.consumed
             || (matches!(event, winit::event::WindowEvent::KeyboardInput { .. })
-                && crate::ui::panels::command_palette_open(&self.context))
+                && crate::ui::panels::keyboard_held(&self.context))
     }
 
     /// Paint the UI for one frame on top of the already-rendered scene.

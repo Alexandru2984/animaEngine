@@ -14,7 +14,7 @@ use crate::i18n::{t, t_args};
 use crate::input::selection::SelectionState;
 use crate::monitor::MonitorInfo;
 use crate::scene::Scene;
-use crate::ui::accessible::AccessibleName;
+use crate::ui::accessible::{AccessibleName, ComboOption};
 use crate::ui::collapse::CollapseState;
 use crate::ui::icons;
 use crate::ui::onboarding::{self, OnboardingProgress};
@@ -170,13 +170,14 @@ fn entity_inspector(
                 change.any_field = true;
             }
             ui.horizontal(|ui| {
-                ui.label(t("inspector-z-index"));
+                let label = ui.label(t("inspector-z-index"));
                 if ui
                     .add(
                         egui::DragValue::new(&mut entity.z_index)
                             .speed(1.0)
                             .range(-10_000..=10_000),
                     )
+                    .labelled_by(label.id)
                     .changed()
                 {
                     change.touches_visibility_or_z_order = true;
@@ -334,7 +335,7 @@ fn easing_picker(ui: &mut egui::Ui, easing: &mut Option<crate::anim::EasingCurve
             .selected_text(active_label)
             .show_ui(ui, |ui| {
                 let is_linear = easing.is_none() || matches!(easing, Some(EasingCurve::Linear));
-                if ui.selectable_label(is_linear, t("easing-linear")).clicked() && !is_linear {
+                if ui.selectable_label(is_linear, t("easing-linear")).picked() && !is_linear {
                     *easing = None;
                     changed = true;
                 }
@@ -343,7 +344,7 @@ fn easing_picker(ui: &mut egui::Ui, easing: &mut Option<crate::anim::EasingCurve
                         continue;
                     }
                     let is_current = matches!(easing, Some(x) if *x == c);
-                    if ui.selectable_label(is_current, t(c.i18n_key())).clicked() && !is_current {
+                    if ui.selectable_label(is_current, t(c.i18n_key())).picked() && !is_current {
                         *easing = Some(c);
                         changed = true;
                     }
@@ -381,8 +382,12 @@ fn script_controls(
     let mut changed = false;
 
     ui.horizontal(|ui| {
-        ui.label(t("behavior-script-path-label"));
-        if ui.text_edit_singleline(path).changed() {
+        let label = ui.label(t("behavior-script-path-label"));
+        if ui
+            .text_edit_singleline(path)
+            .labelled_by(label.id)
+            .changed()
+        {
             changed = true;
         }
     });
@@ -403,7 +408,7 @@ fn script_controls(
     );
 
     ui.add_space(SPACE_S);
-    ui.label(
+    let params_label = ui.label(
         egui::RichText::new(t("behavior-script-params"))
             .text_style(theme::caption())
             .weak(),
@@ -422,13 +427,17 @@ fn script_controls(
             {
                 remove = Some(name.clone());
             }
-            ui.add(
+            let label = ui.add(
                 egui::Label::new(
                     egui::RichText::new(name.as_str()).text_style(egui::TextStyle::Monospace),
                 )
                 .wrap_mode(egui::TextWrapMode::Extend),
             );
-            if ui.add(egui::DragValue::new(value).speed(1.0)).changed() {
+            if ui
+                .add(egui::DragValue::new(value).speed(1.0))
+                .labelled_by(label.id)
+                .changed()
+            {
                 changed = true;
             }
         });
@@ -443,11 +452,14 @@ fn script_controls(
     let draft_id = ui.id().with("script_param_draft");
     let mut draft: String = ui.memory(|m| m.data.get_temp(draft_id).unwrap_or_default());
     ui.horizontal(|ui| {
+        // Named after the "Parameters" caption: the hint inside says
+        // "name", but a hint is not a name to a screen reader.
         ui.add(
             egui::TextEdit::singleline(&mut draft)
                 .hint_text(t("behavior-script-param-name"))
                 .desired_width(110.0),
-        );
+        )
+        .labelled_by(params_label.id);
         let can_add = !draft.trim().is_empty() && !params.contains_key(draft.trim());
         if ui
             .add_enabled(
@@ -517,7 +529,7 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                 },
             ] {
                 let label = behavior_label_with_icon(&option);
-                ui.selectable_value(behavior, option, label);
+                ui.selectable_value(behavior, option, label).picked();
             }
             if *behavior != prev {
                 changed = true;

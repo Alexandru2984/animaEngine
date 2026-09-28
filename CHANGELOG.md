@@ -35,8 +35,8 @@ name and default; turned off, it now shows a reader an empty window.
   repaired regression: the screen-reader bridge the documentation has
   described since 0.2 was never connected, and no screen reader ever
   saw the app (R53). Icon-only buttons have names ("Exit edit mode",
-  "Delete: Ghost Demo"), combo boxes are named after their labels, and
-  icons are left out of what is read.
+  "Delete: Ghost Demo"), combo boxes and text fields are named after
+  their labels, and icons are left out of what is read.
 
 ### Changed
 
@@ -53,6 +53,12 @@ name and default; turned off, it now shows a reader an empty window.
   matched nothing: Escape then also left edit mode, and Q would have
   quit. The palette now keeps every key while it is open.
 - The command palette no longer reopens filtered by the last search.
+- **A list opened from a combo box** (Behavior, Easing, Theme,
+  Language, the monitor pickers) stayed open when an option was chosen
+  from the keyboard or by a screen reader; it closes now.
+- **Escape with a list or the right-click menu open** closed it *and*
+  left edit mode. It only closes the list or the menu now, on both
+  backends.
 
 ## [1.3.0] — 2026-09-27
 

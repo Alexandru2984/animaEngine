@@ -97,9 +97,8 @@ impl WaylandEguiRenderer {
     }
 
     /// Whether egui is collecting text right now — a focused text field,
-    /// the keybinding capture widget — or the command palette is open,
-    /// which takes every key whether its search box has the focus or not
-    /// (`panels::command_palette_open`).
+    /// the keybinding capture widget — or holds the keyboard anyway: the
+    /// command palette or a list is open (`panels::keyboard_held`).
     ///
     /// Callers must consult this **before** running a key through the
     /// keybinding table. The winit path gets the same answer from
@@ -107,8 +106,7 @@ impl WaylandEguiRenderer {
     /// loop reads egui's raw event list itself and so has to ask
     /// explicitly.
     pub fn wants_keyboard(&self) -> bool {
-        self.context.wants_keyboard_input()
-            || crate::ui::panels::command_palette_open(&self.context)
+        self.context.wants_keyboard_input() || crate::ui::panels::keyboard_held(&self.context)
     }
 
     /// Re-apply the design-system style if the active theme changed.
