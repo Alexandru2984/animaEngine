@@ -794,6 +794,16 @@ impl AppConfig {
         config
     }
 
+    /// Take in what the running scene holds — its characters, its groups
+    /// and the playback switch — before a save. Both loops call it. The
+    /// groups were left out until 1.5, when the app began to make them:
+    /// they had only ever changed by hand in this file.
+    pub fn take_scene(&mut self, scene: &crate::scene::Scene) {
+        self.characters = scene.to_character_configs();
+        self.groups = scene.groups.clone();
+        self.global.playback_enabled = scene.global_playing;
+    }
+
     /// Save config to disk **atomically** — writes to a temp sibling
     /// then renames over the target. A crash mid-save can no longer
     /// leave a truncated `config.toml`.

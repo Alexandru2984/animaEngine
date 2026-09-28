@@ -339,6 +339,23 @@ action that adds, removes or reselects characters
 (`Action::interrupts_drag`: undo, redo, cycle, delete, duplicate), when
 edit mode ends, and when the overlay hides or steps aside (R56).
 
+### Groups (`src/group.rs`)
+
+A group is data first (C.8): an id, a name, member ids, and an offset,
+a scale and a visibility composed onto its members at draw time and in
+hit-testing. Since 1.5 the app makes and edits them. `GroupSelected`
+(Ctrl+G) and `UngroupSelected` (Ctrl+Shift+G) are shared actions, also
+on the right-click menu (`outcomes::menu_group_offers` decides what it
+offers); the Scene tab renames, hides, dissolves and selects. Making and
+dissolving never changes what is on screen: a character leaving a group
+takes the group's transform into its own (`leave_group`). An entity is
+in at most one group — regrouping moves it, and a group emptied that way
+goes. On the canvas a group acts as one: a press on a member selects the
+whole group (`multi::select_with_its_group`, the right-click too), and a
+second press on a member of the selection narrows it to that one on a
+tap (`DragController::narrow_on_tap`). Undo covers it all through the
+groups in its snapshots.
+
 ### Undo (`src/undo.rs`)
 
 Edits reach the scene from dozens of places, so undo watches *gestures*

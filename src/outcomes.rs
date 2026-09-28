@@ -88,6 +88,14 @@ pub fn apply_menu_action(action: MenuAction, ctx: &mut OutcomeCtx<'_>) {
                 }
             }
         }
+        MenuAction::Group(idx) => {
+            let targets = covered(idx, ctx.selection);
+            *ctx.config_dirty |= group_entities(&targets, ctx.scene, ctx.toasts);
+        }
+        MenuAction::Ungroup(idx) => {
+            let targets = covered(idx, ctx.selection);
+            *ctx.config_dirty |= ungroup_entities(&targets, ctx.scene, ctx.toasts);
+        }
         MenuAction::BringForward(idx) | MenuAction::SendBackward(idx) => {
             let step = if matches!(action, MenuAction::BringForward(_)) {
                 10
@@ -103,6 +111,55 @@ pub fn apply_menu_action(action: MenuAction, ctx: &mut OutcomeCtx<'_>) {
             ctx.scene.mark_visible_dirty();
         }
     }
+}
+
+/// What the right-click menu on the character at `idx` offers about groups.
+pub fn menu_group_offers(
+    idx: usize,
+    scene: &Scene,
+    selection: &SelectionState,
+) -> crate::ui::panels::GroupOffers {
+    let targets = covered(idx, selection);
+    crate::ui::panels::GroupOffers {
+        group: targets.len() > 1 && !scene.already_a_group(&targets),
+        ungroup: targets.iter().any(|&i| {
+            scene
+                .entities
+                .get(i)
+                .is_some_and(|e| crate::group::owning_group(&scene.groups, &e.id).is_some())
+        }),
+    }
+}
+
+/// Make a group of the characters at `targets`, numbered and named, and
+/// say so. Returns whether one was made.
+pub fn group_entities(targets: &[usize], scene: &mut Scene, toasts: &mut ToastQueue) -> bool {
+    let name = scene.group_entities(targets, |number| {
+        let mut args = fluent::FluentArgs::new();
+        args.set("number", number);
+        crate::i18n::t_args("group-default-name", &args)
+    });
+    let Some(name) = name else {
+        return false;
+    };
+    let mut args = fluent::FluentArgs::new();
+    args.set("name", name);
+    toasts.info(crate::i18n::t_args("toast-grouped", &args));
+    true
+}
+
+/// Dissolve the groups the characters at `targets` are in, and say so —
+/// or that none is. Returns whether any went.
+pub fn ungroup_entities(targets: &[usize], scene: &mut Scene, toasts: &mut ToastQueue) -> bool {
+    let dissolved = scene.ungroup_entities(targets);
+    if dissolved == 0 {
+        toasts.info(crate::i18n::t("toast-nothing-to-ungroup"));
+        return false;
+    }
+    let mut args = fluent::FluentArgs::new();
+    args.set("count", dissolved);
+    toasts.info(crate::i18n::t_args("toast-ungrouped", &args));
+    true
 }
 
 /// Remove entity `idx`. Returns whether anything was removed.

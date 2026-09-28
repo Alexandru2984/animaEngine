@@ -165,6 +165,24 @@ action-open-command-palette = コマンドパレット
 # Undo (1.5): machine-translated, pending native review.
 action-undo = 元に戻す
 action-redo = やり直す
+
+# Groups (1.5): machine-translated, pending native review.
+action-group-selected = 選択をグループ化
+action-ungroup-selected = 選択のグループを解除
+menu-group = グループ化
+menu-ungroup = グループ解除
+group-default-name = グループ { $number }
+toast-grouped = { $name } としてグループ化しました
+toast-ungrouped = 解除したグループ: { $count }
+toast-nothing-to-ungroup = 選択中のものはどのグループにも属していません
+scene-groups-empty-hint = 複数のキャラクターを選択して Ctrl+G を押すか、右クリックして「グループ化」を選びます。
+scene-group-members = キャラクター: { $count }
+scene-group-select-tooltip = このグループのキャラクターを選択
+scene-group-rename = グループ名を変更
+scene-group-show = グループを表示
+scene-group-hide = グループを非表示
+scene-group-ungroup = グループ解除(キャラクターは残ります)
+
 action-cycle-entity = 次のキャラクターへ
 action-delete-selected = 選択したキャラクターを削除
 action-nudge-up = 選択を上へ移動

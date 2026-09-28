@@ -52,8 +52,10 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   `$ANIMA_ASSETS_DIR`) and surfaces a search-filtered grid; "Add to
   scene" routes through the same drag-drop validation path so asset
   caps and the extension whitelist still apply.
-- **Sprite groups**: bind multiple entities into one named group; a
-  hidden group hides every member and blocks their click hit-test.
+- **Sprite groups**: `Ctrl+G` binds the selected characters into one
+  named group that a click selects and a drag moves as one; the Scene
+  tab renames, hides and dissolves groups. A hidden group hides every
+  member and blocks their click hit-test.
 - **Themes**: Dark and Light plus high-contrast siblings for both,
   switchable instantly without restart. HC variants clear WCAG AAA.
 - **Bundled presets**: six curated one-click scenes (Cozy Companion,
@@ -126,6 +128,7 @@ cargo build --release
 | Toggle visibility / playback | `V` / `P` keys, or checkboxes |
 | Set behavior | Dropdown in the Inspector (Idle / Walk / Follow / Bounded / Bounce / Script) |
 | Delete | `Delete`, right-click → Delete, or the trash button in the Scene list |
+| Group / ungroup | `Ctrl+G` / `Ctrl+Shift+G` on the selection, or right-click → Group |
 | Hide overlay | `Ctrl+Shift+H` (global) or tray menu |
 | Pause animations | `Space` (edit mode), `Ctrl+Shift+P` (global), or tray |
 | Save & quit | `Q` (edit mode), tray → Quit, or close the window |

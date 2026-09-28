@@ -249,9 +249,13 @@ pub const BRING_FORWARD: &str = ph::ARROW_FAT_UP;
 pub const SEND_BACKWARD: &str = ph::ARROW_FAT_DOWN;
 pub const PLAY: &str = ph::PLAY;
 pub const PAUSE: &str = ph::PAUSE;
+pub const GROUP: &str = ph::BOUNDING_BOX;
+pub const UNGROUP: &str = ph::LINK_BREAK;
+pub const RENAME: &str = ph::PENCIL_SIMPLE;
 
 // State / status (used inline with labels).
 pub const HIDDEN: &str = ph::EYE_SLASH;
+pub const VISIBLE: &str = ph::EYE;
 pub const GRAVITY: &str = ph::ARROW_FAT_DOWN; // physics on = pulled down
 
 // Severity (toasts, badges).

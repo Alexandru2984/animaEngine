@@ -165,6 +165,24 @@ action-open-command-palette = Opdrachtenpalet
 # Undo (1.5): machine-translated, pending native review.
 action-undo = Ongedaan maken
 action-redo = Opnieuw
+
+# Groups (1.5): machine-translated, pending native review.
+action-group-selected = Selectie groeperen
+action-ungroup-selected = Groepering van selectie opheffen
+menu-group = Groeperen
+menu-ungroup = Groepering opheffen
+group-default-name = Groep { $number }
+toast-grouped = Gegroepeerd als { $name }
+toast-ungrouped = Groepen opgeheven: { $count }
+toast-nothing-to-ungroup = Niets van de selectie zit in een groep
+scene-groups-empty-hint = Selecteer meerdere figuren en druk op Ctrl+G — of klik er met de rechtermuisknop op en kies Groeperen.
+scene-group-members = Figuren: { $count }
+scene-group-select-tooltip = De figuren in deze groep selecteren
+scene-group-rename = Groep hernoemen
+scene-group-show = Groep tonen
+scene-group-hide = Groep verbergen
+scene-group-ungroup = Groepering opheffen — de figuren blijven
+
 action-cycle-entity = Naar het volgende personage
 action-delete-selected = Geselecteerd personage verwijderen
 action-nudge-up = Selectie omhoog duwen

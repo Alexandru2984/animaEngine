@@ -175,6 +175,24 @@ action-save-now = Save config now
 action-open-command-palette = Command palette
 action-undo = Undo
 action-redo = Redo
+
+# Groups (1.5)
+action-group-selected = Group selection
+action-ungroup-selected = Ungroup selection
+menu-group = Group
+menu-ungroup = Ungroup
+group-default-name = Group { $number }
+toast-grouped = Grouped as { $name }
+toast-ungrouped = Groups dissolved: { $count }
+toast-nothing-to-ungroup = Nothing selected is in a group
+scene-groups-empty-hint = Select several characters and press Ctrl+G — or right-click them and choose Group.
+scene-group-members = Characters: { $count }
+scene-group-select-tooltip = Select the characters in this group
+scene-group-rename = Rename group
+scene-group-show = Show group
+scene-group-hide = Hide group
+scene-group-ungroup = Ungroup — the characters stay
+
 action-cycle-entity = Cycle to next entity
 action-delete-selected = Delete selected entity
 action-nudge-up = Nudge selection up

@@ -4,11 +4,13 @@
 //! coordinates, so the two cannot come to behave differently.
 //!
 //! The conventions are the usual ones. A press on a character selects it
-//! alone, unless it is one of several already selected: then the group
-//! stays selected, so it can be dragged, and a tap without moving selects
-//! it alone. Shift+click adds or removes a character. A drag over empty
-//! space selects what the rectangle touches — added to the selection with
-//! Shift — and a click there deselects.
+//! alone — with the rest of its group, if it is in one (`crate::group`) —
+//! unless it is one of several already selected: then they all stay
+//! selected, so they can be dragged, and a tap without moving selects it
+//! alone. So a click on a grouped character takes the group, and a second
+//! click takes just that one. Shift+click adds or removes a character. A
+//! drag over empty space selects what the rectangle touches — added to the
+//! selection with Shift — and a click there deselects.
 
 use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
@@ -24,6 +26,7 @@ pub fn press_on(
     (x, y): (f32, f32),
     shift: bool,
 ) -> bool {
+    let mut narrow_on_tap = false;
     if shift {
         selection.toggle(idx);
         if !selection.is_selected(idx) {
@@ -31,13 +34,17 @@ pub fn press_on(
         }
     } else if selection.count() > 1 && selection.is_selected(idx) {
         selection.make_primary(idx);
+        narrow_on_tap = true;
     } else {
-        selection.select(idx);
+        select_with_its_group(scene, selection, idx);
     }
     let Some(entity) = scene.entities.get(idx) else {
         return false;
     };
     drag.start_drag(idx, x - entity.x, y - entity.y, x, y);
+    if narrow_on_tap {
+        drag.narrow_on_tap();
+    }
     // Every selected character is picked up: physics lets go of it and
     // it shows its Drag state (U.2).
     for i in selection.selected_indices() {
@@ -101,11 +108,27 @@ pub fn end_drag(
         }
     }
     if let Some(idx) = pressed {
-        if tapped && !shift && selection.count() > 1 {
+        if tapped && !shift && drag.narrows_on_tap() {
             selection.select(idx);
         }
     }
     drag.end_drag();
+}
+
+/// Select the character at `idx` with the rest of its group, it first.
+pub fn select_with_its_group(scene: &Scene, selection: &mut SelectionState, idx: usize) {
+    let mut picked = vec![idx];
+    picked.extend(scene.with_its_group(idx).into_iter().filter(|&i| i != idx));
+    selection.select_all_of(&picked);
+}
+
+/// A right-click on the character at `idx`: one of several selected keeps
+/// them all, so the menu acts on every one; otherwise it is selected with
+/// its group.
+pub fn select_for_menu(scene: &Scene, selection: &mut SelectionState, idx: usize) {
+    if !selection.is_selected(idx) {
+        select_with_its_group(scene, selection, idx);
+    }
 }
 
 /// Something ended or overtook a gesture with the button still down. Let
@@ -328,6 +351,46 @@ mod tests {
         // No drag left to move anything on the next pointer motion.
         drag_to(&mut s, &sel, &drag, (500.0, 500.0));
         assert_eq!(s.entities[0].x, 0.0);
+    }
+
+    #[test]
+    fn a_click_takes_the_group_and_a_second_click_the_one() {
+        let mut s = scene();
+        s.group_entities(&[0, 2], |n| format!("Group {n}"));
+        let (mut sel, mut drag) = (SelectionState::default(), DragController::new());
+        // First click on "c": the whole group, "c" leading — and the tap
+        // keeps it.
+        press_on(&mut s, &mut sel, &mut drag, 2, (201.0, 1.0), false);
+        end_drag(&mut s, &mut sel, &mut drag, true, false);
+        assert_eq!(ids(&s, &sel), ["c", "a"]);
+        // Second click on "c": just "c".
+        press_on(&mut s, &mut sel, &mut drag, 2, (201.0, 1.0), false);
+        end_drag(&mut s, &mut sel, &mut drag, true, false);
+        assert_eq!(ids(&s, &sel), ["c"]);
+        // A drag from a fresh click moves the whole group.
+        sel.deselect();
+        press_on(&mut s, &mut sel, &mut drag, 0, (1.0, 1.0), false);
+        drag_to(&mut s, &sel, &drag, (11.0, 1.0));
+        end_drag(&mut s, &mut sel, &mut drag, false, false);
+        assert_eq!((s.entities[0].x, s.entities[2].x), (10.0, 210.0));
+        assert_eq!(s.entities[1].x, 100.0, "not in the group");
+        // Shift still takes a single character.
+        sel.deselect();
+        press_on(&mut s, &mut sel, &mut drag, 0, (11.0, 1.0), true);
+        end_drag(&mut s, &mut sel, &mut drag, true, true);
+        assert_eq!(ids(&s, &sel), ["a"]);
+    }
+
+    #[test]
+    fn a_right_click_takes_the_group_unless_already_selected() {
+        let mut s = scene();
+        s.group_entities(&[1, 2], |n| format!("Group {n}"));
+        let mut sel = SelectionState::default();
+        select_for_menu(&s, &mut sel, 1);
+        assert_eq!(ids(&s, &sel), ["b", "c"]);
+        sel.select_all_of(&[0, 2]);
+        select_for_menu(&s, &mut sel, 2);
+        assert_eq!(ids(&s, &sel), ["a", "c"], "kept as it was");
     }
 
     #[test]

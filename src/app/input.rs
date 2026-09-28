@@ -66,11 +66,10 @@ impl App {
         // (entity-less menu is reserved for a later phase).
         if button == MouseButton::Right && state == ElementState::Pressed {
             if let Some(entity_idx) = self.scene.entity_at_point(self.mouse_x, self.mouse_y) {
-                // One of several selected keeps them all: the menu then
-                // acts on the whole selection.
-                if !self.selection.is_selected(entity_idx) {
-                    self.selection.select(entity_idx);
-                }
+                // One of several selected keeps them all, so the menu acts
+                // on the whole selection; otherwise it takes the character
+                // with its group.
+                crate::input::multi::select_for_menu(&self.scene, &mut self.selection, entity_idx);
                 // egui draws in the primary window's own coordinates, and
                 // `mouse_x/y` are global: without the origin a primary
                 // monitor that is not at 0,0 put the menu off to one
@@ -92,8 +91,8 @@ impl App {
             (MouseButton::Left, ElementState::Pressed) => {
                 let at = (self.mouse_x, self.mouse_y);
                 match self.scene.entity_at_point(at.0, at.1) {
-                    // Select (alone, or keeping the group it is part of, or
-                    // toggled with Shift) and pick the selection up.
+                    // Select (with its group, or keeping the others selected,
+                    // or toggled with Shift) and pick the selection up.
                     Some(entity_idx) => {
                         crate::input::multi::press_on(
                             &mut self.scene,

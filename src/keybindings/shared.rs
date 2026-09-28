@@ -1,6 +1,6 @@
 //! Keyboard actions that both backends can run.
 //!
-//! These twenty-two touch only the scene, the selection, the dirty flag,
+//! These twenty-four touch only the scene, the selection, the dirty flag,
 //! the toast queue and the undo history — nothing about a window, a
 //! renderer or an event loop — so they belong to neither backend in
 //! particular.
@@ -303,7 +303,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                 "━━━ KEYBOARD SHORTCUTS ━━━\n\
                 \n  Navigation:\n\
                 \n    Tab        — Cycle through entities\n\
-                \n    Click      — Select entity\n\
+                \n    Click      — Select entity (a grouped one: its group; again: just it)\n\
                 \n    Shift+Click — Add to / remove from the selection\n\
                 \n    Drag on empty space — Select what the rectangle touches\n\
                 \n    Escape     — Exit edit mode (auto-saves)\n\
@@ -328,12 +328,26 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                 \n    Ctrl+Z     — Undo\n\
                 \n    Ctrl+Shift+Z — Redo\n\
                 \n    D          — Duplicate\n\
+                \n    Ctrl+G     — Group the selection\n\
+                \n    Ctrl+Shift+G — Ungroup\n\
                 \n    Del/Bksp   — Delete\n\
                 \n    I          — Show entity info\n\
                 \n    S          — Save config\n\
                 \n    Q          — Save and exit\n\
                 \n    H          — This help"
             );
+        }
+        // With nothing selected both do nothing, like every other
+        // selection action; the right-click menu shares them.
+        Action::GroupSelected => {
+            *config_dirty |=
+                crate::outcomes::group_entities(&selection.selected_indices(), scene, toasts);
+        }
+        Action::UngroupSelected => {
+            if selection.count() > 0 {
+                *config_dirty |=
+                    crate::outcomes::ungroup_entities(&selection.selected_indices(), scene, toasts);
+            }
         }
         Action::CenterOnScreen => {
             // Centres on the region the overlay covers, which the caller
@@ -528,6 +542,45 @@ mod tests {
             &mut history
         ));
         assert_eq!(scene.entities[1].x, 110.0);
+    }
+
+    #[test]
+    fn grouping_and_ungrouping_from_the_keyboard_undo_as_one_step_each() {
+        use crate::undo::SETTLE;
+        use std::time::Instant;
+        let mut scene = scene_with(3);
+        let mut sel = SelectionState::default();
+        let mut history = crate::undo::UndoHistory::default();
+        let t0 = Instant::now();
+        // Nothing selected: nothing to group.
+        assert!(run(Action::GroupSelected, &mut scene, &mut sel, false));
+        assert!(scene.groups.is_empty());
+        sel.select_all_of(&[0, 2]);
+        history.input(&scene, &sel, t0);
+        assert!(run_with(
+            Action::GroupSelected,
+            &mut scene,
+            &mut sel,
+            false,
+            &mut history
+        ));
+        assert_eq!(scene.groups.len(), 1);
+        assert_eq!(scene.groups[0].member_ids, ["e0", "e2"]);
+        assert!(history.settle(&scene, false, t0 + SETTLE));
+        history.input(&scene, &sel, t0 + SETTLE);
+        assert!(run_with(
+            Action::UngroupSelected,
+            &mut scene,
+            &mut sel,
+            false,
+            &mut history
+        ));
+        assert!(scene.groups.is_empty());
+        // Undo brings the group back, and a second undo takes it away.
+        for expected in [1, 0] {
+            run_with(Action::Undo, &mut scene, &mut sel, false, &mut history);
+            assert_eq!(scene.groups.len(), expected);
+        }
     }
 
     #[test]

@@ -165,6 +165,24 @@ action-open-command-palette = Befehlspalette
 # Undo (1.5): machine-translated, pending native review.
 action-undo = Rückgängig
 action-redo = Wiederholen
+
+# Groups (1.5): machine-translated, pending native review.
+action-group-selected = Auswahl gruppieren
+action-ungroup-selected = Gruppierung der Auswahl aufheben
+menu-group = Gruppieren
+menu-ungroup = Gruppierung aufheben
+group-default-name = Gruppe { $number }
+toast-grouped = Gruppiert als { $name }
+toast-ungrouped = Gruppen aufgelöst: { $count }
+toast-nothing-to-ungroup = Nichts Ausgewähltes gehört zu einer Gruppe
+scene-groups-empty-hint = Mehrere Figuren auswählen und Strg+G drücken – oder per Rechtsklick „Gruppieren“ wählen.
+scene-group-members = Figuren: { $count }
+scene-group-select-tooltip = Die Figuren dieser Gruppe auswählen
+scene-group-rename = Gruppe umbenennen
+scene-group-show = Gruppe einblenden
+scene-group-hide = Gruppe ausblenden
+scene-group-ungroup = Gruppierung aufheben – die Figuren bleiben
+
 action-cycle-entity = Zur nächsten Figur wechseln
 action-delete-selected = Ausgewählte Figur löschen
 action-nudge-up = Auswahl nach oben schieben

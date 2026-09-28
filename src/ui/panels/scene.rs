@@ -1,8 +1,8 @@
 //! Scene tab — monitor distribution, entity list, preset gallery,
-//! groups summary. Extracted in I.8.
+//! groups. Extracted in I.8.
 //!
-//! The `scene_list` selection pulse and the read-only groups summary
-//! live here too since they're only used by this tab.
+//! The `scene_list` selection pulse and the groups list live here too
+//! since they're only used by this tab.
 
 use super::monitor::{monitor_mode_picker, pulse_alpha_at};
 use super::presets::preset_gallery;
@@ -108,6 +108,11 @@ pub(super) fn scene_tab(
         );
         ui.add_space(SPACE_M);
         scene_list(ui, scene, selection, config_dirty);
+        // Right under the characters they are made of — with a hint on
+        // how, until there are any. Below the preset gallery it was off
+        // the bottom of the panel.
+        ui.add_space(SPACE_L);
+        groups_section(ui, scene, selection, config_dirty);
         ui.add_space(SPACE_L);
         ui.separator();
     }
@@ -120,41 +125,165 @@ pub(super) fn scene_tab(
         config_dirty,
         &mut collapse_state.scene_presets,
     );
-
-    if !scene.groups.is_empty() {
-        ui.add_space(SPACE_L);
-        ui.separator();
-        ui.add_space(SPACE_M);
-        groups_section(ui, scene);
-    }
 }
 
-/// Read-only summary of sprite groups (C.8). Edits go through
-/// `config.toml` hand-editing for now; full inline edit lands with
-/// the C.9 polish that also wires up offset/scale composition in
-/// the renderer.
-fn groups_section(ui: &mut egui::Ui, scene: &Scene) {
+/// A group being renamed: which, the name it had, and whether its field
+/// has been given the keyboard yet.
+#[derive(Clone)]
+struct Renaming {
+    group_id: String,
+    original: String,
+    focused: bool,
+}
+
+enum GroupAction {
+    Select(String),
+    Dissolve(String),
+}
+
+/// Sprite groups (C.8; editable since 1.5). A group's name selects its
+/// characters; beside it, rename, show / hide, and ungroup. Groups are
+/// made from the selection (`crate::group`). This used to be a read-only
+/// list — groups could only be written into config.toml by hand — with
+/// its counts in untranslated English.
+fn groups_section(
+    ui: &mut egui::Ui,
+    scene: &mut Scene,
+    selection: &mut SelectionState,
+    config_dirty: &mut bool,
+) {
     ui.label(
         egui::RichText::new(format!("{}  {}", icons::STACK, t("scene-groups-header")))
             .text_style(h2()),
     );
     ui.add_space(SPACE_S);
-    let body_color = ui.visuals().text_color();
     let weak = ui.visuals().weak_text_color();
-    for group in &scene.groups {
+    if scene.groups.is_empty() {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(t("scene-groups-empty-hint"))
+                    .text_style(theme::caption())
+                    .color(weak),
+            )
+            .wrap(),
+        );
+        return;
+    }
+
+    let renaming_key = egui::Id::new("anima.group-renaming");
+    let mut renaming: Option<Renaming> = ui.data(|d| d.get_temp(renaming_key));
+    let selected = selection.selected_ids(scene);
+    let mut action: Option<GroupAction> = None;
+    let mut visibility_changed = false;
+    for group in &mut scene.groups {
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(&group.name).strong().color(body_color));
+            match renaming.as_mut().filter(|r| r.group_id == group.id) {
+                Some(r) => {
+                    let field =
+                        ui.add(egui::TextEdit::singleline(&mut group.name).desired_width(150.0));
+                    crate::ui::accessible::name_text_field(&field, &t("scene-group-rename"));
+                    if !r.focused {
+                        field.request_focus();
+                        r.focused = true;
+                    }
+                    if field.changed() {
+                        *config_dirty = true;
+                    }
+                    if field.lost_focus() {
+                        if group.name.trim().is_empty() {
+                            group.name = r.original.clone();
+                        }
+                        renaming = None;
+                    }
+                }
+                None => {
+                    let all_selected = !group.member_ids.is_empty()
+                        && group.member_ids.iter().all(|m| selected.contains(m));
+                    if ui
+                        .selectable_label(all_selected, &group.name)
+                        .on_hover_text(t("scene-group-select-tooltip"))
+                        .clicked()
+                    {
+                        action = Some(GroupAction::Select(group.id.clone()));
+                    }
+                }
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let visibility_marker = if group.visible { "" } else { " · hidden" };
-                let count = group.member_ids.len();
-                let plural = if count == 1 { "entity" } else { "entities" };
+                if ui
+                    .small_button(icons::UNGROUP)
+                    .named(format!("{}: {}", t("scene-group-ungroup"), group.name))
+                    .on_hover_text(t("scene-group-ungroup"))
+                    .clicked()
+                {
+                    action = Some(GroupAction::Dissolve(group.id.clone()));
+                }
+                let (icon, label) = if group.visible {
+                    (icons::VISIBLE, t("scene-group-hide"))
+                } else {
+                    (icons::HIDDEN, t("scene-group-show"))
+                };
+                if ui
+                    .small_button(icon)
+                    .named(format!("{label}: {}", group.name))
+                    .on_hover_text(&label)
+                    .clicked()
+                {
+                    group.visible = !group.visible;
+                    visibility_changed = true;
+                }
+                if ui
+                    .small_button(icons::RENAME)
+                    .named(format!("{}: {}", t("scene-group-rename"), group.name))
+                    .on_hover_text(t("scene-group-rename"))
+                    .clicked()
+                {
+                    renaming = Some(Renaming {
+                        group_id: group.id.clone(),
+                        original: group.name.clone(),
+                        focused: false,
+                    });
+                }
+                let mut args = fluent::FluentArgs::new();
+                args.set("count", group.member_ids.len());
                 ui.label(
-                    egui::RichText::new(format!("{count} {plural}{visibility_marker}"))
+                    egui::RichText::new(crate::i18n::t_args("scene-group-members", &args))
                         .text_style(theme::caption())
                         .color(weak),
                 );
             });
         });
+    }
+    ui.data_mut(|d| match &renaming {
+        Some(r) => d.insert_temp(renaming_key, r.clone()),
+        None => d.remove::<Renaming>(renaming_key),
+    });
+
+    if visibility_changed {
+        scene.mark_visible_dirty();
+        *config_dirty = true;
+    }
+    match action {
+        Some(GroupAction::Select(id)) => {
+            let members: Vec<usize> = scene
+                .groups
+                .iter()
+                .find(|g| g.id == id)
+                .map(|g| {
+                    scene
+                        .entities
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, e)| g.member_ids.contains(&e.id))
+                        .map(|(i, _)| i)
+                        .collect()
+                })
+                .unwrap_or_default();
+            selection.select_all_of(&members);
+        }
+        Some(GroupAction::Dissolve(id)) if scene.dissolve_group(&id) => {
+            *config_dirty = true;
+        }
+        _ => {}
     }
 }
 

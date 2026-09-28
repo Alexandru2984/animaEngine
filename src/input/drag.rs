@@ -17,6 +17,10 @@ pub enum DragState {
         /// distinguish a tap (→ poke) from an actual move.
         press_x: f32,
         press_y: f32,
+        /// Whether a tap — no move — narrows the selection to this entity:
+        /// set when the press landed on one of several already selected
+        /// (`crate::input::multi`).
+        narrow_on_tap: bool,
     },
 }
 
@@ -47,6 +51,7 @@ impl DragController {
             offset_y,
             press_x,
             press_y,
+            narrow_on_tap: false,
         };
         tracing::debug!("Started dragging entity at index {}", entity_index);
     }
@@ -67,6 +72,24 @@ impl DragController {
             }
             DragState::Idle => None,
         }
+    }
+
+    /// Let a tap on this drag narrow the selection to its entity.
+    pub fn narrow_on_tap(&mut self) {
+        if let DragState::Dragging { narrow_on_tap, .. } = &mut self.state {
+            *narrow_on_tap = true;
+        }
+    }
+
+    /// Whether a tap narrows the selection ([`Self::narrow_on_tap`]).
+    pub fn narrows_on_tap(&self) -> bool {
+        matches!(
+            self.state,
+            DragState::Dragging {
+                narrow_on_tap: true,
+                ..
+            }
+        )
     }
 
     /// End the current drag

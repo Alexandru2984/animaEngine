@@ -472,8 +472,7 @@ impl App {
     /// Save config if dirty
     fn save_config_if_needed(&mut self) {
         if self.config_dirty {
-            self.config.characters = self.scene.to_character_configs();
-            self.config.global.playback_enabled = self.scene.global_playing;
+            self.config.take_scene(&self.scene);
             match self.config.save() {
                 Ok(()) => {
                     self.toasts.success(crate::i18n::t("toast-config-saved"));

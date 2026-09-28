@@ -165,6 +165,24 @@ action-open-command-palette = Paleta de comenzi
 # Undo (1.5): machine-translated, pending native review.
 action-undo = Anulează
 action-redo = Refă
+
+# Groups (1.5): machine-translated, pending native review.
+action-group-selected = Grupează selecția
+action-ungroup-selected = Desface grupurile selecției
+menu-group = Grupează
+menu-ungroup = Desface grupul
+group-default-name = Grupul { $number }
+toast-grouped = Grupate ca { $name }
+toast-ungrouped = Grupuri desfăcute: { $count }
+toast-nothing-to-ungroup = Nimic din selecție nu e într-un grup
+scene-groups-empty-hint = Selectează mai multe personaje și apasă Ctrl+G — sau dă click dreapta pe ele și alege Grupează.
+scene-group-members = Personaje: { $count }
+scene-group-select-tooltip = Selectează personajele din acest grup
+scene-group-rename = Redenumește grupul
+scene-group-show = Arată grupul
+scene-group-hide = Ascunde grupul
+scene-group-ungroup = Desface grupul — personajele rămân
+
 action-cycle-entity = Treci la următoarea entitate
 action-delete-selected = Șterge entitatea selectată
 action-nudge-up = Mută selecția în sus

@@ -819,11 +819,11 @@ pub fn run_native(
                         if let Some(idx) = scene
                             .entity_at_point(pos.x + primary_origin.0, pos.y + primary_origin.1)
                         {
-                            // One of several selected keeps them all: the
-                            // menu then acts on the whole selection.
-                            if !selection.is_selected(idx) {
-                                selection.select(idx);
-                            }
+                            // One of several selected keeps them all, so
+                            // the menu acts on the whole selection;
+                            // otherwise it takes the character with its
+                            // group.
+                            crate::input::multi::select_for_menu(&scene, &mut selection, idx);
                             context_menu_state = Some(crate::app::ContextMenuState {
                                 entity_idx: idx,
                                 pos: *pos,
@@ -846,8 +846,8 @@ pub fn run_native(
                         ..
                     } if !egui_owns_pointer => {
                         let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
-                        // Select (alone, keeping the group it is part of, or
-                        // toggled with Shift) and pick the selection up; on
+                        // Select (with its group, keeping the others selected,
+                        // or toggled with Shift) and pick the selection up; on
                         // empty space, a selection rectangle
                         // (`crate::input::multi`).
                         match scene.entity_at_point(at.0, at.1) {
@@ -1111,6 +1111,10 @@ pub fn run_native(
                 let mut shimeji_import: Option<String> = None;
                 let mut add_file_requested = false;
                 let menu_state = context_menu_state.clone();
+                let menu_offers = menu_state
+                    .as_ref()
+                    .map(|m| crate::outcomes::menu_group_offers(m.entity_idx, &scene, &selection))
+                    .unwrap_or_default();
                 // Disjoint mut borrows for the closure.
                 let scene_mut = &mut scene;
                 let selection_mut = &mut selection;
@@ -1208,7 +1212,8 @@ pub fn run_native(
                             );
                             if edit_mode_snapshot {
                                 if let Some(state) = &menu_state {
-                                    *menu_outcome_ref = Some(panels::context_menu(ctx, state));
+                                    *menu_outcome_ref =
+                                        Some(panels::context_menu(ctx, state, menu_offers));
                                 }
                                 *palette_ref = panels::command_palette(
                                     ctx,
@@ -1646,8 +1651,7 @@ fn dispatch_with_timeout(
 /// *stale* scene, and silently discarded the edit. Any save on this path
 /// must go through here.
 fn sync_and_save(config: &mut AppConfig, scene: &Scene) -> Result<()> {
-    config.characters = scene.to_character_configs();
-    config.global.playback_enabled = scene.global_playing;
+    config.take_scene(scene);
     config.save()
 }
 

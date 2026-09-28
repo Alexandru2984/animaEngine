@@ -165,6 +165,24 @@ action-open-command-palette = Paleta poleceń
 # Undo (1.5): machine-translated, pending native review.
 action-undo = Cofnij
 action-redo = Ponów
+
+# Groups (1.5): machine-translated, pending native review.
+action-group-selected = Grupuj zaznaczenie
+action-ungroup-selected = Rozgrupuj zaznaczenie
+menu-group = Grupuj
+menu-ungroup = Rozgrupuj
+group-default-name = Grupa { $number }
+toast-grouped = Zgrupowano jako { $name }
+toast-ungrouped = Rozwiązane grupy: { $count }
+toast-nothing-to-ungroup = Nic z zaznaczenia nie należy do grupy
+scene-groups-empty-hint = Zaznacz kilka postaci i naciśnij Ctrl+G albo kliknij je prawym przyciskiem i wybierz Grupuj.
+scene-group-members = Postacie: { $count }
+scene-group-select-tooltip = Zaznacz postacie z tej grupy
+scene-group-rename = Zmień nazwę grupy
+scene-group-show = Pokaż grupę
+scene-group-hide = Ukryj grupę
+scene-group-ungroup = Rozgrupuj — postacie zostają
+
 action-cycle-entity = Przejdź do następnej postaci
 action-delete-selected = Usuń zaznaczoną postać
 action-nudge-up = Przesuń zaznaczenie w górę

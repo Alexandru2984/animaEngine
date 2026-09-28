@@ -305,6 +305,21 @@ impl App {
                             renderer.primary.window_height,
                         ];
 
+                        // What the right-click menu offers about groups,
+                        // before the scene is lent to the panels.
+                        let menu_offers = self
+                            .ui_state
+                            .context_menu
+                            .as_ref()
+                            .map(|m| {
+                                crate::outcomes::menu_group_offers(
+                                    m.entity_idx,
+                                    &self.scene,
+                                    &self.selection,
+                                )
+                            })
+                            .unwrap_or_default();
+
                         // Disjoint mutable borrows on disjoint fields.
                         let scene_mut = &mut self.scene;
                         let selection_mut = &mut self.selection;
@@ -414,7 +429,8 @@ impl App {
                                 );
                                 if edit_mode {
                                     if let Some(state) = &menu_state {
-                                        *menu_outcome_ref = Some(panels::context_menu(ctx, state));
+                                        *menu_outcome_ref =
+                                            Some(panels::context_menu(ctx, state, menu_offers));
                                     }
                                     // Ctrl+K opens the command palette.
                                     *palette_outcome_ref = panels::command_palette(

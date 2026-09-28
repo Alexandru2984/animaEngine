@@ -55,6 +55,12 @@ pub enum Action {
     DuplicateSelected,
     ResetTransform,
 
+    // ── Groups ──
+    /// Make a group of the selected characters (`crate::group`).
+    GroupSelected,
+    /// Dissolve the groups the selected characters are in.
+    UngroupSelected,
+
     // ── Z-order & rate ──
     BringForward,
     SendBackward,
@@ -102,6 +108,8 @@ impl Action {
         Self::TogglePlayback,
         Self::DuplicateSelected,
         Self::ResetTransform,
+        Self::GroupSelected,
+        Self::UngroupSelected,
         Self::BringForward,
         Self::SendBackward,
         Self::FpsUp,
@@ -132,6 +140,8 @@ impl Action {
                 | Self::TogglePlayback
                 | Self::DuplicateSelected
                 | Self::ResetTransform
+                | Self::GroupSelected
+                | Self::UngroupSelected
                 | Self::BringForward
                 | Self::SendBackward
                 | Self::FpsUp
@@ -192,6 +202,8 @@ impl Action {
             Self::TogglePlayback => "Toggle play/pause",
             Self::DuplicateSelected => "Duplicate selection",
             Self::ResetTransform => "Reset scale / opacity",
+            Self::GroupSelected => "Group selection",
+            Self::UngroupSelected => "Ungroup selection",
             Self::BringForward => "Bring selection forward",
             Self::SendBackward => "Send selection backward",
             Self::FpsUp => "Increase FPS",
@@ -231,6 +243,8 @@ impl Action {
             Self::TogglePlayback => "Play or pause the selected entity's animation.",
             Self::DuplicateSelected => "Spawn a copy of the selected entity nearby.",
             Self::ResetTransform => "Restore scale 1.0 and opacity 1.0.",
+            Self::GroupSelected => "Make a group of the selection; a click then takes all of it.",
+            Self::UngroupSelected => "Dissolve the groups the selection is in.",
             Self::BringForward => "Raise the selected entity by one z-step.",
             Self::SendBackward => "Lower the selected entity by one z-step.",
             Self::FpsUp => "Speed the selected entity's animation up by 2 fps.",
@@ -309,6 +323,9 @@ impl Action {
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('D'))];
     const C_RESET_TRANSFORM: &'static [KeyChord] =
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('R'))];
+    const C_GROUP: &'static [KeyChord] = &[KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('G'))];
+    const C_UNGROUP: &'static [KeyChord] =
+        &[KeyChord::new(ModifierMask(0b0011), KeyCode::Letter('G'))];
     const C_BRING_FORWARD: &'static [KeyChord] = &[KeyChord::new(
         ModifierMask::NONE,
         KeyCode::Named(NamedKey::PageUp),
@@ -368,6 +385,8 @@ impl Action {
             Self::TogglePlayback => Self::C_TOGGLE_PLAYBACK,
             Self::DuplicateSelected => Self::C_DUPLICATE,
             Self::ResetTransform => Self::C_RESET_TRANSFORM,
+            Self::GroupSelected => Self::C_GROUP,
+            Self::UngroupSelected => Self::C_UNGROUP,
             Self::BringForward => Self::C_BRING_FORWARD,
             Self::SendBackward => Self::C_SEND_BACKWARD,
             Self::FpsUp => Self::C_FPS_UP,
@@ -409,6 +428,8 @@ impl Action {
             Self::TogglePlayback => "action-toggle-playback",
             Self::DuplicateSelected => "action-duplicate-selected",
             Self::ResetTransform => "action-reset-transform",
+            Self::GroupSelected => "action-group-selected",
+            Self::UngroupSelected => "action-ungroup-selected",
             Self::BringForward => "action-bring-forward",
             Self::SendBackward => "action-send-backward",
             Self::FpsUp => "action-fps-up",

@@ -21,8 +21,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rectangle touches (with Shift, adding to what is selected). A drag
   then moves them together, and Delete, Duplicate, the arrow keys, V, G,
   P, the z-order and opacity keys and the right-click menu act on all of
-  them; centring moves the group as one. The Inspector edits one and
-  says so. Undo brings a deleted group back selected.
+  them; centring moves them as one block. The Inspector edits one and
+  says so. Undo brings deleted characters back selected.
+- **Groups, from the selection.** `Ctrl+G` makes a group of the
+  selected characters and `Ctrl+Shift+G` dissolves it; both are also on
+  the right-click menu and in the command palette. A click on a grouped
+  character takes the whole group, so a drag moves it as one; a second
+  click takes just that character. The Scene tab lists the groups: a
+  click on one selects it, and each can be renamed, hidden and shown, or
+  dissolved. Nothing moves when a group is made or dissolved. Groups used
+  to exist only for those who wrote them into `config.toml` by hand, and
+  the Scene tab listed them read-only, in English whatever the language.
 - **The overlay steps aside for full-screen apps.** While the window in
   front is full screen — a game, a video, a presentation — the
   characters hide and hold still, by default, and come back when it is
@@ -52,6 +61,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   only the main one: characters on the other monitors stayed on screen,
   frozen. They hide with the rest now, and so does stepping aside for a
   full-screen app. X11 was not affected.
+- **Saving never wrote the sprite groups back.** Deleting a character in
+  a group left its id in the group in `config.toml`, and ids are reused:
+  a character added later under the same one joined that group — its
+  offset, scale and visibility — at the next start. Found reading the
+  code while making groups editable, which needs the save.
 - **Hiding the overlay in the middle of a drag**, on X11, lost the
   button's release: the first move after showing it again carried the
   character to the pointer. The drag is let go when the overlay hides.

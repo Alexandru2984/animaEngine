@@ -165,6 +165,24 @@ action-open-command-palette = Paleta de comandos
 # Undo (1.5): machine-translated, pending native review.
 action-undo = Desfazer
 action-redo = Refazer
+
+# Groups (1.5): machine-translated, pending native review.
+action-group-selected = Agrupar a seleção
+action-ungroup-selected = Desagrupar a seleção
+menu-group = Agrupar
+menu-ungroup = Desagrupar
+group-default-name = Grupo { $number }
+toast-grouped = Agrupados como { $name }
+toast-ungrouped = Grupos desfeitos: { $count }
+toast-nothing-to-ungroup = Nada do que está selecionado está em um grupo
+scene-groups-empty-hint = Selecione vários personagens e pressione Ctrl+G — ou clique com o botão direito neles e escolha Agrupar.
+scene-group-members = Personagens: { $count }
+scene-group-select-tooltip = Selecionar os personagens deste grupo
+scene-group-rename = Renomear o grupo
+scene-group-show = Mostrar o grupo
+scene-group-hide = Ocultar o grupo
+scene-group-ungroup = Desagrupar — os personagens ficam
+
 action-cycle-entity = Ir para o próximo personagem
 action-delete-selected = Excluir o personagem selecionado
 action-nudge-up = Empurrar a seleção para cima

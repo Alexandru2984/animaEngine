@@ -53,6 +53,18 @@ pub enum MenuAction {
     ToggleGravity(usize),
     BringForward(usize),
     SendBackward(usize),
+    Group(usize),
+    Ungroup(usize),
+}
+
+/// Which group entries the right-click menu offers, worked out before the
+/// frame from what it acts on (`crate::outcomes::menu_group_offers`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GroupOffers {
+    /// Two or more characters, which a group can be made of.
+    pub group: bool,
+    /// At least one of them is in a group.
+    pub ungroup: bool,
 }
 
 /// What `context_menu` decided about its own state for this frame.
