@@ -17,10 +17,11 @@ pub const MAX_ENTITIES: usize = 64;
 /// Sized so a full scene of [`MAX_ENTITIES`] sprites still draws every
 /// entity, each with its selection highlight — since 1.5 all of them can
 /// be selected at once — plus the selection rectangle (a fill and four
-/// edges) and the edit-mode bar: `2 × MAX_ENTITIES + 6`. It was
-/// `MAX_ENTITIES + 3`, room for one highlight; with several selected, the
-/// renderer would have silently dropped entities.
-pub const MAX_QUADS: usize = 2 * MAX_ENTITIES + 6;
+/// edges), two snapping guides and the edit-mode bar:
+/// `2 × MAX_ENTITIES + 8`. It was `MAX_ENTITIES + 3`, room for one
+/// highlight; with several selected, the renderer would have silently
+/// dropped entities.
+pub const MAX_QUADS: usize = 2 * MAX_ENTITIES + 8;
 
 /// Size (px) of the clickable toggle button in the top-right corner.
 /// In pass-through mode this is the only area that receives mouse input.

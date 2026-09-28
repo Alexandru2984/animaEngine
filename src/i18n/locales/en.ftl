@@ -193,6 +193,18 @@ scene-group-show = Show group
 scene-group-hide = Hide group
 scene-group-ungroup = Ungroup — the characters stay
 
+# Arrange and snap (1.5)
+arrange-align-left = Align left edges
+arrange-align-center = Centre on one vertical line
+arrange-align-right = Align right edges
+arrange-align-top = Align top edges
+arrange-align-middle = Centre on one horizontal line
+arrange-align-bottom = Align bottom edges
+arrange-distribute-horizontally = Space evenly across
+arrange-distribute-vertically = Space evenly down
+scene-snap = Snap while dragging
+scene-snap-tooltip = Edges and centres snap to the monitors’ and to other characters’. Hold Alt while dragging to place freely.
+
 action-cycle-entity = Cycle to next entity
 action-delete-selected = Delete selected entity
 action-nudge-up = Nudge selection up

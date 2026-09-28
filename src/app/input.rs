@@ -32,11 +32,15 @@ impl App {
             if let Some(marquee) = self.marquee.as_mut() {
                 marquee.drag_to((gx, gy), &self.scene, &mut self.selection);
             } else {
+                // Snapping, unless it is off or Alt is held.
+                let snap_to = (self.config.global.snap_while_dragging && !self.alt_held)
+                    .then(|| crate::input::arrange::monitor_rects(&self.monitors));
                 crate::input::multi::drag_to(
                     &mut self.scene,
                     &self.selection,
-                    &self.drag,
+                    &mut self.drag,
                     (gx, gy),
+                    snap_to.as_deref(),
                 );
             }
         }

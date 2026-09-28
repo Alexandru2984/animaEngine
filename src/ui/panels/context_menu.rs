@@ -5,14 +5,14 @@
 //! `App` can decide whether to keep the menu open, dismiss it, or
 //! dispatch the picked action.
 
-use super::{ContextMenuOutcome, GroupOffers, MenuAction};
+use super::{ContextMenuOutcome, MenuAction, MenuOffers};
 use crate::app::ContextMenuState;
 use crate::ui::icons;
 
 pub(crate) fn context_menu(
     ctx: &egui::Context,
     state: &ContextMenuState,
-    offers: GroupOffers,
+    offers: MenuOffers,
 ) -> ContextMenuOutcome {
     let idx = state.entity_idx;
     let mut picked: Option<MenuAction> = None;
@@ -59,6 +59,12 @@ pub(crate) fn context_menu(
                     .clicked()
                 {
                     picked = Some(MenuAction::ToggleGravity(idx));
+                }
+                if offers.count > 1 {
+                    ui.separator();
+                    if let Some(how) = super::arrange::arrange_buttons(ui, offers.count) {
+                        picked = Some(MenuAction::Arrange(idx, how));
+                    }
                 }
                 if offers.group || offers.ungroup {
                     ui.separator();

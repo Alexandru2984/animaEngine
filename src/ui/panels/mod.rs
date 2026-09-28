@@ -5,6 +5,7 @@
 //! to scene / selection / dirty flag instead of `&mut self`.
 
 mod appearance;
+mod arrange;
 mod command_palette;
 mod context_menu;
 mod inspector;
@@ -55,13 +56,16 @@ pub enum MenuAction {
     SendBackward(usize),
     Group(usize),
     Ungroup(usize),
+    Arrange(usize, crate::input::arrange::Arrange),
 }
 
-/// Which group entries the right-click menu offers, worked out before the
-/// frame from what it acts on (`crate::outcomes::menu_group_offers`).
+/// What the right-click menu offers beyond its fixed entries, worked out
+/// before the frame from what it acts on (`crate::outcomes::menu_offers`).
 #[derive(Debug, Clone, Copy, Default)]
-pub struct GroupOffers {
-    /// Two or more characters, which a group can be made of.
+pub struct MenuOffers {
+    /// How many characters it acts on; two or more can be arranged.
+    pub count: usize,
+    /// They can be made a group: two or more, not already exactly one.
     pub group: bool,
     /// At least one of them is in a group.
     pub ungroup: bool,
@@ -203,6 +207,7 @@ pub fn settings(
     monitor_mode: &mut MonitorMode,
     window_awareness: &mut bool,
     window_awareness_supported: bool,
+    snap_while_dragging: &mut bool,
     // Whether one overlay can cover every monitor. False on native
     // Wayland, where a layer surface belongs to a single output.
     span_supported: bool,
@@ -358,6 +363,7 @@ pub fn settings(
                                 monitor_mode,
                                 window_awareness,
                                 window_awareness_supported,
+                                snap_while_dragging,
                                 span_supported,
                                 monitors,
                                 collapse_state,

@@ -183,6 +183,18 @@ scene-group-show = Gruppe einblenden
 scene-group-hide = Gruppe ausblenden
 scene-group-ungroup = Gruppierung aufheben – die Figuren bleiben
 
+# Arrange and snap (1.5): machine-translated, pending native review.
+arrange-align-left = Linke Kanten ausrichten
+arrange-align-center = Auf einer senkrechten Linie zentrieren
+arrange-align-right = Rechte Kanten ausrichten
+arrange-align-top = Obere Kanten ausrichten
+arrange-align-middle = Auf einer waagerechten Linie zentrieren
+arrange-align-bottom = Untere Kanten ausrichten
+arrange-distribute-horizontally = Gleichmäßig nebeneinander verteilen
+arrange-distribute-vertically = Gleichmäßig untereinander verteilen
+scene-snap = Beim Ziehen einrasten
+scene-snap-tooltip = Kanten und Mitten rasten an denen der Bildschirme und anderer Figuren ein. Beim Ziehen Alt halten, um frei zu platzieren.
+
 action-cycle-entity = Zur nächsten Figur wechseln
 action-delete-selected = Ausgewählte Figur löschen
 action-nudge-up = Auswahl nach oben schieben

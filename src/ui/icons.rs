@@ -252,6 +252,14 @@ pub const PAUSE: &str = ph::PAUSE;
 pub const GROUP: &str = ph::BOUNDING_BOX;
 pub const UNGROUP: &str = ph::LINK_BREAK;
 pub const RENAME: &str = ph::PENCIL_SIMPLE;
+pub const ALIGN_LEFT: &str = ph::ALIGN_LEFT;
+pub const ALIGN_CENTER: &str = ph::ALIGN_CENTER_HORIZONTAL;
+pub const ALIGN_RIGHT: &str = ph::ALIGN_RIGHT;
+pub const ALIGN_TOP: &str = ph::ALIGN_TOP;
+pub const ALIGN_MIDDLE: &str = ph::ALIGN_CENTER_VERTICAL;
+pub const ALIGN_BOTTOM: &str = ph::ALIGN_BOTTOM;
+pub const DISTRIBUTE_HORIZONTALLY: &str = ph::ARROWS_OUT_LINE_HORIZONTAL;
+pub const DISTRIBUTE_VERTICALLY: &str = ph::ARROWS_OUT_LINE_VERTICAL;
 
 // State / status (used inline with labels).
 pub const HIDDEN: &str = ph::EYE_SLASH;

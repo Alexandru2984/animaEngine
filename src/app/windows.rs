@@ -324,6 +324,7 @@ impl App {
         let marks = crate::renderer::wgpu_renderer::EditMarks {
             selected: &selected_ids,
             marquee: self.marquee.as_ref().map(|m| m.rect()),
+            guides: self.drag.guides(),
         };
 
         let visible = self.scene.visible_entities();
@@ -365,6 +366,7 @@ impl App {
         let marks = crate::renderer::wgpu_renderer::EditMarks {
             selected: &selected_ids,
             marquee: self.marquee.as_ref().map(|m| m.rect()),
+            guides: self.drag.guides(),
         };
         let visible = self.scene.visible_entities();
         let Some(slot) = self.extra_windows.get_mut(&id) else {

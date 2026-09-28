@@ -74,6 +74,11 @@ pub struct GlobalConfig {
     /// inert elsewhere. Off by default like everything physics.
     #[serde(default)]
     pub window_awareness: bool,
+    /// Snap a dragged selection's edges and centre to the monitors' and
+    /// to other characters' (`crate::input::arrange`). On by default;
+    /// Alt held during a drag places freely.
+    #[serde(default = "default_true")]
+    pub snap_while_dragging: bool,
     /// Generate AccessKit tree updates (the AT-SPI bridge that drives
     /// screen readers like Orca). On by default — the overhead is
     /// negligible and we want screen-reader users to "just work" out
@@ -120,6 +125,7 @@ impl Default for GlobalConfig {
             hover_startle: false,
             on_fullscreen: crate::fullscreen::OnFullscreen::default(),
             window_awareness: false,
+            snap_while_dragging: true,
             accesskit_enabled: true,
             hotkey_backend: crate::hotkeys::probe::HotkeyBackend::Auto,
             last_seen_whats_new: None,

@@ -924,7 +924,17 @@ pub fn run_native(
                     }
                     egui::Event::PointerMoved(pos) if drag.is_dragging() => {
                         let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
-                        crate::input::multi::drag_to(&mut scene, &selection, &drag, at);
+                        // Snapping, unless it is off or Alt is held.
+                        let snap_to = (config.global.snap_while_dragging
+                            && !layer.state.last_modifiers.alt)
+                            .then(|| crate::input::arrange::monitor_rects(&monitors_now));
+                        crate::input::multi::drag_to(
+                            &mut scene,
+                            &selection,
+                            &mut drag,
+                            at,
+                            snap_to.as_deref(),
+                        );
                     }
                     _ => {}
                 }
@@ -1033,6 +1043,7 @@ pub fn run_native(
         let marks = crate::renderer::wgpu_renderer::EditMarks {
             selected: &selected_ids,
             marquee: marquee.as_ref().map(|m| m.rect()),
+            guides: drag.guides(),
         };
         let visible = scene.visible_entities();
         // In PerMonitor mode the primary surface covers exactly its
@@ -1113,7 +1124,7 @@ pub fn run_native(
                 let menu_state = context_menu_state.clone();
                 let menu_offers = menu_state
                     .as_ref()
-                    .map(|m| crate::outcomes::menu_group_offers(m.entity_idx, &scene, &selection))
+                    .map(|m| crate::outcomes::menu_offers(m.entity_idx, &scene, &selection))
                     .unwrap_or_default();
                 // Disjoint mut borrows for the closure.
                 let scene_mut = &mut scene;
@@ -1124,6 +1135,7 @@ pub fn run_native(
                 let onboarding_mut = &mut config.global.onboarding;
                 let monitor_mode_mut = &mut config.global.monitor_mode;
                 let window_awareness_mut = &mut config.global.window_awareness;
+                let snap_mut = &mut config.global.snap_while_dragging;
                 let reduced_motion_mut = &mut config.global.reduced_motion;
                 let hover_startle_mut = &mut config.global.hover_startle;
                 let on_fullscreen_mut = &mut config.global.on_fullscreen;
@@ -1190,6 +1202,7 @@ pub fn run_native(
                                 window_awareness_mut,
                                 // Native Wayland exposes no window positions.
                                 false,
+                                snap_mut,
                                 // A layer surface belongs to one output, so no single
                                 // surface can span the desktop here.
                                 false,

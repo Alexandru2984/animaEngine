@@ -308,7 +308,8 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                 \n    Drag on empty space — Select what the rectangle touches\n\
                 \n    Escape     — Exit edit mode (auto-saves)\n\
                 \n\n  Position:\n\
-                \n    Drag       — Move entity (every selected one)\n\
+                \n    Drag       — Move entity (every selected one), snapping\n\
+                \n    Alt+Drag   — Move without snapping\n\
                 \n    Arrows     — Nudge 10px\n\
                 \n    Shift+Arrows — Fine nudge 1px\n\
                 \n    Home       — Center on screen\n\

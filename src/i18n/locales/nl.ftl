@@ -183,6 +183,18 @@ scene-group-show = Groep tonen
 scene-group-hide = Groep verbergen
 scene-group-ungroup = Groepering opheffen — de figuren blijven
 
+# Arrange and snap (1.5): machine-translated, pending native review.
+arrange-align-left = Linkerranden uitlijnen
+arrange-align-center = Centreren op één verticale lijn
+arrange-align-right = Rechterranden uitlijnen
+arrange-align-top = Bovenranden uitlijnen
+arrange-align-middle = Centreren op één horizontale lijn
+arrange-align-bottom = Onderranden uitlijnen
+arrange-distribute-horizontally = Gelijkmatig naast elkaar verdelen
+arrange-distribute-vertically = Gelijkmatig onder elkaar verdelen
+scene-snap = Magnetisch slepen
+scene-snap-tooltip = Randen en middens klikken vast aan die van de schermen en van andere figuren. Houd Alt ingedrukt tijdens het slepen om vrij te plaatsen.
+
 action-cycle-entity = Naar het volgende personage
 action-delete-selected = Geselecteerd personage verwijderen
 action-nudge-up = Selectie omhoog duwen

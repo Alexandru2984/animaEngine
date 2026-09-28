@@ -237,6 +237,7 @@ impl App {
             let marks = crate::renderer::wgpu_renderer::EditMarks {
                 selected: &selected_ids,
                 marquee: self.marquee.as_ref().map(|m| m.rect()),
+                guides: self.drag.guides(),
             };
 
             // Render all visible entities. WgpuRenderer hands back the
@@ -312,7 +313,7 @@ impl App {
                             .context_menu
                             .as_ref()
                             .map(|m| {
-                                crate::outcomes::menu_group_offers(
+                                crate::outcomes::menu_offers(
                                     m.entity_idx,
                                     &self.scene,
                                     &self.selection,
@@ -329,6 +330,7 @@ impl App {
                         let onboarding_mut = &mut self.config.global.onboarding;
                         let monitor_mode_mut = &mut self.config.global.monitor_mode;
                         let window_awareness_mut = &mut self.config.global.window_awareness;
+                        let snap_mut = &mut self.config.global.snap_while_dragging;
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
                         let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
@@ -406,6 +408,7 @@ impl App {
                                     window_awareness_mut,
                                     // winit backend: X11 or XWayland, both read EWMH.
                                     true,
+                                    snap_mut,
                                     // X11's root window is one screen across
                                     // every monitor, so Span really spans.
                                     true,

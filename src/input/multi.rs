@@ -12,6 +12,7 @@
 //! drag over empty space selects what the rectangle touches — added to the
 //! selection with Shift — and a click there deselects.
 
+use crate::input::arrange;
 use crate::input::drag::DragController;
 use crate::input::selection::SelectionState;
 use crate::scene::Scene;
@@ -59,14 +60,21 @@ pub fn press_on(
 /// The pointer moved during a drag: the pressed character follows it and
 /// the rest of the selection keeps its place around it.
 ///
+/// With `snap_to` — the monitors, when snapping is on and Alt is not
+/// held — the selection's edges and centre snap to those of a monitor or
+/// another visible character within reach (`crate::input::arrange`).
+/// The guides showing what it snapped to go on the drag
+/// ([`DragController::guides`]).
+///
 /// Nothing moves once the pressed character has left the selection:
 /// something else changed it mid-drag, and the rest would be moved by the
 /// pressed one's whole offset again at every step, flying off.
 pub fn drag_to(
     scene: &mut Scene,
     selection: &SelectionState,
-    drag: &DragController,
+    drag: &mut DragController,
     (x, y): (f32, f32),
+    snap_to: Option<&[arrange::Rect]>,
 ) {
     let Some((idx, new_x, new_y)) = drag.update(x, y) else {
         return;
@@ -77,8 +85,21 @@ pub fn drag_to(
     let Some(entity) = scene.entities.get(idx) else {
         return;
     };
-    let (dx, dy) = (new_x - entity.x, new_y - entity.y);
-    for i in selection.selected_indices() {
+    let (mut dx, mut dy) = (new_x - entity.x, new_y - entity.y);
+    let selected = selection.selected_indices();
+    let mut guides = Vec::new();
+    if let (Some(monitors), Some(b)) = (snap_to, arrange::bounds(scene, &selected)) {
+        let others: Vec<arrange::Rect> = (0..scene.entities.len())
+            .filter(|&i| !selection.is_selected(i) && scene.effective_visible(i))
+            .filter_map(|i| arrange::drawn_rect(scene, i))
+            .collect();
+        let moved = (b.0 + dx, b.1 + dy, b.2 + dx, b.3 + dy);
+        let (sx, sy, g) = arrange::snap(moved, &others, monitors);
+        dx += sx;
+        dy += sy;
+        guides = g;
+    }
+    for i in selected {
         if let Some(e) = scene.entities.get_mut(i) {
             e.x += dx;
             e.y += dy;
@@ -87,6 +108,7 @@ pub fn drag_to(
             e.behavior_state.bounce_invalidate();
         }
     }
+    drag.set_guides(guides);
 }
 
 /// The drag ended: physics takes the selected characters back. A tap —
@@ -324,7 +346,7 @@ mod tests {
         let (mut sel, mut drag) = (SelectionState::default(), DragController::new());
         sel.select_all_of(&[0, 2]);
         press_on(&mut s, &mut sel, &mut drag, 2, (205.0, 5.0), false);
-        drag_to(&mut s, &sel, &drag, (225.0, 45.0));
+        drag_to(&mut s, &sel, &mut drag, (225.0, 45.0), None);
         assert_eq!((s.entities[2].x, s.entities[2].y), (220.0, 40.0));
         assert_eq!(
             (s.entities[0].x, s.entities[0].y),
@@ -349,7 +371,7 @@ mod tests {
         assert!(!drag.is_dragging() && marquee.is_none());
         assert!(s.entities.iter().all(|e| !e.dragging));
         // No drag left to move anything on the next pointer motion.
-        drag_to(&mut s, &sel, &drag, (500.0, 500.0));
+        drag_to(&mut s, &sel, &mut drag, (500.0, 500.0), None);
         assert_eq!(s.entities[0].x, 0.0);
     }
 
@@ -370,7 +392,7 @@ mod tests {
         // A drag from a fresh click moves the whole group.
         sel.deselect();
         press_on(&mut s, &mut sel, &mut drag, 0, (1.0, 1.0), false);
-        drag_to(&mut s, &sel, &drag, (11.0, 1.0));
+        drag_to(&mut s, &sel, &mut drag, (11.0, 1.0), None);
         end_drag(&mut s, &mut sel, &mut drag, false, false);
         assert_eq!((s.entities[0].x, s.entities[2].x), (10.0, 210.0));
         assert_eq!(s.entities[1].x, 100.0, "not in the group");
@@ -394,17 +416,45 @@ mod tests {
     }
 
     #[test]
+    fn a_drag_snaps_to_others_but_not_to_the_selection_itself() {
+        let mut s = scene();
+        let w = s.entities[0].scaled_width();
+        let (mut sel, mut drag) = (SelectionState::default(), DragController::new());
+        sel.select_all_of(&[0, 1]);
+        press_on(&mut s, &mut sel, &mut drag, 0, (1.0, 1.0), false);
+        // "a" and "b" move together; "c" stays at 200. Moved by this much,
+        // b's right edge (100 + w + shift) stops 3 px short of c's left.
+        let shift = 100.0 - w - 3.0;
+        drag_to(&mut s, &sel, &mut drag, (1.0 + shift, 1.0), Some(&[]));
+        assert_eq!(s.entities[1].x + w, 200.0, "b's right edge on c's left");
+        assert_eq!(s.entities[0].x, 3.0 + shift, "a kept its place in the set");
+        assert!(!drag.guides().is_empty());
+        // Without snapping: exactly where the pointer says.
+        drag_to(&mut s, &sel, &mut drag, (1.0 + shift, 1.0), None);
+        assert_eq!(s.entities[0].x, shift);
+        assert!(drag.guides().is_empty());
+        end_drag(&mut s, &mut sel, &mut drag, false, false);
+        assert!(drag.guides().is_empty(), "gone with the drag");
+    }
+
+    #[test]
     fn a_selection_changed_mid_drag_is_not_moved() {
         let mut s = scene();
         let (mut sel, mut drag) = (SelectionState::default(), DragController::new());
         press_on(&mut s, &mut sel, &mut drag, 0, (1.0, 1.0), false);
-        drag_to(&mut s, &sel, &drag, (21.0, 1.0));
+        drag_to(&mut s, &sel, &mut drag, (21.0, 1.0), None);
         assert_eq!(s.entities[0].x, 20.0);
         // What Duplicate does: the copy — here "c" — becomes the selection
         // while the pressed one stays where it is.
         sel.select(2);
         for step in 1..=3 {
-            drag_to(&mut s, &sel, &drag, (21.0 + 10.0 * step as f32, 1.0));
+            drag_to(
+                &mut s,
+                &sel,
+                &mut drag,
+                (21.0 + 10.0 * step as f32, 1.0),
+                None,
+            );
         }
         assert_eq!(s.entities[2].x, 200.0, "not sent flying");
         assert_eq!(s.entities[0].x, 20.0);

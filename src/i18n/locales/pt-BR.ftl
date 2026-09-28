@@ -183,6 +183,18 @@ scene-group-show = Mostrar o grupo
 scene-group-hide = Ocultar o grupo
 scene-group-ungroup = Desagrupar — os personagens ficam
 
+# Arrange and snap (1.5): machine-translated, pending native review.
+arrange-align-left = Alinhar bordas esquerdas
+arrange-align-center = Centralizar numa linha vertical
+arrange-align-right = Alinhar bordas direitas
+arrange-align-top = Alinhar bordas superiores
+arrange-align-middle = Centralizar numa linha horizontal
+arrange-align-bottom = Alinhar bordas inferiores
+arrange-distribute-horizontally = Distribuir igualmente na horizontal
+arrange-distribute-vertically = Distribuir igualmente na vertical
+scene-snap = Encaixar ao arrastar
+scene-snap-tooltip = Bordas e centros se encaixam nos das telas e de outros personagens. Segure Alt ao arrastar para posicionar livremente.
+
 action-cycle-entity = Ir para o próximo personagem
 action-delete-selected = Excluir o personagem selecionado
 action-nudge-up = Empurrar a seleção para cima

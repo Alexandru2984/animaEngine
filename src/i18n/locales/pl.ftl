@@ -183,6 +183,18 @@ scene-group-show = Pokaż grupę
 scene-group-hide = Ukryj grupę
 scene-group-ungroup = Rozgrupuj — postacie zostają
 
+# Arrange and snap (1.5): machine-translated, pending native review.
+arrange-align-left = Wyrównaj lewe krawędzie
+arrange-align-center = Wyśrodkuj na jednej pionowej linii
+arrange-align-right = Wyrównaj prawe krawędzie
+arrange-align-top = Wyrównaj górne krawędzie
+arrange-align-middle = Wyśrodkuj na jednej poziomej linii
+arrange-align-bottom = Wyrównaj dolne krawędzie
+arrange-distribute-horizontally = Rozłóż równo w poziomie
+arrange-distribute-vertically = Rozłóż równo w pionie
+scene-snap = Przyciągaj podczas przeciągania
+scene-snap-tooltip = Krawędzie i środki przyciągają się do krawędzi i środków ekranów oraz innych postaci. Przytrzymaj Alt podczas przeciągania, by umieszczać swobodnie.
+
 action-cycle-entity = Przejdź do następnej postaci
 action-delete-selected = Usuń zaznaczoną postać
 action-nudge-up = Przesuń zaznaczenie w górę

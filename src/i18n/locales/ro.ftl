@@ -183,6 +183,18 @@ scene-group-show = Arată grupul
 scene-group-hide = Ascunde grupul
 scene-group-ungroup = Desface grupul — personajele rămân
 
+# Arrange and snap (1.5): machine-translated, pending native review.
+arrange-align-left = Aliniază marginile din stânga
+arrange-align-center = Centrează pe o linie verticală
+arrange-align-right = Aliniază marginile din dreapta
+arrange-align-top = Aliniază marginile de sus
+arrange-align-middle = Centrează pe o linie orizontală
+arrange-align-bottom = Aliniază marginile de jos
+arrange-distribute-horizontally = Distribuie egal pe orizontală
+arrange-distribute-vertically = Distribuie egal pe verticală
+scene-snap = Lipește la tragere
+scene-snap-tooltip = Marginile și centrele se lipesc de ale ecranelor și ale altor personaje. Ține Alt apăsat în timpul tragerii ca să le plasezi liber.
+
 action-cycle-entity = Treci la următoarea entitate
 action-delete-selected = Șterge entitatea selectată
 action-nudge-up = Mută selecția în sus

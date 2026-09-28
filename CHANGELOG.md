@@ -32,6 +32,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   dissolved. Nothing moves when a group is made or dissolved. Groups used
   to exist only for those who wrote them into `config.toml` by hand, and
   the Scene tab listed them read-only, in English whatever the language.
+- **Align, space and snap.** With several characters selected, a row in
+  the Inspector and on the right-click menu lines them up on an edge or
+  a centre — Align bottom edges puts them on one floor — or spaces them
+  evenly across or down. A drag now snaps the selection's edges and
+  centre to the monitors' and to other characters' within 8 px, and a
+  thin line shows what it snapped to; hold Alt to place freely, or turn
+  it off in the Scene tab.
 - **The overlay steps aside for full-screen apps.** While the window in
   front is full screen — a game, a video, a presentation — the
   characters hide and hold still, by default, and come back when it is

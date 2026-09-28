@@ -28,6 +28,7 @@ pub(super) fn scene_tab(
     window_awareness: &mut bool,
     // Whether this backend can actually provide window positions.
     window_awareness_supported: bool,
+    snap_while_dragging: &mut bool,
     // Kept separate from window-awareness even though both are false on
     // the same backend today: they are different capabilities, and a
     // future backend could have one without the other.
@@ -67,6 +68,15 @@ pub(super) fn scene_tab(
             )
             .wrap(),
         );
+    }
+    // Snapping while dragging (1.5), on both backends.
+    ui.add_space(SPACE_S);
+    if ui
+        .checkbox(snap_while_dragging, t("scene-snap"))
+        .on_hover_text(t("scene-snap-tooltip"))
+        .changed()
+    {
+        *config_dirty = true;
     }
     ui.add_space(SPACE_L);
     ui.separator();

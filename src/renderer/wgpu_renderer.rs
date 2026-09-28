@@ -55,6 +55,8 @@ pub struct GpuShared {
     /// UI: the selection rectangle's colour (1x1 stretched), drawn faint
     /// for its fill and solid for its edges.
     marquee_tex: GpuTexture,
+    /// UI: a snapping guide's colour (1x1 stretched).
+    guide_tex: GpuTexture,
     /// Per-frame GPU op counters for the perf HUD (W.3). `Cell` because
     /// `SurfaceState::render` borrows `&GpuShared`; single-threaded
     /// (renderer lives on the event-loop thread), reset once per frame
@@ -149,16 +151,23 @@ pub struct EditMarks<'a> {
     /// panel exists on the primary alone, and on another monitor the
     /// rectangle selected what it touched without being seen.
     pub marquee: Option<(f32, f32, f32, f32)>,
+    /// What a drag is snapping to (`crate::input::arrange::snap`): one
+    /// line across, one down, at most.
+    pub guides: &'a [crate::input::arrange::Guide],
 }
 
 /// Width of the selection rectangle's edges, in pixels.
 const MARQUEE_EDGE: f32 = 2.0;
 /// Opacity of the selection rectangle's fill.
 const MARQUEE_FILL: f32 = 0.12;
+/// Width of a snapping guide, in pixels.
+const GUIDE_WIDTH: f32 = 1.0;
+/// At most this many guides: one line across, one down.
+const MAX_GUIDES: usize = 2;
 
 /// Quads drawn after every entity: the selection rectangle's fill and
-/// four edges, then the edit-mode bar.
-const UI_QUADS: usize = 6;
+/// four edges, the snapping guides, then the edit-mode bar.
+const UI_QUADS: usize = 5 + MAX_GUIDES + 1;
 
 /// Per-window render state.
 pub struct SurfaceState {
@@ -495,6 +504,16 @@ impl GpuShared {
             "marquee",
         );
 
+        // Snapping guides: magenta, apart from the selection's cyan.
+        let guide_frame = Frame::new(vec![240, 70, 170, 255], 1, 1);
+        let guide_tex = GpuTexture::from_frame(
+            &device,
+            &queue,
+            &guide_frame,
+            &texture_bind_group_layout,
+            "snap_guide",
+        );
+
         Ok(Self {
             instance,
             adapter,
@@ -510,6 +529,7 @@ impl GpuShared {
             edit_bar_tex,
             selection_tex,
             marquee_tex,
+            guide_tex,
             uploads_this_frame: std::cell::Cell::new(0),
             draws_this_frame: std::cell::Cell::new(0),
         })
@@ -818,6 +838,7 @@ impl SurfaceState {
             EditBar,
             Selection,
             Marquee,
+            Guide,
         }
         struct DrawCmd<'e> {
             quad_index: usize,
@@ -915,6 +936,30 @@ impl SurfaceState {
             }
         }
 
+        // Snapping guides, over the rectangle and the characters.
+        for guide in marks.guides.iter().take(MAX_GUIDES).filter(|_| edit_mode) {
+            let rect = match *guide {
+                crate::input::arrange::Guide::Vertical { x, from, to } => (
+                    x - GUIDE_WIDTH / 2.0 - origin.0,
+                    from - origin.1,
+                    GUIDE_WIDTH,
+                    to - from,
+                ),
+                crate::input::arrange::Guide::Horizontal { y, from, to } => (
+                    from - origin.0,
+                    y - GUIDE_WIDTH / 2.0 - origin.1,
+                    to - from,
+                    GUIDE_WIDTH,
+                ),
+            };
+            self.write_quad(shared, quad_idx, rect, 1.0, false);
+            draws.push(DrawCmd {
+                quad_index: quad_idx,
+                texture: Texture::Guide,
+            });
+            quad_idx += 1;
+        }
+
         // Edit mode indicator bar
         if edit_mode {
             self.write_quad(
@@ -967,6 +1012,7 @@ impl SurfaceState {
                     Texture::EditBar => &shared.edit_bar_tex,
                     Texture::Selection => &shared.selection_tex,
                     Texture::Marquee => &shared.marquee_tex,
+                    Texture::Guide => &shared.guide_tex,
                     Texture::Entity(id) => match shared.textures.get(id) {
                         Some(gpu_tex) => gpu_tex,
                         None => continue,

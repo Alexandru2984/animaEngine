@@ -183,6 +183,18 @@ scene-group-show = グループを表示
 scene-group-hide = グループを非表示
 scene-group-ungroup = グループ解除(キャラクターは残ります)
 
+# Arrange and snap (1.5): machine-translated, pending native review.
+arrange-align-left = 左端を揃える
+arrange-align-center = 縦の中心線で揃える
+arrange-align-right = 右端を揃える
+arrange-align-top = 上端を揃える
+arrange-align-middle = 横の中心線で揃える
+arrange-align-bottom = 下端を揃える
+arrange-distribute-horizontally = 横に等間隔で並べる
+arrange-distribute-vertically = 縦に等間隔で並べる
+scene-snap = ドラッグ中にスナップ
+scene-snap-tooltip = 端と中心が画面や他のキャラクターの端と中心に吸着します。ドラッグ中に Alt を押すと自由に配置できます。
+
 action-cycle-entity = 次のキャラクターへ
 action-delete-selected = 選択したキャラクターを削除
 action-nudge-up = 選択を上へ移動

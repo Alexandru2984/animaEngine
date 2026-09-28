@@ -96,6 +96,10 @@ pub fn apply_menu_action(action: MenuAction, ctx: &mut OutcomeCtx<'_>) {
             let targets = covered(idx, ctx.selection);
             *ctx.config_dirty |= ungroup_entities(&targets, ctx.scene, ctx.toasts);
         }
+        MenuAction::Arrange(idx, how) => {
+            let targets = covered(idx, ctx.selection);
+            *ctx.config_dirty |= crate::input::arrange::arrange(ctx.scene, &targets, how);
+        }
         MenuAction::BringForward(idx) | MenuAction::SendBackward(idx) => {
             let step = if matches!(action, MenuAction::BringForward(_)) {
                 10
@@ -114,13 +118,14 @@ pub fn apply_menu_action(action: MenuAction, ctx: &mut OutcomeCtx<'_>) {
 }
 
 /// What the right-click menu on the character at `idx` offers about groups.
-pub fn menu_group_offers(
+pub fn menu_offers(
     idx: usize,
     scene: &Scene,
     selection: &SelectionState,
-) -> crate::ui::panels::GroupOffers {
+) -> crate::ui::panels::MenuOffers {
     let targets = covered(idx, selection);
-    crate::ui::panels::GroupOffers {
+    crate::ui::panels::MenuOffers {
+        count: targets.len(),
         group: targets.len() > 1 && !scene.already_a_group(&targets),
         ungroup: targets.iter().any(|&i| {
             scene

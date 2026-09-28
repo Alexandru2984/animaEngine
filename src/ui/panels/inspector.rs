@@ -54,6 +54,7 @@ pub(super) fn inspector_tab(
     // Several selected: say which one this panel edits, and that the rest
     // of the editing reaches them all.
     let also_selected = selection.count().saturating_sub(1);
+    let mut arrange_picked = None;
     match selected_idx.and_then(|idx| scene.entities.get_mut(idx).map(|e| (idx, e))) {
         Some((_idx, entity)) => {
             if also_selected > 0 {
@@ -65,6 +66,8 @@ pub(super) fn inspector_tab(
                         .text_style(theme::caption())
                         .color(ui.visuals().weak_text_color()),
                 );
+                ui.add_space(SPACE_XS);
+                arrange_picked = super::arrange::arrange_buttons(ui, also_selected + 1);
                 ui.add_space(SPACE_XS);
             }
             // Hint about V / G shortcuts, sitting above the quick-toggle
@@ -97,6 +100,9 @@ pub(super) fn inspector_tab(
             &t("inspector-nothing-selected-headline"),
             &t("inspector-nothing-selected-hint"),
         ),
+    }
+    if let Some(how) = arrange_picked {
+        *config_dirty |= crate::input::arrange::arrange(scene, &selection.selected_indices(), how);
     }
 }
 

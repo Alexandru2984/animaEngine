@@ -28,6 +28,9 @@ pub enum DragState {
 #[derive(Debug, Default)]
 pub struct DragController {
     pub state: DragState,
+    /// What the drag has snapped to, for the renderer to show
+    /// (`crate::input::arrange`). Empty when it has not, and between drags.
+    guides: Vec<crate::input::arrange::Guide>,
 }
 
 impl DragController {
@@ -53,6 +56,7 @@ impl DragController {
             press_y,
             narrow_on_tap: false,
         };
+        self.guides.clear();
         tracing::debug!("Started dragging entity at index {}", entity_index);
     }
 
@@ -98,6 +102,17 @@ impl DragController {
             tracing::debug!("Ended drag");
         }
         self.state = DragState::Idle;
+        self.guides.clear();
+    }
+
+    /// The guides of the last move ([`Self::guides`]).
+    pub fn set_guides(&mut self, guides: Vec<crate::input::arrange::Guide>) {
+        self.guides = guides;
+    }
+
+    /// What the drag snapped to at its last move.
+    pub fn guides(&self) -> &[crate::input::arrange::Guide] {
+        &self.guides
     }
 
     /// Is a drag currently in progress?

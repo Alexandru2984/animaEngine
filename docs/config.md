@@ -74,6 +74,9 @@ hover_startle = false       # characters recoil from an approaching
 on_fullscreen = "hide"      # while another app is full screen: hide
                             # the characters, "pause" them, or
                             # "ignore" it. Never in edit mode.
+snap_while_dragging = true  # a dragged selection snaps to monitor
+                            # edges and other characters; hold Alt
+                            # while dragging to place freely.
 ```
 
 | Key | Values | Notes |

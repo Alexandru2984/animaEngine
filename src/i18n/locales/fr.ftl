@@ -183,6 +183,18 @@ scene-group-show = Afficher le groupe
 scene-group-hide = Masquer le groupe
 scene-group-ungroup = Dissocier — les personnages restent
 
+# Arrange and snap (1.5): machine-translated, pending native review.
+arrange-align-left = Aligner les bords gauches
+arrange-align-center = Centrer sur une ligne verticale
+arrange-align-right = Aligner les bords droits
+arrange-align-top = Aligner les bords supérieurs
+arrange-align-middle = Centrer sur une ligne horizontale
+arrange-align-bottom = Aligner les bords inférieurs
+arrange-distribute-horizontally = Répartir également en largeur
+arrange-distribute-vertically = Répartir également en hauteur
+scene-snap = Magnétisme pendant le glissement
+scene-snap-tooltip = Les bords et les centres s’aimantent à ceux des écrans et des autres personnages. Maintenez Alt en glissant pour placer librement.
+
 action-cycle-entity = Passer au personnage suivant
 action-delete-selected = Supprimer le personnage sélectionné
 action-nudge-up = Déplacer la sélection vers le haut

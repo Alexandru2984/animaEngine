@@ -330,14 +330,28 @@ state. The renderer draws a highlight per selected entity and the
 selection rectangle (`EditMarks`) — on every surface, cut to each by its
 origin, so it shows on whichever monitors it crosses; the panel, which
 drew it before, exists on the primary alone. `MAX_QUADS` is
-`2 × MAX_ENTITIES + 6`: a sprite and a highlight each, then the
-rectangle's fill and four edges and the edit bar.
+`2 × MAX_ENTITIES + 8`: a sprite and a highlight each, then the
+rectangle's fill and four edges, two snapping guides and the edit bar.
 
 A gesture holds entity indices, so `multi::cancel` lets go of it
 whenever those could change or the release could be lost: before an
 action that adds, removes or reselects characters
 (`Action::interrupts_drag`: undo, redo, cycle, delete, duplicate), when
 edit mode ends, and when the overlay hides or steps aside (R56).
+
+### Arranging (`src/input/arrange.rs`)
+
+Align, distribute and snapping are geometry over `drawn_rect` — where
+the renderer draws a character, its group's offset and scale included —
+so what lines up is what is seen; each move shifts the stored position
+by the same amount. `arrange` backs the row of buttons shared by the
+Inspector and the right-click menu (`ui::panels::arrange`). `snap`
+runs in `multi::drag_to` when the caller passes the monitors (the
+setting is on and Alt is up): the selection's bounds, moved, meet the
+nearest edge or centre of a monitor or of a visible unselected character
+within `SNAP_DISTANCE` on each axis. The guides it returns live on the
+`DragController`, cleared with the drag, and the renderer draws them
+(`EditMarks::guides`), so no call site can leave one on screen.
 
 ### Groups (`src/group.rs`)
 
