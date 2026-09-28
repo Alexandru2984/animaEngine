@@ -130,6 +130,8 @@ pub fn run_native(
     let mut drag = crate::input::drag::DragController::new();
     // A selection rectangle being dragged over empty space.
     let mut marquee: Option<crate::input::multi::Marquee> = None;
+    // Edit mode as of the last iteration, to notice it ending.
+    let mut was_editing = false;
     let mut toasts = ToastQueue::default();
     let mut config_dirty = false;
     // What a panel outcome may touch (`crate::outcomes`), borrowed per
@@ -774,6 +776,18 @@ pub fn run_native(
         // Only the *press* arms are gated. Motion and release stay live so
         // a drag that began on a sprite still tracks and still finishes if
         // the pointer crosses the panel on the way.
+        // Edit mode just ended — by any of the four ways — so let go of
+        // what the pointer held and drop the selection, as the winit path
+        // does. The release of a drag in progress will not come: in
+        // pass-through the surface no longer gets the pointer, and the
+        // drag used to stay open until the next move in edit mode, which
+        // made the character jump to the pointer.
+        if was_editing && !layer.state.edit_mode {
+            crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
+            selection.deselect();
+            context_menu_state = None;
+        }
+        was_editing = layer.state.edit_mode;
         let egui_owns_pointer = egui_renderer.owns_pointer();
         if layer.state.edit_mode {
             for event in &events {

@@ -43,6 +43,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   whatever the panel was doing — 148% of a core in the rig with nothing
   moving. It now draws on input and when the panel asks for a frame (a
   hover, a tooltip's delay, an animation): 1–2% idle.
+- **Leaving edit mode in the middle of a drag** — Escape, the tray or a
+  shortcut with the button still down — left the character frozen in
+  its Drag state on X11, and on native Wayland still attached to the
+  pointer: the next move in edit mode made it jump there. Both let go of
+  it now.
 - The pulse on the selected row in the Scene tab ignored **Reduce
   motion**. It holds still now, and otherwise runs at ten frames a
   second instead of every frame.

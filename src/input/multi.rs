@@ -101,6 +101,24 @@ pub fn end_drag(
     drag.end_drag();
 }
 
+/// Edit mode ended in the middle of a gesture — Escape, the tray, a
+/// shortcut, with the button still down. Let go of what the pointer held:
+/// every selected character unfrozen and out of its Drag state, and any
+/// selection rectangle dropped. The release will not come: in pass-through
+/// the overlay no longer receives the pointer, and a drag left open made
+/// the character jump to the pointer on the next move in edit mode.
+pub fn cancel(
+    scene: &mut Scene,
+    selection: &mut SelectionState,
+    drag: &mut DragController,
+    marquee: &mut Option<Marquee>,
+) {
+    if drag.is_dragging() {
+        end_drag(scene, selection, drag, false, false);
+    }
+    *marquee = None;
+}
+
 /// A selection rectangle being dragged over empty space.
 #[derive(Debug, Clone)]
 pub struct Marquee {
@@ -279,6 +297,22 @@ mod tests {
         end_drag(&mut s, &mut sel, &mut drag, false, false);
         assert_eq!(sel.count(), 2, "a real drag keeps the group");
         assert!(s.entities.iter().all(|e| !e.dragging));
+    }
+
+    #[test]
+    fn cancelling_mid_drag_lets_go_of_everything() {
+        let mut s = scene();
+        let (mut sel, mut drag) = (SelectionState::default(), DragController::new());
+        sel.select_all_of(&[0, 1]);
+        press_on(&mut s, &mut sel, &mut drag, 0, (1.0, 1.0), false);
+        assert!(s.entities[1].dragging);
+        let mut marquee = Some(Marquee::begin((0.0, 0.0), true, &mut sel));
+        cancel(&mut s, &mut sel, &mut drag, &mut marquee);
+        assert!(!drag.is_dragging() && marquee.is_none());
+        assert!(s.entities.iter().all(|e| !e.dragging));
+        // No drag left to move anything on the next pointer motion.
+        drag_to(&mut s, &sel, &drag, (500.0, 500.0));
+        assert_eq!(s.entities[0].x, 0.0);
     }
 
     #[test]

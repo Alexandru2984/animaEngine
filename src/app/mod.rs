@@ -595,11 +595,19 @@ impl App {
             tracing::info!(
                 "━━━ PASS-THROUGH MODE ━━━ Clicks go to desktop. Click ⚙ button to enter edit mode."
             );
-            // End any active drag when leaving edit mode
+            // Let go of anything the pointer held when leaving edit mode —
+            // a drag of the whole selection, a selection rectangle. Ending
+            // the drag alone left the characters frozen and in their Drag
+            // state.
             if self.drag.is_dragging() {
-                self.drag.end_drag();
                 self.config_dirty = true;
             }
+            crate::input::multi::cancel(
+                &mut self.scene,
+                &mut self.selection,
+                &mut self.drag,
+                &mut self.marquee,
+            );
             self.selection.deselect();
             self.ui_state.context_menu = None;
 

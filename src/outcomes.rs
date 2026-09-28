@@ -177,6 +177,9 @@ pub fn duplicate_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> Vec<us
                 args.set("error", e);
                 ctx.toasts
                     .error(crate::i18n::t_args("toast-duplicate-failed", &args));
+                // One toast, not one per character: what stopped this one
+                // — the entity limit, the memory budget — stops the rest.
+                break;
             }
             None => {}
         }
