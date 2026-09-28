@@ -27,16 +27,8 @@ impl App {
                 self.save_config_if_needed();
                 tracing::info!("Config saved manually");
             }
-            Action::DeleteSelected => {
-                if let Some(idx) = self.selection.selected_index() {
-                    self.delete_entity(idx);
-                }
-            }
-            Action::DuplicateSelected => {
-                if let Some(idx) = self.selection.selected_index() {
-                    self.duplicate_entity(idx);
-                }
-            }
+            Action::DeleteSelected => self.delete_selected(),
+            Action::DuplicateSelected => self.duplicate_selected(),
             Action::TogglePerfOverlay => {
                 self.perf_overlay_visible = !self.perf_overlay_visible;
                 tracing::debug!(

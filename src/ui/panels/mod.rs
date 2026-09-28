@@ -27,6 +27,24 @@ pub use toggle_button::toggle_button;
 /// the command palette while it is open, and an open list (a combo box's).
 /// No key reaches a shortcut then. With a list open, Escape closed the
 /// list and also left edit mode.
+/// Draw the selection rectangle being dragged over empty space
+/// (`crate::input::multi::Marquee`), `rect` in the window's own egui
+/// coordinates.
+pub fn marquee(ctx: &egui::Context, rect: egui::Rect) {
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Foreground,
+        egui::Id::new("anima.marquee"),
+    ));
+    let accent = ctx.style().visuals.selection.stroke.color;
+    painter.rect(
+        rect,
+        0.0,
+        accent.gamma_multiply(0.12),
+        egui::Stroke::new(1.0_f32, accent),
+        egui::StrokeKind::Inside,
+    );
+}
+
 pub fn keyboard_held(ctx: &egui::Context) -> bool {
     command_palette_open(ctx) || ctx.memory(|m| m.any_popup_open())
 }

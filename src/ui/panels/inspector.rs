@@ -51,8 +51,22 @@ pub(super) fn inspector_tab(
             );
             crate::i18n::t_args("inspector-group-hint", &args)
         });
+    // Several selected: say which one this panel edits, and that the rest
+    // of the editing reaches them all.
+    let also_selected = selection.count().saturating_sub(1);
     match selected_idx.and_then(|idx| scene.entities.get_mut(idx).map(|e| (idx, e))) {
         Some((_idx, entity)) => {
+            if also_selected > 0 {
+                let mut args = fluent::FluentArgs::new();
+                args.set("count", also_selected + 1);
+                args.set("name", entity.name.clone());
+                ui.label(
+                    egui::RichText::new(crate::i18n::t_args("inspector-multi-selected", &args))
+                        .text_style(theme::caption())
+                        .color(ui.visuals().weak_text_color()),
+                );
+                ui.add_space(SPACE_XS);
+            }
             // Hint about V / G shortcuts, sitting above the quick-toggle
             // row so the visual proximity makes the connection.
             if onboarding::hint(

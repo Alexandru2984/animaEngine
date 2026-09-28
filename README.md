@@ -61,6 +61,8 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   Session, Cursor Follower) — Append or Replace.
 - **Command palette** (`Ctrl+K`): search every action, theme and
   preset, and run it in one keystroke.
+- **Several at once**: Shift+click or drag a rectangle to select several
+  characters, then move, delete, duplicate or change them together.
 - **Undo / redo** (`Ctrl+Z` / `Ctrl+Shift+Z`): every edit in edit mode —
   a move, a delete, a changed property, a preset's Replace.
 - **Steps aside for full-screen apps**: the characters hide (or pause)

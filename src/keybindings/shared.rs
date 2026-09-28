@@ -72,22 +72,21 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
     let config_dirty: &mut bool = config_dirty;
     match action {
         Action::Undo | Action::Redo => {
-            // The selection is an index; keep it on the same character,
-            // wherever the restore puts it — or drop it if it is gone.
-            let selected_id = selection
-                .selected_index()
-                .and_then(|idx| scene.entities.get(idx))
-                .map(|e| e.id.clone());
+            // The step brings back its selection too (`crate::undo`).
             let (done, done_key, none_key) = if action == Action::Undo {
-                (history.undo(scene), "toast-undone", "toast-nothing-to-undo")
+                (
+                    history.undo(scene, selection),
+                    "toast-undone",
+                    "toast-nothing-to-undo",
+                )
             } else {
-                (history.redo(scene), "toast-redone", "toast-nothing-to-redo")
+                (
+                    history.redo(scene, selection),
+                    "toast-redone",
+                    "toast-nothing-to-redo",
+                )
             };
             if done {
-                match selected_id.and_then(|id| scene.entities.iter().position(|e| e.id == id)) {
-                    Some(idx) => selection.select(idx),
-                    None => selection.deselect(),
-                }
                 toasts.info(crate::i18n::t(done_key));
                 *config_dirty = true;
             } else {
@@ -99,7 +98,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             *config_dirty = true;
         }
         Action::NudgeUp => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 let step = if shift_held { 1.0 } else { 10.0 };
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     entity.y -= step;
@@ -109,7 +108,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::NudgeDown => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 let step = if shift_held { 1.0 } else { 10.0 };
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     entity.y += step;
@@ -119,7 +118,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::NudgeLeft => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 let step = if shift_held { 1.0 } else { 10.0 };
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     entity.x -= step;
@@ -129,7 +128,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::NudgeRight => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 let step = if shift_held { 1.0 } else { 10.0 };
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     entity.x += step;
@@ -139,7 +138,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::ResetTransform => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     entity.scale = 1.0;
                     entity.opacity = 1.0;
@@ -149,7 +148,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::OpacityUp => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     entity.opacity = (entity.opacity + 0.1).min(1.0);
                     tracing::info!("Opacity: {:.0}%", entity.opacity * 100.0);
@@ -158,7 +157,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::OpacityDown => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     entity.opacity = (entity.opacity - 0.1).max(0.05);
                     tracing::info!("Opacity: {:.0}%", entity.opacity * 100.0);
@@ -166,54 +165,64 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                 }
             }
         }
+        // With several selected, the primary decides: all take the
+        // state it toggles to, rather than each flipping its own.
         Action::ToggleVisible => {
-            if let Some(idx) = selection.selected_index() {
-                if let Some(entity) = scene.entities.get_mut(idx) {
-                    entity.visible = !entity.visible;
-                    tracing::info!(
-                        "Entity '{}' visibility: {}",
-                        entity.name,
-                        if entity.visible { "visible" } else { "hidden" }
-                    );
-                    scene.mark_visible_dirty();
-                    *config_dirty = true;
+            if let Some(target) = primary(scene, selection).map(|e| !e.visible) {
+                for idx in selection.selected_indices() {
+                    if let Some(entity) = scene.entities.get_mut(idx) {
+                        entity.visible = target;
+                        tracing::info!(
+                            "Entity '{}' visibility: {}",
+                            entity.name,
+                            if target { "visible" } else { "hidden" }
+                        );
+                    }
                 }
+                scene.mark_visible_dirty();
+                *config_dirty = true;
             }
         }
         // Gravity: off by default — entity stays put. Toggling on
         // makes it fall from its current position; off pins it.
         Action::ToggleGravity => {
-            if let Some(idx) = selection.selected_index() {
-                if let Some(entity) = scene.entities.get_mut(idx) {
-                    entity.physics.toggle();
-                    tracing::info!(
-                        "Entity '{}' gravity: {}",
-                        entity.name,
-                        if entity.physics.enabled {
-                            "ON (falling)"
+            if let Some(target) = primary(scene, selection).map(|e| !e.physics.enabled) {
+                for idx in selection.selected_indices() {
+                    if let Some(entity) = scene.entities.get_mut(idx) {
+                        if target {
+                            entity.physics.enable();
                         } else {
-                            "OFF (pinned)"
+                            entity.physics.disable();
                         }
-                    );
-                    *config_dirty = true;
+                        tracing::info!(
+                            "Entity '{}' gravity: {}",
+                            entity.name,
+                            if target {
+                                "ON (falling)"
+                            } else {
+                                "OFF (pinned)"
+                            }
+                        );
+                    }
                 }
+                *config_dirty = true;
             }
         }
         Action::TogglePlayback => {
-            if let Some(idx) = selection.selected_index() {
-                if let Some(entity) = scene.entities.get_mut(idx) {
-                    entity.animation_mut().toggle_playback();
-                    tracing::info!(
-                        "Entity '{}': {}",
-                        entity.name,
-                        if entity.animation().playing {
-                            "playing"
-                        } else {
-                            "paused"
+            if let Some(target) = primary(scene, selection).map(|e| !e.animation().playing) {
+                for idx in selection.selected_indices() {
+                    if let Some(entity) = scene.entities.get_mut(idx) {
+                        if entity.animation().playing != target {
+                            entity.animation_mut().toggle_playback();
                         }
-                    );
-                    *config_dirty = true;
+                        tracing::info!(
+                            "Entity '{}': {}",
+                            entity.name,
+                            if target { "playing" } else { "paused" }
+                        );
+                    }
                 }
+                *config_dirty = true;
             }
         }
         Action::CycleEntity => {
@@ -235,7 +244,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             );
         }
         Action::BringForward => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     entity.z_index += 10;
                     tracing::info!("z-index: {} ({})", entity.z_index, entity.name);
@@ -245,7 +254,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::SendBackward => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     entity.z_index -= 10;
                     tracing::info!("z-index: {} ({})", entity.z_index, entity.name);
@@ -255,7 +264,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::FpsDown => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     let fps = entity.animation().fps;
                     entity.animation_mut().set_fps((fps - 2.0).max(1.0));
@@ -265,7 +274,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::FpsUp => {
-            if let Some(idx) = selection.selected_index() {
+            for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     let fps = entity.animation().fps;
                     entity.animation_mut().set_fps(fps + 2.0);
@@ -275,9 +284,10 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::ShowEntityInfo => {
-            if let Some(e) = selection
-                .selected_index()
-                .and_then(|idx| scene.entities.get(idx))
+            for e in selection
+                .selected_indices()
+                .into_iter()
+                .filter_map(|idx| scene.entities.get(idx))
             {
                 tracing::info!(
                     "━━━ Entity Info ━━━\n  Name: {}\n  ID: {}\n  Position: ({:.0}, {:.0})\n  Scale: {:.2}\n  Opacity: {:.0}%\n  FPS: {:.0}\n  Frames: {}\n  z-index: {}\n  Visible: {}\n  Playing: {}\n  Asset: {}",
@@ -294,9 +304,11 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                 \n  Navigation:\n\
                 \n    Tab        — Cycle through entities\n\
                 \n    Click      — Select entity\n\
+                \n    Shift+Click — Add to / remove from the selection\n\
+                \n    Drag on empty space — Select what the rectangle touches\n\
                 \n    Escape     — Exit edit mode (auto-saves)\n\
                 \n\n  Position:\n\
-                \n    Drag       — Move entity\n\
+                \n    Drag       — Move entity (every selected one)\n\
                 \n    Arrows     — Nudge 10px\n\
                 \n    Shift+Arrows — Fine nudge 1px\n\
                 \n    Home       — Center on screen\n\
@@ -324,28 +336,34 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             );
         }
         Action::CenterOnScreen => {
-            if let Some(idx) = selection.selected_index() {
-                if let Some(entity) = scene.entities.get_mut(idx) {
-                    // Centres on the region the overlay covers, which the
-                    // caller supplies: the window on winit, the layer
-                    // surfaces' area on Wayland.
-                    entity.x =
-                        bounds.min_x + (bounds.max_x - bounds.min_x - entity.scaled_width()) / 2.0;
-                    entity.y =
-                        bounds.min_y + (bounds.max_y - bounds.min_y - entity.scaled_height()) / 2.0;
-                    entity.behavior_state.bounce_invalidate();
-                    tracing::info!(
-                        "Centered '{}' at ({:.0}, {:.0})",
-                        entity.name,
-                        entity.x,
-                        entity.y
-                    );
-                    *config_dirty = true;
+            // Centres on the region the overlay covers, which the caller
+            // supplies: the window on winit, the layer surfaces' area on
+            // Wayland. Several selected move as one block, keeping their
+            // arrangement, instead of piling up in the middle.
+            let selected = selection.selected_indices();
+            if let Some((left, top, right, bottom)) = bounding_box(scene, &selected) {
+                let dx = bounds.min_x + (bounds.max_x - bounds.min_x - (right - left)) / 2.0 - left;
+                let dy = bounds.min_y + (bounds.max_y - bounds.min_y - (bottom - top)) / 2.0 - top;
+                for idx in selected {
+                    if let Some(entity) = scene.entities.get_mut(idx) {
+                        entity.x += dx;
+                        entity.y += dy;
+                        entity.behavior_state.bounce_invalidate();
+                        tracing::info!(
+                            "Centered '{}' at ({:.0}, {:.0})",
+                            entity.name,
+                            entity.x,
+                            entity.y
+                        );
+                    }
                 }
+                *config_dirty = true;
             }
         }
         Action::CycleMonitor => {
+            // The primary moves to the next monitor; the others go with it.
             if let Some(idx) = selection.selected_index() {
+                let mut pin = None;
                 if let Some(entity) = scene.entities.get_mut(idx) {
                     let previous = entity.monitor.clone();
                     let toast =
@@ -355,14 +373,44 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                         previous.as_deref(),
                         monitors,
                     );
+                    pin = Some(entity.monitor.clone());
                     toasts.info(toast);
                     *config_dirty = true;
+                }
+                if let Some(pin) = pin {
+                    for other in selection.selected_indices().into_iter().skip(1) {
+                        if let Some(entity) = scene.entities.get_mut(other) {
+                            let previous = std::mem::replace(&mut entity.monitor, pin.clone());
+                            crate::ui::panels::move_to_pinned_monitor(
+                                entity,
+                                previous.as_deref(),
+                                monitors,
+                            );
+                        }
+                    }
                 }
             }
         }
         _ => return false,
     }
     true
+}
+
+/// The primary selected entity.
+fn primary<'s>(scene: &'s Scene, selection: &SelectionState) -> Option<&'s crate::entity::Entity> {
+    selection
+        .selected_index()
+        .and_then(|idx| scene.entities.get(idx))
+}
+
+/// Left, top, right, bottom around the entities at `indices`; `None` for
+/// none.
+pub(crate) fn bounding_box(scene: &Scene, indices: &[usize]) -> Option<(f32, f32, f32, f32)> {
+    indices
+        .iter()
+        .filter_map(|&idx| scene.entities.get(idx))
+        .map(|e| (e.x, e.y, e.x + e.scaled_width(), e.y + e.scaled_height()))
+        .reduce(|(l, t, r, b), (l2, t2, r2, b2)| (l.min(l2), t.min(t2), r.max(r2), b.max(b2)))
 }
 
 #[cfg(test)]
@@ -445,7 +493,7 @@ mod tests {
         let mut history = crate::undo::UndoHistory::default();
         sel.select(1);
         let t0 = Instant::now();
-        history.input(&scene, t0);
+        history.input(&scene, &sel, t0);
         assert!(run_with(
             Action::NudgeRight,
             &mut scene,
@@ -480,6 +528,35 @@ mod tests {
             &mut history
         ));
         assert_eq!(scene.entities[1].x, 110.0);
+    }
+
+    #[test]
+    fn actions_reach_every_selected_character() {
+        let mut scene = scene_with(3);
+        let mut sel = SelectionState::default();
+        sel.select_all_of(&[2, 0]);
+        assert!(run(Action::NudgeRight, &mut scene, &mut sel, false));
+        let xs: Vec<f32> = scene.entities.iter().map(|e| e.x).collect();
+        assert_eq!(xs, [110.0, 100.0, 110.0], "the unselected one stays");
+        // Mixed states: the primary (2) decides, and both follow it.
+        scene.entities[0].visible = false;
+        assert!(run(Action::ToggleVisible, &mut scene, &mut sel, false));
+        let visible: Vec<bool> = scene.entities.iter().map(|e| e.visible).collect();
+        assert_eq!(visible, [false, true, false]);
+    }
+
+    #[test]
+    fn centring_several_keeps_their_arrangement() {
+        let mut scene = scene_with(2);
+        scene.entities[1].x = 400.0;
+        scene.entities[1].y = 250.0;
+        let mut sel = SelectionState::default();
+        sel.select_all_of(&[0, 1]);
+        assert!(run(Action::CenterOnScreen, &mut scene, &mut sel, false));
+        let (a, b) = (&scene.entities[0], &scene.entities[1]);
+        assert_eq!((b.x - a.x, b.y - a.y), (300.0, 50.0), "not piled up");
+        let (l, t, r, bottom) = bounding_box(&scene, &[0, 1]).unwrap();
+        assert_eq!(((l + r) / 2.0, (t + bottom) / 2.0), (960.0, 540.0));
     }
 
     #[test]

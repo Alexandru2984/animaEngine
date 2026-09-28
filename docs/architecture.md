@@ -319,6 +319,16 @@ winit path from a thread reading EWMH (`FullscreenWatch`, sending
 user's hide (`overlay_hidden`) and playback switch
 (`Scene::set_suspended`), so coming back needs no bookkeeping.
 
+### Several selected (`src/input/multi.rs`)
+
+`SelectionState` keeps a *primary* — what the Inspector shows and what
+single-entity code reads through `selected_index()` — and the others
+selected with it. Press, drag and the selection rectangle go through
+`input::multi` on both backends; the shared actions and the right-click
+menu act on `selected_indices()`, toggles taking the primary's new
+state. The renderer draws a highlight per selected entity, so
+`MAX_QUADS` is `2 × MAX_ENTITIES + 1`.
+
 ### Undo (`src/undo.rs`)
 
 Edits reach the scene from dozens of places, so undo watches *gestures*

@@ -26,19 +26,18 @@ impl App {
         self.mouse_x = gx;
         self.mouse_y = gy;
 
-        // Handle drag in edit mode
+        // A drag moves the whole selection; a rectangle over empty space
+        // selects what it touches (`crate::input::multi`).
         if self.edit_mode {
-            if let Some((entity_idx, new_x, new_y)) = self.drag.update(self.mouse_x, self.mouse_y) {
-                if let Some(entity) = self.scene.entities.get_mut(entity_idx) {
-                    entity.x = new_x;
-                    entity.y = new_y;
-                    // Drag relocates the entity → invalidate any
-                    // Bounce rest position so the next tick
-                    // re-snaps it from the new (x, y) and the
-                    // sprite doesn't spring back to the old
-                    // centre as soon as drag ends.
-                    entity.behavior_state.bounce_invalidate();
-                }
+            if let Some(marquee) = self.marquee.as_mut() {
+                marquee.drag_to((gx, gy), &self.scene, &mut self.selection);
+            } else {
+                crate::input::multi::drag_to(
+                    &mut self.scene,
+                    &self.selection,
+                    &self.drag,
+                    (gx, gy),
+                );
             }
         }
     }
@@ -67,7 +66,11 @@ impl App {
         // (entity-less menu is reserved for a later phase).
         if button == MouseButton::Right && state == ElementState::Pressed {
             if let Some(entity_idx) = self.scene.entity_at_point(self.mouse_x, self.mouse_y) {
-                self.selection.select(entity_idx);
+                // One of several selected keeps them all: the menu then
+                // acts on the whole selection.
+                if !self.selection.is_selected(entity_idx) {
+                    self.selection.select(entity_idx);
+                }
                 // egui draws in the primary window's own coordinates, and
                 // `mouse_x/y` are global: without the origin a primary
                 // monitor that is not at 0,0 put the menu off to one
@@ -87,30 +90,36 @@ impl App {
 
         match (button, state) {
             (MouseButton::Left, ElementState::Pressed) => {
-                // Find entity under cursor
-                if let Some(entity_idx) = self.scene.entity_at_point(self.mouse_x, self.mouse_y) {
-                    self.selection.select(entity_idx);
-
-                    // Start drag — freeze physics, flag the Drag
-                    // animation state (U.2).
-                    if let Some(entity) = self.scene.entities.get_mut(entity_idx) {
-                        entity.physics.freeze();
-                        entity.dragging = true;
-                        let offset_x = self.mouse_x - entity.x;
-                        let offset_y = self.mouse_y - entity.y;
-                        self.drag.start_drag(
+                let at = (self.mouse_x, self.mouse_y);
+                match self.scene.entity_at_point(at.0, at.1) {
+                    // Select (alone, or keeping the group it is part of, or
+                    // toggled with Shift) and pick the selection up.
+                    Some(entity_idx) => {
+                        crate::input::multi::press_on(
+                            &mut self.scene,
+                            &mut self.selection,
+                            &mut self.drag,
                             entity_idx,
-                            offset_x,
-                            offset_y,
-                            self.mouse_x,
-                            self.mouse_y,
+                            at,
+                            self.shift_held,
                         );
-
-                        tracing::info!("Clicked entity: {} ({})", entity.name, entity.id);
+                        if let Some(entity) = self.scene.entities.get(entity_idx) {
+                            tracing::info!("Clicked entity: {} ({})", entity.name, entity.id);
+                        }
                     }
-                } else {
-                    self.selection.deselect();
+                    // Empty space: a selection rectangle, or with no drag
+                    // a click that deselects.
+                    None => {
+                        self.marquee = Some(crate::input::multi::Marquee::begin(
+                            at,
+                            self.shift_held,
+                            &mut self.selection,
+                        ));
+                    }
                 }
+            }
+            (MouseButton::Left, ElementState::Released) if self.marquee.is_some() => {
+                self.marquee = None;
             }
             (MouseButton::Left, ElementState::Released) if self.drag.is_dragging() => {
                 // A press-release that never moved is a *tap*, not a drag →
@@ -142,16 +151,22 @@ impl App {
                 );
                 // Drop the freeze. Physics remains whatever the user set —
                 // off by default (entity stays put), on if they pressed G.
-                if let Some(idx) = self.drag.dragging_entity() {
-                    if let Some(entity) = self.scene.entities.get_mut(idx) {
-                        entity.physics.unfreeze();
-                        entity.dragging = false;
-                        if tapped {
-                            entity.poke(self.mouse_x, poke_bounds);
-                        }
+                if tapped {
+                    if let Some(entity) = self
+                        .drag
+                        .dragging_entity()
+                        .and_then(|idx| self.scene.entities.get_mut(idx))
+                    {
+                        entity.poke(self.mouse_x, poke_bounds);
                     }
                 }
-                self.drag.end_drag();
+                crate::input::multi::end_drag(
+                    &mut self.scene,
+                    &mut self.selection,
+                    &mut self.drag,
+                    tapped,
+                    self.shift_held,
+                );
                 self.config_dirty = true;
                 self.save_config_if_needed();
             }
@@ -166,23 +181,21 @@ impl App {
         if !self.edit_mode {
             return;
         }
-        let Some(idx) = self.selection.selected_index() else {
-            return;
-        };
-        let Some(entity) = self.scene.entities.get_mut(idx) else {
-            // Selection outlived the entity it pointed at (e.g. a
-            // hot-reload swapped the scene between selecting and
-            // scrolling) — stale index, not a bug worth a panic.
-            return;
-        };
         let scroll_y = match delta {
             MouseScrollDelta::LineDelta(_, y) => y,
             MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 50.0,
         };
         let factor = if scroll_y > 0.0 { 1.1 } else { 0.9 };
-        entity.scale = (entity.scale * factor).clamp(0.1, 10.0);
-        tracing::debug!("Scale: {:.2}", entity.scale);
-        self.config_dirty = true;
+        // Every selected character, by the same factor. An index that
+        // outlived its entity (a hot-reload swapped the scene between
+        // selecting and scrolling) is skipped, not a panic.
+        for idx in self.selection.selected_indices() {
+            if let Some(entity) = self.scene.entities.get_mut(idx) {
+                entity.scale = (entity.scale * factor).clamp(0.1, 10.0);
+                tracing::debug!("Scale: {:.2}", entity.scale);
+                self.config_dirty = true;
+            }
+        }
     }
 
     /// Start importing a Shimeji pack directory (U.4) off the UI thread,

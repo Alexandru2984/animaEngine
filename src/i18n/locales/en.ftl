@@ -260,6 +260,7 @@ crash-report-found-toast = The previous session crashed. A report was saved at {
 
 # ── Group composition hint (C.9) ──────────────────────────────────────
 inspector-group-hint = Composed by group { $group }: { $transform }
+inspector-multi-selected = { $count } selected. This panel edits { $name }; dragging, shortcuts and the right-click menu act on all of them.
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
 toast-config-saved = Config saved
@@ -275,8 +276,10 @@ toast-theme-switched = Theme: { $theme }
 toast-preset-entry-failed = Couldn’t add preset entry: { $error }
 toast-preset-loaded = Loaded preset: { $name }
 toast-duplicated = Duplicated { $name }
+toast-duplicated-many = Characters duplicated: { $count }
 toast-duplicate-failed = Duplicate failed: { $error }
 toast-deleted = Deleted { $name }
+toast-deleted-many = Characters deleted: { $count }
 toast-playback-resumed = Playback resumed
 toast-playback-paused = Playback paused
 toast-undone = Undone

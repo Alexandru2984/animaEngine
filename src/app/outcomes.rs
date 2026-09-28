@@ -39,17 +39,18 @@ impl App {
         }
     }
 
-    /// Delete entity `idx` and save — the `DeleteSelected` action and the
-    /// context menu both come through here.
-    pub(super) fn delete_entity(&mut self, idx: usize) {
-        if outcomes::delete_entity(idx, &mut outcome_ctx!(self)) {
+    /// Delete every selected entity and save.
+    pub(super) fn delete_selected(&mut self) {
+        let targets = self.selection.selected_indices();
+        if outcomes::delete_entities(&targets, &mut outcome_ctx!(self)) > 0 {
             self.save_config_if_needed();
         }
     }
 
-    /// Duplicate entity `idx` and save.
-    pub(super) fn duplicate_entity(&mut self, idx: usize) {
-        if outcomes::duplicate_entity(idx, &mut outcome_ctx!(self)).is_some() {
+    /// Duplicate every selected entity and save.
+    pub(super) fn duplicate_selected(&mut self) {
+        let targets = self.selection.selected_indices();
+        if !outcomes::duplicate_entities(&targets, &mut outcome_ctx!(self)).is_empty() {
             self.save_config_if_needed();
         }
     }

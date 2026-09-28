@@ -219,11 +219,16 @@ fn scene_list(
     }
 
     match action {
+        // Shift+click adds or removes a row, as on the overlay.
+        Some(ListAction::Select(idx)) if ui.input(|i| i.modifiers.shift) => {
+            selection.toggle(idx);
+        }
         Some(ListAction::Select(idx)) => {
             selection.select(idx);
         }
         Some(ListAction::Delete(idx)) if scene.remove_entity(idx).is_some() => {
-            selection.deselect();
+            // The rest of the selection stays selected.
+            selection.removed(idx);
             *config_dirty = true;
         }
         _ => {}

@@ -747,7 +747,7 @@ impl SurfaceState {
         entities: &[&'e Entity],
         groups: &[crate::group::GroupConfig],
         edit_mode: bool,
-        selected_entity_id: Option<&str>,
+        selected_ids: &[&str],
         origin: (f32, f32),
     ) -> std::result::Result<AcquiredFrame, wgpu::SurfaceError> {
         let output = match &mut self.target {
@@ -787,10 +787,10 @@ impl SurfaceState {
 
         let mut overflowed = false;
         for entity in entities {
-            if quad_idx >= MAX_QUADS - 2 {
-                // Reserve 2 quads for UI (edit bar + selection highlight).
-                // MAX_QUADS = MAX_ENTITIES + 3, so a legal scene never
-                // lands here; reaching it means an internal accounting bug.
+            if !room_for_entity(quad_idx) {
+                // MAX_QUADS has room for every entity, its highlight and
+                // the edit bar, so a legal scene never lands here;
+                // reaching it means an internal accounting bug.
                 overflowed = true;
                 if !self.quad_overflow_logged {
                     tracing::warn!(
@@ -826,30 +826,29 @@ impl SurfaceState {
                 });
                 quad_idx += 1;
 
-                // Selection highlight overlay (drawn right after the selected entity)
-                if let Some(sel_id) = selected_entity_id {
-                    if entity.id == sel_id && edit_mode {
-                        let pad = 6.0; // padding around entity
-                        self.write_quad(
-                            shared,
-                            quad_idx,
-                            (
-                                local_x - pad,
-                                local_y - pad,
-                                width + pad * 2.0,
-                                height + pad * 2.0,
-                            ),
-                            0.9,
-                            false,
-                        );
-                        draws.push(DrawCmd {
-                            quad_index: quad_idx,
-                            texture_entity_id: None,
-                            is_edit_bar: false,
-                            is_selection: true,
-                        });
-                        quad_idx += 1;
-                    }
+                // Selection highlight overlay (drawn right after each
+                // selected entity)
+                if edit_mode && selected_ids.contains(&entity.id.as_str()) {
+                    let pad = 6.0; // padding around entity
+                    self.write_quad(
+                        shared,
+                        quad_idx,
+                        (
+                            local_x - pad,
+                            local_y - pad,
+                            width + pad * 2.0,
+                            height + pad * 2.0,
+                        ),
+                        0.9,
+                        false,
+                    );
+                    draws.push(DrawCmd {
+                        quad_index: quad_idx,
+                        texture_entity_id: None,
+                        is_edit_bar: false,
+                        is_selection: true,
+                    });
+                    quad_idx += 1;
                 }
             }
         }
@@ -1028,7 +1027,7 @@ impl WgpuRenderer {
         entities: &[&Entity],
         groups: &[crate::group::GroupConfig],
         edit_mode: bool,
-        selected_entity_id: Option<&str>,
+        selected_ids: &[&str],
         origin: (f32, f32),
     ) -> std::result::Result<AcquiredFrame, wgpu::SurfaceError> {
         self.primary.render(
@@ -1036,7 +1035,7 @@ impl WgpuRenderer {
             entities,
             groups,
             edit_mode,
-            selected_entity_id,
+            selected_ids,
             origin,
         )
     }
@@ -1082,5 +1081,27 @@ mod alpha_mode_tests {
     fn opaque_only_is_refused_on_every_platform() {
         let err = pick_alpha_mode(&[Opaque]).unwrap_err().to_string();
         assert!(err.contains("black"), "error should say why: {err}");
+    }
+}
+
+/// Whether one more entity fits in the quad batch starting at `quad_idx`:
+/// its sprite, its selection highlight, and the edit bar drawn after all
+/// of them.
+fn room_for_entity(quad_idx: usize) -> bool {
+    quad_idx + 3 <= MAX_QUADS
+}
+
+#[cfg(test)]
+mod quad_budget_tests {
+    use super::*;
+
+    #[test]
+    fn every_entity_selected_still_fits_with_the_edit_bar() {
+        let mut quad = 0;
+        for _ in 0..crate::constants::MAX_ENTITIES {
+            assert!(room_for_entity(quad), "entity dropped at quad {quad}");
+            quad += 2; // sprite + highlight
+        }
+        assert!(quad < MAX_QUADS, "no room left for the edit bar");
     }
 }

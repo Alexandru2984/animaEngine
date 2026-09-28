@@ -364,7 +364,7 @@ impl Scene {
     /// `visible` flag (`crate::group::visible_for_member`). Used by
     /// the visibility cache and the hit-test below so a group hidden
     /// by the user doesn't catch clicks either.
-    fn effective_visible(&self, idx: usize) -> bool {
+    pub(crate) fn effective_visible(&self, idx: usize) -> bool {
         let entity = &self.entities[idx];
         if !entity.visible {
             return false;

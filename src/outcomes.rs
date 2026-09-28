@@ -41,41 +41,66 @@ pub struct OutcomeCtx<'a> {
     pub renderer: Option<&'a mut WgpuRenderer>,
 }
 
+/// What an action on the character at `idx` covers: the whole selection
+/// when `idx` is one of several selected — a right-click on any of them
+/// acts on all — and `idx` alone otherwise.
+fn covered(idx: usize, selection: &SelectionState) -> Vec<usize> {
+    if selection.count() > 1 && selection.is_selected(idx) {
+        selection.selected_indices()
+    } else {
+        vec![idx]
+    }
+}
+
 /// Apply one context-menu action.
 pub fn apply_menu_action(action: MenuAction, ctx: &mut OutcomeCtx<'_>) {
     match action {
         MenuAction::Duplicate(idx) => {
-            duplicate_entity(idx, ctx);
+            let targets = covered(idx, ctx.selection);
+            duplicate_entities(&targets, ctx);
         }
         MenuAction::Delete(idx) => {
-            delete_entity(idx, ctx);
+            let targets = covered(idx, ctx.selection);
+            delete_entities(&targets, ctx);
         }
         MenuAction::ResetTransform(idx) => {
-            if let Some(e) = ctx.scene.entities.get_mut(idx) {
-                e.scale = 1.0;
-                e.opacity = 1.0;
-                *ctx.config_dirty = true;
+            for i in covered(idx, ctx.selection) {
+                if let Some(e) = ctx.scene.entities.get_mut(i) {
+                    e.scale = 1.0;
+                    e.opacity = 1.0;
+                    *ctx.config_dirty = true;
+                }
             }
         }
         MenuAction::ToggleGravity(idx) => {
-            if let Some(e) = ctx.scene.entities.get_mut(idx) {
-                e.physics.toggle();
-                *ctx.config_dirty = true;
+            // The character clicked decides; the rest follow it.
+            let Some(target) = ctx.scene.entities.get(idx).map(|e| !e.physics.enabled) else {
+                return;
+            };
+            for i in covered(idx, ctx.selection) {
+                if let Some(e) = ctx.scene.entities.get_mut(i) {
+                    if target {
+                        e.physics.enable();
+                    } else {
+                        e.physics.disable();
+                    }
+                    *ctx.config_dirty = true;
+                }
             }
         }
-        MenuAction::BringForward(idx) => {
-            if let Some(e) = ctx.scene.entities.get_mut(idx) {
-                e.z_index += 10;
-                ctx.scene.mark_visible_dirty();
-                *ctx.config_dirty = true;
+        MenuAction::BringForward(idx) | MenuAction::SendBackward(idx) => {
+            let step = if matches!(action, MenuAction::BringForward(_)) {
+                10
+            } else {
+                -10
+            };
+            for i in covered(idx, ctx.selection) {
+                if let Some(e) = ctx.scene.entities.get_mut(i) {
+                    e.z_index += step;
+                    *ctx.config_dirty = true;
+                }
             }
-        }
-        MenuAction::SendBackward(idx) => {
-            if let Some(e) = ctx.scene.entities.get_mut(idx) {
-                e.z_index -= 10;
-                ctx.scene.mark_visible_dirty();
-                *ctx.config_dirty = true;
-            }
+            ctx.scene.mark_visible_dirty();
         }
     }
 }
@@ -86,28 +111,96 @@ pub fn apply_menu_action(action: MenuAction, ctx: &mut OutcomeCtx<'_>) {
 /// are keyed by entity id, so a missed removal leaves an orphan resident
 /// for the session — the leak `prune_stale_textures` exists to sweep up.
 pub fn delete_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> bool {
-    let Some(entity) = ctx.scene.entities.get(idx) else {
-        return false;
-    };
-    let removed_name = entity.name.clone();
-    if let Some(renderer) = ctx.renderer.as_deref_mut() {
-        renderer.shared.textures.remove(&entity.id);
+    delete_entities(&[idx], ctx) == 1
+}
+
+/// Remove the entities at `indices`, with one toast for them all.
+/// Returns how many were removed. Highest index first, so the ones still
+/// to go keep theirs.
+pub fn delete_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> usize {
+    let mut order = indices.to_vec();
+    order.sort_unstable();
+    order.dedup();
+    let mut names = Vec::new();
+    for &idx in order.iter().rev() {
+        let Some(entity) = ctx.scene.entities.get(idx) else {
+            continue;
+        };
+        let name = entity.name.clone();
+        if let Some(renderer) = ctx.renderer.as_deref_mut() {
+            renderer.shared.textures.remove(&entity.id);
+        }
+        if let Some(removed_id) = ctx.scene.remove_entity(idx) {
+            tracing::info!("Deleted entity: {removed_id}");
+            names.push(name);
+        }
     }
-    let Some(removed_id) = ctx.scene.remove_entity(idx) else {
-        return false;
-    };
-    tracing::info!("Deleted entity: {removed_id}");
+    if names.is_empty() {
+        return 0;
+    }
     ctx.selection.deselect();
     *ctx.config_dirty = true;
     let mut args = fluent::FluentArgs::new();
-    args.set("name", removed_name);
-    ctx.toasts.info(crate::i18n::t_args("toast-deleted", &args));
-    true
+    let message = if let [name] = names.as_slice() {
+        args.set("name", name.clone());
+        crate::i18n::t_args("toast-deleted", &args)
+    } else {
+        args.set("count", names.len());
+        crate::i18n::t_args("toast-deleted-many", &args)
+    };
+    ctx.toasts.info(message);
+    names.len()
 }
 
 /// Copy entity `idx` 30 px down and right, keeping its scale and opacity,
 /// and select the copy. Returns the copy's index.
 pub fn duplicate_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> Option<usize> {
+    duplicate_entities(&[idx], ctx).first().copied()
+}
+
+/// Copy the entities at `indices`, each 30 px down and right of its
+/// original, and select the copies — the primary's copy as the primary.
+/// One toast for them all. Returns the copies' indices; the originals'
+/// are unchanged, since copies are appended.
+pub fn duplicate_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> Vec<usize> {
+    let mut copies = Vec::new();
+    let mut names = Vec::new();
+    for &idx in indices {
+        match copy_entity(idx, ctx) {
+            Some(Ok((new_idx, name))) => {
+                copies.push(new_idx);
+                names.push(name);
+            }
+            Some(Err(e)) => {
+                tracing::error!("Duplicate failed: {e}");
+                let mut args = fluent::FluentArgs::new();
+                args.set("error", e);
+                ctx.toasts
+                    .error(crate::i18n::t_args("toast-duplicate-failed", &args));
+            }
+            None => {}
+        }
+    }
+    if copies.is_empty() {
+        return copies;
+    }
+    ctx.selection.select_all_of(&copies);
+    *ctx.config_dirty = true;
+    let mut args = fluent::FluentArgs::new();
+    let message = if let [name] = names.as_slice() {
+        args.set("name", name.clone());
+        crate::i18n::t_args("toast-duplicated", &args)
+    } else {
+        args.set("count", names.len());
+        crate::i18n::t_args("toast-duplicated-many", &args)
+    };
+    ctx.toasts.success(message);
+    copies
+}
+
+/// Add the copy of `idx`; its index and the original's name. `None`
+/// when there is no entity at `idx`.
+fn copy_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> Option<Result<(usize, String), String>> {
     let src = ctx.scene.entities.get(idx)?;
     // Everything read before the add: reading through `src` after the
     // scene's Vec has grown is the pattern `get`/`get_mut` retire.
@@ -130,23 +223,10 @@ pub fn duplicate_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> Option<usize> {
                     entity.texture_dirty = false;
                 }
             }
-            ctx.selection.select(new_idx);
-            *ctx.config_dirty = true;
             tracing::info!("Duplicated '{src_name}' at ({new_x:.0}, {new_y:.0})");
-            let mut args = fluent::FluentArgs::new();
-            args.set("name", src_name);
-            ctx.toasts
-                .success(crate::i18n::t_args("toast-duplicated", &args));
-            Some(new_idx)
+            Some(Ok((new_idx, src_name)))
         }
-        Err(e) => {
-            tracing::error!("Duplicate failed: {e}");
-            let mut args = fluent::FluentArgs::new();
-            args.set("error", e.to_string());
-            ctx.toasts
-                .error(crate::i18n::t_args("toast-duplicate-failed", &args));
-            None
-        }
+        Err(e) => Some(Err(e.to_string())),
     }
 }
 

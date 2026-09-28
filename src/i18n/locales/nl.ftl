@@ -251,6 +251,8 @@ crash-report-found-toast = De vorige sessie is gecrasht. Een rapport is opgeslag
 
 # ── Group composition hint (C.9) ──────────────────────────────────────
 inspector-group-hint = Samengesteld door groep { $group }: { $transform }
+# Multiple selection (1.5): machine-translated, pending native review.
+inspector-multi-selected = { $count } geselecteerd. Dit paneel bewerkt { $name }; slepen, sneltoetsen en het rechtermuismenu werken op allemaal.
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
 toast-config-saved = Configuratie opgeslagen
@@ -267,8 +269,12 @@ toast-theme-switched = Thema: { $theme }
 toast-preset-entry-failed = Preset-item kon niet worden toegevoegd: { $error }
 toast-preset-loaded = Preset geladen: { $name }
 toast-duplicated = { $name } gedupliceerd
+# Multiple selection (1.5): machine-translated, pending native review.
+toast-duplicated-many = Figuren gedupliceerd: { $count }
 toast-duplicate-failed = Dupliceren mislukt: { $error }
 toast-deleted = { $name } verwijderd
+# Multiple selection (1.5): machine-translated, pending native review.
+toast-deleted-many = Figuren verwijderd: { $count }
 toast-playback-resumed = Afspelen hervat
 toast-playback-paused = Afspelen gepauzeerd
 # Undo (1.5): machine-translated, pending native review.

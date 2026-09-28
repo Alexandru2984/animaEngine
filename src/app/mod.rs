@@ -77,6 +77,8 @@ pub struct App {
     config: AppConfig,
     /// Drag controller
     drag: DragController,
+    /// A selection rectangle being dragged over empty space.
+    marquee: Option<crate::input::multi::Marquee>,
     /// Selection state
     selection: SelectionState,
     /// Current mouse position
@@ -268,6 +270,7 @@ impl App {
             scene,
             config,
             drag: DragController::new(),
+            marquee: None,
             selection: SelectionState::new(),
             mouse_x: 0.0,
             mouse_y: 0.0,
@@ -717,7 +720,8 @@ impl ApplicationHandler<AnimaEvent> for App {
                 | WindowEvent::DroppedFile(_)
                 | WindowEvent::Ime(_)
         ) {
-            self.history.input(&self.scene, std::time::Instant::now());
+            self.history
+                .input(&self.scene, &self.selection, std::time::Instant::now());
         }
         // Events from extra (PerMonitor) windows get a narrow handler:
         // sprites repaint on expose, surfaces resize, shapes re-apply.

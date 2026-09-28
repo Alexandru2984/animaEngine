@@ -255,6 +255,8 @@ crash-report-found-toast = Sesiunea anterioară s-a închis neașteptat. Raportu
 
 # ── Group composition hint (C.9) ──────────────────────────────────────
 inspector-group-hint = Compus de grupul { $group }: { $transform }
+# Multiple selection (1.5): machine-translated, pending native review.
+inspector-multi-selected = { $count } selectate. Panoul acesta editează { $name }; tragerea, scurtăturile și meniul de clic dreapta se aplică tuturor.
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
 toast-config-saved = Configurație salvată
@@ -271,8 +273,12 @@ toast-theme-switched = Temă: { $theme }
 toast-preset-entry-failed = Nu s-a putut adăuga intrarea din preset: { $error }
 toast-preset-loaded = Preset încărcat: { $name }
 toast-duplicated = Duplicat { $name }
+# Multiple selection (1.5): machine-translated, pending native review.
+toast-duplicated-many = Personaje duplicate: { $count }
 toast-duplicate-failed = Duplicarea a eșuat: { $error }
 toast-deleted = Șters { $name }
+# Multiple selection (1.5): machine-translated, pending native review.
+toast-deleted-many = Personaje șterse: { $count }
 toast-playback-resumed = Redare reluată
 toast-playback-paused = Redare pe pauză
 # Undo (1.5): machine-translated, pending native review.

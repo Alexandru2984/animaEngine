@@ -128,6 +128,8 @@ pub fn run_native(
     );
     let mut selection = SelectionState::new();
     let mut drag = crate::input::drag::DragController::new();
+    // A selection rectangle being dragged over empty space.
+    let mut marquee: Option<crate::input::multi::Marquee> = None;
     let mut toasts = ToastQueue::default();
     let mut config_dirty = false;
     // What a panel outcome may touch (`crate::outcomes`), borrowed per
@@ -277,7 +279,7 @@ pub fn run_native(
         // A step to undo opens at the first thing someone does, before it
         // is applied (`crate::undo`).
         if layer.has_user_action() || egui_renderer.has_screen_reader_requests() {
-            history.input(&scene, Instant::now());
+            history.input(&scene, &selection, Instant::now());
         }
 
         // Capture-and-reset the previous frame's GPU op counters. The
@@ -472,7 +474,7 @@ pub fn run_native(
         // and marked for saving.
         for dropped in layer.drain_dropped_files() {
             activity = true;
-            history.input(&scene, Instant::now());
+            history.input(&scene, &selection, Instant::now());
             let at = (
                 dropped.at.0 + primary_origin.0,
                 dropped.at.1 + primary_origin.1,
@@ -717,16 +719,15 @@ pub fn run_native(
                     layer.state.close_requested = true;
                 }
                 Action::DeleteSelected | Action::DuplicateSelected => {
-                    if let Some(idx) = selection.selected_index() {
-                        // The same functions the right-click menu and the
-                        // winit path use (`crate::outcomes`), so none of
-                        // the three can drift from the others.
-                        let mut ctx = outcome_ctx!();
-                        if action == Action::DeleteSelected {
-                            outcomes::delete_entity(idx, &mut ctx);
-                        } else {
-                            outcomes::duplicate_entity(idx, &mut ctx);
-                        }
+                    // The same functions the right-click menu and the winit
+                    // path use (`crate::outcomes`), so none of the three can
+                    // drift from the others. Every selected character.
+                    let targets = selection.selected_indices();
+                    let mut ctx = outcome_ctx!();
+                    if action == Action::DeleteSelected {
+                        outcomes::delete_entities(&targets, &mut ctx);
+                    } else {
+                        outcomes::duplicate_entities(&targets, &mut ctx);
                     }
                 }
                 // Everything that only touches the scene and the selection
@@ -786,7 +787,11 @@ pub fn run_native(
                         if let Some(idx) = scene
                             .entity_at_point(pos.x + primary_origin.0, pos.y + primary_origin.1)
                         {
-                            selection.select(idx);
+                            // One of several selected keeps them all: the
+                            // menu then acts on the whole selection.
+                            if !selection.is_selected(idx) {
+                                selection.select(idx);
+                            }
                             context_menu_state = Some(crate::app::ContextMenuState {
                                 entity_idx: idx,
                                 pos: *pos,
@@ -805,25 +810,46 @@ pub fn run_native(
                         pos,
                         button: egui::PointerButton::Primary,
                         pressed: true,
+                        modifiers,
                         ..
                     } if !egui_owns_pointer => {
-                        let (gx, gy) = (pos.x + primary_origin.0, pos.y + primary_origin.1);
-                        match scene.entity_at_point(gx, gy) {
+                        let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
+                        // Select (alone, keeping the group it is part of, or
+                        // toggled with Shift) and pick the selection up; on
+                        // empty space, a selection rectangle
+                        // (`crate::input::multi`).
+                        match scene.entity_at_point(at.0, at.1) {
                             Some(idx) => {
-                                selection.select(idx);
-                                if let Some(entity) = scene.entities.get_mut(idx) {
-                                    entity.physics.freeze();
-                                    entity.dragging = true;
-                                    drag.start_drag(idx, gx - entity.x, gy - entity.y, gx, gy);
-                                }
+                                crate::input::multi::press_on(
+                                    &mut scene,
+                                    &mut selection,
+                                    &mut drag,
+                                    idx,
+                                    at,
+                                    modifiers.shift,
+                                );
                             }
-                            None => selection.deselect(),
+                            None => {
+                                marquee = Some(crate::input::multi::Marquee::begin(
+                                    at,
+                                    modifiers.shift,
+                                    &mut selection,
+                                ));
+                            }
                         }
+                    }
+                    egui::Event::PointerButton {
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        ..
+                    } if marquee.is_some() => {
+                        marquee = None;
                     }
                     egui::Event::PointerButton {
                         pos,
                         button: egui::PointerButton::Primary,
                         pressed: false,
+                        modifiers,
                         ..
                     } if drag.is_dragging() => {
                         let (gx, gy) = (pos.x + primary_origin.0, pos.y + primary_origin.1);
@@ -841,30 +867,32 @@ pub fn run_native(
                                 renderer.primary.window_height as f32,
                             ),
                         );
-                        if let Some(idx) = drag.dragging_entity() {
-                            if let Some(entity) = scene.entities.get_mut(idx) {
-                                entity.physics.unfreeze();
-                                entity.dragging = false;
-                                if tapped {
-                                    entity.poke(gx, poke_bounds);
-                                }
+                        if tapped {
+                            if let Some(entity) = drag
+                                .dragging_entity()
+                                .and_then(|idx| scene.entities.get_mut(idx))
+                            {
+                                entity.poke(gx, poke_bounds);
                             }
                         }
-                        drag.end_drag();
+                        crate::input::multi::end_drag(
+                            &mut scene,
+                            &mut selection,
+                            &mut drag,
+                            tapped,
+                            modifiers.shift,
+                        );
                         config_dirty = true;
                     }
-                    egui::Event::PointerMoved(pos) if drag.is_dragging() => {
-                        let (gx, gy) = (pos.x + primary_origin.0, pos.y + primary_origin.1);
-                        if let Some((idx, nx, ny)) = drag.update(gx, gy) {
-                            if let Some(entity) = scene.entities.get_mut(idx) {
-                                entity.x = nx;
-                                entity.y = ny;
-                                // Relocating invalidates any Bounce rest
-                                // position, or the sprite springs back to
-                                // where it was picked up.
-                                entity.behavior_state.bounce_invalidate();
-                            }
+                    egui::Event::PointerMoved(pos) if marquee.is_some() => {
+                        let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
+                        if let Some(m) = marquee.as_mut() {
+                            m.drag_to(at, &scene, &mut selection);
                         }
+                    }
+                    egui::Event::PointerMoved(pos) if drag.is_dragging() => {
+                        let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
+                        crate::input::multi::drag_to(&mut scene, &selection, &drag, at);
                     }
                     _ => {}
                 }
@@ -968,9 +996,8 @@ pub fn run_native(
         // `monitors_now` (refreshed above) covers the inspector's
         // picker hot-plug needs too — no separate snapshot needed.
         let monitors = &monitors_now;
-        let selected_id = selection
-            .selected_index()
-            .and_then(|idx| scene.entities.get(idx).map(|e| e.id.clone()));
+        let selected_owned = selection.selected_ids(&scene);
+        let selected_ids: Vec<&str> = selected_owned.iter().map(String::as_str).collect();
         let visible = scene.visible_entities();
         // In PerMonitor mode the primary surface covers exactly its
         // own output: entities live in global coords (once extras
@@ -1006,7 +1033,7 @@ pub fn run_native(
             &drawn,
             &scene.groups,
             layer.state.edit_mode,
-            selected_id.as_deref(),
+            &selected_ids,
             primary_origin,
         ) {
             Ok(output) => {
@@ -1070,6 +1097,7 @@ pub fn run_native(
                 let add_file_requested_ref = &mut add_file_requested;
                 let monitors_ref = monitors.as_slice();
                 let toasts_ref = &toasts;
+                let marquee_rect = marquee.as_ref().map(|m| m.rect());
                 let toggle_requested_ref = &mut toggle_requested;
                 let palette_ref = &mut palette_outcome;
                 let library_ref = &mut library_outcome;
@@ -1153,6 +1181,19 @@ pub fn run_native(
                                     selection_mut.selected_index().is_some(),
                                 );
                                 panels::toasts(ctx, toasts_ref);
+                                // Global → this surface's egui space; the
+                                // pointer events it came from were already
+                                // in points.
+                                if let Some((l, t, r, b)) = marquee_rect {
+                                    let (ox, oy) = primary_origin;
+                                    panels::marquee(
+                                        ctx,
+                                        egui::Rect::from_min_max(
+                                            egui::pos2(l - ox, t - oy),
+                                            egui::pos2(r - ox, b - oy),
+                                        ),
+                                    );
+                                }
                             }
                             // Above every panel, so someone chasing a
                             // stutter doesn't have to hunt for it behind
@@ -1223,7 +1264,7 @@ pub fn run_native(
                             &drawn,
                             &scene.groups,
                             layer.state.edit_mode,
-                            selected_id.as_deref(),
+                            &selected_ids,
                             origin,
                         ) {
                             Ok(extra_output) => surface.present(&renderer.shared, extra_output),

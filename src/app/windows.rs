@@ -319,11 +319,8 @@ impl App {
         let Some(renderer) = &mut self.renderer else {
             return;
         };
-        let selected_id = self
-            .selection
-            .selected_index()
-            .and_then(|idx| self.scene.entities.get(idx))
-            .map(|e| e.id.clone());
+        let selected_owned = self.selection.selected_ids(&self.scene);
+        let selected_ids: Vec<&str> = selected_owned.iter().map(String::as_str).collect();
 
         let visible = self.scene.visible_entities();
         for slot in self.extra_windows.values_mut() {
@@ -338,7 +335,7 @@ impl App {
                 &drawn,
                 &self.scene.groups,
                 self.edit_mode,
-                selected_id.as_deref(),
+                &selected_ids,
                 origin,
             ) {
                 Ok(output) => slot.surface.present(&renderer.shared, output),
@@ -359,11 +356,8 @@ impl App {
         let Some(renderer) = &mut self.renderer else {
             return;
         };
-        let selected_id = self
-            .selection
-            .selected_index()
-            .and_then(|idx| self.scene.entities.get(idx))
-            .map(|e| e.id.clone());
+        let selected_owned = self.selection.selected_ids(&self.scene);
+        let selected_ids: Vec<&str> = selected_owned.iter().map(String::as_str).collect();
         let visible = self.scene.visible_entities();
         let Some(slot) = self.extra_windows.get_mut(&id) else {
             return;
@@ -379,7 +373,7 @@ impl App {
             &drawn,
             &self.scene.groups,
             self.edit_mode,
-            selected_id.as_deref(),
+            &selected_ids,
             origin,
         ) {
             slot.surface.present(&renderer.shared, output);

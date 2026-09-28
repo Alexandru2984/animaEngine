@@ -15,13 +15,11 @@ pub const MAX_ENTITIES: usize = 64;
 
 /// Maximum number of quads the renderer can batch in one frame.
 /// Sized so a full scene of [`MAX_ENTITIES`] sprites still draws every
-/// entity plus both UI overlays (selection highlight + edit bar).
-/// The renderer's in-loop cap check conservatively reserves 2 slots
-/// *before* knowing whether the selection quad was already emitted, so
-/// the worst case (all 64 entities drawn, one selected, edit mode on)
-/// needs `MAX_ENTITIES + 3` slots for the check to pass on the last
-/// entity. Anything smaller silently drops legal entities.
-pub const MAX_QUADS: usize = MAX_ENTITIES + 3;
+/// entity, each with its selection highlight — since 1.5 all of them can
+/// be selected at once — plus the edit-mode bar: `2 × MAX_ENTITIES + 1`.
+/// It was `MAX_ENTITIES + 3`, room for one highlight; with several
+/// selected, the renderer would have silently dropped entities.
+pub const MAX_QUADS: usize = 2 * MAX_ENTITIES + 1;
 
 /// Size (px) of the clickable toggle button in the top-right corner.
 /// In pass-through mode this is the only area that receives mouse input.

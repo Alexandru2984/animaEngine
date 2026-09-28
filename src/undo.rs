@@ -21,6 +21,7 @@
 
 use crate::behavior::Behavior;
 use crate::config::CharacterConfig;
+use crate::input::selection::SelectionState;
 use crate::scene::Scene;
 use std::time::{Duration, Instant};
 
@@ -35,24 +36,36 @@ pub const MAX_STEPS: usize = 100;
 /// groups: deleting a character also takes it out of its group, and
 /// undoing the delete has to put it back — in a hidden group, a restored
 /// member would otherwise reappear visible.
+///
+/// It also keeps what was selected, by id: undoing a delete selects the
+/// characters it brings back, as editors do. The selection alone is not
+/// an edit, and never makes a step.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Snapshot {
     characters: Vec<CharacterConfig>,
     groups: Vec<crate::group::GroupConfig>,
+    selected: Vec<String>,
 }
 
 impl Snapshot {
-    fn of(scene: &Scene) -> Self {
+    fn of(scene: &Scene, selection: &SelectionState) -> Self {
         Self {
             characters: scene.to_character_configs(),
             groups: scene.groups.clone(),
+            selected: selection.selected_ids(scene),
         }
     }
 
-    fn restore(self, scene: &mut Scene) {
+    fn restore(self, scene: &mut Scene, selection: &mut SelectionState) {
         scene.restore_configs(&self.characters);
         scene.groups = self.groups;
         scene.mark_visible_dirty();
+        let indices: Vec<usize> = self
+            .selected
+            .iter()
+            .filter_map(|id| scene.entities.iter().position(|e| &e.id == id))
+            .collect();
+        selection.select_all_of(&indices);
     }
 }
 
@@ -69,9 +82,9 @@ pub struct UndoHistory {
 impl UndoHistory {
     /// User input arrived. Call it *before* the input is applied: the
     /// first call of a gesture keeps the scene as it was.
-    pub fn input(&mut self, scene: &Scene, now: Instant) {
+    pub fn input(&mut self, scene: &Scene, selection: &SelectionState, now: Instant) {
         if self.before.is_none() {
-            self.before = Some(Snapshot::of(scene));
+            self.before = Some(Snapshot::of(scene, selection));
         }
         self.last_input = Some(now);
     }
@@ -91,25 +104,25 @@ impl UndoHistory {
 
     /// Undo the last step. A gesture still open is recorded first, so it
     /// is the one undone. `false` when there is nothing to undo.
-    pub fn undo(&mut self, scene: &mut Scene) -> bool {
+    pub fn undo(&mut self, scene: &mut Scene, selection: &mut SelectionState) -> bool {
         self.commit(scene);
         let Some(step) = self.undo.pop() else {
             return false;
         };
-        self.redo.push(Snapshot::of(scene));
-        walkers_where_they_are(step, scene).restore(scene);
+        self.redo.push(Snapshot::of(scene, selection));
+        walkers_where_they_are(step, scene).restore(scene, selection);
         true
     }
 
     /// Redo the last undone step. `false` when there is none — including
     /// after a new edit, which starts a new branch.
-    pub fn redo(&mut self, scene: &mut Scene) -> bool {
+    pub fn redo(&mut self, scene: &mut Scene, selection: &mut SelectionState) -> bool {
         self.commit(scene);
         let Some(step) = self.redo.pop() else {
             return false;
         };
-        self.undo.push(Snapshot::of(scene));
-        walkers_where_they_are(step, scene).restore(scene);
+        self.undo.push(Snapshot::of(scene, selection));
+        walkers_where_they_are(step, scene).restore(scene, selection);
         true
     }
 
@@ -141,7 +154,7 @@ impl UndoHistory {
         let Some(before) = self.before.take() else {
             return false;
         };
-        if !edited(&before, &Snapshot::of(scene)) {
+        if !edited(&before, scene) {
             return false;
         }
         self.undo.push(before);
@@ -155,8 +168,9 @@ impl UndoHistory {
 
 /// Whether the user changed anything between `before` and `after`, leaving
 /// out where characters that move by themselves have moved to.
-fn edited(before: &Snapshot, after: &Snapshot) -> bool {
-    before.groups != after.groups || characters_edited(&before.characters, &after.characters)
+fn edited(before: &Snapshot, scene: &Scene) -> bool {
+    before.groups != scene.groups
+        || characters_edited(&before.characters, &scene.to_character_configs())
 }
 
 fn characters_edited(before: &[CharacterConfig], after: &[CharacterConfig]) -> bool {
@@ -257,17 +271,17 @@ mod tests {
         // A drag: input every frame, the position following it.
         for i in 0..30 {
             let now = t0 + Duration::from_millis(16 * i);
-            h.input(&s, now);
+            h.input(&s, &SelectionState::default(), now);
             s.entities[0].x = 100.0 + i as f32 * 10.0;
             assert!(!h.settle(&s, true, now), "button held: still open");
         }
         let released = t0 + Duration::from_millis(16 * 30);
         assert!(!h.settle(&s, false, released), "not quiet long enough yet");
         assert!(h.settle(&s, false, released + SETTLE), "one step");
-        assert!(h.undo(&mut s));
+        assert!(h.undo(&mut s, &mut SelectionState::default()));
         assert_eq!(x_of(&s, "a"), 100.0, "back where the drag began");
         assert!(!h.can_undo());
-        assert!(h.redo(&mut s));
+        assert!(h.redo(&mut s, &mut SelectionState::default()));
         assert_eq!(x_of(&s, "a"), 390.0);
     }
 
@@ -276,7 +290,7 @@ mod tests {
         let s = scene(&[character("a", 100.0)]);
         let mut h = UndoHistory::default();
         let t0 = Instant::now();
-        h.input(&s, t0);
+        h.input(&s, &SelectionState::default(), t0);
         assert!(!h.settle(&s, false, t0 + SETTLE));
         assert!(!h.can_undo());
     }
@@ -289,17 +303,17 @@ mod tests {
         let mut h = UndoHistory::default();
         let t0 = Instant::now();
         // Only the walker moves during a gesture: nothing to record.
-        h.input(&s, t0);
+        h.input(&s, &SelectionState::default(), t0);
         s.entities[0].x = 180.0;
         assert!(!h.settle(&s, false, t0 + SETTLE));
         // A real edit while it walks: one step, and undoing it keeps the
         // walker where it has walked to.
-        h.input(&s, t0 + SETTLE * 2);
+        h.input(&s, &SelectionState::default(), t0 + SETTLE * 2);
         s.entities[1].scale = 2.0;
         s.entities[0].x = 250.0;
         assert!(h.settle(&s, false, t0 + SETTLE * 4));
         s.entities[0].x = 300.0;
-        assert!(h.undo(&mut s));
+        assert!(h.undo(&mut s, &mut SelectionState::default()));
         assert_eq!(s.entities[1].scale, 1.0);
         assert_eq!(x_of(&s, "w"), 300.0, "the walker stays where it walked to");
         assert!(!h.can_undo());
@@ -310,16 +324,16 @@ mod tests {
         let mut s = scene(&[character("a", 1.0), character("b", 2.0)]);
         let mut h = UndoHistory::default();
         let t0 = Instant::now();
-        h.input(&s, t0);
+        h.input(&s, &SelectionState::default(), t0);
         s.entities.retain(|e| e.id != "a");
         assert!(h.settle(&s, false, t0 + SETTLE));
-        h.input(&s, t0 + SETTLE * 2);
+        h.input(&s, &SelectionState::default(), t0 + SETTLE * 2);
         s.restore_configs(&[character("b", 2.0), character("c", 3.0)]);
         assert!(h.settle(&s, false, t0 + SETTLE * 3));
-        assert!(h.undo(&mut s));
+        assert!(h.undo(&mut s, &mut SelectionState::default()));
         let ids: Vec<&str> = s.entities.iter().map(|e| e.id.as_str()).collect();
         assert_eq!(ids, ["b"]);
-        assert!(h.undo(&mut s));
+        assert!(h.undo(&mut s, &mut SelectionState::default()));
         let ids: Vec<&str> = s.entities.iter().map(|e| e.id.as_str()).collect();
         assert_eq!(ids, ["a", "b"]);
     }
@@ -329,12 +343,12 @@ mod tests {
         let mut s = scene(&[character("a", 1.0)]);
         let mut h = UndoHistory::default();
         let t0 = Instant::now();
-        h.input(&s, t0);
+        h.input(&s, &SelectionState::default(), t0);
         s.entities[0].opacity = 0.5;
         assert!(h.settle(&s, false, t0 + SETTLE));
-        assert!(h.undo(&mut s));
+        assert!(h.undo(&mut s, &mut SelectionState::default()));
         assert!(h.can_redo());
-        h.input(&s, t0 + SETTLE * 2);
+        h.input(&s, &SelectionState::default(), t0 + SETTLE * 2);
         s.entities[0].scale = 3.0;
         assert!(h.settle(&s, false, t0 + SETTLE * 3));
         assert!(!h.can_redo());
@@ -345,11 +359,15 @@ mod tests {
         let mut s = scene(&[character("a", 1.0)]);
         let mut h = UndoHistory::default();
         let t0 = Instant::now();
-        h.input(&s, t0);
+        h.input(&s, &SelectionState::default(), t0);
         s.entities[0].x = 50.0;
         // Ctrl+Z straight after, before the gesture settled.
-        h.input(&s, t0 + Duration::from_millis(100));
-        assert!(h.undo(&mut s));
+        h.input(
+            &s,
+            &SelectionState::default(),
+            t0 + Duration::from_millis(100),
+        );
+        assert!(h.undo(&mut s, &mut SelectionState::default()));
         assert_eq!(x_of(&s, "a"), 1.0);
         assert!(!h.settle(&s, false, t0 + SETTLE * 2), "nothing left open");
     }
@@ -359,7 +377,7 @@ mod tests {
         let mut s = scene(&[character("a", 100.0)]);
         let mut h = UndoHistory::default();
         let t0 = Instant::now();
-        h.input(&s, t0);
+        h.input(&s, &SelectionState::default(), t0);
         assert!(!h.finish(&s), "the tap itself changed nothing");
         s.entities[0].x = 140.0; // the hop
         assert!(!h.settle(&s, false, t0 + SETTLE));
@@ -380,15 +398,40 @@ mod tests {
         });
         let mut h = UndoHistory::default();
         let t0 = Instant::now();
-        h.input(&s, t0);
+        h.input(&s, &SelectionState::default(), t0);
         let idx = s.entities.iter().position(|e| e.id == "a").unwrap();
         s.remove_entity(idx);
         assert_eq!(s.groups[0].member_ids, ["b"]);
         assert!(h.settle(&s, false, t0 + SETTLE));
-        assert!(h.undo(&mut s));
+        assert!(h.undo(&mut s, &mut SelectionState::default()));
         assert_eq!(s.groups[0].member_ids, ["a", "b"]);
         // Back in the hidden group, so hidden again.
         assert!(s.visible_entities().is_empty());
+    }
+
+    #[test]
+    fn undo_brings_back_the_selection_of_its_step() {
+        let mut s = scene(&[
+            character("a", 1.0),
+            character("b", 2.0),
+            character("c", 3.0),
+        ]);
+        let mut sel = SelectionState::default();
+        sel.select_all_of(&[0, 2]);
+        let mut h = UndoHistory::default();
+        let t0 = Instant::now();
+        h.input(&s, &sel, t0);
+        s.remove_entity(2);
+        s.remove_entity(0);
+        sel.deselect();
+        assert!(h.settle(&s, false, t0 + SETTLE));
+        assert!(h.undo(&mut s, &mut sel));
+        let ids: Vec<&str> = sel
+            .selected_indices()
+            .into_iter()
+            .map(|i| s.entities[i].id.as_str())
+            .collect();
+        assert_eq!(ids, ["a", "c"], "the deleted pair, selected again");
     }
 
     #[test]
@@ -398,7 +441,7 @@ mod tests {
         let t0 = Instant::now();
         for i in 0..(MAX_STEPS + 20) {
             let now = t0 + SETTLE * (2 * i as u32);
-            h.input(&s, now);
+            h.input(&s, &SelectionState::default(), now);
             s.entities[0].x = i as f32 + 1.0;
             assert!(h.settle(&s, false, now + SETTLE));
         }

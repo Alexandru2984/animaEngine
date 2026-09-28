@@ -251,6 +251,8 @@ crash-report-found-toast = Die letzte Sitzung ist abgestürzt. Ein Bericht wurde
 
 # ── Group composition hint (C.9) ──────────────────────────────────────
 inspector-group-hint = Komponiert durch Gruppe { $group }: { $transform }
+# Multiple selection (1.5): machine-translated, pending native review.
+inspector-multi-selected = { $count } ausgewählt. Dieses Panel bearbeitet { $name }; Ziehen, Tastenkürzel und das Rechtsklickmenü wirken auf alle.
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
 toast-config-saved = Konfiguration gespeichert
@@ -267,8 +269,12 @@ toast-theme-switched = Design: { $theme }
 toast-preset-entry-failed = Preset-Eintrag konnte nicht hinzugefügt werden: { $error }
 toast-preset-loaded = Preset geladen: { $name }
 toast-duplicated = { $name } dupliziert
+# Multiple selection (1.5): machine-translated, pending native review.
+toast-duplicated-many = Figuren dupliziert: { $count }
 toast-duplicate-failed = Duplizieren fehlgeschlagen: { $error }
 toast-deleted = { $name } gelöscht
+# Multiple selection (1.5): machine-translated, pending native review.
+toast-deleted-many = Figuren gelöscht: { $count }
 toast-playback-resumed = Wiedergabe fortgesetzt
 toast-playback-paused = Wiedergabe pausiert
 # Undo (1.5): machine-translated, pending native review.

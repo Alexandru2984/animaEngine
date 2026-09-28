@@ -251,6 +251,8 @@ crash-report-found-toast = 前回のセッションがクラッシュしまし�
 
 # ── Group composition hint (C.9) ──────────────────────────────────────
 inspector-group-hint = グループ { $group } による合成: { $transform }
+# Multiple selection (1.5): machine-translated, pending native review.
+inspector-multi-selected = { $count } 件を選択中。このパネルは { $name } を編集します。ドラッグ、ショートカット、右クリックメニューはすべてに作用します。
 
 # ── App-layer toasts (V.6 — F1 closure) ──────────────────────────────
 toast-config-saved = 設定を保存しました
@@ -267,8 +269,12 @@ toast-theme-switched = テーマ: { $theme }
 toast-preset-entry-failed = プリセット項目を追加できませんでした: { $error }
 toast-preset-loaded = プリセットを読み込みました: { $name }
 toast-duplicated = { $name } を複製しました
+# Multiple selection (1.5): machine-translated, pending native review.
+toast-duplicated-many = 複製したキャラクター: { $count }
 toast-duplicate-failed = 複製に失敗しました: { $error }
 toast-deleted = { $name } を削除しました
+# Multiple selection (1.5): machine-translated, pending native review.
+toast-deleted-many = 削除したキャラクター: { $count }
 toast-playback-resumed = 再生を再開しました
 toast-playback-paused = 再生を一時停止しました
 # Undo (1.5): machine-translated, pending native review.

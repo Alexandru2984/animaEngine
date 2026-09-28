@@ -16,6 +16,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pulled back to where they were, and a poke's hop is not an edit. A
   character deleted from a sprite group comes back in it. Up to 100
   steps; a reload of the config file starts the history over.
+- **Several characters at once.** Shift+click adds a character to the
+  selection or takes it out; dragging over empty space selects what the
+  rectangle touches (with Shift, adding to what is selected). A drag
+  then moves them together, and Delete, Duplicate, the arrow keys, V, G,
+  P, the z-order and opacity keys and the right-click menu act on all of
+  them; centring moves the group as one. The Inspector edits one and
+  says so. Undo brings a deleted group back selected.
 - **The overlay steps aside for full-screen apps.** While the window in
   front is full screen — a game, a video, a presentation — the
   characters hide and hold still, by default, and come back when it is
