@@ -324,7 +324,8 @@ user's hide (`overlay_hidden`) and playback switch
 Edits reach the scene from dozens of places, so undo watches *gestures*
 instead of hooking each one. The first input of a gesture — a press, a
 key, a drop, a screen reader's request, not pointer motion — snapshots
-the scene as character configs before the input is applied; the gesture
+the scene as character configs, with its sprite groups (a delete takes
+a character out of its group), before the input is applied; the gesture
 closes once no button is held, no text field or list has the keyboard,
 no file chooser or import is running, and `SETTLE` (350 ms) has passed.
 A snapshot that differs from the scene then is one step. Characters

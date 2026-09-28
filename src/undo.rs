@@ -31,8 +31,30 @@ pub const SETTLE: Duration = Duration::from_millis(350);
 /// a full scene.
 pub const MAX_STEPS: usize = 100;
 
-/// The scene as its characters' configs, in scene order.
-pub type Snapshot = Vec<CharacterConfig>;
+/// The scene as its characters' configs, in scene order, and its sprite
+/// groups: deleting a character also takes it out of its group, and
+/// undoing the delete has to put it back — in a hidden group, a restored
+/// member would otherwise reappear visible.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Snapshot {
+    characters: Vec<CharacterConfig>,
+    groups: Vec<crate::group::GroupConfig>,
+}
+
+impl Snapshot {
+    fn of(scene: &Scene) -> Self {
+        Self {
+            characters: scene.to_character_configs(),
+            groups: scene.groups.clone(),
+        }
+    }
+
+    fn restore(self, scene: &mut Scene) {
+        scene.restore_configs(&self.characters);
+        scene.groups = self.groups;
+        scene.mark_visible_dirty();
+    }
+}
 
 /// The undo and redo stacks, and the gesture in progress.
 #[derive(Default)]
@@ -49,7 +71,7 @@ impl UndoHistory {
     /// first call of a gesture keeps the scene as it was.
     pub fn input(&mut self, scene: &Scene, now: Instant) {
         if self.before.is_none() {
-            self.before = Some(scene.to_character_configs());
+            self.before = Some(Snapshot::of(scene));
         }
         self.last_input = Some(now);
     }
@@ -74,8 +96,8 @@ impl UndoHistory {
         let Some(step) = self.undo.pop() else {
             return false;
         };
-        self.redo.push(scene.to_character_configs());
-        scene.restore_configs(&walkers_where_they_are(step, scene));
+        self.redo.push(Snapshot::of(scene));
+        walkers_where_they_are(step, scene).restore(scene);
         true
     }
 
@@ -86,8 +108,8 @@ impl UndoHistory {
         let Some(step) = self.redo.pop() else {
             return false;
         };
-        self.undo.push(scene.to_character_configs());
-        scene.restore_configs(&walkers_where_they_are(step, scene));
+        self.undo.push(Snapshot::of(scene));
+        walkers_where_they_are(step, scene).restore(scene);
         true
     }
 
@@ -119,7 +141,7 @@ impl UndoHistory {
         let Some(before) = self.before.take() else {
             return false;
         };
-        if !edited(&before, &scene.to_character_configs()) {
+        if !edited(&before, &Snapshot::of(scene)) {
             return false;
         }
         self.undo.push(before);
@@ -133,7 +155,11 @@ impl UndoHistory {
 
 /// Whether the user changed anything between `before` and `after`, leaving
 /// out where characters that move by themselves have moved to.
-fn edited(before: &[CharacterConfig], after: &[CharacterConfig]) -> bool {
+fn edited(before: &Snapshot, after: &Snapshot) -> bool {
+    before.groups != after.groups || characters_edited(&before.characters, &after.characters)
+}
+
+fn characters_edited(before: &[CharacterConfig], after: &[CharacterConfig]) -> bool {
     before.len() != after.len()
         || before.iter().zip(after).any(|(b, a)| {
             if moves_by_itself(b) && moves_by_itself(a) {
@@ -168,7 +194,7 @@ pub fn is_user_action(event: &egui::Event) -> bool {
 /// the scene now — placed where it is now: undo sets edits back, and
 /// where a walker has walked to is not one.
 fn walkers_where_they_are(mut step: Snapshot, scene: &Scene) -> Snapshot {
-    for config in &mut step {
+    for config in &mut step.characters {
         let now = scene.entities.iter().find(|e| e.id == config.id);
         if let Some(entity) = now {
             if moves_by_itself(config) && moves_by_itself(&entity.to_config()) {
@@ -338,6 +364,31 @@ mod tests {
         s.entities[0].x = 140.0; // the hop
         assert!(!h.settle(&s, false, t0 + SETTLE));
         assert!(!h.can_undo());
+    }
+
+    #[test]
+    fn undoing_a_delete_puts_the_character_back_in_its_group() {
+        let mut s = scene(&[character("a", 1.0), character("b", 2.0)]);
+        s.groups.push(crate::group::GroupConfig {
+            id: "g".into(),
+            name: "G".into(),
+            member_ids: vec!["a".into(), "b".into()],
+            offset_x: 0.0,
+            offset_y: 0.0,
+            scale: 1.0,
+            visible: false,
+        });
+        let mut h = UndoHistory::default();
+        let t0 = Instant::now();
+        h.input(&s, t0);
+        let idx = s.entities.iter().position(|e| e.id == "a").unwrap();
+        s.remove_entity(idx);
+        assert_eq!(s.groups[0].member_ids, ["b"]);
+        assert!(h.settle(&s, false, t0 + SETTLE));
+        assert!(h.undo(&mut s));
+        assert_eq!(s.groups[0].member_ids, ["a", "b"]);
+        // Back in the hidden group, so hidden again.
+        assert!(s.visible_entities().is_empty());
     }
 
     #[test]

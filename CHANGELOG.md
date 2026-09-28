@@ -13,8 +13,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   palette and rebindable. A drag, a slider moved across many frames or a
   burst of arrow-key nudges is one step; so is a delete, a drop, an added
   file or a preset's Replace. Characters that walk or fall are not
-  pulled back to where they were, and a poke's hop is not an edit. Up to
-  100 steps; a reload of the config file starts the history over.
+  pulled back to where they were, and a poke's hop is not an edit. A
+  character deleted from a sprite group comes back in it. Up to 100
+  steps; a reload of the config file starts the history over.
 - **The overlay steps aside for full-screen apps.** While the window in
   front is full screen — a game, a video, a presentation — the
   characters hide and hold still, by default, and come back when it is
