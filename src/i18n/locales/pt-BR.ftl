@@ -204,10 +204,11 @@ warning-config-unreadable = Não foi possível ler o arquivo de configuração, 
 action-toggle-perf-overlay = Alternar overlay de desempenho
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-# 1.3 highlights: machine-translated, pending native review.
-whats-new-header = Novidades da 1.3
-whats-new-monitors = Os personagens em qualquer monitor agora podem ser selecionados e movidos, inclusive arrastados de uma tela para outra.
-whats-new-ime = Os métodos de entrada para chinês, japonês e coreano agora também funcionam no backend nativo do Wayland.
+# 1.4 highlights: machine-translated, pending native review.
+whats-new-header = Novidades da 1.4
+whats-new-add-file = “Adicionar arquivo…”, na aba Cena, adiciona personagens pelo seletor de arquivos do seu desktop — sem arrastar nada.
+whats-new-palette = Ctrl+K agora executa qualquer ação e mostra o atalho ao lado.
+whats-new-screen-readers = Leitores de tela como o Orca agora podem ler e operar o painel de configurações.
 onboarding-keybindings = Clique em um atalho para removê-lo; pressione uma combinação para gravar um novo.
 onboarding-perf-overlay = Pressione Ctrl+Shift+` para abrir o overlay de desempenho ao vivo.
 appearance-reset-onboarding = Restaurar dicas de boas-vindas

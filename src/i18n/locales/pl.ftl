@@ -204,10 +204,11 @@ warning-config-unreadable = Nie udało się odczytać pliku konfiguracji, więc 
 action-toggle-perf-overlay = Przełącz nakładkę wydajności
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-# 1.3 highlights: machine-translated, pending native review.
-whats-new-header = Nowości w 1.3
-whats-new-monitors = Postacie na każdym monitorze można teraz zaznaczać i przesuwać, także przeciągać z jednego ekranu na drugi.
-whats-new-ime = Metody wprowadzania dla chińskiego, japońskiego i koreańskiego działają teraz także w natywnym backendzie Wayland.
+# 1.4 highlights: machine-translated, pending native review.
+whats-new-header = Nowości w 1.4
+whats-new-add-file = „Dodaj plik…” w karcie Scena dodaje postacie przez okno wyboru plików twojego pulpitu — bez przeciągania.
+whats-new-palette = Ctrl+K uruchamia teraz dowolną akcję i pokazuje obok jej skrót.
+whats-new-screen-readers = Czytniki ekranu, takie jak Orca, mogą teraz czytać i obsługiwać panel ustawień.
 onboarding-keybindings = Kliknij skrót, aby go usunąć; naciśnij kombinację, aby nagrać nowy.
 onboarding-perf-overlay = Naciśnij Ctrl+Shift+`, aby otworzyć nakładkę wydajności na żywo.
 appearance-reset-onboarding = Przywróć wskazówki startowe

@@ -212,9 +212,10 @@ warning-config-unreadable = Your config file could not be read, so the default s
 action-toggle-perf-overlay = Toggle perf overlay
 
 # ── What's new panel (D.7) ────────────────────────────────────────────
-whats-new-header = What's new in 1.3
-whats-new-monitors = Characters on every monitor can now be selected and moved, and dragged from one screen to another.
-whats-new-ime = Input methods for Chinese, Japanese and Korean work on the native Wayland backend too.
+whats-new-header = What's new in 1.4
+whats-new-add-file = Add file… in the Scene tab adds characters through your desktop's file chooser — no dragging needed.
+whats-new-palette = Ctrl+K now runs any action, with its shortcut shown beside it.
+whats-new-screen-readers = Screen readers such as Orca can now read and operate the settings panel.
 
 # ── New onboarding hints (D.7) ────────────────────────────────────────
 onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.

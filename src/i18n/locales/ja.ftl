@@ -204,10 +204,11 @@ warning-config-unreadable = 設定ファイルを読み込めなかったため�
 action-toggle-perf-overlay = パフォーマンス表示を切り替え
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-# 1.3 highlights: machine-translated, pending native review.
-whats-new-header = 1.3 の新機能
-whats-new-monitors = どのモニター上のキャラクターも選択・移動でき、画面をまたいでドラッグできるようになりました。
-whats-new-ime = 中国語・日本語・韓国語の入力メソッドが、ネイティブ Wayland バックエンドでも使えるようになりました。
+# 1.4 highlights: machine-translated, pending native review.
+whats-new-header = 1.4 の新機能
+whats-new-add-file = シーンタブの「ファイルを追加…」で、デスクトップのファイル選択ダイアログからキャラクターを追加できます。ドラッグは不要です。
+whats-new-palette = Ctrl+K で任意の操作を実行できるようになり、横にショートカットも表示されます。
+whats-new-screen-readers = Orca などのスクリーンリーダーで設定パネルを読み上げ・操作できるようになりました。
 onboarding-keybindings = ショートカットをクリックすると削除、キーの組み合わせを押すと新規登録できます。
 onboarding-perf-overlay = Ctrl+Shift+` でライブのパフォーマンス表示を開けます。
 appearance-reset-onboarding = オンボーディングのヒントをリセット

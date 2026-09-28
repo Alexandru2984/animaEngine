@@ -24,16 +24,27 @@ struct Highlight {
     icon: &'static str,
     /// i18n key for the highlight body.
     body_key: &'static str,
+    /// Whether this build has the feature. The file chooser and screen
+    /// readers are Unix-only for now; a Windows user is not told about
+    /// them.
+    here: bool,
 }
 
 const HIGHLIGHTS: &[Highlight] = &[
     Highlight {
-        icon: icons::MONITOR,
-        body_key: "whats-new-monitors",
+        icon: icons::ADD,
+        body_key: "whats-new-add-file",
+        here: cfg!(unix),
     },
     Highlight {
-        icon: icons::INPUT_METHOD,
-        body_key: "whats-new-ime",
+        icon: icons::COMMAND_PALETTE,
+        body_key: "whats-new-palette",
+        here: true,
+    },
+    Highlight {
+        icon: icons::ACCESSIBILITY,
+        body_key: "whats-new-screen-readers",
+        here: cfg!(unix),
     },
 ];
 
@@ -87,7 +98,7 @@ pub fn show(ui: &mut egui::Ui, last_seen: &mut Option<String>) -> bool {
                 });
             });
             ui.add_space(SPACE_XS);
-            for h in HIGHLIGHTS {
+            for h in HIGHLIGHTS.iter().filter(|h| h.here) {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(h.icon).color(accent).size(14.0));
                     ui.add_space(SPACE_XS);

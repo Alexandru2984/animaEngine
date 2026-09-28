@@ -204,10 +204,11 @@ warning-config-unreadable = Uw configuratiebestand kon niet worden gelezen, dus 
 action-toggle-perf-overlay = Prestatie-overlay omschakelen
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-# 1.3 highlights: machine-translated, pending native review.
-whats-new-header = Nieuw in 1.3
-whats-new-monitors = Figuren op elk scherm kunnen nu worden geselecteerd en verplaatst, ook van het ene scherm naar het andere.
-whats-new-ime = Invoermethoden voor Chinees, Japans en Koreaans werken nu ook in de native Wayland-backend.
+# 1.4 highlights: machine-translated, pending native review.
+whats-new-header = Nieuw in 1.4
+whats-new-add-file = ‘Bestand toevoegen…’ op het tabblad Scène voegt figuren toe via de bestandskiezer van uw bureaublad — zonder slepen.
+whats-new-palette = Ctrl+K voert nu elke actie uit, met de sneltoets ernaast.
+whats-new-screen-readers = Schermlezers zoals Orca kunnen het instellingenpaneel nu voorlezen en bedienen.
 onboarding-keybindings = Klik op een sneltoets om hem te verwijderen; druk een combinatie om een nieuwe op te nemen.
 onboarding-perf-overlay = Druk Ctrl+Shift+` om de live prestatie-overlay te openen.
 appearance-reset-onboarding = Introductietips herstellen

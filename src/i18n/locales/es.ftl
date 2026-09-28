@@ -188,7 +188,7 @@ action-show-help = Mostrar ayuda de teclado
 appearance-accessibility-header = Accesibilidad
 appearance-accesskit-label = Generar actualizaciones del árbol AccessKit
 # Screen readers (1.4): machine-translated, pending native review.
-appearance-accesskit-hint = Permite que los lectores de pantalla (Orca y otros, mediante AT-SPI) lean y usen los paneles. Desactivado, un lector de pantalla ve una ventana vacía. Nota: mientras uno está en marcha, el texto que escriba en los paneles está en el bus AT-SPI, donde cualquier proceso de su usuario puede leerlo.
+appearance-accesskit-hint = Permite que los lectores de pantalla (Orca y otros, mediante AT-SPI) lean y usen los paneles. Desactivado, un lector de pantalla ve una ventana vacía. Nota: mientras uno está en marcha, el texto que escribas en los paneles está en el bus AT-SPI, donde cualquier proceso de tu usuario puede leerlo.
 # Machine-translated, pending native review.
 appearance-accesskit-unsupported = Los lectores de pantalla aún no son compatibles con este sistema.
 appearance-reduced-motion-label = Reducir movimiento
@@ -204,10 +204,11 @@ warning-config-unreadable = No se pudo leer tu archivo de configuración, así q
 action-toggle-perf-overlay = Alternar overlay de rendimiento
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
-# 1.3 highlights: machine-translated, pending native review.
-whats-new-header = Novedades de 1.3
-whats-new-monitors = Ahora los personajes de cualquier monitor se pueden seleccionar y mover, e incluso arrastrar de una pantalla a otra.
-whats-new-ime = Los métodos de entrada para chino, japonés y coreano también funcionan ya en el backend nativo de Wayland.
+# 1.4 highlights: machine-translated, pending native review.
+whats-new-header = Novedades de 1.4
+whats-new-add-file = «Añadir archivo…», en la pestaña Escena, añade personajes con el selector de archivos de tu escritorio, sin arrastrar nada.
+whats-new-palette = Ctrl+K ahora ejecuta cualquier acción y muestra su atajo al lado.
+whats-new-screen-readers = Los lectores de pantalla como Orca ya pueden leer y manejar el panel de ajustes.
 onboarding-keybindings = Haz clic en un atajo para quitarlo; pulsa una combinación para grabar uno nuevo.
 onboarding-perf-overlay = Pulsa Ctrl+Shift+` para abrir el overlay de rendimiento en vivo.
 appearance-reset-onboarding = Restablecer las pistas de bienvenida

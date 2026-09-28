@@ -204,10 +204,11 @@ warning-config-unreadable = Fișierul de configurare nu a putut fi citit, așa c
 action-toggle-perf-overlay = Comută suprapunerea de performanță
 
 # ── Panou "What's new" (D.7) ──────────────────────────────────────────
-# 1.3 highlights: machine-translated, pending native review.
-whats-new-header = Noutăți în 1.3
-whats-new-monitors = Personajele de pe orice monitor pot fi acum selectate și mutate, chiar trase de pe un ecran pe altul.
-whats-new-ime = Metodele de input pentru chineză, japoneză și coreeană funcționează acum și pe backendul Wayland nativ.
+# 1.4 highlights: machine-translated, pending native review.
+whats-new-header = Noutăți în 1.4
+whats-new-add-file = „Adaugă fișier…” din tab-ul Scenă adaugă personaje prin selectorul de fișiere al desktopului tău — fără să tragi nimic.
+whats-new-palette = Ctrl+K rulează acum orice acțiune și îi arată scurtătura alături.
+whats-new-screen-readers = Cititoarele de ecran precum Orca pot acum citi și folosi panoul de setări.
 
 # ── Hint-uri onboarding noi (D.7) ─────────────────────────────────────
 onboarding-keybindings = Apasă × pe o combinație ca s-o elimini; apasă o combinație nouă ca s-o înregistrezi.
