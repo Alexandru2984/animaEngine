@@ -198,6 +198,12 @@ appearance-reduced-motion-label = Reducir movimiento
 appearance-reduced-motion-hint = Omite las transiciones de la interfaz (deslizamiento del panel, fundidos, aparición de la paleta) y detiene el balanceo decorativo. Las animaciones que comunican estado siguen activas.
 appearance-hover-startle-label = Sobresalto al pasar el cursor
 appearance-hover-startle-hint = Las mascotas se apartan del puntero cuando se acerca. El seguimiento del cursor es solo en X11, así que en Wayland nativo solo reacciona en modo edición.
+# Full-screen apps (1.5): machine-translated, pending native review.
+appearance-fullscreen-label = Cuando una app está a pantalla completa
+appearance-fullscreen-hint = Juegos, vídeos y presentaciones que llenan la pantalla. Funciona en X11 y en compositores Wayland como sway y Hyprland; en GNOME y KDE con Wayland, solo para las apps que funcionan con XWayland.
+fullscreen-hide = Ocultar los personajes
+fullscreen-pause = Pausarlos
+fullscreen-ignore = Dejarlos seguir
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = No se pudieron registrar los atajos globales (típico en sesiones Wayland nativas). El menú de bandeja y el botón ⚙ siguen funcionando.

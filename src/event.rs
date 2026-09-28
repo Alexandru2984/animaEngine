@@ -27,6 +27,9 @@ pub enum AnimaEvent {
     /// XGrabKey fallback took over — toast the downgrade so the user
     /// knows why the system shortcut dialog had no effect.
     PortalShortcutsDenied,
+    /// Whether the window in front is full screen changed (winit path;
+    /// see `window::x11_windows::spawn_fullscreen_watch`).
+    FullscreenInFront(bool),
 }
 
 /// Where a background thread — the tray, the D-Bus service — sends its

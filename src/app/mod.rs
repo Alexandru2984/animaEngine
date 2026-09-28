@@ -119,6 +119,12 @@ pub struct App {
     toasts: ToastQueue,
     /// Edits to the scene, for undo and redo (`crate::undo`).
     history: crate::undo::UndoHistory,
+    /// Whether the window in front is full screen, as the full-screen
+    /// watch last reported (`crate::fullscreen`).
+    fullscreen_in_front: bool,
+    /// What stepping aside for it currently asks — apart from the user's
+    /// own hide (`overlay_hidden`) and pause.
+    stepped_aside: crate::fullscreen::StepAside,
     /// Session-lifetime warnings rendered as a banner at the top of
     /// the settings panel (D.5). Distinct from toasts: these persist
     /// until the underlying condition clears or the user dismisses
@@ -279,6 +285,8 @@ impl App {
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),
             history: crate::undo::UndoHistory::default(),
+            fullscreen_in_front: false,
+            stepped_aside: crate::fullscreen::StepAside::default(),
             warnings: std::collections::BTreeSet::new(),
             perf_sampler: crate::perf::PerfSampler::default(),
             perf_overlay_visible: false,
@@ -414,6 +422,13 @@ impl App {
     /// shape is re-applied on the way back in — for the extras too.
     fn set_overlay_visible(&mut self, visible: bool) {
         self.overlay_hidden = !visible;
+        self.sync_window_visibility();
+    }
+
+    /// Map or unmap every overlay window to match the user's hide and
+    /// stepping aside for a full-screen app together.
+    fn sync_window_visibility(&mut self) {
+        let visible = !self.overlay_hidden && !self.stepped_aside.hidden;
         if let Some(window) = &self.window {
             window.set_visible(visible);
         }
@@ -528,8 +543,41 @@ impl App {
     }
 
     /// Toggle between edit mode and pass-through mode
+    /// Step aside while a full-screen app is in front, and come back when
+    /// it is not (`crate::fullscreen`). Recomputed from the setting, the
+    /// watch's last report and edit mode, so nothing has to be undone;
+    /// called on each report, on an edit-mode change and every frame.
+    pub(super) fn update_step_aside(&mut self) {
+        let wanted = crate::fullscreen::step_aside(
+            self.config.global.on_fullscreen,
+            self.fullscreen_in_front,
+            self.edit_mode,
+        );
+        self.scene.set_suspended(wanted.paused);
+        if wanted != self.stepped_aside {
+            self.stepped_aside = wanted;
+            tracing::info!(
+                "Full-screen app {}: overlay {}",
+                if self.fullscreen_in_front {
+                    "in front"
+                } else {
+                    "gone"
+                },
+                if wanted.hidden {
+                    "hidden"
+                } else if wanted.paused {
+                    "paused"
+                } else {
+                    "back"
+                }
+            );
+            self.sync_window_visibility();
+        }
+    }
+
     fn toggle_edit_mode(&mut self) {
         self.edit_mode = !self.edit_mode;
+        self.update_step_aside();
         self.reapply_input_shape();
         // PerMonitor extras flip their input regions in lockstep —
         // edit mode is global across every overlay window (T.6).
@@ -631,6 +679,10 @@ impl ApplicationHandler<AnimaEvent> for App {
                 // working backend.
                 self.push_warning(Warning::GlobalHotkeysUnavailable);
                 self.hotkey_backend_status = "none (tray + D-Bus methods only)".into();
+            }
+            AnimaEvent::FullscreenInFront(in_front) => {
+                self.fullscreen_in_front = in_front;
+                self.update_step_aside();
             }
             AnimaEvent::PortalShortcutsDenied => {
                 self.toasts

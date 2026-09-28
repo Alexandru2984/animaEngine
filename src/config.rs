@@ -62,6 +62,12 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub hover_startle: bool,
 
+    /// What the overlay does while a full-screen app is in front — hide
+    /// the characters (the default), pause them, or carry on. X11 and
+    /// wlroots-based Wayland compositors; see `crate::fullscreen`.
+    #[serde(default)]
+    pub on_fullscreen: crate::fullscreen::OnFullscreen,
+
     /// Window-awareness: desktop windows become physics platforms —
     /// mascots land on and walk along window top edges. X11 sessions
     /// only (Wayland exposes no global window geometry); silently
@@ -112,6 +118,7 @@ impl Default for GlobalConfig {
             monitor_mode: MonitorMode::default(),
             reduced_motion: false,
             hover_startle: false,
+            on_fullscreen: crate::fullscreen::OnFullscreen::default(),
             window_awareness: false,
             accesskit_enabled: true,
             hotkey_backend: crate::hotkeys::probe::HotkeyBackend::Auto,

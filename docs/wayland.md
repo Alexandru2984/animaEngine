@@ -55,6 +55,7 @@ set the env var.
 | Settings panel + presets + Keybindings tab | ✓ | ✓ |
 | Perf overlay (`Ctrl+Shift+\``) | ✓ | ✓ |
 | Multi-monitor info | XRandR | `wl_output` enumeration |
+| Stepping aside for full-screen apps | EWMH `_NET_ACTIVE_WINDOW` / `_NET_WM_STATE` | `wlr-foreign-toplevel-management` (sway, Hyprland; not GNOME/KDE) |
 | `MonitorMode::PerMonitor` distribution | extra `winit::Window` per monitor | extra layer-shell surface per `wl_output` (headless sway, 2–3 outputs — see below) |
 | Global hotkeys | XGrabKey (`Ctrl+Shift+A/H/P`) | **GlobalShortcuts portal** (preferred) or compositor bindings + D-Bus (see below) |
 | Tray icon (StatusNotifierItem) | ✓ | ✓ |

@@ -45,6 +45,9 @@ pub struct Scene {
     /// their rest position instead of animating.
     reduced_motion: bool,
     hover_startle: bool,
+    /// Held still while a full-screen app is in front (`crate::fullscreen`),
+    /// apart from the user's own playback switch.
+    suspended: bool,
 }
 
 impl Scene {
@@ -122,6 +125,7 @@ impl Scene {
             window_platforms: Vec::new(),
             reduced_motion: false,
             hover_startle: false,
+            suspended: false,
         }
     }
 
@@ -214,6 +218,18 @@ impl Scene {
         Entity::from_config(config, animation)
     }
 
+    /// Hold the scene still, or let it go on, without touching the
+    /// user's playback switch — for stepping aside while a full-screen app
+    /// is in front (`crate::fullscreen`). Cheap; called every frame.
+    pub fn set_suspended(&mut self, suspended: bool) {
+        self.suspended = suspended;
+    }
+
+    /// Whether the scene moves: playback on and not held still.
+    pub fn is_running(&self) -> bool {
+        self.global_playing && !self.suspended
+    }
+
     /// Update the reduced-motion preference (cheap, called per frame).
     pub fn set_reduced_motion(&mut self, reduced: bool) {
         self.reduced_motion = reduced;
@@ -274,7 +290,7 @@ impl Scene {
             a.begin_tick();
         }
 
-        if !self.global_playing {
+        if !self.is_running() {
             return;
         }
 

@@ -202,3 +202,111 @@ impl WindowWatcher {
         })
     }
 }
+
+/// Whether the window in front is full screen, from EWMH — for stepping
+/// aside (`crate::fullscreen`). The active window is `_NET_ACTIVE_WINDOW`
+/// on the root; it counts when its type is NORMAL (or absent) and its
+/// `_NET_WM_STATE` holds `_NET_WM_STATE_FULLSCREEN`. The overlay's own
+/// windows are docks, so they never count. On XWayland only X11 clients
+/// are seen, as for window-awareness.
+pub struct FullscreenWatch {
+    conn: RustConnection,
+    root: Window,
+    net_active_window: Atom,
+    net_wm_window_type: Atom,
+    net_wm_window_type_normal: Atom,
+    net_wm_state: Atom,
+    net_wm_state_fullscreen: Atom,
+}
+
+impl FullscreenWatch {
+    /// Connect and intern the atoms. `None` without an X server.
+    pub fn new() -> Option<Self> {
+        let (conn, screen_num) = x11rb::connect(None).ok()?;
+        let root = conn.setup().roots[screen_num].root;
+        let intern = |name: &str| -> Option<Atom> {
+            conn.intern_atom(false, name.as_bytes())
+                .ok()?
+                .reply()
+                .ok()
+                .map(|r| r.atom)
+        };
+        let net_active_window = intern("_NET_ACTIVE_WINDOW")?;
+        let net_wm_window_type = intern("_NET_WM_WINDOW_TYPE")?;
+        let net_wm_window_type_normal = intern("_NET_WM_WINDOW_TYPE_NORMAL")?;
+        let net_wm_state = intern("_NET_WM_STATE")?;
+        let net_wm_state_fullscreen = intern("_NET_WM_STATE_FULLSCREEN")?;
+        Some(Self {
+            conn,
+            root,
+            net_active_window,
+            net_wm_window_type,
+            net_wm_window_type_normal,
+            net_wm_state,
+            net_wm_state_fullscreen,
+        })
+    }
+
+    /// Two or three round-trips; any error reads as "not full screen".
+    pub fn fullscreen_in_front(&self) -> bool {
+        let active = self
+            .conn
+            .get_property(
+                false,
+                self.root,
+                self.net_active_window,
+                AtomEnum::WINDOW,
+                0,
+                1,
+            )
+            .ok()
+            .and_then(|c| c.reply().ok())
+            .and_then(|r| r.value32().and_then(|mut v| v.next()))
+            .unwrap_or(0);
+        if active == 0 {
+            return false;
+        }
+        let atoms = |prop: Atom| -> Vec<Atom> {
+            self.conn
+                .get_property(false, active, prop, AtomEnum::ATOM, 0, 32)
+                .ok()
+                .and_then(|c| c.reply().ok())
+                .and_then(|r| r.value32().map(|v| v.collect()))
+                .unwrap_or_default()
+        };
+        let types = atoms(self.net_wm_window_type);
+        if !types.is_empty() && !types.contains(&self.net_wm_window_type_normal) {
+            return false;
+        }
+        atoms(self.net_wm_state).contains(&self.net_wm_state_fullscreen)
+    }
+}
+
+/// Check twice a second whether the window in front is full screen, and
+/// tell the event loop when that changes. A thread of its own, with its
+/// own connection, so the answer comes as quickly while the loop sleeps
+/// through an idle scene. Ends when the loop is gone, or at once without
+/// an X server.
+pub fn spawn_fullscreen_watch(sink: crate::event::EventSink) {
+    let spawned = std::thread::Builder::new()
+        .name("anima-fullscreen".into())
+        .spawn(move || {
+            let Some(watch) = FullscreenWatch::new() else {
+                return;
+            };
+            let mut last = None;
+            loop {
+                let now = watch.fullscreen_in_front();
+                if last != Some(now) {
+                    if !sink.send(crate::event::AnimaEvent::FullscreenInFront(now)) {
+                        return;
+                    }
+                    last = Some(now);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+        });
+    if let Err(e) = spawned {
+        tracing::warn!("Full-screen watch thread failed to start: {e}");
+    }
+}

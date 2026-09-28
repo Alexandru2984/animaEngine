@@ -299,6 +299,10 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
         let _tray_thread = tray::spawn(anima_engine::event::EventSink::Winit(
             event_loop.create_proxy(),
         ));
+        // Stepping aside for full-screen apps (`anima_engine::fullscreen`).
+        anima_engine::window::x11_windows::spawn_fullscreen_watch(
+            anima_engine::event::EventSink::Winit(event_loop.create_proxy()),
+        );
     }
     // Held to the end of this function: dropping it removes the icon,
     // which Windows would otherwise leave behind as a dead entry.

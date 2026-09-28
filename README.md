@@ -63,6 +63,8 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   preset, and run it in one keystroke.
 - **Undo / redo** (`Ctrl+Z` / `Ctrl+Shift+Z`): every edit in edit mode —
   a move, a delete, a changed property, a preset's Replace.
+- **Steps aside for full-screen apps**: the characters hide (or pause)
+  while a game, a video or a presentation fills the screen.
 - **Ten UI languages**: English, Română, Español, Deutsch, Français,
   Italiano, Português (BR), Polski, Nederlands, 日本語 — auto-detected
   from `LANG`, switchable in Appearance.

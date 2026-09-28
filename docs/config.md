@@ -71,6 +71,9 @@ window_awareness = false    # X11 only: physics characters land on
 hover_startle = false       # characters recoil from an approaching
                             # cursor. Cursor tracking is X11-only, so
                             # on native Wayland it reacts in edit mode.
+on_fullscreen = "hide"      # while another app is full screen: hide
+                            # the characters, "pause" them, or
+                            # "ignore" it. Never in edit mode.
 ```
 
 | Key | Values | Notes |
@@ -80,6 +83,7 @@ hover_startle = false       # characters recoil from an approaching
 | `monitor_mode` | `per_monitor` (default), `span`, `single` | `single` pins the overlay to one output — see below. |
 | `accesskit_enabled` | `true` (default) / `false` | Whether a screen reader gets the panels (AT-SPI). Off, it sees an empty window. Applies live. |
 | `hotkey_backend` | `auto` (default), `portal`, `x11`, `none` | `auto` probes the GlobalShortcuts portal, then XGrabKey on X11. `none` = tray + D-Bus only. |
+| `on_fullscreen` | `hide` (default), `pause`, `ignore` | While the window in front is full screen — a game, a video, slides. Seen on X11 (EWMH) and on wlroots-based Wayland compositors (sway, Hyprland; `wlr-foreign-toplevel-management`); under GNOME or KDE on Wayland only X11 apps running through XWayland are seen. Your own hide and pause are left as they were. |
 
 Pinning the overlay to a single output uses the struct form:
 

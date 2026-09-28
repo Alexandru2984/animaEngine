@@ -185,6 +185,24 @@ process that can read window geometry could already do so directly.
 New request types here need a threat-model entry; the read-only
 invariant must hold.
 
+### Is the window in front full screen? (1.5.0)
+
+To step aside while another application fills the screen
+(`on_fullscreen`, on by default), the overlay learns one fact about the
+window in front: whether it is full screen.
+
+- On X11 a thread with its own connection reads `_NET_ACTIVE_WINDOW`,
+  then that window's `_NET_WM_WINDOW_TYPE` and `_NET_WM_STATE`, twice a
+  second — `GetProperty` only, read-only as above.
+- On native Wayland it binds `wlr-foreign-toplevel-management` where the
+  compositor offers it. That protocol announces every window's title and
+  app id along with its state; the overlay keeps only the activated and
+  full-screen flags and drops the rest as it arrives. Nothing is logged
+  but the transition itself, nothing persisted.
+
+Same trust boundary as window-awareness: the user's own session, and a
+fact any screenshot shows.
+
 ### Global pointer query — `XQueryPointer` for `FollowCursor`
 
 `X11InputManager` (the connection already used for input-shape and

@@ -55,6 +55,9 @@ impl App {
         // ring buffer so it's safe to begin/end every frame
         // regardless of whether the overlay is visible.
         self.perf_sampler.begin_frame();
+        // The setting can change in the panel; the report and edit mode
+        // are handled where they change, but this is cheap.
+        self.update_step_aside();
         // A screen reader's request is input too; it is applied in this
         // frame's egui pass.
         if self
@@ -311,6 +314,7 @@ impl App {
                         let window_awareness_mut = &mut self.config.global.window_awareness;
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
+                        let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
                         // Snapshot the AccessKit flag BEFORE taking
                         // its mutable borrow — the renderer gates
                         // egui's tree on this copy, and the closure
@@ -390,6 +394,7 @@ impl App {
                                     true,
                                     reduced_motion_mut,
                                     hover_startle_mut,
+                                    on_fullscreen_mut,
                                     monitors_ref,
                                     library_ref,
                                     library_outcome_ref,

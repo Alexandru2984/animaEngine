@@ -34,6 +34,7 @@ mod keyboard_handler;
 mod pointer_handler;
 mod state;
 mod text_input;
+mod toplevels;
 
 pub use state::{InputRect, WaylandState};
 pub use text_input::CaretRect;
@@ -141,6 +142,9 @@ impl LayerWindow {
         // Optional: without it there are no input methods, and nothing
         // else changes.
         let ime = text_input::Ime::new(globals.bind(&qh, 1..=1, ()).ok());
+        // Optional too: without it, no window is ever seen full screen and
+        // the overlay never steps aside (`crate::fullscreen`).
+        let toplevel_manager = globals.bind(&qh, 1..=3, ()).ok();
 
         // Create the wl_surface that the layer is built on.
         let wl_surface = compositor.create_surface(&qh);
@@ -202,6 +206,8 @@ impl LayerWindow {
             active_drop_workers: Arc::new(AtomicUsize::new(0)),
             extra_layers: Vec::new(),
             ime,
+            _toplevel_manager: toplevel_manager,
+            toplevels: toplevels::Toplevels::default(),
         };
 
         // Learn the output list before the wgpu surface is built.
@@ -345,6 +351,13 @@ impl LayerWindow {
     /// event at all in the frames between.
     pub fn modifiers(&self) -> egui::Modifiers {
         crate::wayland::keyboard::modifiers_to_egui(self.state.last_modifiers)
+    }
+
+    /// Whether another application's window is in front and full screen.
+    /// Always `false` on compositors without
+    /// `wlr-foreign-toplevel-management`.
+    pub fn fullscreen_in_front(&self) -> bool {
+        self.state.toplevels.fullscreen_in_front()
     }
 
     /// Whether the primary surface — the one with the panels — has the

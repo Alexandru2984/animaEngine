@@ -198,6 +198,12 @@ appearance-reduced-motion-label = 動きを減らす
 appearance-reduced-motion-hint = UI のトランジション（パネルのスライド、フェード、パレットのポップ）を省略し、装飾的な揺れを止めます。状態を伝えるアニメーションは動き続けます。
 appearance-hover-startle-label = ホバーでびっくり
 appearance-hover-startle-hint = カーソルが近づくとマスコットが後ずさりします。カーソル追跡はX11のみのため、ネイティブWaylandでは編集モードでのみ反応します。
+# Full-screen apps (1.5): machine-translated, pending native review.
+appearance-fullscreen-label = アプリが全画面のとき
+appearance-fullscreen-hint = 画面いっぱいのゲーム、動画、プレゼンテーション。X11 と、sway や Hyprland などの Wayland コンポジターで動作します。Wayland の GNOME と KDE では、XWayland で動くアプリのみが対象です。
+fullscreen-hide = キャラクターを隠す
+fullscreen-pause = 一時停止する
+fullscreen-ignore = そのまま続ける
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = グローバルホットキーを登録できませんでした（ネイティブ Wayland セッションでは一般的）。トレイメニューと ⚙ ボタンは引き続き使えます。

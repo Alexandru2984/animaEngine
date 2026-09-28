@@ -308,6 +308,17 @@ windows for new monitors, despawn for vanished ones, re-resolve
 entity pins (stale pins fall back to centroid resolution with a
 toast).
 
+### Stepping aside (`src/fullscreen.rs`)
+
+Each backend reports whether the window in front is full screen — the
+winit path from a thread reading EWMH (`FullscreenWatch`, sending
+`AnimaEvent::FullscreenInFront` on change), native Wayland from
+`wlr-foreign-toplevel-management` (`layer_window/toplevels.rs`) — and
+`step_aside` turns that, the setting and edit mode into `hidden` and
+`paused`. Both are recomputed every frame and kept apart from the
+user's hide (`overlay_hidden`) and playback switch
+(`Scene::set_suspended`), so coming back needs no bookkeeping.
+
 ### Undo (`src/undo.rs`)
 
 Edits reach the scene from dozens of places, so undo watches *gestures*

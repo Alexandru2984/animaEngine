@@ -196,6 +196,7 @@ pub fn settings(
     span_supported: bool,
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
+    on_fullscreen: &mut crate::fullscreen::OnFullscreen,
     monitors: &[MonitorInfo],
     library: Option<&LibraryIndex>,
     library_outcome: &mut Option<LibraryOutcome>,
@@ -365,6 +366,7 @@ pub fn settings(
                                 accesskit_supported,
                                 reduced_motion,
                                 hover_startle,
+                                on_fullscreen,
                             );
                         }
                         SettingsTab::Keybindings => {

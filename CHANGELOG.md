@@ -15,6 +15,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   file or a preset's Replace. Characters that walk or fall are not
   pulled back to where they were, and a poke's hop is not an edit. Up to
   100 steps; a reload of the config file starts the history over.
+- **The overlay steps aside for full-screen apps.** While the window in
+  front is full screen — a game, a video, a presentation — the
+  characters hide and hold still, by default, and come back when it is
+  not; Appearance offers pausing them instead, or carrying on. Never in
+  edit mode, and your own hide and pause are left as they were. On
+  wlroots compositors (sway, Hyprland) the overlay used to draw over
+  full-screen windows. Seen on X11 and on those compositors; under GNOME
+  or KDE on Wayland only X11 apps running through XWayland are.
 
 ### Fixed
 

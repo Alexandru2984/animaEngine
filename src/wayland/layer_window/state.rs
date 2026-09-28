@@ -124,6 +124,14 @@ pub struct WaylandState {
     pub extra_layers: Vec<ExtraLayer>,
     /// Input methods through `zwp_text_input_v3` (C8). See `text_input`.
     pub ime: super::text_input::Ime,
+    /// Kept so its toplevel events keep coming; `None` where the
+    /// compositor has no `wlr-foreign-toplevel-management`.
+    pub(super) _toplevel_manager: Option<
+        wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_manager_v1::ZwlrForeignToplevelManagerV1,
+    >,
+    /// Other applications' windows, for stepping aside while one is full
+    /// screen. See `toplevels`.
+    pub toplevels: super::toplevels::Toplevels,
 }
 
 impl WaylandState {

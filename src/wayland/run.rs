@@ -180,6 +180,9 @@ pub fn run_native(
     let mut frame_gate = FrameGate::default();
     // Edits to the scene, for undo and redo (`crate::undo`).
     let mut history = crate::undo::UndoHistory::default();
+    // Stepping aside while another window is full screen
+    // (`crate::fullscreen`) — apart from the user's own hide and pause.
+    let mut aside = crate::fullscreen::StepAside::default();
     // Whether the input region is currently widened for a drag
     // (`drag_region`).
     let mut drag_widened = false;
@@ -298,7 +301,7 @@ pub fn run_native(
                 // clickable again.
                 let button = toggle_button_units(&layer.monitors());
                 let region = region_for_state(
-                    overlay_hidden,
+                    overlay_hidden || aside.hidden,
                     layer.state.edit_mode || drag_widened,
                     new_w,
                     new_h,
@@ -384,13 +387,56 @@ pub fn run_native(
         // can flip in lock-step. Scan key-press events, match against
         // the user's bindings, dispatch the few actions that make
         // sense without a UI thread (just edit mode for now).
+        // Step aside while another window is full screen, and come back
+        // when it is not. Recomputed every iteration from the setting, the
+        // window in front and edit mode, so nothing has to be undone.
+        let wanted = crate::fullscreen::step_aside(
+            config.global.on_fullscreen,
+            layer.fullscreen_in_front(),
+            layer.state.edit_mode,
+        );
+        if wanted != aside {
+            aside = wanted;
+            activity = true;
+            scene.set_suspended(aside.paused);
+            tracing::info!(
+                "Full-screen app {}: overlay {}",
+                if layer.fullscreen_in_front() {
+                    "in front"
+                } else {
+                    "gone"
+                },
+                if aside.hidden {
+                    "hidden"
+                } else if aside.paused {
+                    "paused"
+                } else {
+                    "back"
+                }
+            );
+            let region = region_for_state(
+                overlay_hidden || aside.hidden,
+                layer.state.edit_mode || drag_widened,
+                renderer.primary.window_width,
+                renderer.primary.window_height,
+                toggle_button_units(&monitors_now),
+            );
+            if let Err(e) = layer.set_input_region(region) {
+                tracing::warn!("stepping aside: {e}");
+            }
+        }
+
         // Widen the input region while a drag is over us in pass-through,
         // and put it back when the drag ends.
-        let widen = drag_region(overlay_hidden, layer.state.edit_mode, layer.state.drag_over);
+        let widen = drag_region(
+            overlay_hidden || aside.hidden,
+            layer.state.edit_mode,
+            layer.state.drag_over,
+        );
         if widen != drag_widened {
             drag_widened = widen;
             let region = region_for_state(
-                overlay_hidden,
+                overlay_hidden || aside.hidden,
                 layer.state.edit_mode || widen,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
@@ -408,7 +454,7 @@ pub fn run_native(
         // so a click, drag or drop on another monitor lands in the
         // right global place.
         layer.sync_extra_layers(
-            extras_take_input(overlay_hidden, layer.state.edit_mode, widen),
+            extras_take_input(overlay_hidden || aside.hidden, layer.state.edit_mode, widen),
             |name| {
                 monitors_now
                     .iter()
@@ -489,6 +535,9 @@ pub fn run_native(
                         // Hotkey resolution events are winit-path UI; the
                         // native path logs the outcome where it resolves.
                         AnimaEvent::HotkeysUnavailable | AnimaEvent::PortalShortcutsDenied => {}
+                        // This loop learns it from the compositor's
+                        // toplevel list instead.
+                        AnimaEvent::FullscreenInFront(_) => {}
                     }
                 }
             }
@@ -568,7 +617,7 @@ pub fn run_native(
                 // the overlay was not hidden in any sense the user would
                 // recognise.
                 let region = region_for_state(
-                    overlay_hidden,
+                    overlay_hidden || aside.hidden,
                     layer.state.edit_mode || drag_widened,
                     renderer.primary.window_width,
                     renderer.primary.window_height,
@@ -882,7 +931,7 @@ pub fn run_native(
                 // An animation showing its next frame: this is what wakes
                 // a still scene with playing sprites, at their own rate —
                 // unless the overlay is hidden and shows nothing.
-                activity |= !overlay_hidden;
+                activity |= !(overlay_hidden || aside.hidden);
             }
         }
 
@@ -901,7 +950,7 @@ pub fn run_native(
                 || pending_shimeji.is_some(),
             now,
         );
-        let moving = !overlay_hidden
+        let moving = !(overlay_hidden || aside.hidden)
             && matches!(
                 crate::pacing::redraw_pacing(
                     &scene,
@@ -935,7 +984,7 @@ pub fn run_native(
         } else {
             None
         };
-        let drawn: Vec<&Entity> = if overlay_hidden {
+        let drawn: Vec<&Entity> = if overlay_hidden || aside.hidden {
             // Hidden: present a cleared (fully transparent) surface. The
             // layer surface stays mapped — that is what a layer shell
             // gives us — but nothing is painted into it, which is the
@@ -979,7 +1028,7 @@ pub fn run_native(
                 // drawn button and its clickable area agree.
                 let pixels_per_point = ui_pixels_per_point(monitors);
                 let edit_mode_snapshot = layer.state.edit_mode;
-                let hidden_snapshot = overlay_hidden;
+                let hidden_snapshot = overlay_hidden || aside.hidden;
                 // Snapshot the AccessKit flag BEFORE taking its mutable
                 // borrow, same trick as the X11 path uses; the renderer
                 // gates egui's tree on it.
@@ -1013,6 +1062,7 @@ pub fn run_native(
                 let window_awareness_mut = &mut config.global.window_awareness;
                 let reduced_motion_mut = &mut config.global.reduced_motion;
                 let hover_startle_mut = &mut config.global.hover_startle;
+                let on_fullscreen_mut = &mut config.global.on_fullscreen;
                 let accesskit_mut = &mut config.global.accesskit_enabled;
                 let keybindings_mut = &mut config.keybindings;
                 let collapse_state_mut = &mut config.collapse_state;
@@ -1081,6 +1131,7 @@ pub fn run_native(
                                 false,
                                 reduced_motion_mut,
                                 hover_startle_mut,
+                                on_fullscreen_mut,
                                 monitors_ref,
                                 library.as_ref(),
                                 library_ref,

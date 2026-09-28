@@ -23,6 +23,7 @@ pub(super) fn appearance_tab(
     accesskit_supported: bool,
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
+    on_fullscreen: &mut crate::fullscreen::OnFullscreen,
 ) {
     ui.label(egui::RichText::new(t("appearance-theme-header")).text_style(h2()));
     ui.add_space(SPACE_S);
@@ -76,6 +77,10 @@ pub(super) fn appearance_tab(
         .on_hover_text(t("appearance-hover-startle-hint"))
         .changed()
     {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    if fullscreen_picker(ui, on_fullscreen) {
         *config_dirty = true;
     }
     ui.add_space(SPACE_M);
@@ -232,4 +237,38 @@ fn theme_label_with_icon(t: Theme) -> String {
         Theme::Light | Theme::LightHighContrast => icons::LIGHT_MODE,
     };
     format!("{icon}  {}", t.label())
+}
+
+/// What the overlay does while a full-screen app is in front
+/// (`crate::fullscreen`). Returns whether the choice changed.
+fn fullscreen_picker(ui: &mut egui::Ui, setting: &mut crate::fullscreen::OnFullscreen) -> bool {
+    use crate::fullscreen::OnFullscreen;
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label(t("appearance-fullscreen-label"));
+        let combo_value = t(setting.i18n_key());
+        let combo = egui::ComboBox::from_id_salt("anima.on_fullscreen")
+            .selected_text(combo_value.clone())
+            .show_ui(ui, |ui| {
+                for option in OnFullscreen::ALL {
+                    if ui
+                        .selectable_label(*setting == option, t(option.i18n_key()))
+                        .picked()
+                        && *setting != option
+                    {
+                        *setting = option;
+                        changed = true;
+                    }
+                }
+            });
+        crate::ui::accessible::name_combo(
+            &combo.response,
+            &t("appearance-fullscreen-label"),
+            &combo_value,
+        );
+        combo
+            .response
+            .on_hover_text(t("appearance-fullscreen-hint"));
+    });
+    changed
 }

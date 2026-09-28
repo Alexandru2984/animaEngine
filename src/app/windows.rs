@@ -225,10 +225,10 @@ impl App {
                 mon.y
             );
             // A rebuild can happen while the overlay is hidden (a monitor
-            // hotplug, or the user switching monitor mode). Without this
-            // the fresh windows would appear on screen despite Hide being
-            // in effect.
-            if self.overlay_hidden {
+            // hotplug, or the user switching monitor mode) or stepped
+            // aside for a full-screen app. Without this the fresh windows
+            // would appear on screen despite either.
+            if self.overlay_hidden || self.stepped_aside.hidden {
                 window.set_visible(false);
             }
             self.extra_windows.insert(

@@ -35,7 +35,7 @@ pub fn redraw_pacing(scene: &Scene, ui_animating: bool) -> RedrawPacing {
     if ui_animating {
         return RedrawPacing::Continuous;
     }
-    if !scene.global_playing {
+    if !scene.is_running() {
         return RedrawPacing::Idle;
     }
     let mut deadline: Option<Instant> = None;

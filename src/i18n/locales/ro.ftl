@@ -198,6 +198,12 @@ appearance-reduced-motion-label = Redu mișcarea
 appearance-reduced-motion-hint = Sare peste tranzițiile UI (glisarea panoului, fade-uri, pop-ul paletei) și oprește săltatul decorativ. Animațiile care transmit stare rulează în continuare.
 appearance-hover-startle-label = Tresărire la hover
 appearance-hover-startle-hint = Mascotele se feresc de cursor când se apropie de ele. Urmărirea cursorului e doar pe X11, deci pe Wayland nativ reacționează doar în modul editare.
+# Full-screen apps (1.5): machine-translated, pending native review.
+appearance-fullscreen-label = Când o aplicație e pe tot ecranul
+appearance-fullscreen-hint = Jocuri, videoclipuri și prezentări care umplu ecranul. Merge pe X11 și pe compozitoarele Wayland precum sway și Hyprland; pe GNOME și KDE cu Wayland, doar pentru aplicațiile care rulează prin XWayland.
+fullscreen-hide = Ascunde personajele
+fullscreen-pause = Pune-le pe pauză
+fullscreen-ignore = Lasă-le să meargă
 
 # ── Avertismente persistente (D.5) ────────────────────────────────────
 warning-global-hotkeys-unavailable = Scurtăturile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.
