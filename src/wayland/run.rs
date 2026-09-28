@@ -176,6 +176,8 @@ pub fn run_native(
     // Actions picked in the command palette, run next frame through the
     // same `match` as the ones bound to keys.
     let mut palette_actions: Vec<Action> = Vec::new();
+    // Whether an iteration draws (`FrameGate`).
+    let mut frame_gate = FrameGate::default();
     // Whether the input region is currently widened for a drag
     // (`drag_region`).
     let mut drag_widened = false;
@@ -261,7 +263,12 @@ pub fn run_native(
         // for the compositor lands in `Idle` rather than vanishing — the
         // same placement the winit loop uses relative to its own wait.
         perf_sampler.begin_frame();
-        dispatch_with_timeout(&mut layer.event_queue, &mut layer.state, FRAME_INTERVAL)?;
+        let dispatched =
+            dispatch_with_timeout(&mut layer.event_queue, &mut layer.state, FRAME_INTERVAL)?;
+        // Whether anything happened this iteration that a frame should
+        // show. Input and every other compositor event count; so does
+        // whatever the loop picks up from its channels below.
+        let mut activity = dispatched > 0;
 
         // Capture-and-reset the previous frame's GPU op counters. The
         // counters are `Cell`s, so this is a shared borrow and does not
@@ -300,15 +307,18 @@ pub fn run_native(
         // at all, so editing config.toml with the overlay running on
         // Wayland did nothing (R28).
         let poll = config_watch.poll(config_dirty);
+        activity |= !matches!(poll, crate::config_watch::Poll::Idle);
         crate::config_watch::handle(poll, &mut outcome_ctx!(), &mut config, &mut warnings);
         if let Some(import) = &pending_shimeji {
             if import.poll(&mut outcome_ctx!()).is_some() {
                 pending_shimeji = None;
+                activity = true;
             }
         }
         if let Some(chooser) = &pending_file_chooser {
             if let Some(added) = chooser.poll(&mut outcome_ctx!()) {
                 pending_file_chooser = None;
+                activity = true;
                 if added > 0 {
                     config_dirty = true;
                 }
@@ -402,6 +412,7 @@ pub fn run_native(
         // importer, anything else is validated, added, selected, toasted
         // and marked for saving.
         for dropped in layer.drain_dropped_files() {
+            activity = true;
             let at = (
                 dropped.at.0 + primary_origin.0,
                 dropped.at.1 + primary_origin.1,
@@ -453,6 +464,7 @@ pub fn run_native(
             let mut quit = false;
             if let Some(rx) = &command_rx {
                 while let Ok(ev) = rx.try_recv() {
+                    activity = true;
                     match ev {
                         AnimaEvent::ToggleEditMode => toggle_edit_xor ^= true,
                         AnimaEvent::ToggleGlobalPlayback => toggle_playback_xor ^= true,
@@ -475,6 +487,7 @@ pub fn run_native(
                 use crate::hotkeys::portal::PortalMsg;
                 use crate::keybindings::Action as KbAction;
                 while let Ok(msg) = rx.try_recv() {
+                    activity = true;
                     match msg {
                         PortalMsg::Ready => {
                             tracing::info!("Portal shortcuts active (native path)");
@@ -572,6 +585,7 @@ pub fn run_native(
         // path for both, so an action cannot behave differently depending
         // on how it was asked for.
         let mut actions = std::mem::take(&mut palette_actions);
+        activity |= !actions.is_empty();
         actions.extend(
             events
                 .iter()
@@ -846,7 +860,35 @@ pub fn run_native(
             if entity.texture_dirty {
                 renderer.ensure_texture(entity);
                 entity.texture_dirty = false;
+                // An animation showing its next frame: this is what wakes
+                // a still scene with playing sprites, at their own rate —
+                // unless the overlay is hidden and shows nothing.
+                activity |= !overlay_hidden;
             }
+        }
+
+        // Draw only for a reason. The loop still wakes every frame
+        // interval — draining its channels and ticking the scene is cheap
+        // — but it drew an unchanged scene sixty times a second, 84% of a
+        // core in the rig with everything paused, where the winit loop
+        // sleeps (`crate::pacing`).
+        toasts.prune();
+        activity |= egui_renderer.screen_reader_woke();
+        let now = Instant::now();
+        let moving = !overlay_hidden
+            && matches!(
+                crate::pacing::redraw_pacing(
+                    &scene,
+                    layer.state.edit_mode || perf_overlay_visible || !toasts.is_empty(),
+                ),
+                crate::pacing::RedrawPacing::Continuous
+            );
+        if !frame_gate.should_draw(now, activity || moving || egui_renderer.repaint_due(now)) {
+            perf_sampler.end_frame();
+            if let Some(rest) = FRAME_INTERVAL.checked_sub(frame_start.elapsed()) {
+                std::thread::sleep(rest);
+            }
+            continue;
         }
 
         // Render the scene. Pass `selected_id` so the highlight ring
@@ -882,7 +924,6 @@ pub fn run_native(
                 None => visible,
             }
         };
-        toasts.prune();
         egui_renderer.ensure_theme(config.global.theme);
         // Timed with an explicit instant rather than a `scope` guard:
         // the guard would have to be dropped in both match arms, and
@@ -1265,6 +1306,27 @@ pub fn run_native(
 /// Target frame interval for the native loop — a ~60 Hz soft cap.
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 
+/// Whether a loop iteration draws a frame: when there is a reason to, and
+/// otherwise once per [`crate::pacing::IDLE_HEARTBEAT`], so a change the
+/// loop did not notice still shows within it.
+#[derive(Default)]
+struct FrameGate {
+    last_draw: Option<Instant>,
+}
+
+impl FrameGate {
+    fn should_draw(&mut self, now: Instant, reason: bool) -> bool {
+        let draw = reason
+            || self.last_draw.is_none_or(|last| {
+                now.saturating_duration_since(last) >= crate::pacing::IDLE_HEARTBEAT
+            });
+        if draw {
+            self.last_draw = Some(now);
+        }
+        draw
+    }
+}
+
 /// egui's points-per-buffer-pixel for the native surface.
 ///
 /// The layer surface leaves `wl_surface.set_buffer_scale` at 1, so buffer
@@ -1391,15 +1453,16 @@ fn dispatch_with_timeout(
     queue: &mut EventQueue<WaylandState>,
     state: &mut WaylandState,
     timeout: Duration,
-) -> Result<()> {
+) -> Result<usize> {
     use std::os::fd::AsRawFd;
 
     let to_err =
         |e: wayland_client::DispatchError| AnimaError::other(format!("wayland dispatch: {e}"));
 
     // Already-buffered events first, exactly as blocking_dispatch does.
-    if queue.dispatch_pending(state).map_err(to_err)? > 0 {
-        return Ok(());
+    let buffered = queue.dispatch_pending(state).map_err(to_err)?;
+    if buffered > 0 {
+        return Ok(buffered);
     }
     queue
         .flush()
@@ -1427,8 +1490,7 @@ fn dispatch_with_timeout(
         // prepared read and we fall through to dispatch what we have.
     }
 
-    queue.dispatch_pending(state).map_err(to_err)?;
-    Ok(())
+    queue.dispatch_pending(state).map_err(to_err)
 }
 
 /// Mirror the live scene into `config`, then persist it.
@@ -1631,6 +1693,23 @@ fn should_persist_on_exit(new_mode: bool, config_dirty: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_frame_is_drawn_for_a_reason_or_on_the_heartbeat() {
+        use crate::pacing::IDLE_HEARTBEAT;
+        let mut gate = FrameGate::default();
+        let t0 = Instant::now();
+        let ms = Duration::from_millis;
+        assert!(gate.should_draw(t0, false), "the first iteration draws");
+        assert!(!gate.should_draw(t0 + ms(16), false), "nothing to show");
+        assert!(gate.should_draw(t0 + ms(32), true), "a reason");
+        let last = t0 + ms(32);
+        assert!(!gate.should_draw(last + IDLE_HEARTBEAT - ms(1), false));
+        assert!(
+            gate.should_draw(last + IDLE_HEARTBEAT, false),
+            "the heartbeat"
+        );
+    }
 
     fn monitor(name: &str, x: i32, y: i32) -> MonitorInfo {
         MonitorInfo {

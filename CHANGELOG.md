@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Native Wayland drew sixty frames a second whatever the scene did.**
+  With everything paused, that was 84% of a core in the test rig
+  (software rendering), against 0.9% on X11. It now draws only when
+  something changes, as the X11 path does: 1% paused, animations at
+  their own frame rate, nothing while the overlay is hidden (R54).
+
 ## [1.4.0] — 2026-09-28
 
 Screen readers can read animaEngine, on both backends — for the first

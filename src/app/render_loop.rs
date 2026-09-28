@@ -18,28 +18,11 @@
 //! 7. Present + close the perf frame + request next redraw.
 
 use super::App;
+use crate::pacing::{RedrawPacing, IDLE_HEARTBEAT};
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::ui::panels;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
-
-/// How the render loop schedules its next frame. Computed at the end
-/// of every redraw from the live scene/UI state.
-pub(super) enum RedrawPacing {
-    /// Something animates every tick (edit mode, toasts, behaviors,
-    /// physics, perf overlay) — redraw at display refresh.
-    Continuous,
-    /// Scene is static except for playing animations — sleep until the
-    /// soonest next-frame deadline (an 8 fps sprite wakes 8×/s, not 60×).
-    Deadline(Instant),
-    /// Nothing moves — sleep until the hot-reload heartbeat.
-    Idle,
-}
-
-/// Idle wake-up cadence. Matches the hot-reload mtime poll interval —
-/// the heartbeat exists so config edits still apply while the overlay
-/// sits static.
-pub(super) const IDLE_HEARTBEAT: Duration = Duration::from_secs(2);
 
 /// Consecutive `Lost`/`Outdated` surface acquisitions before we stop
 /// trusting `surface.configure()` to recover and rebuild the whole
@@ -667,27 +650,10 @@ impl App {
     /// (the 0.1 s dt clamp in `Scene::tick` absorbs the gap when they
     /// come back).
     fn redraw_pacing(&self) -> RedrawPacing {
-        if self.edit_mode || self.perf_overlay_visible || !self.toasts.is_empty() {
-            return RedrawPacing::Continuous;
-        }
-        if !self.scene.global_playing {
-            return RedrawPacing::Idle;
-        }
-        let mut deadline: Option<Instant> = None;
-        for entity in self.scene.visible_entities() {
-            if entity.physics.enabled || !matches!(entity.behavior, crate::behavior::Behavior::Idle)
-            {
-                return RedrawPacing::Continuous;
-            }
-            if entity.animation().playing && entity.animation().frame_count() > 1 {
-                let due = entity.animation().next_frame_due();
-                deadline = Some(deadline.map_or(due, |d| d.min(due)));
-            }
-        }
-        match deadline {
-            Some(due) => RedrawPacing::Deadline(due),
-            None => RedrawPacing::Idle,
-        }
+        crate::pacing::redraw_pacing(
+            &self.scene,
+            self.edit_mode || self.perf_overlay_visible || !self.toasts.is_empty(),
+        )
     }
 }
 

@@ -580,7 +580,7 @@ impl ApplicationHandler<AnimaEvent> for App {
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
         if matches!(cause, StartCause::ResumeTimeReached { .. }) {
             event_loop.set_control_flow(ControlFlow::WaitUntil(
-                Instant::now() + render_loop::IDLE_HEARTBEAT,
+                Instant::now() + crate::pacing::IDLE_HEARTBEAT,
             ));
             self.check_hot_reload();
             self.check_shimeji_import();

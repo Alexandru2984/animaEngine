@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R53 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R54 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2127,3 +2127,37 @@ parameter added entirely through AT-SPI (focus the field, type, press
 Add); a list closing when an option is picked through AT-SPI; Escape
 with a list or the menu open leaving edit mode on — on both backends
 for the last.
+
+### R54 · Native Wayland drew sixty frames a second with nothing moving — `FIXED`
+
+Found while looking for what to improve after 1.4. The winit loop has
+slept when nothing moves since 0.5.5 — continuous only while something
+animates, a deadline for playing sprites, a 2 s heartbeat otherwise. The
+native Wayland loop never did: it woke every 16 ms and drew a whole
+frame every time, with everything paused, and even with the overlay
+hidden, when the frame it drew was empty. Measured on the rig with the
+demo scene paused, in pass-through, over 10 s: 84% of a core on native
+Wayland, 0.9% on X11. The rig renders in software (lavapipe), so the
+absolute number is inflated; on a GPU the same sixty frames go to the
+GPU and the compositor instead, which is what drains a laptop.
+
+**Fixed.** The X11 decision moved to `crate::pacing` and both loops use
+it. The Wayland loop still wakes every frame interval — draining its
+channels and ticking the scene cost nothing measurable, and keeping the
+wake-ups means D-Bus, tray, shortcut and portal messages are picked up
+within a frame without a new wake-up mechanism — but it draws only for
+a reason: a compositor event (input, resize, focus), a message from a
+channel, a drop or an import finishing, a sprite's next animation frame
+while the overlay is visible, a repaint egui asked for (a hover
+animation, a tooltip), a screen reader's request, something moving every
+frame — or the 2 s heartbeat, so a change nothing announced still shows.
+
+**Checked on the rig**, same scene and method: paused 84% → 1.0%;
+playing 26% (X11: 30%); hidden while playing 1.1%, where the first try
+still drew on every animation frame (14.8%) until those stopped counting
+while hidden. Edit mode came on 16 ms after the D-Bus call while idle, and
+79 ms after a screen reader pressed ⚙, including the client's own
+startup; the ⚙ hover highlight and tooltip appear and clear; hide and
+show clear and restore the overlay. X11 unchanged: 0.8% paused, 30%
+playing. Edit mode still draws continuously on both backends, as
+before.

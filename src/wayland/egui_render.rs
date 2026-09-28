@@ -37,6 +37,12 @@ pub struct WaylandEguiRenderer {
     screen_reader: crate::a11y::ScreenReaderBridge,
     /// The Appearance setting that allows the tree at all.
     accesskit_allowed: bool,
+    /// Set from the bridge's thread when a screen reader asks for
+    /// something; the loop draws a frame to answer it.
+    screen_reader_wake: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// When egui asked to be run again — an animation, a tooltip's delay.
+    /// `None` when it asked for nothing.
+    repaint_at: Option<std::time::Instant>,
 }
 
 impl WaylandEguiRenderer {
@@ -49,15 +55,33 @@ impl WaylandEguiRenderer {
         let renderer = egui_wgpu::Renderer::new(device, output_format, None, 1, false);
         icons::install(&context);
         theme::apply(&context, theme);
+        let screen_reader_wake = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let wake = std::sync::Arc::clone(&screen_reader_wake);
         Self {
             context,
             renderer,
             current_theme: theme,
             ime_caret: None,
-            // No wake needed: this loop never sleeps longer than a frame.
-            screen_reader: crate::a11y::ScreenReaderBridge::new(|| {}),
+            // The loop wakes every frame interval, but draws only for a
+            // reason; a reader's request is one.
+            screen_reader: crate::a11y::ScreenReaderBridge::new(move || {
+                wake.store(true, std::sync::atomic::Ordering::Release);
+            }),
             accesskit_allowed: true,
+            screen_reader_wake,
+            repaint_at: None,
         }
+    }
+
+    /// Whether a screen reader asked for something since the last call.
+    pub fn screen_reader_woke(&self) -> bool {
+        self.screen_reader_wake
+            .swap(false, std::sync::atomic::Ordering::AcqRel)
+    }
+
+    /// Whether egui asked to be run again by `now`.
+    pub fn repaint_due(&self, now: std::time::Instant) -> bool {
+        self.repaint_at.is_some_and(|at| at <= now)
     }
 
     /// Follow the Appearance setting that allows screen readers the tree.
@@ -178,6 +202,12 @@ impl WaylandEguiRenderer {
         };
 
         let mut full_output = self.context.run(raw_input, build_ui);
+        // `Duration::MAX` means "not unless something happens"; the add
+        // overflows then, and there is nothing to schedule.
+        self.repaint_at = full_output
+            .viewport_output
+            .get(&self.context.viewport_id())
+            .and_then(|v| std::time::Instant::now().checked_add(v.repaint_delay));
         self.screen_reader.publish(
             self.accesskit_allowed,
             full_output.platform_output.accesskit_update.take(),

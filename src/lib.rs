@@ -23,6 +23,7 @@ pub mod input;
 pub mod keybindings;
 pub mod monitor;
 pub mod outcomes;
+pub mod pacing;
 pub mod perf;
 pub mod physics;
 pub mod platforms;
