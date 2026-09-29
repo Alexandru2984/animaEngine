@@ -129,6 +129,7 @@ impl App {
         self.check_hot_reload();
         self.check_shimeji_import();
         self.check_file_chooser();
+        self.check_scene_transfer();
 
         // Appearance-tab monitor-mode switches rebuild the extra
         // overlay windows (T.6); topology changes do the same (T.9).
@@ -606,6 +607,8 @@ impl App {
                     match scene_request {
                         Some(panels::SceneRequest::AddFile) => self.open_file_chooser(),
                         Some(panels::SceneRequest::Paste) => self.paste(),
+                        Some(panels::SceneRequest::Share(path)) => self.share_scene(&path),
+                        Some(panels::SceneRequest::Import) => self.import_scene(None),
                         None => {}
                     }
                 }
@@ -785,7 +788,10 @@ impl App {
                 at = Some(at.map_or(extra, |a| a.min(extra)));
             }
         }
-        if self.pending_file_chooser.is_some() || self.pending_shimeji.is_some() {
+        if self.pending_file_chooser.is_some()
+            || self.pending_shimeji.is_some()
+            || self.pending_transfer.is_some()
+        {
             let poll = now + std::time::Duration::from_millis(100);
             at = Some(at.map_or(poll, |a| a.min(poll)));
         }

@@ -161,7 +161,7 @@ pub(super) fn scene_tab(
     }
     // Saved scenes, even with none on screen: one may be loaded.
     ui.add_space(SPACE_L);
-    scenes_section(ui, scene, selection, config_dirty, active_scene);
+    scenes_section(ui, scene, selection, config_dirty, active_scene, request);
     schedule_section(ui, scene_schedule, config_dirty);
     ui.add_space(SPACE_L);
     reminders_section(ui, scene, reminders, config_dirty);
@@ -545,6 +545,7 @@ fn scenes_section(
     selection: &mut SelectionState,
     config_dirty: &mut bool,
     active: &mut Option<String>,
+    request: &mut Option<super::SceneRequest>,
 ) {
     ui.label(
         egui::RichText::new(format!("{}  {}", icons::SCENE, t("scene-scenes-header")))
@@ -618,6 +619,11 @@ fn scenes_section(
                     {
                         action = Some(SceneAction::SaveOver(entry.name.clone()));
                     }
+                    // As one file, pictures and all (`crate::scene_file`).
+                    let share = crate::i18n::t_args("scene-scene-share", &args);
+                    if ui.small_button(icons::SHARE).on_hover_name(share).clicked() {
+                        *request = Some(super::SceneRequest::Share(entry.path.clone()));
+                    }
                 }
             });
         });
@@ -643,6 +649,16 @@ fn scenes_section(
             action = Some(SceneAction::SaveNew(name.trim().to_string()));
         }
     });
+    // A scene someone shared — through the desktop's chooser, so Unix
+    // only, like "Add file…"; dropping the file works everywhere.
+    if cfg!(unix)
+        && ui
+            .button(format!("{}  {}", icons::IMPORT, t("scene-import")))
+            .on_hover_text(t("scene-import-tooltip"))
+            .clicked()
+    {
+        *request = Some(super::SceneRequest::Import);
+    }
     if let Some(error) = ui.data(|d| d.get_temp::<String>(error_key)) {
         ui.add(
             egui::Label::new(

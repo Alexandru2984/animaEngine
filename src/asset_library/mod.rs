@@ -639,6 +639,12 @@ pub fn thumbnail_is_fresh(source: &Path, cached: &Path) -> bool {
 // through `util::fallback_scoped_dir`, which prefers $XDG_RUNTIME_DIR
 // and verifies tmpdir ownership/mode — a plain /tmp subdir could be
 // pre-created (and thus owned) by another local user.
+/// The app's data directory (`~/.local/share/animaengine`), whether or
+/// not it exists yet.
+pub(crate) fn data_dir() -> PathBuf {
+    xdg_data_dir()
+}
+
 fn xdg_data_dir() -> PathBuf {
     if let Some(dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
         return dirs.data_dir().to_path_buf();

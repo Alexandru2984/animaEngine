@@ -19,7 +19,7 @@
 //! duplicate), and *where* a library asset lands (each backend knows its
 //! own viewport). Both are the caller's, around these calls.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::asset_library::LibraryIndex;
 use crate::config::AppConfig;
@@ -738,6 +738,260 @@ impl FileChooserAdd {
             }
         })
     }
+}
+
+/// Sharing a saved scene as one file, or importing one
+/// (`crate::scene_file`): the desktop's chooser first, then the file
+/// written or read off the UI thread — a scene with videos in it is not
+/// small.
+pub struct SceneTransfer {
+    stage: TransferStage,
+}
+
+enum TransferStage {
+    /// Asking where to write `saved`.
+    SaveTo {
+        chooser: crate::file_chooser::FileChooser,
+        saved: crate::scenes::SavedScene,
+    },
+    /// Asking which file to read.
+    OpenFrom {
+        chooser: crate::file_chooser::FileChooser,
+    },
+    /// Writing or reading.
+    Working(std::sync::mpsc::Receiver<TransferDone>),
+}
+
+enum TransferDone {
+    Shared(Result<(PathBuf, crate::scene_file::Exported), String>),
+    Imported(Result<crate::scenes::SavedScene, String>),
+}
+
+/// Where a [`SceneTransfer`] is.
+pub enum Transfer {
+    /// Still going; poll again.
+    Pending,
+    /// Over, said in a toast.
+    Done,
+    /// Read: the caller puts it on screen (`apply_imported`), with an
+    /// undo step open first.
+    Imported(crate::scenes::SavedScene),
+}
+
+impl SceneTransfer {
+    /// Share the saved scene in `path`: ask where to write it. `None`
+    /// when it cannot be read; the reason is on screen.
+    pub fn share(path: &Path, toasts: &mut ToastQueue) -> Option<Self> {
+        match crate::scenes::load(path) {
+            Ok(saved) => {
+                let name = format!(
+                    "{}.{}",
+                    crate::scenes::slug(&saved.name),
+                    crate::scene_file::EXTENSION
+                );
+                Some(Self {
+                    stage: TransferStage::SaveTo {
+                        chooser: crate::file_chooser::FileChooser::ask(
+                            crate::i18n::t("share-chooser-title"),
+                            String::new(),
+                            crate::file_chooser::Ask::Save { name },
+                        ),
+                        saved,
+                    },
+                })
+            }
+            Err(e) => {
+                let mut args = fluent::FluentArgs::new();
+                args.set("error", e.to_string());
+                toasts.error(crate::i18n::t_args("toast-scene-share-failed", &args));
+                None
+            }
+        }
+    }
+
+    /// Import a scene file: ask which.
+    pub fn import_chooser() -> Self {
+        Self {
+            stage: TransferStage::OpenFrom {
+                chooser: crate::file_chooser::FileChooser::ask(
+                    crate::i18n::t("import-chooser-title"),
+                    crate::i18n::t("import-chooser-filter"),
+                    crate::file_chooser::Ask::Open {
+                        extensions: vec![crate::scene_file::EXTENSION.to_string()],
+                        multiple: false,
+                    },
+                ),
+            },
+        }
+    }
+
+    /// Import the scene file `file` — one dropped on the overlay.
+    pub fn import(file: PathBuf) -> Self {
+        Self {
+            stage: TransferStage::Working(spawn_transfer(move || {
+                let stem = file
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let into = crate::scene_file::fresh_dir(&crate::scene_file::imports_dir(), &stem);
+                TransferDone::Imported(
+                    crate::scene_file::import(&file, &into).map_err(|e| e.to_string()),
+                )
+            })),
+        }
+    }
+
+    /// Move on if the chooser or the worker has answered.
+    pub fn poll(&mut self, toasts: &mut ToastQueue) -> Transfer {
+        use crate::file_chooser::Chosen;
+        let next = match &mut self.stage {
+            TransferStage::SaveTo { chooser, saved } => match chooser.poll() {
+                None => return Transfer::Pending,
+                Some(Chosen::Files(paths)) => match paths.into_iter().next() {
+                    Some(to) => export_to(saved.clone(), to),
+                    None => return Transfer::Done,
+                },
+                Some(Chosen::Cancelled) => return Transfer::Done,
+                // No chooser here — no portal, or not Linux: the
+                // Downloads folder, where a person looks first.
+                Some(Chosen::Unavailable(reason)) => {
+                    tracing::warn!("File chooser unavailable, sharing to Downloads: {reason}");
+                    export_to(saved.clone(), fallback_share_path(&saved.name))
+                }
+            },
+            TransferStage::OpenFrom { chooser } => match chooser.poll() {
+                None => return Transfer::Pending,
+                Some(Chosen::Files(paths)) => match paths.into_iter().next() {
+                    Some(file) => Self::import(file).stage,
+                    None => return Transfer::Done,
+                },
+                Some(Chosen::Cancelled) => return Transfer::Done,
+                Some(Chosen::Unavailable(reason)) => {
+                    tracing::warn!("File chooser unavailable: {reason}");
+                    toasts.error(crate::i18n::t("file-chooser-unavailable-toast"));
+                    return Transfer::Done;
+                }
+            },
+            TransferStage::Working(rx) => {
+                return match rx.try_recv() {
+                    Err(std::sync::mpsc::TryRecvError::Empty) => Transfer::Pending,
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("error", "the worker stopped");
+                        toasts.error(crate::i18n::t_args("toast-scene-import-failed", &args));
+                        Transfer::Done
+                    }
+                    Ok(TransferDone::Shared(Ok((path, exported)))) => {
+                        tracing::info!(
+                            "Scene shared: {} ({} bytes)",
+                            redact_path(&path),
+                            exported.bytes
+                        );
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("path", path.display().to_string());
+                        toasts.success(crate::i18n::t_args("toast-scene-shared", &args));
+                        if exported.scripts_left_out > 0 {
+                            let mut args = fluent::FluentArgs::new();
+                            args.set("count", exported.scripts_left_out);
+                            toasts.info(crate::i18n::t_args("toast-scene-shared-scripts", &args));
+                        }
+                        Transfer::Done
+                    }
+                    Ok(TransferDone::Shared(Err(e))) => {
+                        tracing::warn!("Sharing a scene failed: {e}");
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("error", e);
+                        toasts.error(crate::i18n::t_args("toast-scene-share-failed", &args));
+                        Transfer::Done
+                    }
+                    Ok(TransferDone::Imported(Ok(saved))) => Transfer::Imported(saved),
+                    Ok(TransferDone::Imported(Err(e))) => {
+                        tracing::warn!("Importing a scene failed: {e}");
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("error", e);
+                        toasts.error(crate::i18n::t_args("toast-scene-import-failed", &args));
+                        Transfer::Done
+                    }
+                };
+            }
+        };
+        self.stage = next;
+        Transfer::Pending
+    }
+}
+
+fn spawn_transfer(
+    work: impl FnOnce() -> TransferDone + Send + 'static,
+) -> std::sync::mpsc::Receiver<TransferDone> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let spawned = std::thread::Builder::new()
+        .name("anima-scene-file".into())
+        .spawn(move || {
+            let _ = tx.send(work());
+        });
+    if let Err(e) = spawned {
+        // The sender went with the closure: the poll reports the failure.
+        tracing::warn!("Scene file thread failed to start: {e}");
+    }
+    rx
+}
+
+fn export_to(saved: crate::scenes::SavedScene, to: PathBuf) -> TransferStage {
+    TransferStage::Working(spawn_transfer(move || {
+        TransferDone::Shared(
+            crate::scene_file::export(&saved, &to)
+                .map(|exported| (to, exported))
+                .map_err(|e| e.to_string()),
+        )
+    }))
+}
+
+/// Downloads (or home) / `name.animascene`, or `name-2.animascene` and
+/// upward if that is taken.
+fn fallback_share_path(name: &str) -> PathBuf {
+    let dir = directories::UserDirs::new()
+        .and_then(|u| {
+            u.download_dir()
+                .map(Path::to_path_buf)
+                .or_else(|| Some(u.home_dir().to_path_buf()))
+        })
+        .unwrap_or_else(std::env::temp_dir);
+    let stem = crate::scenes::slug(name);
+    let ext = crate::scene_file::EXTENSION;
+    std::iter::once(dir.join(format!("{stem}.{ext}")))
+        .chain((2..).map(|n| dir.join(format!("{stem}-{n}.{ext}"))))
+        .find(|p| !p.exists())
+        .unwrap_or_else(|| dir.join(format!("{stem}.{ext}")))
+}
+
+/// Put an imported scene on the shelf — under its own name, or
+/// "name (2)" if that is taken — and on screen, as the active one.
+/// Returns whether it did.
+pub fn apply_imported(
+    mut saved: crate::scenes::SavedScene,
+    ctx: &mut OutcomeCtx<'_>,
+    active: &mut Option<String>,
+) -> bool {
+    let dir = crate::scenes::dir();
+    saved.name = crate::scenes::free_name(&crate::scenes::list_in(&dir), &saved.name);
+    if let Err(e) = crate::scenes::write_in(&dir, &saved) {
+        let mut args = fluent::FluentArgs::new();
+        args.set("error", e.to_string());
+        ctx.toasts
+            .error(crate::i18n::t_args("toast-scene-import-failed", &args));
+        return false;
+    }
+    ctx.scene.apply_saved(&saved);
+    // Indices into the scene that was just replaced.
+    ctx.selection.deselect();
+    *ctx.config_dirty = true;
+    tracing::info!("Scene imported: {}", saved.name);
+    let mut args = fluent::FluentArgs::new();
+    args.set("name", saved.name.clone());
+    ctx.toasts
+        .success(crate::i18n::t_args("toast-scene-imported", &args));
+    *active = Some(saved.name);
+    true
 }
 
 type ImportResult = Result<crate::shimeji::ImportReport, String>;

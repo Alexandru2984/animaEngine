@@ -66,6 +66,41 @@ memory at parse or decode time. Truncation is logged at `warn` level.
 
 The user sees a clear `Rejected: …` toast on failure.
 
+### Shared scene files (1.5.0)
+
+A scene can be shared as one `.animascene` file (`src/scene_file/`) —
+a zip of its `scene.toml` and the pictures its characters show — and
+opened from a drop or the portal's chooser. It is a file from someone
+else, so it gets the drop's treatment and then some:
+
+- **Pictures, never code.** A character's behavior script is left out
+  when exporting, and one arriving with a `Behavior::Script` is stood
+  still on import whatever the file says. No sound, no other file
+  travels; an entry that is not `scene.toml` or
+  `assets/<number>/<plain name>.<drop extension>` fails the import.
+- **A reader that takes only what we write.** Stored entries only (no
+  compression, so no inflate at all), no encryption, no zip64, CRC
+  checked, every offset and length bounds-checked, names compared
+  between the directory and the local header, no name twice — and no
+  two entries over the same bytes. Stored data cannot expand, so with
+  no overlap what comes out is never larger than the file, which is
+  capped at `scene_file::MAX_FILE_BYTES` (512 MB) and 4096 entries.
+- **Contained writes.** Pictures go to a folder that did not exist,
+  `imported-scenes/<name>/` under the data directory, at paths built
+  from the checked names — never from anything in `scene.toml`. Each
+  file written is then held to `pre_validate_dropped_file`; any failure
+  removes the folder.
+- **The same limits after.** The characters load through the usual
+  decoders and the memory budget (`Scene::restore_configs`), at most
+  `MAX_ENTITIES` of them, their numbers sanitized as a config's are;
+  ids are made distinct, names cut and stripped of control characters,
+  groups kept to the scene's own characters, and monitor pins — names
+  from another machine — dropped.
+
+Exporting reads only the files the scene's characters already show,
+each held to the drop size cap, and writes to the one file the user
+picked (in the Flatpak, the one the document portal opened to us).
+
 ### Atomic writes for stateful files
 
 `util::atomic_write_bytes` is used by `AppConfig::save` and

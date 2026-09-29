@@ -177,6 +177,8 @@ pub fn run_native(
     let mut pending_shimeji: Option<ShimejiImport> = None;
     // The desktop's file chooser, open after "Add file…" until it answers.
     let mut pending_file_chooser: Option<crate::outcomes::FileChooserAdd> = None;
+    // A scene being shared or imported (`crate::scene_file`).
+    let mut pending_transfer: Option<crate::outcomes::SceneTransfer> = None;
     // Actions picked in the command palette, run next frame through the
     // same `match` as the ones bound to keys.
     let mut palette_actions: Vec<Action> = Vec::new();
@@ -357,6 +359,33 @@ pub fn run_native(
                 activity = true;
                 if added > 0 {
                     config_dirty = true;
+                }
+            }
+        }
+        if let Some(transfer) = &mut pending_transfer {
+            match transfer.poll(&mut toasts) {
+                crate::outcomes::Transfer::Pending => {}
+                crate::outcomes::Transfer::Done => {
+                    pending_transfer = None;
+                    activity = true;
+                }
+                crate::outcomes::Transfer::Imported(saved) => {
+                    pending_transfer = None;
+                    activity = true;
+                    // Not input, so no undo step is open: open one, as
+                    // "Next scene" does; and let go of any gesture.
+                    history.input(&scene, &selection, Instant::now());
+                    crate::input::multi::cancel(
+                        &mut scene,
+                        &mut selection,
+                        &mut drag,
+                        &mut marquee,
+                    );
+                    outcomes::apply_imported(
+                        saved,
+                        &mut outcome_ctx!(),
+                        &mut config.global.active_scene,
+                    );
                 }
             }
         }
@@ -568,6 +597,12 @@ pub fn run_native(
                     if pending_shimeji.is_none() {
                         pending_shimeji =
                             ShimejiImport::start(path, library_root.as_deref(), at, &mut toasts);
+                    }
+                } else if crate::scene_file::is_scene_file(path) {
+                    // A shared scene replaces this one.
+                    if pending_transfer.is_none() {
+                        pending_transfer =
+                            Some(crate::outcomes::SceneTransfer::import(path.clone()));
                     }
                 } else if outcomes::add_dropped_file(path, at, &mut outcome_ctx!()).is_some() {
                     added = true;
@@ -1615,9 +1650,16 @@ pub fn run_native(
                 // Palette / library outcomes apply outside the egui
                 // closure where we can take &mut renderer + &mut toasts
                 // without conflicting.
-                // Pasted with the palette's picks, next frame.
-                if scene_request == Some(panels::SceneRequest::Paste) {
-                    palette_actions.push(Action::Paste);
+                match &scene_request {
+                    // Pasted with the palette's picks, next frame.
+                    Some(panels::SceneRequest::Paste) => palette_actions.push(Action::Paste),
+                    Some(panels::SceneRequest::Share(path)) if pending_transfer.is_none() => {
+                        pending_transfer = crate::outcomes::SceneTransfer::share(path, &mut toasts);
+                    }
+                    Some(panels::SceneRequest::Import) if pending_transfer.is_none() => {
+                        pending_transfer = Some(crate::outcomes::SceneTransfer::import_chooser());
+                    }
+                    _ => {}
                 }
                 if scene_request == Some(panels::SceneRequest::AddFile)
                     && pending_file_chooser.is_none()

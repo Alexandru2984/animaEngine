@@ -52,6 +52,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
   Bubbles show on every monitor.
+- **Share a scene as one file.** Each saved scene in the Scene tab has
+  a Share button that writes it, pictures and all, to one
+  `.animascene` file wherever you choose; Import… (or dropping the file
+  on the overlay) opens one someone sent you, as a saved scene of its
+  own. Pictures and settings travel, behavior scripts do not — a
+  scripted character arrives standing still — and a file coming in is
+  checked like a dropped picture, and more (see the threat model).
 - **Copy, cut and paste characters.** `Ctrl+C`, `Ctrl+X` and `Ctrl+V`
   in edit mode (rebindable), Copy and Cut on the right-click menu, and
   Paste in the Scene tab. A copy keeps everything about the character —

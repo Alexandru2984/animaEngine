@@ -470,6 +470,24 @@ second press on a member of the selection narrows it to that one on a
 tap (`DragController::narrow_on_tap`). Undo covers it all through the
 groups in its snapshots.
 
+### Sharing a scene (`src/scene_file/`)
+
+A saved scene goes out as one `.animascene` file: a zip holding
+`scene.toml` (`format` and the `SavedScene`) and each picture its
+characters show, once, under `assets/<n>/` — a sequence's frames
+renumbered in play order, one file as `asset.<ext>` — with the paths in
+`scene.toml` rewritten to those. `scene_file::zip` writes stored entries
+and reads back only that shape (see the threat model). Import unpacks
+into a fresh `imported-scenes/<name>/` under the data directory, points
+the characters there, and tidies the scene as a file from someone else
+(`tidy`); `outcomes::apply_imported` saves it to the shelf under a free
+name (`scenes::free_name`) and puts it on screen, with an undo step the
+loops open first. Both directions run on a worker behind the portal's
+chooser — `SaveFile` to share, falling back to Downloads where there is
+no portal, and `OpenFile` or a drop to import — as one pending
+`outcomes::SceneTransfer` each loop polls. Imported pictures stay when
+their scene is deleted, like the library's.
+
 ### Copy and paste (`src/clipboard.rs`)
 
 The app keeps its own clipboard, not the desktop's: a copy is the

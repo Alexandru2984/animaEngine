@@ -65,7 +65,9 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   water.
 - **Named scenes**: save what is on screen under a name and switch
   between your scenes from the Scene tab, the command palette or the
-  tray — or at set times of day.
+  tray — or at set times of day. Share one as a single `.animascene`
+  file, pictures included; it opens on another machine by dropping it
+  on the overlay or with Import….
 - **Bundled presets**: six curated one-click scenes (Cozy Companion,
   Productivity Zen, Halloween Party, Birthday Confetti, Studio
   Session, Cursor Follower) — Append or Replace.

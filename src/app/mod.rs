@@ -109,6 +109,8 @@ pub struct App {
     pending_shimeji: Option<crate::outcomes::ShimejiImport>,
     /// The desktop's file chooser, open after "Add file…" until it answers.
     pending_file_chooser: Option<crate::outcomes::FileChooserAdd>,
+    /// A scene being shared or imported (`crate::scene_file`).
+    pending_transfer: Option<crate::outcomes::SceneTransfer>,
     /// egui integration. Paints in BOTH modes — the ⚙ toggle button is an
     /// egui widget that lives in pass-through too. Other UI (settings panel,
     /// context menu, toasts) is gated to edit mode inside the build closure.
@@ -303,6 +305,7 @@ impl App {
             config_watch: crate::config_watch::ConfigWatcher::new(),
             pending_shimeji: None,
             pending_file_chooser: None,
+            pending_transfer: None,
             ui: None,
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),
@@ -700,6 +703,7 @@ impl ApplicationHandler<AnimaEvent> for App {
             self.check_hot_reload();
             self.check_shimeji_import();
             self.check_file_chooser();
+            self.check_scene_transfer();
             self.request_redraw();
         }
     }

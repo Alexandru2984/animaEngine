@@ -105,20 +105,40 @@ pub fn save_in(dir: &Path, name: &str, scene: &Scene) -> Result<PathBuf> {
     if name.is_empty() {
         return Err(AnimaError::other("a scene needs a name"));
     }
-    let saved = SavedScene {
-        name: name.to_string(),
-        characters: scene.to_character_configs(),
-        groups: scene.groups.clone(),
-    };
-    let existing = list_in(dir).into_iter().find(|e| e.name == name);
+    write_in(
+        dir,
+        &SavedScene {
+            name: name.to_string(),
+            characters: scene.to_character_configs(),
+            groups: scene.groups.clone(),
+        },
+    )
+}
+
+/// Save `saved` in `dir` under its own name — over the scene of that name
+/// if there is one. Returns its file.
+pub fn write_in(dir: &Path, saved: &SavedScene) -> Result<PathBuf> {
+    let existing = list_in(dir).into_iter().find(|e| e.name == saved.name);
     let path = match existing {
         Some(entry) => entry.path,
-        None => free_path(dir, &slug(name)),
+        None => free_path(dir, &slug(&saved.name)),
     };
     std::fs::create_dir_all(dir)?;
-    crate::util::atomic_write_bytes(&path, toml::to_string_pretty(&saved)?.as_bytes())?;
+    crate::util::atomic_write_bytes(&path, toml::to_string_pretty(saved)?.as_bytes())?;
     shelf_changed();
     Ok(path)
+}
+
+/// `name`, or "name (2)" and upward while `entries` has a scene so named.
+pub fn free_name(entries: &[SceneEntry], name: &str) -> String {
+    let taken = |n: &str| entries.iter().any(|e| e.name == n);
+    if !taken(name) {
+        return name.to_string();
+    }
+    (2..)
+        .map(|n| format!("{name} ({n})"))
+        .find(|n| !taken(n))
+        .unwrap_or_else(|| name.to_string())
 }
 
 /// Read the scene in `path`, under the same limits as the config.
@@ -152,7 +172,7 @@ pub fn next_after<'e>(entries: &'e [SceneEntry], current: Option<&str>) -> Optio
 
 /// A file name for `name`: letters and digits kept, lower-cased, the rest
 /// one dash each.
-fn slug(name: &str) -> String {
+pub(crate) fn slug(name: &str) -> String {
     let mut out = String::new();
     for c in name.chars().flat_map(char::to_lowercase) {
         if c.is_alphanumeric() {
@@ -220,6 +240,17 @@ mod tests {
             .collect();
         scene.restore_configs(&configs);
         scene
+    }
+
+    #[test]
+    fn an_imported_name_steps_aside_for_one_on_the_shelf() {
+        let entry = |name: &str| SceneEntry {
+            name: name.into(),
+            path: PathBuf::from(format!("{name}.toml")),
+        };
+        let shelf = [entry("Work"), entry("Work (2)")];
+        assert_eq!(free_name(&shelf, "Stream"), "Stream");
+        assert_eq!(free_name(&shelf, "Work"), "Work (3)");
     }
 
     #[test]

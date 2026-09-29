@@ -64,12 +64,17 @@ pub enum MenuAction {
 }
 
 /// What the Scene tab asks of the caller, which has what it takes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SceneRequest {
     /// "Add file…": open the file chooser.
     AddFile,
     /// "Paste": add what was copied (`crate::clipboard`).
     Paste,
+    /// Share the saved scene in this file as one file
+    /// (`crate::outcomes::SceneTransfer`).
+    Share(std::path::PathBuf),
+    /// "Import…": open a shared scene.
+    Import,
 }
 
 /// The settings for holding still while nobody is there (`crate::away`),

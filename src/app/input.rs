@@ -286,6 +286,57 @@ impl App {
         }
     }
 
+    /// Share the saved scene in `path` as one file. One transfer at a time.
+    pub(super) fn share_scene(&mut self, path: &std::path::Path) {
+        if self.pending_transfer.is_none() {
+            self.pending_transfer = crate::outcomes::SceneTransfer::share(path, &mut self.toasts);
+        }
+    }
+
+    /// Import the scene file `file`, or one picked in the chooser.
+    pub(super) fn import_scene(&mut self, file: Option<PathBuf>) {
+        if self.pending_transfer.is_some() {
+            return;
+        }
+        self.pending_transfer = Some(match file {
+            Some(file) => crate::outcomes::SceneTransfer::import(file),
+            None => crate::outcomes::SceneTransfer::import_chooser(),
+        });
+    }
+
+    /// Move a share or an import on. Called once per frame beside the
+    /// chooser check.
+    pub(super) fn check_scene_transfer(&mut self) {
+        let Some(transfer) = &mut self.pending_transfer else {
+            return;
+        };
+        match transfer.poll(&mut self.toasts) {
+            crate::outcomes::Transfer::Pending => return,
+            crate::outcomes::Transfer::Done => {}
+            crate::outcomes::Transfer::Imported(saved) => {
+                // Not input, so no undo step is open: open one, as the
+                // tray's "Next scene" does; and let go of any gesture.
+                self.history
+                    .input(&self.scene, &self.selection, std::time::Instant::now());
+                crate::input::multi::cancel(
+                    &mut self.scene,
+                    &mut self.selection,
+                    &mut self.drag,
+                    &mut self.marquee,
+                );
+                if crate::outcomes::apply_imported(
+                    saved,
+                    &mut outcome_ctx!(self),
+                    &mut self.config.global.active_scene,
+                ) {
+                    self.save_config_if_needed();
+                }
+            }
+        }
+        self.pending_transfer = None;
+        self.request_redraw_all();
+    }
+
     /// Apply a finished Shimeji import. Called once per frame beside the
     /// hot-reload check.
     pub(super) fn check_shimeji_import(&mut self) {
@@ -326,6 +377,11 @@ impl App {
         // decoders, through the same code the Wayland loop uses.
         if crate::outcomes::is_shimeji_pack(&path) {
             self.import_shimeji_pack(&path, at);
+            return;
+        }
+        // A shared scene (`crate::scene_file`) replaces this one.
+        if crate::scene_file::is_scene_file(&path) {
+            self.import_scene(Some(path));
             return;
         }
         if crate::outcomes::add_dropped_file(&path, at, &mut outcome_ctx!(self)).is_some() {

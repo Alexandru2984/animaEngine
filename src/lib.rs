@@ -39,6 +39,7 @@ pub mod presets;
 pub mod reminders;
 pub mod renderer;
 pub mod scene;
+pub mod scene_file;
 pub mod scenes;
 pub mod schedule;
 pub mod scripting;
