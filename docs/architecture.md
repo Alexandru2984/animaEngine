@@ -319,6 +319,20 @@ winit path from a thread reading EWMH (`FullscreenWatch`, sending
 user's hide (`overlay_hidden`) and playback switch
 (`Scene::set_suspended`), so coming back needs no bookkeeping.
 
+### Away and on battery (`src/away.rs`)
+
+The scene also holds still (`Scene::set_suspended`, alongside stepping
+aside) after `pause_when_idle_minutes` without input, and on battery if
+asked. Native Wayland is told by the compositor (`ext-idle-notify-v1`,
+`layer_window::idle`, the notification remade when the time changes).
+Elsewhere a thread polls once a second: the MIT-SCREEN-SAVER extension
+on a real X server, or Mutter's IdleMonitor under a Wayland session —
+never XWayland's own counter, which misses input to native apps — and
+UPower's `OnBattery` every ten seconds, at once when the setting turns
+on. The loops hand it the settings through `away::configure`, and it
+sends `AnimaEvent::Away` / `OnBattery` / `IdleSource` on change,
+retrying a full channel rather than giving up.
+
 ### Several selected (`src/input/multi.rs`)
 
 `SelectionState` keeps a *primary* — what the Inspector shows and what

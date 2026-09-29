@@ -30,6 +30,7 @@
 
 mod drag_drop;
 mod handlers;
+mod idle;
 mod keyboard_handler;
 mod pointer_handler;
 mod state;
@@ -145,6 +146,9 @@ impl LayerWindow {
         // Optional too: without it, no window is ever seen full screen and
         // the overlay never steps aside (`crate::fullscreen`).
         let toplevel_manager = globals.bind(&qh, 1..=3, ()).ok();
+        // Optional as well: without it pausing when away is unavailable
+        // (`crate::away`).
+        let idle_notifier = globals.bind(&qh, 1..=1, ()).ok();
 
         // Create the wl_surface that the layer is built on.
         let wl_surface = compositor.create_surface(&qh);
@@ -208,6 +212,7 @@ impl LayerWindow {
             ime,
             _toplevel_manager: toplevel_manager,
             toplevels: toplevels::Toplevels::default(),
+            idle: idle::Idle::new(idle_notifier),
         };
 
         // Learn the output list before the wgpu surface is built.
@@ -358,6 +363,25 @@ impl LayerWindow {
     /// `wlr-foreign-toplevel-management`.
     pub fn fullscreen_in_front(&self) -> bool {
         self.state.toplevels.fullscreen_in_front()
+    }
+
+    /// Be told once the seat has had no input for `minutes`, 0 never
+    /// (`crate::away`). Cheap when nothing changed; called every frame.
+    pub fn set_idle_timeout(&mut self, minutes: u32) {
+        let ms = minutes.saturating_mul(60_000);
+        let seat = self.state.seat_state.seats().next();
+        let qh = self.event_queue.handle();
+        self.state.idle.set_timeout(ms, seat.as_ref(), &qh);
+    }
+
+    /// Whether the seat has been idle past that time.
+    pub fn is_idle(&self) -> bool {
+        self.state.idle.idle
+    }
+
+    /// Whether the compositor can tell how long the seat has been idle.
+    pub fn idle_available(&self) -> bool {
+        self.state.idle.available()
     }
 
     /// Whether the primary surface — the one with the panels — has the

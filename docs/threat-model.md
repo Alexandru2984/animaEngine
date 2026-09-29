@@ -203,6 +203,27 @@ window in front: whether it is full screen.
 Same trust boundary as window-awareness: the user's own session, and a
 fact any screenshot shows.
 
+### How long since the last input, and whether on battery (1.5.0)
+
+To hold the scene still while nobody is there (`pause_when_idle_minutes`,
+ten by default; `pause_on_battery`, off), the overlay learns two numbers,
+once a second — the battery every ten — from a thread of its own
+(`src/away.rs`):
+
+- how many milliseconds since the user's last input, never what the
+  input was: from `ext-idle-notify-v1` on native Wayland (the compositor
+  only says "idle" and "back"), `ScreenSaverQueryInfo` on a real X
+  server, or Mutter's `org.gnome.Mutter.IdleMonitor.GetIdletime` on the
+  session bus under GNOME;
+- UPower's `OnBattery` property, read on the **system** bus — the first
+  system-bus call the app makes, and made only while the setting is on.
+
+All read-only: no method that changes state is called, nothing is logged
+but the transitions, nothing persisted. The Flatpak grants exactly
+`--talk-name=org.gnome.Mutter.IdleMonitor` and
+`--system-talk-name=org.freedesktop.UPower` for it. Same trust boundary
+as the rest: the user's own session and machine.
+
 ### Global pointer query — `XQueryPointer` for `FollowCursor`
 
 `X11InputManager` (the connection already used for input-shape and

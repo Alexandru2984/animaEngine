@@ -181,13 +181,13 @@ rodio = { version = "0.22.2", optional = true, default-features = false, feature
 # cfg(unix) also matches macOS, where X11/Wayland don't apply; macOS
 # (parked) will need a narrower any(linux, *bsd) gate or its own backend.
 [target.'cfg(unix)'.dependencies]
-x11rb = { version = "0.13", features = ["shape"] }
+x11rb = { version = "0.13", features = ["shape", "screensaver"] }
 ksni = { version = "0.3", default-features = false, features = ["async-io"] }
 zbus = { version = "5", default-features = false, features = ["async-io"] }
 wayland-client = "0.31"
 # text-input-v3, for input methods on the native Wayland path. Already
 # in the tree through winit and sctk, with the `unstable` set enabled.
-wayland-protocols = { version = "0.32", features = ["client", "unstable"] }
+wayland-protocols = { version = "0.32", features = ["client", "unstable", "staging"] }
 # wlr-foreign-toplevel-management, to step aside while another window is
 # full screen (src/fullscreen.rs). Already in the tree through sctk's
 # layer shell, at this version.

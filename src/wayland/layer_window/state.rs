@@ -132,6 +132,8 @@ pub struct WaylandState {
     /// Other applications' windows, for stepping aside while one is full
     /// screen. See `toplevels`.
     pub toplevels: super::toplevels::Toplevels,
+    /// Whether the user is away (`crate::away`). See `idle`.
+    pub idle: super::idle::Idle,
 }
 
 impl WaylandState {

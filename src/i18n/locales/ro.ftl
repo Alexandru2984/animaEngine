@@ -234,6 +234,14 @@ appearance-fullscreen-hint = Jocuri, videoclipuri și prezentări care umplu ecr
 fullscreen-hide = Ascunde personajele
 fullscreen-pause = Pune-le pe pauză
 fullscreen-ignore = Lasă-le să meargă
+# Pausing when away (1.5): machine-translated, pending native review.
+appearance-away-label = Pauză când nu sunt la calculator
+appearance-away-hint = Fără mouse sau tastatură atâta timp, personajele stau pe loc; pornesc din nou la următoarea ta acțiune.
+away-never = Niciodată
+away-after-minutes = După { $minutes } min
+appearance-away-unavailable = Sesiunea asta nu poate ști când nu ești la calculator: e nevoie de GNOME, un server X adevărat sau un compositor Wayland cu notificări de inactivitate.
+appearance-battery-label = Pauză pe baterie
+appearance-battery-hint = Personajele stau pe loc cât timp calculatorul merge pe baterie.
 
 # ── Avertismente persistente (D.5) ────────────────────────────────────
 warning-global-hotkeys-unavailable = Scurtăturile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.

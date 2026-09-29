@@ -187,6 +187,10 @@ pub fn run_native(
     // Stepping aside while another window is full screen
     // (`crate::fullscreen`) — apart from the user's own hide and pause.
     let mut aside = crate::fullscreen::StepAside::default();
+    // Running on battery, as the away watch last said, and whether the
+    // scene is held still for someone being away (`crate::away`).
+    let mut on_battery = false;
+    let mut held_for_away = false;
     // Whether the input region is currently widened for a drag
     // (`drag_region`).
     let mut drag_widened = false;
@@ -399,10 +403,26 @@ pub fn run_native(
             layer.fullscreen_in_front(),
             layer.state.edit_mode,
         );
+        // Held still while nobody is there, too (`crate::away`): idle from
+        // the compositor, the battery from the away watch.
+        let global = &config.global;
+        layer.set_idle_timeout(global.pause_when_idle_minutes);
+        crate::away::configure(global.pause_when_idle_minutes, global.pause_on_battery);
+        let away = crate::away::holds_still(
+            global.pause_when_idle_minutes,
+            layer.is_idle(),
+            global.pause_on_battery,
+            on_battery,
+        );
+        if away != held_for_away {
+            held_for_away = away;
+            activity = true;
+            tracing::info!("Away: scene {}", if away { "held still" } else { "back" });
+        }
+        scene.set_suspended(wanted.paused || away);
         if wanted != aside {
             aside = wanted;
             activity = true;
-            scene.set_suspended(aside.paused);
             tracing::info!(
                 "Full-screen app {}: overlay {}",
                 if layer.fullscreen_in_front() {
@@ -542,6 +562,9 @@ pub fn run_native(
                         // This loop learns it from the compositor's
                         // toplevel list instead.
                         AnimaEvent::FullscreenInFront(_) => {}
+                        AnimaEvent::OnBattery(now) => on_battery = now,
+                        // Idle comes from the compositor here.
+                        AnimaEvent::Away(_) | AnimaEvent::IdleSource(_) => {}
                     }
                 }
             }
@@ -1139,6 +1162,9 @@ pub fn run_native(
                 let reduced_motion_mut = &mut config.global.reduced_motion;
                 let hover_startle_mut = &mut config.global.hover_startle;
                 let on_fullscreen_mut = &mut config.global.on_fullscreen;
+                let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
+                let on_battery_mut = &mut config.global.pause_on_battery;
+                let idle_available = Some(layer.idle_available());
                 let accesskit_mut = &mut config.global.accesskit_enabled;
                 let keybindings_mut = &mut config.keybindings;
                 let collapse_state_mut = &mut config.collapse_state;
@@ -1209,6 +1235,11 @@ pub fn run_native(
                                 reduced_motion_mut,
                                 hover_startle_mut,
                                 on_fullscreen_mut,
+                                panels::AwayControls {
+                                    idle_minutes: &mut *idle_minutes_mut,
+                                    on_battery: &mut *on_battery_mut,
+                                    idle_available,
+                                },
                                 monitors_ref,
                                 library.as_ref(),
                                 library_ref,

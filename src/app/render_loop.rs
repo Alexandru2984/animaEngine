@@ -334,6 +334,9 @@ impl App {
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
                         let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
+                        let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
+                        let on_battery_mut = &mut self.config.global.pause_on_battery;
+                        let idle_available = self.idle_source;
                         // Snapshot the AccessKit flag BEFORE taking
                         // its mutable borrow — the renderer gates
                         // egui's tree on this copy, and the closure
@@ -415,6 +418,11 @@ impl App {
                                     reduced_motion_mut,
                                     hover_startle_mut,
                                     on_fullscreen_mut,
+                                    panels::AwayControls {
+                                        idle_minutes: &mut *idle_minutes_mut,
+                                        on_battery: &mut *on_battery_mut,
+                                        idle_available,
+                                    },
                                     monitors_ref,
                                     library_ref,
                                     library_outcome_ref,

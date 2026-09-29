@@ -241,6 +241,14 @@ appearance-fullscreen-hint = Games, videos and presentations that fill the scree
 fullscreen-hide = Hide the characters
 fullscreen-pause = Pause them
 fullscreen-ignore = Keep them going
+# Pausing when away (1.5)
+appearance-away-label = Pause when I’m away
+appearance-away-hint = With no mouse or keyboard input for this long, the characters hold still; they carry on at your next input.
+away-never = Never
+away-after-minutes = After { $minutes } min
+appearance-away-unavailable = This session cannot tell when you are away: that takes GNOME, a real X server, or a Wayland compositor with idle notifications.
+appearance-battery-label = Pause on battery
+appearance-battery-hint = Hold the characters still while the computer runs on battery.
 
 # ── Persistent warning banners (D.5) ──────────────────────────────────
 warning-global-hotkeys-unavailable = Global hotkeys couldn't register (typical on a native Wayland session). The tray menu and the ⚙ button still work.

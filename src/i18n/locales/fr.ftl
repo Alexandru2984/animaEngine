@@ -234,6 +234,14 @@ appearance-fullscreen-hint = Jeux, vidéos et présentations qui remplissent l�
 fullscreen-hide = Masquer les personnages
 fullscreen-pause = Les mettre en pause
 fullscreen-ignore = Les laisser continuer
+# Pausing when away (1.5): machine-translated, pending native review.
+appearance-away-label = Pause quand je suis absent
+appearance-away-hint = Sans souris ni clavier pendant ce temps, les personnages s’immobilisent ; ils reprennent à votre prochaine action.
+away-never = Jamais
+away-after-minutes = Après { $minutes } min
+appearance-away-unavailable = Cette session ne peut pas savoir quand vous êtes absent : il faut GNOME, un vrai serveur X ou un compositeur Wayland avec notifications d’inactivité.
+appearance-battery-label = Pause sur batterie
+appearance-battery-hint = Les personnages s’immobilisent tant que l’ordinateur fonctionne sur batterie.
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Les raccourcis globaux n’ont pas pu être enregistrés (typique d’une session Wayland native). Le menu de la zone de notification et le bouton ⚙ fonctionnent toujours.

@@ -234,6 +234,14 @@ appearance-fullscreen-hint = Spiele, Videos und Präsentationen, die den Bildsch
 fullscreen-hide = Figuren ausblenden
 fullscreen-pause = Anhalten
 fullscreen-ignore = Weiterlaufen lassen
+# Pausing when away (1.5): machine-translated, pending native review.
+appearance-away-label = Anhalten, wenn ich weg bin
+appearance-away-hint = Ohne Maus- oder Tastatureingabe für diese Zeit halten die Figuren still; bei der nächsten Eingabe machen sie weiter.
+away-never = Nie
+away-after-minutes = Nach { $minutes } Min.
+appearance-away-unavailable = Diese Sitzung kann nicht erkennen, wann Sie weg sind: Dazu braucht es GNOME, einen echten X-Server oder einen Wayland-Compositor mit Leerlaufbenachrichtigungen.
+appearance-battery-label = Im Akkubetrieb anhalten
+appearance-battery-hint = Die Figuren halten still, solange der Computer im Akkubetrieb läuft.
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Globale Hotkeys konnten nicht registriert werden (typisch für native Wayland-Sitzungen). Tray-Menü und ⚙-Knopf funktionieren weiter.

@@ -41,6 +41,11 @@ finish-args:
   # Single-instance handshake (Faza 6.3) — we own the bus name that
   # matches our app-id.
   - --own-name=com.animaengine.Anima
+  # Pausing when away (1.5): GNOME's idle time, read-only — the X
+  # server's own counter under XWayland misses input to native apps —
+  # and whether the machine runs on battery, from UPower.
+  - --talk-name=org.gnome.Mutter.IdleMonitor
+  - --system-talk-name=org.freedesktop.UPower
   # Read-only access to the two usual sources of a dropped file. The
   # app's own config, cache and asset library need no grant: inside the
   # sandbox they live in ~/.var/app/com.animaengine.Anima/, which the

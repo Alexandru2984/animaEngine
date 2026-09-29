@@ -39,6 +39,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   centre to the monitors' and to other characters' within 8 px, and a
   thin line shows what it snapped to; hold Alt to place freely, or turn
   it off in the Scene tab.
+- **The characters hold still while you are away.** After ten minutes
+  with no mouse or keyboard input, by default, the scene pauses, and it
+  carries on at your next input; Appearance offers 1, 5, 10 or 30
+  minutes, or never, and pausing on battery as well. The idle time comes
+  from GNOME (on X11 or Wayland), a real X server, or a Wayland
+  compositor with idle notifications (sway, Hyprland, KDE); elsewhere
+  the setting says it is unavailable. The Flatpak asks for the two
+  read-only D-Bus names it needs.
 - **The overlay steps aside for full-screen apps.** While the window in
   front is full screen — a game, a video, a presentation — the
   characters hide and hold still, by default, and come back when it is

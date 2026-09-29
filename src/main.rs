@@ -193,6 +193,12 @@ fn main() {
             if let Some(conn) = instance.take() {
                 single_instance::install_wayland_service(conn, event_tx.clone());
             }
+            // The battery, for holding still while on it; the compositor
+            // says when the user is away (`anima_engine::away`).
+            anima_engine::away::spawn_watch(
+                anima_engine::event::EventSink::Channel(event_tx.clone()),
+                false,
+            );
             let _tray_thread = tray::spawn(anima_engine::event::EventSink::Channel(event_tx));
             let command_rx = Some(event_rx);
             // T.2: the portal is the only global-hotkey mechanism that
@@ -302,6 +308,11 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
         // Stepping aside for full-screen apps (`anima_engine::fullscreen`).
         anima_engine::window::x11_windows::spawn_fullscreen_watch(
             anima_engine::event::EventSink::Winit(event_loop.create_proxy()),
+        );
+        // Holding still while nobody is there (`anima_engine::away`).
+        anima_engine::away::spawn_watch(
+            anima_engine::event::EventSink::Winit(event_loop.create_proxy()),
+            true,
         );
     }
     // Held to the end of this function: dropping it removes the icon,

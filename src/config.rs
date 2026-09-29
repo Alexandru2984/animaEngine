@@ -68,6 +68,15 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub on_fullscreen: crate::fullscreen::OnFullscreen,
 
+    /// Hold the scene still after this many minutes without input; 0
+    /// never (`crate::away`). Ten by default: nobody is watching, and a
+    /// still scene costs next to nothing.
+    #[serde(default = "default_pause_when_idle_minutes")]
+    pub pause_when_idle_minutes: u32,
+    /// Hold the scene still while the machine runs on battery.
+    #[serde(default)]
+    pub pause_on_battery: bool,
+
     /// Window-awareness: desktop windows become physics platforms —
     /// mascots land on and walk along window top edges. X11 sessions
     /// only (Wayland exposes no global window geometry); silently
@@ -100,6 +109,10 @@ pub struct GlobalConfig {
     pub last_seen_whats_new: Option<String>,
 }
 
+fn default_pause_when_idle_minutes() -> u32 {
+    10
+}
+
 fn default_window_width() -> u32 {
     0 // 0 = auto-detect from monitor
 }
@@ -124,6 +137,8 @@ impl Default for GlobalConfig {
             reduced_motion: false,
             hover_startle: false,
             on_fullscreen: crate::fullscreen::OnFullscreen::default(),
+            pause_when_idle_minutes: default_pause_when_idle_minutes(),
+            pause_on_battery: false,
             window_awareness: false,
             snap_while_dragging: true,
             accesskit_enabled: true,

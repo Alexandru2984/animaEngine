@@ -59,6 +59,16 @@ pub enum MenuAction {
     Arrange(usize, crate::input::arrange::Arrange),
 }
 
+/// The settings for holding still while nobody is there (`crate::away`),
+/// and whether this session can tell.
+pub struct AwayControls<'a> {
+    pub idle_minutes: &'a mut u32,
+    pub on_battery: &'a mut bool,
+    /// Whether the user's idle time can be read here; `None` until the
+    /// watch has looked.
+    pub idle_available: Option<bool>,
+}
+
 /// What the right-click menu offers beyond its fixed entries, worked out
 /// before the frame from what it acts on (`crate::outcomes::menu_offers`).
 #[derive(Debug, Clone, Copy, Default)]
@@ -214,6 +224,7 @@ pub fn settings(
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
+    away: AwayControls<'_>,
     monitors: &[MonitorInfo],
     library: Option<&LibraryIndex>,
     library_outcome: &mut Option<LibraryOutcome>,
@@ -385,6 +396,7 @@ pub fn settings(
                                 reduced_motion,
                                 hover_startle,
                                 on_fullscreen,
+                                away,
                             );
                         }
                         SettingsTab::Keybindings => {

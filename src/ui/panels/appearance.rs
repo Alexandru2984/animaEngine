@@ -24,6 +24,7 @@ pub(super) fn appearance_tab(
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
+    away: super::AwayControls<'_>,
 ) {
     ui.label(egui::RichText::new(t("appearance-theme-header")).text_style(h2()));
     ui.add_space(SPACE_S);
@@ -81,6 +82,10 @@ pub(super) fn appearance_tab(
     }
     ui.add_space(SPACE_S);
     if fullscreen_picker(ui, on_fullscreen) {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    if away_controls(ui, away) {
         *config_dirty = true;
     }
     ui.add_space(SPACE_M);
@@ -237,6 +242,67 @@ fn theme_label_with_icon(t: Theme) -> String {
         Theme::Light | Theme::LightHighContrast => icons::LIGHT_MODE,
     };
     format!("{icon}  {}", t.label())
+}
+
+/// When to hold the characters still for someone being away
+/// (`crate::away`): after how long idle, and on battery. Returns whether
+/// either changed.
+fn away_controls(ui: &mut egui::Ui, away: super::AwayControls<'_>) -> bool {
+    let mut changed = false;
+    let label = |minutes: u32| {
+        if minutes == 0 {
+            t("away-never")
+        } else {
+            let mut args = fluent::FluentArgs::new();
+            args.set("minutes", minutes);
+            crate::i18n::t_args("away-after-minutes", &args)
+        }
+    };
+    let can_tell = away.idle_available != Some(false);
+    ui.add_enabled_ui(can_tell, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(t("appearance-away-label"));
+            let combo_value = label(*away.idle_minutes);
+            let combo = egui::ComboBox::from_id_salt("anima.pause_when_idle")
+                .selected_text(combo_value.clone())
+                .show_ui(ui, |ui| {
+                    for minutes in crate::away::IDLE_CHOICES {
+                        if ui
+                            .selectable_label(*away.idle_minutes == minutes, label(minutes))
+                            .picked()
+                            && *away.idle_minutes != minutes
+                        {
+                            *away.idle_minutes = minutes;
+                            changed = true;
+                        }
+                    }
+                });
+            crate::ui::accessible::name_combo(
+                &combo.response,
+                &t("appearance-away-label"),
+                &combo_value,
+            );
+            combo.response.on_hover_text(t("appearance-away-hint"));
+        });
+    });
+    if !can_tell {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(t("appearance-away-unavailable"))
+                    .text_style(crate::ui::theme::caption())
+                    .color(ui.visuals().weak_text_color()),
+            )
+            .wrap(),
+        );
+    }
+    if ui
+        .checkbox(away.on_battery, t("appearance-battery-label"))
+        .on_hover_text(t("appearance-battery-hint"))
+        .changed()
+    {
+        changed = true;
+    }
+    changed
 }
 
 /// What the overlay does while a full-screen app is in front

@@ -30,6 +30,13 @@ pub enum AnimaEvent {
     /// Whether the window in front is full screen changed (winit path;
     /// see `window::x11_windows::spawn_fullscreen_watch`).
     FullscreenInFront(bool),
+    /// The user has been idle past the chosen time, or is back (winit
+    /// path; `crate::away`).
+    Away(bool),
+    /// Whether the machine runs on battery changed (`crate::away`).
+    OnBattery(bool),
+    /// Whether this session has an idle time to read, once it is known.
+    IdleSource(bool),
 }
 
 /// Where a background thread — the tray, the D-Bus service — sends its

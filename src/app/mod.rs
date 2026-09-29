@@ -127,6 +127,14 @@ pub struct App {
     /// What stepping aside for it currently asks — apart from the user's
     /// own hide (`overlay_hidden`) and pause.
     stepped_aside: crate::fullscreen::StepAside,
+    /// Idle past the chosen time, as the away watch last reported
+    /// (`crate::away`).
+    away: bool,
+    /// Running on battery, as the away watch last reported.
+    on_battery: bool,
+    /// Whether this session has an idle time to read; `None` until the
+    /// watch has looked.
+    idle_source: Option<bool>,
     /// Session-lifetime warnings rendered as a banner at the top of
     /// the settings panel (D.5). Distinct from toasts: these persist
     /// until the underlying condition clears or the user dismisses
@@ -290,6 +298,9 @@ impl App {
             history: crate::undo::UndoHistory::default(),
             fullscreen_in_front: false,
             stepped_aside: crate::fullscreen::StepAside::default(),
+            away: false,
+            on_battery: false,
+            idle_source: None,
             warnings: std::collections::BTreeSet::new(),
             perf_sampler: crate::perf::PerfSampler::default(),
             perf_overlay_visible: false,
@@ -562,7 +573,16 @@ impl App {
             self.fullscreen_in_front,
             self.edit_mode,
         );
-        self.scene.set_suspended(wanted.paused);
+        // Away or on battery, if asked: held still too (`crate::away`).
+        let global = &self.config.global;
+        crate::away::configure(global.pause_when_idle_minutes, global.pause_on_battery);
+        let away = crate::away::holds_still(
+            global.pause_when_idle_minutes,
+            self.away,
+            global.pause_on_battery,
+            self.on_battery,
+        );
+        self.scene.set_suspended(wanted.paused || away);
         if wanted != self.stepped_aside {
             self.stepped_aside = wanted;
             tracing::info!(
@@ -698,6 +718,17 @@ impl ApplicationHandler<AnimaEvent> for App {
                 self.fullscreen_in_front = in_front;
                 self.update_step_aside();
             }
+            AnimaEvent::Away(away) => {
+                tracing::info!("User {}", if away { "away" } else { "back" });
+                self.away = away;
+                self.update_step_aside();
+            }
+            AnimaEvent::OnBattery(on_battery) => {
+                tracing::info!("On battery: {on_battery}");
+                self.on_battery = on_battery;
+                self.update_step_aside();
+            }
+            AnimaEvent::IdleSource(found) => self.idle_source = Some(found),
             AnimaEvent::PortalShortcutsDenied => {
                 self.toasts
                     .warn(crate::i18n::t("portal-denied-x11-fallback-toast"));

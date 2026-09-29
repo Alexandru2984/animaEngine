@@ -74,6 +74,12 @@ hover_startle = false       # characters recoil from an approaching
 on_fullscreen = "hide"      # while another app is full screen: hide
                             # the characters, "pause" them, or
                             # "ignore" it. Never in edit mode.
+pause_when_idle_minutes = 10 # hold the characters still after this
+                            # long without input (0 = never): 1, 5,
+                            # 10 or 30 in Appearance. GNOME, a real X
+                            # server, or a Wayland compositor with
+                            # idle notifications.
+pause_on_battery = false    # hold them still on battery (UPower)
 snap_while_dragging = true  # a dragged selection snaps to monitor
                             # edges and other characters; hold Alt
                             # while dragging to place freely.
