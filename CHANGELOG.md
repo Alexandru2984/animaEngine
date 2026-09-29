@@ -57,7 +57,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   from the Scene tab, the command palette or the tray's new "Next scene"
   (also `NextScene` over D-Bus, for a compositor binding). Undo switches
   back. Each scene is a TOML file in `~/.config/animaengine/scenes/`,
-  loaded under the same limits as `config.toml`.
+  loaded under the same limits as `config.toml`. They can also switch
+  on a schedule: "Work" at 09:00 on weekdays, "Evening" at 18:00 every
+  day. A rule fires when its time comes, so a scene picked by hand stays
+  until the next one; a start catches up on the latest rule already
+  passed today, and edit mode is never switched under you — the rule
+  waits until you leave it.
 - **The characters hold still while you are away.** After ten minutes
   with no mouse or keyboard input, by default, the scene pauses, and it
   carries on at your next input; Appearance offers 1, 5, 10 or 30

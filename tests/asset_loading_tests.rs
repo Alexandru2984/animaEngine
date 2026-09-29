@@ -391,6 +391,7 @@ fn test_config_new_asset_types_serialize() {
         windows: vec![],
         groups: vec![],
         reminders: vec![],
+        scene_schedule: vec![],
         keybindings: anima_engine::keybindings::KeyBindings::default(),
         collapse_state: anima_engine::ui::CollapseState::default(),
         schema_version: anima_engine::config::CURRENT_SCHEMA_VERSION,

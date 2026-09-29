@@ -276,6 +276,20 @@ scene-reminder-add = Herinnering toevoegen
 reminder-break = Tijd voor een korte pauze!
 reminder-water = Drink een glas water.
 reminder-stretch = Sta op en rek u even uit.
+# Scenes by time of day (1.5): machine-translated, pending native review.
+scene-schedule-header = Automatisch wisselen
+scene-schedule-hint = Wissel op vaste tijden naar een opgeslagen scène — Werk om 09:00 op werkdagen, bijvoorbeeld. Niet terwijl u bewerkt: dan wacht het.
+scene-schedule-needs-scene = Sla hierboven een scène op om er volgens een schema naar te wisselen.
+scene-schedule-row = { $time } · { $days } → { $scene }
+scene-schedule-every-day = elke dag
+scene-schedule-weekdays = werkdagen
+scene-schedule-weekends = weekenden
+scene-schedule-at = Om
+scene-schedule-minute = Minuut
+scene-schedule-days = Dagen
+scene-schedule-scene = Scène
+scene-schedule-add = Toevoegen
+scene-schedule-delete = Regel verwijderen
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Globale sneltoetsen konden niet worden geregistreerd (gebruikelijk in een native Wayland-sessie). Het traymenu en de ⚙-knop blijven werken.

@@ -383,6 +383,9 @@ pub struct AppConfig {
     /// What characters say every so often (`crate::reminders`, 1.5).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reminders: Vec<crate::reminders::ReminderConfig>,
+    /// Saved scenes to switch to at set times (`crate::schedule`, 1.5).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scene_schedule: Vec<crate::schedule::ScheduleRule>,
     /// Rebindable keyboard shortcuts (D.1). Defaults match the 0.3
     /// hard-coded set, so existing configs decode without losing any
     /// binding and pre-D configs without a `[keybindings]` section
@@ -563,6 +566,7 @@ impl Default for AppConfig {
             windows: vec![],
             groups: vec![],
             reminders: vec![],
+            scene_schedule: vec![],
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
             schema_version: CURRENT_SCHEMA_VERSION,
@@ -1060,6 +1064,7 @@ mod windows_tests {
             windows: vec![],
             groups: vec![],
             reminders: vec![],
+            scene_schedule: vec![],
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
             schema_version: CURRENT_SCHEMA_VERSION,
@@ -1080,6 +1085,7 @@ mod windows_tests {
             characters: vec![empty_char("ghost")],
             groups: vec![],
             reminders: vec![],
+            scene_schedule: vec![],
             windows: vec![
                 WindowConfig {
                     id: "main".into(),
@@ -1118,6 +1124,7 @@ mod windows_tests {
             windows: vec![],
             groups: vec![],
             reminders: vec![],
+            scene_schedule: vec![],
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
             schema_version: CURRENT_SCHEMA_VERSION,

@@ -220,6 +220,7 @@ pub fn settings(
     snap_while_dragging: &mut bool,
     active_scene: &mut Option<String>,
     reminders: &mut Vec<crate::reminders::ReminderConfig>,
+    scene_schedule: &mut Vec<crate::schedule::ScheduleRule>,
     // Whether one overlay can cover every monitor. False on native
     // Wayland, where a layer surface belongs to a single output.
     span_supported: bool,
@@ -380,6 +381,7 @@ pub fn settings(
                                 snap_while_dragging,
                                 active_scene,
                                 reminders,
+                                scene_schedule,
                                 span_supported,
                                 monitors,
                                 collapse_state,

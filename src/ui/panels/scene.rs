@@ -31,6 +31,7 @@ pub(super) fn scene_tab(
     snap_while_dragging: &mut bool,
     active_scene: &mut Option<String>,
     reminders: &mut Vec<crate::reminders::ReminderConfig>,
+    scene_schedule: &mut Vec<crate::schedule::ScheduleRule>,
     // Kept separate from window-awareness even though both are false on
     // the same backend today: they are different capabilities, and a
     // future backend could have one without the other.
@@ -129,6 +130,7 @@ pub(super) fn scene_tab(
     // Saved scenes, even with none on screen: one may be loaded.
     ui.add_space(SPACE_L);
     scenes_section(ui, scene, selection, config_dirty, active_scene);
+    schedule_section(ui, scene_schedule, config_dirty);
     ui.add_space(SPACE_L);
     reminders_section(ui, scene, reminders, config_dirty);
     if !is_empty {
@@ -344,6 +346,153 @@ fn reminders_section(
         *config_dirty = true;
         draft = ReminderDraft::default();
     }
+    ui.data_mut(|d| d.insert_temp(draft_key, draft));
+}
+
+/// The rule being written below the schedule, kept between frames.
+#[derive(Clone)]
+struct RuleDraft {
+    hour: u32,
+    minute: u32,
+    days: crate::schedule::Days,
+    scene: Option<String>,
+}
+
+impl Default for RuleDraft {
+    fn default() -> Self {
+        Self {
+            hour: 9,
+            minute: 0,
+            days: crate::schedule::Days::Weekdays,
+            scene: None,
+        }
+    }
+}
+
+/// Scenes by time of day (1.5, `crate::schedule`), under the saved scenes:
+/// each rule as "09:00 · weekdays → Work", switched on and off by a click,
+/// with a delete; below, a new one. Needs a saved scene to name.
+fn schedule_section(
+    ui: &mut egui::Ui,
+    rules: &mut Vec<crate::schedule::ScheduleRule>,
+    config_dirty: &mut bool,
+) {
+    use crate::schedule::{format_hhmm, Days, ScheduleRule};
+    ui.add_space(SPACE_S);
+    ui.label(egui::RichText::new(t("scene-schedule-header")).strong());
+    let weak = ui.visuals().weak_text_color();
+    let caption = |ui: &mut egui::Ui, key: &str| {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(t(key))
+                    .text_style(theme::caption())
+                    .color(weak),
+            )
+            .wrap(),
+        );
+    };
+    let shelf = crate::scenes::shelf();
+    if rules.is_empty() {
+        caption(
+            ui,
+            if shelf.is_empty() {
+                "scene-schedule-needs-scene"
+            } else {
+                "scene-schedule-hint"
+            },
+        );
+    }
+    let row_label = |r: &ScheduleRule| {
+        let mut args = fluent::FluentArgs::new();
+        args.set("time", r.at.clone());
+        args.set("days", t(r.days.i18n_key()));
+        args.set("scene", r.scene.clone());
+        crate::i18n::t_args("scene-schedule-row", &args)
+    };
+    let delete_label = t("scene-schedule-delete");
+    let mut remove = None;
+    for (i, r) in rules.iter_mut().enumerate() {
+        let label = row_label(r);
+        ui.horizontal(|ui| {
+            if ui.checkbox(&mut r.enabled, &label).changed() {
+                *config_dirty = true;
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .small_button(icons::TRASH)
+                    .named(format!("{delete_label}: {label}"))
+                    .on_hover_text(&delete_label)
+                    .clicked()
+                {
+                    remove = Some(i);
+                }
+            });
+        });
+    }
+    if let Some(i) = remove {
+        rules.remove(i);
+        *config_dirty = true;
+    }
+    if shelf.is_empty() {
+        return;
+    }
+
+    let draft_key = egui::Id::new("anima.schedule-draft");
+    let mut draft: RuleDraft = ui.data(|d| d.get_temp(draft_key)).unwrap_or_default();
+    ui.horizontal(|ui| {
+        let hour = ui.label(t("scene-schedule-at"));
+        ui.add(egui::DragValue::new(&mut draft.hour).range(0..=23))
+            .labelled_by(hour.id);
+        ui.label(":");
+        let minute = ui.add(egui::DragValue::new(&mut draft.minute).range(0..=59));
+        crate::ui::accessible::name_text_field(&minute, &t("scene-schedule-minute"));
+        let days = t(draft.days.i18n_key());
+        let combo = egui::ComboBox::from_id_salt("anima.schedule-days")
+            .selected_text(days.clone())
+            .show_ui(ui, |ui| {
+                for option in Days::ALL {
+                    if ui
+                        .selectable_label(draft.days == option, t(option.i18n_key()))
+                        .picked()
+                    {
+                        draft.days = option;
+                    }
+                }
+            });
+        crate::ui::accessible::name_combo(&combo.response, &t("scene-schedule-days"), &days);
+    });
+    ui.horizontal(|ui| {
+        let chosen = draft
+            .scene
+            .clone()
+            .filter(|s| shelf.iter().any(|e| &e.name == s))
+            .unwrap_or_else(|| shelf[0].name.clone());
+        let combo = egui::ComboBox::from_id_salt("anima.schedule-scene")
+            .selected_text(chosen.clone())
+            .show_ui(ui, |ui| {
+                for entry in &shelf {
+                    if ui
+                        .selectable_label(chosen == entry.name, &entry.name)
+                        .picked()
+                    {
+                        draft.scene = Some(entry.name.clone());
+                    }
+                }
+            });
+        crate::ui::accessible::name_combo(&combo.response, &t("scene-schedule-scene"), &chosen);
+        if ui
+            .button(format!("{}  {}", icons::PLUS, t("scene-schedule-add")))
+            .clicked()
+        {
+            rules.push(ScheduleRule {
+                scene: chosen,
+                at: format_hhmm(draft.hour * 60 + draft.minute),
+                days: draft.days,
+                enabled: true,
+            });
+            *config_dirty = true;
+        }
+    });
     ui.data_mut(|d| d.insert_temp(draft_key, draft));
 }
 

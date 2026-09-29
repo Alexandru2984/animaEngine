@@ -283,6 +283,20 @@ scene-reminder-add = Add reminder
 reminder-break = Time for a short break!
 reminder-water = Have a glass of water.
 reminder-stretch = Stand up and stretch.
+# Scenes by time of day (1.5)
+scene-schedule-header = Switch automatically
+scene-schedule-hint = Switch to a saved scene at set times — Work at 09:00 on weekdays, say. Not while you are editing: then it waits.
+scene-schedule-needs-scene = Save a scene above to switch to it on a schedule.
+scene-schedule-row = { $time } · { $days } → { $scene }
+scene-schedule-every-day = every day
+scene-schedule-weekdays = weekdays
+scene-schedule-weekends = weekends
+scene-schedule-at = At
+scene-schedule-minute = Minute
+scene-schedule-days = Days
+scene-schedule-scene = Scene
+scene-schedule-add = Add
+scene-schedule-delete = Delete rule
 
 # ── Persistent warning banners (D.5) ──────────────────────────────────
 warning-global-hotkeys-unavailable = Global hotkeys couldn't register (typical on a native Wayland session). The tray menu and the ⚙ button still work.

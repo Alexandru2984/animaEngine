@@ -137,6 +137,8 @@ pub struct App {
     idle_source: Option<bool>,
     /// When each reminder is next due (`crate::reminders`).
     reminder_timers: crate::reminders::Timers,
+    /// Scenes by time of day: what the clock last showed (`crate::schedule`).
+    schedule: crate::schedule::Schedule,
     /// Session-lifetime warnings rendered as a banner at the top of
     /// the settings panel (D.5). Distinct from toasts: these persist
     /// until the underlying condition clears or the user dismisses
@@ -304,6 +306,7 @@ impl App {
             on_battery: false,
             idle_source: None,
             reminder_timers: crate::reminders::Timers::default(),
+            schedule: crate::schedule::Schedule::default(),
             warnings: std::collections::BTreeSet::new(),
             perf_sampler: crate::perf::PerfSampler::default(),
             perf_overlay_visible: false,

@@ -345,6 +345,25 @@ pub fn load_scene(
     }
 }
 
+/// Switch to the saved scene `name`, as a schedule rule asks
+/// (`crate::schedule`) — not when it is already the active one, so an
+/// edited scene is not reloaded over. Returns whether it switched.
+pub fn apply_scheduled(name: &str, ctx: &mut OutcomeCtx<'_>, active: &mut Option<String>) -> bool {
+    if active.as_deref() == Some(name) {
+        return false;
+    }
+    match crate::scenes::shelf().into_iter().find(|e| e.name == name) {
+        Some(entry) => {
+            tracing::info!("Scheduled scene: {name}");
+            load_scene(&entry.path, ctx, active)
+        }
+        None => {
+            tracing::warn!("Scheduled scene {name:?} is not among the saved scenes");
+            false
+        }
+    }
+}
+
 /// The saved scene after the active one, by name, round to the first —
 /// the tray's "Next scene". Says so when there are none.
 pub fn next_scene(ctx: &mut OutcomeCtx<'_>, active: &mut Option<String>) -> bool {

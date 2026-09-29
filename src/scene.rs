@@ -776,6 +776,7 @@ mod tests {
             windows: vec![],
             groups: vec![],
             reminders: vec![],
+            scene_schedule: vec![],
             keybindings: crate::keybindings::KeyBindings::default(),
             collapse_state: crate::ui::CollapseState::default(),
             schema_version: crate::config::CURRENT_SCHEMA_VERSION,

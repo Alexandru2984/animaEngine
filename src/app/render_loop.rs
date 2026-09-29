@@ -216,6 +216,30 @@ impl App {
         } else {
             None
         };
+        // Scenes by time of day (`crate::schedule`). Not in edit mode, where
+        // the scene would change under the user's hands: a rule crossed
+        // then fires once it ends. Not input, so the undo step is opened
+        // here, and a gesture lets go of the characters about to go.
+        if !self.edit_mode {
+            if let Some(name) = self.schedule.due_now(&self.config.scene_schedule) {
+                self.history
+                    .input(&self.scene, &self.selection, Instant::now());
+                crate::input::multi::cancel(
+                    &mut self.scene,
+                    &mut self.selection,
+                    &mut self.drag,
+                    &mut self.marquee,
+                );
+                if crate::outcomes::apply_scheduled(
+                    &name,
+                    &mut outcome_ctx!(self),
+                    &mut self.config.global.active_scene,
+                ) {
+                    self.save_config_if_needed();
+                    self.request_redraw();
+                }
+            }
+        }
         // Reminders due now, said by a character on this window, where the
         // bubble shows (`crate::reminders`).
         let reminded = crate::reminders::deliver(
@@ -363,6 +387,7 @@ impl App {
                         let snap_mut = &mut self.config.global.snap_while_dragging;
                         let active_scene_mut = &mut self.config.global.active_scene;
                         let reminders_mut = &mut self.config.reminders;
+                        let scene_schedule_mut = &mut self.config.scene_schedule;
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
                         let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
@@ -449,6 +474,7 @@ impl App {
                                     snap_mut,
                                     active_scene_mut,
                                     reminders_mut,
+                                    scene_schedule_mut,
                                     // X11's root window is one screen across
                                     // every monitor, so Span really spans.
                                     true,

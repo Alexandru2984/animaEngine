@@ -193,6 +193,8 @@ pub fn run_native(
     let mut held_for_away = false;
     // When each reminder is next due (`crate::reminders`).
     let mut reminder_timers = crate::reminders::Timers::default();
+    // Scenes by time of day: what the clock last showed (`crate::schedule`).
+    let mut scene_schedule = crate::schedule::Schedule::default();
     // Whether the input region is currently widened for a drag
     // (`drag_region`).
     let mut drag_widened = false;
@@ -433,6 +435,21 @@ pub fn run_native(
             tracing::info!("Away: scene {}", if away { "held still" } else { "back" });
         }
         scene.set_suspended(wanted.paused || away);
+        // Scenes by time of day (`crate::schedule`), as on the winit path:
+        // not in edit mode, the undo step opened here, gestures let go.
+        if !layer.state.edit_mode {
+            if let Some(name) = scene_schedule.due_now(&config.scene_schedule) {
+                history.input(&scene, &selection, Instant::now());
+                crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
+                if crate::outcomes::apply_scheduled(
+                    &name,
+                    &mut outcome_ctx!(),
+                    &mut config.global.active_scene,
+                ) {
+                    activity = true;
+                }
+            }
+        }
         // Reminders due now, said by a character on the primary surface,
         // where the bubble shows (`crate::reminders`). Before the frame
         // gate: a still scene would never reach the drawing code.
@@ -1214,6 +1231,7 @@ pub fn run_native(
                 let snap_mut = &mut config.global.snap_while_dragging;
                 let active_scene_mut = &mut config.global.active_scene;
                 let reminders_mut = &mut config.reminders;
+                let scene_schedule_mut = &mut config.scene_schedule;
                 let reduced_motion_mut = &mut config.global.reduced_motion;
                 let hover_startle_mut = &mut config.global.hover_startle;
                 let on_fullscreen_mut = &mut config.global.on_fullscreen;
@@ -1290,6 +1308,7 @@ pub fn run_native(
                                 snap_mut,
                                 active_scene_mut,
                                 reminders_mut,
+                                scene_schedule_mut,
                                 // A layer surface belongs to one output, so no single
                                 // surface can span the desktop here.
                                 false,

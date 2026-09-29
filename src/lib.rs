@@ -37,6 +37,7 @@ pub mod reminders;
 pub mod renderer;
 pub mod scene;
 pub mod scenes;
+pub mod schedule;
 pub mod scripting;
 pub mod shimeji;
 pub mod sysload;

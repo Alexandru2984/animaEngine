@@ -356,6 +356,15 @@ undo records the switch; the tray's and D-Bus's `NextScene` is not
 input, so its handler opens the undo step itself. `active_scene` in the
 config remembers which one "Next scene" goes on from.
 
+`src/schedule.rs` switches between them by the local clock
+(`localtime_r`, or `GetLocalTime` on Windows), read at most once a
+second. `Schedule::due` fires a rule when its minute is crossed between
+two looks — the latest one crossed, across midnight too — and, at the
+first look, catches up on the latest passed today. The loops do not
+look in edit mode, so a crossing then is found when it ends; the switch
+(`outcomes::apply_scheduled`) skips the scene already active, opens the
+undo step and lets go of any gesture, as `NextScene` does.
+
 ### Away and on battery (`src/away.rs`)
 
 The scene also holds still (`Scene::set_suspended`, alongside stepping

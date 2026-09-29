@@ -276,6 +276,20 @@ scene-reminder-add = リマインダーを追加
 reminder-break = 少し休憩しましょう!
 reminder-water = 水を一杯飲みましょう。
 reminder-stretch = 立ち上がってストレッチしましょう。
+# Scenes by time of day (1.5): machine-translated, pending native review.
+scene-schedule-header = 自動で切り替え
+scene-schedule-hint = 決まった時刻に保存済みのシーンへ切り替えます(例: 平日 09:00 に「仕事」)。編集中は待ちます。
+scene-schedule-needs-scene = スケジュールで切り替えるには、上でシーンを保存してください。
+scene-schedule-row = { $time } · { $days } → { $scene }
+scene-schedule-every-day = 毎日
+scene-schedule-weekdays = 平日
+scene-schedule-weekends = 週末
+scene-schedule-at = 時刻
+scene-schedule-minute = 分
+scene-schedule-days = 曜日
+scene-schedule-scene = シーン
+scene-schedule-add = 追加
+scene-schedule-delete = ルールを削除
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = グローバルホットキーを登録できませんでした（ネイティブ Wayland セッションでは一般的）。トレイメニューと ⚙ ボタンは引き続き使えます。

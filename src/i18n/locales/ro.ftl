@@ -276,6 +276,20 @@ scene-reminder-add = Adaugă memento
 reminder-break = E timpul pentru o pauză scurtă!
 reminder-water = Bea un pahar cu apă.
 reminder-stretch = Ridică-te și întinde-te.
+# Scenes by time of day (1.5): machine-translated, pending native review.
+scene-schedule-header = Schimbă automat
+scene-schedule-hint = Trece la o scenă salvată la ore fixe — de exemplu Work la 09:00 în zilele lucrătoare. Nu cât timp editezi: atunci așteaptă.
+scene-schedule-needs-scene = Salvează o scenă mai sus ca să treci la ea după un program.
+scene-schedule-row = { $time } · { $days } → { $scene }
+scene-schedule-every-day = în fiecare zi
+scene-schedule-weekdays = în zilele lucrătoare
+scene-schedule-weekends = în weekend
+scene-schedule-at = La
+scene-schedule-minute = Minut
+scene-schedule-days = Zile
+scene-schedule-scene = Scenă
+scene-schedule-add = Adaugă
+scene-schedule-delete = Șterge regula
 
 # ── Avertismente persistente (D.5) ────────────────────────────────────
 warning-global-hotkeys-unavailable = Scurtăturile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.

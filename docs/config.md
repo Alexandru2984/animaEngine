@@ -146,6 +146,22 @@ id = "slime"
 # … as in [[characters]] below …
 ```
 
+To switch between them at set times, `[[scene_schedule]]` rules in this
+file (the Scene tab writes them):
+
+```toml
+[[scene_schedule]]
+scene = "Work"              # a saved scene's name
+at = "09:00"                # local time, HH:MM
+days = "weekdays"           # every (default) | weekdays | weekends
+enabled = true
+```
+
+A rule fires when its time comes, not for as long as it has passed: a
+scene picked by hand stays until the next rule's time. On start the
+latest rule already passed today applies. Never during edit mode — a
+rule that comes due then waits until you leave it.
+
 ## `[[characters]]`
 
 Each `[[characters]]` block is one entity on screen. Add as many as you
