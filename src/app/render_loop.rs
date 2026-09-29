@@ -503,7 +503,11 @@ impl App {
                                     &mut add_file_requested,
                                 );
                                 if edit_mode {
-                                    if let Some(state) = &menu_state {
+                                    // Only a menu of its own: one opened on
+                                    // another monitor is drawn there.
+                                    if let Some(state) =
+                                        menu_state.as_ref().filter(|m| m.surface.is_none())
+                                    {
                                         *menu_outcome_ref =
                                             Some(panels::context_menu(ctx, state, menu_offers));
                                     }

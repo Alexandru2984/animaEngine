@@ -100,6 +100,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   its Drag state on X11, and on native Wayland still attached to the
   pointer: the next move in edit mode made it jump there. Both let go of
   it now.
+- **The right-click menu of a character on another monitor** opened on
+  the monitor with the panel, pushed to its edge, far from the
+  character. It opens where you clicked now, on both backends, and a
+  click on any other monitor or Escape closes it.
 - **Hiding the overlay on native Wayland with several monitors** cleared
   only the main one: characters on the other monitors stayed on screen,
   frozen. They hide with the rest now, and so does stepping aside for a

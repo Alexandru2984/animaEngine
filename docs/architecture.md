@@ -344,7 +344,14 @@ being lent to the panels) and painted by egui on its background layer
 on the primary surface, and by a `ui::surface_egui::SurfaceEgui` of
 their own on every other monitor's (made when a bubble first lands
 there, run while it has bubbles and once more for the frame that clears
-one; the loops pace on its repaint requests too). The native Wayland
+one; the loops pace on its repaint requests too). The right-click menu
+uses the same one when it opens on another monitor
+(`ContextMenuState::surface` names it, and the panel's egui skips it):
+that egui hears the pointer only while the menu is there and only over
+its monitor, so a press on any other monitor closes the menu in the
+loop, as does Escape, which reaches the panel's egui. A press on the
+menu is kept from the scene, as the panel's egui keeps its own
+(`SurfaceEgui::owns_pointer`). The native Wayland
 panel is that same core plus a screen reader and an input method
 (`wayland::egui_render`). Reminders are timers
 keyed by the reminder itself, so editing the list leaves the others'

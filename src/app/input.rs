@@ -18,6 +18,8 @@ impl App {
     /// mouse position is always **global desktop** coordinates — the
     /// same space entity positions live in (T.8).
     pub(super) fn handle_cursor_moved(&mut self, position: PhysicalPosition<f64>) {
+        // Over the panel's window, not another monitor's.
+        self.pointer_monitor = None;
         let origin = self.primary_origin();
         self.handle_cursor_moved_global(position.x as f32 + origin.0, position.y as f32 + origin.1);
     }
@@ -65,6 +67,18 @@ impl App {
             return;
         }
 
+        // A press on another monitor than the right-click menu's closes it:
+        // its egui never hears that click, to count it as outside.
+        if state == ElementState::Pressed
+            && self
+                .ui_state
+                .context_menu
+                .as_ref()
+                .is_some_and(|m| m.surface != self.pointer_monitor)
+        {
+            self.ui_state.context_menu = None;
+        }
+
         // Right-click on an entity opens the context menu and
         // selects it. Right-click on empty space does nothing
         // (entity-less menu is reserved for a later phase).
@@ -74,16 +88,36 @@ impl App {
                 // on the whole selection; otherwise it takes the character
                 // with its group.
                 crate::input::multi::select_for_menu(&self.scene, &mut self.selection, entity_idx);
-                // egui draws in the primary window's own coordinates, and
-                // `mouse_x/y` are global: without the origin a primary
-                // monitor that is not at 0,0 put the menu off to one
-                // side. A right-click on another monitor lands outside
-                // the primary; egui then keeps the menu on screen, at
-                // the primary's edge nearest the click.
-                let (ox, oy) = self.primary_origin();
+                // On the monitor clicked: its overlay's own egui draws it,
+                // in that window's points — global `mouse_x/y` less its
+                // origin, over its scale.
+                let surface = self.pointer_monitor.clone();
+                let (origin, ppp) = match &surface {
+                    Some(name) => self
+                        .extra_windows
+                        .values()
+                        .find(|s| &s.monitor.name == name)
+                        .map(|s| {
+                            (
+                                (s.monitor.x as f32, s.monitor.y as f32),
+                                s.window.scale_factor() as f32,
+                            )
+                        })
+                        .unwrap_or(((0.0, 0.0), 1.0)),
+                    None => (
+                        self.primary_origin(),
+                        self.window
+                            .as_ref()
+                            .map_or(1.0, |w| w.scale_factor() as f32),
+                    ),
+                };
                 self.ui_state.context_menu = Some(ContextMenuState {
                     entity_idx,
-                    pos: egui::pos2(self.mouse_x - ox, self.mouse_y - oy),
+                    pos: egui::pos2(
+                        (self.mouse_x - origin.0) / ppp,
+                        (self.mouse_y - origin.1) / ppp,
+                    ),
+                    surface,
                     // Armed after the first showing — see ContextMenuState.
                     armed: false,
                 });

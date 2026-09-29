@@ -61,6 +61,13 @@ impl SurfaceEgui {
         self.repaint_at.is_some_and(|at| at <= now)
     }
 
+    /// Whether the pointer is over something egui drew — a menu, a panel
+    /// — as of the last frame, so a press there is egui's and not the
+    /// scene's.
+    pub fn owns_pointer(&self) -> bool {
+        self.context.is_pointer_over_area()
+    }
+
     /// Run one egui frame with `events` and paint it over `view`, whose
     /// size is `size_in_pixels`. Returns egui's platform output — the
     /// screen reader's tree, the input method's caret — for an owner that

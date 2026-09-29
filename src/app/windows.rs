@@ -70,22 +70,29 @@ pub(super) struct WindowSlot {
     pub monitor: MonitorInfo,
     pub x11_input: Option<Box<dyn OverlayPlatform>>,
     /// This monitor's egui, for the speech bubbles of the characters on it
-    /// (`ui::surface_egui`), made the first time one is needed.
+    /// and the right-click menu when it opens here (`ui::surface_egui`),
+    /// made the first time one is needed.
     pub egui: Option<crate::ui::surface_egui::SurfaceEgui>,
+    /// Pointer events for that egui, kept while the menu is here.
+    pub pending_events: Vec<egui::Event>,
+    /// Where the pointer last was over this window, in its points.
+    pub pointer: Option<egui::Pos2>,
 }
 
-/// Draw the speech bubbles of the characters on `slot`'s monitor over
-/// `output` with its own egui: while there are any, and once more when it
-/// asked for the frame that clears one — otherwise that request, left
-/// standing, would keep the loop drawing.
-fn paint_bubbles(
+/// Draw what `slot`'s monitor shows over the characters with its own egui
+/// — the speech bubbles there, and the right-click menu when it opened
+/// here — while there are any, and once more when it asked for the frame
+/// that clears one; otherwise that request, left standing, would keep the
+/// loop drawing. Returns what the menu decided.
+fn paint_overlay(
     slot: &mut WindowSlot,
     shared: &crate::renderer::wgpu_renderer::GpuShared,
     scene: &crate::scene::Scene,
     monitors: &[MonitorInfo],
     theme: crate::ui::Theme,
     output: &crate::renderer::wgpu_renderer::AcquiredFrame,
-) {
+    menu: Option<(&super::ContextMenuState, crate::ui::panels::MenuOffers)>,
+) -> Option<crate::ui::panels::ContextMenuOutcome> {
     let origin = (slot.monitor.x as f32, slot.monitor.y as f32);
     let name = slot.monitor.name.clone();
     let bubbles = crate::speech::shown(scene, origin, |e| entity_on_monitor(monitors, e, &name));
@@ -93,8 +100,9 @@ fn paint_bubbles(
         .egui
         .as_ref()
         .is_some_and(|e| e.repaint_due(std::time::Instant::now()));
-    if bubbles.is_empty() && !asked {
-        return;
+    if bubbles.is_empty() && menu.is_none() && !asked {
+        slot.pending_events.clear();
+        return None;
     }
     // Window pixels to egui points, as on the primary.
     let pixels_per_point = slot.window.scale_factor() as f32;
@@ -104,16 +112,23 @@ fn paint_bubbles(
     });
     egui.ensure_theme(theme);
     let view = output.create_view();
+    let mut outcome = None;
     egui.render(
         &shared.device,
         &shared.queue,
         &view,
         size,
         pixels_per_point,
-        Vec::new(),
+        std::mem::take(&mut slot.pending_events),
         egui::Modifiers::default(),
-        |ctx| crate::ui::speech::paint(ctx, &bubbles, pixels_per_point),
+        |ctx| {
+            crate::ui::speech::paint(ctx, &bubbles, pixels_per_point);
+            if let Some((state, offers)) = menu {
+                outcome = Some(crate::ui::panels::context_menu(ctx, state, offers));
+            }
+        },
     );
+    outcome
 }
 
 /// The `HWND` behind a winit window, for the layered presentation path.
@@ -284,6 +299,8 @@ impl App {
                     monitor: mon,
                     x11_input,
                     egui: None,
+                    pending_events: Vec::new(),
+                    pointer: None,
                 },
             );
         }
@@ -373,6 +390,18 @@ impl App {
             guides: self.drag.guides(),
         };
 
+        // The right-click menu, if it is on one of these monitors.
+        let menu = self
+            .ui_state
+            .context_menu
+            .clone()
+            .filter(|m| m.surface.is_some());
+        let offers = menu
+            .as_ref()
+            .map(|m| crate::outcomes::menu_offers(m.entity_idx, &self.scene, &self.selection))
+            .unwrap_or_default();
+        let mut outcome = None;
+
         let visible = self.scene.visible_entities();
         for slot in self.extra_windows.values_mut() {
             let drawn: Vec<&Entity> = visible
@@ -390,14 +419,20 @@ impl App {
                 origin,
             ) {
                 Ok(output) => {
-                    paint_bubbles(
+                    let here = menu
+                        .as_ref()
+                        .filter(|m| m.surface.as_deref() == Some(slot.monitor.name.as_str()))
+                        .map(|m| (m, offers));
+                    let decided = paint_overlay(
                         slot,
                         &renderer.shared,
                         &self.scene,
                         &self.monitors,
                         self.config.global.theme,
                         &output,
+                        here,
                     );
+                    outcome = outcome.or(decided);
                     slot.surface.present(&renderer.shared, output);
                 }
                 Err(wgpu::SurfaceError::Lost) => {
@@ -408,6 +443,9 @@ impl App {
                     tracing::warn!("Render error on {}: {e:?}", slot.monitor.name);
                 }
             }
+        }
+        if let Some(outcome) = outcome {
+            self.handle_menu_outcome(outcome);
         }
     }
 
@@ -424,6 +462,15 @@ impl App {
             marquee: self.marquee.as_ref().map(|m| m.rect()),
             guides: self.drag.guides(),
         };
+        let menu = self
+            .ui_state
+            .context_menu
+            .clone()
+            .filter(|m| m.surface.is_some());
+        let offers = menu
+            .as_ref()
+            .map(|m| crate::outcomes::menu_offers(m.entity_idx, &self.scene, &self.selection))
+            .unwrap_or_default();
         let visible = self.scene.visible_entities();
         let Some(slot) = self.extra_windows.get_mut(&id) else {
             return;
@@ -442,15 +489,23 @@ impl App {
             marks,
             origin,
         ) {
-            paint_bubbles(
+            let here = menu
+                .as_ref()
+                .filter(|m| m.surface.as_deref() == Some(slot.monitor.name.as_str()))
+                .map(|m| (m, offers));
+            let decided = paint_overlay(
                 slot,
                 &renderer.shared,
                 &self.scene,
                 &self.monitors,
                 self.config.global.theme,
                 &output,
+                here,
             );
             slot.surface.present(&renderer.shared, output);
+            if let Some(outcome) = decided {
+                self.handle_menu_outcome(outcome);
+            }
         }
     }
 

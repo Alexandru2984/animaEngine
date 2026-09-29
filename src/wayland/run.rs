@@ -892,6 +892,71 @@ pub fn run_native(
                 crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
         }
         let egui_owns_pointer = egui_renderer.owns_pointer();
+        // The right-click menu on another monitor's overlay (`surface`):
+        // that overlay's egui hears the pointer while it is over that
+        // monitor, and a press anywhere else closes the menu — the egui
+        // there cannot count a click it never hears as outside. Escape
+        // closes it too: the keys go to the panel's egui. Presses on the
+        // menu stay out of the scene, as the panel's do.
+        let mut extra_menu_events: Vec<egui::Event> = Vec::new();
+        let menu_monitor = context_menu_state
+            .as_ref()
+            .and_then(|m| m.surface.as_ref())
+            .and_then(|name| monitors_now.iter().find(|m| &m.name == name))
+            .cloned();
+        let global =
+            |pos: &egui::Pos2| egui::pos2(pos.x + primary_origin.0, pos.y + primary_origin.1);
+        if let Some(mon) = &menu_monitor {
+            let origin = egui::vec2(mon.x as f32, mon.y as f32);
+            for event in &events {
+                match event {
+                    egui::Event::PointerMoved(pos) => {
+                        let at = global(pos);
+                        extra_menu_events.push(if mon.contains(at.x, at.y) {
+                            egui::Event::PointerMoved(at - origin)
+                        } else {
+                            egui::Event::PointerGone
+                        });
+                    }
+                    egui::Event::PointerButton {
+                        pos,
+                        button,
+                        pressed,
+                        modifiers,
+                    } => {
+                        let at = global(pos);
+                        if mon.contains(at.x, at.y) {
+                            extra_menu_events.push(egui::Event::PointerButton {
+                                pos: at - origin,
+                                button: *button,
+                                pressed: *pressed,
+                                modifiers: *modifiers,
+                            });
+                        } else if *pressed {
+                            context_menu_state = None;
+                        }
+                    }
+                    egui::Event::PointerGone => extra_menu_events.push(egui::Event::PointerGone),
+                    egui::Event::Key {
+                        key: egui::Key::Escape,
+                        pressed: true,
+                        ..
+                    } => context_menu_state = None,
+                    _ => {}
+                }
+            }
+        }
+        let extra_owns_pointer = menu_monitor
+            .as_ref()
+            .is_some_and(|m| extra_eguis.get(&m.name).is_some_and(|e| e.owns_pointer()));
+        let owned_press = |pos: &egui::Pos2| {
+            let at = global(pos);
+            egui_owns_pointer
+                || (extra_owns_pointer
+                    && menu_monitor
+                        .as_ref()
+                        .is_some_and(|m| m.contains(at.x, at.y)))
+        };
         if layer.state.edit_mode {
             for event in &events {
                 match event {
@@ -900,18 +965,27 @@ pub fn run_native(
                         button: egui::PointerButton::Secondary,
                         pressed: true,
                         ..
-                    } if !egui_owns_pointer => {
-                        if let Some(idx) = scene
-                            .entity_at_point(pos.x + primary_origin.0, pos.y + primary_origin.1)
-                        {
+                    } if !owned_press(pos) => {
+                        let at = global(pos);
+                        if let Some(idx) = scene.entity_at_point(at.x, at.y) {
                             // One of several selected keeps them all, so
                             // the menu acts on the whole selection;
                             // otherwise it takes the character with its
                             // group.
                             crate::input::multi::select_for_menu(&scene, &mut selection, idx);
+                            // On the monitor clicked: another monitor's
+                            // overlay draws it with its own egui, in its
+                            // own points.
+                            let elsewhere = monitors_now.iter().find(|m| {
+                                extra_surfaces.contains_key(&m.name) && m.contains(at.x, at.y)
+                            });
                             context_menu_state = Some(crate::app::ContextMenuState {
                                 entity_idx: idx,
-                                pos: *pos,
+                                pos: match elsewhere {
+                                    Some(m) => at - egui::vec2(m.x as f32, m.y as f32),
+                                    None => *pos,
+                                },
+                                surface: elsewhere.map(|m| m.name.clone()),
                                 // Armed after the first showing — see ContextMenuState.
                                 armed: false,
                             });
@@ -929,7 +1003,7 @@ pub fn run_native(
                         pressed: true,
                         modifiers,
                         ..
-                    } if !egui_owns_pointer => {
+                    } if !owned_press(pos) => {
                         let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
                         // Select (with its group, keeping the others selected,
                         // or toggled with Shift) and pick the selection up; on
@@ -1218,8 +1292,11 @@ pub fn run_native(
                 };
                 let mut shimeji_import: Option<String> = None;
                 let mut add_file_requested = false;
-                let menu_state = context_menu_state.clone();
-                let menu_offers = menu_state
+                // The menu on another monitor is drawn by that overlay's
+                // egui, below.
+                let menu_state = context_menu_state.clone().filter(|m| m.surface.is_none());
+                let extra_menu = context_menu_state.clone().filter(|m| m.surface.is_some());
+                let menu_offers = context_menu_state
                     .as_ref()
                     .map(|m| crate::outcomes::menu_offers(m.entity_idx, &scene, &selection))
                     .unwrap_or_default();
@@ -1449,7 +1526,10 @@ pub fn run_native(
                                 };
                                 let asked =
                                     extra_eguis.get(name).is_some_and(|e| e.repaint_due(now));
-                                if !bubbles.is_empty() || asked {
+                                let menu_here = extra_menu
+                                    .as_ref()
+                                    .filter(|m| m.surface.as_ref() == Some(name));
+                                if !bubbles.is_empty() || asked || menu_here.is_some() {
                                     let egui =
                                         extra_eguis.entry(name.clone()).or_insert_with(|| {
                                             crate::ui::surface_egui::SurfaceEgui::new(
@@ -1466,10 +1546,23 @@ pub fn run_native(
                                         &view,
                                         [surface.window_width, surface.window_height],
                                         ui_pixels_per_point(&monitors_now),
-                                        Vec::new(),
+                                        if menu_here.is_some() {
+                                            std::mem::take(&mut extra_menu_events)
+                                        } else {
+                                            Vec::new()
+                                        },
                                         egui::Modifiers::default(),
-                                        // In points already, as on the primary.
-                                        |ctx| crate::ui::speech::paint(ctx, &bubbles, 1.0),
+                                        |ctx| {
+                                            // In points already, as on the primary.
+                                            crate::ui::speech::paint(ctx, &bubbles, 1.0);
+                                            if let Some(state) = menu_here {
+                                                menu_outcome = Some(panels::context_menu(
+                                                    ctx,
+                                                    state,
+                                                    menu_offers,
+                                                ));
+                                            }
+                                        },
                                     );
                                 }
                                 surface.present(&renderer.shared, extra_output);

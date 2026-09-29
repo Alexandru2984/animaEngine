@@ -115,7 +115,7 @@ impl WaylandEguiRenderer {
     /// the same guarantee from `egui_winit`'s "was this event consumed"
     /// return value. Panels do not move between frames, so it holds.
     pub fn owns_pointer(&self) -> bool {
-        self.context().is_pointer_over_area()
+        self.surface.owns_pointer()
     }
 
     /// The caret of the focused text field, from the last frame — `None`

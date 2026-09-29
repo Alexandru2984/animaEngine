@@ -137,6 +137,9 @@ pub struct App {
     idle_source: Option<bool>,
     /// When each reminder is next due (`crate::reminders`).
     reminder_timers: crate::reminders::Timers,
+    /// The monitor whose overlay the pointer was last over, `None` for the
+    /// panel's window: where a right-click menu opens.
+    pointer_monitor: Option<String>,
     /// Scenes by time of day: what the clock last showed (`crate::schedule`).
     schedule: crate::schedule::Schedule,
     /// Session-lifetime warnings rendered as a banner at the top of
@@ -253,8 +256,12 @@ pub(crate) struct UiState {
 #[derive(Clone)]
 pub(crate) struct ContextMenuState {
     pub entity_idx: usize,
-    /// Screen-space anchor for the floating menu.
+    /// Anchor for the floating menu, in the points of the surface it is on.
     pub pos: egui::Pos2,
+    /// The monitor whose overlay shows it — the one clicked on — or `None`
+    /// for the panel's surface. It used to open on the panel's surface
+    /// always, at its edge nearest a click on another monitor (R51).
+    pub surface: Option<String>,
     /// Whether the menu may be dismissed by a click yet.
     ///
     /// The menu opens on the right *press*, and the matching *release*
@@ -306,6 +313,7 @@ impl App {
             on_battery: false,
             idle_source: None,
             reminder_timers: crate::reminders::Timers::default(),
+            pointer_monitor: None,
             schedule: crate::schedule::Schedule::default(),
             warnings: std::collections::BTreeSet::new(),
             perf_sampler: crate::perf::PerfSampler::default(),
@@ -412,9 +420,15 @@ impl App {
         // The open right-click menu takes every key, as the palette and an
         // open list do (`panels::keyboard_held`): Escape closed it and also
         // left edit mode. egui has the key already; draw the frame that
-        // acts on it.
-        if self.ui_state.context_menu.is_some() {
-            self.request_redraw();
+        // acts on it. A menu on another monitor's overlay has an egui that
+        // hears no keys, so Escape closes that one here.
+        if let Some(menu) = &self.ui_state.context_menu {
+            if menu.surface.is_some()
+                && keycode == KeyCode::Named(crate::keybindings::NamedKey::Escape)
+            {
+                self.ui_state.context_menu = None;
+            }
+            self.request_redraw_all();
             return;
         }
         let chord = KeyChord::new(self.modifier_mask(), keycode);
@@ -825,8 +839,24 @@ impl ApplicationHandler<AnimaEvent> for App {
                 // Only reachable in edit mode (pass-through shape on
                 // extras is fully click-through).
                 WindowEvent::CursorMoved { position, .. } => {
-                    if let Some(slot) = self.extra_windows.get(&window_id) {
+                    if let Some(slot) = self.extra_windows.get_mut(&window_id) {
                         let (ox, oy) = (slot.monitor.x as f32, slot.monitor.y as f32);
+                        // Its own egui hears the pointer while the
+                        // right-click menu is on this monitor.
+                        let ppp = slot.window.scale_factor() as f32;
+                        let at = egui::pos2(position.x as f32 / ppp, position.y as f32 / ppp);
+                        slot.pointer = Some(at);
+                        let name = slot.monitor.name.clone();
+                        if self
+                            .ui_state
+                            .context_menu
+                            .as_ref()
+                            .and_then(|m| m.surface.as_ref())
+                            == Some(&name)
+                        {
+                            slot.pending_events.push(egui::Event::PointerMoved(at));
+                        }
+                        self.pointer_monitor = Some(name);
                         self.handle_cursor_moved_global(
                             position.x as f32 + ox,
                             position.y as f32 + oy,
@@ -835,6 +865,45 @@ impl ApplicationHandler<AnimaEvent> for App {
                     }
                 }
                 WindowEvent::MouseInput { state, button, .. } => {
+                    if let Some(slot) = self.extra_windows.get_mut(&window_id) {
+                        let name = slot.monitor.name.clone();
+                        let menu_here = self
+                            .ui_state
+                            .context_menu
+                            .as_ref()
+                            .and_then(|m| m.surface.as_ref())
+                            == Some(&name);
+                        let egui_button = match button {
+                            winit::event::MouseButton::Left => Some(egui::PointerButton::Primary),
+                            winit::event::MouseButton::Right => {
+                                Some(egui::PointerButton::Secondary)
+                            }
+                            winit::event::MouseButton::Middle => Some(egui::PointerButton::Middle),
+                            _ => None,
+                        };
+                        if let (true, Some(pos), Some(button)) =
+                            (menu_here, slot.pointer, egui_button)
+                        {
+                            slot.pending_events.push(egui::Event::PointerButton {
+                                pos,
+                                button,
+                                pressed: state == ElementState::Pressed,
+                                modifiers: egui::Modifiers::default(),
+                            });
+                        }
+                        // A press on the menu is the menu's, as egui's are on
+                        // the panel's window; otherwise picking Duplicate
+                        // would start a selection rectangle first, emptying
+                        // the selection the menu acts on.
+                        let on_menu = menu_here
+                            && state == ElementState::Pressed
+                            && slot.egui.as_ref().is_some_and(|e| e.owns_pointer());
+                        self.pointer_monitor = Some(name);
+                        if on_menu {
+                            self.request_redraw_all();
+                            return;
+                        }
+                    }
                     self.handle_mouse_input(state, button);
                     self.request_redraw_all();
                 }
