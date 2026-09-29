@@ -306,8 +306,8 @@ Constraints worth knowing before you debug something surprising:
 - `say("Hello!")` shows a speech bubble over the character for four
   seconds; `say("Hello!", 8)` for eight (1–30). The text is cut at 140
   characters, the last `say` of a frame wins, and saying the same thing
-  every frame just keeps the bubble up. Bubbles show on the monitor with
-  the settings panel, where the overlay's UI is drawn.
+  every frame just keeps the bubble up. A bubble shows on whichever
+  monitor the character is on.
 - `cpu` and `mem` are **aggregate** machine load, 0.0–1.0. There is
   deliberately no way to ask what is *running*: `src/sysload.rs` reads
   `/proc/stat` and `/proc/meminfo`, which contain nothing but totals, so

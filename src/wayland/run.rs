@@ -254,6 +254,9 @@ pub fn run_native(
     // session including output hotplug (see docs/wayland.md and the
     // module doc on `layer_window::mod`).
     let mut extra_surfaces: HashMap<String, SurfaceState> = HashMap::new();
+    // Each other monitor's egui, for the speech bubbles of the characters
+    // there (`ui::surface_egui`), made the first time one is needed.
+    let mut extra_eguis: HashMap<String, crate::ui::surface_egui::SurfaceEgui> = HashMap::new();
     let mut last_monitor_mode = config.global.monitor_mode.clone();
     {
         let initial_monitors = layer.monitors();
@@ -455,25 +458,16 @@ pub fn run_native(
                 }
             }
         }
-        // Reminders due now, said by a character on the primary surface,
-        // where the bubble shows (`crate::reminders`). Before the frame
-        // gate: a still scene would never reach the drawing code.
-        let primary_name = if extra_surfaces.is_empty() {
-            None
-        } else {
-            plan.primary.as_ref().map(|m| m.name.clone())
-        };
+        // Reminders due now (`crate::reminders`), said by any character:
+        // every monitor draws its bubbles. Before the frame gate: a still
+        // scene would never reach the drawing code.
         if crate::reminders::deliver(
             &mut reminder_timers,
             &config.reminders,
             &mut scene,
             !(overlay_hidden || wanted.hidden),
             layer.is_idle(),
-            |e| {
-                primary_name
-                    .as_ref()
-                    .is_none_or(|n| crate::app::windows::entity_on_monitor(&monitors_now, e, n))
-            },
+            |_| true,
         ) {
             activity = true;
         }
@@ -1117,7 +1111,11 @@ pub fn run_native(
                 crate::pacing::redraw_pacing(&scene, perf_overlay_visible || !toasts.is_empty(),),
                 crate::pacing::RedrawPacing::Continuous
             );
-        if !frame_gate.should_draw(now, activity || moving || egui_renderer.repaint_due(now)) {
+        let extras_repaint = extra_eguis.values().any(|e| e.repaint_due(now));
+        if !frame_gate.should_draw(
+            now,
+            activity || moving || egui_renderer.repaint_due(now) || extras_repaint,
+        ) {
             perf_sampler.end_frame();
             if let Some(rest) = FRAME_INTERVAL.checked_sub(frame_start.elapsed()) {
                 std::thread::sleep(rest);
@@ -1401,9 +1399,9 @@ pub fn run_native(
                     let _s = perf_sampler.scope(crate::perf::Category::Present);
                     renderer.present(output);
                 }
-                // Sprite-only extras: no egui, no input — just the
-                // entities pinned (or resolved by position) to that
-                // monitor, translated by its own origin. Mirrors
+                // Extras: the entities pinned (or resolved by position) to
+                // that monitor, translated by its own origin, and the speech
+                // bubbles among them. Mirrors
                 // `app::windows::render_extra_windows` on the X11 path.
                 // Hidden, they clear like the primary: the X11 path unmaps
                 // its extra windows, but these stay mapped, and they kept
@@ -1434,7 +1432,48 @@ pub fn run_native(
                             marks,
                             origin,
                         ) {
-                            Ok(extra_output) => surface.present(&renderer.shared, extra_output),
+                            Ok(extra_output) => {
+                                // Its own egui, run while there are bubbles
+                                // here — and once more when one asked for
+                                // the frame that clears it.
+                                let bubbles = if overlay_hidden || aside.hidden {
+                                    Vec::new()
+                                } else {
+                                    crate::speech::shown(&scene, origin, |e| {
+                                        crate::app::windows::entity_on_monitor(
+                                            &monitors_now,
+                                            e,
+                                            name,
+                                        )
+                                    })
+                                };
+                                let asked =
+                                    extra_eguis.get(name).is_some_and(|e| e.repaint_due(now));
+                                if !bubbles.is_empty() || asked {
+                                    let egui =
+                                        extra_eguis.entry(name.clone()).or_insert_with(|| {
+                                            crate::ui::surface_egui::SurfaceEgui::new(
+                                                &renderer.shared.device,
+                                                renderer.shared.surface_format,
+                                                config.global.theme,
+                                            )
+                                        });
+                                    egui.ensure_theme(config.global.theme);
+                                    let view = extra_output.create_view();
+                                    egui.render(
+                                        &renderer.shared.device,
+                                        &renderer.shared.queue,
+                                        &view,
+                                        [surface.window_width, surface.window_height],
+                                        ui_pixels_per_point(&monitors_now),
+                                        Vec::new(),
+                                        egui::Modifiers::default(),
+                                        // In points already, as on the primary.
+                                        |ctx| crate::ui::speech::paint(ctx, &bubbles, 1.0),
+                                    );
+                                }
+                                surface.present(&renderer.shared, extra_output);
+                            }
                             Err(wgpu::SurfaceError::Lost) => {
                                 let (w, h) = (surface.window_width, surface.window_height);
                                 surface.resize(&renderer.shared, w, h);
@@ -1445,6 +1484,8 @@ pub fn run_native(
                         }
                     }
                 }
+                // Monitors gone, and their eguis with them.
+                extra_eguis.retain(|name, _| extra_surfaces.contains_key(name));
                 if toggle_requested {
                     flip_edit_mode(
                         &mut layer,

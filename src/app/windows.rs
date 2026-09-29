@@ -69,6 +69,51 @@ pub(super) struct WindowSlot {
     pub surface: SurfaceState,
     pub monitor: MonitorInfo,
     pub x11_input: Option<Box<dyn OverlayPlatform>>,
+    /// This monitor's egui, for the speech bubbles of the characters on it
+    /// (`ui::surface_egui`), made the first time one is needed.
+    pub egui: Option<crate::ui::surface_egui::SurfaceEgui>,
+}
+
+/// Draw the speech bubbles of the characters on `slot`'s monitor over
+/// `output` with its own egui: while there are any, and once more when it
+/// asked for the frame that clears one — otherwise that request, left
+/// standing, would keep the loop drawing.
+fn paint_bubbles(
+    slot: &mut WindowSlot,
+    shared: &crate::renderer::wgpu_renderer::GpuShared,
+    scene: &crate::scene::Scene,
+    monitors: &[MonitorInfo],
+    theme: crate::ui::Theme,
+    output: &crate::renderer::wgpu_renderer::AcquiredFrame,
+) {
+    let origin = (slot.monitor.x as f32, slot.monitor.y as f32);
+    let name = slot.monitor.name.clone();
+    let bubbles = crate::speech::shown(scene, origin, |e| entity_on_monitor(monitors, e, &name));
+    let asked = slot
+        .egui
+        .as_ref()
+        .is_some_and(|e| e.repaint_due(std::time::Instant::now()));
+    if bubbles.is_empty() && !asked {
+        return;
+    }
+    // Window pixels to egui points, as on the primary.
+    let pixels_per_point = slot.window.scale_factor() as f32;
+    let size = [slot.surface.window_width, slot.surface.window_height];
+    let egui = slot.egui.get_or_insert_with(|| {
+        crate::ui::surface_egui::SurfaceEgui::new(&shared.device, shared.surface_format, theme)
+    });
+    egui.ensure_theme(theme);
+    let view = output.create_view();
+    egui.render(
+        &shared.device,
+        &shared.queue,
+        &view,
+        size,
+        pixels_per_point,
+        Vec::new(),
+        egui::Modifiers::default(),
+        |ctx| crate::ui::speech::paint(ctx, &bubbles, pixels_per_point),
+    );
 }
 
 /// The `HWND` behind a winit window, for the layered presentation path.
@@ -238,6 +283,7 @@ impl App {
                     surface,
                     monitor: mon,
                     x11_input,
+                    egui: None,
                 },
             );
         }
@@ -343,7 +389,17 @@ impl App {
                 marks,
                 origin,
             ) {
-                Ok(output) => slot.surface.present(&renderer.shared, output),
+                Ok(output) => {
+                    paint_bubbles(
+                        slot,
+                        &renderer.shared,
+                        &self.scene,
+                        &self.monitors,
+                        self.config.global.theme,
+                        &output,
+                    );
+                    slot.surface.present(&renderer.shared, output);
+                }
                 Err(wgpu::SurfaceError::Lost) => {
                     let (w, h) = (slot.surface.window_width, slot.surface.window_height);
                     slot.surface.resize(&renderer.shared, w, h);
@@ -386,6 +442,14 @@ impl App {
             marks,
             origin,
         ) {
+            paint_bubbles(
+                slot,
+                &renderer.shared,
+                &self.scene,
+                &self.monitors,
+                self.config.global.theme,
+                &output,
+            );
             slot.surface.present(&renderer.shared, output);
         }
     }

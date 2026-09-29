@@ -51,7 +51,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   water, a stretch, or your own text — said by a character you pick or
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
-  Bubbles show on the monitor with the settings panel.
+  Bubbles show on every monitor.
 - **Start at login.** A switch in Appearance: installed natively it
   writes a standard autostart entry (the one the desktop's "Startup
   Applications" lists too), and in the Flatpak it asks the Background

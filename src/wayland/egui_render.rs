@@ -20,16 +20,14 @@
 //! plumbing is part of E.7's multi-monitor work; E.9 picks up the
 //! polish).
 
-use crate::ui::{icons, theme};
+use crate::ui::theme;
 
 /// Single-window egui integration for the native Wayland path. Mirrors
-/// `crate::ui::EguiRenderer` but skips the `egui_winit::State`.
+/// `crate::ui::EguiRenderer` but skips the `egui_winit::State`: the frame
+/// itself is `SurfaceEgui`'s, and this adds what the panel's surface has
+/// that other monitors' do not — a screen reader and an input method.
 pub struct WaylandEguiRenderer {
-    context: egui::Context,
-    renderer: egui_wgpu::Renderer,
-    /// Last applied theme — guards `theme::apply` so it only fires on
-    /// a real change. Matches the X11 path's `ensure_theme` pattern.
-    current_theme: theme::Theme,
+    surface: crate::ui::surface_egui::SurfaceEgui,
     /// Caret of the focused text field in the last frame, for the input
     /// method; see [`WaylandEguiRenderer::ime_caret`].
     ime_caret: Option<(i32, i32, i32, i32)>,
@@ -40,11 +38,6 @@ pub struct WaylandEguiRenderer {
     /// Set from the bridge's thread when a screen reader asks for
     /// something; the loop draws a frame to answer it.
     screen_reader_wake: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    /// When egui asked to be run again — an animation, a tooltip's delay.
-    /// `None` when it asked for nothing.
-    repaint_at: Option<std::time::Instant>,
-    /// egui's clock starts here (`RawInput::time`).
-    started: std::time::Instant,
 }
 
 impl WaylandEguiRenderer {
@@ -53,16 +46,10 @@ impl WaylandEguiRenderer {
         output_format: wgpu::TextureFormat,
         theme: theme::Theme,
     ) -> Self {
-        let context = egui::Context::default();
-        let renderer = egui_wgpu::Renderer::new(device, output_format, None, 1, false);
-        icons::install(&context);
-        theme::apply(&context, theme);
         let screen_reader_wake = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let wake = std::sync::Arc::clone(&screen_reader_wake);
         Self {
-            context,
-            renderer,
-            current_theme: theme,
+            surface: crate::ui::surface_egui::SurfaceEgui::new(device, output_format, theme),
             ime_caret: None,
             // The loop wakes every frame interval, but draws only for a
             // reason; a reader's request is one.
@@ -71,16 +58,18 @@ impl WaylandEguiRenderer {
             }),
             accesskit_allowed: true,
             screen_reader_wake,
-            repaint_at: None,
-            started: std::time::Instant::now(),
         }
+    }
+
+    fn context(&self) -> &egui::Context {
+        self.surface.context()
     }
 
     /// Whether an input is under way that an edit is still coming from:
     /// a pointer button held, a text field focused, a list or the palette
     /// open. Holds an undo step open (`crate::undo`).
     pub fn input_in_progress(&self) -> bool {
-        self.context.input(|i| i.pointer.any_down()) || self.wants_keyboard()
+        self.context().input(|i| i.pointer.any_down()) || self.wants_keyboard()
     }
 
     /// Whether a screen reader has requests waiting for the next frame.
@@ -96,7 +85,7 @@ impl WaylandEguiRenderer {
 
     /// Whether egui asked to be run again by `now`.
     pub fn repaint_due(&self, now: std::time::Instant) -> bool {
-        self.repaint_at.is_some_and(|at| at <= now)
+        self.surface.repaint_due(now)
     }
 
     /// Follow the Appearance setting that allows screen readers the tree.
@@ -126,7 +115,7 @@ impl WaylandEguiRenderer {
     /// the same guarantee from `egui_winit`'s "was this event consumed"
     /// return value. Panels do not move between frames, so it holds.
     pub fn owns_pointer(&self) -> bool {
-        self.context.is_pointer_over_area()
+        self.context().is_pointer_over_area()
     }
 
     /// The caret of the focused text field, from the last frame — `None`
@@ -145,15 +134,12 @@ impl WaylandEguiRenderer {
     /// loop reads egui's raw event list itself and so has to ask
     /// explicitly.
     pub fn wants_keyboard(&self) -> bool {
-        self.context.wants_keyboard_input() || crate::ui::panels::keyboard_held(&self.context)
+        self.context().wants_keyboard_input() || crate::ui::panels::keyboard_held(self.context())
     }
 
     /// Re-apply the design-system style if the active theme changed.
     pub fn ensure_theme(&mut self, theme: theme::Theme) {
-        if self.current_theme != theme {
-            theme::apply(&self.context, theme);
-            self.current_theme = theme;
-        }
+        self.surface.ensure_theme(theme);
     }
 
     /// Run one egui frame on top of an already-rendered surface.
@@ -178,59 +164,32 @@ impl WaylandEguiRenderer {
     ) where
         F: FnMut(&egui::Context),
     {
+        // egui answers `input.modifiers` from `RawInput`, not from the
+        // modifiers carried on individual key events; hardcoding them to
+        // `default()` once killed every modifier-gated interaction on this
+        // path. See `effective_modifiers`.
         let modifiers = effective_modifiers(&events, modifiers);
-        crate::a11y::sync_egui(&self.context, self.accesskit_allowed, &self.screen_reader);
-        events.extend(self.screen_reader.drain_requests());
-        let pixels_per_point = pixels_per_point.max(0.5);
-        let logical_size = egui::vec2(
-            size_in_pixels[0] as f32 / pixels_per_point,
-            size_in_pixels[1] as f32 / pixels_per_point,
+        crate::a11y::sync_egui(
+            self.surface.context(),
+            self.accesskit_allowed,
+            &self.screen_reader,
         );
-        let raw_input = egui::RawInput {
-            viewport_id: self.context.viewport_id(),
-            viewports: std::iter::once((
-                self.context.viewport_id(),
-                egui::ViewportInfo {
-                    native_pixels_per_point: Some(pixels_per_point),
-                    inner_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, logical_size)),
-                    ..Default::default()
-                },
-            ))
-            .collect(),
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, logical_size)),
-            // Real time. `None` makes egui add 1/60 s per frame, which was
-            // right only while this loop drew sixty a second; drawing on
-            // demand, a tooltip's half-second delay took fifteen.
-            time: Some(self.started.elapsed().as_secs_f64()),
-            predicted_dt: 1.0 / 60.0,
-            // egui answers `input.modifiers` from here, NOT from the
-            // modifiers carried on individual key events. This was hardcoded
-            // to `default()`, which left it permanently all-false on the
-            // native Wayland path and silently killed every modifier-gated
-            // interaction: Ctrl+K never opened the command palette, and
-            // egui's own text-editing chords (Ctrl+A/C/V/X/Z, shift-select)
-            // were dead in every text field. See `effective_modifiers`.
-            modifiers,
+        events.extend(self.screen_reader.drain_requests());
+        let mut platform_output = self.surface.render(
+            device,
+            queue,
+            view,
+            size_in_pixels,
+            pixels_per_point,
             events,
-            hovered_files: Vec::new(),
-            dropped_files: Vec::new(),
-            focused: true,
-            max_texture_side: None,
-            system_theme: None,
-        };
-
-        let mut full_output = self.context.run(raw_input, build_ui);
-        // `Duration::MAX` means "not unless something happens"; the add
-        // overflows then, and there is nothing to schedule.
-        self.repaint_at = full_output
-            .viewport_output
-            .get(&self.context.viewport_id())
-            .and_then(|v| std::time::Instant::now().checked_add(v.repaint_delay));
+            modifiers,
+            build_ui,
+        );
         self.screen_reader.publish(
             self.accesskit_allowed,
-            full_output.platform_output.accesskit_update.take(),
+            platform_output.accesskit_update.take(),
         );
-        self.ime_caret = full_output.platform_output.ime.map(|ime| {
+        self.ime_caret = platform_output.ime.map(|ime| {
             let r = ime.cursor_rect;
             (
                 r.min.x.round() as i32,
@@ -239,51 +198,6 @@ impl WaylandEguiRenderer {
                 r.height().round().max(1.0) as i32,
             )
         });
-
-        let paint_jobs = self
-            .context
-            .tessellate(full_output.shapes, pixels_per_point);
-        let screen_descriptor = egui_wgpu::ScreenDescriptor {
-            size_in_pixels,
-            pixels_per_point,
-        };
-
-        for (id, image_delta) in &full_output.textures_delta.set {
-            self.renderer
-                .update_texture(device, queue, *id, image_delta);
-        }
-
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("egui encoder (wayland)"),
-        });
-        self.renderer
-            .update_buffers(device, queue, &mut encoder, &paint_jobs, &screen_descriptor);
-
-        {
-            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("egui render pass (wayland)"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        // Load — sprites underneath stay visible.
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            let mut static_pass = render_pass.forget_lifetime();
-            self.renderer
-                .render(&mut static_pass, &paint_jobs, &screen_descriptor);
-        }
-        queue.submit(std::iter::once(encoder.finish()));
-
-        for id in &full_output.textures_delta.free {
-            self.renderer.free_texture(id);
-        }
     }
 }
 

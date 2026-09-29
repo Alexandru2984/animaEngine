@@ -2,11 +2,11 @@
 //! from its behavior script (`say("…")`) or from a reminder
 //! (`crate::reminders`).
 //!
-//! The bubble is drawn by the panel's egui pass, which runs in both modes
-//! (`ui::speech`), over the character and click-through like the rest of
-//! the overlay. egui exists on the primary surface alone, so a character
-//! on another monitor says nothing visible there — the same limit as the
-//! right-click menu (R51).
+//! The bubble is drawn by egui (`ui::speech`), over the character and
+//! click-through like the rest of the overlay: by the panel's egui pass,
+//! which runs in both modes, on the primary surface, and by an egui of
+//! their own on every other monitor (`ui::surface_egui`). Until those
+//! existed, a character on another monitor said nothing visible.
 
 use std::time::{Duration, Instant};
 

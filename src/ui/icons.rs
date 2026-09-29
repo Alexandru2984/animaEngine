@@ -156,7 +156,7 @@ pub fn install_with_cjk(ctx: &egui::Context) {
     // the dropdown is open, and a rebuild re-reads ~19 MB from disk and
     // re-parses it — sixty times a second would be a visible stall, which
     // is a poor trade for fixing a label.
-    if CJK_INSTALLED.load(std::sync::atomic::Ordering::Relaxed) {
+    if ctx.data(|d| d.get_temp::<bool>(cjk_installed_id())) == Some(true) {
         return;
     }
     install_inner(ctx, true)
@@ -166,13 +166,19 @@ pub fn install(ctx: &egui::Context) {
     install_inner(ctx, false)
 }
 
-/// Whether the last `install_inner` put the CJK face in the stack.
+/// Where a context remembers whether its last `install_inner` put the CJK
+/// face in its stack.
 ///
-/// Mirrors the fonts currently on the context, so it has to be updated on
+/// Mirrors the fonts currently on that context, so it has to be updated on
 /// every path through `install_inner`, including the ones that leave CJK
 /// out — otherwise switching back to English would leave the flag set and
 /// a later `install_with_cjk` would skip a rebuild it genuinely needs.
-static CJK_INSTALLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Kept per context since 1.5, when other monitors got an egui of their
+/// own: one process-wide flag, set by the panel's, made another monitor's
+/// skip the face and draw Japanese as boxes.
+fn cjk_installed_id() -> egui::Id {
+    egui::Id::new("anima.cjk-installed")
+}
 
 fn install_inner(ctx: &egui::Context, force_cjk: bool) {
     let mut fonts = egui::FontDefinitions::default();
@@ -229,7 +235,7 @@ fn install_inner(ctx: &egui::Context, force_cjk: bool) {
         }
     }
 
-    CJK_INSTALLED.store(installed_cjk, std::sync::atomic::Ordering::Relaxed);
+    ctx.data_mut(|d| d.insert_temp(cjk_installed_id(), installed_cjk));
     ctx.set_fonts(fonts);
 }
 

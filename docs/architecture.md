@@ -340,8 +340,13 @@ cleared by `Scene::tick` on the clock whether or not the scene runs.
 Scripts set it through `say`, recorded like `play` and applied after the
 run. Bubbles are gathered before the UI pass (`speech::shown`, the scene
 being lent to the panels) and painted by egui on its background layer
-(`ui::speech`), under the panel and click-through; egui runs on the
-primary surface only, so that is where they show. Reminders are timers
+(`ui::speech`), under the panel and click-through — by the panel's egui
+on the primary surface, and by a `ui::surface_egui::SurfaceEgui` of
+their own on every other monitor's (made when a bubble first lands
+there, run while it has bubbles and once more for the frame that clears
+one; the loops pace on its repaint requests too). The native Wayland
+panel is that same core plus a screen reader and an input method
+(`wayland::egui_render`). Reminders are timers
 keyed by the reminder itself, so editing the list leaves the others'
 alone; the loops call `reminders::deliver` each frame — on Wayland before
 the frame gate — and it restarts every timer while the user is away.

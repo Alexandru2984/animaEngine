@@ -21,6 +21,7 @@ pub mod panels;
 pub mod perf_overlay;
 pub mod speech;
 pub mod states;
+pub mod surface_egui;
 pub mod theme;
 pub mod toasts;
 pub mod whats_new;

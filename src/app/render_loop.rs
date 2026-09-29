@@ -241,8 +241,8 @@ impl App {
                 }
             }
         }
-        // Reminders due now, said by a character on this window, where the
-        // bubble shows (`crate::reminders`).
+        // Reminders due now (`crate::reminders`), said by any character:
+        // every monitor draws its bubbles.
         let reminded = crate::reminders::deliver(
             &mut self.reminder_timers,
             &self.config.reminders,
@@ -250,11 +250,7 @@ impl App {
             !self.overlay_hidden && !self.stepped_aside.hidden,
             // Watched for reminders even with pausing off.
             self.away,
-            |e| {
-                primary_monitor_name
-                    .as_ref()
-                    .is_none_or(|name| super::windows::entity_on_monitor(&self.monitors, e, name))
-            },
+            |_| true,
         );
         if reminded {
             self.request_redraw();
@@ -776,6 +772,13 @@ impl App {
         // is polled often enough that its result is not left waiting for
         // the heartbeat.
         let mut at = self.ui.as_ref().and_then(|ui| ui.repaint_at());
+        // Other monitors' eguis ask for frames too: the one that clears a
+        // speech bubble there.
+        for slot in self.extra_windows.values() {
+            if let Some(extra) = slot.egui.as_ref().and_then(|e| e.repaint_at()) {
+                at = Some(at.map_or(extra, |a| a.min(extra)));
+            }
+        }
         if self.pending_file_chooser.is_some() || self.pending_shimeji.is_some() {
             let poll = now + std::time::Duration::from_millis(100);
             at = Some(at.map_or(poll, |a| a.min(poll)));

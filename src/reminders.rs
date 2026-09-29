@@ -5,8 +5,8 @@
 //! (`crate::away`) every timer starts over, since being away was the
 //! break. One that comes due while the overlay is hidden, stepped aside for
 //! a full-screen app, or has nobody to say it waits until it can be said.
-//! The bubble goes to the chosen character, or — when that one is gone,
-//! hidden or on another monitor — to the frontmost that can show it.
+//! The bubble goes to the chosen character, or — when that one is gone or
+//! hidden — to the frontmost visible one, on whichever monitor.
 
 use crate::entity::Entity;
 use crate::scene::Scene;
