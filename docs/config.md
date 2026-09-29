@@ -112,6 +112,23 @@ editing: `onboarding` (which first-run hints you've dismissed) and
 `last_seen_whats_new` (the last release whose "What's new" panel you
 saw). Both are safe to delete — the app reseeds them.
 
+### Reminders
+
+Each `[[reminders]]` block is something a character says every so often
+(the Scene tab writes these):
+
+```toml
+[[reminders]]
+text = "Time for a short break!"
+every_minutes = 50          # 1..=1440
+character = "cat"           # optional: who says it, by id; the
+                            # frontmost visible one when unset or gone
+enabled = true
+```
+
+Time away from the computer (see `pause_when_idle_minutes`) starts every
+reminder over; one that comes due while the overlay is hidden waits.
+
 ### Named scenes
 
 Scenes saved from the Scene tab live beside this file, one each in

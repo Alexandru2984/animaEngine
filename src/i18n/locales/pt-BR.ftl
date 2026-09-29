@@ -263,6 +263,19 @@ toast-scene-loaded = Cena: { $name }
 toast-scene-failed = Cena não carregada: { $error }
 toast-no-scenes = Nenhuma cena salva ainda — salve uma na aba Cena.
 palette-load-scene = Mudar para a cena: { $name }
+# Reminders (1.5): machine-translated, pending native review.
+scene-reminders-header = Lembretes
+scene-reminders-hint = Um personagem diz isso de vez em quando, num balão. O tempo longe do computador conta como pausa e recomeça a contagem.
+scene-reminder-every = a cada { $minutes } min
+scene-reminder-anyone = qualquer personagem
+scene-reminder-delete = Excluir lembrete
+scene-reminder-text-hint = O que dizer
+scene-reminder-minutes = A cada (minutos)
+scene-reminder-who = Quem diz
+scene-reminder-add = Adicionar lembrete
+reminder-break = Hora de uma pausa curta!
+reminder-water = Beba um copo d’água.
+reminder-stretch = Levante-se e alongue-se.
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Não foi possível registrar os atalhos globais (típico em sessões Wayland nativas). O menu da bandeja e o botão ⚙ continuam funcionando.

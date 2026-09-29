@@ -41,6 +41,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   centre to the monitors' and to other characters' within 8 px, and a
   thin line shows what it snapped to; hold Alt to place freely, or turn
   it off in the Scene tab.
+- **Speech bubbles and reminders.** A character can say something in a
+  bubble: behavior scripts call `say("…")`, and the Scene tab sets up
+  reminders — "Time for a short break!" every 50 minutes, a glass of
+  water, a stretch, or your own text — said by a character you pick or
+  the frontmost one. Time away from the computer counts as the break and
+  starts the reminder over; one due while the overlay is hidden waits.
+  Bubbles show on the monitor with the settings panel.
 - **Start at login.** A switch in Appearance: installed natively it
   writes a standard autostart entry (the one the desktop's "Startup
   Applications" lists too), and in the Flatpak it asks the Background

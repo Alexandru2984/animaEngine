@@ -263,6 +263,19 @@ toast-scene-loaded = Scenă: { $name }
 toast-scene-failed = Scena nu s-a încărcat: { $error }
 toast-no-scenes = Încă nu ai scene salvate — salvează una în tabul Scenă.
 palette-load-scene = Treci la scena: { $name }
+# Reminders (1.5): machine-translated, pending native review.
+scene-reminders-header = Mementouri
+scene-reminders-hint = Un personaj îl spune din când în când, într-un balon. Timpul petrecut departe de calculator contează ca pauză și o ia de la capăt.
+scene-reminder-every = la fiecare { $minutes } min
+scene-reminder-anyone = orice personaj
+scene-reminder-delete = Șterge mementoul
+scene-reminder-text-hint = Ce să spună
+scene-reminder-minutes = La fiecare (minute)
+scene-reminder-who = Cine îl spune
+scene-reminder-add = Adaugă memento
+reminder-break = E timpul pentru o pauză scurtă!
+reminder-water = Bea un pahar cu apă.
+reminder-stretch = Ridică-te și întinde-te.
 
 # ── Avertismente persistente (D.5) ────────────────────────────────────
 warning-global-hotkeys-unavailable = Scurtăturile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.

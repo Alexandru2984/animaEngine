@@ -33,6 +33,7 @@ pub mod platforms;
 #[cfg(unix)]
 pub mod portal;
 pub mod presets;
+pub mod reminders;
 pub mod renderer;
 pub mod scene;
 pub mod scenes;
@@ -47,6 +48,7 @@ pub mod sysload;
 #[cfg(unix)]
 pub mod single_instance;
 pub mod soak;
+pub mod speech;
 #[cfg(unix)]
 pub mod tray;
 pub mod tray_menu;

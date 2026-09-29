@@ -78,9 +78,19 @@ pub struct Entity {
     /// facing left. The renderer mirrors the sprite when `true`
     /// (art is assumed right-facing; importers can pre-flip).
     pub facing_left: bool,
+    /// What it is saying, if anything (`crate::speech`). Runtime-only.
+    pub speech: Option<crate::speech::Speech>,
 }
 
 impl Entity {
+    /// Say `text` for `seconds` (`crate::speech`): a bubble over the
+    /// character, replacing what it was saying.
+    pub fn say(&mut self, text: &str, seconds: f32) {
+        if let Some(speech) = crate::speech::Speech::new(text, seconds, std::time::Instant::now()) {
+            self.speech = Some(speech);
+        }
+    }
+
     /// Create an entity from config + the idle animation. Convenience
     /// wrapper over [`Entity::from_config_set`] for the single-state
     /// callers (drag-drop, presets, every pre-U.1 path).
@@ -124,6 +134,7 @@ impl Entity {
             behavior_state: BehaviorState::with_seed(seed),
             dragging: false,
             facing_left: false,
+            speech: None,
         }
     }
 
@@ -235,6 +246,9 @@ impl Entity {
                 // the left of the desktop is heard on the left. The audio
                 // host rate-limits and caps voices; a script asking for a
                 // sound every frame is expected, not exceptional.
+                if let Some((text, seconds)) = &out.speech {
+                    self.say(text, *seconds);
+                }
                 if !out.sounds.is_empty() {
                     let centre = self.x + ctx.sprite_width * 0.5;
                     for sound in &out.sounds {
@@ -480,6 +494,7 @@ impl Entity {
             behavior_state: BehaviorState::default(),
             dragging: false,
             facing_left: false,
+            speech: None,
         }
     }
 

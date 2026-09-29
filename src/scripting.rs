@@ -132,6 +132,8 @@ pub struct ScriptOutputs {
     /// Library-relative sound paths, in the order the script asked for
     /// them. Capped per run — see `MAX_SOUNDS_PER_RUN`.
     pub sounds: Vec<String>,
+    /// What the script said this run, and for how many seconds.
+    pub speech: Option<(String, f32)>,
 }
 
 /// Why a script did not run, or did not finish.
@@ -193,6 +195,10 @@ pub struct ScriptHost {
     /// records an intent and the caller acts on it after the run returns —
     /// the same pattern the UI panels use for their outcomes.
     pending_sounds: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
+    /// What the running script asked to say, and for how long — the last
+    /// `say` of the run wins (`crate::speech`). Shared with the
+    /// registered function, like `pending_sounds`.
+    pending_speech: std::rc::Rc<std::cell::RefCell<Option<(String, f32)>>>,
 }
 
 struct Failed {
@@ -257,6 +263,23 @@ impl ScriptHost {
             }
         });
 
+        // `say("hi")`, `say("hi", 6)`: a speech bubble, recorded the same
+        // way. The seconds may come as a float or an integer — Rhai makes
+        // `6` an integer — and are held to their bounds by `Speech::new`.
+        let pending_speech = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let said = std::rc::Rc::clone(&pending_speech);
+        engine.register_fn("say", move |text: &str| {
+            *said.borrow_mut() = Some((text.to_string(), crate::speech::DEFAULT_SECONDS));
+        });
+        let said = std::rc::Rc::clone(&pending_speech);
+        engine.register_fn("say", move |text: &str, seconds: f64| {
+            *said.borrow_mut() = Some((text.to_string(), seconds as f32));
+        });
+        let said = std::rc::Rc::clone(&pending_speech);
+        engine.register_fn("say", move |text: &str, seconds: i64| {
+            *said.borrow_mut() = Some((text.to_string(), seconds as f32));
+        });
+
         Self {
             engine,
             compiled: BTreeMap::new(),
@@ -265,6 +288,7 @@ impl ScriptHost {
             unreported: Vec::new(),
             load: crate::sysload::SystemLoad::new(),
             pending_sounds,
+            pending_speech,
         }
     }
 
@@ -501,11 +525,13 @@ impl ScriptHost {
         // Cleared before, not after: a run that fails partway may have
         // queued sounds, and those belong to the failed run, not the next.
         self.pending_sounds.borrow_mut().clear();
+        self.pending_speech.borrow_mut().take();
         let outcome = self
             .engine
             .run_ast_with_scope(scope, &compiled.ast)
             .map_err(|e| ScriptError::Runtime(e.to_string()));
         let sounds = std::mem::take(&mut *self.pending_sounds.borrow_mut());
+        let speech = self.pending_speech.borrow_mut().take();
 
         // A script that deletes or retypes `x` gets its last good value
         // back rather than teleporting the entity to the origin.
@@ -528,6 +554,7 @@ impl ScriptHost {
             x: finite_or(x as f32, inputs.x),
             y: finite_or(y as f32, inputs.y),
             sounds,
+            speech,
         })
     }
 }
@@ -596,7 +623,8 @@ mod tests {
             ScriptOutputs {
                 x: 110.0,
                 y: 195.0,
-                sounds: vec![]
+                sounds: vec![],
+                speech: None,
             }
         );
     }
@@ -617,6 +645,40 @@ mod tests {
             .run("t", &mut scope, &inputs(), &BTreeMap::new())
             .unwrap();
         assert_eq!(out.sounds, vec!["meow.ogg".to_string()]);
+    }
+
+    #[test]
+    fn a_script_can_say_something_for_a_while() {
+        let out = run_once(r#"say("hello");"#).unwrap();
+        assert_eq!(
+            out.speech,
+            Some(("hello".to_string(), crate::speech::DEFAULT_SECONDS))
+        );
+        // An integer number of seconds, as Rhai reads `6`, and a float.
+        let out = run_once(r#"say("hi", 6);"#).unwrap();
+        assert_eq!(out.speech, Some(("hi".to_string(), 6.0)));
+        let out = run_once(r#"say("a", 2.5); say("b", 1.5);"#).unwrap();
+        assert_eq!(
+            out.speech,
+            Some(("b".to_string(), 1.5)),
+            "the last one wins"
+        );
+    }
+
+    #[test]
+    fn speech_belongs_to_its_run() {
+        let mut host = ScriptHost::new();
+        host.compile("t", r#"if elapsed < 0.001 { say("once"); }"#)
+            .unwrap();
+        let mut scope = rhai::Scope::new();
+        let first = host
+            .run("t", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        assert!(first.speech.is_some());
+        let mut later = inputs();
+        later.elapsed = 5.0;
+        let second = host.run("t", &mut scope, &later, &BTreeMap::new()).unwrap();
+        assert!(second.speech.is_none());
     }
 
     /// The queue belongs to one run. Without clearing, a script that plays
@@ -838,7 +900,8 @@ mod tests {
             ScriptOutputs {
                 x: 100.0,
                 y: 200.0,
-                sounds: vec![]
+                sounds: vec![],
+                speech: None,
             }
         );
     }
@@ -860,7 +923,8 @@ mod tests {
             ScriptOutputs {
                 x: 250.0,
                 y: 300.0,
-                sounds: vec![]
+                sounds: vec![],
+                speech: None,
             }
         );
     }

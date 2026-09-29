@@ -263,6 +263,19 @@ toast-scene-loaded = Szene: { $name }
 toast-scene-failed = Szene nicht geladen: { $error }
 toast-no-scenes = Noch keine gespeicherten Szenen – speichern Sie eine im Tab „Szene“.
 palette-load-scene = Zu Szene wechseln: { $name }
+# Reminders (1.5): machine-translated, pending native review.
+scene-reminders-header = Erinnerungen
+scene-reminders-hint = Eine Figur sagt es ab und zu in einer Sprechblase. Zeit weg vom Computer zählt als Pause und fängt von vorn an.
+scene-reminder-every = alle { $minutes } Min.
+scene-reminder-anyone = eine beliebige Figur
+scene-reminder-delete = Erinnerung löschen
+scene-reminder-text-hint = Was gesagt wird
+scene-reminder-minutes = Alle (Minuten)
+scene-reminder-who = Wer es sagt
+scene-reminder-add = Erinnerung hinzufügen
+reminder-break = Zeit für eine kurze Pause!
+reminder-water = Trinken Sie ein Glas Wasser.
+reminder-stretch = Stehen Sie auf und strecken Sie sich.
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Globale Hotkeys konnten nicht registriert werden (typisch für native Wayland-Sitzungen). Tray-Menü und ⚙-Knopf funktionieren weiter.

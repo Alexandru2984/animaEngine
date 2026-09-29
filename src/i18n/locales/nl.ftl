@@ -263,6 +263,19 @@ toast-scene-loaded = Scène: { $name }
 toast-scene-failed = Scène niet geladen: { $error }
 toast-no-scenes = Nog geen opgeslagen scènes — sla er een op in het tabblad Scène.
 palette-load-scene = Naar scène wisselen: { $name }
+# Reminders (1.5): machine-translated, pending native review.
+scene-reminders-header = Herinneringen
+scene-reminders-hint = Een figuur zegt het af en toe, in een tekstballon. Tijd weg van de computer telt als pauze en begint opnieuw.
+scene-reminder-every = elke { $minutes } min
+scene-reminder-anyone = een willekeurig figuur
+scene-reminder-delete = Herinnering verwijderen
+scene-reminder-text-hint = Wat er gezegd wordt
+scene-reminder-minutes = Elke (minuten)
+scene-reminder-who = Wie het zegt
+scene-reminder-add = Herinnering toevoegen
+reminder-break = Tijd voor een korte pauze!
+reminder-water = Drink een glas water.
+reminder-stretch = Sta op en rek u even uit.
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Globale sneltoetsen konden niet worden geregistreerd (gebruikelijk in een native Wayland-sessie). Het traymenu en de ⚙-knop blijven werken.

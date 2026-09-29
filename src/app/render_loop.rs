@@ -216,6 +216,30 @@ impl App {
         } else {
             None
         };
+        // Reminders due now, said by a character on this window, where the
+        // bubble shows (`crate::reminders`).
+        let reminded = crate::reminders::deliver(
+            &mut self.reminder_timers,
+            &self.config.reminders,
+            &mut self.scene,
+            !self.overlay_hidden && !self.stepped_aside.hidden,
+            self.away && self.config.global.pause_when_idle_minutes > 0,
+            |e| {
+                primary_monitor_name
+                    .as_ref()
+                    .is_none_or(|name| super::windows::entity_on_monitor(&self.monitors, e, name))
+            },
+        );
+        if reminded {
+            self.request_redraw();
+        }
+        // Speech bubbles for the characters on this window (`crate::speech`),
+        // gathered while the scene is still free to borrow.
+        let bubbles = crate::speech::shown(&self.scene, primary_origin, |e| {
+            primary_monitor_name
+                .as_ref()
+                .is_none_or(|name| super::windows::entity_on_monitor(&self.monitors, e, name))
+        });
 
         // Surface-recovery bookkeeping for this frame. Resolved after
         // the renderer borrow below is released (we can't reassign
@@ -338,6 +362,7 @@ impl App {
                         let window_awareness_mut = &mut self.config.global.window_awareness;
                         let snap_mut = &mut self.config.global.snap_while_dragging;
                         let active_scene_mut = &mut self.config.global.active_scene;
+                        let reminders_mut = &mut self.config.reminders;
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
                         let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
@@ -391,6 +416,8 @@ impl App {
                                 if panels::toggle_button(ctx, edit_mode) {
                                     *toggle_requested_ref = true;
                                 }
+                                // Bubbles are in window pixels.
+                                crate::ui::speech::paint(ctx, &bubbles, ctx.pixels_per_point());
                                 // First-run tour (V.2): floats on the
                                 // overlay in both modes; advances to
                                 // its interactive steps in edit mode.
@@ -421,6 +448,7 @@ impl App {
                                     true,
                                     snap_mut,
                                     active_scene_mut,
+                                    reminders_mut,
                                     // X11's root window is one screen across
                                     // every monitor, so Span really spans.
                                     true,

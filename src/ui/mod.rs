@@ -19,6 +19,7 @@ pub mod motion;
 pub mod onboarding;
 pub mod panels;
 pub mod perf_overlay;
+pub mod speech;
 pub mod states;
 pub mod theme;
 pub mod toasts;

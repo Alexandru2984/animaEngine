@@ -191,6 +191,8 @@ pub fn run_native(
     // scene is held still for someone being away (`crate::away`).
     let mut on_battery = false;
     let mut held_for_away = false;
+    // When each reminder is next due (`crate::reminders`).
+    let mut reminder_timers = crate::reminders::Timers::default();
     // Whether the input region is currently widened for a drag
     // (`drag_region`).
     let mut drag_widened = false;
@@ -408,14 +410,14 @@ pub fn run_native(
             layer.fullscreen_in_front(),
             layer.state.edit_mode,
         );
-        // Held still while nobody is there, too (`crate::away`): idle from
-        // the compositor, the battery from the away watch.
         // In the Flatpak, the Background portal's answer to "start at
         // login", once it comes (`crate::autostart`).
         if let Some(granted) = crate::autostart::take_portal_answer() {
             config.global.start_at_login = granted;
             config_dirty = true;
         }
+        // Held still while nobody is there, too (`crate::away`): idle from
+        // the compositor, the battery from the away watch.
         let global = &config.global;
         layer.set_idle_timeout(global.pause_when_idle_minutes);
         crate::away::configure(global.pause_when_idle_minutes, global.pause_on_battery);
@@ -431,6 +433,28 @@ pub fn run_native(
             tracing::info!("Away: scene {}", if away { "held still" } else { "back" });
         }
         scene.set_suspended(wanted.paused || away);
+        // Reminders due now, said by a character on the primary surface,
+        // where the bubble shows (`crate::reminders`). Before the frame
+        // gate: a still scene would never reach the drawing code.
+        let primary_name = if extra_surfaces.is_empty() {
+            None
+        } else {
+            plan.primary.as_ref().map(|m| m.name.clone())
+        };
+        if crate::reminders::deliver(
+            &mut reminder_timers,
+            &config.reminders,
+            &mut scene,
+            !(overlay_hidden || wanted.hidden),
+            config.global.pause_when_idle_minutes > 0 && layer.is_idle(),
+            |e| {
+                primary_name
+                    .as_ref()
+                    .is_none_or(|n| crate::app::windows::entity_on_monitor(&monitors_now, e, n))
+            },
+        ) {
+            activity = true;
+        }
         if wanted != aside {
             aside = wanted;
             activity = true;
@@ -1100,6 +1124,13 @@ pub fn run_native(
         } else {
             None
         };
+        // Speech bubbles for the characters on the primary surface
+        // (`crate::speech`), gathered while the scene is free to borrow.
+        let bubbles = crate::speech::shown(&scene, primary_origin, |e| {
+            primary_monitor_name
+                .as_ref()
+                .is_none_or(|name| crate::app::windows::entity_on_monitor(monitors, e, name))
+        });
         let drawn: Vec<&Entity> = if overlay_hidden || aside.hidden {
             // Hidden: present a cleared (fully transparent) surface. The
             // layer surface stays mapped — that is what a layer shell
@@ -1182,6 +1213,7 @@ pub fn run_native(
                 let window_awareness_mut = &mut config.global.window_awareness;
                 let snap_mut = &mut config.global.snap_while_dragging;
                 let active_scene_mut = &mut config.global.active_scene;
+                let reminders_mut = &mut config.reminders;
                 let reduced_motion_mut = &mut config.global.reduced_motion;
                 let hover_startle_mut = &mut config.global.hover_startle;
                 let on_fullscreen_mut = &mut config.global.on_fullscreen;
@@ -1231,6 +1263,9 @@ pub fn run_native(
                         if panels::toggle_button(ctx, edit_mode_snapshot) {
                             *toggle_requested_ref = true;
                         }
+                        // Positions here are already in points: pointer
+                        // events map to them one to one.
+                        crate::ui::speech::paint(ctx, &bubbles, 1.0);
                         if crate::ui::onboarding::coach_marks(
                             ctx,
                             onboarding_mut,
@@ -1254,6 +1289,7 @@ pub fn run_native(
                                 false,
                                 snap_mut,
                                 active_scene_mut,
+                                reminders_mut,
                                 // A layer surface belongs to one output, so no single
                                 // surface can span the desktop here.
                                 false,

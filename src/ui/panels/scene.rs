@@ -10,7 +10,7 @@ use crate::i18n::t;
 use crate::input::selection::SelectionState;
 use crate::monitor::{MonitorInfo, MonitorMode};
 use crate::scene::Scene;
-use crate::ui::accessible::AccessibleName;
+use crate::ui::accessible::{AccessibleName, ComboOption};
 use crate::ui::collapse::CollapseState;
 use crate::ui::icons;
 use crate::ui::states;
@@ -30,6 +30,7 @@ pub(super) fn scene_tab(
     window_awareness_supported: bool,
     snap_while_dragging: &mut bool,
     active_scene: &mut Option<String>,
+    reminders: &mut Vec<crate::reminders::ReminderConfig>,
     // Kept separate from window-awareness even though both are false on
     // the same backend today: they are different capabilities, and a
     // future backend could have one without the other.
@@ -128,6 +129,8 @@ pub(super) fn scene_tab(
     // Saved scenes, even with none on screen: one may be loaded.
     ui.add_space(SPACE_L);
     scenes_section(ui, scene, selection, config_dirty, active_scene);
+    ui.add_space(SPACE_L);
+    reminders_section(ui, scene, reminders, config_dirty);
     if !is_empty {
         ui.add_space(SPACE_L);
         ui.separator();
@@ -155,6 +158,193 @@ struct Renaming {
 enum GroupAction {
     Select(String),
     Dissolve(String),
+}
+
+/// The reminder being written below the list, kept between frames.
+#[derive(Clone)]
+struct ReminderDraft {
+    text: String,
+    minutes: u32,
+    character: Option<String>,
+}
+
+impl Default for ReminderDraft {
+    fn default() -> Self {
+        Self {
+            text: String::new(),
+            minutes: 60,
+            character: None,
+        }
+    }
+}
+
+/// Reminders (1.5, `crate::reminders`): each one's text switches it on and
+/// off, with how often and who says it beside, and a delete. Below, a new
+/// one: what to say, every how many minutes, and who — any character by
+/// default. With none yet, three ready to add.
+fn reminders_section(
+    ui: &mut egui::Ui,
+    scene: &Scene,
+    reminders: &mut Vec<crate::reminders::ReminderConfig>,
+    config_dirty: &mut bool,
+) {
+    use crate::reminders::{ReminderConfig, MAX_MINUTES, MIN_MINUTES};
+    ui.label(
+        egui::RichText::new(format!(
+            "{}  {}",
+            icons::REMINDER,
+            t("scene-reminders-header")
+        ))
+        .text_style(h2()),
+    );
+    ui.add_space(SPACE_S);
+    let weak = ui.visuals().weak_text_color();
+    let every = |minutes: u32| {
+        let mut args = fluent::FluentArgs::new();
+        args.set("minutes", minutes);
+        crate::i18n::t_args("scene-reminder-every", &args)
+    };
+    let who = |id: &Option<String>| match id {
+        Some(id) => scene
+            .entities
+            .iter()
+            .find(|e| &e.id == id)
+            .map(|e| e.name.clone())
+            .unwrap_or_else(|| t("scene-reminder-anyone")),
+        None => t("scene-reminder-anyone"),
+    };
+
+    if reminders.is_empty() {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(t("scene-reminders-hint"))
+                    .text_style(theme::caption())
+                    .color(weak),
+            )
+            .wrap(),
+        );
+        ui.add_space(SPACE_S);
+        // Ready-made, one click each.
+        for (key, minutes) in [
+            ("reminder-break", 50),
+            ("reminder-water", 60),
+            ("reminder-stretch", 30),
+        ] {
+            let text = t(key);
+            if ui
+                .button(format!("{}  {} · {}", icons::PLUS, text, every(minutes)))
+                .clicked()
+            {
+                reminders.push(ReminderConfig {
+                    text,
+                    every_minutes: minutes,
+                    character: None,
+                    enabled: true,
+                });
+                *config_dirty = true;
+            }
+        }
+    }
+
+    let delete_label = t("scene-reminder-delete");
+    let mut remove: Option<usize> = None;
+    for (i, r) in reminders.iter_mut().enumerate() {
+        ui.horizontal(|ui| {
+            if ui.checkbox(&mut r.enabled, &r.text).changed() {
+                *config_dirty = true;
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .small_button(icons::TRASH)
+                    .named(format!("{delete_label}: {}", r.text))
+                    .on_hover_text(&delete_label)
+                    .clicked()
+                {
+                    remove = Some(i);
+                }
+            });
+        });
+        // How often and who, on a line of its own: beside the text it ran
+        // into a longer reminder. Tucked up under the text it belongs to.
+        ui.add_space(-ui.spacing().item_spacing.y / 2.0);
+        ui.horizontal(|ui| {
+            ui.add_space(ui.spacing().icon_width + ui.spacing().icon_spacing);
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} · {}",
+                    every(r.every_minutes),
+                    who(&r.character)
+                ))
+                .text_style(theme::caption())
+                .color(weak),
+            );
+        });
+    }
+    if let Some(i) = remove {
+        reminders.remove(i);
+        *config_dirty = true;
+    }
+
+    // A new one.
+    ui.add_space(SPACE_S);
+    let draft_key = egui::Id::new("anima.reminder-draft");
+    let mut draft: ReminderDraft = ui.data(|d| d.get_temp(draft_key)).unwrap_or_default();
+    let field = ui.add(
+        egui::TextEdit::singleline(&mut draft.text)
+            .hint_text(t("scene-reminder-text-hint"))
+            .desired_width(f32::INFINITY),
+    );
+    crate::ui::accessible::name_text_field(&field, &t("scene-reminder-text-hint"));
+    let mut add = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+    ui.horizontal(|ui| {
+        let label = ui.label(t("scene-reminder-minutes"));
+        ui.add(
+            egui::DragValue::new(&mut draft.minutes)
+                .range(MIN_MINUTES..=MAX_MINUTES)
+                .speed(1.0),
+        )
+        .labelled_by(label.id);
+        let chosen = who(&draft.character);
+        let combo = egui::ComboBox::from_id_salt("anima.reminder-character")
+            .selected_text(chosen.clone())
+            .show_ui(ui, |ui| {
+                if ui
+                    .selectable_label(draft.character.is_none(), t("scene-reminder-anyone"))
+                    .picked()
+                {
+                    draft.character = None;
+                }
+                for e in &scene.entities {
+                    if ui
+                        .selectable_label(
+                            draft.character.as_deref() == Some(e.id.as_str()),
+                            &e.name,
+                        )
+                        .picked()
+                    {
+                        draft.character = Some(e.id.clone());
+                    }
+                }
+            });
+        crate::ui::accessible::name_combo(&combo.response, &t("scene-reminder-who"), &chosen);
+    });
+    add |= ui
+        .add_enabled(
+            !draft.text.trim().is_empty(),
+            egui::Button::new(format!("{}  {}", icons::PLUS, t("scene-reminder-add"))),
+        )
+        .clicked();
+    if add && !draft.text.trim().is_empty() {
+        reminders.push(ReminderConfig {
+            text: draft.text.trim().to_string(),
+            every_minutes: draft.minutes.clamp(MIN_MINUTES, MAX_MINUTES),
+            character: draft.character.clone(),
+            enabled: true,
+        });
+        *config_dirty = true;
+        draft = ReminderDraft::default();
+    }
+    ui.data_mut(|d| d.insert_temp(draft_key, draft));
 }
 
 enum SceneAction {

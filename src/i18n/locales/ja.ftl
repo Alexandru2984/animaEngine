@@ -263,6 +263,19 @@ toast-scene-loaded = シーン: { $name }
 toast-scene-failed = シーンを読み込めませんでした: { $error }
 toast-no-scenes = 保存したシーンはまだありません。シーンタブで保存してください。
 palette-load-scene = シーンに切り替え: { $name }
+# Reminders (1.5): machine-translated, pending native review.
+scene-reminders-header = リマインダー
+scene-reminders-hint = キャラクターが時々吹き出しで知らせます。コンピューターから離れていた時間は休憩として数え、最初からやり直します。
+scene-reminder-every = { $minutes } 分ごと
+scene-reminder-anyone = どのキャラクターでも
+scene-reminder-delete = リマインダーを削除
+scene-reminder-text-hint = 言うこと
+scene-reminder-minutes = 間隔 (分)
+scene-reminder-who = 言うキャラクター
+scene-reminder-add = リマインダーを追加
+reminder-break = 少し休憩しましょう!
+reminder-water = 水を一杯飲みましょう。
+reminder-stretch = 立ち上がってストレッチしましょう。
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = グローバルホットキーを登録できませんでした（ネイティブ Wayland セッションでは一般的）。トレイメニューと ⚙ ボタンは引き続き使えます。

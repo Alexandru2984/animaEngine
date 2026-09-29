@@ -135,6 +135,8 @@ pub struct App {
     /// Whether this session has an idle time to read; `None` until the
     /// watch has looked.
     idle_source: Option<bool>,
+    /// When each reminder is next due (`crate::reminders`).
+    reminder_timers: crate::reminders::Timers,
     /// Session-lifetime warnings rendered as a banner at the top of
     /// the settings panel (D.5). Distinct from toasts: these persist
     /// until the underlying condition clears or the user dismisses
@@ -301,6 +303,7 @@ impl App {
             away: false,
             on_battery: false,
             idle_source: None,
+            reminder_timers: crate::reminders::Timers::default(),
             warnings: std::collections::BTreeSet::new(),
             perf_sampler: crate::perf::PerfSampler::default(),
             perf_overlay_visible: false,

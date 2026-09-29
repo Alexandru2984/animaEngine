@@ -270,6 +270,19 @@ toast-scene-loaded = Scene: { $name }
 toast-scene-failed = Scene not loaded: { $error }
 toast-no-scenes = No saved scenes yet — save one in the Scene tab.
 palette-load-scene = Switch to scene: { $name }
+# Reminders (1.5)
+scene-reminders-header = Reminders
+scene-reminders-hint = A character says it every so often, in a bubble. Time away from the computer counts as a break and starts it over.
+scene-reminder-every = every { $minutes } min
+scene-reminder-anyone = any character
+scene-reminder-delete = Delete reminder
+scene-reminder-text-hint = What to say
+scene-reminder-minutes = Every (minutes)
+scene-reminder-who = Who says it
+scene-reminder-add = Add reminder
+reminder-break = Time for a short break!
+reminder-water = Have a glass of water.
+reminder-stretch = Stand up and stretch.
 
 # ── Persistent warning banners (D.5) ──────────────────────────────────
 warning-global-hotkeys-unavailable = Global hotkeys couldn't register (typical on a native Wayland session). The tray menu and the ⚙ button still work.

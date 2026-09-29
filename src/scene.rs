@@ -289,6 +289,13 @@ impl Scene {
         if let Some(a) = audio.as_deref_mut() {
             a.begin_tick();
         }
+        // Bubbles end on the clock, paused or not: a reminder speaks to a
+        // still scene too (`crate::speech`).
+        for entity in &mut self.entities {
+            if entity.speech.as_ref().is_some_and(|s| !s.showing(now)) {
+                entity.speech = None;
+            }
+        }
 
         if !self.is_running() {
             return;
@@ -768,6 +775,7 @@ mod tests {
             characters: vec![],
             windows: vec![],
             groups: vec![],
+            reminders: vec![],
             keybindings: crate::keybindings::KeyBindings::default(),
             collapse_state: crate::ui::CollapseState::default(),
             schema_version: crate::config::CURRENT_SCHEMA_VERSION,

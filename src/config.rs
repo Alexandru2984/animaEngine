@@ -380,6 +380,9 @@ pub struct AppConfig {
     /// applied at render / visibility-resolve time.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub groups: Vec<crate::group::GroupConfig>,
+    /// What characters say every so often (`crate::reminders`, 1.5).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reminders: Vec<crate::reminders::ReminderConfig>,
     /// Rebindable keyboard shortcuts (D.1). Defaults match the 0.3
     /// hard-coded set, so existing configs decode without losing any
     /// binding and pre-D configs without a `[keybindings]` section
@@ -559,6 +562,7 @@ impl Default for AppConfig {
             // in C.3, render-side dispatch coming in 0.4).
             windows: vec![],
             groups: vec![],
+            reminders: vec![],
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
             schema_version: CURRENT_SCHEMA_VERSION,
@@ -1055,6 +1059,7 @@ mod windows_tests {
             characters: vec![empty_char("ghost")],
             windows: vec![],
             groups: vec![],
+            reminders: vec![],
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
             schema_version: CURRENT_SCHEMA_VERSION,
@@ -1074,6 +1079,7 @@ mod windows_tests {
             global: GlobalConfig::default(),
             characters: vec![empty_char("ghost")],
             groups: vec![],
+            reminders: vec![],
             windows: vec![
                 WindowConfig {
                     id: "main".into(),
@@ -1111,6 +1117,7 @@ mod windows_tests {
             characters: vec![],
             windows: vec![],
             groups: vec![],
+            reminders: vec![],
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
             schema_version: CURRENT_SCHEMA_VERSION,

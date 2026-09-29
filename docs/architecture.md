@@ -319,6 +319,19 @@ winit path from a thread reading EWMH (`FullscreenWatch`, sending
 user's hide (`overlay_hidden`) and playback switch
 (`Scene::set_suspended`), so coming back needs no bookkeeping.
 
+### Speech bubbles and reminders (`src/speech.rs`, `src/reminders.rs`)
+
+An entity's `speech` is runtime-only: text (capped) and an expiry,
+cleared by `Scene::tick` on the clock whether or not the scene runs.
+Scripts set it through `say`, recorded like `play` and applied after the
+run. Bubbles are gathered before the UI pass (`speech::shown`, the scene
+being lent to the panels) and painted by egui on its background layer
+(`ui::speech`), under the panel and click-through; egui runs on the
+primary surface only, so that is where they show. Reminders are timers
+keyed by the reminder itself, so editing the list leaves the others'
+alone; the loops call `reminders::deliver` each frame — on Wayland before
+the frame gate — and it restarts every timer while the user is away.
+
 ### Starting at login (`src/autostart.rs`)
 
 Installed natively the switch *is* the XDG autostart entry: reading it
