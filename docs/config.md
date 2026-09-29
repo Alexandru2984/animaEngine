@@ -128,8 +128,9 @@ character = "cat"           # optional: who says it, by id; the
 enabled = true
 ```
 
-Time away from the computer (see `pause_when_idle_minutes`) starts every
-reminder over; one that comes due while the overlay is hidden waits.
+Time away from the computer starts every reminder over: as long without
+input as `pause_when_idle_minutes` says, or five minutes when pausing is
+off. One that comes due while the overlay is hidden waits.
 
 ### Named scenes
 

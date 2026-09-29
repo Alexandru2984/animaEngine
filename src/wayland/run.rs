@@ -421,8 +421,13 @@ pub fn run_native(
         // Held still while nobody is there, too (`crate::away`): idle from
         // the compositor, the battery from the away watch.
         let global = &config.global;
-        layer.set_idle_timeout(global.pause_when_idle_minutes);
-        crate::away::configure(global.pause_when_idle_minutes, global.pause_on_battery);
+        // Watched for reminders even with pausing off.
+        let idle_watch = crate::away::idle_watch_minutes(
+            global.pause_when_idle_minutes,
+            !config.reminders.is_empty(),
+        );
+        layer.set_idle_timeout(idle_watch);
+        crate::away::configure(idle_watch, global.pause_on_battery);
         let away = crate::away::holds_still(
             global.pause_when_idle_minutes,
             layer.is_idle(),
@@ -463,7 +468,7 @@ pub fn run_native(
             &config.reminders,
             &mut scene,
             !(overlay_hidden || wanted.hidden),
-            config.global.pause_when_idle_minutes > 0 && layer.is_idle(),
+            layer.is_idle(),
             |e| {
                 primary_name
                     .as_ref()

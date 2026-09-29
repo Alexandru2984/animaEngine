@@ -248,7 +248,8 @@ impl App {
             &self.config.reminders,
             &mut self.scene,
             !self.overlay_hidden && !self.stepped_aside.hidden,
-            self.away && self.config.global.pause_when_idle_minutes > 0,
+            // Watched for reminders even with pausing off.
+            self.away,
             |e| {
                 primary_monitor_name
                     .as_ref()

@@ -581,7 +581,13 @@ impl App {
         );
         // Away or on battery, if asked: held still too (`crate::away`).
         let global = &self.config.global;
-        crate::away::configure(global.pause_when_idle_minutes, global.pause_on_battery);
+        crate::away::configure(
+            crate::away::idle_watch_minutes(
+                global.pause_when_idle_minutes,
+                !self.config.reminders.is_empty(),
+            ),
+            global.pause_on_battery,
+        );
         let away = crate::away::holds_still(
             global.pause_when_idle_minutes,
             self.away,

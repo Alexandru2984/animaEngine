@@ -345,6 +345,9 @@ primary surface only, so that is where they show. Reminders are timers
 keyed by the reminder itself, so editing the list leaves the others'
 alone; the loops call `reminders::deliver` each frame — on Wayland before
 the frame gate — and it restarts every timer while the user is away.
+Idle is watched for them even with pausing off
+(`away::idle_watch_minutes`: the pause's time, or five minutes); only the
+pause setting decides whether the scene holds still.
 
 ### Starting at login (`src/autostart.rs`)
 

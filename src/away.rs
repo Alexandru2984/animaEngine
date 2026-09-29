@@ -40,6 +40,23 @@ pub fn configure(idle_minutes: u32, pause_on_battery: bool) {
     WATCH_BATTERY.store(pause_on_battery, Ordering::Relaxed);
 }
 
+/// Idle this long counts as away for reminders (`crate::reminders`) when
+/// pausing is off: the time a break takes to count as one.
+pub const REMINDER_AWAY_MINUTES: u32 = 5;
+
+/// How long without input counts as away, in minutes; 0 not watched.
+/// Pausing sets it; with pausing off, reminders still need to know — time
+/// away is the break that starts them over — so they get their own.
+pub fn idle_watch_minutes(pause_minutes: u32, has_reminders: bool) -> u32 {
+    if pause_minutes > 0 {
+        pause_minutes
+    } else if has_reminders {
+        REMINDER_AWAY_MINUTES
+    } else {
+        0
+    }
+}
+
 /// Whether the scene holds still for someone being away.
 pub fn holds_still(
     idle_minutes: u32,
@@ -250,6 +267,15 @@ mod tests {
         );
         assert!(holds_still(0, false, true, true));
         assert!(!holds_still(10, false, true, false));
+    }
+
+    #[test]
+    fn reminders_are_told_about_time_away_even_with_pausing_off() {
+        assert_eq!(idle_watch_minutes(10, true), 10, "pausing sets it");
+        assert_eq!(idle_watch_minutes(0, true), REMINDER_AWAY_MINUTES);
+        assert_eq!(idle_watch_minutes(0, false), 0, "nobody needs it");
+        // Watched for reminders, it still holds nothing still.
+        assert!(!holds_still(0, true, false, false));
     }
 
     #[test]
