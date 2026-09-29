@@ -50,6 +50,8 @@ pub struct Scene {
     suspended: bool,
     /// Characters bump into each other (`crate::bump`).
     bump: bool,
+    /// Asleep while nobody is there (`crate::doze`); `None` awake.
+    pub(crate) doze: Option<crate::doze::Doze>,
 }
 
 impl Scene {
@@ -129,6 +131,7 @@ impl Scene {
             hover_startle: false,
             suspended: false,
             bump: false,
+            doze: None,
         }
     }
 
@@ -228,9 +231,10 @@ impl Scene {
         self.suspended = suspended;
     }
 
-    /// Whether the scene moves: playback on and not held still.
+    /// Whether the scene moves: playback on, not held still, and not
+    /// asleep — dozing off, it still moves until everyone has landed.
     pub fn is_running(&self) -> bool {
-        self.global_playing && !self.suspended
+        self.global_playing && !self.suspended && !self.doze.as_ref().is_some_and(|d| d.settled)
     }
 
     /// Update the reduced-motion preference (cheap, called per frame).
@@ -299,14 +303,25 @@ impl Scene {
             a.begin_tick();
         }
         // Bubbles end on the clock, paused or not: a reminder speaks to a
-        // still scene too (`crate::speech`).
+        // still scene too (`crate::speech`). Asleep, a Zzz… takes the
+        // place of one that ends.
         for entity in &mut self.entities {
             if entity.speech.as_ref().is_some_and(|s| !s.showing(now)) {
                 entity.speech = None;
             }
+            if self.doze.is_some() && entity.speech.is_none() {
+                entity.speech = Some(crate::doze::zzz(now));
+            }
         }
 
         if !self.is_running() {
+            return;
+        }
+        // Dozing off: no walking, no scripts — only falling, until
+        // everyone has landed (`crate::doze`).
+        if self.doze.is_some() {
+            let floors = self.floors();
+            self.settle(dt, bounds, &floors, now);
             return;
         }
 
@@ -316,16 +331,7 @@ impl Scene {
             h.refresh_load();
         }
 
-        // With bumping on, each character's floors are the windows' and the
-        // others' tops, taken before anyone moves this tick.
-        let floors: Vec<Vec<crate::platforms::PlatformRect>> = if self.bump {
-            let solids = crate::bump::solids(self);
-            (0..self.entities.len())
-                .map(|i| crate::bump::platforms_for(self, &solids, i, &self.window_platforms))
-                .collect()
-        } else {
-            Vec::new()
-        };
+        let floors = self.floors();
         for (i, entity) in self.entities.iter_mut().enumerate() {
             let platforms = floors.get(i).map_or(&self.window_platforms[..], |f| &f[..]);
             // Re-borrow per entity: the host is `&mut` and the loop needs
@@ -358,6 +364,45 @@ impl Scene {
             let live: std::collections::BTreeSet<&str> =
                 self.entities.iter().map(|e| e.id.as_str()).collect();
             h.retain_scopes(|id| live.contains(id));
+        }
+    }
+
+    /// With bumping on, each character's floors: the windows' and the
+    /// others' tops, taken before anyone moves this tick. Empty with it
+    /// off — the windows' alone apply then.
+    pub(crate) fn floors(&self) -> Vec<Vec<crate::platforms::PlatformRect>> {
+        if !self.bump {
+            return Vec::new();
+        }
+        let solids = crate::bump::solids(self);
+        (0..self.entities.len())
+            .map(|i| crate::bump::platforms_for(self, &solids, i, &self.window_platforms))
+            .collect()
+    }
+
+    /// One step of dozing off (`crate::doze`): whoever is in the air
+    /// falls, nobody walks or plays. Once all have landed — or after
+    /// `doze::SETTLE_LIMIT`, whatever still moves — each takes its idle
+    /// pose and the scene is asleep.
+    fn settle(
+        &mut self,
+        dt: f32,
+        bounds: crate::monitor::DesktopBounds,
+        floors: &[Vec<crate::platforms::PlatformRect>],
+        now: Instant,
+    ) {
+        let mut landed = true;
+        for (i, entity) in self.entities.iter_mut().enumerate() {
+            let platforms = floors.get(i).map_or(&self.window_platforms[..], |f| &f[..]);
+            landed &= entity.fall(dt, bounds, platforms);
+        }
+        if let Some(doze) = self.doze.as_mut() {
+            if landed || now.duration_since(doze.since) >= crate::doze::SETTLE_LIMIT {
+                doze.settled = true;
+                for entity in &mut self.entities {
+                    entity.rest();
+                }
+            }
         }
     }
 

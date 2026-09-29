@@ -331,28 +331,7 @@ impl Entity {
 
         let dx = self.x - x_before;
 
-        // Physics — gravity / bounce on the vertical axis. When enabled
-        // this overrides whatever Y the behavior set. The floor is the
-        // screen bottom or, with window-awareness on, the top of the
-        // highest desktop window under the entity's feet. Tolerance
-        // differs by state: grounded entities track their platform
-        // (ride a slowly moved window), airborne ones only land on
-        // tops at/below the feet — no mid-fall upward snapping.
-        let tolerance = if self.physics.grounded {
-            crate::platforms::RIDE_TOLERANCE
-        } else {
-            crate::platforms::LAND_TOLERANCE
-        };
-        let floor_feet = crate::platforms::effective_floor(
-            platforms,
-            self.x + sprite_w / 2.0,
-            self.y + sprite_h,
-            bounds.max_y,
-            tolerance,
-        );
-        let floor = floor_feet - sprite_h;
-        self.physics.release_if_floor_dropped(self.y, floor);
-        self.y = self.physics.tick(self.y, floor, dt);
+        self.apply_gravity(dt, bounds, platforms, sprite_w, sprite_h);
 
         // Facing follows horizontal motion; standing still keeps the
         // last direction (U.2).
@@ -377,6 +356,59 @@ impl Entity {
             return true;
         }
         false
+    }
+
+    /// Physics — gravity / bounce on the vertical axis. When enabled
+    /// this overrides whatever Y the behavior set. The floor is the
+    /// screen bottom or, with window-awareness on, the top of the
+    /// highest desktop window under the entity's feet. Tolerance
+    /// differs by state: grounded entities track their platform
+    /// (ride a slowly moved window), airborne ones only land on
+    /// tops at/below the feet — no mid-fall upward snapping.
+    fn apply_gravity(
+        &mut self,
+        dt: f32,
+        bounds: crate::monitor::DesktopBounds,
+        platforms: &[crate::platforms::PlatformRect],
+        sprite_w: f32,
+        sprite_h: f32,
+    ) {
+        let tolerance = if self.physics.grounded {
+            crate::platforms::RIDE_TOLERANCE
+        } else {
+            crate::platforms::LAND_TOLERANCE
+        };
+        let floor_feet = crate::platforms::effective_floor(
+            platforms,
+            self.x + sprite_w / 2.0,
+            self.y + sprite_h,
+            bounds.max_y,
+            tolerance,
+        );
+        let floor = floor_feet - sprite_h;
+        self.physics.release_if_floor_dropped(self.y, floor);
+        self.y = self.physics.tick(self.y, floor, dt);
+    }
+
+    /// Gravity alone, for dozing off (`crate::doze`): no behavior, no
+    /// animation. Returns whether the entity is at rest — on a floor, or
+    /// not falling at all.
+    pub fn fall(
+        &mut self,
+        dt: f32,
+        bounds: crate::monitor::DesktopBounds,
+        platforms: &[crate::platforms::PlatformRect],
+    ) -> bool {
+        let (w, h) = (self.scaled_width(), self.scaled_height());
+        self.apply_gravity(dt, bounds, platforms, w, h);
+        !self.physics.enabled || self.physics.grounded
+    }
+
+    /// Take the idle pose — asleep (`crate::doze`), not frozen mid-stride.
+    pub fn rest(&mut self) {
+        if self.animations.switch(StateId::Idle) {
+            self.texture_dirty = true;
+        }
     }
 
     /// Get the current frame dimensions (scaled)

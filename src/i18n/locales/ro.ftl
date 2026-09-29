@@ -247,7 +247,7 @@ fullscreen-pause = Pune-le pe pauză
 fullscreen-ignore = Lasă-le să meargă
 # Pausing when away (1.5): machine-translated, pending native review.
 appearance-away-label = Pauză când nu sunt la calculator
-appearance-away-hint = Fără mouse sau tastatură atâta timp, personajele stau pe loc; pornesc din nou la următoarea ta acțiune.
+appearance-away-hint = Fără mouse sau tastatură atâta timp, personajele se opresc, aterizează și ațipesc; următoarea ta acțiune le trezește.
 away-never = Niciodată
 away-after-minutes = După { $minutes } min
 appearance-away-unavailable = Sesiunea asta nu poate ști când nu ești la calculator: e nevoie de GNOME, un server X adevărat sau un compositor Wayland cu notificări de inactivitate.

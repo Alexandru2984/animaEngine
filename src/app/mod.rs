@@ -602,13 +602,17 @@ impl App {
             ),
             global.pause_on_battery,
         );
-        let away = crate::away::holds_still(
+        let still = crate::away::stillness(
             global.pause_when_idle_minutes,
             self.away,
             global.pause_on_battery,
             self.on_battery,
         );
-        self.scene.set_suspended(wanted.paused || away);
+        // Asleep, then held still: the Zzz… and the landing want frames.
+        if self.scene.set_dozing(still.doze) {
+            self.request_redraw_all();
+        }
+        self.scene.set_suspended(wanted.paused || still.freeze);
         if wanted != self.stepped_aside {
             self.stepped_aside = wanted;
             tracing::info!(

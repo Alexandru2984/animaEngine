@@ -431,18 +431,28 @@ pub fn run_native(
         );
         layer.set_idle_timeout(idle_watch);
         crate::away::configure(idle_watch, global.pause_on_battery);
-        let away = crate::away::holds_still(
+        let still = crate::away::stillness(
             global.pause_when_idle_minutes,
             layer.is_idle(),
             global.pause_on_battery,
             on_battery,
         );
-        if away != held_for_away {
-            held_for_away = away;
+        if still.any() != held_for_away {
+            held_for_away = still.any();
             activity = true;
-            tracing::info!("Away: scene {}", if away { "held still" } else { "back" });
+            tracing::info!(
+                "Away: scene {}",
+                if still.doze {
+                    "dozing off"
+                } else if still.freeze {
+                    "held still"
+                } else {
+                    "back"
+                }
+            );
         }
-        scene.set_suspended(wanted.paused || away);
+        activity |= scene.set_dozing(still.doze);
+        scene.set_suspended(wanted.paused || still.freeze);
         // Scenes by time of day (`crate::schedule`), as on the winit path:
         // not in edit mode, the undo step opened here, gestures let go.
         if !layer.state.edit_mode {

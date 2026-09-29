@@ -15,6 +15,7 @@ pub mod config_watch;
 pub mod constants;
 pub mod crash;
 pub mod demo;
+pub mod doze;
 pub mod drop_validate;
 pub mod entity;
 pub mod error;

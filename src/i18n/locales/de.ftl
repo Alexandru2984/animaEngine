@@ -247,7 +247,7 @@ fullscreen-pause = Anhalten
 fullscreen-ignore = Weiterlaufen lassen
 # Pausing when away (1.5): machine-translated, pending native review.
 appearance-away-label = Anhalten, wenn ich weg bin
-appearance-away-hint = Ohne Maus- oder Tastatureingabe für diese Zeit halten die Figuren still; bei der nächsten Eingabe machen sie weiter.
+appearance-away-hint = Ohne Maus- oder Tastatureingabe für diese Zeit halten die Figuren an, landen und dösen ein; die nächste Eingabe weckt sie.
 away-never = Nie
 away-after-minutes = Nach { $minutes } Min.
 appearance-away-unavailable = Diese Sitzung kann nicht erkennen, wann Sie weg sind: Dazu braucht es GNOME, einen echten X-Server oder einen Wayland-Compositor mit Leerlaufbenachrichtigungen.

@@ -252,9 +252,9 @@ appearance-fullscreen-hint = Games, videos and presentations that fill the scree
 fullscreen-hide = Hide the characters
 fullscreen-pause = Pause them
 fullscreen-ignore = Keep them going
-# Pausing when away (1.5)
+# Pausing when away (1.5): dozing off
 appearance-away-label = Pause when I’m away
-appearance-away-hint = With no mouse or keyboard input for this long, the characters hold still; they carry on at your next input.
+appearance-away-hint = With no mouse or keyboard input for this long, the characters stop, land and doze off; your next input wakes them.
 away-never = Never
 away-after-minutes = After { $minutes } min
 appearance-away-unavailable = This session cannot tell when you are away: that takes GNOME, a real X server, or a Wayland compositor with idle notifications.

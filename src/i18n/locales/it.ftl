@@ -247,7 +247,7 @@ fullscreen-pause = Mettili in pausa
 fullscreen-ignore = Lasciali andare avanti
 # Pausing when away (1.5): machine-translated, pending native review.
 appearance-away-label = Pausa quando sono via
-appearance-away-hint = Senza mouse né tastiera per questo tempo, i personaggi restano fermi; riprendono al tuo prossimo input.
+appearance-away-hint = Senza mouse né tastiera per questo tempo, i personaggi si fermano, atterrano e si appisolano; il tuo prossimo input li sveglia.
 away-never = Mai
 away-after-minutes = Dopo { $minutes } min
 appearance-away-unavailable = Questa sessione non può sapere quando sei via: serve GNOME, un vero server X o un compositor Wayland con notifiche di inattività.

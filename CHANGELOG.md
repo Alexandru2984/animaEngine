@@ -74,10 +74,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   until the next one; a start catches up on the latest rule already
   passed today, and edit mode is never switched under you — the rule
   waits until you leave it.
-- **The characters hold still while you are away.** After ten minutes
-  with no mouse or keyboard input, by default, the scene pauses, and it
-  carries on at your next input; Appearance offers 1, 5, 10 or 30
-  minutes, or never, and pausing on battery as well. The idle time comes
+- **The characters doze off while you are away.** After ten minutes
+  with no mouse or keyboard input, by default, they stop walking, anyone
+  in the air lands, and each settles into its idle pose with a "Zzz…"
+  — then the scene holds still, as cheap as a pause. Your next input
+  wakes them. Appearance offers 1, 5, 10 or 30 minutes, or never, and
+  pausing on battery as well (a plain pause: you are there). The idle time comes
   from GNOME (on X11 or Wayland), a real X server, or a Wayland
   compositor with idle notifications (sway, Hyprland, KDE); elsewhere
   the setting says it is unavailable. The Flatpak asks for the two

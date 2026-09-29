@@ -394,11 +394,18 @@ look in edit mode, so a crossing then is found when it ends; the switch
 (`outcomes::apply_scheduled`) skips the scene already active, opens the
 undo step and lets go of any gesture, as `NextScene` does.
 
-### Away and on battery (`src/away.rs`)
+### Away and on battery (`src/away.rs`, `src/doze.rs`)
 
-The scene also holds still (`Scene::set_suspended`, alongside stepping
-aside) after `pause_when_idle_minutes` without input, and on battery if
-asked. Native Wayland is told by the compositor (`ext-idle-notify-v1`,
+The scene also holds still after `pause_when_idle_minutes` without
+input, and on battery if asked (`away::stillness`). Away, it dozes off
+(`Scene::set_dozing`): every character gets a Zzz… (`doze::zzz`, put
+back by `Scene::tick` when another bubble ends, taken away on waking),
+and `tick` runs gravity alone (`Entity::fall`) — no behaviors, scripts
+or animation — until everyone has landed or `doze::SETTLE_LIMIT` has
+passed; then each takes its idle pose (`Entity::rest`) and
+`is_running` turns false, which stops the frames as a pause does. On
+battery with someone there it is a plain `Scene::set_suspended`,
+alongside stepping aside. Native Wayland is told by the compositor (`ext-idle-notify-v1`,
 `layer_window::idle`, the notification remade when the time changes).
 Elsewhere a thread polls once a second: the MIT-SCREEN-SAVER extension
 on a real X server, or Mutter's IdleMonitor under a Wayland session —

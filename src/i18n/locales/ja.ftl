@@ -247,7 +247,7 @@ fullscreen-pause = 一時停止する
 fullscreen-ignore = そのまま続ける
 # Pausing when away (1.5): machine-translated, pending native review.
 appearance-away-label = 離席中は一時停止
-appearance-away-hint = この時間マウスやキーボードの入力がないと、キャラクターは止まります。次の入力で動き出します。
+appearance-away-hint = この時間マウスやキーボードの入力がないと、キャラクターは止まって着地し、うたた寝します。次の入力で目を覚まします。
 away-never = しない
 away-after-minutes = { $minutes } 分後
 appearance-away-unavailable = このセッションでは離席を検知できません。GNOME、実際の X サーバー、またはアイドル通知に対応した Wayland コンポジターが必要です。

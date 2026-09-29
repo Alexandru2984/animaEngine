@@ -57,14 +57,36 @@ pub fn idle_watch_minutes(pause_minutes: u32, has_reminders: bool) -> u32 {
     }
 }
 
-/// Whether the scene holds still for someone being away.
-pub fn holds_still(
+/// How the scene holds still for someone being away, or on battery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Stillness {
+    /// Away: the characters doze off (`crate::doze`).
+    pub doze: bool,
+    /// On battery with someone there: the scene just stops.
+    pub freeze: bool,
+}
+
+impl Stillness {
+    /// Whether the scene holds still at all, one way or the other.
+    pub fn any(self) -> bool {
+        self.doze || self.freeze
+    }
+}
+
+/// How the scene holds still, if it does: away past the idle time the
+/// user picked, the characters doze off; on battery, if asked, it stops.
+/// Away on battery, they doze.
+pub fn stillness(
     idle_minutes: u32,
     away: bool,
     pause_on_battery: bool,
     on_battery: bool,
-) -> bool {
-    (idle_minutes > 0 && away) || (pause_on_battery && on_battery)
+) -> Stillness {
+    let doze = idle_minutes > 0 && away;
+    Stillness {
+        doze,
+        freeze: pause_on_battery && on_battery && !doze,
+    }
 }
 
 /// How often the thread looks.
@@ -259,14 +281,32 @@ mod tests {
 
     #[test]
     fn away_holds_still_only_when_asked_to() {
-        assert!(!holds_still(0, true, false, false), "never: not even away");
-        assert!(holds_still(10, true, false, false));
         assert!(
-            !holds_still(10, false, false, true),
+            !stillness(0, true, false, false).any(),
+            "never: not even away"
+        );
+        assert!(stillness(10, true, false, false).doze);
+        assert!(
+            !stillness(10, false, false, true).any(),
             "on battery, not asked"
         );
-        assert!(holds_still(0, false, true, true));
-        assert!(!holds_still(10, false, true, false));
+        assert_eq!(
+            stillness(0, false, true, true),
+            Stillness {
+                doze: false,
+                freeze: true
+            },
+            "on battery with someone there: no Zzz"
+        );
+        assert!(!stillness(10, false, true, false).any());
+        assert_eq!(
+            stillness(10, true, true, true),
+            Stillness {
+                doze: true,
+                freeze: false
+            },
+            "away on battery: asleep"
+        );
     }
 
     #[test]
@@ -275,7 +315,7 @@ mod tests {
         assert_eq!(idle_watch_minutes(0, true), REMINDER_AWAY_MINUTES);
         assert_eq!(idle_watch_minutes(0, false), 0, "nobody needs it");
         // Watched for reminders, it still holds nothing still.
-        assert!(!holds_still(0, true, false, false));
+        assert!(!stillness(0, true, false, false).any());
     }
 
     #[test]
