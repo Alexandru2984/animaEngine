@@ -37,6 +37,9 @@ pub enum AnimaEvent {
     OnBattery(bool),
     /// Whether this session has an idle time to read, once it is known.
     IdleSource(bool),
+    /// Switch to the next saved scene, by name (`crate::scenes`): the
+    /// tray's "Next scene" and D-Bus `NextScene`.
+    NextScene,
 }
 
 /// Where a background thread — the tray, the D-Bus service — sends its

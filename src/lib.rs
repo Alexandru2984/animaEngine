@@ -34,6 +34,7 @@ pub mod portal;
 pub mod presets;
 pub mod renderer;
 pub mod scene;
+pub mod scenes;
 pub mod scripting;
 pub mod shimeji;
 pub mod sysload;

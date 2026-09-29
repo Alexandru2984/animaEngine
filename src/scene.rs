@@ -630,27 +630,53 @@ impl Scene {
     /// asset differs, or that is gone, is loaded again (from the asset
     /// cache, usually), and one not in `configs` is removed.
     ///
-    /// SECURITY: same trust assumption as `reset_to_configs` — the configs
-    /// are snapshots of this scene, whose assets were validated when they
-    /// were added.
+    /// SECURITY: the configs are snapshots of this scene, whose assets were
+    /// validated when they were added — or a saved scene (`crate::scenes`),
+    /// a file of the user's own like `config.toml` and trusted as far as
+    /// it is. Either way the startup limits hold here too: at most
+    /// `MAX_ENTITIES`, and a character that would take the decoded frames
+    /// past the budget gets the fallback instead.
     pub fn restore_configs(&mut self, configs: &[CharacterConfig]) {
         let mut current: std::collections::HashMap<String, Entity> =
             self.entities.drain(..).map(|e| (e.id.clone(), e)).collect();
-        for cfg in configs {
+        let budget = max_total_decoded_bytes();
+        let mut decoded_total: usize = 0;
+        for cfg in configs.iter().take(MAX_ENTITIES) {
             let entity = match current.remove(&cfg.id) {
                 Some(mut entity) if entity.shows_asset_of(cfg) => {
                     entity.set_properties(cfg);
                     entity
                 }
-                _ => Self::load_entity(cfg).unwrap_or_else(|err| {
-                    tracing::warn!(
-                        "Entity '{}' failed to reload: {}; using fallback",
-                        cfg.id,
-                        err
-                    );
-                    Self::create_fallback_entity(cfg)
-                }),
+                _ => match Self::load_entity(cfg) {
+                    Ok(entity)
+                        if check_budget(
+                            decoded_total,
+                            entity.animations.decoded_bytes(),
+                            budget,
+                        )
+                        .is_ok() =>
+                    {
+                        entity
+                    }
+                    Ok(_) => {
+                        tracing::warn!(
+                            "Entity '{}' would exceed the {} MB decode budget; using fallback",
+                            cfg.id,
+                            budget / (1024 * 1024),
+                        );
+                        Self::create_fallback_entity(cfg)
+                    }
+                    Err(err) => {
+                        tracing::warn!(
+                            "Entity '{}' failed to reload: {}; using fallback",
+                            cfg.id,
+                            err
+                        );
+                        Self::create_fallback_entity(cfg)
+                    }
+                },
             };
+            decoded_total = decoded_total.saturating_add(entity.animations.decoded_bytes());
             self.entities.push(entity);
         }
         for id in current.keys() {

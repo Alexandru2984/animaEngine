@@ -77,6 +77,11 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub pause_on_battery: bool,
 
+    /// The saved scene last loaded or saved (`crate::scenes`), by name —
+    /// what "Next scene" goes on from, and what the Scene tab can update.
+    #[serde(default)]
+    pub active_scene: Option<String>,
+
     /// Window-awareness: desktop windows become physics platforms —
     /// mascots land on and walk along window top edges. X11 sessions
     /// only (Wayland exposes no global window geometry); silently
@@ -139,6 +144,7 @@ impl Default for GlobalConfig {
             on_fullscreen: crate::fullscreen::OnFullscreen::default(),
             pause_when_idle_minutes: default_pause_when_idle_minutes(),
             pause_on_battery: false,
+            active_scene: None,
             window_awareness: false,
             snap_while_dragging: true,
             accesskit_enabled: true,
@@ -287,7 +293,7 @@ impl CharacterConfig {
     /// on load so a hand-edited or corrupt config can't push `NaN`/`inf`
     /// (or absurd magnitudes) into the transform math, physics, or the
     /// animation clock.
-    fn sanitize(&mut self) {
+    pub(crate) fn sanitize(&mut self) {
         self.scale = finite_clamp(self.scale, 0.1, 5.0, default_scale());
         self.opacity = finite_clamp(self.opacity, 0.0, 1.0, default_opacity());
         self.fps = finite_clamp(self.fps, 0.1, 240.0, default_fps());

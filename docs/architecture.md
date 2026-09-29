@@ -319,6 +319,20 @@ winit path from a thread reading EWMH (`FullscreenWatch`, sending
 user's hide (`overlay_hidden`) and playback switch
 (`Scene::set_suspended`), so coming back needs no bookkeeping.
 
+### Named scenes (`src/scenes.rs`)
+
+A saved scene is a `SavedScene` — name, character configs, groups — in
+its own TOML file under `scenes/` beside `config.toml`, found by the
+`name` inside, not the file name (`slug` only picks a free one).
+`shelf()` lists them at most every two seconds, or right after a save or
+a delete, so the Scene tab and the palette can ask every frame. Loading
+reads under the config's limits and goes through `Scene::apply_saved` →
+`restore_configs`, the undo path, which also enforces `MAX_ENTITIES` and
+the decode budget. The Scene tab and the palette load from input, so
+undo records the switch; the tray's and D-Bus's `NextScene` is not
+input, so its handler opens the undo step itself. `active_scene` in the
+config remembers which one "Next scene" goes on from.
+
 ### Away and on battery (`src/away.rs`)
 
 The scene also holds still (`Scene::set_suspended`, alongside stepping

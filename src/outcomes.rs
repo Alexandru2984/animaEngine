@@ -295,6 +295,54 @@ fn copy_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> Option<Result<(usize, St
     }
 }
 
+/// Make the scene the one saved in `path` (`crate::scenes`) and say so;
+/// it becomes the active one. Returns whether it loaded.
+pub fn load_scene(
+    path: &std::path::Path,
+    ctx: &mut OutcomeCtx<'_>,
+    active: &mut Option<String>,
+) -> bool {
+    match crate::scenes::load(path) {
+        Ok(saved) => {
+            ctx.scene.apply_saved(&saved);
+            // Indices into the scene that was just replaced.
+            ctx.selection.deselect();
+            *ctx.config_dirty = true;
+            tracing::info!("Scene loaded: {}", saved.name);
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", saved.name.clone());
+            ctx.toasts
+                .info(crate::i18n::t_args("toast-scene-loaded", &args));
+            *active = Some(saved.name);
+            true
+        }
+        Err(e) => {
+            tracing::warn!("Scene not loaded: {e}");
+            let mut args = fluent::FluentArgs::new();
+            args.set("error", e.to_string());
+            ctx.toasts
+                .warn(crate::i18n::t_args("toast-scene-failed", &args));
+            false
+        }
+    }
+}
+
+/// The saved scene after the active one, by name, round to the first —
+/// the tray's "Next scene". Says so when there are none.
+pub fn next_scene(ctx: &mut OutcomeCtx<'_>, active: &mut Option<String>) -> bool {
+    let shelf = crate::scenes::shelf();
+    match crate::scenes::next_after(&shelf, active.as_deref()) {
+        Some(entry) => {
+            let path = entry.path.clone();
+            load_scene(&path, ctx, active)
+        }
+        None => {
+            ctx.toasts.info(crate::i18n::t("toast-no-scenes"));
+            false
+        }
+    }
+}
+
 /// Apply a command-palette outcome.
 pub fn apply_palette_outcome(
     outcome: PaletteOutcome,
@@ -314,6 +362,10 @@ pub fn apply_palette_outcome(
         // through the same code as its shortcut, "Add file…" through its
         // own chooser — so nothing reaches this arm.
         PaletteOutcome::RunAction(_) | PaletteOutcome::AddFile => return,
+        PaletteOutcome::LoadScene(path) => {
+            load_scene(&path, ctx, &mut config.global.active_scene);
+            return;
+        }
         PaletteOutcome::ApplyPreset(id, mode) => {
             let preset = Preset::for_id(id);
             let existing = ctx.scene.to_character_configs();

@@ -242,6 +242,21 @@ away-after-minutes = Nach { $minutes } Min.
 appearance-away-unavailable = Diese Sitzung kann nicht erkennen, wann Sie weg sind: Dazu braucht es GNOME, einen echten X-Server oder einen Wayland-Compositor mit Leerlaufbenachrichtigungen.
 appearance-battery-label = Im Akkubetrieb anhalten
 appearance-battery-hint = Die Figuren halten still, solange der Computer im Akkubetrieb läuft.
+# Named scenes (1.5): machine-translated, pending native review.
+scene-scenes-header = Szenen
+scene-scenes-hint = Speichern Sie, was zu sehen ist, unter einem Namen, und wechseln Sie hier, in der Befehlspalette oder mit „Next scene“ im Tray dorthin zurück.
+scene-scene-name-hint = Name der Szene
+scene-scene-save-new = Als Szene speichern
+scene-scene-load-tooltip = Zu dieser Szene wechseln – Rückgängig wechselt zurück
+scene-scene-save-over = Aktuelle Ansicht als { $name } speichern
+scene-scene-delete = Szene löschen
+scene-scene-delete-confirm = Löschen?
+scene-scene-delete-cancel = Behalten
+scene-scene-save-failed = Nicht gespeichert: { $error }
+toast-scene-loaded = Szene: { $name }
+toast-scene-failed = Szene nicht geladen: { $error }
+toast-no-scenes = Noch keine gespeicherten Szenen – speichern Sie eine im Tab „Szene“.
+palette-load-scene = Zu Szene wechseln: { $name }
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Globale Hotkeys konnten nicht registriert werden (typisch für native Wayland-Sitzungen). Tray-Menü und ⚙-Knopf funktionieren weiter.

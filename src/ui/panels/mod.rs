@@ -218,6 +218,7 @@ pub fn settings(
     window_awareness: &mut bool,
     window_awareness_supported: bool,
     snap_while_dragging: &mut bool,
+    active_scene: &mut Option<String>,
     // Whether one overlay can cover every monitor. False on native
     // Wayland, where a layer surface belongs to a single output.
     span_supported: bool,
@@ -375,6 +376,7 @@ pub fn settings(
                                 window_awareness,
                                 window_awareness_supported,
                                 snap_while_dragging,
+                                active_scene,
                                 span_supported,
                                 monitors,
                                 collapse_state,

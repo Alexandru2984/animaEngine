@@ -242,6 +242,21 @@ away-after-minutes = { $minutes } 分後
 appearance-away-unavailable = このセッションでは離席を検知できません。GNOME、実際の X サーバー、またはアイドル通知に対応した Wayland コンポジターが必要です。
 appearance-battery-label = バッテリー駆動中は一時停止
 appearance-battery-hint = コンピューターがバッテリーで動いている間、キャラクターを止めます。
+# Named scenes (1.5): machine-translated, pending native review.
+scene-scenes-header = シーン
+scene-scenes-hint = 画面の内容に名前を付けて保存し、ここやコマンドパレット、トレイの「Next scene」から戻れます。
+scene-scene-name-hint = シーン名
+scene-scene-save-new = シーンとして保存
+scene-scene-load-tooltip = このシーンに切り替え(元に戻すで戻れます)
+scene-scene-save-over = 画面の内容を { $name } として保存
+scene-scene-delete = シーンを削除
+scene-scene-delete-confirm = 削除しますか?
+scene-scene-delete-cancel = 残す
+scene-scene-save-failed = 保存できませんでした: { $error }
+toast-scene-loaded = シーン: { $name }
+toast-scene-failed = シーンを読み込めませんでした: { $error }
+toast-no-scenes = 保存したシーンはまだありません。シーンタブで保存してください。
+palette-load-scene = シーンに切り替え: { $name }
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = グローバルホットキーを登録できませんでした（ネイティブ Wayland セッションでは一般的）。トレイメニューと ⚙ ボタンは引き続き使えます。

@@ -96,9 +96,10 @@ to video frames coming out of openh264.
 
 ### D-Bus interface — `com.animaengine.Anima`
 
-Both flavours expose the same five methods on `org.animaengine.Anima`
+Both flavours expose the same six methods on `org.animaengine.Anima`
 — `Activate`, `ToggleEditMode`, `HideOverlay`, `ShowOverlay`,
-`ToggleGlobalPlayback` (`src/single_instance.rs`'s `ActivationService`
+`ToggleGlobalPlayback`, and since 1.5 `NextScene`
+(`src/single_instance.rs`'s `ActivationService`
 is shared code; only the dispatch target differs). They exist because
 Wayland has no `XGrabKey` equivalent and these are the substitute that
 compositor bindings call via `gdbus` — but the X11 / single-instance
@@ -110,9 +111,14 @@ longer holds on either build; this section documents the new surface
 and the mitigations applied.
 
 **What every method does:** flips an in-memory bool / forwards to
-the scene's playback toggle. No file IO. No process spawn. No
-clipboard read. Each call is one atomic state mutation per frame —
-nothing more.
+the scene's playback toggle. No process spawn. No clipboard read. Each
+call is one atomic state mutation per frame — nothing more. The one
+file read is `NextScene`'s: it loads the next of the user's own saved
+scenes (`~/.config/animaengine/scenes/*.toml`, see `crate::scenes`)
+under the same limits as `config.toml` — a capped read, at most 64
+characters, sanitised values, the decode budget — takes no argument, so
+a caller can name no path, and is coalesced per frame on Wayland like
+the toggles. The switch is undoable.
 
 **Threats accepted by design:**
 

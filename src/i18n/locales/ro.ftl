@@ -242,6 +242,21 @@ away-after-minutes = După { $minutes } min
 appearance-away-unavailable = Sesiunea asta nu poate ști când nu ești la calculator: e nevoie de GNOME, un server X adevărat sau un compositor Wayland cu notificări de inactivitate.
 appearance-battery-label = Pauză pe baterie
 appearance-battery-hint = Personajele stau pe loc cât timp calculatorul merge pe baterie.
+# Named scenes (1.5): machine-translated, pending native review.
+scene-scenes-header = Scene
+scene-scenes-hint = Salvează ce e pe ecran sub un nume și revino la el aici, din paleta de comenzi sau cu „Next scene” din tray.
+scene-scene-name-hint = Numele scenei
+scene-scene-save-new = Salvează ca scenă
+scene-scene-load-tooltip = Treci la scena asta — Anulează te întoarce
+scene-scene-save-over = Salvează ce e pe ecran ca { $name }
+scene-scene-delete = Șterge scena
+scene-scene-delete-confirm = Ștergi?
+scene-scene-delete-cancel = Păstreaz-o
+scene-scene-save-failed = Nesalvată: { $error }
+toast-scene-loaded = Scenă: { $name }
+toast-scene-failed = Scena nu s-a încărcat: { $error }
+toast-no-scenes = Încă nu ai scene salvate — salvează una în tabul Scenă.
+palette-load-scene = Treci la scena: { $name }
 
 # ── Avertismente persistente (D.5) ────────────────────────────────────
 warning-global-hotkeys-unavailable = Scurtăturile globale nu s-au putut înregistra (tipic pe sesiune Wayland nativă). Meniul din tray și butonul ⚙ funcționează în continuare.

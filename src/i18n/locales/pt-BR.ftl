@@ -242,6 +242,21 @@ away-after-minutes = Após { $minutes } min
 appearance-away-unavailable = Esta sessão não consegue saber quando você saiu: é preciso GNOME, um servidor X de verdade ou um compositor Wayland com avisos de inatividade.
 appearance-battery-label = Pausar na bateria
 appearance-battery-hint = Os personagens ficam parados enquanto o computador funciona na bateria.
+# Named scenes (1.5): machine-translated, pending native review.
+scene-scenes-header = Cenas
+scene-scenes-hint = Salve o que está na tela com um nome e volte a ele aqui, pela paleta de comandos ou com “Next scene” na bandeja.
+scene-scene-name-hint = Nome da cena
+scene-scene-save-new = Salvar como cena
+scene-scene-load-tooltip = Mudar para esta cena — Desfazer volta
+scene-scene-save-over = Salvar o que está na tela como { $name }
+scene-scene-delete = Excluir cena
+scene-scene-delete-confirm = Excluir?
+scene-scene-delete-cancel = Manter
+scene-scene-save-failed = Não salva: { $error }
+toast-scene-loaded = Cena: { $name }
+toast-scene-failed = Cena não carregada: { $error }
+toast-no-scenes = Nenhuma cena salva ainda — salve uma na aba Cena.
+palette-load-scene = Mudar para a cena: { $name }
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Não foi possível registrar os atalhos globais (típico em sessões Wayland nativas). O menu da bandeja e o botão ⚙ continuam funcionando.

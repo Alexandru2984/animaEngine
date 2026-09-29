@@ -58,6 +58,9 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   member and blocks their click hit-test.
 - **Themes**: Dark and Light plus high-contrast siblings for both,
   switchable instantly without restart. HC variants clear WCAG AAA.
+- **Named scenes**: save what is on screen under a name and switch
+  between your scenes from the Scene tab, the command palette or the
+  tray.
 - **Bundled presets**: six curated one-click scenes (Cozy Companion,
   Productivity Zen, Halloween Party, Birthday Confetti, Studio
   Session, Cursor Follower) — Append or Replace.

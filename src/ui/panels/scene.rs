@@ -29,6 +29,7 @@ pub(super) fn scene_tab(
     // Whether this backend can actually provide window positions.
     window_awareness_supported: bool,
     snap_while_dragging: &mut bool,
+    active_scene: &mut Option<String>,
     // Kept separate from window-awareness even though both are false on
     // the same backend today: they are different capabilities, and a
     // future backend could have one without the other.
@@ -123,6 +124,11 @@ pub(super) fn scene_tab(
         // the bottom of the panel.
         ui.add_space(SPACE_L);
         groups_section(ui, scene, selection, config_dirty);
+    }
+    // Saved scenes, even with none on screen: one may be loaded.
+    ui.add_space(SPACE_L);
+    scenes_section(ui, scene, selection, config_dirty, active_scene);
+    if !is_empty {
         ui.add_space(SPACE_L);
         ui.separator();
     }
@@ -149,6 +155,205 @@ struct Renaming {
 enum GroupAction {
     Select(String),
     Dissolve(String),
+}
+
+enum SceneAction {
+    Load(std::path::PathBuf),
+    SaveOver(String),
+    SaveNew(String),
+    Delete(std::path::PathBuf),
+}
+
+/// Saved scenes (1.5, `crate::scenes`): a click on one switches to it —
+/// Undo switches back — and beside it, save what is on screen over it,
+/// or delete it (asked twice: a file, and undo does not reach files).
+/// Below, a name and a button to save what is on screen as a new one.
+fn scenes_section(
+    ui: &mut egui::Ui,
+    scene: &mut Scene,
+    selection: &mut SelectionState,
+    config_dirty: &mut bool,
+    active: &mut Option<String>,
+) {
+    ui.label(
+        egui::RichText::new(format!("{}  {}", icons::SCENE, t("scene-scenes-header")))
+            .text_style(h2()),
+    );
+    ui.add_space(SPACE_S);
+    let weak = ui.visuals().weak_text_color();
+    let shelf = crate::scenes::shelf();
+    if shelf.is_empty() {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(t("scene-scenes-hint"))
+                    .text_style(theme::caption())
+                    .color(weak),
+            )
+            .wrap(),
+        );
+        ui.add_space(SPACE_S);
+    }
+
+    let deleting_key = egui::Id::new("anima.scene-deleting");
+    let error_key = egui::Id::new("anima.scene-error");
+    let name_key = egui::Id::new("anima.scene-new-name");
+    let mut deleting: Option<std::path::PathBuf> = ui.data(|d| d.get_temp(deleting_key));
+    let mut action: Option<SceneAction> = None;
+    for entry in &shelf {
+        ui.horizontal(|ui| {
+            let is_active = active.as_deref() == Some(entry.name.as_str());
+            if ui
+                .selectable_label(is_active, &entry.name)
+                .on_hover_text(t("scene-scene-load-tooltip"))
+                .clicked()
+            {
+                action = Some(SceneAction::Load(entry.path.clone()));
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if deleting.as_ref() == Some(&entry.path) {
+                    let error_color = ui.visuals().error_fg_color;
+                    if ui
+                        .small_button(
+                            egui::RichText::new(t("scene-scene-delete-confirm")).color(error_color),
+                        )
+                        .named(format!("{}: {}", t("scene-scene-delete"), entry.name))
+                        .clicked()
+                    {
+                        action = Some(SceneAction::Delete(entry.path.clone()));
+                    }
+                    if ui
+                        .small_button(icons::CLOSE)
+                        .on_hover_name(t("scene-scene-delete-cancel"))
+                        .clicked()
+                    {
+                        deleting = None;
+                    }
+                } else {
+                    if ui
+                        .small_button(icons::TRASH)
+                        .named(format!("{}: {}", t("scene-scene-delete"), entry.name))
+                        .on_hover_text(t("scene-scene-delete"))
+                        .clicked()
+                    {
+                        deleting = Some(entry.path.clone());
+                    }
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("name", entry.name.clone());
+                    let save_over = crate::i18n::t_args("scene-scene-save-over", &args);
+                    if ui
+                        .small_button(icons::SAVE)
+                        .on_hover_name(save_over)
+                        .clicked()
+                    {
+                        action = Some(SceneAction::SaveOver(entry.name.clone()));
+                    }
+                }
+            });
+        });
+    }
+
+    ui.add_space(SPACE_S);
+    let mut name: String = ui.data(|d| d.get_temp(name_key)).unwrap_or_default();
+    ui.horizontal(|ui| {
+        let field = ui.add(
+            egui::TextEdit::singleline(&mut name)
+                .hint_text(t("scene-scene-name-hint"))
+                .desired_width(150.0),
+        );
+        crate::ui::accessible::name_text_field(&field, &t("scene-scene-name-hint"));
+        let entered = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+        let clicked = ui
+            .add_enabled(
+                !name.trim().is_empty(),
+                egui::Button::new(format!("{}  {}", icons::SAVE, t("scene-scene-save-new"))),
+            )
+            .clicked();
+        if (entered || clicked) && !name.trim().is_empty() {
+            action = Some(SceneAction::SaveNew(name.trim().to_string()));
+        }
+    });
+    if let Some(error) = ui.data(|d| d.get_temp::<String>(error_key)) {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(error)
+                    .text_style(theme::caption())
+                    .color(ui.visuals().error_fg_color),
+            )
+            .wrap(),
+        );
+    }
+
+    // An error stays up until the next thing done here.
+    let acted = action.is_some();
+    let mut error: Option<String> = None;
+    match action {
+        Some(SceneAction::Load(path)) => match crate::scenes::load(&path) {
+            Ok(saved) => {
+                tracing::info!("Scene loaded: {}", saved.name);
+                scene.apply_saved(&saved);
+                // Indices into the scene that was just replaced.
+                selection.deselect();
+                *active = Some(saved.name);
+                *config_dirty = true;
+            }
+            Err(e) => {
+                let mut args = fluent::FluentArgs::new();
+                args.set("error", e.to_string());
+                error = Some(crate::i18n::t_args("toast-scene-failed", &args));
+            }
+        },
+        Some(SceneAction::SaveOver(target)) => {
+            error = save_scene_as(scene, target, active, config_dirty).err();
+        }
+        Some(SceneAction::SaveNew(target)) => {
+            match save_scene_as(scene, target, active, config_dirty) {
+                Ok(()) => name.clear(),
+                Err(e) => error = Some(e),
+            }
+        }
+        Some(SceneAction::Delete(path)) => {
+            deleting = None;
+            if let Err(e) = crate::scenes::delete(&path) {
+                error = Some(e.to_string());
+            }
+        }
+        None => {}
+    }
+    ui.data_mut(|d| {
+        d.insert_temp(name_key, name);
+        match &deleting {
+            Some(path) => d.insert_temp(deleting_key, path.clone()),
+            None => d.remove::<std::path::PathBuf>(deleting_key),
+        }
+        if acted {
+            match error {
+                Some(e) => d.insert_temp(error_key, e),
+                None => d.remove::<String>(error_key),
+            }
+        }
+    });
+}
+
+/// Save what is on screen as the scene `name`, which becomes the active
+/// one; the error, worded for the panel, if it could not.
+fn save_scene_as(
+    scene: &Scene,
+    name: String,
+    active: &mut Option<String>,
+    config_dirty: &mut bool,
+) -> Result<(), String> {
+    match crate::scenes::save_in(&crate::scenes::dir(), &name, scene) {
+        Ok(_) => {
+            *active = Some(name);
+            *config_dirty = true;
+            Ok(())
+        }
+        Err(e) => {
+            let mut args = fluent::FluentArgs::new();
+            args.set("error", e.to_string());
+            Err(crate::i18n::t_args("scene-scene-save-failed", &args))
+        }
+    }
 }
 
 /// Sprite groups (C.8; editable since 1.5). A group's name selects its

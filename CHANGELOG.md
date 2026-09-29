@@ -39,6 +39,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   centre to the monitors' and to other characters' within 8 px, and a
   thin line shows what it snapped to; hold Alt to place freely, or turn
   it off in the Scene tab.
+- **Named scenes.** Save what is on screen — the characters and their
+  groups — under a name ("Work", "Stream"), and switch between scenes
+  from the Scene tab, the command palette or the tray's new "Next scene"
+  (also `NextScene` over D-Bus, for a compositor binding). Undo switches
+  back. Each scene is a TOML file in `~/.config/animaengine/scenes/`,
+  loaded under the same limits as `config.toml`.
 - **The characters hold still while you are away.** After ten minutes
   with no mouse or keyboard input, by default, the scene pauses, and it
   carries on at your next input; Appearance offers 1, 5, 10 or 30

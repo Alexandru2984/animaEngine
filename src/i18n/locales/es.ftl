@@ -242,6 +242,21 @@ away-after-minutes = Tras { $minutes } min
 appearance-away-unavailable = Esta sesión no puede saber cuándo no estás: hace falta GNOME, un servidor X real o un compositor Wayland con avisos de inactividad.
 appearance-battery-label = Pausar con batería
 appearance-battery-hint = Los personajes se quedan quietos mientras el equipo funciona con batería.
+# Named scenes (1.5): machine-translated, pending native review.
+scene-scenes-header = Escenas
+scene-scenes-hint = Guarda lo que hay en pantalla con un nombre y vuelve a ello aquí, desde la paleta de comandos o con «Next scene» en la bandeja.
+scene-scene-name-hint = Nombre de la escena
+scene-scene-save-new = Guardar como escena
+scene-scene-load-tooltip = Cambiar a esta escena: Deshacer vuelve atrás
+scene-scene-save-over = Guardar lo que hay en pantalla como { $name }
+scene-scene-delete = Eliminar escena
+scene-scene-delete-confirm = ¿Eliminar?
+scene-scene-delete-cancel = Conservar
+scene-scene-save-failed = No guardada: { $error }
+toast-scene-loaded = Escena: { $name }
+toast-scene-failed = Escena no cargada: { $error }
+toast-no-scenes = Aún no hay escenas guardadas: guarda una en la pestaña Escena.
+palette-load-scene = Cambiar a la escena: { $name }
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = No se pudieron registrar los atajos globales (típico en sesiones Wayland nativas). El menú de bandeja y el botón ⚙ siguen funcionando.

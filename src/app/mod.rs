@@ -729,6 +729,18 @@ impl ApplicationHandler<AnimaEvent> for App {
                 self.update_step_aside();
             }
             AnimaEvent::IdleSource(found) => self.idle_source = Some(found),
+            AnimaEvent::NextScene => {
+                // Not input, so no undo step is open: open one, or a later
+                // undo would take the switch back with the step before it.
+                self.history
+                    .input(&self.scene, &self.selection, std::time::Instant::now());
+                if crate::outcomes::next_scene(
+                    &mut outcome_ctx!(self),
+                    &mut self.config.global.active_scene,
+                ) {
+                    self.save_config_if_needed();
+                }
+            }
             AnimaEvent::PortalShortcutsDenied => {
                 self.toasts
                     .warn(crate::i18n::t("portal-denied-x11-fallback-toast"));

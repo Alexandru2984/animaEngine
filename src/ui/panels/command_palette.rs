@@ -23,6 +23,8 @@ pub enum PaletteOutcome {
     RunAction(Action),
     /// User picked "Add file…".
     AddFile,
+    /// User picked a saved scene (`crate::scenes`).
+    LoadScene(std::path::PathBuf),
 }
 
 /// Height of the scrolling result list. With every action listed the
@@ -332,6 +334,20 @@ fn rows(query: &str, keybindings: &KeyBindings, has_selection: bool) -> Vec<Row>
                 hint: None,
                 hover: Some(preset.description),
                 outcome: PaletteOutcome::ApplyPreset(*pid, ApplyMode::Append),
+            });
+        }
+    }
+    for scene in crate::scenes::shelf() {
+        let mut args = fluent::FluentArgs::new();
+        args.set("name", scene.name.clone());
+        let label = crate::i18n::t_args("palette-load-scene", &args);
+        if matches_filter(&scene.name) || matches_filter(&label) {
+            rows.push(Row {
+                icon: icons::SCENE,
+                label,
+                hint: None,
+                hover: None,
+                outcome: PaletteOutcome::LoadScene(scene.path),
             });
         }
     }

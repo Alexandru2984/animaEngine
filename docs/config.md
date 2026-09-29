@@ -80,6 +80,9 @@ pause_when_idle_minutes = 10 # hold the characters still after this
                             # server, or a Wayland compositor with
                             # idle notifications.
 pause_on_battery = false    # hold them still on battery (UPower)
+active_scene = "Work"       # the saved scene last loaded or saved;
+                            # omit for none. Scenes themselves are
+                            # files in scenes/ beside this one (below).
 snap_while_dragging = true  # a dragged selection snaps to monitor
                             # edges and other characters; hold Alt
                             # while dragging to place freely.
@@ -105,6 +108,23 @@ Two more keys are written here by the app and are not meant for hand
 editing: `onboarding` (which first-run hints you've dismissed) and
 `last_seen_whats_new` (the last release whose "What's new" panel you
 saw). Both are safe to delete — the app reseeds them.
+
+### Named scenes
+
+Scenes saved from the Scene tab live beside this file, one each in
+`~/.config/animaengine/scenes/<name>.toml`: a `name`, then the same
+`[[characters]]` and `[[groups]]` blocks as below. Copy one to another
+machine, or write one by hand; it loads under the same limits as this
+file (64 characters, values clamped). The file name is only a label —
+the `name` inside is what the app shows.
+
+```toml
+name = "Work"
+
+[[characters]]
+id = "slime"
+# … as in [[characters]] below …
+```
 
 ## `[[characters]]`
 

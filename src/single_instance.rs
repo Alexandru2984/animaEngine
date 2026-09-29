@@ -163,6 +163,11 @@ impl ActivationService {
     async fn toggle_global_playback(&self) {
         self.post(AnimaEvent::ToggleGlobalPlayback);
     }
+
+    /// Switch to the next saved scene, by name (`crate::scenes`).
+    async fn next_scene(&self) {
+        self.post(AnimaEvent::NextScene);
+    }
 }
 
 /// Wayland-flavoured twin of `ActivationService`. The native Wayland
@@ -200,6 +205,10 @@ impl WaylandActivationService {
             AnimaEvent::ToggleGlobalPlayback,
             "ToggleGlobalPlayback",
         );
+    }
+
+    async fn next_scene(&self) {
+        Self::dispatch(&self.tx, AnimaEvent::NextScene, "NextScene");
     }
 }
 

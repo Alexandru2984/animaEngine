@@ -546,6 +546,7 @@ pub fn run_native(
             let mut toggle_playback_xor = false;
             let mut last_visibility: Option<AnimaEvent> = None;
             let mut quit = false;
+            let mut next_scene = false;
             if let Some(rx) = &command_rx {
                 while let Ok(ev) = rx.try_recv() {
                     activity = true;
@@ -565,6 +566,7 @@ pub fn run_native(
                         AnimaEvent::OnBattery(now) => on_battery = now,
                         // Idle comes from the compositor here.
                         AnimaEvent::Away(_) | AnimaEvent::IdleSource(_) => {}
+                        AnimaEvent::NextScene => next_scene = true,
                     }
                 }
             }
@@ -653,6 +655,12 @@ pub fn run_native(
                 if let Err(e) = layer.set_input_region(region) {
                     tracing::warn!("visibility change: {e}");
                 }
+            }
+            if next_scene {
+                // Not input, so no undo step is open: open one, or a later
+                // undo would take the switch back with the step before it.
+                history.input(&scene, &selection, Instant::now());
+                crate::outcomes::next_scene(&mut outcome_ctx!(), &mut config.global.active_scene);
             }
             if quit {
                 layer.state.close_requested = true;
@@ -1159,6 +1167,7 @@ pub fn run_native(
                 let monitor_mode_mut = &mut config.global.monitor_mode;
                 let window_awareness_mut = &mut config.global.window_awareness;
                 let snap_mut = &mut config.global.snap_while_dragging;
+                let active_scene_mut = &mut config.global.active_scene;
                 let reduced_motion_mut = &mut config.global.reduced_motion;
                 let hover_startle_mut = &mut config.global.hover_startle;
                 let on_fullscreen_mut = &mut config.global.on_fullscreen;
@@ -1229,6 +1238,7 @@ pub fn run_native(
                                 // Native Wayland exposes no window positions.
                                 false,
                                 snap_mut,
+                                active_scene_mut,
                                 // A layer surface belongs to one output, so no single
                                 // surface can span the desktop here.
                                 false,

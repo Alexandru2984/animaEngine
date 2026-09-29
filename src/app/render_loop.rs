@@ -331,6 +331,7 @@ impl App {
                         let monitor_mode_mut = &mut self.config.global.monitor_mode;
                         let window_awareness_mut = &mut self.config.global.window_awareness;
                         let snap_mut = &mut self.config.global.snap_while_dragging;
+                        let active_scene_mut = &mut self.config.global.active_scene;
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
                         let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
@@ -412,6 +413,7 @@ impl App {
                                     // winit backend: X11 or XWayland, both read EWMH.
                                     true,
                                     snap_mut,
+                                    active_scene_mut,
                                     // X11's root window is one screen across
                                     // every monitor, so Span really spans.
                                     true,

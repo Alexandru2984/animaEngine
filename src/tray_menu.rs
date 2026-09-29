@@ -27,6 +27,10 @@ pub const MENU: &[TrayItem] = &[
         label: "Toggle playback",
         event: AnimaEvent::ToggleGlobalPlayback,
     },
+    TrayItem::Action {
+        label: "Next scene",
+        event: AnimaEvent::NextScene,
+    },
     TrayItem::Separator,
     TrayItem::Action {
         label: "Show overlay",

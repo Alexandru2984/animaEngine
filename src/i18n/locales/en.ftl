@@ -249,6 +249,21 @@ away-after-minutes = After { $minutes } min
 appearance-away-unavailable = This session cannot tell when you are away: that takes GNOME, a real X server, or a Wayland compositor with idle notifications.
 appearance-battery-label = Pause on battery
 appearance-battery-hint = Hold the characters still while the computer runs on battery.
+# Named scenes (1.5)
+scene-scenes-header = Scenes
+scene-scenes-hint = Save what is on screen under a name, and switch back to it here, from the command palette, or with “Next scene” in the tray.
+scene-scene-name-hint = Scene name
+scene-scene-save-new = Save as a scene
+scene-scene-load-tooltip = Switch to this scene — Undo switches back
+scene-scene-save-over = Save what is on screen as { $name }
+scene-scene-delete = Delete scene
+scene-scene-delete-confirm = Delete?
+scene-scene-delete-cancel = Keep it
+scene-scene-save-failed = Not saved: { $error }
+toast-scene-loaded = Scene: { $name }
+toast-scene-failed = Scene not loaded: { $error }
+toast-no-scenes = No saved scenes yet — save one in the Scene tab.
+palette-load-scene = Switch to scene: { $name }
 
 # ── Persistent warning banners (D.5) ──────────────────────────────────
 warning-global-hotkeys-unavailable = Global hotkeys couldn't register (typical on a native Wayland session). The tray menu and the ⚙ button still work.

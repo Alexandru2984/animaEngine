@@ -242,6 +242,21 @@ away-after-minutes = Na { $minutes } min
 appearance-away-unavailable = Deze sessie kan niet zien wanneer u weg bent: daarvoor is GNOME nodig, een echte X-server of een Wayland-compositor met inactiviteitsmeldingen.
 appearance-battery-label = Pauzeren op batterij
 appearance-battery-hint = De figuren staan stil zolang de computer op de batterij draait.
+# Named scenes (1.5): machine-translated, pending native review.
+scene-scenes-header = Scènes
+scene-scenes-hint = Sla op wat op het scherm staat onder een naam, en ga er hier naar terug, via het opdrachtenpalet of met ‘Next scene’ in het systeemvak.
+scene-scene-name-hint = Naam van de scène
+scene-scene-save-new = Opslaan als scène
+scene-scene-load-tooltip = Naar deze scène wisselen — Ongedaan maken wisselt terug
+scene-scene-save-over = Wat op het scherm staat opslaan als { $name }
+scene-scene-delete = Scène verwijderen
+scene-scene-delete-confirm = Verwijderen?
+scene-scene-delete-cancel = Behouden
+scene-scene-save-failed = Niet opgeslagen: { $error }
+toast-scene-loaded = Scène: { $name }
+toast-scene-failed = Scène niet geladen: { $error }
+toast-no-scenes = Nog geen opgeslagen scènes — sla er een op in het tabblad Scène.
+palette-load-scene = Naar scène wisselen: { $name }
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
 warning-global-hotkeys-unavailable = Globale sneltoetsen konden niet worden geregistreerd (gebruikelijk in een native Wayland-sessie). Het traymenu en de ⚙-knop blijven werken.
