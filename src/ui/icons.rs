@@ -250,6 +250,9 @@ fn install_inner(ctx: &egui::Context, force_cjk: bool) {
 pub const TRASH: &str = ph::TRASH;
 pub const PLUS: &str = ph::PLUS;
 pub const COPY: &str = ph::COPY;
+pub const CLIPBOARD: &str = ph::CLIPBOARD;
+pub const CUT: &str = ph::SCISSORS;
+pub const PASTE: &str = ph::CLIPBOARD_TEXT;
 pub const RESET: &str = ph::ARROW_COUNTER_CLOCKWISE;
 pub const BRING_FORWARD: &str = ph::ARROW_FAT_UP;
 pub const SEND_BACKWARD: &str = ph::ARROW_FAT_DOWN;

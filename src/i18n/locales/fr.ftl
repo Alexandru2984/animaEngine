@@ -61,6 +61,9 @@ scene-drop-hint = Déposez un PNG / GIF / WebP sur l'overlay pour ajouter une en
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Ajouter un fichier…
 scene-add-file-tooltip = Choisissez des images ou des vidéos à ajouter comme personnages.
+scene-paste = Coller
+scene-paste-tooltip = Ajoute les personnages copiés à cette scène. Copiés : { $count }
+scene-paste-empty = Rien de copié pour l’instant. Sélectionnez des personnages et appuyez sur Ctrl+C — ou faites un clic droit dessus et choisissez Copier —, dans cette scène ou une autre, pour les coller ici.
 file-chooser-title = Ajouter des personnages
 file-chooser-filter = Images et vidéos
 file-chooser-unavailable-toast = Impossible d'ouvrir le sélecteur de fichiers. Il nécessite xdg-desktop-portal.
@@ -109,6 +112,8 @@ palette-footer-hint = Échap ferme · Ctrl+K bascule · ↑↓ + Entrée choisit
 onboarding-dismiss = Fermer
 
 menu-duplicate = Dupliquer
+menu-copy = Copier
+menu-cut = Couper
 menu-reset-transform = Réinitialiser la transformation
 menu-toggle-gravity = Basculer la gravité
 menu-bring-forward = Mettre au premier plan
@@ -209,6 +214,9 @@ action-toggle-visible = Basculer la visibilité
 action-toggle-gravity = Basculer la gravité
 action-toggle-playback = Basculer lecture/pause
 action-duplicate-selected = Dupliquer la sélection
+action-copy-selected = Copier la sélection
+action-cut-selected = Couper la sélection
+action-paste = Coller
 action-reset-transform = Réinitialiser échelle / opacité
 action-bring-forward = Avancer la sélection
 action-send-backward = Reculer la sélection
@@ -363,6 +371,14 @@ toast-duplicate-failed = Échec de la duplication : { $error }
 toast-deleted = { $name } supprimé
 # Multiple selection (1.5): machine-translated, pending native review.
 toast-deleted-many = Personnages supprimés : { $count }
+toast-copied = { $name } copié
+toast-copied-many = Personnages copiés : { $count }
+toast-cut = { $name } coupé
+toast-cut-many = Personnages coupés : { $count }
+toast-pasted = { $name } collé
+toast-pasted-many = Personnages collés : { $count }
+toast-paste-failed = Échec du collage : { $error }
+toast-nothing-to-paste = Rien à coller : copiez d’abord un personnage
 toast-playback-resumed = Lecture reprise
 toast-playback-paused = Lecture en pause
 # Undo (1.5): machine-translated, pending native review.

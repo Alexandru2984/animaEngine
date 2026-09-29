@@ -61,6 +61,9 @@ scene-drop-hint = Arrastra un PNG / GIF / WebP sobre el overlay para añadir una
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Añadir archivo…
 scene-add-file-tooltip = Elige imágenes o vídeos para añadirlos como personajes.
+scene-paste = Pegar
+scene-paste-tooltip = Añade los personajes copiados a esta escena. Copiados: { $count }
+scene-paste-empty = Aún no has copiado nada. Selecciona personajes y pulsa Ctrl+C, o haz clic derecho sobre ellos y elige Copiar, en esta escena o en otra, para pegarlos aquí.
 file-chooser-title = Añadir personajes
 file-chooser-filter = Imágenes y vídeos
 file-chooser-unavailable-toast = No se pudo abrir el selector de archivos. Necesita xdg-desktop-portal.
@@ -109,6 +112,8 @@ palette-footer-hint = Esc cierra · Ctrl+K alterna · ↑↓ + Enter elige
 onboarding-dismiss = Cerrar
 
 menu-duplicate = Duplicar
+menu-copy = Copiar
+menu-cut = Cortar
 menu-reset-transform = Restablecer transformación
 menu-toggle-gravity = Alternar gravedad
 menu-bring-forward = Traer al frente
@@ -209,6 +214,9 @@ action-toggle-visible = Alternar visibilidad
 action-toggle-gravity = Alternar gravedad
 action-toggle-playback = Alternar reproducción/pausa
 action-duplicate-selected = Duplicar la selección
+action-copy-selected = Copiar la selección
+action-cut-selected = Cortar la selección
+action-paste = Pegar
 action-reset-transform = Restablecer escala / opacidad
 action-bring-forward = Traer la selección al frente
 action-send-backward = Enviar la selección atrás
@@ -363,6 +371,14 @@ toast-duplicate-failed = La duplicación falló: { $error }
 toast-deleted = { $name } eliminado
 # Multiple selection (1.5): machine-translated, pending native review.
 toast-deleted-many = Personajes eliminados: { $count }
+toast-copied = { $name } copiado
+toast-copied-many = Personajes copiados: { $count }
+toast-cut = { $name } cortado
+toast-cut-many = Personajes cortados: { $count }
+toast-pasted = { $name } pegado
+toast-pasted-many = Personajes pegados: { $count }
+toast-paste-failed = No se pudo pegar: { $error }
+toast-nothing-to-paste = Nada que pegar: copia primero un personaje
 toast-playback-resumed = Reproducción reanudada
 toast-playback-paused = Reproducción en pausa
 # Undo (1.5): machine-translated, pending native review.

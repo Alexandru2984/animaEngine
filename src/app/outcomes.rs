@@ -55,6 +55,26 @@ impl App {
         }
     }
 
+    /// Cut every selected entity and save.
+    pub(super) fn cut_selected(&mut self) {
+        let targets = self.selection.selected_indices();
+        if outcomes::cut_entities(&targets, &mut outcome_ctx!(self)) > 0 {
+            self.save_config_if_needed();
+        }
+    }
+
+    /// Paste what was copied, or say there is nothing, and save.
+    pub(super) fn paste(&mut self) {
+        match crate::clipboard::get() {
+            Some(copied) => {
+                if !outcomes::paste_entities(&copied, &mut outcome_ctx!(self)).is_empty() {
+                    self.save_config_if_needed();
+                }
+            }
+            None => self.toasts.info(crate::i18n::t("toast-nothing-to-paste")),
+        }
+    }
+
     pub(super) fn handle_library_outcome(&mut self, outcome: panels::LibraryOutcome) {
         // Drop in the middle of the visible viewport, falling back to
         // a sensible default when the window isn't fully wired yet.

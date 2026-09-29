@@ -813,18 +813,30 @@ pub fn run_native(
                     tracing::info!("Quit action — saving and exiting");
                     layer.state.close_requested = true;
                 }
-                Action::DeleteSelected | Action::DuplicateSelected => {
+                Action::DeleteSelected | Action::DuplicateSelected | Action::CutSelected => {
                     // The same functions the right-click menu and the winit
                     // path use (`crate::outcomes`), so none of the three can
                     // drift from the others. Every selected character.
                     let targets = selection.selected_indices();
                     let mut ctx = outcome_ctx!();
-                    if action == Action::DeleteSelected {
-                        outcomes::delete_entities(&targets, &mut ctx);
-                    } else {
-                        outcomes::duplicate_entities(&targets, &mut ctx);
+                    match action {
+                        Action::DeleteSelected => {
+                            outcomes::delete_entities(&targets, &mut ctx);
+                        }
+                        Action::CutSelected => {
+                            outcomes::cut_entities(&targets, &mut ctx);
+                        }
+                        _ => {
+                            outcomes::duplicate_entities(&targets, &mut ctx);
+                        }
                     }
                 }
+                Action::Paste => match crate::clipboard::get() {
+                    Some(copied) => {
+                        outcomes::paste_entities(&copied, &mut outcome_ctx!());
+                    }
+                    None => toasts.info(crate::i18n::t("toast-nothing-to-paste")),
+                },
                 // Everything that only touches the scene and the selection
                 // is shared with the winit path. Before this, the table was
                 // consulted here and matched ToggleEditMode alone, so the
@@ -1291,7 +1303,7 @@ pub fn run_native(
                     draws_last_frame: gpu_draws,
                 };
                 let mut shimeji_import: Option<String> = None;
-                let mut add_file_requested = false;
+                let mut scene_request: Option<panels::SceneRequest> = None;
                 // The menu on another monitor is drawn by that overlay's
                 // egui, below.
                 let menu_state = context_menu_state.clone().filter(|m| m.surface.is_none());
@@ -1328,7 +1340,7 @@ pub fn run_native(
                 let warnings_ref = &warnings;
                 let hotkey_backend_ref = hotkey_backend_status.as_str();
                 let shimeji_import_ref = &mut shimeji_import;
-                let add_file_requested_ref = &mut add_file_requested;
+                let scene_request_ref = &mut scene_request;
                 let monitors_ref = monitors.as_slice();
                 let toasts_ref = &toasts;
                 let toggle_requested_ref = &mut toggle_requested;
@@ -1416,7 +1428,7 @@ pub fn run_native(
                                 last_seen_whats_new_mut,
                                 hotkey_backend_ref,
                                 shimeji_import_ref,
-                                add_file_requested_ref,
+                                scene_request_ref,
                             );
                             if edit_mode_snapshot {
                                 if let Some(state) = &menu_state {
@@ -1593,7 +1605,13 @@ pub fn run_native(
                 // Palette / library outcomes apply outside the egui
                 // closure where we can take &mut renderer + &mut toasts
                 // without conflicting.
-                if add_file_requested && pending_file_chooser.is_none() {
+                // Pasted with the palette's picks, next frame.
+                if scene_request == Some(panels::SceneRequest::Paste) {
+                    palette_actions.push(Action::Paste);
+                }
+                if scene_request == Some(panels::SceneRequest::AddFile)
+                    && pending_file_chooser.is_none()
+                {
                     pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
                         renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
                         renderer.primary.window_height as f32 / 2.0 + primary_origin.1,

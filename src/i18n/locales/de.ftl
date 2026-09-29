@@ -61,6 +61,9 @@ scene-drop-hint = Ziehen Sie eine PNG- / GIF- / WebP-Datei auf das Overlay, um e
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Datei hinzufügen …
 scene-add-file-tooltip = Bilder oder Videos auswählen, die als Figuren hinzugefügt werden.
+scene-paste = Einfügen
+scene-paste-tooltip = Die kopierten Figuren in diese Szene einfügen. Kopiert: { $count }
+scene-paste-empty = Noch nichts kopiert. Figuren auswählen und Strg+C drücken – oder per Rechtsklick „Kopieren“ wählen –, in dieser oder einer anderen Szene, um sie hier einzufügen.
 file-chooser-title = Figuren hinzufügen
 file-chooser-filter = Bilder und Videos
 file-chooser-unavailable-toast = Die Dateiauswahl konnte nicht geöffnet werden. Dafür wird xdg-desktop-portal benötigt.
@@ -109,6 +112,8 @@ palette-footer-hint = Esc schließt · Strg+K schaltet um · ↑↓ + Enter wäh
 onboarding-dismiss = Schließen
 
 menu-duplicate = Duplizieren
+menu-copy = Kopieren
+menu-cut = Ausschneiden
 menu-reset-transform = Transform zurücksetzen
 menu-toggle-gravity = Schwerkraft umschalten
 menu-bring-forward = Nach vorne bringen
@@ -209,6 +214,9 @@ action-toggle-visible = Sichtbarkeit umschalten
 action-toggle-gravity = Schwerkraft umschalten
 action-toggle-playback = Wiedergabe/Pause umschalten
 action-duplicate-selected = Auswahl duplizieren
+action-copy-selected = Auswahl kopieren
+action-cut-selected = Auswahl ausschneiden
+action-paste = Einfügen
 action-reset-transform = Skalierung / Deckkraft zurücksetzen
 action-bring-forward = Auswahl nach vorne holen
 action-send-backward = Auswahl nach hinten stellen
@@ -363,6 +371,14 @@ toast-duplicate-failed = Duplizieren fehlgeschlagen: { $error }
 toast-deleted = { $name } gelöscht
 # Multiple selection (1.5): machine-translated, pending native review.
 toast-deleted-many = Figuren gelöscht: { $count }
+toast-copied = { $name } kopiert
+toast-copied-many = Figuren kopiert: { $count }
+toast-cut = { $name } ausgeschnitten
+toast-cut-many = Figuren ausgeschnitten: { $count }
+toast-pasted = { $name } eingefügt
+toast-pasted-many = Figuren eingefügt: { $count }
+toast-paste-failed = Einfügen fehlgeschlagen: { $error }
+toast-nothing-to-paste = Nichts zum Einfügen: zuerst eine Figur kopieren
 toast-playback-resumed = Wiedergabe fortgesetzt
 toast-playback-paused = Wiedergabe pausiert
 # Undo (1.5): machine-translated, pending native review.

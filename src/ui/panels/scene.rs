@@ -39,7 +39,7 @@ pub(super) fn scene_tab(
     span_supported: bool,
     monitors: &[MonitorInfo],
     collapse_state: &mut CollapseState,
-    add_file_requested: &mut bool,
+    request: &mut Option<super::SceneRequest>,
 ) {
     // ── Monitor distribution section ─────────────────────────────────
     monitor_mode_picker(ui, monitor_mode, monitors, span_supported, config_dirty);
@@ -94,17 +94,40 @@ pub(super) fn scene_tab(
     ui.separator();
     ui.add_space(SPACE_M);
 
-    // The way in that needs no dragging — and, in the Flatpak, the one
-    // that reaches files outside Pictures and Downloads. Unix only: it
-    // goes through the XDG desktop portal.
-    if cfg!(unix)
-        && ui
-            .button(format!("{}  {}", icons::ADD, t("scene-add-file")))
-            .on_hover_text(t("scene-add-file-tooltip"))
+    ui.horizontal(|ui| {
+        // The way in that needs no dragging — and, in the Flatpak, the one
+        // that reaches files outside Pictures and Downloads. Unix only: it
+        // goes through the XDG desktop portal.
+        if cfg!(unix)
+            && ui
+                .button(format!("{}  {}", icons::ADD, t("scene-add-file")))
+                .on_hover_text(t("scene-add-file-tooltip"))
+                .clicked()
+        {
+            *request = Some(super::SceneRequest::AddFile);
+        }
+        // Where characters copied in another scene come in, for someone
+        // not using the keyboard (`crate::clipboard`).
+        let copied = crate::clipboard::count();
+        let hint = if copied == 0 {
+            t("scene-paste-empty")
+        } else {
+            let mut args = fluent::FluentArgs::new();
+            args.set("count", copied);
+            crate::i18n::t_args("scene-paste-tooltip", &args)
+        };
+        if ui
+            .add_enabled(
+                copied > 0,
+                egui::Button::new(format!("{}  {}", icons::PASTE, t("scene-paste"))),
+            )
+            .on_hover_text(&hint)
+            .on_disabled_hover_text(&hint)
             .clicked()
-    {
-        *add_file_requested = true;
-    }
+        {
+            *request = Some(super::SceneRequest::Paste);
+        }
+    });
     ui.add_space(SPACE_M);
 
     let is_empty = scene.entities.is_empty();

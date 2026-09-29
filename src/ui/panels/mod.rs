@@ -50,6 +50,10 @@ use crate::ui::theme::{self, Theme, SPACE_S, SPACE_XS};
 pub enum MenuAction {
     Duplicate(usize),
     Delete(usize),
+    /// Keep for a paste (`crate::clipboard`).
+    Copy(usize),
+    /// Keep for a paste, and take out of the scene.
+    Cut(usize),
     ResetTransform(usize),
     ToggleGravity(usize),
     BringForward(usize),
@@ -57,6 +61,15 @@ pub enum MenuAction {
     Group(usize),
     Ungroup(usize),
     Arrange(usize, crate::input::arrange::Arrange),
+}
+
+/// What the Scene tab asks of the caller, which has what it takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SceneRequest {
+    /// "Add file…": open the file chooser.
+    AddFile,
+    /// "Paste": add what was copied (`crate::clipboard`).
+    Paste,
 }
 
 /// The settings for holding still while nobody is there (`crate::away`),
@@ -243,8 +256,8 @@ pub fn settings(
     last_seen_whats_new: &mut Option<String>,
     hotkey_backend: &str,
     shimeji_import: &mut Option<String>,
-    // Set when "Add file…" is clicked; the caller opens the chooser.
-    add_file_requested: &mut bool,
+    // Set when "Add file…" or "Paste" is clicked; the caller acts on it.
+    scene_request: &mut Option<SceneRequest>,
 ) {
     // Both backends run this every frame, so this is where an input
     // method composing Chinese, Japanese or Korean gets the face it needs.
@@ -387,7 +400,7 @@ pub fn settings(
                                 span_supported,
                                 monitors,
                                 collapse_state,
-                                add_file_requested,
+                                scene_request,
                             );
                         }
                         SettingsTab::Library => {

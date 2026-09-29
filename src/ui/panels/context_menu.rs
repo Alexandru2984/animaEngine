@@ -43,6 +43,22 @@ pub(crate) fn context_menu(
                 if ui
                     .button(format!(
                         "{}  {}",
+                        icons::CLIPBOARD,
+                        crate::i18n::t("menu-copy")
+                    ))
+                    .clicked()
+                {
+                    picked = Some(MenuAction::Copy(idx));
+                }
+                if ui
+                    .button(format!("{}  {}", icons::CUT, crate::i18n::t("menu-cut")))
+                    .clicked()
+                {
+                    picked = Some(MenuAction::Cut(idx));
+                }
+                if ui
+                    .button(format!(
+                        "{}  {}",
                         icons::RESET,
                         crate::i18n::t("menu-reset-transform")
                     ))

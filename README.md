@@ -142,6 +142,7 @@ cargo build --release
 | Set behavior | Dropdown in the Inspector (Idle / Walk / Follow / Bounded / Bounce / Script) |
 | Delete | `Delete`, right-click → Delete, or the trash button in the Scene list |
 | Group / ungroup | `Ctrl+G` / `Ctrl+Shift+G` on the selection, or right-click → Group |
+| Copy / cut / paste | `Ctrl+C` / `Ctrl+X` / `Ctrl+V`, right-click → Copy or Cut, and Paste in the Scene tab — into this scene or another saved one |
 | Hide overlay | `Ctrl+Shift+H` (global) or tray menu |
 | Pause animations | `Space` (edit mode), `Ctrl+Shift+P` (global), or tray |
 | Save & quit | `Q` (edit mode), tray → Quit, or close the window |

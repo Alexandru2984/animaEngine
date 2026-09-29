@@ -61,6 +61,9 @@ scene-drop-hint = Sleep een PNG / GIF / WebP naar de overlay om een entiteit toe
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Bestand toevoegen…
 scene-add-file-tooltip = Kies afbeeldingen of video's om als figuren toe te voegen.
+scene-paste = Plakken
+scene-paste-tooltip = De gekopieerde figuren aan deze scène toevoegen. Gekopieerd: { $count }
+scene-paste-empty = Nog niets gekopieerd. Selecteer figuren en druk op Ctrl+C — of klik er met de rechtermuisknop op en kies Kopiëren — in deze scène of een andere, om ze hier te plakken.
 file-chooser-title = Figuren toevoegen
 file-chooser-filter = Afbeeldingen en video's
 file-chooser-unavailable-toast = De bestandskiezer kon niet worden geopend. Daarvoor is xdg-desktop-portal nodig.
@@ -109,6 +112,8 @@ palette-footer-hint = Esc sluit · Ctrl+K schakelt · ↑↓ + Enter kiest
 onboarding-dismiss = Sluiten
 
 menu-duplicate = Dupliceren
+menu-copy = Kopiëren
+menu-cut = Knippen
 menu-reset-transform = Transformatie resetten
 menu-toggle-gravity = Zwaartekracht wisselen
 menu-bring-forward = Naar voren brengen
@@ -209,6 +214,9 @@ action-toggle-visible = Zichtbaarheid omschakelen
 action-toggle-gravity = Zwaartekracht omschakelen
 action-toggle-playback = Afspelen/pauzeren
 action-duplicate-selected = Selectie dupliceren
+action-copy-selected = Selectie kopiëren
+action-cut-selected = Selectie knippen
+action-paste = Plakken
 action-reset-transform = Schaal / dekking herstellen
 action-bring-forward = Selectie naar voren halen
 action-send-backward = Selectie naar achteren sturen
@@ -363,6 +371,14 @@ toast-duplicate-failed = Dupliceren mislukt: { $error }
 toast-deleted = { $name } verwijderd
 # Multiple selection (1.5): machine-translated, pending native review.
 toast-deleted-many = Figuren verwijderd: { $count }
+toast-copied = { $name } gekopieerd
+toast-copied-many = Figuren gekopieerd: { $count }
+toast-cut = { $name } geknipt
+toast-cut-many = Figuren geknipt: { $count }
+toast-pasted = { $name } geplakt
+toast-pasted-many = Figuren geplakt: { $count }
+toast-paste-failed = Plakken mislukt: { $error }
+toast-nothing-to-paste = Niets om te plakken: kopieer eerst een figuur
 toast-playback-resumed = Afspelen hervat
 toast-playback-paused = Afspelen gepauzeerd
 # Undo (1.5): machine-translated, pending native review.

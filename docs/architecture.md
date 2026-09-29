@@ -463,6 +463,23 @@ second press on a member of the selection narrows it to that one on a
 tap (`DragController::narrow_on_tap`). Undo covers it all through the
 groups in its snapshots.
 
+### Copy and paste (`src/clipboard.rs`)
+
+The app keeps its own clipboard, not the desktop's: a copy is the
+characters' whole configs (`Entity::to_config`), bottom of the stack
+first, and the group they were when they were exactly one. It is a
+process-wide value, so it outlives a scene switch (`crate::scenes`) —
+cutting from one scene and pasting into another is how a character
+moves between them. `Copied::placed_in` puts a paste where the copies
+were, stepping 30 px down and right while that spot holds a character,
+so a paste into the same scene steps like Duplicate and one into
+another scene lands in place. `outcomes::paste_entities` adds them
+through `append_character_config` — the entity limit and memory budget
+hold — with fresh ids, on top, selected, and regrouped when a whole
+group was copied. Copy is a shared action; Cut and Paste add and remove
+textures, so the backends run them beside Delete and Duplicate. The
+Scene tab's Paste button reaches them through `panels::SceneRequest`.
+
 ### Undo (`src/undo.rs`)
 
 Edits reach the scene from dozens of places, so undo watches *gestures*

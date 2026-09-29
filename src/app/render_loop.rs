@@ -344,7 +344,7 @@ impl App {
                     let mut palette_outcome: Option<panels::PaletteOutcome> = None;
                     let mut library_outcome: Option<panels::LibraryOutcome> = None;
                     let mut shimeji_import: Option<String> = None;
-                    let mut add_file_requested = false;
+                    let mut scene_request: Option<panels::SceneRequest> = None;
                     let mut toggle_requested = false;
 
                     if let (Some(ui), Some(window)) = (self.ui.as_mut(), self.window.as_ref()) {
@@ -500,7 +500,7 @@ impl App {
                                     last_seen_whats_new_mut,
                                     hotkey_backend_ref,
                                     &mut shimeji_import,
-                                    &mut add_file_requested,
+                                    &mut scene_request,
                                 );
                                 if edit_mode {
                                     // Only a menu of its own: one opened on
@@ -603,8 +603,10 @@ impl App {
                         let at = (self.mouse_x.max(50.0), self.mouse_y.max(50.0));
                         self.import_shimeji_pack(&expanded, at);
                     }
-                    if add_file_requested {
-                        self.open_file_chooser();
+                    match scene_request {
+                        Some(panels::SceneRequest::AddFile) => self.open_file_chooser(),
+                        Some(panels::SceneRequest::Paste) => self.paste(),
+                        None => {}
                     }
                 }
                 // Surface needs reconfiguring against the current size

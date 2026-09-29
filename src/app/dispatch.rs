@@ -37,6 +37,8 @@ impl App {
             }
             Action::DeleteSelected => self.delete_selected(),
             Action::DuplicateSelected => self.duplicate_selected(),
+            Action::CutSelected => self.cut_selected(),
+            Action::Paste => self.paste(),
             Action::TogglePerfOverlay => {
                 self.perf_overlay_visible = !self.perf_overlay_visible;
                 tracing::debug!(

@@ -52,6 +52,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
   Bubbles show on every monitor.
+- **Copy, cut and paste characters.** `Ctrl+C`, `Ctrl+X` and `Ctrl+V`
+  in edit mode (rebindable), Copy and Cut on the right-click menu, and
+  Paste in the Scene tab. A copy keeps everything about the character —
+  its animations, behavior, size — and a whole group comes back as a
+  group. It lasts until the app quits, so cutting in one saved scene and
+  pasting in another moves characters between them; a paste lands where
+  they were, or steps aside when something is already there.
 - **Start at login.** A switch in Appearance: installed natively it
   writes a standard autostart entry (the one the desktop's "Startup
   Applications" lists too), and in the Flatpak it asks the Background

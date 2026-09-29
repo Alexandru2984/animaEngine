@@ -61,6 +61,9 @@ scene-drop-hint = Trage un fișier PNG / GIF / WebP peste overlay pentru a adău
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Adaugă fișier…
 scene-add-file-tooltip = Alege imagini sau clipuri de adăugat ca personaje.
+scene-paste = Lipește
+scene-paste-tooltip = Adaugă personajele copiate în această scenă. Copiate: { $count }
+scene-paste-empty = Nimic copiat încă. Selectează personaje și apasă Ctrl+C — sau dă click dreapta pe ele și alege Copiază — în scena asta sau în alta, ca să le lipești aici.
 file-chooser-title = Adaugă personaje
 file-chooser-filter = Imagini și clipuri
 file-chooser-unavailable-toast = Selectorul de fișiere nu s-a putut deschide. Are nevoie de xdg-desktop-portal.
@@ -109,6 +112,8 @@ palette-footer-hint = Esc închide · Ctrl+K comută · ↑↓ + Enter alege
 onboarding-dismiss = Închide
 
 menu-duplicate = Duplică
+menu-copy = Copiază
+menu-cut = Decupează
 menu-reset-transform = Resetează transformul
 menu-toggle-gravity = Comută gravitația
 menu-bring-forward = Adu în față
@@ -209,6 +214,9 @@ action-toggle-visible = Comută vizibilitatea
 action-toggle-gravity = Comută gravitația
 action-toggle-playback = Comută redare / pauză
 action-duplicate-selected = Duplică selecția
+action-copy-selected = Copiază selecția
+action-cut-selected = Decupează selecția
+action-paste = Lipește
 action-reset-transform = Resetează scară / opacitate
 action-bring-forward = Adu selecția în față
 action-send-backward = Trimite selecția în spate
@@ -367,6 +375,14 @@ toast-duplicate-failed = Duplicarea a eșuat: { $error }
 toast-deleted = Șters { $name }
 # Multiple selection (1.5): machine-translated, pending native review.
 toast-deleted-many = Personaje șterse: { $count }
+toast-copied = Copiat { $name }
+toast-copied-many = Personaje copiate: { $count }
+toast-cut = Decupat { $name }
+toast-cut-many = Personaje decupate: { $count }
+toast-pasted = Lipit { $name }
+toast-pasted-many = Personaje lipite: { $count }
+toast-paste-failed = Lipirea a eșuat: { $error }
+toast-nothing-to-paste = Nimic de lipit: copiază întâi un personaj
 toast-playback-resumed = Redare reluată
 toast-playback-paused = Redare pe pauză
 # Undo (1.5): machine-translated, pending native review.

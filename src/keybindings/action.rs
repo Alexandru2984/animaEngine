@@ -55,6 +55,14 @@ pub enum Action {
     DuplicateSelected,
     ResetTransform,
 
+    // ── Clipboard ──
+    /// Keep the selection for a paste (`crate::clipboard`).
+    CopySelected,
+    /// Keep the selection for a paste and take it out of the scene.
+    CutSelected,
+    /// Add what was copied — into this scene or another one.
+    Paste,
+
     // ── Groups ──
     /// Make a group of the selected characters (`crate::group`).
     GroupSelected,
@@ -108,6 +116,9 @@ impl Action {
         Self::TogglePlayback,
         Self::DuplicateSelected,
         Self::ResetTransform,
+        Self::CopySelected,
+        Self::CutSelected,
+        Self::Paste,
         Self::GroupSelected,
         Self::UngroupSelected,
         Self::BringForward,
@@ -140,6 +151,8 @@ impl Action {
                 | Self::TogglePlayback
                 | Self::DuplicateSelected
                 | Self::ResetTransform
+                | Self::CopySelected
+                | Self::CutSelected
                 | Self::GroupSelected
                 | Self::UngroupSelected
                 | Self::BringForward
@@ -167,6 +180,8 @@ impl Action {
                 | Self::CycleEntity
                 | Self::DeleteSelected
                 | Self::DuplicateSelected
+                | Self::CutSelected
+                | Self::Paste
         )
     }
 
@@ -202,6 +217,9 @@ impl Action {
             Self::TogglePlayback => "Toggle play/pause",
             Self::DuplicateSelected => "Duplicate selection",
             Self::ResetTransform => "Reset scale / opacity",
+            Self::CopySelected => "Copy selection",
+            Self::CutSelected => "Cut selection",
+            Self::Paste => "Paste",
             Self::GroupSelected => "Group selection",
             Self::UngroupSelected => "Ungroup selection",
             Self::BringForward => "Bring selection forward",
@@ -243,6 +261,9 @@ impl Action {
             Self::TogglePlayback => "Play or pause the selected entity's animation.",
             Self::DuplicateSelected => "Spawn a copy of the selected entity nearby.",
             Self::ResetTransform => "Restore scale 1.0 and opacity 1.0.",
+            Self::CopySelected => "Keep the selection to paste, here or in another scene.",
+            Self::CutSelected => "Copy the selection and remove it, to paste elsewhere.",
+            Self::Paste => "Add the copied characters to this scene.",
             Self::GroupSelected => "Make a group of the selection; a click then takes all of it.",
             Self::UngroupSelected => "Dissolve the groups the selection is in.",
             Self::BringForward => "Raise the selected entity by one z-step.",
@@ -323,6 +344,9 @@ impl Action {
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('D'))];
     const C_RESET_TRANSFORM: &'static [KeyChord] =
         &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('R'))];
+    const C_COPY: &'static [KeyChord] = &[KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('C'))];
+    const C_CUT: &'static [KeyChord] = &[KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('X'))];
+    const C_PASTE: &'static [KeyChord] = &[KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('V'))];
     const C_GROUP: &'static [KeyChord] = &[KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('G'))];
     const C_UNGROUP: &'static [KeyChord] =
         &[KeyChord::new(ModifierMask(0b0011), KeyCode::Letter('G'))];
@@ -385,6 +409,9 @@ impl Action {
             Self::TogglePlayback => Self::C_TOGGLE_PLAYBACK,
             Self::DuplicateSelected => Self::C_DUPLICATE,
             Self::ResetTransform => Self::C_RESET_TRANSFORM,
+            Self::CopySelected => Self::C_COPY,
+            Self::CutSelected => Self::C_CUT,
+            Self::Paste => Self::C_PASTE,
             Self::GroupSelected => Self::C_GROUP,
             Self::UngroupSelected => Self::C_UNGROUP,
             Self::BringForward => Self::C_BRING_FORWARD,
@@ -428,6 +455,9 @@ impl Action {
             Self::TogglePlayback => "action-toggle-playback",
             Self::DuplicateSelected => "action-duplicate-selected",
             Self::ResetTransform => "action-reset-transform",
+            Self::CopySelected => "action-copy-selected",
+            Self::CutSelected => "action-cut-selected",
+            Self::Paste => "action-paste",
             Self::GroupSelected => "action-group-selected",
             Self::UngroupSelected => "action-ungroup-selected",
             Self::BringForward => "action-bring-forward",

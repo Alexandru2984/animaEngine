@@ -63,6 +63,14 @@ pub fn apply_menu_action(action: MenuAction, ctx: &mut OutcomeCtx<'_>) {
             let targets = covered(idx, ctx.selection);
             delete_entities(&targets, ctx);
         }
+        MenuAction::Copy(idx) => {
+            let targets = covered(idx, ctx.selection);
+            copy_entities(&targets, ctx.scene, ctx.toasts);
+        }
+        MenuAction::Cut(idx) => {
+            let targets = covered(idx, ctx.selection);
+            cut_entities(&targets, ctx);
+        }
         MenuAction::ResetTransform(idx) => {
             for i in covered(idx, ctx.selection) {
                 if let Some(e) = ctx.scene.entities.get_mut(i) {
@@ -180,6 +188,18 @@ pub fn delete_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> bool {
 /// Returns how many were removed. Highest index first, so the ones still
 /// to go keep theirs.
 pub fn delete_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> usize {
+    let names = remove_entities(indices, ctx);
+    if !names.is_empty() {
+        ctx.toasts
+            .info(name_or_count(&names, "toast-deleted", "toast-deleted-many"));
+    }
+    names.len()
+}
+
+/// Take the entities at `indices` out of the scene, textures first, and
+/// return their names. Deleting and cutting both do this; only what they
+/// say differs.
+fn remove_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> Vec<String> {
     let mut order = indices.to_vec();
     order.sort_unstable();
     order.dedup();
@@ -197,21 +217,134 @@ pub fn delete_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> usize {
             names.push(name);
         }
     }
+    if !names.is_empty() {
+        ctx.selection.deselect();
+        *ctx.config_dirty = true;
+    }
+    names
+}
+
+/// "Deleted Heart", or "Characters deleted: 3": the message `one` with
+/// the name when there is one, `many` with the count otherwise.
+fn name_or_count(names: &[String], one: &str, many: &str) -> String {
+    let mut args = fluent::FluentArgs::new();
+    if let [name] = names {
+        args.set("name", name.clone());
+        crate::i18n::t_args(one, &args)
+    } else {
+        args.set("count", names.len());
+        crate::i18n::t_args(many, &args)
+    }
+}
+
+/// Keep the characters at `indices` for a paste (`crate::clipboard`)
+/// and say so. Returns how many were copied.
+pub fn copy_entities(indices: &[usize], scene: &Scene, toasts: &mut ToastQueue) -> usize {
+    let Some(copied) = crate::clipboard::Copied::of(scene, indices) else {
+        return 0;
+    };
+    let names: Vec<String> = copied.characters.iter().map(|c| c.name.clone()).collect();
+    toasts.info(name_or_count(&names, "toast-copied", "toast-copied-many"));
+    crate::clipboard::put(copied);
+    names.len()
+}
+
+/// Copy the characters at `indices` and take them out of the scene — to
+/// paste them into another one, say. Returns how many went.
+pub fn cut_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> usize {
+    let Some(copied) = crate::clipboard::Copied::of(ctx.scene, indices) else {
+        return 0;
+    };
+    let names = remove_entities(indices, ctx);
     if names.is_empty() {
         return 0;
     }
-    ctx.selection.deselect();
-    *ctx.config_dirty = true;
-    let mut args = fluent::FluentArgs::new();
-    let message = if let [name] = names.as_slice() {
-        args.set("name", name.clone());
-        crate::i18n::t_args("toast-deleted", &args)
-    } else {
-        args.set("count", names.len());
-        crate::i18n::t_args("toast-deleted-many", &args)
-    };
-    ctx.toasts.info(message);
+    ctx.toasts
+        .info(name_or_count(&names, "toast-cut", "toast-cut-many"));
+    crate::clipboard::put(copied);
     names.len()
+}
+
+/// Add the characters in `copied` to the scene (`crate::clipboard`, which
+/// says where), on top of the others, and select them. A whole group
+/// copied comes back as a group. Returns the new characters' indices.
+pub fn paste_entities(copied: &crate::clipboard::Copied, ctx: &mut OutcomeCtx<'_>) -> Vec<usize> {
+    let mut pasted = Vec::new();
+    let mut names = Vec::new();
+    let mut failed: Option<String> = None;
+    for mut cfg in copied.placed_in(ctx.scene) {
+        cfg.id = ctx.scene.unique_id(&cfg.id);
+        cfg.z_index = ctx.scene.next_z_index();
+        match ctx.scene.append_character_config(&cfg) {
+            Ok(()) => {
+                let idx = ctx.scene.entities.len() - 1;
+                if let Some(renderer) = ctx.renderer.as_deref_mut() {
+                    if let Some(entity) = ctx.scene.entities.get(idx) {
+                        renderer.ensure_texture(entity);
+                    }
+                    if let Some(entity) = ctx.scene.entities.get_mut(idx) {
+                        entity.texture_dirty = false;
+                    }
+                }
+                tracing::info!("Pasted '{}' at ({:.0}, {:.0})", cfg.name, cfg.x, cfg.y);
+                pasted.push(idx);
+                names.push(cfg.name);
+            }
+            // Its file gone since the copy, the entity limit, the memory
+            // budget: one toast, for the first.
+            Err(e) => {
+                tracing::warn!("Paste of '{}' failed: {e}", cfg.name);
+                failed.get_or_insert(e.to_string());
+            }
+        }
+    }
+    if let Some(error) = failed {
+        let mut args = fluent::FluentArgs::new();
+        args.set("error", error);
+        ctx.toasts
+            .error(crate::i18n::t_args("toast-paste-failed", &args));
+    }
+    if pasted.is_empty() {
+        return pasted;
+    }
+    if let Some(source) = copied
+        .group
+        .as_ref()
+        .filter(|_| pasted.len() == copied.characters.len())
+    {
+        // Its own name where that is free — cut and pasted, or pasted
+        // into another scene — and "… copy" beside the original.
+        let name = if ctx.scene.groups.iter().any(|g| g.name == source.name) {
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", source.name.clone());
+            crate::i18n::t_args("group-copy-name", &args)
+        } else {
+            source.name.clone()
+        };
+        group_like(source, &pasted, name, ctx.scene);
+    }
+    ctx.selection.select_all_of(&pasted);
+    *ctx.config_dirty = true;
+    ctx.toasts
+        .success(name_or_count(&names, "toast-pasted", "toast-pasted-many"));
+    pasted
+}
+
+/// Make the entities at `members` a group named `name` that looks like
+/// `source` — the same offset, scale and visibility.
+fn group_like(
+    source: &crate::group::GroupConfig,
+    members: &[usize],
+    name: String,
+    scene: &mut Scene,
+) {
+    let made = scene.group_entities(members, |_| name);
+    if let (Some(_), Some(group)) = (made, scene.groups.last_mut()) {
+        group.offset_x = source.offset_x;
+        group.offset_y = source.offset_y;
+        group.scale = source.scale;
+        group.visible = source.visible;
+    }
 }
 
 /// Copy entity `idx` 30 px down and right, keeping its scale and opacity,
@@ -253,31 +386,23 @@ pub fn duplicate_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> Vec<us
         return copies;
     }
     if let Some(source) = source_group.filter(|_| copies.len() == indices.len()) {
-        let made = ctx.scene.group_entities(&copies, |_| {
-            let mut args = fluent::FluentArgs::new();
-            args.set("name", source.name.clone());
-            crate::i18n::t_args("group-copy-name", &args)
-        });
-        // The same offset, scale and visibility, so the copies look like
-        // the originals do — only 30 px along.
-        if let (Some(_), Some(group)) = (made, ctx.scene.groups.last_mut()) {
-            group.offset_x = source.offset_x;
-            group.offset_y = source.offset_y;
-            group.scale = source.scale;
-            group.visible = source.visible;
-        }
+        let mut args = fluent::FluentArgs::new();
+        args.set("name", source.name.clone());
+        // Looking like the originals do — only 30 px along.
+        group_like(
+            &source,
+            &copies,
+            crate::i18n::t_args("group-copy-name", &args),
+            ctx.scene,
+        );
     }
     ctx.selection.select_all_of(&copies);
     *ctx.config_dirty = true;
-    let mut args = fluent::FluentArgs::new();
-    let message = if let [name] = names.as_slice() {
-        args.set("name", name.clone());
-        crate::i18n::t_args("toast-duplicated", &args)
-    } else {
-        args.set("count", names.len());
-        crate::i18n::t_args("toast-duplicated-many", &args)
-    };
-    ctx.toasts.success(message);
+    ctx.toasts.success(name_or_count(
+        &names,
+        "toast-duplicated",
+        "toast-duplicated-many",
+    ));
     copies
 }
 
@@ -922,6 +1047,70 @@ mod tests {
         w.scene.group_entities(&[0, 1], |n| format!("Group {n}"));
         delete_entities(&[1, 0], &mut w.ctx());
         assert!(w.scene.groups.is_empty());
+    }
+
+    /// Everything about the character comes along — not just its asset,
+    /// scale and opacity as with Duplicate — on top, with a fresh id.
+    #[test]
+    fn a_paste_brings_the_whole_character() {
+        let mut w = demo_world();
+        w.scene.entities[0].behavior = crate::behavior::Behavior::WalkAround { speed: 55.0 };
+        w.scene.entities[0].physics.enable();
+        let copied = crate::clipboard::Copied::of(&w.scene, &[0]).unwrap();
+        let before = w.scene.entities.len();
+        let pasted = paste_entities(&copied, &mut w.ctx());
+        assert_eq!(pasted, vec![before]);
+        let (original, copy) = (&w.scene.entities[0], &w.scene.entities[before]);
+        assert_ne!(copy.id, original.id);
+        assert_eq!(copy.behavior, original.behavior);
+        assert!(copy.physics.enabled);
+        assert_eq!((copy.x, copy.y), (original.x + 30.0, original.y + 30.0));
+        assert!(w
+            .scene
+            .entities
+            .iter()
+            .all(|e| e.z_index < copy.z_index || e.id == copy.id));
+        assert_eq!(w.selection.selected_indices(), pasted);
+        assert!(w.dirty);
+    }
+
+    /// Cut and pasted into another scene: the group comes back, under its
+    /// own name, where it was.
+    #[test]
+    fn a_cut_group_pastes_into_another_scene_as_it_was() {
+        crate::i18n::init(Some("en"));
+        let mut w = demo_world();
+        w.scene.group_entities(&[0, 1], |n| format!("Group {n}"));
+        w.scene.groups[0].name = "Party".into();
+        w.scene.groups[0].scale = 1.5;
+        let at = (w.scene.entities[0].x, w.scene.entities[0].y);
+        let copied = crate::clipboard::Copied::of(&w.scene, &[0, 1]).unwrap();
+        let before = w.scene.entities.len();
+        remove_entities(&[0, 1], &mut w.ctx());
+        assert_eq!(w.scene.entities.len(), before - 2);
+        assert!(w.scene.groups.is_empty());
+
+        let mut other = World::new(0);
+        let pasted = paste_entities(&copied, &mut other.ctx());
+        assert_eq!(pasted.len(), 2);
+        assert_eq!(other.scene.groups.len(), 1);
+        assert_eq!(other.scene.groups[0].name, "Party");
+        assert_eq!(other.scene.groups[0].scale, 1.5);
+        assert_eq!((other.scene.entities[0].x, other.scene.entities[0].y), at);
+    }
+
+    /// A character whose file went between the copy and the paste is
+    /// reported, and the rest still come in.
+    #[test]
+    fn a_paste_reports_what_it_could_not_load() {
+        let mut w = demo_world();
+        let mut copied = crate::clipboard::Copied::of(&w.scene, &[0, 1]).unwrap();
+        copied.characters[0].asset_path = "/nonexistent/gone.png".into();
+        let before = w.scene.entities.len();
+        let pasted = paste_entities(&copied, &mut w.ctx());
+        assert_eq!(pasted.len(), 1);
+        assert_eq!(w.scene.entities.len(), before + 1);
+        assert_eq!(w.messages().len(), 2, "the failure, then the paste");
     }
 
     /// Duplicating an entity whose asset cannot be loaded reports it rather

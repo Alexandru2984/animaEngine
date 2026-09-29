@@ -329,6 +329,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                 \n    Ctrl+Z     — Undo\n\
                 \n    Ctrl+Shift+Z — Redo\n\
                 \n    D          — Duplicate\n\
+                \n    Ctrl+C/X/V — Copy, cut, paste (into any scene)\n\
                 \n    Ctrl+G     — Group the selection\n\
                 \n    Ctrl+Shift+G — Ungroup\n\
                 \n    Del/Bksp   — Delete\n\
@@ -337,6 +338,12 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                 \n    Q          — Save and exit\n\
                 \n    H          — This help"
             );
+        }
+        // Copying only reads the scene. Cutting and pasting take
+        // characters out and put them in, textures and all, so the
+        // backends run those, as they do Delete and Duplicate.
+        Action::CopySelected => {
+            crate::outcomes::copy_entities(&selection.selected_indices(), scene, toasts);
         }
         // With nothing selected both do nothing, like every other
         // selection action; the right-click menu shares them.
@@ -631,10 +638,13 @@ mod tests {
         let mut scene = scene_with(1);
         let mut sel = SelectionState::default();
         // Every action the palette hides without a selection, except the
-        // two the backends dispatch themselves (delete, duplicate).
+        // ones the backends dispatch themselves (delete, duplicate, cut).
         for &action in Action::ALL.iter().filter(|a| {
             a.acts_on_selection()
-                && !matches!(a, Action::DeleteSelected | Action::DuplicateSelected)
+                && !matches!(
+                    a,
+                    Action::DeleteSelected | Action::DuplicateSelected | Action::CutSelected
+                )
         }) {
             assert!(run(action, &mut scene, &mut sel, false), "{action:?}");
         }
@@ -681,6 +691,8 @@ mod tests {
             Action::SaveNow,
             Action::DeleteSelected,
             Action::DuplicateSelected,
+            Action::CutSelected,
+            Action::Paste,
             Action::TogglePerfOverlay,
         ] {
             assert!(!run(action, &mut scene, &mut sel, false), "{action:?}");

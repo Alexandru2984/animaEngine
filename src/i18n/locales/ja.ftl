@@ -61,6 +61,9 @@ scene-drop-hint = PNG / GIF / WebP をオーバーレイにドロップしてエ
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = ファイルを追加…
 scene-add-file-tooltip = キャラクターとして追加する画像や動画を選びます。
+scene-paste = 貼り付け
+scene-paste-tooltip = コピーしたキャラクターをこのシーンに追加します。コピー済み: { $count }
+scene-paste-empty = まだ何もコピーしていません。このシーンや別のシーンでキャラクターを選択して Ctrl+C を押すか、右クリックして「コピー」を選ぶと、ここに貼り付けられます。
 file-chooser-title = キャラクターを追加
 file-chooser-filter = 画像と動画
 file-chooser-unavailable-toast = ファイル選択ダイアログを開けませんでした。xdg-desktop-portal が必要です。
@@ -109,6 +112,8 @@ palette-footer-hint = Esc で閉じる · Ctrl+K で切替 · ↑↓ + Enter で
 onboarding-dismiss = 閉じる
 
 menu-duplicate = 複製
+menu-copy = コピー
+menu-cut = 切り取り
 menu-reset-transform = 変形をリセット
 menu-toggle-gravity = 重力を切替
 menu-bring-forward = 前面へ
@@ -209,6 +214,9 @@ action-toggle-visible = 表示を切り替え
 action-toggle-gravity = 重力を切り替え
 action-toggle-playback = 再生／一時停止
 action-duplicate-selected = 選択を複製
+action-copy-selected = 選択をコピー
+action-cut-selected = 選択を切り取り
+action-paste = 貼り付け
 action-reset-transform = 拡大率／不透明度をリセット
 action-bring-forward = 選択を前面へ
 action-send-backward = 選択を背面へ
@@ -363,6 +371,14 @@ toast-duplicate-failed = 複製に失敗しました: { $error }
 toast-deleted = { $name } を削除しました
 # Multiple selection (1.5): machine-translated, pending native review.
 toast-deleted-many = 削除したキャラクター: { $count }
+toast-copied = { $name } をコピーしました
+toast-copied-many = コピーしたキャラクター: { $count }
+toast-cut = { $name } を切り取りました
+toast-cut-many = 切り取ったキャラクター: { $count }
+toast-pasted = { $name } を貼り付けました
+toast-pasted-many = 貼り付けたキャラクター: { $count }
+toast-paste-failed = 貼り付けに失敗しました: { $error }
+toast-nothing-to-paste = 貼り付けるものがありません。先にキャラクターをコピーしてください
 toast-playback-resumed = 再生を再開しました
 toast-playback-paused = 再生を一時停止しました
 # Undo (1.5): machine-translated, pending native review.

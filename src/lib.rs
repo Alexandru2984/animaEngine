@@ -9,6 +9,7 @@ pub mod autostart;
 pub mod away;
 pub mod behavior;
 pub mod bump;
+pub mod clipboard;
 pub mod config;
 pub mod config_watch;
 pub mod constants;

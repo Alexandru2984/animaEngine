@@ -615,7 +615,7 @@ impl Scene {
     }
 
     /// Get the next z_index value (one above the current maximum)
-    fn next_z_index(&self) -> i32 {
+    pub fn next_z_index(&self) -> i32 {
         self.entities.iter().map(|e| e.z_index).max().unwrap_or(0) + 10
     }
 

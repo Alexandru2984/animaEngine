@@ -61,6 +61,9 @@ scene-drop-hint = Przeciągnij plik PNG / GIF / WebP na nakładkę, aby dodać e
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Dodaj plik…
 scene-add-file-tooltip = Wybierz obrazy lub filmy do dodania jako postacie.
+scene-paste = Wklej
+scene-paste-tooltip = Dodaje skopiowane postacie do tej sceny. Skopiowane: { $count }
+scene-paste-empty = Nic jeszcze nie skopiowano. Zaznacz postacie i naciśnij Ctrl+C albo kliknij je prawym przyciskiem i wybierz Kopiuj, w tej scenie lub innej, aby wkleić je tutaj.
 file-chooser-title = Dodaj postacie
 file-chooser-filter = Obrazy i filmy
 file-chooser-unavailable-toast = Nie udało się otworzyć okna wyboru plików. Wymaga ono xdg-desktop-portal.
@@ -109,6 +112,8 @@ palette-footer-hint = Esc zamyka · Ctrl+K przełącza · ↑↓ + Enter wybiera
 onboarding-dismiss = Zamknij
 
 menu-duplicate = Duplikuj
+menu-copy = Kopiuj
+menu-cut = Wytnij
 menu-reset-transform = Resetuj transformację
 menu-toggle-gravity = Przełącz grawitację
 menu-bring-forward = Przenieś na wierzch
@@ -209,6 +214,9 @@ action-toggle-visible = Przełącz widoczność
 action-toggle-gravity = Przełącz grawitację
 action-toggle-playback = Odtwarzaj/wstrzymaj
 action-duplicate-selected = Duplikuj zaznaczenie
+action-copy-selected = Kopiuj zaznaczenie
+action-cut-selected = Wytnij zaznaczenie
+action-paste = Wklej
 action-reset-transform = Zresetuj skalę / nieprzezroczystość
 action-bring-forward = Przenieś zaznaczenie do przodu
 action-send-backward = Przenieś zaznaczenie do tyłu
@@ -363,6 +371,14 @@ toast-duplicate-failed = Duplikowanie nie powiodło się: { $error }
 toast-deleted = Usunięto { $name }
 # Multiple selection (1.5): machine-translated, pending native review.
 toast-deleted-many = Usunięte postacie: { $count }
+toast-copied = Skopiowano { $name }
+toast-copied-many = Skopiowane postacie: { $count }
+toast-cut = Wycięto { $name }
+toast-cut-many = Wycięte postacie: { $count }
+toast-pasted = Wklejono { $name }
+toast-pasted-many = Wklejone postacie: { $count }
+toast-paste-failed = Wklejanie nie powiodło się: { $error }
+toast-nothing-to-paste = Nie ma nic do wklejenia: najpierw skopiuj postać
 toast-playback-resumed = Odtwarzanie wznowione
 toast-playback-paused = Odtwarzanie wstrzymane
 # Undo (1.5): machine-translated, pending native review.
