@@ -195,6 +195,8 @@ arrange-distribute-horizontally = Répartir également en largeur
 arrange-distribute-vertically = Répartir également en hauteur
 scene-snap = Magnétisme pendant le glissement
 scene-snap-tooltip = Les bords et les centres s’aimantent à ceux des écrans et des autres personnages. Maintenez Alt en glissant pour placer librement.
+scene-bump = Les personnages se heurtent
+scene-bump-tooltip = Avec la gravité (G), les personnages atterrissent sur la tête des autres ; ceux qui marchent font demi-tour en se croisant.
 
 action-cycle-entity = Passer au personnage suivant
 action-delete-selected = Supprimer le personnage sélectionné

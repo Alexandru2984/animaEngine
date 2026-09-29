@@ -39,6 +39,8 @@ pub struct Animation {
     /// Ignored when the asset carries per-frame delays (GIF / WebP),
     /// because those delays are authoritative.
     pub easing: Option<crate::anim::EasingCurve>,
+    /// See [`Animation::steady_margins`]; worked out the first time asked.
+    margins: std::sync::OnceLock<(f32, f32)>,
 }
 
 impl Animation {
@@ -52,7 +54,24 @@ impl Animation {
             last_frame_time: Instant::now(),
             has_per_frame_delays,
             easing: None,
+            margins: std::sync::OnceLock::new(),
         }
+    }
+
+    /// The empty rows above and below what is seen, the fewest over every
+    /// frame — how tall the sprite gets, how low its feet go — in frame
+    /// pixels (`crate::bump`). The same all through the loop, so a
+    /// character resting on another does not fall through when an ear
+    /// twitches up a pixel between two frames.
+    pub fn steady_margins(&self) -> (f32, f32) {
+        *self.margins.get_or_init(|| {
+            self.frames
+                .iter()
+                .filter_map(Frame::empty_rows)
+                .map(|(top, bottom)| (top as f32, bottom as f32))
+                .reduce(|(t, b), (t2, b2)| (t.min(t2), b.min(b2)))
+                .unwrap_or((0.0, 0.0))
+        })
     }
 
     /// Advance the animation based on elapsed time.

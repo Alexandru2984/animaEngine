@@ -195,6 +195,8 @@ arrange-distribute-horizontally = Gelijkmatig naast elkaar verdelen
 arrange-distribute-vertically = Gelijkmatig onder elkaar verdelen
 scene-snap = Magnetisch slepen
 scene-snap-tooltip = Randen en middens klikken vast aan die van de schermen en van andere figuren. Houd Alt ingedrukt tijdens het slepen om vrij te plaatsen.
+scene-bump = Figuren botsen tegen elkaar
+scene-bump-tooltip = Met zwaartekracht aan (G) landen figuren op elkaars hoofd; lopende figuren keren om als ze elkaar tegenkomen.
 
 action-cycle-entity = Naar het volgende personage
 action-delete-selected = Geselecteerd personage verwijderen

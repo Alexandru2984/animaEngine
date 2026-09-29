@@ -195,6 +195,8 @@ arrange-distribute-horizontally = Distribuir igualmente na horizontal
 arrange-distribute-vertically = Distribuir igualmente na vertical
 scene-snap = Encaixar ao arrastar
 scene-snap-tooltip = Bordas e centros se encaixam nos das telas e de outros personagens. Segure Alt ao arrastar para posicionar livremente.
+scene-bump = Os personagens esbarram uns nos outros
+scene-bump-tooltip = Com a gravidade ligada (G), os personagens pousam na cabeça dos outros; os que andam dão meia-volta ao se encontrarem.
 
 action-cycle-entity = Ir para o próximo personagem
 action-delete-selected = Excluir o personagem selecionado

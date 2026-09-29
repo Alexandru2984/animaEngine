@@ -337,9 +337,18 @@ mod tests {
     #[test]
     fn validate_snapshot_rejects_truncated_contents() {
         // Simulates a non-atomic write torn by a second crash mid-save.
+        //
+        // Torn inside a quoted value, which no parse can mistake for a
+        // shorter config. The cut used to fall at exactly half the file,
+        // and whether that was invalid depended on the layout: once the
+        // config grew, the half fell on `y = 4` of `y = 450.0` — a valid
+        // number, and every field after it has a default. A tear on such a
+        // boundary is a well-formed smaller config; parsing cannot tell.
         let cfg = AppConfig::default();
         let toml = toml::to_string_pretty(&cfg).unwrap();
-        let truncated = &toml[..toml.len() / 2];
+        let half = toml.len() / 2;
+        let inside_a_string = half + toml[half..].find('"').expect("a string after the middle") + 1;
+        let truncated = &toml[..inside_a_string];
         assert!(validate_snapshot_contents(truncated).is_err());
     }
 

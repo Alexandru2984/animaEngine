@@ -195,6 +195,8 @@ arrange-distribute-horizontally = Gleichmäßig nebeneinander verteilen
 arrange-distribute-vertically = Gleichmäßig untereinander verteilen
 scene-snap = Beim Ziehen einrasten
 scene-snap-tooltip = Kanten und Mitten rasten an denen der Bildschirme und anderer Figuren ein. Beim Ziehen Alt halten, um frei zu platzieren.
+scene-bump = Figuren stoßen aneinander
+scene-bump-tooltip = Mit Schwerkraft (G) landen Figuren auf den Köpfen anderer; laufende Figuren kehren um, wenn sie sich treffen.
 
 action-cycle-entity = Zur nächsten Figur wechseln
 action-delete-selected = Ausgewählte Figur löschen

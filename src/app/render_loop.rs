@@ -170,6 +170,7 @@ impl App {
                 .set_reduced_motion(self.config.global.reduced_motion);
             self.scene
                 .set_hover_startle(self.config.global.hover_startle);
+            self.scene.set_bump(self.config.global.characters_bump);
             // Bounds are the desktop region our windows actually cover,
             // not the primary window's size: in PerMonitor mode an entity
             // on a secondary monitor was otherwise clamped back onto the
@@ -385,6 +386,7 @@ impl App {
                         let monitor_mode_mut = &mut self.config.global.monitor_mode;
                         let window_awareness_mut = &mut self.config.global.window_awareness;
                         let snap_mut = &mut self.config.global.snap_while_dragging;
+                        let bump_mut = &mut self.config.global.characters_bump;
                         let active_scene_mut = &mut self.config.global.active_scene;
                         let reminders_mut = &mut self.config.reminders;
                         let scene_schedule_mut = &mut self.config.scene_schedule;
@@ -472,6 +474,7 @@ impl App {
                                     // winit backend: X11 or XWayland, both read EWMH.
                                     true,
                                     snap_mut,
+                                    bump_mut,
                                     active_scene_mut,
                                     reminders_mut,
                                     scene_schedule_mut,

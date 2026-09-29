@@ -195,6 +195,8 @@ arrange-distribute-horizontally = 横に等間隔で並べる
 arrange-distribute-vertically = 縦に等間隔で並べる
 scene-snap = ドラッグ中にスナップ
 scene-snap-tooltip = 端と中心が画面や他のキャラクターの端と中心に吸着します。ドラッグ中に Alt を押すと自由に配置できます。
+scene-bump = キャラクター同士がぶつかる
+scene-bump-tooltip = 重力 (G) がオンのとき、キャラクターは他のキャラクターの頭に着地し、歩くキャラクターは出会うと向きを変えます。
 
 action-cycle-entity = 次のキャラクターへ
 action-delete-selected = 選択したキャラクターを削除

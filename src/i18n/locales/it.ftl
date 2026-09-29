@@ -195,6 +195,8 @@ arrange-distribute-horizontally = Distribuisci in orizzontale
 arrange-distribute-vertically = Distribuisci in verticale
 scene-snap = Aggancia durante il trascinamento
 scene-snap-tooltip = Bordi e centri si agganciano a quelli degli schermi e degli altri personaggi. Tieni premuto Alt mentre trascini per posizionare liberamente.
+scene-bump = I personaggi si scontrano
+scene-bump-tooltip = Con la gravità attiva (G), i personaggi atterrano sulla testa degli altri; chi cammina torna indietro quando si incontrano.
 
 action-cycle-entity = Passa al personaggio successivo
 action-delete-selected = Elimina il personaggio selezionato

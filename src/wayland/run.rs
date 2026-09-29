@@ -1039,6 +1039,7 @@ pub fn run_native(
         }
         scene.set_reduced_motion(config.global.reduced_motion);
         scene.set_hover_startle(config.global.hover_startle);
+        scene.set_bump(config.global.characters_bump);
         {
             let _s = perf_sampler.scope(crate::perf::Category::SceneUpdate);
             scene.tick(
@@ -1229,6 +1230,7 @@ pub fn run_native(
                 let monitor_mode_mut = &mut config.global.monitor_mode;
                 let window_awareness_mut = &mut config.global.window_awareness;
                 let snap_mut = &mut config.global.snap_while_dragging;
+                let bump_mut = &mut config.global.characters_bump;
                 let active_scene_mut = &mut config.global.active_scene;
                 let reminders_mut = &mut config.reminders;
                 let scene_schedule_mut = &mut config.scene_schedule;
@@ -1306,6 +1308,7 @@ pub fn run_native(
                                 // Native Wayland exposes no window positions.
                                 false,
                                 snap_mut,
+                                bump_mut,
                                 active_scene_mut,
                                 reminders_mut,
                                 scene_schedule_mut,

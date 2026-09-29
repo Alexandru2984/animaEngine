@@ -29,6 +29,7 @@ pub(super) fn scene_tab(
     // Whether this backend can actually provide window positions.
     window_awareness_supported: bool,
     snap_while_dragging: &mut bool,
+    characters_bump: &mut bool,
     active_scene: &mut Option<String>,
     reminders: &mut Vec<crate::reminders::ReminderConfig>,
     scene_schedule: &mut Vec<crate::schedule::ScheduleRule>,
@@ -77,6 +78,14 @@ pub(super) fn scene_tab(
     if ui
         .checkbox(snap_while_dragging, t("scene-snap"))
         .on_hover_text(t("scene-snap-tooltip"))
+        .changed()
+    {
+        *config_dirty = true;
+    }
+    // Characters bumping into each other (1.5), on both backends.
+    if ui
+        .checkbox(characters_bump, t("scene-bump"))
+        .on_hover_text(t("scene-bump-tooltip"))
         .changed()
     {
         *config_dirty = true;

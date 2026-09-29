@@ -195,6 +195,8 @@ arrange-distribute-horizontally = Rozłóż równo w poziomie
 arrange-distribute-vertically = Rozłóż równo w pionie
 scene-snap = Przyciągaj podczas przeciągania
 scene-snap-tooltip = Krawędzie i środki przyciągają się do krawędzi i środków ekranów oraz innych postaci. Przytrzymaj Alt podczas przeciągania, by umieszczać swobodnie.
+scene-bump = Postacie zderzają się ze sobą
+scene-bump-tooltip = Przy włączonej grawitacji (G) postacie lądują sobie na głowach, a chodzące zawracają, gdy się spotkają.
 
 action-cycle-entity = Przejdź do następnej postaci
 action-delete-selected = Usuń zaznaczoną postać

@@ -99,6 +99,10 @@ pub struct GlobalConfig {
     /// Alt held during a drag places freely.
     #[serde(default = "default_true")]
     pub snap_while_dragging: bool,
+    /// Characters land on each other's heads and walkers turn around when
+    /// they meet (`crate::bump`). Off by default like everything physics.
+    #[serde(default)]
+    pub characters_bump: bool,
     /// Generate AccessKit tree updates (the AT-SPI bridge that drives
     /// screen readers like Orca). On by default — the overhead is
     /// negligible and we want screen-reader users to "just work" out
@@ -154,6 +158,7 @@ impl Default for GlobalConfig {
             start_at_login: false,
             window_awareness: false,
             snap_while_dragging: true,
+            characters_bump: false,
             accesskit_enabled: true,
             hotkey_backend: crate::hotkeys::probe::HotkeyBackend::Auto,
             last_seen_whats_new: None,

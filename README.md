@@ -34,6 +34,8 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   inspector sections, sliders for every field, drag-and-drop placement.
 - **Autonomous behaviors** per entity: `Idle` (default), `WalkAround`,
   `FollowCursor`, `BoundedWander`, `Bounce` — wired through the UI.
+  Optionally, characters bump into each other: they land on each
+  other's heads and turn around when they meet.
 - **Scripted behaviors**: a character's motion can be a small
   [Rhai](https://rhai.rs) script from your asset library, sandboxed and
   bounded (no files, no network, capped operations). Scripts can play

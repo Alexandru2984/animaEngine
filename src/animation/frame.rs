@@ -24,6 +24,22 @@ impl Frame {
         }
     }
 
+    /// How many empty rows sit above and below what is seen — alpha over
+    /// the value that decides clicks. Each scan stops at the first row
+    /// with something in it. `None` for a frame with nothing seen, or a
+    /// buffer that does not match its size.
+    pub fn empty_rows(&self) -> Option<(u32, u32)> {
+        const SEEN_ALPHA: u8 = 20;
+        let (w, h) = (self.width as usize, self.height as usize);
+        if w == 0 || self.rgba.len() < w * h * 4 {
+            return None;
+        }
+        let seen = |y: usize| (0..w).any(|x| self.rgba[(y * w + x) * 4 + 3] > SEEN_ALPHA);
+        let top = (0..h).find(|&y| seen(y))?;
+        let bottom = (0..h).rev().find(|&y| seen(y)).unwrap_or(h - 1);
+        Some((top as u32, (h - 1 - bottom) as u32))
+    }
+
     /// Create a frame with an explicit delay (for GIF/animated WebP)
     pub fn with_delay(rgba: Vec<u8>, width: u32, height: u32, delay_ms: u32) -> Self {
         Self {

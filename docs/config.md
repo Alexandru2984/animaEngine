@@ -86,6 +86,8 @@ start_at_login = false      # Flatpak only: what the Background portal
 active_scene = "Work"       # the saved scene last loaded or saved;
                             # omit for none. Scenes themselves are
                             # files in scenes/ beside this one (below).
+characters_bump = false     # characters land on each other's heads
+                            # and walkers turn around when they meet
 snap_while_dragging = true  # a dragged selection snaps to monitor
                             # edges and other characters; hold Alt
                             # while dragging to place freely.

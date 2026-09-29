@@ -41,6 +41,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   centre to the monitors' and to other characters' within 8 px, and a
   thin line shows what it snapped to; hold Alt to place freely, or turn
   it off in the Scene tab.
+- **Characters bump into each other**, when switched on in the Scene
+  tab (off by default): one falling with gravity lands on another's head
+  — on what can be seen of it, not the empty rows of its image — and a
+  walker turns around when it meets someone.
 - **Speech bubbles and reminders.** A character can say something in a
   bubble: behavior scripts call `say("…")`, and the Scene tab sets up
   reminders — "Time for a short break!" every 50 minutes, a glass of

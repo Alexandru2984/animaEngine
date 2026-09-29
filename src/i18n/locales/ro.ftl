@@ -195,6 +195,8 @@ arrange-distribute-horizontally = Distribuie egal pe orizontală
 arrange-distribute-vertically = Distribuie egal pe verticală
 scene-snap = Lipește la tragere
 scene-snap-tooltip = Marginile și centrele se lipesc de ale ecranelor și ale altor personaje. Ține Alt apăsat în timpul tragerii ca să le plasezi liber.
+scene-bump = Personajele se ciocnesc între ele
+scene-bump-tooltip = Cu gravitația pornită (G), personajele aterizează pe capul altora; cele care merg se întorc când se întâlnesc.
 
 action-cycle-entity = Treci la următoarea entitate
 action-delete-selected = Șterge entitatea selectată

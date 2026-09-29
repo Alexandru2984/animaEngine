@@ -48,6 +48,8 @@ pub struct Scene {
     /// Held still while a full-screen app is in front (`crate::fullscreen`),
     /// apart from the user's own playback switch.
     suspended: bool,
+    /// Characters bump into each other (`crate::bump`).
+    bump: bool,
 }
 
 impl Scene {
@@ -126,6 +128,7 @@ impl Scene {
             reduced_motion: false,
             hover_startle: false,
             suspended: false,
+            bump: false,
         }
     }
 
@@ -239,6 +242,12 @@ impl Scene {
         self.hover_startle = enabled;
     }
 
+    /// Whether characters land on and turn at each other (cheap, called
+    /// per frame).
+    pub fn set_bump(&mut self, enabled: bool) {
+        self.bump = enabled;
+    }
+
     /// Replace the desktop-window platform set (window-awareness).
     /// Called from the render loop after each X11 window poll; pass
     /// an empty vec to turn the feature's effect off instantly.
@@ -307,7 +316,18 @@ impl Scene {
             h.refresh_load();
         }
 
-        for entity in &mut self.entities {
+        // With bumping on, each character's floors are the windows' and the
+        // others' tops, taken before anyone moves this tick.
+        let floors: Vec<Vec<crate::platforms::PlatformRect>> = if self.bump {
+            let solids = crate::bump::solids(self);
+            (0..self.entities.len())
+                .map(|i| crate::bump::platforms_for(self, &solids, i, &self.window_platforms))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        for (i, entity) in self.entities.iter_mut().enumerate() {
+            let platforms = floors.get(i).map_or(&self.window_platforms[..], |f| &f[..]);
             // Re-borrow per entity: the host is `&mut` and the loop needs
             // it each iteration.
             let per_entity = match (host.as_deref_mut(), audio.as_deref_mut(), root) {
@@ -322,11 +342,15 @@ impl Scene {
                 dt,
                 bounds,
                 cursor,
-                &self.window_platforms,
+                platforms,
                 self.reduced_motion,
                 self.hover_startle,
                 per_entity,
             );
+        }
+
+        if self.bump {
+            crate::bump::turn_walkers(self);
         }
 
         // Entities come and go; their scopes shouldn't outlive them.

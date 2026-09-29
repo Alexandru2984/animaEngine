@@ -319,6 +319,20 @@ winit path from a thread reading EWMH (`FullscreenWatch`, sending
 user's hide (`overlay_hidden`) and playback switch
 (`Scene::set_suspended`), so coming back needs no bookkeeping.
 
+### Characters bumping into each other (`src/bump.rs`)
+
+Optional (`characters_bump`). Before the entities tick, each gets its
+own platform list: the window platforms plus every other visible,
+undragged character's top, in its own coordinates, through the same
+`platforms::effective_floor` rule — so two can never hold each other up,
+a top above the feet being a wall. Tops and feet are what can be seen:
+the rectangle less its empty rows, the fewest over the animation's
+frames (`Animation::steady_margins`, worked out once), so the floor does
+not twitch with an ear and drop a resting character through it. After
+the tick, `turn_walkers` reverses a `WalkAround` heading into a solid
+neighbour, sides inset for the margins, and only when the two overlap by
+a third of the shorter's height — standing on a head is not meeting.
+
 ### Speech bubbles and reminders (`src/speech.rs`, `src/reminders.rs`)
 
 An entity's `speech` is runtime-only: text (capped) and an expiry,
