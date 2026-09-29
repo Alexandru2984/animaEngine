@@ -82,6 +82,12 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub active_scene: Option<String>,
 
+    /// In the Flatpak, whether the Background portal last agreed to start
+    /// the app at login (`crate::autostart`). Installed natively the
+    /// autostart entry itself is the truth and this is not read.
+    #[serde(default)]
+    pub start_at_login: bool,
+
     /// Window-awareness: desktop windows become physics platforms —
     /// mascots land on and walk along window top edges. X11 sessions
     /// only (Wayland exposes no global window geometry); silently
@@ -145,6 +151,7 @@ impl Default for GlobalConfig {
             pause_when_idle_minutes: default_pause_when_idle_minutes(),
             pause_on_battery: false,
             active_scene: None,
+            start_at_login: false,
             window_awareness: false,
             snap_while_dragging: true,
             accesskit_enabled: true,

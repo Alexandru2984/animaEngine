@@ -81,7 +81,9 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 - **Rebindable shortcuts** that work on any keyboard layout — AZERTY,
   QWERTZ, Cyrillic — and are shown the way your keyboard labels them.
 - **System integration**: tray icon (StatusNotifierItem),
-  `Ctrl+Shift+A/H/P` global hotkeys, single-instance D-Bus handshake.
+  `Ctrl+Shift+A/H/P` global hotkeys, single-instance D-Bus handshake,
+  and "Start at login" (an autostart entry, or the portal in the
+  Flatpak).
 - **Hot-reload**: edit `~/.config/animaengine/config.toml` while the app
   runs; changes are decoded off the UI thread and applied seamlessly.
 - **Accessibility**: screen readers (Orca and others, over AT-SPI) on

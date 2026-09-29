@@ -41,6 +41,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   centre to the monitors' and to other characters' within 8 px, and a
   thin line shows what it snapped to; hold Alt to place freely, or turn
   it off in the Scene tab.
+- **Start at login.** A switch in Appearance: installed natively it
+  writes a standard autostart entry (the one the desktop's "Startup
+  Applications" lists too), and in the Flatpak it asks the Background
+  portal, which may ask you. Off by default.
 - **Named scenes.** Save what is on screen — the characters and their
   groups — under a name ("Work", "Stream"), and switch between scenes
   from the Scene tab, the command palette or the tray's new "Next scene"

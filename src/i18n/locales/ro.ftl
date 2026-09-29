@@ -243,6 +243,11 @@ away-after-minutes = După { $minutes } min
 appearance-away-unavailable = Sesiunea asta nu poate ști când nu ești la calculator: e nevoie de GNOME, un server X adevărat sau un compositor Wayland cu notificări de inactivitate.
 appearance-battery-label = Pauză pe baterie
 appearance-battery-hint = Personajele stau pe loc cât timp calculatorul merge pe baterie.
+# Start at login (1.5): machine-translated, pending native review.
+appearance-autostart-label = Pornește la autentificare
+appearance-autostart-hint = Pornește animaEngine când intri în sesiunea desktop.
+appearance-autostart-reason = Ca să pornească animaEngine când intri în sesiune.
+appearance-autostart-failed = Nu s-a putut schimba: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = Scene
 scene-scenes-hint = Salvează ce e pe ecran sub un nume și revino la el aici, din paleta de comenzi sau cu „Next scene” din tray.

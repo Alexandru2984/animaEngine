@@ -319,6 +319,16 @@ winit path from a thread reading EWMH (`FullscreenWatch`, sending
 user's hide (`overlay_hidden`) and playback switch
 (`Scene::set_suspended`), so coming back needs no bookkeeping.
 
+### Starting at login (`src/autostart.rs`)
+
+Installed natively the switch *is* the XDG autostart entry: reading it
+checks the file, flipping it writes or removes it (`Exec` is `$APPIMAGE`
+or the current executable, quoted per the Desktop Entry spec, with the
+native-Wayland opt-in carried over). In the Flatpak, detected by
+`/.flatpak-info`, a thread asks the Background portal; its answer comes
+back through an atomic the loops take each frame into
+`start_at_login`, which is all the sandbox can know.
+
 ### Named scenes (`src/scenes.rs`)
 
 A saved scene is a `SavedScene` — name, character configs, groups — in

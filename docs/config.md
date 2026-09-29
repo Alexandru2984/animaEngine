@@ -80,6 +80,9 @@ pause_when_idle_minutes = 10 # hold the characters still after this
                             # server, or a Wayland compositor with
                             # idle notifications.
 pause_on_battery = false    # hold them still on battery (UPower)
+start_at_login = false      # Flatpak only: what the Background portal
+                            # last granted. Installed natively, the
+                            # switch reads ~/.config/autostart instead.
 active_scene = "Work"       # the saved scene last loaded or saved;
                             # omit for none. Scenes themselves are
                             # files in scenes/ beside this one (below).

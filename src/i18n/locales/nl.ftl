@@ -243,6 +243,11 @@ away-after-minutes = Na { $minutes } min
 appearance-away-unavailable = Deze sessie kan niet zien wanneer u weg bent: daarvoor is GNOME nodig, een echte X-server of een Wayland-compositor met inactiviteitsmeldingen.
 appearance-battery-label = Pauzeren op batterij
 appearance-battery-hint = De figuren staan stil zolang de computer op de batterij draait.
+# Start at login (1.5): machine-translated, pending native review.
+appearance-autostart-label = Starten bij aanmelden
+appearance-autostart-hint = animaEngine starten wanneer u zich aanmeldt bij het bureaublad.
+appearance-autostart-reason = Om animaEngine te starten bij het aanmelden.
+appearance-autostart-failed = Kon het niet wijzigen: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = Scènes
 scene-scenes-hint = Sla op wat op het scherm staat onder een naam, en ga er hier naar terug, via het opdrachtenpalet of met ‘Next scene’ in het systeemvak.

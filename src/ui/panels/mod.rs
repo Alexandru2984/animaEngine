@@ -226,6 +226,7 @@ pub fn settings(
     hover_startle: &mut bool,
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
     away: AwayControls<'_>,
+    start_at_login: &mut bool,
     monitors: &[MonitorInfo],
     library: Option<&LibraryIndex>,
     library_outcome: &mut Option<LibraryOutcome>,
@@ -399,6 +400,7 @@ pub fn settings(
                                 hover_startle,
                                 on_fullscreen,
                                 away,
+                                start_at_login,
                             );
                         }
                         SettingsTab::Keybindings => {

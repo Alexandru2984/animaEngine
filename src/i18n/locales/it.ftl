@@ -243,6 +243,11 @@ away-after-minutes = Dopo { $minutes } min
 appearance-away-unavailable = Questa sessione non può sapere quando sei via: serve GNOME, un vero server X o un compositor Wayland con notifiche di inattività.
 appearance-battery-label = Pausa a batteria
 appearance-battery-hint = I personaggi restano fermi mentre il computer va a batteria.
+# Start at login (1.5): machine-translated, pending native review.
+appearance-autostart-label = Avvia all’accesso
+appearance-autostart-hint = Avvia animaEngine quando accedi al desktop.
+appearance-autostart-reason = Per avviare animaEngine all’accesso.
+appearance-autostart-failed = Impossibile cambiarlo: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = Scene
 scene-scenes-hint = Salva ciò che è sullo schermo con un nome e tornaci qui, dalla palette dei comandi o con «Next scene» nell’area di notifica.

@@ -243,6 +243,11 @@ away-after-minutes = { $minutes } 分後
 appearance-away-unavailable = このセッションでは離席を検知できません。GNOME、実際の X サーバー、またはアイドル通知に対応した Wayland コンポジターが必要です。
 appearance-battery-label = バッテリー駆動中は一時停止
 appearance-battery-hint = コンピューターがバッテリーで動いている間、キャラクターを止めます。
+# Start at login (1.5): machine-translated, pending native review.
+appearance-autostart-label = ログイン時に起動
+appearance-autostart-hint = デスクトップにログインしたときに animaEngine を起動します。
+appearance-autostart-reason = ログイン時に animaEngine を起動するため。
+appearance-autostart-failed = 変更できませんでした: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = シーン
 scene-scenes-hint = 画面の内容に名前を付けて保存し、ここやコマンドパレット、トレイの「Next scene」から戻れます。

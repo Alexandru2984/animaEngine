@@ -58,6 +58,12 @@ impl App {
         // The setting can change in the panel; the report and edit mode
         // are handled where they change, but this is cheap.
         self.update_step_aside();
+        // In the Flatpak, the Background portal's answer to "start at
+        // login", once it comes (`crate::autostart`).
+        if let Some(granted) = crate::autostart::take_portal_answer() {
+            self.config.global.start_at_login = granted;
+            self.config_dirty = true;
+        }
         // A screen reader's request is input too; it is applied in this
         // frame's egui pass.
         if self
@@ -337,6 +343,7 @@ impl App {
                         let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
                         let on_battery_mut = &mut self.config.global.pause_on_battery;
+                        let start_at_login_mut = &mut self.config.global.start_at_login;
                         let idle_available = self.idle_source;
                         // Snapshot the AccessKit flag BEFORE taking
                         // its mutable borrow — the renderer gates
@@ -425,6 +432,7 @@ impl App {
                                         on_battery: &mut *on_battery_mut,
                                         idle_available,
                                     },
+                                    start_at_login_mut,
                                     monitors_ref,
                                     library_ref,
                                     library_outcome_ref,

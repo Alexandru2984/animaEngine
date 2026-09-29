@@ -250,6 +250,11 @@ away-after-minutes = After { $minutes } min
 appearance-away-unavailable = This session cannot tell when you are away: that takes GNOME, a real X server, or a Wayland compositor with idle notifications.
 appearance-battery-label = Pause on battery
 appearance-battery-hint = Hold the characters still while the computer runs on battery.
+# Start at login (1.5)
+appearance-autostart-label = Start at login
+appearance-autostart-hint = Start animaEngine when you log in to the desktop.
+appearance-autostart-reason = To start animaEngine when you log in.
+appearance-autostart-failed = Could not change it: { $error }
 # Named scenes (1.5)
 scene-scenes-header = Scenes
 scene-scenes-hint = Save what is on screen under a name, and switch back to it here, from the command palette, or with “Next scene” in the tray.

@@ -25,6 +25,7 @@ pub(super) fn appearance_tab(
     hover_startle: &mut bool,
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
     away: super::AwayControls<'_>,
+    start_at_login: &mut bool,
 ) {
     ui.label(egui::RichText::new(t("appearance-theme-header")).text_style(h2()));
     ui.add_space(SPACE_S);
@@ -86,6 +87,9 @@ pub(super) fn appearance_tab(
     }
     ui.add_space(SPACE_S);
     if away_controls(ui, away) {
+        *config_dirty = true;
+    }
+    if cfg!(unix) && autostart_switch(ui, start_at_login) {
         *config_dirty = true;
     }
     ui.add_space(SPACE_M);
@@ -242,6 +246,47 @@ fn theme_label_with_icon(t: Theme) -> String {
         Theme::Light | Theme::LightHighContrast => icons::LIGHT_MODE,
     };
     format!("{icon}  {}", t.label())
+}
+
+/// Start at login (`crate::autostart`). `granted` is the Flatpak's
+/// remembered portal answer; installed natively, the entry on disk is
+/// read instead. Returns whether the setting changed.
+fn autostart_switch(ui: &mut egui::Ui, granted: &mut bool) -> bool {
+    let error_key = egui::Id::new("anima.autostart-error");
+    let mut on = crate::autostart::is_enabled(*granted);
+    let mut changed = false;
+    if ui
+        .checkbox(&mut on, t("appearance-autostart-label"))
+        .on_hover_text(t("appearance-autostart-hint"))
+        .changed()
+    {
+        match crate::autostart::set(on) {
+            Ok(()) => {
+                // The Flatpak's portal answers later and may say no; until
+                // then, what was asked.
+                *granted = on;
+                changed = true;
+                ui.data_mut(|d| d.remove::<String>(error_key));
+            }
+            Err(e) => {
+                let mut args = fluent::FluentArgs::new();
+                args.set("error", e.to_string());
+                let message = crate::i18n::t_args("appearance-autostart-failed", &args);
+                ui.data_mut(|d| d.insert_temp(error_key, message));
+            }
+        }
+    }
+    if let Some(error) = ui.data(|d| d.get_temp::<String>(error_key)) {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(error)
+                    .text_style(crate::ui::theme::caption())
+                    .color(ui.visuals().error_fg_color),
+            )
+            .wrap(),
+        );
+    }
+    changed
 }
 
 /// When to hold the characters still for someone being away

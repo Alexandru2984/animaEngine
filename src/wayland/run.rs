@@ -410,6 +410,12 @@ pub fn run_native(
         );
         // Held still while nobody is there, too (`crate::away`): idle from
         // the compositor, the battery from the away watch.
+        // In the Flatpak, the Background portal's answer to "start at
+        // login", once it comes (`crate::autostart`).
+        if let Some(granted) = crate::autostart::take_portal_answer() {
+            config.global.start_at_login = granted;
+            config_dirty = true;
+        }
         let global = &config.global;
         layer.set_idle_timeout(global.pause_when_idle_minutes);
         crate::away::configure(global.pause_when_idle_minutes, global.pause_on_battery);
@@ -1181,6 +1187,7 @@ pub fn run_native(
                 let on_fullscreen_mut = &mut config.global.on_fullscreen;
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
                 let on_battery_mut = &mut config.global.pause_on_battery;
+                let start_at_login_mut = &mut config.global.start_at_login;
                 let idle_available = Some(layer.idle_available());
                 let accesskit_mut = &mut config.global.accesskit_enabled;
                 let keybindings_mut = &mut config.keybindings;
@@ -1258,6 +1265,7 @@ pub fn run_native(
                                     on_battery: &mut *on_battery_mut,
                                     idle_available,
                                 },
+                                start_at_login_mut,
                                 monitors_ref,
                                 library.as_ref(),
                                 library_ref,

@@ -243,6 +243,11 @@ away-after-minutes = Após { $minutes } min
 appearance-away-unavailable = Esta sessão não consegue saber quando você saiu: é preciso GNOME, um servidor X de verdade ou um compositor Wayland com avisos de inatividade.
 appearance-battery-label = Pausar na bateria
 appearance-battery-hint = Os personagens ficam parados enquanto o computador funciona na bateria.
+# Start at login (1.5): machine-translated, pending native review.
+appearance-autostart-label = Iniciar ao entrar
+appearance-autostart-hint = Inicia o animaEngine quando você entra na área de trabalho.
+appearance-autostart-reason = Para iniciar o animaEngine ao entrar na sessão.
+appearance-autostart-failed = Não foi possível mudar: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = Cenas
 scene-scenes-hint = Salve o que está na tela com um nome e volte a ele aqui, pela paleta de comandos ou com “Next scene” na bandeja.

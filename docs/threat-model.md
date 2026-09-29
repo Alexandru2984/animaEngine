@@ -230,6 +230,19 @@ but the transitions, nothing persisted. The Flatpak grants exactly
 `--system-talk-name=org.freedesktop.UPower` for it. Same trust boundary
 as the rest: the user's own session and machine.
 
+### Starting at login (1.5.0)
+
+"Start at login" in Appearance (off by default) is the one place the app
+writes outside its own directories: installed natively it writes
+`~/.config/autostart/com.animaengine.Anima.desktop`, whose `Exec` line
+is this program's own path (the AppImage's, not its mount) — quoted per
+the Desktop Entry spec, so no character in the path can turn into a
+second command — and removes it when switched off. Only on the user's
+click; nothing is written at startup, and the desktop's own "Startup
+Applications" edits the same file. In the Flatpak the app writes
+nothing: it asks the Background portal, which lets the desktop ask the
+user and write the entry itself.
+
 ### Global pointer query — `XQueryPointer` for `FollowCursor`
 
 `X11InputManager` (the connection already used for input-shape and
