@@ -327,6 +327,11 @@ pub fn run_native(
         let poll = config_watch.poll(config_dirty);
         activity |= !matches!(poll, crate::config_watch::Poll::Idle);
         let reloaded = matches!(poll, crate::config_watch::Poll::Ready(_));
+        if reloaded {
+            // The characters a drag or a rectangle holds are about to be
+            // replaced: let go while they are still the ones it froze.
+            crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
+        }
         crate::config_watch::handle(poll, &mut outcome_ctx!(), &mut config, &mut warnings);
         if reloaded {
             // The scene was replaced from the file: the steps no longer
@@ -660,6 +665,9 @@ pub fn run_native(
                 // Not input, so no undo step is open: open one, or a later
                 // undo would take the switch back with the step before it.
                 history.input(&scene, &selection, Instant::now());
+                // A drag or a rectangle holds characters about to be
+                // replaced: let go first (R56).
+                crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
                 crate::outcomes::next_scene(&mut outcome_ctx!(), &mut config.global.active_scene);
             }
             if quit {

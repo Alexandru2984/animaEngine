@@ -734,6 +734,14 @@ impl ApplicationHandler<AnimaEvent> for App {
                 // undo would take the switch back with the step before it.
                 self.history
                     .input(&self.scene, &self.selection, std::time::Instant::now());
+                // A drag or a rectangle holds characters about to be
+                // replaced: let go first (R56).
+                crate::input::multi::cancel(
+                    &mut self.scene,
+                    &mut self.selection,
+                    &mut self.drag,
+                    &mut self.marquee,
+                );
                 if crate::outcomes::next_scene(
                     &mut outcome_ctx!(self),
                     &mut self.config.global.active_scene,

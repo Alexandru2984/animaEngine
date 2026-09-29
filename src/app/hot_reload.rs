@@ -12,6 +12,16 @@ impl App {
     pub(super) fn check_hot_reload(&mut self) {
         let poll = self.config_watch.poll(self.config_dirty);
         let reloaded = matches!(poll, crate::config_watch::Poll::Ready(_));
+        if reloaded {
+            // The characters a drag or a rectangle holds are about to be
+            // replaced: let go while they are still the ones it froze.
+            crate::input::multi::cancel(
+                &mut self.scene,
+                &mut self.selection,
+                &mut self.drag,
+                &mut self.marquee,
+            );
+        }
         crate::config_watch::handle(
             poll,
             &mut outcome_ctx!(self),

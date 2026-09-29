@@ -172,6 +172,7 @@ action-ungroup-selected = 選択のグループを解除
 menu-group = グループ化
 menu-ungroup = グループ解除
 group-default-name = グループ { $number }
+group-copy-name = { $name } のコピー
 toast-grouped = { $name } としてグループ化しました
 toast-ungrouped = 解除したグループ: { $count }
 toast-nothing-to-ungroup = 選択中のものはどのグループにも属していません

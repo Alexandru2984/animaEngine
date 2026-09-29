@@ -29,7 +29,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   character takes the whole group, so a drag moves it as one; a second
   click takes just that character. The Scene tab lists the groups: a
   click on one selects it, and each can be renamed, hidden and shown, or
-  dissolved. Nothing moves when a group is made or dissolved. Groups used
+  dissolved. Nothing moves when a group is made or dissolved. Duplicating
+  a whole group makes a group of the copies; deleting a group's last
+  character removes the group. Groups used
   to exist only for those who wrote them into `config.toml` by hand, and
   the Scene tab listed them read-only, in English whatever the language.
 - **Align, space and snap.** With several characters selected, a row in

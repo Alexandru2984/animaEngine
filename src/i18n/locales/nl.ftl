@@ -172,6 +172,7 @@ action-ungroup-selected = Groepering van selectie opheffen
 menu-group = Groeperen
 menu-ungroup = Groepering opheffen
 group-default-name = Groep { $number }
+group-copy-name = { $name } (kopie)
 toast-grouped = Gegroepeerd als { $name }
 toast-ungrouped = Groepen opgeheven: { $count }
 toast-nothing-to-ungroup = Niets van de selectie zit in een groep

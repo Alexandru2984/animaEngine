@@ -172,6 +172,7 @@ action-ungroup-selected = Desface grupurile selecției
 menu-group = Grupează
 menu-ungroup = Desface grupul
 group-default-name = Grupul { $number }
+group-copy-name = { $name } (copie)
 toast-grouped = Grupate ca { $name }
 toast-ungrouped = Grupuri desfăcute: { $count }
 toast-nothing-to-ungroup = Nimic din selecție nu e într-un grup

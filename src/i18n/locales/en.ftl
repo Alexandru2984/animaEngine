@@ -182,6 +182,7 @@ action-ungroup-selected = Ungroup selection
 menu-group = Group
 menu-ungroup = Ungroup
 group-default-name = Group { $number }
+group-copy-name = { $name } copy
 toast-grouped = Grouped as { $name }
 toast-ungrouped = Groups dissolved: { $count }
 toast-nothing-to-ungroup = Nothing selected is in a group

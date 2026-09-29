@@ -225,6 +225,9 @@ pub fn duplicate_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> Option<usize> {
 /// One toast for them all. Returns the copies' indices; the originals'
 /// are unchanged, since copies are appended.
 pub fn duplicate_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> Vec<usize> {
+    // A whole group duplicated gives a group of the copies (1.5): a click
+    // on one of them then takes them all, as on the originals.
+    let source_group = ctx.scene.exact_group(indices).cloned();
     let mut copies = Vec::new();
     let mut names = Vec::new();
     for &idx in indices {
@@ -248,6 +251,21 @@ pub fn duplicate_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> Vec<us
     }
     if copies.is_empty() {
         return copies;
+    }
+    if let Some(source) = source_group.filter(|_| copies.len() == indices.len()) {
+        let made = ctx.scene.group_entities(&copies, |_| {
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", source.name.clone());
+            crate::i18n::t_args("group-copy-name", &args)
+        });
+        // The same offset, scale and visibility, so the copies look like
+        // the originals do — only 30 px along.
+        if let (Some(_), Some(group)) = (made, ctx.scene.groups.last_mut()) {
+            group.offset_x = source.offset_x;
+            group.offset_y = source.offset_y;
+            group.scale = source.scale;
+            group.visible = source.visible;
+        }
     }
     ctx.selection.select_all_of(&copies);
     *ctx.config_dirty = true;
@@ -836,6 +854,55 @@ mod tests {
             (2.0, 0)
         );
         assert!(w.dirty);
+    }
+
+    /// The demo characters, whose assets load — a copy needs one.
+    fn demo_world() -> World {
+        World {
+            scene: Scene::from_config(&AppConfig::default()),
+            selection: SelectionState::default(),
+            toasts: ToastQueue::default(),
+            dirty: false,
+        }
+    }
+
+    #[test]
+    fn a_whole_group_duplicated_makes_a_group_of_the_copies() {
+        // Global and shared with tests that switch language: only the
+        // name's source is asserted, not its wording.
+        crate::i18n::init(Some("en"));
+        let mut w = demo_world();
+        w.scene.group_entities(&[0, 1], |n| format!("Group {n}"));
+        w.scene.groups[0].name = "Party".into();
+        w.scene.groups[0].offset_x = 40.0;
+        let copies = duplicate_entities(&[0, 1], &mut w.ctx());
+        assert_eq!(copies.len(), 2);
+        assert_eq!(w.scene.groups.len(), 2);
+        let copied = &w.scene.groups[1];
+        assert!(
+            copied.name.contains("Party") && copied.name != "Party",
+            "named after the original: {}",
+            copied.name
+        );
+        assert_eq!(copied.offset_x, 40.0, "the same transform");
+        let ids: Vec<_> = copies
+            .iter()
+            .map(|&i| w.scene.entities[i].id.clone())
+            .collect();
+        assert_eq!(copied.member_ids, ids);
+        assert_eq!(w.selection.selected_indices(), copies);
+        // Part of a group: the copies are loose, as before.
+        let loose = duplicate_entities(&[0], &mut w.ctx());
+        assert_eq!(loose.len(), 1);
+        assert_eq!(w.scene.groups.len(), 2);
+    }
+
+    #[test]
+    fn deleting_every_member_takes_the_group_away() {
+        let mut w = demo_world();
+        w.scene.group_entities(&[0, 1], |n| format!("Group {n}"));
+        delete_entities(&[1, 0], &mut w.ctx());
+        assert!(w.scene.groups.is_empty());
     }
 
     /// Duplicating an entity whose asset cannot be loaded reports it rather

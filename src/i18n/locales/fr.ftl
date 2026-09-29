@@ -172,6 +172,7 @@ action-ungroup-selected = Dissocier la sélection
 menu-group = Grouper
 menu-ungroup = Dissocier
 group-default-name = Groupe { $number }
+group-copy-name = { $name } (copie)
 toast-grouped = Groupés sous { $name }
 toast-ungrouped = Groupes dissous : { $count }
 toast-nothing-to-ungroup = Rien de la sélection n’est dans un groupe

@@ -365,7 +365,9 @@ A gesture holds entity indices, so `multi::cancel` lets go of it
 whenever those could change or the release could be lost: before an
 action that adds, removes or reselects characters
 (`Action::interrupts_drag`: undo, redo, cycle, delete, duplicate), when
-edit mode ends, and when the overlay hides or steps aside (R56).
+edit mode ends, when the overlay hides or steps aside (R56), and before
+the scene is replaced — a hot reload, a `NextScene` — while the
+characters are still the ones it froze.
 
 ### Arranging (`src/input/arrange.rs`)
 
@@ -392,7 +394,9 @@ offers); the Scene tab renames, hides, dissolves and selects. Making and
 dissolving never changes what is on screen: a character leaving a group
 takes the group's transform into its own (`leave_group`). An entity is
 in at most one group — regrouping moves it, and a group emptied that way
-goes. On the canvas a group acts as one: a press on a member selects the
+goes, as does one emptied by deleting its members (a stub written empty
+by hand stays). Duplicating exactly a group (`Scene::exact_group`)
+groups the copies with the same transform. On the canvas a group acts as one: a press on a member selects the
 whole group (`multi::select_with_its_group`, the right-click too), and a
 second press on a member of the selection narrows it to that one on a
 tap (`DragController::narrow_on_tap`). Undo covers it all through the

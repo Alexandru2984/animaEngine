@@ -139,13 +139,19 @@ pub fn owning_group<'g>(groups: &'g [GroupConfig], entity_id: &str) -> Option<&'
 /// entity (which would render as a silent member-count drift in the
 /// Inspector tree).
 ///
+/// A group this empties goes too: nothing in the app can fill it again,
+/// and the Scene tab would list it as "Characters: 0" (1.5). One written
+/// empty by hand, as a stub, is left alone.
+///
 /// `cleanup_after_entity_removal` is called from `Scene::remove_entity`
-/// after the entity has been popped; passing the live groups slice
-/// keeps the data consistent without a second pass.
-pub fn cleanup_after_entity_removal(groups: &mut [GroupConfig], removed_id: &str) {
-    for g in groups {
+/// after the entity has been popped; passing the live groups keeps the
+/// data consistent without a second pass.
+pub fn cleanup_after_entity_removal(groups: &mut Vec<GroupConfig>, removed_id: &str) {
+    groups.retain_mut(|g| {
+        let had = g.member_ids.len();
         g.member_ids.retain(|m| m != removed_id);
-    }
+        !(had > 0 && g.member_ids.is_empty())
+    });
 }
 
 /// Validate that group ids are unique within the slice. Returns the
@@ -192,11 +198,18 @@ impl crate::scene::Scene {
     /// Whether the entities at `indices` are exactly the members of one
     /// group — grouping them again would only rename it.
     pub fn already_a_group(&self, indices: &[usize]) -> bool {
+        self.exact_group(indices).is_some()
+    }
+
+    /// The group whose members are exactly the entities at `indices`.
+    pub fn exact_group(&self, indices: &[usize]) -> Option<&GroupConfig> {
         let ids = self.distinct_ids(indices);
-        !ids.is_empty()
-            && self.groups.iter().any(|g| {
-                g.member_ids.len() == ids.len() && ids.iter().all(|id| g.member_ids.contains(id))
-            })
+        if ids.is_empty() {
+            return None;
+        }
+        self.groups.iter().find(|g| {
+            g.member_ids.len() == ids.len() && ids.iter().all(|id| g.member_ids.contains(id))
+        })
     }
 
     /// Put the entities at `indices` in a new group, named by `name` from
@@ -387,6 +400,18 @@ mod tests {
         cleanup_after_entity_removal(&mut groups, "slime");
         assert_eq!(groups[0].member_ids, vec!["ghost".to_string()]);
         assert_eq!(groups[1].member_ids, vec!["cat".to_string()]);
+    }
+
+    #[test]
+    fn a_group_emptied_by_a_removal_goes_but_a_stub_stays() {
+        let mut groups = vec![
+            g("a", "A", &["ghost"], true),
+            g("b", "B", &["ghost", "cat"], true),
+            g("stub", "Stub", &[], true),
+        ];
+        cleanup_after_entity_removal(&mut groups, "ghost");
+        let ids: Vec<_> = groups.iter().map(|g| g.id.as_str()).collect();
+        assert_eq!(ids, ["b", "stub"]);
     }
 
     #[test]

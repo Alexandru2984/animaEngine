@@ -172,6 +172,7 @@ action-ungroup-selected = Rozgrupuj zaznaczenie
 menu-group = Grupuj
 menu-ungroup = Rozgrupuj
 group-default-name = Grupa { $number }
+group-copy-name = { $name } (kopia)
 toast-grouped = Zgrupowano jako { $name }
 toast-ungrouped = Rozwiązane grupy: { $count }
 toast-nothing-to-ungroup = Nic z zaznaczenia nie należy do grupy
