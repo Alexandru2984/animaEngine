@@ -324,10 +324,23 @@ impl App {
                     &mut self.drag,
                     &mut self.marquee,
                 );
+                let fallback = self
+                    .window
+                    .as_ref()
+                    .map(|w| {
+                        let s = w.inner_size();
+                        (s.width as f32, s.height as f32)
+                    })
+                    .unwrap_or((1920.0, 1080.0));
+                let bounds = crate::monitor::covered_bounds(
+                    &crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors),
+                    fallback,
+                );
                 if crate::outcomes::apply_imported(
                     saved,
                     &mut outcome_ctx!(self),
                     &mut self.config.global.active_scene,
+                    bounds,
                 ) {
                     self.save_config_if_needed();
                 }

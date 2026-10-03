@@ -136,6 +136,29 @@ mod tests {
     }
 
     #[test]
+    fn a_scene_arriving_in_their_sleep_settles_too() {
+        let mut scene = scene_of(1);
+        scene.set_dozing(true);
+        std::thread::sleep(Duration::from_millis(20));
+        scene.tick(bounds(), None, None);
+        assert!(!scene.is_running(), "asleep");
+        // A scheduled switch, say.
+        let configs = scene_of(2).to_character_configs();
+        scene.restore_configs(&configs);
+        assert!(scene.is_running(), "they land first");
+        std::thread::sleep(Duration::from_millis(20));
+        scene.tick(bounds(), None, None);
+        assert!(!scene.is_running(), "then sleep");
+        assert!(
+            scene
+                .entities
+                .iter()
+                .all(|e| e.speech.as_ref().is_some_and(|s| s.text == ZZZ)),
+            "everyone says Zzz…"
+        );
+    }
+
+    #[test]
     fn someone_falling_lands_before_the_scene_sleeps() {
         let mut scene = scene_of(1);
         scene.entities[0].physics.enable();

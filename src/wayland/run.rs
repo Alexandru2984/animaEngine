@@ -381,10 +381,18 @@ pub fn run_native(
                         &mut drag,
                         &mut marquee,
                     );
+                    let bounds = monitor::covered_bounds(
+                        &monitor::plan_windows(&config.global.monitor_mode, &layer.monitors()),
+                        (
+                            renderer.primary.window_width as f32,
+                            renderer.primary.window_height as f32,
+                        ),
+                    );
                     outcomes::apply_imported(
                         saved,
                         &mut outcome_ctx!(),
                         &mut config.global.active_scene,
+                        bounds,
                     );
                 }
             }
@@ -465,7 +473,8 @@ pub fn run_native(
             layer.is_idle(),
             global.pause_on_battery,
             on_battery,
-        );
+        )
+        .watching(layer.fullscreen_in_front());
         if still.any() != held_for_away {
             held_for_away = still.any();
             activity = true;
@@ -959,8 +968,18 @@ pub fn run_native(
         let menu_monitor = context_menu_state
             .as_ref()
             .and_then(|m| m.surface.as_ref())
+            .filter(|name| extra_surfaces.contains_key(*name))
             .and_then(|name| monitors_now.iter().find(|m| &m.name == name))
             .cloned();
+        // Its monitor went — unplugged, or the overlay down to one: nothing
+        // could draw the menu, and it kept every key from the shortcuts.
+        if menu_monitor.is_none()
+            && context_menu_state
+                .as_ref()
+                .is_some_and(|m| m.surface.is_some())
+        {
+            context_menu_state = None;
+        }
         let global =
             |pos: &egui::Pos2| egui::pos2(pos.x + primary_origin.0, pos.y + primary_origin.1);
         if let Some(mon) = &menu_monitor {
@@ -1583,9 +1602,11 @@ pub fn run_native(
                                 };
                                 let asked =
                                     extra_eguis.get(name).is_some_and(|e| e.repaint_due(now));
-                                let menu_here = extra_menu
-                                    .as_ref()
-                                    .filter(|m| m.surface.as_ref() == Some(name));
+                                // Hidden means hidden, as on the panel's surface.
+                                let menu_here = extra_menu.as_ref().filter(|m| {
+                                    m.surface.as_ref() == Some(name)
+                                        && !(overlay_hidden || aside.hidden)
+                                });
                                 if !bubbles.is_empty() || asked || menu_here.is_some() {
                                     let egui =
                                         extra_eguis.entry(name.clone()).or_insert_with(|| {

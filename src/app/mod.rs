@@ -610,7 +610,8 @@ impl App {
             self.away,
             global.pause_on_battery,
             self.on_battery,
-        );
+        )
+        .watching(self.fullscreen_in_front);
         // Asleep, then held still: the Zzz… and the landing want frames.
         if self.scene.set_dozing(still.doze) {
             self.request_redraw_all();

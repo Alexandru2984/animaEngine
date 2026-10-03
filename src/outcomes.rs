@@ -965,12 +965,14 @@ fn fallback_share_path(name: &str) -> PathBuf {
 }
 
 /// Put an imported scene on the shelf — under its own name, or
-/// "name (2)" if that is taken — and on screen, as the active one.
-/// Returns whether it did.
+/// "name (2)" if that is taken — and on screen, as the active one, fitted
+/// into `bounds`, the area the overlay covers here
+/// (`scene_file::fit_onto`). Returns whether it did.
 pub fn apply_imported(
     mut saved: crate::scenes::SavedScene,
     ctx: &mut OutcomeCtx<'_>,
     active: &mut Option<String>,
+    bounds: crate::monitor::DesktopBounds,
 ) -> bool {
     let dir = crate::scenes::dir();
     saved.name = crate::scenes::free_name(&crate::scenes::list_in(&dir), &saved.name);
@@ -982,6 +984,13 @@ pub fn apply_imported(
         return false;
     }
     ctx.scene.apply_saved(&saved);
+    // Laid out for other screens: brought onto these, and saved so.
+    if crate::scene_file::fit_onto(ctx.scene, bounds) {
+        tracing::info!("Imported scene fitted onto this desktop");
+        if let Err(e) = crate::scenes::save_in(&dir, &saved.name, ctx.scene) {
+            tracing::warn!("Fitted scene not saved: {e}");
+        }
+    }
     // Indices into the scene that was just replaced.
     ctx.selection.deselect();
     *ctx.config_dirty = true;

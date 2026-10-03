@@ -56,7 +56,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a Share button that writes it, pictures and all, to one
   `.animascene` file wherever you choose; Import… (or dropping the file
   on the overlay) opens one someone sent you, as a saved scene of its
-  own. Pictures and settings travel, behavior scripts do not — a
+  own, fitted onto your screens if it was made for bigger or more of
+  them. Pictures and settings travel, behavior scripts do not — a
   scripted character arrives standing still — and a file coming in is
   checked like a dropped picture, and more (see the threat model).
 - **Copy, cut and paste characters.** `Ctrl+C`, `Ctrl+X` and `Ctrl+V`
@@ -85,7 +86,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   with no mouse or keyboard input, by default, they stop walking, anyone
   in the air lands, and each settles into its idle pose with a "Zzz…"
   — then the scene holds still, as cheap as a pause. Your next input
-  wakes them. Appearance offers 1, 5, 10 or 30 minutes, or never, and
+  wakes them. With a full-screen app in front — a film — nobody is
+  taken to be away: no Zzz over it, the scene only pauses. Appearance offers 1, 5, 10 or 30 minutes, or never, and
   pausing on battery as well (a plain pause: you are there). The idle time comes
   from GNOME (on X11 or Wayland), a real X server, or a Wayland
   compositor with idle notifications (sway, Hyprland, KDE); elsewhere

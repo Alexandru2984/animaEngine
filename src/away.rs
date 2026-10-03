@@ -71,6 +71,20 @@ impl Stillness {
     pub fn any(self) -> bool {
         self.doze || self.freeze
     }
+
+    /// With a full-screen app in front — a film, most likely — no input
+    /// for a while is someone watching, not away: no Zzz… over it, the
+    /// scene only holds still, as pausing when away always did.
+    pub fn watching(self, fullscreen_in_front: bool) -> Self {
+        if fullscreen_in_front && self.doze {
+            Self {
+                doze: false,
+                freeze: true,
+            }
+        } else {
+            self
+        }
+    }
 }
 
 /// How the scene holds still, if it does: away past the idle time the
@@ -307,6 +321,20 @@ mod tests {
             },
             "away on battery: asleep"
         );
+    }
+
+    #[test]
+    fn nobody_dozes_over_a_film() {
+        let away = stillness(10, true, false, false);
+        assert_eq!(
+            away.watching(true),
+            Stillness {
+                doze: false,
+                freeze: true
+            }
+        );
+        assert_eq!(away.watching(false), away);
+        assert!(!stillness(10, false, false, false).watching(true).any());
     }
 
     #[test]

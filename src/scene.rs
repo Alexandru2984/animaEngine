@@ -380,6 +380,16 @@ impl Scene {
             .collect()
     }
 
+    /// Characters arrived while the scene sleeps — a scheduled scene, "Next
+    /// scene" over D-Bus, a config edited elsewhere: they land and take
+    /// their idle pose too, rather than sleep wherever they appeared.
+    fn settle_again(&mut self) {
+        if let Some(doze) = self.doze.as_mut() {
+            doze.since = Instant::now();
+            doze.settled = false;
+        }
+    }
+
     /// One step of dozing off (`crate::doze`): whoever is in the air
     /// falls, nobody walks or plays. Once all have landed — or after
     /// `doze::SETTLE_LIMIT`, whatever still moves — each takes its idle
@@ -697,6 +707,7 @@ impl Scene {
         }
         self.entities.sort_by_key(|e| e.z_index);
         self.mark_visible_dirty();
+        self.settle_again();
     }
 
     /// Make the scene match `configs`, in their order — undo and redo
@@ -759,6 +770,7 @@ impl Scene {
             crate::group::cleanup_after_entity_removal(&mut self.groups, id);
         }
         self.mark_visible_dirty();
+        self.settle_again();
     }
 
     /// Append one character config to the scene. Mirrors the success
@@ -785,6 +797,7 @@ impl Scene {
 
         self.entities.push(entity);
         self.mark_visible_dirty();
+        self.settle_again();
         Ok(())
     }
 }

@@ -256,6 +256,19 @@ impl App {
         if reminded {
             self.request_redraw();
         }
+        // The right-click menu's monitor went — unplugged, or the overlay
+        // down to one window: nothing could draw the menu, and it kept
+        // every key, so close it.
+        if let Some(name) = self
+            .ui_state
+            .context_menu
+            .as_ref()
+            .and_then(|m| m.surface.as_ref())
+        {
+            if !self.extra_windows.values().any(|s| &s.monitor.name == name) {
+                self.ui_state.context_menu = None;
+            }
+        }
         // Speech bubbles for the characters on this window (`crate::speech`),
         // gathered while the scene is still free to borrow.
         let bubbles = crate::speech::shown(&self.scene, primary_origin, |e| {

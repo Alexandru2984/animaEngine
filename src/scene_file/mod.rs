@@ -288,6 +288,69 @@ pub fn import(file: &Path, into: &Path) -> Result<SavedScene> {
     Ok(scene)
 }
 
+/// Fit a scene laid out for someone else's screens into `bounds`, the
+/// area the overlay covers here. Along each axis, an arrangement that
+/// fits stays as it is; one that would not is moved as a block, the least
+/// distance; one too wide or tall for the area is squeezed into it —
+/// who stands left of whom, and on what, kept. Returns whether anything
+/// moved.
+///
+/// A scene from two big monitors opened on one laptop screen otherwise
+/// put half its characters off the edge, where nobody could see them.
+pub fn fit_onto(scene: &mut crate::scene::Scene, bounds: crate::monitor::DesktopBounds) -> bool {
+    if scene.entities.is_empty() {
+        return false;
+    }
+    let widest = scene
+        .entities
+        .iter()
+        .map(|e| e.scaled_width())
+        .fold(0.0, f32::max);
+    let tallest = scene
+        .entities
+        .iter()
+        .map(|e| e.scaled_height())
+        .fold(0.0, f32::max);
+    let xs: Vec<f32> = scene.entities.iter().map(|e| e.x).collect();
+    let ys: Vec<f32> = scene.entities.iter().map(|e| e.y).collect();
+    let new_xs = fit_axis(&xs, widest, bounds.min_x, bounds.max_x);
+    let new_ys = fit_axis(&ys, tallest, bounds.min_y, bounds.max_y);
+    if new_xs == xs && new_ys == ys {
+        return false;
+    }
+    for (e, (x, y)) in scene
+        .entities
+        .iter_mut()
+        .zip(new_xs.into_iter().zip(new_ys))
+    {
+        e.x = x;
+        e.y = y;
+    }
+    true
+}
+
+/// Positions `pos` (left or top edges) of sprites up to `size` long, put
+/// within `lo..hi` as [`fit_onto`] says.
+fn fit_axis(pos: &[f32], size: f32, lo: f32, hi: f32) -> Vec<f32> {
+    let first = pos.iter().copied().fold(f32::INFINITY, f32::min);
+    let last = pos.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let room = (hi - lo - size).max(0.0);
+    if first >= lo && last <= lo + room {
+        return pos.to_vec();
+    }
+    let span = last - first;
+    if span <= room {
+        let shift = if first < lo {
+            lo - first
+        } else {
+            lo + room - last
+        };
+        return pos.iter().map(|p| p + shift).collect();
+    }
+    let squeeze = room / span;
+    pos.iter().map(|p| lo + (p - first) * squeeze).collect()
+}
+
 /// Write the pictures into `into`, each then held to what a drop is.
 fn unpack(assets: &[zip::Entry<'_>], into: &Path) -> Result<()> {
     std::fs::create_dir_all(into)?;
@@ -493,6 +556,35 @@ mod tests {
         std::fs::create_dir_all(&into).unwrap();
         assert!(import(&file, &into).is_err());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_arrangement_that_fits_stays_put() {
+        assert_eq!(fit_axis(&[100.0, 500.0], 50.0, 0.0, 1920.0), [100.0, 500.0]);
+    }
+
+    #[test]
+    fn one_off_the_edge_moves_in_as_a_block() {
+        // Laid out on a second monitor that is not there.
+        assert_eq!(
+            fit_axis(&[2000.0, 2300.0], 100.0, 0.0, 1920.0),
+            [1520.0, 1820.0]
+        );
+        assert_eq!(
+            fit_axis(&[-300.0, -100.0], 100.0, 0.0, 1080.0),
+            [0.0, 200.0]
+        );
+    }
+
+    #[test]
+    fn one_too_wide_is_squeezed_keeping_the_order() {
+        let fitted = fit_axis(&[0.0, 1000.0, 3700.0], 140.0, 0.0, 1920.0);
+        assert_eq!(fitted[0], 0.0);
+        assert_eq!(
+            fitted[2], 1780.0,
+            "the last one's right edge on the screen's"
+        );
+        assert!(fitted[0] < fitted[1] && fitted[1] < fitted[2]);
     }
 
     #[test]

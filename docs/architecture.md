@@ -403,9 +403,12 @@ back by `Scene::tick` when another bubble ends, taken away on waking),
 and `tick` runs gravity alone (`Entity::fall`) — no behaviors, scripts
 or animation — until everyone has landed or `doze::SETTLE_LIMIT` has
 passed; then each takes its idle pose (`Entity::rest`) and
-`is_running` turns false, which stops the frames as a pause does. On
-battery with someone there it is a plain `Scene::set_suspended`,
-alongside stepping aside. Native Wayland is told by the compositor (`ext-idle-notify-v1`,
+`is_running` turns false, which stops the frames as a pause does.
+Characters arriving while it sleeps — a scheduled scene, a reload —
+settle the same way (`Scene::settle_again`). With a full-screen app in
+front, no input is someone watching (`Stillness::watching`): no Zzz…,
+only the pause. On battery with someone there it is a plain
+`Scene::set_suspended`, alongside stepping aside. Native Wayland is told by the compositor (`ext-idle-notify-v1`,
 `layer_window::idle`, the notification remade when the time changes).
 Elsewhere a thread polls once a second: the MIT-SCREEN-SAVER extension
 on a real X server, or Mutter's IdleMonitor under a Wayland session —
@@ -482,7 +485,9 @@ into a fresh `imported-scenes/<name>/` under the data directory, points
 the characters there, and tidies the scene as a file from someone else
 (`tidy`); `outcomes::apply_imported` saves it to the shelf under a free
 name (`scenes::free_name`) and puts it on screen, with an undo step the
-loops open first. Both directions run on a worker behind the portal's
+loops open first — fitted into the area the overlay covers when it was
+laid out for other screens (`scene_file::fit_onto`: per axis, kept,
+moved as a block, or squeezed), and saved again so. Both directions run on a worker behind the portal's
 chooser — `SaveFile` to share, falling back to Downloads where there is
 no portal, and `OpenFile` or a drop to import — as one pending
 `outcomes::SceneTransfer` each loop polls. Imported pictures stay when
