@@ -143,7 +143,7 @@ cargo build --release
 | Move a character | Drag it (edit mode) or use the X/Y sliders; let go mid-swing to throw it |
 | Adjust scale / opacity / FPS | Sliders in the settings panel |
 | Toggle visibility / playback | `V` / `P` keys, or checkboxes |
-| Set behavior | Dropdown in the Inspector (Idle / Walk / Follow / Bounded / Bounce / Script) |
+| Set behavior | Dropdown in the Inspector (Idle / Walk / Follow cursor / Follow a character / Bounded / Bounce / Script) |
 | Delete | `Delete`, right-click → Delete, or the trash button in the Scene list |
 | Group / ungroup | `Ctrl+G` / `Ctrl+Shift+G` on the selection, or right-click → Group |
 | Copy / cut / paste | `Ctrl+C` / `Ctrl+X` / `Ctrl+V`, right-click → Copy or Cut, and Paste in the Scene tab — into this scene or another saved one; `Ctrl+V` also pastes a picture copied anywhere |

@@ -52,6 +52,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
   Bubbles show on every monitor.
+- **Characters follow each other — when you say so.** A new behavior in
+  the Inspector, "Follow a character": pick whom, how far behind and how
+  fast, and a kitten trails the cat, a ghost haunts the heart. Nobody
+  follows anyone on their own; a character cannot follow itself, and the
+  list leaves out anyone who would close a circle. One whose leader is
+  gone or hidden stands still.
 - **Step aside for apps you choose.** Under the full-screen setting in
   Appearance, pick apps from the ones open now — a video call, a
   streaming tool, a game — and the characters hide while one of them is

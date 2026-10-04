@@ -305,6 +305,7 @@ pub const HINT: &str = ph::LIGHTBULB;
 pub const BEHAVIOR_IDLE: &str = ph::PERSON_SIMPLE;
 pub const BEHAVIOR_WALK: &str = ph::FOOTPRINTS;
 pub const BEHAVIOR_FOLLOW: &str = ph::CURSOR_CLICK;
+pub const BEHAVIOR_FOLLOW_CHARACTER: &str = ph::FOOTPRINTS;
 pub const BEHAVIOR_WANDER: &str = ph::ARROWS_OUT_CARDINAL;
 pub const BEHAVIOR_BOUNCE: &str = ph::ARROWS_DOWN_UP;
 pub const BEHAVIOR_SCRIPT: &str = ph::CODE;

@@ -85,6 +85,9 @@ pub struct Entity {
     pub talk: crate::config::Talk,
     /// What was last said and when to speak up next — runtime-only.
     pub chatter: Chatter,
+    /// The middle of the character it follows, as the scene found it
+    /// this tick (`Behavior::FollowCharacter`) — runtime-only.
+    pub leader: Option<(f32, f32)>,
 }
 
 /// Where a character is with its lines (`crate::phrases`).
@@ -168,6 +171,7 @@ impl Entity {
                 rng: seed.rotate_left(17) | 1,
                 ..Chatter::default()
             },
+            leader: None,
         }
     }
 
@@ -377,6 +381,8 @@ impl Entity {
             cursor,
             dt,
             reduced_motion,
+            leader: self.leader,
+            physics: self.physics.enabled,
         };
 
         // Behavior — autonomous motion (can affect both X and Y). Not
@@ -610,6 +616,7 @@ impl Entity {
             speech: None,
             talk: Default::default(),
             chatter: Chatter::default(),
+            leader: None,
         }
     }
 

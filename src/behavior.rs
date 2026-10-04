@@ -77,6 +77,21 @@ pub enum Behavior {
         #[serde(default)]
         axis: BounceAxis,
     },
+    /// Keeps near another character (1.5): walks to a spot `distance` px
+    /// from it, on its own side of it, and waits there. Chosen per
+    /// character in the Inspector — no character follows another unless
+    /// told to, none can follow itself, and the Inspector offers no
+    /// target that would close a circle. A target that is gone or hidden
+    /// leaves it standing.
+    FollowCharacter {
+        /// The id of the character to follow.
+        #[serde(default)]
+        target: String,
+        #[serde(default = "default_follow_distance")]
+        distance: f32,
+        #[serde(default = "default_follow_character_speed")]
+        speed: f32,
+    },
     /// Motion driven by a user-supplied script rather than a variant
     /// baked into this enum. See `docs/plans/v1.2-scripting.md`.
     ///
@@ -167,6 +182,15 @@ impl Behavior {
                 // config matches what actually runs.
                 *period_sec = finite_clamp(*period_sec, 0.05, 3600.0, default_bounce_period());
             }
+            Behavior::FollowCharacter {
+                target,
+                distance,
+                speed,
+            } => {
+                *target = target.trim().chars().take(64).collect();
+                *distance = finite_clamp(*distance, 0.0, MAX_DIST, default_follow_distance());
+                *speed = finite_clamp(*speed, 0.0, MAX_SPEED, default_follow_character_speed());
+            }
             Behavior::Script { path, params } => {
                 // A hand-edited config is exactly how a hostile path gets
                 // here, so drop anything that isn't a plain relative path
@@ -185,6 +209,38 @@ impl Behavior {
             }
         }
     }
+}
+
+/// Who the character `id` may follow (`Behavior::FollowCharacter`), out
+/// of `characters` — each one's id and whom it follows, if anyone: every
+/// other character but those that follow `id` already, directly or along
+/// a chain. Following one of those would close a circle, two characters
+/// chasing each other round.
+pub fn follow_candidates(characters: &[(String, Option<String>)], id: &str) -> Vec<String> {
+    let follows = |who: &str| -> Option<&str> {
+        characters
+            .iter()
+            .find(|(c, _)| c == who)
+            .and_then(|(_, target)| target.as_deref())
+    };
+    characters
+        .iter()
+        .map(|(c, _)| c)
+        .filter(|c| c.as_str() != id)
+        .filter(|c| {
+            // Along the chain from `c`, never reaching `id`.
+            let mut at = c.as_str();
+            for _ in 0..characters.len() {
+                match follows(at) {
+                    Some(next) if next == id => return false,
+                    Some(next) => at = next,
+                    None => break,
+                }
+            }
+            true
+        })
+        .cloned()
+        .collect()
 }
 
 /// Axis selector for `Behavior::Bounce`. `Both` produces a circular
@@ -212,6 +268,12 @@ fn default_bounce_period() -> f32 {
 
 fn default_walk_speed() -> f32 {
     60.0
+}
+fn default_follow_distance() -> f32 {
+    90.0
+}
+fn default_follow_character_speed() -> f32 {
+    140.0
 }
 fn default_follow_speed() -> f32 {
     240.0
@@ -260,6 +322,8 @@ pub struct BehaviorState {
     /// hand. Wrapped at a day to stay numerically stable in a session
     /// left open indefinitely.
     pub script_elapsed: f32,
+    /// A follower on its way to its spot (`Behavior::FollowCharacter`).
+    pub following: bool,
 }
 
 impl Default for BehaviorState {
@@ -270,6 +334,7 @@ impl Default for BehaviorState {
             wander_rng_seed: 0xDEAD_BEEF_CAFE_BABE,
             bounce_rest: None,
             bounce_t: 0.0,
+            following: false,
             script_elapsed: 0.0,
         }
     }
@@ -333,6 +398,11 @@ pub struct TickContext {
     /// hold their rest position when set. Locomotion (walks, wander)
     /// is *function*, not decoration — it keeps running.
     pub reduced_motion: bool,
+    /// The middle of the character this one follows
+    /// (`Behavior::FollowCharacter`), as the scene found it this tick.
+    pub leader: Option<(f32, f32)>,
+    /// Physics has the vertical axis: a follower then walks, level.
+    pub physics: bool,
 }
 
 impl Behavior {
@@ -367,6 +437,38 @@ impl Behavior {
                     *entity_x = (ctx.bounds.max_x - ctx.sprite_width).max(ctx.bounds.min_x);
                     state.walk_direction = -1.0;
                 }
+            }
+            Behavior::FollowCharacter {
+                distance, speed, ..
+            } => {
+                let Some((lx, ly)) = ctx.leader else {
+                    return;
+                };
+                let cx = *entity_x + ctx.sprite_width * 0.5;
+                let cy = *entity_y + ctx.sprite_height * 0.5;
+                // A spot `distance` away on the side it is on, level with
+                // the leader — or on its own level, where physics keeps it
+                // on the ground.
+                let side = if cx < lx { -1.0 } else { 1.0 };
+                let dx = lx + side * distance - cx;
+                let dy = if ctx.physics { 0.0 } else { ly - cy };
+                let gap = (dx * dx + dy * dy).sqrt();
+                // Set off only once the gap has grown, then go all the
+                // way: a leader shifting by a few pixels does not make the
+                // follower shuffle after it.
+                const SET_OFF: f32 = 16.0;
+                const ARRIVED: f32 = 2.0;
+                if !state.following && gap < SET_OFF {
+                    return;
+                }
+                state.following = gap > ARRIVED;
+                if !state.following {
+                    return;
+                }
+                let step = (speed * ctx.dt).min(gap);
+                *entity_x += dx / gap * step;
+                *entity_y += dy / gap * step;
+                *entity_x = ctx.bounds.clamp_x(*entity_x, ctx.sprite_width);
             }
             Behavior::FollowCursor {
                 speed,
@@ -496,6 +598,71 @@ mod tests {
     use super::*;
 
     #[test]
+    fn nobody_follows_itself_or_closes_a_circle() {
+        let cast = |pairs: &[(&str, Option<&str>)]| -> Vec<(String, Option<String>)> {
+            pairs
+                .iter()
+                .map(|(id, t)| (id.to_string(), t.map(str::to_string)))
+                .collect()
+        };
+        // kitten → cat → dog; ghost follows nobody.
+        let all = cast(&[
+            ("cat", Some("dog")),
+            ("kitten", Some("cat")),
+            ("dog", None),
+            ("ghost", None),
+        ]);
+        assert_eq!(
+            follow_candidates(&all, "dog"),
+            ["ghost"],
+            "cat and kitten lead back to dog"
+        );
+        assert_eq!(follow_candidates(&all, "kitten"), ["cat", "dog", "ghost"]);
+        assert_eq!(
+            follow_candidates(&all, "cat"),
+            ["dog", "ghost"],
+            "not the kitten"
+        );
+        // A circle written by hand ends the walk instead of looping.
+        let ring = cast(&[("a", Some("b")), ("b", Some("a")), ("c", None)]);
+        assert_eq!(follow_candidates(&ring, "c"), ["a", "b"]);
+    }
+
+    #[test]
+    fn a_follower_walks_to_its_spot_and_waits() {
+        let mut state = BehaviorState::default();
+        let b = Behavior::FollowCharacter {
+            target: "cat".into(),
+            distance: 100.0,
+            speed: 1000.0,
+        };
+        let ctx = |leader| TickContext {
+            sprite_width: 20.0,
+            sprite_height: 20.0,
+            bounds: crate::monitor::DesktopBounds::from_size(2000.0, 1000.0),
+            cursor: None,
+            dt: 0.1,
+            reduced_motion: false,
+            leader,
+            physics: true,
+        };
+        let (mut x, mut y) = (0.0, 500.0);
+        for _ in 0..20 {
+            b.tick(&mut state, &mut x, &mut y, &ctx(Some((600.0, 300.0))));
+        }
+        // Its middle 100 px left of the leader's, on the ground.
+        assert!((x + 10.0 - 500.0).abs() < 0.01, "x={x}");
+        assert_eq!(y, 500.0, "physics keeps it level");
+        // A leader a few pixels along: it stays put.
+        b.tick(&mut state, &mut x, &mut y, &ctx(Some((608.0, 300.0))));
+        assert!((x + 10.0 - 500.0).abs() < 0.01);
+        // No leader: it stands.
+        let before = x;
+        b.tick(&mut state, &mut x, &mut y, &ctx(None));
+        assert_eq!(x, before);
+    }
+
+    #[test]
     fn sanitize_replaces_non_finite_behavior_tunables() {
         let mut b = Behavior::WalkAround { speed: f32::NAN };
         b.sanitize();
@@ -559,6 +726,8 @@ mod tests {
             cursor: None,
             dt,
             reduced_motion: false,
+            leader: None,
+            physics: false,
         }
     }
 
@@ -633,6 +802,8 @@ mod tests {
             cursor: None,
             dt,
             reduced_motion: false,
+            leader: None,
+            physics: false,
         };
 
         // Walking left off the far edge turns around at min_x, not 0.
@@ -801,6 +972,8 @@ mod bounce_tests {
             cursor: None,
             dt,
             reduced_motion: false,
+            leader: None,
+            physics: false,
         }
     }
 
@@ -977,6 +1150,8 @@ mod script_tests {
             cursor: None,
             dt,
             reduced_motion: false,
+            leader: None,
+            physics: false,
         }
     }
 

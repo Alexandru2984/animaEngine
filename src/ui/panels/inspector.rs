@@ -54,6 +54,31 @@ pub(super) fn inspector_tab(
     // Several selected: say which one this panel edits, and that the rest
     // of the editing reaches them all.
     let also_selected = selection.count().saturating_sub(1);
+    // Whom the selected one may follow, with their names — before the
+    // mutable borrow below (`behavior::follow_candidates`).
+    let leaders: Vec<(String, String)> = selected_idx
+        .and_then(|idx| scene.entities.get(idx))
+        .map(|selected| {
+            let chains: Vec<(String, Option<String>)> = scene
+                .entities
+                .iter()
+                .map(|e| {
+                    let follows = match &e.behavior {
+                        Behavior::FollowCharacter { target, .. } => Some(target.clone()),
+                        _ => None,
+                    };
+                    (e.id.clone(), follows)
+                })
+                .collect();
+            crate::behavior::follow_candidates(&chains, &selected.id)
+                .into_iter()
+                .filter_map(|id| {
+                    let name = scene.entities.iter().find(|e| e.id == id)?.name.clone();
+                    Some((id, name))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let mut arrange_picked = None;
     match selected_idx.and_then(|idx| scene.entities.get_mut(idx).map(|e| (idx, e))) {
         Some((_idx, entity)) => {
@@ -86,6 +111,7 @@ pub(super) fn inspector_tab(
                 collapse_state,
                 config_dirty,
                 group_hint.as_deref(),
+                &leaders,
             );
             if changed.any() {
                 *config_dirty = true;
@@ -127,6 +153,7 @@ fn entity_inspector(
     collapse_state: &mut CollapseState,
     config_dirty: &mut bool,
     group_hint: Option<&str>,
+    leaders: &[(String, String)],
 ) -> EntityChange {
     let mut change = EntityChange::default();
 
@@ -297,7 +324,7 @@ fn entity_inspector(
         &mut collapse_state.inspector_behavior,
         config_dirty,
         |ui| {
-            if behavior_picker(ui, &mut entity.behavior) {
+            if behavior_picker(ui, &mut entity.behavior, leaders) {
                 change.any_field = true;
             }
         },
@@ -599,7 +626,13 @@ fn script_controls(
     changed
 }
 
-fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
+/// `leaders`: whom this character may follow, by id and name
+/// (`behavior::follow_candidates`).
+fn behavior_picker(
+    ui: &mut egui::Ui,
+    behavior: &mut Behavior,
+    leaders: &[(String, String)],
+) -> bool {
     let mut changed = false;
 
     // ComboBox with the three concrete variants. selectable_value compares
@@ -635,6 +668,19 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
                     period_sec: 1.5,
                     axis: crate::behavior::BounceAxis::Vertical,
                 },
+                // Keeps its settings when already following; otherwise
+                // starts after the first one it may follow.
+                match &prev {
+                    Behavior::FollowCharacter { .. } => prev.clone(),
+                    _ => Behavior::FollowCharacter {
+                        target: leaders
+                            .first()
+                            .map(|(id, _)| id.clone())
+                            .unwrap_or_default(),
+                        distance: 90.0,
+                        speed: 140.0,
+                    },
+                },
                 // Starts empty: an entity gets a script only once the
                 // user names one, and an empty path is the documented
                 // "hold still" state rather than an error.
@@ -659,6 +705,62 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior) -> bool {
     // Variant-specific sliders.
     match behavior {
         Behavior::Idle => {}
+        Behavior::FollowCharacter {
+            target,
+            distance,
+            speed,
+        } => {
+            let nobody = t("inspector-follow-nobody");
+            let current = leaders
+                .iter()
+                .find(|(id, _)| id == target)
+                .map_or(nobody.clone(), |(_, name)| name.clone());
+            ui.horizontal(|ui| {
+                let caption = ui.label(t("inspector-follow-target"));
+                let combo = egui::ComboBox::from_id_salt("behavior_follow_target")
+                    .selected_text(current.clone())
+                    .show_ui(ui, |ui| {
+                        if leaders.is_empty() {
+                            ui.label(
+                                egui::RichText::new(t("inspector-follow-none-free"))
+                                    .text_style(theme::caption())
+                                    .weak(),
+                            );
+                        }
+                        for (id, name) in leaders {
+                            if ui.selectable_label(target == id, name).clicked() && target != id {
+                                *target = id.clone();
+                                changed = true;
+                            }
+                        }
+                    });
+                crate::ui::accessible::name_combo(
+                    &combo.response.labelled_by(caption.id),
+                    &t("inspector-follow-target"),
+                    &current,
+                );
+            });
+            if ui
+                .add(
+                    egui::Slider::new(distance, 0.0..=400.0)
+                        .text(t("inspector-follow-distance"))
+                        .suffix(" px"),
+                )
+                .changed()
+            {
+                changed = true;
+            }
+            if ui
+                .add(
+                    egui::Slider::new(speed, 20.0..=400.0)
+                        .text(t("inspector-behavior-speed"))
+                        .suffix(" px/s"),
+                )
+                .changed()
+            {
+                changed = true;
+            }
+        }
         Behavior::Script { path, params } => {
             if script_controls(ui, path, params) {
                 changed = true;
@@ -813,6 +915,10 @@ fn behavior_label_with_icon(b: &Behavior) -> String {
         Behavior::Idle => (icons::BEHAVIOR_IDLE, "behavior-idle"),
         Behavior::WalkAround { .. } => (icons::BEHAVIOR_WALK, "behavior-walk"),
         Behavior::FollowCursor { .. } => (icons::BEHAVIOR_FOLLOW, "behavior-follow"),
+        Behavior::FollowCharacter { .. } => (
+            icons::BEHAVIOR_FOLLOW_CHARACTER,
+            "behavior-follow-character",
+        ),
         Behavior::BoundedWander { .. } => (icons::BEHAVIOR_WANDER, "behavior-wander"),
         Behavior::Bounce { .. } => (icons::BEHAVIOR_BOUNCE, "behavior-bounce"),
         Behavior::Script { .. } => (icons::BEHAVIOR_SCRIPT, "behavior-script"),

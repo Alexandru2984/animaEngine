@@ -110,7 +110,20 @@ Behavior enum (src/behavior.rs)
   ├─ Bounce { amplitude_px, period_sec, axis } — sinusoidal bob
   │                                 around the rest position; gravity
   │                                 overrides it
+  ├─ FollowCharacter { target, distance, speed } — keeps `distance`
+  │                                 from another character, on its own
+  │                                 side, level when physics is on
   └─ Script { path, params }      — a Rhai file from the asset library
+
+A follower learns where its leader is from the scene each tick
+(`Scene::find_leaders` sets `Entity::leader`; `TickContext::leader`):
+the middle of a visible character other than itself, else none, and it
+stands. It sets off only once the gap has grown past 16 px and then goes
+all the way (`BehaviorState::following`), so a leader shuffling does not
+make it shuffle. Who may be followed is `behavior::follow_candidates`:
+not itself, and not any character that already leads back to it — the
+Inspector offers only those, so no circle can be made there; a circle
+written by hand converges and stops.
 
 Scripted motion does NOT run inside `Behavior::tick`. It needs the asset
 library root and a per-entity scope, so `Entity::tick_script` drives it

@@ -358,6 +358,7 @@ impl Scene {
         }
 
         let floors = self.floors();
+        self.find_leaders();
         for (i, entity) in self.entities.iter_mut().enumerate() {
             let platforms = floors.get(i).map_or(&self.window_platforms[..], |f| &f[..]);
             // Re-borrow per entity: the host is `&mut` and the loop needs
@@ -414,6 +415,39 @@ impl Scene {
         (0..self.entities.len())
             .map(|i| crate::bump::platforms_for(self, &solids, i, &self.window_platforms))
             .collect()
+    }
+
+    /// Tell each follower (`Behavior::FollowCharacter`) where the middle of
+    /// its leader is now: a visible character other than itself, or none.
+    fn find_leaders(&mut self) {
+        if !self.entities.iter().any(|e| {
+            matches!(
+                e.behavior,
+                crate::behavior::Behavior::FollowCharacter { .. }
+            )
+        }) {
+            return;
+        }
+        let middles: std::collections::HashMap<String, (f32, f32)> = (0..self.entities.len())
+            .filter(|&i| self.effective_visible(i))
+            .map(|i| {
+                let e = &self.entities[i];
+                (
+                    e.id.clone(),
+                    (e.x + e.scaled_width() / 2.0, e.y + e.scaled_height() / 2.0),
+                )
+            })
+            .collect();
+        for entity in &mut self.entities {
+            entity.leader = match &entity.behavior {
+                crate::behavior::Behavior::FollowCharacter { target, .. }
+                    if *target != entity.id =>
+                {
+                    middles.get(target).copied()
+                }
+                _ => None,
+            };
+        }
     }
 
     /// Characters arrived while the scene sleeps — a scheduled scene, "Next
