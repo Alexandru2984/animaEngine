@@ -208,6 +208,11 @@ impl App {
                     .error(crate::i18n::t_args("script-failed-toast", &args));
             }
         }
+        // A character spoke up on its own (`crate::phrases`): every
+        // monitor's window shows its bubble.
+        if self.scene.take_spoke() {
+            self.request_redraw_all();
+        }
 
         // Precompute multi-window facts before the renderer borrow —
         // the methods take &self and would conflict with &mut renderer.

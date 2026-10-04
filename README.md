@@ -60,9 +60,9 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   member and blocks their click hit-test.
 - **Themes**: Dark and Light plus high-contrast siblings for both,
   switchable instantly without restart. HC variants clear WCAG AAA.
-- **Speech bubbles and reminders**: characters can say things — from a
-  script, or every so often to remind you of a break or a glass of
-  water.
+- **Speech bubbles and reminders**: characters can say things — lines
+  of their own when tapped or every so often, from a script, or to
+  remind you of a break or a glass of water.
 - **Named scenes**: save what is on screen under a name and switch
   between your scenes from the Scene tab, the command palette or the
   tray — or at set times of day. Share one as a single `.animascene`

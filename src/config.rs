@@ -240,6 +240,30 @@ pub struct CharacterConfig {
     /// byte-identically.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub animations: std::collections::BTreeMap<crate::animation::StateId, StateSequenceConfig>,
+    /// What it says (`crate::phrases`): `[characters.talk]`, absent when
+    /// it says nothing.
+    #[serde(default, skip_serializing_if = "Talk::is_empty")]
+    pub talk: Talk,
+}
+
+/// A character's own lines (`crate::phrases`): one said when it is poked,
+/// and one about every `every_minutes` — 0, only when poked.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Talk {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub phrases: Vec<String>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub every_minutes: u32,
+}
+
+impl Talk {
+    pub fn is_empty(&self) -> bool {
+        self.phrases.is_empty() && self.every_minutes == 0
+    }
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 /// One animation state's asset source (U.1). A miniature of the
@@ -314,6 +338,7 @@ impl CharacterConfig {
         // The behavior tunables feed the same physics and transform math
         // every tick, so they need the same coercion as the scalars above.
         self.behavior.sanitize();
+        crate::phrases::tidy(&mut self.talk);
     }
 }
 
@@ -479,6 +504,7 @@ impl Default for AppConfig {
                     monitor: None,
                     easing: None,
                     animations: std::collections::BTreeMap::new(),
+                    talk: Default::default(),
                 },
                 CharacterConfig {
                     id: "slime".to_string(),
@@ -500,6 +526,7 @@ impl Default for AppConfig {
                     monitor: None,
                     easing: None,
                     animations: std::collections::BTreeMap::new(),
+                    talk: Default::default(),
                 },
                 CharacterConfig {
                     id: "heart".to_string(),
@@ -521,6 +548,7 @@ impl Default for AppConfig {
                     monitor: None,
                     easing: None,
                     animations: std::collections::BTreeMap::new(),
+                    talk: Default::default(),
                 },
                 CharacterConfig {
                     id: "star".to_string(),
@@ -542,6 +570,7 @@ impl Default for AppConfig {
                     monitor: None,
                     easing: None,
                     animations: std::collections::BTreeMap::new(),
+                    talk: Default::default(),
                 },
                 CharacterConfig {
                     id: "cat".to_string(),
@@ -563,6 +592,7 @@ impl Default for AppConfig {
                     monitor: None,
                     easing: None,
                     animations: std::collections::BTreeMap::new(),
+                    talk: Default::default(),
                 },
             ],
             // 0.3 fresh installs use the legacy single-window shape;
@@ -1058,6 +1088,7 @@ mod windows_tests {
             monitor: None,
             easing: None,
             animations: std::collections::BTreeMap::new(),
+            talk: Default::default(),
         }
     }
 

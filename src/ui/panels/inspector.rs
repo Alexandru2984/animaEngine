@@ -303,7 +303,102 @@ fn entity_inspector(
         },
     );
 
+    section(
+        ui,
+        &t("inspector-section-talk"),
+        &mut collapse_state.inspector_talk,
+        config_dirty,
+        |ui| {
+            if talk_controls(ui, entity) {
+                change.any_field = true;
+            }
+        },
+    );
+
     change
+}
+
+/// The lines a character says (`crate::phrases`): one per line of a text
+/// box, how often it speaks up on its own, and a button to hear one.
+/// Returns whether the lines or the pace changed.
+fn talk_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool {
+    let mut changed = false;
+    ui.add(
+        egui::Label::new(
+            egui::RichText::new(t("inspector-talk-hint"))
+                .text_style(theme::caption())
+                .weak(),
+        )
+        .wrap(),
+    );
+    ui.add_space(SPACE_XS);
+    // What is typed is kept as typed — a blank line on the way to the next
+    // one, say — and the lines are taken from it, tidied.
+    let key = egui::Id::new(("anima.inspector.talk", entity.id.as_str()));
+    let tidied = |text: &str| {
+        let mut talk = crate::config::Talk {
+            phrases: text.lines().map(str::to_string).collect(),
+            every_minutes: 0,
+        };
+        crate::phrases::tidy(&mut talk);
+        talk.phrases
+    };
+    let mut text: String = ui
+        .data(|d| d.get_temp::<String>(key))
+        // Changed elsewhere — an undo, a reload: start from the lines.
+        .filter(|kept| tidied(kept) == entity.talk.phrases)
+        .unwrap_or_else(|| entity.talk.phrases.join("\n"));
+    let field = ui.add(
+        egui::TextEdit::multiline(&mut text)
+            .hint_text(t("inspector-talk-placeholder"))
+            .desired_rows(4)
+            .desired_width(f32::INFINITY),
+    );
+    crate::ui::accessible::name_text_field(&field, &t("inspector-section-talk"));
+    if field.changed() {
+        let phrases = tidied(&text);
+        if phrases != entity.talk.phrases {
+            entity.talk.phrases = phrases;
+            entity.chatter.last = None;
+            changed = true;
+        }
+    }
+    ui.data_mut(|d| d.insert_temp(key, text));
+
+    let label = |minutes: u32| {
+        if minutes == 0 {
+            t("inspector-talk-only-poked")
+        } else {
+            let mut args = fluent::FluentArgs::new();
+            args.set("minutes", minutes);
+            crate::i18n::t_args("inspector-talk-every", &args)
+        }
+    };
+    ui.horizontal(|ui| {
+        ui.label(t("inspector-talk-pace"));
+        egui::ComboBox::from_id_salt(("anima.inspector.talk-every", entity.id.as_str()))
+            .selected_text(label(entity.talk.every_minutes))
+            .show_ui(ui, |ui| {
+                for minutes in crate::phrases::EVERY_CHOICES {
+                    if ui
+                        .selectable_value(&mut entity.talk.every_minutes, minutes, label(minutes))
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                }
+            });
+    });
+    if ui
+        .add_enabled(
+            !entity.talk.phrases.is_empty(),
+            egui::Button::new(t("inspector-talk-say-now")),
+        )
+        .clicked()
+    {
+        entity.say_a_phrase(std::time::Instant::now());
+    }
+    changed
 }
 
 /// Collapsing inspector section with the design-system heading style.

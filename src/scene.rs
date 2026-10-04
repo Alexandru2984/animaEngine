@@ -52,6 +52,9 @@ pub struct Scene {
     bump: bool,
     /// Asleep while nobody is there (`crate::doze`); `None` awake.
     pub(crate) doze: Option<crate::doze::Doze>,
+    /// A character spoke up on its own this tick (`crate::phrases`): the
+    /// loops draw the frame that shows it ([`Scene::take_spoke`]).
+    spoke: bool,
 }
 
 impl Scene {
@@ -132,6 +135,7 @@ impl Scene {
             suspended: false,
             bump: false,
             doze: None,
+            spoke: false,
         }
     }
 
@@ -240,6 +244,12 @@ impl Scene {
     /// Update the reduced-motion preference (cheap, called per frame).
     pub fn set_reduced_motion(&mut self, reduced: bool) {
         self.reduced_motion = reduced;
+    }
+
+    /// Whether a character spoke up on its own since last asked: its
+    /// bubble needs a frame.
+    pub fn take_spoke(&mut self) -> bool {
+        std::mem::take(&mut self.spoke)
     }
 
     /// Whether motion is to be kept down (a11y): no throwing, for one.
@@ -362,6 +372,14 @@ impl Scene {
 
         if self.bump {
             crate::bump::turn_walkers(self);
+        }
+
+        // Lines said about as often as each was asked to
+        // (`crate::phrases`), by the characters that can be seen.
+        for i in 0..self.entities.len() {
+            if self.effective_visible(i) && self.entities[i].speak_up(now) {
+                self.spoke = true;
+            }
         }
 
         // Entities come and go; their scopes shouldn't outlive them.
@@ -607,6 +625,7 @@ impl Scene {
             monitor: None,
             easing: None,
             animations: std::collections::BTreeMap::new(),
+            talk: Default::default(),
         };
 
         // Load frames and resize to overlay-friendly dimensions
@@ -852,6 +871,7 @@ mod tests {
             monitor: None,
             easing: None,
             animations: std::collections::BTreeMap::new(),
+            talk: Default::default(),
         };
         Entity::from_config(&cfg, anim)
     }

@@ -377,6 +377,16 @@ Idle is watched for them even with pausing off
 (`away::idle_watch_minutes`: the pause's time, or five minutes); only the
 pause setting decides whether the scene holds still.
 
+A character's own lines are config (`CharacterConfig::talk`,
+`[characters.talk]`, tidied by `phrases::tidy` on every load): a poke
+says one (`Entity::say_a_phrase`, never the last one again), and
+`Scene::tick` lets each visible one speak up about every `every_minutes`
+(`Entity::speak_up`: a time a third either way, rescheduled when the
+pace changes, skipped while it is mid-sentence). Only a running scene
+ticks that far, so nobody speaks while paused or asleep;
+`Scene::take_spoke` tells the loops to draw the frame. The Inspector
+edits them as a text box, one line each.
+
 ### Starting at login (`src/autostart.rs`)
 
 Installed natively the switch *is* the XDG autostart entry: reading it

@@ -236,6 +236,7 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, S
         monitor: None,
         easing: None,
         animations,
+        talk: Default::default(),
     });
 
     Ok(report)

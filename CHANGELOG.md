@@ -52,6 +52,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
   Bubbles show on every monitor.
+- **Characters say their own lines.** The Inspector's new "Says"
+  section takes a phrase per line: a tap on the character in edit mode
+  makes it say one, it can speak up on its own about every 1, 5, 15 or
+  60 minutes, and "Say one now" tries them out. Never the same line
+  twice in a row; nothing while the scene is paused or asleep. The lines
+  travel with copies and shared scenes.
 - **Behind your windows.** A switch in Appearance puts the characters on
   the desktop, under your windows, instead of over them. Edit mode
   brings them to the front while it lasts. Native Wayland uses the

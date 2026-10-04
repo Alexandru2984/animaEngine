@@ -29,6 +29,9 @@ pub struct CollapseState {
     /// Inspector → Behavior section. Default closed — less common edit.
     #[serde(default)]
     pub inspector_behavior: bool,
+    /// Inspector → Says section (`crate::phrases`). Default closed.
+    #[serde(default)]
+    pub inspector_talk: bool,
     /// Scene tab → preset gallery. Default open so fresh installs
     /// discover the curated scenes; closes on click and stays closed.
     #[serde(default = "default_true")]
@@ -46,6 +49,7 @@ impl Default for CollapseState {
             inspector_appearance: true,
             inspector_animation: true,
             inspector_behavior: false,
+            inspector_talk: false,
             scene_presets: true,
         }
     }
@@ -90,6 +94,7 @@ mod tests {
             inspector_appearance: false,
             inspector_animation: true,
             inspector_behavior: true,
+            inspector_talk: true,
             scene_presets: false,
         };
         let s = toml::to_string(&original).unwrap();
@@ -98,6 +103,7 @@ mod tests {
         assert_eq!(original.inspector_appearance, back.inspector_appearance);
         assert_eq!(original.inspector_animation, back.inspector_animation);
         assert_eq!(original.inspector_behavior, back.inspector_behavior);
+        assert_eq!(original.inspector_talk, back.inspector_talk);
         assert_eq!(original.scene_presets, back.scene_presets);
     }
 }

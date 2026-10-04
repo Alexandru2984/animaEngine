@@ -2,6 +2,7 @@ use crate::animation::{Animation, AnimationSet, StateId};
 use crate::behavior::{Behavior, BehaviorState, TickContext};
 use crate::config::CharacterConfig;
 use crate::physics::PhysicsState;
+use std::time::Instant;
 
 /// Below this horizontal speed (px per tick) an entity counts as
 /// standing still — keeps float jitter from flapping Walk/Idle.
@@ -80,6 +81,33 @@ pub struct Entity {
     pub facing_left: bool,
     /// What it is saying, if anything (`crate::speech`). Runtime-only.
     pub speech: Option<crate::speech::Speech>,
+    /// Its own lines, and how often it speaks up (`crate::phrases`).
+    pub talk: crate::config::Talk,
+    /// What was last said and when to speak up next — runtime-only.
+    pub chatter: Chatter,
+}
+
+/// Where a character is with its lines (`crate::phrases`).
+#[derive(Debug, Clone, Default)]
+pub struct Chatter {
+    /// The line said last, so the next one differs.
+    pub last: Option<usize>,
+    /// When to speak up next, and the `every_minutes` that was set for.
+    pub next: Option<(Instant, u32)>,
+    /// xorshift64 state for picking lines and times.
+    pub rng: u64,
+}
+
+impl Chatter {
+    /// A number in `0.0..1.0` — xorshift64, as the behaviors use.
+    fn roll(&mut self) -> f32 {
+        let mut x = self.rng.max(1);
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.rng = x;
+        (x >> 40) as f32 / (1u32 << 24) as f32
+    }
 }
 
 impl Entity {
@@ -135,6 +163,53 @@ impl Entity {
             dragging: false,
             facing_left: false,
             speech: None,
+            talk: config.talk.clone(),
+            chatter: Chatter {
+                rng: seed.rotate_left(17) | 1,
+                ..Chatter::default()
+            },
+        }
+    }
+
+    /// Say one of its lines, for a while, from `now`: never the one said
+    /// last. Returns whether it said anything — not without lines.
+    pub fn say_a_phrase(&mut self, now: Instant) -> bool {
+        let roll = self.chatter.roll();
+        let Some(i) = crate::phrases::pick(self.talk.phrases.len(), self.chatter.last, roll) else {
+            return false;
+        };
+        self.chatter.last = Some(i);
+        self.speech =
+            crate::speech::Speech::new(&self.talk.phrases[i], crate::phrases::SAY_SECONDS, now);
+        self.speech.is_some()
+    }
+
+    /// Speak up if its time has come — about every `talk.every_minutes`
+    /// while the scene runs. Returns whether it did.
+    pub fn speak_up(&mut self, now: Instant) -> bool {
+        let every = self.talk.every_minutes;
+        if every == 0 || self.talk.phrases.is_empty() {
+            self.chatter.next = None;
+            return false;
+        }
+        match self.chatter.next {
+            // Set for this pace and not yet due.
+            Some((at, set_for)) if set_for == every && now < at => false,
+            // Due — and someone mid-sentence finishes first.
+            Some((_, set_for)) if set_for == every => {
+                let said = self.speech.is_none() && self.say_a_phrase(now);
+                let roll = self.chatter.roll();
+                self.chatter.next =
+                    crate::phrases::next_after(now, every, roll).map(|t| (t, every));
+                said
+            }
+            // First time, or the pace changed: count from now.
+            _ => {
+                let roll = self.chatter.roll();
+                self.chatter.next =
+                    crate::phrases::next_after(now, every, roll).map(|t| (t, every));
+                false
+            }
         }
     }
 
@@ -154,6 +229,8 @@ impl Entity {
             self.scaled_width(),
         );
         self.physics.poke_hop();
+        // A poke gets a word out of it, if it has any.
+        self.say_a_phrase(Instant::now());
     }
 
     /// The active state's animation.
@@ -531,6 +608,8 @@ impl Entity {
             dragging: false,
             facing_left: false,
             speech: None,
+            talk: Default::default(),
+            chatter: Chatter::default(),
         }
     }
 
@@ -556,6 +635,7 @@ impl Entity {
             monitor: self.monitor.clone(),
             easing: self.animation().easing,
             animations: self.state_configs.clone(),
+            talk: self.talk.clone(),
         }
     }
 
@@ -590,6 +670,7 @@ impl Entity {
             }
         }
         self.behavior = config.behavior.clone();
+        self.talk = config.talk.clone();
         // A bounce oscillates around where it started; moved, it starts
         // again from here — as after a nudge.
         self.behavior_state.bounce_invalidate();
@@ -679,6 +760,65 @@ mod tests {
             rgba[i + 3] = 255;
         }
         Frame::new(rgba, 4, 4)
+    }
+
+    #[test]
+    fn a_poke_gets_a_line_out_of_it() {
+        let mut e = entity_at(100.0, 100.0);
+        e.poke(50.0, wide_bounds());
+        assert!(e.speech.is_none(), "no lines, no word");
+        e.talk.phrases = vec!["Hey!".into(), "Stop it!".into()];
+        e.poke(50.0, wide_bounds());
+        let first = e.speech.clone().expect("said one").text;
+        e.poke(50.0, wide_bounds());
+        assert_ne!(
+            e.speech.expect("said another").text,
+            first,
+            "not twice in a row"
+        );
+    }
+
+    #[test]
+    fn speaking_up_waits_its_turn() {
+        use std::time::Duration;
+        let mut e = entity_at(100.0, 100.0);
+        e.talk = crate::config::Talk {
+            phrases: vec!["Hi".into()],
+            every_minutes: 1,
+        };
+        let t0 = Instant::now();
+        assert!(!e.speak_up(t0), "the first time only counts from now");
+        assert!(
+            !e.speak_up(t0 + Duration::from_secs(30)),
+            "not yet: 40 s at the soonest"
+        );
+        assert!(
+            e.speak_up(t0 + Duration::from_secs(90)),
+            "80 s at the latest"
+        );
+        assert_eq!(e.speech.as_ref().map(|s| s.text.as_str()), Some("Hi"));
+        // A new pace counts from now again; none clears it.
+        e.speech = None;
+        e.talk.every_minutes = 5;
+        assert!(!e.speak_up(t0 + Duration::from_secs(91)));
+        e.talk.every_minutes = 0;
+        assert!(!e.speak_up(t0 + Duration::from_secs(900)));
+        assert!(e.chatter.next.is_none());
+    }
+
+    #[test]
+    fn lines_go_in_their_own_table_and_come_back() {
+        let mut c = crate::config::AppConfig::default().characters.remove(0);
+        let plain = toml::to_string(&c).unwrap();
+        assert!(!plain.contains("talk"), "absent while it says nothing");
+        c.talk = crate::config::Talk {
+            phrases: vec!["Hi".into(), "Bye".into()],
+            every_minutes: 15,
+        };
+        let text = toml::to_string(&c).unwrap();
+        assert!(text.contains("[talk]"), "{text}");
+        let back: CharacterConfig = toml::from_str(&text).unwrap();
+        assert_eq!(back.talk, c.talk);
     }
 
     fn entity_at(x: f32, y: f32) -> Entity {

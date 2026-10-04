@@ -274,6 +274,7 @@ mod tests {
             monitor: None,
             easing: None,
             animations: std::collections::BTreeMap::new(),
+            talk: Default::default(),
         }
     }
 

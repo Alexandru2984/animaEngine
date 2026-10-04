@@ -365,6 +365,7 @@ fn test_config_new_asset_types_serialize() {
                 monitor: None,
                 easing: None,
                 animations: std::collections::BTreeMap::new(),
+                talk: Default::default(),
             },
             CharacterConfig {
                 id: "test_sheet".to_string(),
@@ -386,6 +387,7 @@ fn test_config_new_asset_types_serialize() {
                 monitor: None,
                 easing: None,
                 animations: std::collections::BTreeMap::new(),
+                talk: Default::default(),
             },
         ],
         windows: vec![],
@@ -469,6 +471,7 @@ fn test_config_spritesheet_fields_skip_when_none() {
         monitor: None,
         easing: None,
         animations: std::collections::BTreeMap::new(),
+        talk: Default::default(),
     };
 
     let toml_str = toml::to_string_pretty(&config).expect("serialize");

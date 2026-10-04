@@ -1272,6 +1272,8 @@ pub fn run_native(
                     }),
             );
         }
+        // A character spoke up on its own (`crate::phrases`): show it.
+        activity |= scene.take_spoke();
 
         for (path, err) in audio_host.take_new_failures() {
             let mut args = fluent::FluentArgs::new();

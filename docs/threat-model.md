@@ -90,7 +90,8 @@ else, so it gets the drop's treatment and then some:
 - **Pictures, never code.** A character's behavior script is left out
   when exporting, and one arriving with a `Behavior::Script` is stood
   still on import whatever the file says. No sound, no other file
-  travels; an entry that is not `scene.toml` or
+  travels — a character's lines (`talk`) are text, tidied like any
+  config; an entry that is not `scene.toml` or
   `assets/<number>/<plain name>.<drop extension>` fails the import.
 - **A reader that takes only what we write.** Stored entries only (no
   compression, so no inflate at all), no encryption, no zip64, CRC

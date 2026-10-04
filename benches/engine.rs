@@ -61,6 +61,7 @@ fn build_scene(n: usize) -> Scene {
             monitor: None,
             easing: None,
             animations: std::collections::BTreeMap::new(),
+            talk: Default::default(),
         };
         let frames: Vec<_> = (0..3)
             .map(|j| generate_fallback_frame([200, 200, 255, 200], 64 + j * 4))

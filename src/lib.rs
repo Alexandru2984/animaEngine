@@ -31,6 +31,7 @@ pub mod monitor;
 pub mod outcomes;
 pub mod pacing;
 pub mod perf;
+pub mod phrases;
 pub mod physics;
 pub mod platforms;
 #[cfg(unix)]
