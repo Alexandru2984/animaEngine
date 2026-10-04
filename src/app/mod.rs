@@ -483,6 +483,11 @@ impl App {
     /// shape is re-applied on the way back in — for the extras too.
     fn set_overlay_visible(&mut self, visible: bool) {
         self.overlay_hidden = !visible;
+        // Asked to show them: that ends a snooze too (`crate::snooze`).
+        if visible {
+            crate::snooze::wake();
+            self.update_step_aside();
+        }
         self.sync_window_visibility();
     }
 
@@ -722,6 +727,11 @@ impl App {
 
     fn toggle_edit_mode(&mut self) {
         self.edit_mode = !self.edit_mode;
+        // Editing wants them in view: it ends a snooze (`crate::snooze`),
+        // or the panel would open hidden.
+        if self.edit_mode {
+            crate::snooze::wake();
+        }
         self.update_step_aside();
         self.reapply_input_shape();
         // PerMonitor extras flip their input regions in lockstep —

@@ -362,7 +362,7 @@ pub fn spawn_fullscreen_watch(sink: crate::event::EventSink) {
                     last = Some(now);
                 }
                 // An app the user chose (`crate::chosen_apps`).
-                let chosen = watch.chosen_app_in_front();
+                let chosen = crate::chosen_apps::any_chosen() && watch.chosen_app_in_front();
                 if last_chosen != Some(chosen) {
                     if !sink.send(crate::event::AnimaEvent::ChosenAppInFront(chosen)) {
                         return;

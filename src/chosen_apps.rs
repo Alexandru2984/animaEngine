@@ -52,6 +52,12 @@ pub fn chosen_now(app: &str) -> bool {
     CHOSEN.lock().is_ok_and(|c| is_chosen(&c, app))
 }
 
+/// Whether any app is chosen at all: with none, the window in front need
+/// not be looked at.
+pub fn any_chosen() -> bool {
+    CHOSEN.lock().is_ok_and(|c| !c.is_empty())
+}
+
 /// The picker is showing: keep [`open`] fresh for a couple of seconds.
 pub fn want_open_list() {
     WANTED_AT.store(now_secs(), Ordering::Relaxed);

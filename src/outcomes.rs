@@ -272,8 +272,12 @@ pub fn paste_entities(copied: &crate::clipboard::Copied, ctx: &mut OutcomeCtx<'_
     let mut pasted = Vec::new();
     let mut names = Vec::new();
     let mut failed: Option<String> = None;
+    // Copied id → pasted id, for followers pasted with their leader.
+    let mut renamed: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     for mut cfg in copied.placed_in(ctx.scene) {
+        let copied_id = cfg.id.clone();
         cfg.id = ctx.scene.unique_id(&cfg.id);
+        renamed.insert(copied_id, cfg.id.clone());
         cfg.z_index = ctx.scene.next_z_index();
         match ctx.scene.append_character_config(&cfg) {
             Ok(()) => {
@@ -295,6 +299,17 @@ pub fn paste_entities(copied: &crate::clipboard::Copied, ctx: &mut OutcomeCtx<'_
             Err(e) => {
                 tracing::warn!("Paste of '{}' failed: {e}", cfg.name);
                 failed.get_or_insert(e.to_string());
+            }
+        }
+    }
+    // A follower pasted with its leader follows the pasted leader, not
+    // the one it was copied beside (`Behavior::FollowCharacter`).
+    for &idx in &pasted {
+        if let Some(crate::behavior::Behavior::FollowCharacter { target, .. }) =
+            ctx.scene.entities.get_mut(idx).map(|e| &mut e.behavior)
+        {
+            if let Some(new) = renamed.get(target.as_str()) {
+                *target = new.clone();
             }
         }
     }
@@ -1420,6 +1435,49 @@ mod tests {
             .all(|e| e.z_index < copy.z_index || e.id == copy.id));
         assert_eq!(w.selection.selected_indices(), pasted);
         assert!(w.dirty);
+    }
+
+    /// Copied together, a follower and its leader come back together: the
+    /// pasted follower follows the pasted leader.
+    #[test]
+    fn a_follower_pasted_with_its_leader_follows_the_copy() {
+        let mut w = demo_world();
+        let leader = w.scene.entities[0].id.clone();
+        w.scene.entities[1].behavior = crate::behavior::Behavior::FollowCharacter {
+            target: leader.clone(),
+            distance: 90.0,
+            speed: 140.0,
+        };
+        let before = w.scene.entities.len();
+        let copied = crate::clipboard::Copied::of(&w.scene, &[0, 1]).unwrap();
+        let pasted = paste_entities(&copied, &mut w.ctx());
+        assert_eq!(pasted.len(), 2);
+        let new_leader = w.scene.entities[before..]
+            .iter()
+            .find(|e| {
+                !matches!(
+                    e.behavior,
+                    crate::behavior::Behavior::FollowCharacter { .. }
+                )
+            })
+            .map(|e| e.id.clone())
+            .unwrap();
+        let follower = w.scene.entities[before..]
+            .iter()
+            .find_map(|e| match &e.behavior {
+                crate::behavior::Behavior::FollowCharacter { target, .. } => Some(target.clone()),
+                _ => None,
+            })
+            .unwrap();
+        assert_ne!(new_leader, leader);
+        assert_eq!(follower, new_leader);
+        // Pasted alone, it keeps following the original.
+        let alone = crate::clipboard::Copied::of(&w.scene, &[1]).unwrap();
+        let idx = paste_entities(&alone, &mut w.ctx())[0];
+        assert!(matches!(
+            &w.scene.entities[idx].behavior,
+            crate::behavior::Behavior::FollowCharacter { target, .. } if *target == leader
+        ));
     }
 
     /// Cut and pasted into another scene: the group comes back, under its

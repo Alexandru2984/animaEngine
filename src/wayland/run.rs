@@ -815,7 +815,11 @@ pub fn run_native(
                 // the actual intent disagreeing.
                 match vis {
                     AnimaEvent::HideOverlay => overlay_hidden = true,
-                    AnimaEvent::ShowOverlay => overlay_hidden = false,
+                    AnimaEvent::ShowOverlay => {
+                        overlay_hidden = false;
+                        // That ends a snooze too (`crate::snooze`).
+                        crate::snooze::wake();
+                    }
                     _ => {}
                 }
                 // A layer surface can't be unmapped the way winit's
@@ -2343,6 +2347,11 @@ fn flip_edit_mode(
     if let Err(e) = layer.set_edit_mode(new_mode, toggle_button_units(monitors)) {
         tracing::warn!("Failed to flip input region on edit toggle: {e}");
         return;
+    }
+    // Editing wants them in view: it ends a snooze (`crate::snooze`), or
+    // the panel would open hidden.
+    if new_mode {
+        crate::snooze::wake();
     }
     tracing::info!("Edit mode {} ({via})", if new_mode { "on" } else { "off" });
 

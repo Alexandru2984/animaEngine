@@ -123,7 +123,8 @@ all the way (`BehaviorState::following`), so a leader shuffling does not
 make it shuffle. Who may be followed is `behavior::follow_candidates`:
 not itself, and not any character that already leads back to it — the
 Inspector offers only those, so no circle can be made there; a circle
-written by hand converges and stops.
+written by hand converges and stops. A follower pasted together with
+its leader follows the pasted leader (`outcomes::paste_entities`).
 
 Scripted motion does NOT run inside `Behavior::tick`. It needs the asset
 library root and a per-entity scope, so `Entity::tick_script` drives it
@@ -348,7 +349,7 @@ epoch, 0 for none) that the tray, D-Bus and the palette set through
 `AnimaEvent::Snooze` and the loops read every frame: while it holds,
 `StepAside::or_snoozing` makes them step aside hidden and still, as for
 a full-screen app set to hide, so nothing else needs to know. Snoozing
-leaves edit mode. The X11 heartbeat runs `update_step_aside` too, or a
+leaves edit mode; entering edit mode, or Show overlay, wakes. The X11 heartbeat runs `update_step_aside` too, or a
 snooze ending with every window unmapped would wait for a frame that
 never comes. The tray menu is `tray_menu::entries`, built on each
 showing; ksni's thread looks at the deadline every few seconds and
