@@ -120,6 +120,8 @@ pub struct App {
         std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
         (f32, f32),
     )>,
+    /// Text a text field asked for with Ctrl+V, on its way.
+    pending_text_paste: Option<std::sync::mpsc::Receiver<crate::system_clipboard::Content>>,
     /// egui integration. Paints in BOTH modes — the ⚙ toggle button is an
     /// egui widget that lives in pass-through too. Other UI (settings panel,
     /// context menu, toasts) is gated to edit mode inside the build closure.
@@ -321,6 +323,7 @@ impl App {
             #[cfg(unix)]
             x11_clipboard: None,
             pending_paste: None,
+            pending_text_paste: None,
             ui: None,
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),

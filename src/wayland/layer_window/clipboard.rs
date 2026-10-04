@@ -29,14 +29,18 @@ pub struct Claim {
 }
 
 impl LayerWindow {
-    /// Put `text` — the names of the characters just copied — on the
-    /// clipboard, under our own type as well as plain text.
-    pub fn claim_clipboard(&mut self, text: String) {
+    /// Put `text` on the clipboard: the names of the characters just
+    /// copied (`ours`, so our own type goes with it), or text copied in
+    /// a text field of the panel.
+    pub fn claim_clipboard(&mut self, text: String, ours: bool) {
         let Some(device) = self.state.data_device.as_ref() else {
             return;
         };
         let qh = self.event_queue.handle();
-        let mut types = vec![sc::ANIMA_MIME];
+        let mut types = Vec::new();
+        if ours {
+            types.push(sc::ANIMA_MIME);
+        }
         types.extend(sc::TEXT_MIMES);
         let source = self
             .state
@@ -46,8 +50,8 @@ impl LayerWindow {
         self.state.clipboard_claim = Some(Claim { source, text });
     }
 
-    /// What the clipboard holds, as far as a paste goes.
-    pub fn read_clipboard(&self) -> ClipboardRead {
+    /// What the clipboard holds, as far as a paste for `want` goes.
+    pub fn read_clipboard(&self, want: sc::Want) -> ClipboardRead {
         let Some(offer) = self
             .state
             .data_device
@@ -56,11 +60,11 @@ impl LayerWindow {
         else {
             return ClipboardRead::Ready(Content::Nothing);
         };
-        let pick = offer.with_mime_types(sc::pick);
+        let pick = offer.with_mime_types(|offered| sc::pick_for(want, offered));
         let mime = match &pick {
             Pick::Ours => return ClipboardRead::Ready(Content::Ours),
             Pick::Nothing => return ClipboardRead::Ready(Content::Nothing),
-            Pick::Image(mime, _) | Pick::Files(mime) => mime.clone(),
+            Pick::Image(mime, _) | Pick::Files(mime) | Pick::Text(mime) => mime.clone(),
         };
         let pipe = match offer.receive(mime) {
             Ok(pipe) => pipe,

@@ -8,6 +8,10 @@
 //! saved under the data directory (`pasted/`), files are added as if
 //! dropped; both go through the drop's checks (`drop_validate`).
 //!
+//! The panel's text fields use it too (`Want::Text`): Ctrl+C and Ctrl+X
+//! there put plain text on it — never our own type, so a Ctrl+V on the
+//! overlay does not take it for characters — and Ctrl+V brings its text in.
+//!
 //! Each backend talks to its clipboard — native Wayland through
 //! `wl_data_device` (`wayland::layer_window`), X11 through a selection
 //! window of its own (`x11_clipboard`); this module is what they share.
@@ -40,6 +44,27 @@ pub const MAX_IMAGE_BYTES: u64 = 64 * 1024 * 1024;
 /// The largest list of files read.
 pub const MAX_URI_LIST_BYTES: u64 = 64 * 1024;
 
+/// The largest text pasted into a text field.
+pub const MAX_TEXT_BYTES: u64 = 1024 * 1024;
+
+/// Text types, most preferred first: what a text field takes.
+pub const TEXT_READ_MIMES: [&str; 5] = [
+    "text/plain;charset=utf-8",
+    "UTF8_STRING",
+    "text/plain",
+    "STRING",
+    "TEXT",
+];
+
+/// What a paste is for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Want {
+    /// Ctrl+V on the overlay: characters, an image, files.
+    Characters,
+    /// Ctrl+V in a text field of the panel: text.
+    Text,
+}
+
 /// What to ask the clipboard for, from the types it offers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Pick {
@@ -49,8 +74,21 @@ pub enum Pick {
     Image(String, &'static str),
     /// Files.
     Files(String),
+    /// Text, of this type, for a text field.
+    Text(String),
     /// Nothing a character can come from.
     Nothing,
+}
+
+/// Choose from `offered` for `want`.
+pub fn pick_for(want: Want, offered: &[String]) -> Pick {
+    match want {
+        Want::Characters => pick(offered),
+        Want::Text => TEXT_READ_MIMES
+            .iter()
+            .find_map(|t| offered.iter().find(|m| m.eq_ignore_ascii_case(t)))
+            .map_or(Pick::Nothing, |m| Pick::Text(m.clone())),
+    }
 }
 
 /// Choose from `offered` (the clipboard's types, in any case).
@@ -84,6 +122,8 @@ pub enum Content {
     Image(Vec<u8>, &'static str),
     /// Files, as `text/uri-list` named them.
     Files(Vec<PathBuf>),
+    /// Text for a text field, with Windows line ends made plain.
+    Text(String),
     /// Nothing a character can come from — text, say, or an empty
     /// clipboard.
     Nothing,
@@ -97,6 +137,14 @@ impl Content {
         match pick {
             Pick::Ours => Self::Ours,
             Pick::Image(_, ext) if !bytes.is_empty() => Self::Image(bytes, ext),
+            Pick::Text(_) => {
+                let text = String::from_utf8_lossy(&bytes).replace("\r\n", "\n");
+                if text.is_empty() {
+                    Self::Nothing
+                } else {
+                    Self::Text(text)
+                }
+            }
             Pick::Files(_) => {
                 // The same parser as a Wayland drop: `file://` only,
                 // percent-decoded, capped.
@@ -119,6 +167,7 @@ impl Content {
 pub fn cap_for(pick: &Pick) -> u64 {
     match pick {
         Pick::Files(_) => MAX_URI_LIST_BYTES,
+        Pick::Text(_) => MAX_TEXT_BYTES,
         _ => MAX_IMAGE_BYTES,
     }
 }
@@ -191,6 +240,23 @@ mod tests {
         );
         assert_eq!(pick(&offered(&["text/plain"])), Pick::Nothing);
         assert_eq!(pick(&[]), Pick::Nothing);
+    }
+
+    #[test]
+    fn a_text_field_takes_text_and_only_text() {
+        let offered = offered(&[ANIMA_MIME, "image/png", "UTF8_STRING", "text/plain"]);
+        assert_eq!(
+            pick_for(Want::Text, &offered),
+            Pick::Text("UTF8_STRING".into())
+        );
+        assert_eq!(
+            pick_for(Want::Text, &self::offered(&["image/png"])),
+            Pick::Nothing
+        );
+        assert_eq!(
+            Content::from_bytes(&Pick::Text("text/plain".into()), b"a\r\nb".to_vec()),
+            Content::Text("a\nb".into())
+        );
     }
 
     #[test]

@@ -141,6 +141,9 @@ pub struct WaylandState {
     /// On the overlay layer, above windows; off, on the bottom layer
     /// under them (`LayerWindow::set_on_top`).
     pub on_top: bool,
+    /// Ctrl+V was pressed: if a text field has the keyboard, the loop
+    /// pastes the desktop clipboard's text into it.
+    pub text_paste_requested: bool,
     /// Whether the user is away (`crate::away`). See `idle`.
     pub idle: super::idle::Idle,
 }

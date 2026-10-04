@@ -38,6 +38,9 @@ pub struct WaylandEguiRenderer {
     /// Set from the bridge's thread when a screen reader asks for
     /// something; the loop draws a frame to answer it.
     screen_reader_wake: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Text copied from a text field (Ctrl+C / Ctrl+X), for the loop to
+    /// put on the desktop's clipboard (`crate::system_clipboard`).
+    copied: Option<String>,
 }
 
 impl WaylandEguiRenderer {
@@ -58,6 +61,7 @@ impl WaylandEguiRenderer {
             }),
             accesskit_allowed: true,
             screen_reader_wake,
+            copied: None,
         }
     }
 
@@ -105,6 +109,11 @@ impl WaylandEguiRenderer {
             f64::from(size[0]),
             f64::from(size[1]),
         );
+    }
+
+    /// Text copied from a text field since last asked.
+    pub fn take_copied_text(&mut self) -> Option<String> {
+        self.copied.take()
     }
 
     /// Whether egui owns the pointer right now, i.e. it is over a panel,
@@ -189,6 +198,13 @@ impl WaylandEguiRenderer {
             self.accesskit_allowed,
             platform_output.accesskit_update.take(),
         );
+        for command in &platform_output.commands {
+            if let egui::OutputCommand::CopyText(text) = command {
+                if !text.is_empty() {
+                    self.copied = Some(text.clone());
+                }
+            }
+        }
         self.ime_caret = platform_output.ime.map(|ime| {
             let r = ime.cursor_rect;
             (

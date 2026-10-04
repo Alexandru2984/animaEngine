@@ -111,6 +111,17 @@ impl KeyboardHandler for WaylandState {
     ) {
         self.last_serial = serial;
         self.push_key_event(&event, true);
+        // A text field's clipboard keys, as egui-winit makes them on the
+        // other backend: Copy and Cut for egui to answer with the text,
+        // and a paste the loop fills from the desktop's clipboard.
+        if self.last_modifiers.ctrl && !self.last_modifiers.alt {
+            match event.keysym {
+                Keysym::c | Keysym::C => self.pending_egui_events.push(egui::Event::Copy),
+                Keysym::x | Keysym::X => self.pending_egui_events.push(egui::Event::Cut),
+                Keysym::v | Keysym::V => self.text_paste_requested = true,
+                _ => {}
+            }
+        }
         // UTF-8 text — already composed by xkbcommon. Push as a
         // separate Text event so text widgets get the character; chord
         // dispatch above already fired for shortcut-key combos.

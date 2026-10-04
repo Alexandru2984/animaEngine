@@ -182,6 +182,10 @@ pub fn run_native(
     let mut pending_file_chooser: Option<crate::outcomes::FileChooserAdd> = None;
     // A scene being shared or imported (`crate::scene_file`).
     let mut pending_transfer: Option<crate::outcomes::SceneTransfer> = None;
+    // Text a text field asked for with Ctrl+V, on its way.
+    let mut pending_text_paste: Option<
+        std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
+    > = None;
     // A paste waiting on the clipboard's answer, and where it lands.
     let mut pending_paste: Option<(
         std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
@@ -816,7 +820,36 @@ pub fn run_native(
             }
         }
 
-        let events = layer.drain_egui_events();
+        let mut events = layer.drain_egui_events();
+        // Text on its way from the clipboard into a text field, and Ctrl+V
+        // in one now (`crate::system_clipboard`).
+        if let Some(answer) = &pending_text_paste {
+            match answer.try_recv() {
+                Ok(content) => {
+                    pending_text_paste = None;
+                    if let crate::system_clipboard::Content::Text(text) = content {
+                        events.push(egui::Event::Paste(text));
+                        activity = true;
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => pending_text_paste = None,
+            }
+        }
+        if std::mem::take(&mut layer.state.text_paste_requested)
+            && egui_renderer.wants_keyboard()
+            && pending_text_paste.is_none()
+        {
+            match layer.read_clipboard(crate::system_clipboard::Want::Text) {
+                crate::wayland::layer_window::ClipboardRead::Ready(
+                    crate::system_clipboard::Content::Text(text),
+                ) => events.push(egui::Event::Paste(text)),
+                crate::wayland::layer_window::ClipboardRead::Ready(_) => {}
+                crate::wayland::layer_window::ClipboardRead::Pending(answer) => {
+                    pending_text_paste = Some(answer);
+                }
+            }
+        }
         let modifiers = layer.modifiers();
         // A focused text field owns the keyboard: the palette's search box,
         // a numeric field being typed into, the keybinding capture widget.
@@ -938,7 +971,7 @@ pub fn run_native(
                             renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
                             renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
                         ));
-                    match layer.read_clipboard() {
+                    match layer.read_clipboard(crate::system_clipboard::Want::Characters) {
                         crate::wayland::layer_window::ClipboardRead::Ready(content) => {
                             let pasted = outcomes::apply_pasted(content, at, &mut outcome_ctx!());
                             for path in pasted.to_import {
@@ -994,7 +1027,7 @@ pub fn run_native(
         // A copy just made: its names on the desktop's clipboard, while the
         // press that made it is the latest (setting it needs its serial).
         if let Some(text) = crate::clipboard::take_claim() {
-            layer.claim_clipboard(text);
+            layer.claim_clipboard(text, true);
         }
 
         // Right-click on an entity opens the context menu and selects
@@ -1616,6 +1649,11 @@ pub fn run_native(
                 // A focused text field turns the input method on, at its
                 // caret; losing it turns it off.
                 layer.sync_ime(egui_renderer.ime_caret());
+                // Copied from a text field: onto the desktop's clipboard, as
+                // plain text.
+                if let Some(text) = egui_renderer.take_copied_text() {
+                    layer.claim_clipboard(text, false);
+                }
                 if perf_export_request {
                     match crate::perf::export_snapshot(&perf_sampler) {
                         Ok(path) => {

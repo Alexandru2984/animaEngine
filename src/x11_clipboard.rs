@@ -25,8 +25,8 @@ use x11rb::wrapper::ConnectionExt as _;
 const ANSWER_WITHIN: Duration = Duration::from_secs(2);
 
 enum Cmd {
-    Claim(String),
-    Read(mpsc::Sender<Content>),
+    Claim(String, bool),
+    Read(sc::Want, mpsc::Sender<Content>),
 }
 
 /// The clipboard thread, from the X11 path's side.
@@ -72,16 +72,18 @@ impl X11Clipboard {
         })
     }
 
-    /// Put `text` — the names of the characters just copied — on the
-    /// clipboard.
-    pub fn claim(&self, text: String) {
-        self.send(Cmd::Claim(text));
+    /// Put `text` on the clipboard: the names of the characters just
+    /// copied (`ours`, so our own type goes with it), or text copied in a
+    /// text field of the panel.
+    pub fn claim(&self, text: String, ours: bool) {
+        self.send(Cmd::Claim(text, ours));
     }
 
-    /// Ask what the clipboard holds; the answer comes on the receiver.
-    pub fn read(&self) -> mpsc::Receiver<Content> {
+    /// Ask what the clipboard holds for `want`; the answer comes on the
+    /// receiver.
+    pub fn read(&self, want: sc::Want) -> mpsc::Receiver<Content> {
         let (tx, rx) = mpsc::channel();
-        self.send(Cmd::Read(tx));
+        self.send(Cmd::Read(want, tx));
         rx
     }
 
@@ -101,8 +103,9 @@ struct Selections {
     conn: RustConnection,
     window: Window,
     atoms: Atoms,
-    /// What we put on CLIPBOARD, while we own it.
-    claim: Option<String>,
+    /// What we put on CLIPBOARD while we own it, and whether it is the
+    /// names of characters copied here (our own type goes with them).
+    claim: Option<(String, bool)>,
 }
 
 struct Atoms {
@@ -165,10 +168,10 @@ impl Selections {
         loop {
             loop {
                 match rx.try_recv() {
-                    Ok(Cmd::Claim(text)) => self.take_ownership(text),
-                    Ok(Cmd::Read(reply)) => {
+                    Ok(Cmd::Claim(text, ours)) => self.take_ownership(text, ours),
+                    Ok(Cmd::Read(want, reply)) => {
                         let content = self
-                            .read()
+                            .read(want)
                             .unwrap_or_else(|e| Content::Failed(e.to_string()));
                         let _ = reply.send(content);
                     }
@@ -228,7 +231,7 @@ impl Selections {
         Ok(())
     }
 
-    fn take_ownership(&mut self, text: String) {
+    fn take_ownership(&mut self, text: String, ours: bool) {
         let owned = self
             .conn
             .set_selection_owner(self.window, self.atoms.clipboard, x11rb::CURRENT_TIME)
@@ -236,7 +239,7 @@ impl Selections {
             .and_then(|_| self.conn.get_selection_owner(self.atoms.clipboard).ok())
             .and_then(|c| c.reply().ok())
             .is_some_and(|r| r.owner == self.window);
-        self.claim = owned.then_some(text);
+        self.claim = owned.then_some((text, ours));
         if !owned {
             tracing::warn!("Clipboard: could not take CLIPBOARD");
         }
@@ -253,10 +256,22 @@ impl Selections {
             request.property
         };
         let mut answered = x11rb::NONE;
-        if let (Some(text), true) = (&self.claim, request.selection == self.atoms.clipboard) {
+        if let (Some((text, ours)), true) = (&self.claim, request.selection == self.atoms.clipboard)
+        {
+            // Our own type (first in the list) only with characters copied
+            // here.
+            let offered: Vec<Atom> = self
+                .atoms
+                .text
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|&(i, _)| *ours || i > 0)
+                .map(|(_, a)| a)
+                .collect();
             if request.target == self.atoms.targets {
                 let mut types = vec![self.atoms.targets];
-                types.extend(&self.atoms.text);
+                types.extend(&offered);
                 self.conn.change_property32(
                     PropMode::REPLACE,
                     request.requestor,
@@ -265,7 +280,7 @@ impl Selections {
                     &types,
                 )?;
                 answered = property;
-            } else if self.atoms.text.contains(&request.target) {
+            } else if offered.contains(&request.target) {
                 self.conn.change_property8(
                     PropMode::REPLACE,
                     request.requestor,
@@ -293,8 +308,8 @@ impl Selections {
         Ok(())
     }
 
-    /// What CLIPBOARD holds, as far as a paste goes.
-    fn read(&mut self) -> Result<Content, Failure> {
+    /// What CLIPBOARD holds, as far as a paste for `want` goes.
+    fn read(&mut self, want: sc::Want) -> Result<Content, Failure> {
         let owner = self
             .conn
             .get_selection_owner(self.atoms.clipboard)?
@@ -303,8 +318,13 @@ impl Selections {
         if owner == x11rb::NONE {
             return Ok(Content::Nothing);
         }
-        if owner == self.window && self.claim.is_some() {
-            return Ok(Content::Ours);
+        if owner == self.window {
+            // Ours: no need to ask ourselves.
+            return Ok(match (&self.claim, want) {
+                (Some((text, _)), sc::Want::Text) => Content::Text(text.clone()),
+                (Some((_, true)), sc::Want::Characters) => Content::Ours,
+                _ => Content::Nothing,
+            });
         }
         // Which types it offers.
         let Some(types) = self.convert(self.atoms.targets)? else {
@@ -328,11 +348,11 @@ impl Selections {
             }
         }
         let names: Vec<String> = named.iter().map(|(_, n)| n.clone()).collect();
-        let pick = sc::pick(&names);
+        let pick = sc::pick_for(want, &names);
         let wanted = match &pick {
             Pick::Ours => return Ok(Content::Ours),
             Pick::Nothing => return Ok(Content::Nothing),
-            Pick::Image(mime, _) | Pick::Files(mime) => mime.clone(),
+            Pick::Image(mime, _) | Pick::Files(mime) | Pick::Text(mime) => mime.clone(),
         };
         let Some(&(target, _)) = named.iter().find(|(_, n)| *n == wanted) else {
             return Ok(Content::Nothing);

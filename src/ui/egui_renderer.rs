@@ -25,6 +25,14 @@ pub struct EguiRenderer {
     accesskit_allowed: bool,
     /// When egui asked to be run again; `None` when it asked for nothing.
     repaint_at: Option<std::time::Instant>,
+    /// Ctrl+V came while a text field had the keyboard: the caller reads
+    /// the desktop's clipboard and hands the text back ([`Self::paste_text`]).
+    /// egui-winit is built without its clipboard; the app has its own
+    /// (`crate::system_clipboard`).
+    paste_wanted: bool,
+    /// Text egui copied (Ctrl+C / Ctrl+X in a text field), for the caller
+    /// to put on the desktop's clipboard.
+    copied: Option<String>,
 }
 
 impl EguiRenderer {
@@ -79,6 +87,8 @@ impl EguiRenderer {
             #[cfg(unix)]
             accesskit_allowed: true,
             repaint_at: None,
+            paste_wanted: false,
+            copied: None,
         }
     }
 
@@ -131,6 +141,24 @@ impl EguiRenderer {
         }
     }
 
+    /// Whether Ctrl+V came into a text field since last asked.
+    pub fn take_paste_request(&mut self) -> bool {
+        std::mem::take(&mut self.paste_wanted)
+    }
+
+    /// Paste `text` into the focused text field, next frame.
+    pub fn paste_text(&mut self, text: String) {
+        self.state
+            .egui_input_mut()
+            .events
+            .push(egui::Event::Paste(text));
+    }
+
+    /// Text copied from a text field since last asked.
+    pub fn take_copied_text(&mut self) -> Option<String> {
+        self.copied.take()
+    }
+
     /// Forward a window event to egui. Returns `true` when egui consumed it
     /// — the caller should then skip its own handling so we don't, e.g.,
     /// drag an entity while the user is typing in a text box.
@@ -140,6 +168,18 @@ impl EguiRenderer {
         event: &winit::event::WindowEvent,
     ) -> bool {
         let response = self.state.on_window_event(window, event);
+        // Ctrl+V into a text field. egui-winit sees it as a paste and, with
+        // no clipboard of its own, drops it.
+        if let winit::event::WindowEvent::KeyboardInput { event: key, .. } = event {
+            let v = matches!(&key.logical_key, winit::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("v"));
+            if key.state.is_pressed()
+                && v
+                && self.state.egui_input().modifiers.command
+                && self.context.wants_keyboard_input()
+            {
+                self.paste_wanted = true;
+            }
+        }
         #[cfg(unix)]
         match event {
             winit::event::WindowEvent::Focused(focused) => {
@@ -196,6 +236,15 @@ impl EguiRenderer {
             full_output.platform_output.accesskit_update.take(),
         );
 
+        // Text copied from a text field goes to the desktop's clipboard
+        // through the app (`take_copied_text`); egui-winit has no clipboard.
+        for command in &full_output.platform_output.commands {
+            if let egui::OutputCommand::CopyText(text) = command {
+                if !text.is_empty() {
+                    self.copied = Some(text.clone());
+                }
+            }
+        }
         // Apply platform-side effects (cursor, clipboard, IME requests).
         self.state
             .handle_platform_output(window, full_output.platform_output);

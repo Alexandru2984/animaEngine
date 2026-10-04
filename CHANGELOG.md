@@ -127,6 +127,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The panel's text fields had no copy and paste**, on either
+  backend: Ctrl+C, Ctrl+X and Ctrl+V did nothing in a scene's name, a
+  reminder's text or the palette's search. They now go through the
+  desktop's clipboard, as plain text.
 - **Native Wayland drew sixty frames a second whatever the scene did.**
   With everything paused, that was 84% of a core in the test rig
   (software rendering), against 0.9% on X11. It now draws only when

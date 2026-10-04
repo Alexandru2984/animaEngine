@@ -218,6 +218,7 @@ impl LayerWindow {
             clipboard_claim: None,
             last_serial: 0,
             on_top: true,
+            text_paste_requested: false,
         };
 
         // Learn the output list before the wgpu surface is built.

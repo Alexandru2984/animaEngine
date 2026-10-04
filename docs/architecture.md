@@ -569,6 +569,14 @@ others' answers in one piece or `INCR` pieces. Reads are capped (64 MB
 for an image, 64 KiB for a file list) and land a frame or two later
 (`pending_paste`), with an undo step opened then.
 
+Text fields in the panel use the same two backends (`Want::Text`): the
+copied text egui reports (`OutputCommand::CopyText`, taken by the
+renderers) is claimed as plain text only, and Ctrl+V in a field asks
+for text and hands it to egui as `Event::Paste` a frame later — on X11
+because egui-winit is built without its clipboard, on native Wayland
+because the keyboard handler feeds egui itself (it now adds
+`Event::Copy` and `Event::Cut` too).
+
 ### Undo (`src/undo.rs`)
 
 Edits reach the scene from dozens of places, so undo watches *gestures*

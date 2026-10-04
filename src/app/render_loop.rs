@@ -815,6 +815,7 @@ impl App {
             || self.pending_shimeji.is_some()
             || self.pending_transfer.is_some()
             || self.pending_paste.is_some()
+            || self.pending_text_paste.is_some()
         {
             let poll = now + std::time::Duration::from_millis(100);
             at = Some(at.map_or(poll, |a| a.min(poll)));

@@ -394,7 +394,7 @@ pub fn apply_pasted(
             Pasted::default()
         }
         // Text, an empty clipboard, or still ours: what was copied here.
-        Content::Ours | Content::Nothing => Pasted {
+        Content::Ours | Content::Nothing | Content::Text(_) => Pasted {
             added: paste_copied(ctx),
             to_import: Vec::new(),
         },

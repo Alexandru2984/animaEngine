@@ -72,7 +72,7 @@ impl App {
         {
             let at = (self.mouse_x, self.mouse_y);
             if let Some(clipboard) = self.x11_clipboard() {
-                let answer = clipboard.read();
+                let answer = clipboard.read(crate::system_clipboard::Want::Characters);
                 if self.pending_paste.is_none() {
                     self.pending_paste = Some((answer, at));
                 }
@@ -81,6 +81,48 @@ impl App {
         }
         if outcomes::paste_copied(&mut outcome_ctx!(self)) {
             self.save_config_if_needed();
+        }
+    }
+
+    /// The panel's text fields and the desktop's clipboard: text copied
+    /// there goes onto it — as plain text, so a Ctrl+V on the overlay does
+    /// not take it for characters — and Ctrl+V there brings its text in.
+    fn check_text_fields_clipboard(&mut self) {
+        let (wants_paste, copied) = match self.ui.as_mut() {
+            Some(ui) => (ui.take_paste_request(), ui.take_copied_text()),
+            None => (false, None),
+        };
+        #[cfg(unix)]
+        {
+            if let Some(text) = copied {
+                if let Some(clipboard) = self.x11_clipboard() {
+                    clipboard.claim(text, false);
+                }
+            }
+            if wants_paste && self.pending_text_paste.is_none() {
+                self.pending_text_paste = self
+                    .x11_clipboard()
+                    .map(|c| c.read(crate::system_clipboard::Want::Text));
+            }
+        }
+        #[cfg(not(unix))]
+        let _ = (wants_paste, copied);
+        let Some(answer) = &self.pending_text_paste else {
+            return;
+        };
+        let content = match answer.try_recv() {
+            Ok(content) => content,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                crate::system_clipboard::Content::Nothing
+            }
+        };
+        self.pending_text_paste = None;
+        if let (crate::system_clipboard::Content::Text(text), Some(ui)) =
+            (content, self.ui.as_mut())
+        {
+            ui.paste_text(text);
+            self.request_redraw();
         }
     }
 
@@ -95,10 +137,11 @@ impl App {
     /// Hand a copy's names to the desktop's clipboard, and apply a paste
     /// once the clipboard has answered. Called once per frame.
     pub(super) fn check_clipboard(&mut self) {
+        self.check_text_fields_clipboard();
         if let Some(text) = crate::clipboard::take_claim() {
             #[cfg(unix)]
             if let Some(clipboard) = self.x11_clipboard() {
-                clipboard.claim(text);
+                clipboard.claim(text, true);
             }
             #[cfg(not(unix))]
             let _ = text;
