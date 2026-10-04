@@ -319,6 +319,15 @@ winit path from a thread reading EWMH (`FullscreenWatch`, sending
 user's hide (`overlay_hidden`) and playback switch
 (`Scene::set_suspended`), so coming back needs no bookkeeping.
 
+Apps the user named (`src/chosen_apps.rs`, `step_aside_apps`) step it
+aside too, hidden, whatever the full-screen setting
+(`StepAside::or_chosen_app`; not in edit mode). The X11 watch reads the
+active window's `WM_CLASS` beside its state and sends
+`ChosenAppInFront`; native Wayland keeps each toplevel's app id and asks
+the list every frame. The picker in Appearance lists the apps open now
+(`chosen_apps::open`), filled by the same two only while it shows
+(`want_open_list`): on X11 that is a round-trip per window.
+
 ### Snoozing (`src/snooze.rs`)
 
 A snooze is a deadline in one process-wide atomic (seconds since the

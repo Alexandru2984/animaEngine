@@ -246,6 +246,7 @@ pub fn settings(
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
+    step_aside_apps: &mut Vec<String>,
     // Above other windows, or under them on the desktop.
     always_on_top: &mut bool,
     bedtime: &mut crate::bedtime::Bedtime,
@@ -426,6 +427,7 @@ pub fn settings(
                                 reduced_motion,
                                 hover_startle,
                                 on_fullscreen,
+                                step_aside_apps,
                                 always_on_top,
                                 away,
                                 bedtime,

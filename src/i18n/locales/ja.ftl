@@ -252,6 +252,11 @@ appearance-hover-startle-hint = カーソルが近づくとマスコットが後
 # Full-screen apps (1.5): machine-translated, pending native review.
 appearance-fullscreen-label = アプリが全画面のとき
 appearance-fullscreen-hint = 画面いっぱいのゲーム、動画、プレゼンテーション。X11 と、sway や Hyprland などの Wayland コンポジターで動作します。Wayland の GNOME と KDE では、XWayland で動くアプリのみが対象です。
+appearance-apps-label = これらのアプリでも隠す
+appearance-apps-hint = いずれかが前面のウィンドウのあいだ（ビデオ通話、配信、ゲームなど）、全画面アプリのときと同じようにキャラクターを隠します。X11 と sway や Hyprland などの Wayland コンポジターで動作します。Wayland の GNOME と KDE では XWayland で動くアプリだけです。
+appearance-apps-remove = { $app } を外す
+appearance-apps-add = 開いているアプリを追加…
+appearance-apps-none-open = このセッションから見えるアプリは開いていません。
 appearance-behind-windows-label = ウィンドウの後ろ
 appearance-behind-windows-hint = キャラクターをウィンドウの上ではなく、ウィンドウの下のデスクトップに置きます。編集モードでは前面に出ます。⚙ ボタンが隠れているときは Ctrl+Shift+A かトレイから開けます。
 appearance-bedtime-label = おやすみ時間

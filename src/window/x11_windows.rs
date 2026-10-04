@@ -213,6 +213,7 @@ pub struct FullscreenWatch {
     conn: RustConnection,
     root: Window,
     net_active_window: Atom,
+    net_client_list: Atom,
     net_wm_window_type: Atom,
     net_wm_window_type_normal: Atom,
     net_wm_state: Atom,
@@ -232,6 +233,7 @@ impl FullscreenWatch {
                 .map(|r| r.atom)
         };
         let net_active_window = intern("_NET_ACTIVE_WINDOW")?;
+        let net_client_list = intern("_NET_CLIENT_LIST")?;
         let net_wm_window_type = intern("_NET_WM_WINDOW_TYPE")?;
         let net_wm_window_type_normal = intern("_NET_WM_WINDOW_TYPE_NORMAL")?;
         let net_wm_state = intern("_NET_WM_STATE")?;
@@ -240,6 +242,7 @@ impl FullscreenWatch {
             conn,
             root,
             net_active_window,
+            net_client_list,
             net_wm_window_type,
             net_wm_window_type_normal,
             net_wm_state,
@@ -247,10 +250,9 @@ impl FullscreenWatch {
         })
     }
 
-    /// Two or three round-trips; any error reads as "not full screen".
-    pub fn fullscreen_in_front(&self) -> bool {
-        let active = self
-            .conn
+    /// The window in front, if there is one.
+    fn active_window(&self) -> Option<Window> {
+        self.conn
             .get_property(
                 false,
                 self.root,
@@ -262,10 +264,64 @@ impl FullscreenWatch {
             .ok()
             .and_then(|c| c.reply().ok())
             .and_then(|r| r.value32().and_then(|mut v| v.next()))
-            .unwrap_or(0);
-        if active == 0 {
+            .filter(|&w| w != 0)
+    }
+
+    /// A window's app: the two halves of its `WM_CLASS`, instance and
+    /// class (`crate::chosen_apps`). Nothing else about it is read.
+    fn classes_of(&self, window: Window) -> Vec<String> {
+        self.conn
+            .get_property(false, window, AtomEnum::WM_CLASS, AtomEnum::STRING, 0, 64)
+            .ok()
+            .and_then(|c| c.reply().ok())
+            .map(|r| {
+                r.value
+                    .split(|&b| b == 0)
+                    .filter(|part| !part.is_empty())
+                    .map(|part| String::from_utf8_lossy(part).into_owned())
+                    .take(2)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Whether the window in front is an app the user chose.
+    pub fn chosen_app_in_front(&self) -> bool {
+        self.active_window().is_some_and(|w| {
+            self.classes_of(w)
+                .iter()
+                .any(|class| crate::chosen_apps::chosen_now(class))
+        })
+    }
+
+    /// The apps with a window open: each window's class, the second half
+    /// of `WM_CLASS` (the first where there is no second).
+    pub fn open_apps(&self) -> Vec<String> {
+        let windows: Vec<Window> = self
+            .conn
+            .get_property(
+                false,
+                self.root,
+                self.net_client_list,
+                AtomEnum::WINDOW,
+                0,
+                1024,
+            )
+            .ok()
+            .and_then(|c| c.reply().ok())
+            .and_then(|r| r.value32().map(|v| v.take(256).collect()))
+            .unwrap_or_default();
+        windows
+            .into_iter()
+            .filter_map(|w| self.classes_of(w).pop())
+            .collect()
+    }
+
+    /// Two or three round-trips; any error reads as "not full screen".
+    pub fn fullscreen_in_front(&self) -> bool {
+        let Some(active) = self.active_window() else {
             return false;
-        }
+        };
         let atoms = |prop: Atom| -> Vec<Atom> {
             self.conn
                 .get_property(false, active, prop, AtomEnum::ATOM, 0, 32)
@@ -295,6 +351,8 @@ pub fn spawn_fullscreen_watch(sink: crate::event::EventSink) {
                 return;
             };
             let mut last = None;
+            let mut last_chosen = None;
+            let mut listed: Option<std::time::Instant> = None;
             loop {
                 let now = watch.fullscreen_in_front();
                 if last != Some(now) {
@@ -302,6 +360,22 @@ pub fn spawn_fullscreen_watch(sink: crate::event::EventSink) {
                         return;
                     }
                     last = Some(now);
+                }
+                // An app the user chose (`crate::chosen_apps`).
+                let chosen = watch.chosen_app_in_front();
+                if last_chosen != Some(chosen) {
+                    if !sink.send(crate::event::AnimaEvent::ChosenAppInFront(chosen)) {
+                        return;
+                    }
+                    last_chosen = Some(chosen);
+                }
+                // The open apps, for the picker — only while it shows, at
+                // most every two seconds: a round-trip per window.
+                if crate::chosen_apps::open_list_wanted()
+                    && listed.is_none_or(|t| t.elapsed() >= std::time::Duration::from_secs(2))
+                {
+                    crate::chosen_apps::set_open(watch.open_apps());
+                    listed = Some(std::time::Instant::now());
                 }
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }

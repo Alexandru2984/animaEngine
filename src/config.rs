@@ -68,6 +68,11 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub on_fullscreen: crate::fullscreen::OnFullscreen,
 
+    /// Apps the characters hide for while one is in front
+    /// (`crate::chosen_apps`), by id.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub step_aside_apps: Vec<String>,
+
     /// Hold the scene still after this many minutes without input; 0
     /// never (`crate::away`). Ten by default: nobody is watching, and a
     /// still scene costs next to nothing.
@@ -156,6 +161,7 @@ impl Default for GlobalConfig {
             reduced_motion: false,
             hover_startle: false,
             on_fullscreen: crate::fullscreen::OnFullscreen::default(),
+            step_aside_apps: Vec::new(),
             pause_when_idle_minutes: default_pause_when_idle_minutes(),
             pause_on_battery: false,
             active_scene: None,

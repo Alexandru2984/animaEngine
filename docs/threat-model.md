@@ -256,12 +256,22 @@ window in front: whether it is full screen.
   second — `GetProperty` only, read-only as above.
 - On native Wayland it binds `wlr-foreign-toplevel-management` where the
   compositor offers it. That protocol announces every window's title and
-  app id along with its state; the overlay keeps only the activated and
-  full-screen flags and drops the rest as it arrives. Nothing is logged
+  app id along with its state; the overlay keeps the activated and
+  full-screen flags and drops the title as it arrives. Nothing is logged
   but the transition itself, nothing persisted.
 
 Same trust boundary as window-awareness: the user's own session, and a
 fact any screenshot shows.
+
+Since stepping aside for apps the user names (`crate::chosen_apps`), it
+also learns *which app* is in front, and — only while the picker in
+Appearance shows — which apps have a window open: `WM_CLASS` on X11
+(the active window's every half second; each client's in
+`_NET_CLIENT_LIST` at most every two seconds while picking), the app id
+on Wayland, kept in memory with the window. That is what the window
+switcher shows. The ids are compared and listed, never logged, never
+sent anywhere, and saved only as the user's own picks
+(`step_aside_apps`); window titles are still not read.
 
 ### How long since the last input, and whether on battery (1.5.0)
 

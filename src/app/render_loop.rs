@@ -414,6 +414,7 @@ impl App {
                         let hover_startle_mut = &mut self.config.global.hover_startle;
                         let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
                         let always_on_top_mut = &mut self.config.global.always_on_top;
+                        let step_aside_apps_mut = &mut self.config.global.step_aside_apps;
                         let bedtime_mut = &mut self.config.global.bedtime;
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
                         let on_battery_mut = &mut self.config.global.pause_on_battery;
@@ -506,6 +507,7 @@ impl App {
                                     reduced_motion_mut,
                                     hover_startle_mut,
                                     on_fullscreen_mut,
+                                    step_aside_apps_mut,
                                     always_on_top_mut,
                                     bedtime_mut,
                                     panels::AwayControls {

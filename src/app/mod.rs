@@ -146,6 +146,8 @@ pub struct App {
     /// Bedtime against the clock (`crate::bedtime`), and whether it is.
     bedtime_watch: crate::bedtime::Watch,
     bedtime_now: bool,
+    /// An app the user chose is the window in front (`crate::chosen_apps`).
+    chosen_app_in_front: bool,
     /// Idle past the chosen time, as the away watch last reported
     /// (`crate::away`).
     away: bool,
@@ -336,6 +338,7 @@ impl App {
             stacked_on_top: None,
             bedtime_watch: Default::default(),
             bedtime_now: false,
+            chosen_app_in_front: false,
             away: false,
             on_battery: false,
             idle_source: None,
@@ -663,8 +666,11 @@ impl App {
             self.fullscreen_in_front,
             self.edit_mode,
         )
+        // An app the user chose in front (`crate::chosen_apps`).
+        .or_chosen_app(self.chosen_app_in_front, self.edit_mode)
         // Snoozing (`crate::snooze`): out of sight and still until it ends.
         .or_snoozing(crate::snooze::active());
+        crate::chosen_apps::configure(&self.config.global.step_aside_apps);
         // Bedtime by the clock (`crate::bedtime`) — not while editing.
         self.bedtime_now = !self.edit_mode && self.bedtime_watch.now(&self.config.global.bedtime);
         // Away or on battery, if asked: held still too (`crate::away`).
@@ -695,6 +701,8 @@ impl App {
                 "{}: overlay {}",
                 if crate::snooze::active() {
                     "Snoozing"
+                } else if self.chosen_app_in_front && !self.edit_mode {
+                    "An app chosen in Appearance in front"
                 } else if self.fullscreen_in_front {
                     "Full-screen app in front"
                 } else {
@@ -814,6 +822,10 @@ impl ApplicationHandler<AnimaEvent> for App {
                     window.focus_window();
                 }
                 tracing::info!("Raised by second-instance handshake");
+            }
+            AnimaEvent::ChosenAppInFront(in_front) => {
+                self.chosen_app_in_front = in_front;
+                self.update_step_aside();
             }
             AnimaEvent::Snooze(what) => {
                 crate::snooze::snooze(what);

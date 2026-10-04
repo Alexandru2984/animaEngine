@@ -10,6 +10,7 @@ pub mod away;
 pub mod bedtime;
 pub mod behavior;
 pub mod bump;
+pub mod chosen_apps;
 pub mod clipboard;
 pub mod config;
 pub mod config_watch;

@@ -252,6 +252,11 @@ appearance-hover-startle-hint = Mascotele se feresc de cursor când se apropie d
 # Full-screen apps (1.5): machine-translated, pending native review.
 appearance-fullscreen-label = Când o aplicație e pe tot ecranul
 appearance-fullscreen-hint = Jocuri, videoclipuri și prezentări care umplu ecranul. Merge pe X11 și pe compozitoarele Wayland precum sway și Hyprland; pe GNOME și KDE cu Wayland, doar pentru aplicațiile care rulează prin XWayland.
+appearance-apps-label = Ascunde și pentru aceste aplicații
+appearance-apps-hint = Cât timp una dintre ele e fereastra din față — un apel video, un stream, un joc — personajele se ascund, ca pentru o aplicație pe tot ecranul. X11 și compozitoare Wayland precum sway și Hyprland; sub GNOME și KDE pe Wayland, doar aplicațiile care rulează prin XWayland.
+appearance-apps-remove = Elimină { $app }
+appearance-apps-add = Adaugă o aplicație deschisă…
+appearance-apps-none-open = Nu e deschisă nicio aplicație pe care sesiunea asta o poate vedea.
 appearance-behind-windows-label = În spatele ferestrelor
 appearance-behind-windows-hint = Personajele stau pe desktop, sub ferestre, în loc să stea peste ele. Modul de editare le aduce în față; dacă butonul ⚙ e acoperit, îl deschizi cu Ctrl+Shift+A sau din tray.
 appearance-bedtime-label = Ora de culcare

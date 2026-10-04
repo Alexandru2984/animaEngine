@@ -3,9 +3,9 @@
 //!
 //! The compositor announces every toplevel window and, for each, its state
 //! — activated, full screen, maximized, minimized — applied on `done`.
-//! Only those two flags are kept: the protocol also sends every window's
-//! title and app id, which the overlay has no business knowing, and they
-//! are dropped as they arrive. The overlay's own layer surfaces are not
+//! Two flags are kept, and since 1.5 the app id, for stepping aside for
+//! apps the user named (`crate::chosen_apps`) and offering the open ones
+//! to pick from; it stays in memory. The title is dropped as it arrives. The overlay's own layer surfaces are not
 //! toplevels and never appear here. Compositors without the protocol
 //! (GNOME, KDE) leave the list empty, so nothing is ever in front.
 
@@ -30,6 +30,8 @@ struct Window {
     pending: Flags,
     /// In effect.
     current: Flags,
+    /// Its app (`crate::chosen_apps`), as last sent.
+    app_id: String,
 }
 
 /// Every toplevel the compositor has announced and not yet closed, by
@@ -45,6 +47,18 @@ impl Toplevels {
         self.windows
             .values()
             .any(|w| w.current.activated && w.current.fullscreen)
+    }
+
+    /// Whether the window in front is one of the apps in `chosen`.
+    pub fn chosen_in_front(&self, chosen: &[String]) -> bool {
+        self.windows
+            .values()
+            .any(|w| w.current.activated && crate::chosen_apps::is_chosen(chosen, &w.app_id))
+    }
+
+    /// The apps with a window open.
+    pub fn open_apps(&self) -> Vec<String> {
+        self.windows.values().map(|w| w.app_id.clone()).collect()
     }
 }
 
@@ -111,11 +125,16 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for WaylandState {
                     window.current = window.pending;
                 }
             }
+            Event::AppId { app_id } => {
+                if let Some(window) = windows.get_mut(&proxy.id().protocol_id()) {
+                    window.app_id = app_id.chars().take(128).collect();
+                }
+            }
             Event::Closed => {
                 windows.remove(&proxy.id().protocol_id());
                 proxy.destroy();
             }
-            // Title, app id, outputs, parent: not ours to keep.
+            // Title, outputs, parent: not ours to keep.
             _ => {}
         }
     }
@@ -164,6 +183,7 @@ mod tests {
                 activated,
                 fullscreen,
             },
+            app_id: String::new(),
         };
         let mut toplevels = Toplevels::default();
         assert!(!toplevels.fullscreen_in_front(), "no windows at all");
@@ -177,5 +197,27 @@ mod tests {
         assert!(toplevels.fullscreen_in_front());
         toplevels.windows.remove(&3);
         assert!(!toplevels.fullscreen_in_front(), "closed");
+    }
+
+    #[test]
+    fn a_chosen_app_counts_only_in_front() {
+        let window = |activated, app: &str| Window {
+            pending: Flags::default(),
+            current: Flags {
+                activated,
+                fullscreen: false,
+            },
+            app_id: app.into(),
+        };
+        let chosen = vec!["zoom".to_string()];
+        let mut toplevels = Toplevels::default();
+        toplevels.windows.insert(1, window(false, "zoom"));
+        toplevels.windows.insert(2, window(true, "firefox"));
+        assert!(!toplevels.chosen_in_front(&chosen), "open but behind");
+        toplevels.windows.insert(3, window(true, "Zoom"));
+        assert!(toplevels.chosen_in_front(&chosen));
+        let mut open = toplevels.open_apps();
+        open.sort();
+        assert_eq!(open, ["Zoom", "firefox", "zoom"]);
     }
 }

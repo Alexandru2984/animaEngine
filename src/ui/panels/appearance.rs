@@ -6,7 +6,7 @@
 //! the theme-label helpers shared with the command palette.
 
 use crate::i18n::t;
-use crate::ui::accessible::ComboOption;
+use crate::ui::accessible::{AccessibleName, ComboOption};
 use crate::ui::banner::{Severity, Warning};
 use crate::ui::icons;
 use crate::ui::onboarding::{self, OnboardingProgress};
@@ -24,6 +24,7 @@ pub(super) fn appearance_tab(
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
+    step_aside_apps: &mut Vec<String>,
     always_on_top: &mut bool,
     away: super::AwayControls<'_>,
     bedtime: &mut crate::bedtime::Bedtime,
@@ -85,6 +86,10 @@ pub(super) fn appearance_tab(
     }
     ui.add_space(SPACE_S);
     if fullscreen_picker(ui, on_fullscreen) {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    if chosen_apps_controls(ui, step_aside_apps) {
         *config_dirty = true;
     }
     ui.add_space(SPACE_S);
@@ -303,6 +308,61 @@ fn autostart_switch(ui: &mut egui::Ui, granted: &mut bool) -> bool {
             .wrap(),
         );
     }
+    changed
+}
+
+/// Apps the characters hide for while one is in front
+/// (`crate::chosen_apps`): the ones chosen, each with a way to take it
+/// off, and the apps open now to pick from. Returns whether the list
+/// changed.
+fn chosen_apps_controls(ui: &mut egui::Ui, apps: &mut Vec<String>) -> bool {
+    // Keeps the open apps listed while this shows.
+    crate::chosen_apps::want_open_list();
+    let mut changed = false;
+    ui.label(t("appearance-apps-label"))
+        .on_hover_text(t("appearance-apps-hint"));
+    let mut remove = None;
+    for (i, app) in apps.iter().enumerate() {
+        ui.horizontal(|ui| {
+            ui.label(app);
+            let mut args = fluent::FluentArgs::new();
+            args.set("app", app.clone());
+            if ui
+                .small_button(icons::TRASH)
+                .on_hover_name(crate::i18n::t_args("appearance-apps-remove", &args))
+                .clicked()
+            {
+                remove = Some(i);
+            }
+        });
+    }
+    if let Some(i) = remove {
+        apps.remove(i);
+        changed = true;
+    }
+    let open: Vec<String> = crate::chosen_apps::open()
+        .into_iter()
+        .filter(|a| !crate::chosen_apps::is_chosen(apps, a))
+        .collect();
+    let add = t("appearance-apps-add");
+    let combo = egui::ComboBox::from_id_salt("anima.chosen-apps")
+        .selected_text(add.clone())
+        .show_ui(ui, |ui| {
+            if open.is_empty() {
+                ui.label(
+                    egui::RichText::new(t("appearance-apps-none-open"))
+                        .text_style(theme::caption())
+                        .weak(),
+                );
+            }
+            for app in &open {
+                if ui.selectable_label(false, app).clicked() {
+                    apps.push(app.clone());
+                    changed = true;
+                }
+            }
+        });
+    crate::ui::accessible::name_combo(&combo.response, &add, &add);
     changed
 }
 

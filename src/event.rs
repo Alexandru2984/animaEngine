@@ -40,6 +40,9 @@ pub enum AnimaEvent {
     /// Switch to the next saved scene, by name (`crate::scenes`): the
     /// tray's "Next scene" and D-Bus `NextScene`.
     NextScene,
+    /// Whether an app the user chose is the window in front changed
+    /// (winit path; `crate::chosen_apps`).
+    ChosenAppInFront(bool),
     /// Snooze for a while (`crate::snooze`): the tray, D-Bus.
     Snooze(crate::snooze::SnoozeFor),
     /// Wake up from a snooze.

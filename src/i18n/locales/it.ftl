@@ -252,6 +252,11 @@ appearance-hover-startle-hint = Le mascotte indietreggiano dal puntatore quando 
 # Full-screen apps (1.5): machine-translated, pending native review.
 appearance-fullscreen-label = Quando un’app è a schermo intero
 appearance-fullscreen-hint = Giochi, video e presentazioni che riempiono lo schermo. Funziona su X11 e sui compositor Wayland come sway e Hyprland; su GNOME e KDE con Wayland, solo per le app che girano tramite XWayland.
+appearance-apps-label = Nascondi anche per queste app
+appearance-apps-hint = Finché una di esse è la finestra in primo piano — una videochiamata, una diretta, un gioco — i personaggi si nascondono, come per un’app a schermo intero. X11 e compositor Wayland come sway e Hyprland; su GNOME e KDE con Wayland, solo le app che girano tramite XWayland.
+appearance-apps-remove = Rimuovi { $app }
+appearance-apps-add = Aggiungi un’app aperta…
+appearance-apps-none-open = Nessuna app visibile a questa sessione è aperta.
 appearance-behind-windows-label = Dietro le finestre
 appearance-behind-windows-hint = I personaggi vivono sul desktop, sotto le finestre, invece che sopra. La modalità modifica li porta davanti; se il pulsante ⚙ è coperto, aprila con Ctrl+Shift+A o dall’area di notifica.
 appearance-bedtime-label = Ora di dormire

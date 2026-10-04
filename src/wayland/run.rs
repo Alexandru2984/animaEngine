@@ -494,13 +494,23 @@ pub fn run_native(
         // In front of the windows or behind them; edit mode always in
         // front, so the panel is in reach.
         layer.set_on_top(config.global.always_on_top || layer.state.edit_mode);
+        let chosen_in_front = layer
+            .state
+            .toplevels
+            .chosen_in_front(&config.global.step_aside_apps);
         let wanted = crate::fullscreen::step_aside(
             config.global.on_fullscreen,
             layer.fullscreen_in_front(),
             layer.state.edit_mode,
         )
+        // An app the user chose in front (`crate::chosen_apps`).
+        .or_chosen_app(chosen_in_front, layer.state.edit_mode)
         // Snoozing (`crate::snooze`): out of sight and still until it ends.
         .or_snoozing(crate::snooze::active());
+        // The open apps, for the picker, while it shows.
+        if crate::chosen_apps::open_list_wanted() {
+            crate::chosen_apps::set_open(layer.state.toplevels.open_apps());
+        }
         // In the Flatpak, the Background portal's answer to "start at
         // login", once it comes (`crate::autostart`).
         if let Some(granted) = crate::autostart::take_portal_answer() {
@@ -579,6 +589,8 @@ pub fn run_native(
                 "{}: overlay {}",
                 if crate::snooze::active() {
                     "Snoozing"
+                } else if chosen_in_front && !layer.state.edit_mode {
+                    "An app chosen in Appearance in front"
                 } else if layer.fullscreen_in_front() {
                     "Full-screen app in front"
                 } else {
@@ -723,7 +735,7 @@ pub fn run_native(
                         AnimaEvent::HotkeysUnavailable | AnimaEvent::PortalShortcutsDenied => {}
                         // This loop learns it from the compositor's
                         // toplevel list instead.
-                        AnimaEvent::FullscreenInFront(_) => {}
+                        AnimaEvent::FullscreenInFront(_) | AnimaEvent::ChosenAppInFront(_) => {}
                         AnimaEvent::OnBattery(now) => on_battery = now,
                         // Idle comes from the compositor here.
                         AnimaEvent::Away(_) | AnimaEvent::IdleSource(_) => {}
@@ -1532,6 +1544,7 @@ pub fn run_native(
                 let hover_startle_mut = &mut config.global.hover_startle;
                 let on_fullscreen_mut = &mut config.global.on_fullscreen;
                 let always_on_top_mut = &mut config.global.always_on_top;
+                let step_aside_apps_mut = &mut config.global.step_aside_apps;
                 let bedtime_mut = &mut config.global.bedtime;
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
                 let on_battery_mut = &mut config.global.pause_on_battery;
@@ -1614,6 +1627,7 @@ pub fn run_native(
                                 reduced_motion_mut,
                                 hover_startle_mut,
                                 on_fullscreen_mut,
+                                step_aside_apps_mut,
                                 always_on_top_mut,
                                 bedtime_mut,
                                 panels::AwayControls {

@@ -52,6 +52,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
   Bubbles show on every monitor.
+- **Step aside for apps you choose.** Under the full-screen setting in
+  Appearance, pick apps from the ones open now — a video call, a
+  streaming tool, a game — and the characters hide while one of them is
+  the window in front, full screen or not. X11, and Wayland compositors
+  such as sway and Hyprland; under GNOME and KDE on Wayland, apps that
+  run through XWayland.
 - **Bedtime.** Pick hours in Appearance — 23:00 to 07:00 to begin
   with — and the characters doze off then, Zzz… and all, whoever is at
   the keyboard. Edit mode wakes them while it lasts; the night counts
