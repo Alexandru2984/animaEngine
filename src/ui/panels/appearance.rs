@@ -26,6 +26,7 @@ pub(super) fn appearance_tab(
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
     always_on_top: &mut bool,
     away: super::AwayControls<'_>,
+    bedtime: &mut crate::bedtime::Bedtime,
     start_at_login: &mut bool,
 ) {
     ui.label(egui::RichText::new(t("appearance-theme-header")).text_style(h2()));
@@ -99,6 +100,10 @@ pub(super) fn appearance_tab(
     }
     ui.add_space(SPACE_S);
     if away_controls(ui, away) {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    if bedtime_controls(ui, bedtime) {
         *config_dirty = true;
     }
     if cfg!(unix) && autostart_switch(ui, start_at_login) {
@@ -299,6 +304,55 @@ fn autostart_switch(ui: &mut egui::Ui, granted: &mut bool) -> bool {
         );
     }
     changed
+}
+
+/// Bedtime (`crate::bedtime`): a switch, and the hours. Returns whether
+/// anything changed.
+fn bedtime_controls(ui: &mut egui::Ui, bedtime: &mut crate::bedtime::Bedtime) -> bool {
+    let mut changed = ui
+        .checkbox(&mut bedtime.enabled, t("appearance-bedtime-label"))
+        .on_hover_text(t("appearance-bedtime-hint"))
+        .changed();
+    ui.add_enabled_ui(bedtime.enabled, |ui| {
+        ui.horizontal(|ui| {
+            changed |= hhmm_field(ui, &mut bedtime.from, &t("appearance-bedtime-from"));
+            ui.add_space(SPACE_S);
+            changed |= hhmm_field(ui, &mut bedtime.to, &t("appearance-bedtime-to"));
+        });
+    });
+    changed
+}
+
+/// An "HH:MM" as two drag values, labelled `label`. Returns whether it
+/// changed.
+fn hhmm_field(ui: &mut egui::Ui, text: &mut String, label: &str) -> bool {
+    let minute = crate::schedule::parse_hhmm(text).unwrap_or(0);
+    let (mut hour, mut min) = (minute / 60, minute % 60);
+    let caption = ui.label(label);
+    let two_digits = |n: f64, _: std::ops::RangeInclusive<usize>| format!("{:02}", n as u32);
+    let h = ui
+        .add(
+            egui::DragValue::new(&mut hour)
+                .range(0..=23)
+                .custom_formatter(two_digits),
+        )
+        .labelled_by(caption.id);
+    ui.label(":");
+    let m = ui.add(
+        egui::DragValue::new(&mut min)
+            .range(0..=59)
+            .custom_formatter(two_digits),
+    );
+    crate::ui::accessible::name_text_field(
+        &m,
+        &format!("{label} — {}", t("scene-schedule-minute")),
+    );
+    if h.changed() || m.changed() {
+        *text = crate::schedule::format_hhmm(hour * 60 + min);
+        true
+    } else {
+        false
+    }
 }
 
 /// When to hold the characters still for someone being away

@@ -182,6 +182,8 @@ pub fn run_native(
     let mut pending_file_chooser: Option<crate::outcomes::FileChooserAdd> = None;
     // A scene being shared or imported (`crate::scene_file`).
     let mut pending_transfer: Option<crate::outcomes::SceneTransfer> = None;
+    // Bedtime against the clock (`crate::bedtime`).
+    let mut bedtime_watch = crate::bedtime::Watch::default();
     // Text a text field asked for with Ctrl+V, on its way.
     let mut pending_text_paste: Option<
         std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
@@ -515,12 +517,15 @@ pub fn run_native(
         );
         layer.set_idle_timeout(idle_watch);
         crate::away::configure(idle_watch, global.pause_on_battery);
+        // Bedtime by the clock (`crate::bedtime`) — not while editing.
+        let bedtime_now = !layer.state.edit_mode && bedtime_watch.now(&global.bedtime);
         let still = crate::away::stillness(
             global.pause_when_idle_minutes,
             layer.is_idle(),
             global.pause_on_battery,
             on_battery,
         )
+        .with_bedtime(bedtime_now)
         .watching(layer.fullscreen_in_front());
         if still.any() != held_for_away {
             held_for_away = still.any();
@@ -561,7 +566,8 @@ pub fn run_native(
             &config.reminders,
             &mut scene,
             !(overlay_hidden || wanted.hidden),
-            layer.is_idle(),
+            // The night counts as a break too.
+            layer.is_idle() || bedtime_now,
             |_| true,
         ) {
             activity = true;
@@ -1526,6 +1532,7 @@ pub fn run_native(
                 let hover_startle_mut = &mut config.global.hover_startle;
                 let on_fullscreen_mut = &mut config.global.on_fullscreen;
                 let always_on_top_mut = &mut config.global.always_on_top;
+                let bedtime_mut = &mut config.global.bedtime;
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
                 let on_battery_mut = &mut config.global.pause_on_battery;
                 let start_at_login_mut = &mut config.global.start_at_login;
@@ -1608,6 +1615,7 @@ pub fn run_native(
                                 hover_startle_mut,
                                 on_fullscreen_mut,
                                 always_on_top_mut,
+                                bedtime_mut,
                                 panels::AwayControls {
                                     idle_minutes: &mut *idle_minutes_mut,
                                     on_battery: &mut *on_battery_mut,

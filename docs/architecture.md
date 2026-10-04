@@ -443,6 +443,10 @@ and `tick` runs gravity alone (`Entity::fall`) — no behaviors, scripts
 or animation — until everyone has landed or `doze::SETTLE_LIMIT` has
 passed; then each takes its idle pose (`Entity::rest`) and
 `is_running` turns false, which stops the frames as a pause does.
+Bedtime (`src/bedtime.rs`, `[global.bedtime]`) dozes the same way by
+the clock — read at most every ten seconds (`bedtime::Watch`), across
+midnight, not in edit mode — through `Stillness::with_bedtime`, and is
+handed to the reminders as time away, so the night is their break.
 Characters arriving while it sleeps — a scheduled scene, a reload —
 settle the same way (`Scene::settle_again`). With a full-screen app in
 front, no input is someone watching (`Stillness::watching`): no Zzz…,

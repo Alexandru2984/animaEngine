@@ -52,6 +52,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
   Bubbles show on every monitor.
+- **Bedtime.** Pick hours in Appearance — 23:00 to 07:00 to begin
+  with — and the characters doze off then, Zzz… and all, whoever is at
+  the keyboard. Edit mode wakes them while it lasts; the night counts
+  as a break for the reminders. Off by default.
 - **Snooze.** "Snooze 15 minutes", "Snooze 1 hour" and "Snooze until
   morning" in the tray and the command palette put the characters out
   of sight and still; they come back on their own — the tray shows until

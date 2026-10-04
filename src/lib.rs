@@ -7,6 +7,7 @@ pub mod asset_library;
 pub mod audio;
 pub mod autostart;
 pub mod away;
+pub mod bedtime;
 pub mod behavior;
 pub mod bump;
 pub mod clipboard;

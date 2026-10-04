@@ -143,6 +143,9 @@ pub struct App {
     /// Whether the windows were last put above the others (`true`) or
     /// under them; `None` before the first time (`apply_stacking`).
     stacked_on_top: Option<bool>,
+    /// Bedtime against the clock (`crate::bedtime`), and whether it is.
+    bedtime_watch: crate::bedtime::Watch,
+    bedtime_now: bool,
     /// Idle past the chosen time, as the away watch last reported
     /// (`crate::away`).
     away: bool,
@@ -331,6 +334,8 @@ impl App {
             fullscreen_in_front: false,
             stepped_aside: crate::fullscreen::StepAside::default(),
             stacked_on_top: None,
+            bedtime_watch: Default::default(),
+            bedtime_now: false,
             away: false,
             on_battery: false,
             idle_source: None,
@@ -660,6 +665,8 @@ impl App {
         )
         // Snoozing (`crate::snooze`): out of sight and still until it ends.
         .or_snoozing(crate::snooze::active());
+        // Bedtime by the clock (`crate::bedtime`) — not while editing.
+        self.bedtime_now = !self.edit_mode && self.bedtime_watch.now(&self.config.global.bedtime);
         // Away or on battery, if asked: held still too (`crate::away`).
         let global = &self.config.global;
         crate::away::configure(
@@ -675,6 +682,7 @@ impl App {
             global.pause_on_battery,
             self.on_battery,
         )
+        .with_bedtime(self.bedtime_now)
         .watching(self.fullscreen_in_front);
         // Asleep, then held still: the Zzz… and the landing want frames.
         if self.scene.set_dozing(still.doze) {

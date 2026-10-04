@@ -257,8 +257,9 @@ impl App {
             &self.config.reminders,
             &mut self.scene,
             !self.overlay_hidden && !self.stepped_aside.hidden,
-            // Watched for reminders even with pausing off.
-            self.away,
+            // Watched for reminders even with pausing off; the night
+            // counts as a break too.
+            self.away || self.bedtime_now,
             |_| true,
         );
         if reminded {
@@ -413,6 +414,7 @@ impl App {
                         let hover_startle_mut = &mut self.config.global.hover_startle;
                         let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
                         let always_on_top_mut = &mut self.config.global.always_on_top;
+                        let bedtime_mut = &mut self.config.global.bedtime;
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
                         let on_battery_mut = &mut self.config.global.pause_on_battery;
                         let start_at_login_mut = &mut self.config.global.start_at_login;
@@ -505,6 +507,7 @@ impl App {
                                     hover_startle_mut,
                                     on_fullscreen_mut,
                                     always_on_top_mut,
+                                    bedtime_mut,
                                     panels::AwayControls {
                                         idle_minutes: &mut *idle_minutes_mut,
                                         on_battery: &mut *on_battery_mut,

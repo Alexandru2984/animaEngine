@@ -248,6 +248,7 @@ pub fn settings(
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
     // Above other windows, or under them on the desktop.
     always_on_top: &mut bool,
+    bedtime: &mut crate::bedtime::Bedtime,
     away: AwayControls<'_>,
     start_at_login: &mut bool,
     monitors: &[MonitorInfo],
@@ -427,6 +428,7 @@ pub fn settings(
                                 on_fullscreen,
                                 always_on_top,
                                 away,
+                                bedtime,
                                 start_at_login,
                             );
                         }

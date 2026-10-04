@@ -72,6 +72,19 @@ impl Stillness {
         self.doze || self.freeze
     }
 
+    /// At bedtime (`crate::bedtime`) the characters doze off too, whoever
+    /// is there.
+    pub fn with_bedtime(self, bedtime: bool) -> Self {
+        if bedtime {
+            Self {
+                doze: true,
+                freeze: false,
+            }
+        } else {
+            self
+        }
+    }
+
     /// With a full-screen app in front — a film, most likely — no input
     /// for a while is someone watching, not away: no Zzz… over it, the
     /// scene only holds still, as pausing when away always did.
