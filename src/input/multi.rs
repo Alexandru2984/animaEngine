@@ -79,6 +79,7 @@ pub fn drag_to(
     let Some((idx, new_x, new_y)) = drag.update(x, y) else {
         return;
     };
+    drag.track((x, y), std::time::Instant::now());
     if !selection.is_selected(idx) {
         return;
     }
@@ -111,22 +112,53 @@ pub fn drag_to(
     drag.set_guides(guides);
 }
 
-/// The drag ended: physics takes the selected characters back. A tap —
-/// press and release without moving — on one of several selects it alone.
-/// The caller pokes the tapped character first, if it does (a poke is
-/// per character and knows the bounds).
+/// The drag ended: physics takes the selected characters back — thrown,
+/// if the pointer was still going fast when let go (`DragController::fling`;
+/// not with reduced motion). A tap — press and release without moving — on
+/// one of several selects it alone. The caller pokes the tapped character
+/// first, if it does (a poke is per character and knows the bounds).
+/// Returns whether they were thrown. The flight that follows is play, not
+/// an edit: `before_throw` gets the scene as let go, just before, for the
+/// caller to close the undo step there.
 pub fn end_drag(
     scene: &mut Scene,
     selection: &mut SelectionState,
     drag: &mut DragController,
     tapped: bool,
     shift: bool,
+    before_throw: impl FnOnce(&Scene),
+) -> bool {
+    let fling = (!tapped && !scene.reduces_motion())
+        .then(|| drag.fling(std::time::Instant::now()))
+        .flatten();
+    if fling.is_some() {
+        before_throw(scene);
+    }
+    release(scene, selection, drag, tapped, shift, fling);
+    fling.is_some()
+}
+
+/// Let go of what `drag` holds, at `fling` px/s if thrown.
+fn release(
+    scene: &mut Scene,
+    selection: &mut SelectionState,
+    drag: &mut DragController,
+    tapped: bool,
+    shift: bool,
+    fling: Option<(f32, f32)>,
 ) {
     let pressed = drag.dragging_entity();
-    for i in selection.selected_indices().into_iter().chain(pressed) {
+    let mut moving: Vec<usize> = selection.selected_indices();
+    moving.extend(pressed);
+    moving.sort_unstable();
+    moving.dedup();
+    for i in moving {
         if let Some(e) = scene.entities.get_mut(i) {
             e.physics.unfreeze();
             e.dragging = false;
+            if let Some((vx, vy)) = fling {
+                e.physics.throw(vx, vy);
+            }
         }
     }
     if let Some(idx) = pressed {
@@ -175,7 +207,8 @@ pub fn cancel(
     if !drag.is_dragging() {
         return false;
     }
-    end_drag(scene, selection, drag, false, false);
+    // Let go, not thrown: the button was never released.
+    release(scene, selection, drag, false, false, None);
     true
 }
 
@@ -261,6 +294,45 @@ mod tests {
     use super::*;
     use crate::behavior::Behavior;
 
+    #[test]
+    fn a_throw_reaches_the_whole_selection_and_a_cancel_never_throws() {
+        let mut s = scene();
+        let mut sel = SelectionState::default();
+        let mut drag = DragController::new();
+        sel.select_all_of(&[0, 1]);
+        press_on(&mut s, &mut sel, &mut drag, 0, (10.0, 10.0), false);
+        release(
+            &mut s,
+            &mut sel,
+            &mut drag,
+            false,
+            false,
+            Some((800.0, -200.0)),
+        );
+        assert!(s.entities[0].physics.thrown && s.entities[1].physics.thrown);
+        assert!(!s.entities[2].physics.thrown, "not selected, not thrown");
+        assert!(!s.entities[0].dragging);
+
+        let mut marquee = None;
+        press_on(&mut s, &mut sel, &mut drag, 2, (210.0, 10.0), false);
+        assert!(!s.entities[2].physics.thrown, "caught");
+        drag.track((900.0, 10.0), std::time::Instant::now());
+        cancel(&mut s, &mut sel, &mut drag, &mut marquee);
+        assert!(!s.entities[2].physics.thrown, "let go, not thrown");
+    }
+
+    #[test]
+    fn reduced_motion_throws_nothing() {
+        let mut s = scene();
+        s.set_reduced_motion(true);
+        let mut sel = SelectionState::default();
+        let mut drag = DragController::new();
+        press_on(&mut s, &mut sel, &mut drag, 0, (10.0, 10.0), false);
+        drag.track((400.0, 10.0), std::time::Instant::now());
+        assert!(!end_drag(&mut s, &mut sel, &mut drag, false, false, |_| {}));
+        assert!(!s.entities[0].physics.thrown);
+    }
+
     /// Three characters with no asset — fallback circles about 70 px
     /// across — at x = 0, 100, 200.
     fn scene() -> Scene {
@@ -306,16 +378,16 @@ mod tests {
         let mut s = scene();
         let (mut sel, mut drag) = (SelectionState::default(), DragController::new());
         assert!(press_on(&mut s, &mut sel, &mut drag, 0, (1.0, 1.0), false));
-        end_drag(&mut s, &mut sel, &mut drag, false, false);
+        end_drag(&mut s, &mut sel, &mut drag, false, false, |_| {});
         assert!(press_on(&mut s, &mut sel, &mut drag, 1, (101.0, 1.0), true));
-        end_drag(&mut s, &mut sel, &mut drag, false, true);
+        end_drag(&mut s, &mut sel, &mut drag, false, true, |_| {});
         assert_eq!(ids(&s, &sel), ["b", "a"], "Shift adds, and leads");
         // A plain press on one of the group keeps the group.
         assert!(press_on(&mut s, &mut sel, &mut drag, 0, (1.0, 1.0), false));
         assert_eq!(sel.count(), 2);
         assert_eq!(sel.selected_index(), Some(0));
         // ...and a tap without moving selects it alone.
-        end_drag(&mut s, &mut sel, &mut drag, true, false);
+        end_drag(&mut s, &mut sel, &mut drag, true, false, |_| {});
         assert_eq!(ids(&s, &sel), ["a"]);
         // A press on one not selected selects it alone.
         sel.select_all_of(&[0, 1]);
@@ -354,7 +426,7 @@ mod tests {
             "kept its place"
         );
         assert_eq!(s.entities[1].x, 100.0, "not selected, not moved");
-        end_drag(&mut s, &mut sel, &mut drag, false, false);
+        end_drag(&mut s, &mut sel, &mut drag, false, false, |_| {});
         assert_eq!(sel.count(), 2, "a real drag keeps the group");
         assert!(s.entities.iter().all(|e| !e.dragging));
     }
@@ -383,23 +455,23 @@ mod tests {
         // First click on "c": the whole group, "c" leading — and the tap
         // keeps it.
         press_on(&mut s, &mut sel, &mut drag, 2, (201.0, 1.0), false);
-        end_drag(&mut s, &mut sel, &mut drag, true, false);
+        end_drag(&mut s, &mut sel, &mut drag, true, false, |_| {});
         assert_eq!(ids(&s, &sel), ["c", "a"]);
         // Second click on "c": just "c".
         press_on(&mut s, &mut sel, &mut drag, 2, (201.0, 1.0), false);
-        end_drag(&mut s, &mut sel, &mut drag, true, false);
+        end_drag(&mut s, &mut sel, &mut drag, true, false, |_| {});
         assert_eq!(ids(&s, &sel), ["c"]);
         // A drag from a fresh click moves the whole group.
         sel.deselect();
         press_on(&mut s, &mut sel, &mut drag, 0, (1.0, 1.0), false);
         drag_to(&mut s, &sel, &mut drag, (11.0, 1.0), None);
-        end_drag(&mut s, &mut sel, &mut drag, false, false);
+        end_drag(&mut s, &mut sel, &mut drag, false, false, |_| {});
         assert_eq!((s.entities[0].x, s.entities[2].x), (10.0, 210.0));
         assert_eq!(s.entities[1].x, 100.0, "not in the group");
         // Shift still takes a single character.
         sel.deselect();
         press_on(&mut s, &mut sel, &mut drag, 0, (11.0, 1.0), true);
-        end_drag(&mut s, &mut sel, &mut drag, true, true);
+        end_drag(&mut s, &mut sel, &mut drag, true, true, |_| {});
         assert_eq!(ids(&s, &sel), ["a"]);
     }
 
@@ -433,7 +505,7 @@ mod tests {
         drag_to(&mut s, &sel, &mut drag, (1.0 + shift, 1.0), None);
         assert_eq!(s.entities[0].x, shift);
         assert!(drag.guides().is_empty());
-        end_drag(&mut s, &mut sel, &mut drag, false, false);
+        end_drag(&mut s, &mut sel, &mut drag, false, false, |_| {});
         assert!(drag.guides().is_empty(), "gone with the drag");
     }
 

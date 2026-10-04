@@ -138,7 +138,7 @@ cargo build --release
 |--------|-----|
 | Enter edit mode | Click ⚙ (top-right), or `Ctrl+Shift+A` from anywhere |
 | Add a character | Drag a PNG / GIF / WebP / JPEG / MP4 onto the overlay |
-| Move a character | Drag it (edit mode) or use the X/Y sliders |
+| Move a character | Drag it (edit mode) or use the X/Y sliders; let go mid-swing to throw it |
 | Adjust scale / opacity / FPS | Sliders in the settings panel |
 | Toggle visibility / playback | `V` / `P` keys, or checkboxes |
 | Set behavior | Dropdown in the Inspector (Idle / Walk / Follow / Bounded / Bounce / Script) |

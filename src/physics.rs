@@ -4,6 +4,11 @@
 //! the user places them — no force calculations run. Activating physics on an
 //! entity (typically via the `G` keybind in edit mode) releases it: gravity
 //! pulls it down until it hits the floor and bounces to rest.
+//!
+//! A character thrown — let go mid-drag while the pointer still moves
+//! (1.5) — flies whether physics is on or not: across as well as down,
+//! off the screen's sides, until it lands and slides to a stop. With
+//! physics off it then stays where it landed.
 
 /// Gravity acceleration in pixels per second squared.
 const GRAVITY: f32 = 400.0;
@@ -14,6 +19,17 @@ const BOUNCE_FACTOR: f32 = 0.3;
 
 /// Velocity threshold (px/s) below which the entity is considered at rest.
 const GROUNDED_THRESHOLD: f32 = 15.0;
+
+/// Fraction of its speed across a thrown character keeps off a side wall.
+const WALL_BOUNCE: f32 = 0.5;
+
+/// How fast speed across fades, per second: a little in the air, a lot
+/// sliding on a floor.
+const AIR_DRAG: f32 = 0.4;
+const GROUND_FRICTION: f32 = 6.0;
+
+/// Below this speed across (px/s), a thrown character has stopped.
+const STOP_SPEED: f32 = 8.0;
 
 /// Physics state for a single entity.
 ///
@@ -32,6 +48,12 @@ pub struct PhysicsState {
     pub grounded: bool,
     /// Temporary freeze flag (e.g., while the user is dragging).
     pub frozen: bool,
+    /// Thrown and not yet at rest ([`PhysicsState::throw`]): it moves
+    /// under gravity even with `enabled` off.
+    pub thrown: bool,
+    /// Velocity across in pixels per second (positive = right); only a
+    /// throw sets it.
+    pub velocity_x: f32,
 }
 
 impl Default for PhysicsState {
@@ -41,6 +63,8 @@ impl Default for PhysicsState {
             velocity_y: 0.0,
             grounded: false,
             frozen: false,
+            thrown: false,
+            velocity_x: 0.0,
         }
     }
 }
@@ -70,11 +94,12 @@ impl PhysicsState {
     }
 
     pub fn tick(&mut self, y: f32, floor: f32, dt: f32) -> f32 {
-        if !self.enabled || self.frozen {
+        if !(self.enabled || self.thrown) || self.frozen {
             return y;
         }
 
         if self.grounded {
+            self.end_throw_at_rest();
             return y.min(floor);
         }
 
@@ -85,6 +110,8 @@ impl PhysicsState {
             new_y = floor;
             self.velocity_y = -self.velocity_y * BOUNCE_FACTOR;
 
+            // Each landing takes some of the speed across too.
+            self.velocity_x *= 1.0 - BOUNCE_FACTOR;
             if self.velocity_y.abs() < GROUNDED_THRESHOLD {
                 self.velocity_y = 0.0;
                 self.grounded = true;
@@ -106,7 +133,7 @@ impl PhysicsState {
     /// the window poll) are absorbed by the grounded `y.min(floor)`.
     pub fn release_if_floor_dropped(&mut self, y: f32, floor: f32) {
         const STEP: f32 = 2.0;
-        if self.enabled && self.grounded && floor > y + STEP {
+        if (self.enabled || self.thrown) && self.grounded && floor > y + STEP {
             self.grounded = false;
             self.velocity_y = 0.0;
         }
@@ -118,6 +145,7 @@ impl PhysicsState {
         self.grounded = false;
         self.velocity_y = 0.0;
         self.frozen = false;
+        self.stop_throw();
     }
 
     /// Turn physics off: entity is pinned to its current position.
@@ -125,6 +153,72 @@ impl PhysicsState {
         self.enabled = false;
         self.velocity_y = 0.0;
         self.grounded = false;
+        self.stop_throw();
+    }
+
+    /// Let go of the entity at `(vx, vy)` px/s: it flies, falls, bounces
+    /// off the sides and slides to a stop ([`PhysicsState::tick`],
+    /// [`PhysicsState::tick_x`]).
+    pub fn throw(&mut self, vx: f32, vy: f32) {
+        if !(vx.is_finite() && vy.is_finite()) {
+            return;
+        }
+        self.thrown = true;
+        self.frozen = false;
+        self.grounded = false;
+        self.velocity_x = vx;
+        self.velocity_y = vy;
+    }
+
+    /// Move a thrown entity across: from `x` (its left edge), kept within
+    /// `min_x..=max_x` — off a side it bounces back with half its speed —
+    /// and slowed by the air, or much more by a floor. Returns the new x.
+    pub fn tick_x(&mut self, x: f32, min_x: f32, max_x: f32, dt: f32) -> f32 {
+        if !self.thrown || self.frozen || self.velocity_x == 0.0 {
+            return x;
+        }
+        let mut new_x = x + self.velocity_x * dt;
+        if new_x < min_x {
+            new_x = min_x;
+            self.velocity_x = self.velocity_x.abs() * WALL_BOUNCE;
+        } else if new_x > max_x {
+            new_x = max_x;
+            self.velocity_x = -self.velocity_x.abs() * WALL_BOUNCE;
+        }
+        let fade = if self.grounded {
+            GROUND_FRICTION
+        } else {
+            AIR_DRAG
+        };
+        self.velocity_x *= (-fade * dt).exp();
+        if self.velocity_x.abs() < STOP_SPEED {
+            self.velocity_x = 0.0;
+            self.end_throw_at_rest();
+        }
+        new_x
+    }
+
+    /// Whether nothing moves the entity on its own: physics off and not
+    /// thrown, or on a floor and stopped.
+    pub fn at_rest(&self) -> bool {
+        !(self.enabled || self.thrown) || (self.grounded && self.velocity_x == 0.0)
+    }
+
+    /// A throw is over once the entity is down and stopped; with physics
+    /// off it then stays put, as one never thrown.
+    fn end_throw_at_rest(&mut self) {
+        if self.thrown && self.grounded && self.velocity_x == 0.0 {
+            self.thrown = false;
+            if !self.enabled {
+                self.grounded = false;
+                self.velocity_y = 0.0;
+            }
+        }
+    }
+
+    fn stop_throw(&mut self) {
+        self.thrown = false;
+        self.velocity_x = 0.0;
     }
 
     /// Toggle the master switch. Convenient for a single keybind.
@@ -140,6 +234,8 @@ impl PhysicsState {
     pub fn freeze(&mut self) {
         self.frozen = true;
         self.velocity_y = 0.0;
+        // Caught mid-flight: the throw is over.
+        self.stop_throw();
     }
 
     /// Resume from a freeze. Does NOT change the master `enabled` flag —
@@ -157,6 +253,55 @@ impl PhysicsState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Flying with physics off: across and down, then put where it landed.
+    #[test]
+    fn a_throw_flies_lands_and_stays_with_physics_off() {
+        let mut p = PhysicsState::default();
+        p.throw(600.0, -300.0);
+        let (mut x, mut y) = (100.0_f32, 500.0_f32);
+        let floor = 900.0;
+        let dt = 1.0 / 60.0;
+        let mut highest = y;
+        for _ in 0..600 {
+            y = p.tick(y, floor, dt);
+            x = p.tick_x(x, 0.0, 1800.0, dt);
+            highest = highest.min(y);
+        }
+        assert!(highest < 500.0, "it went up first");
+        assert!(x > 300.0, "and across: x={x}");
+        assert_eq!(y, floor, "and landed");
+        assert!(!p.thrown && p.at_rest(), "and stopped");
+        assert!(!p.enabled && !p.grounded, "physics still off");
+        // Off: nothing moves it any more.
+        assert_eq!(p.tick(y - 50.0, floor, dt), y - 50.0);
+    }
+
+    #[test]
+    fn a_throw_bounces_off_a_side() {
+        let mut p = PhysicsState::default();
+        p.throw(-2000.0, 0.0);
+        let x = p.tick_x(10.0, 0.0, 1800.0, 0.1);
+        assert_eq!(x, 0.0);
+        assert!(p.velocity_x > 0.0, "back the other way");
+        assert!(p.velocity_x <= 1000.0, "with at most half the speed");
+    }
+
+    #[test]
+    fn catching_a_flying_character_stops_the_throw() {
+        let mut p = PhysicsState::default();
+        p.throw(500.0, -500.0);
+        p.freeze();
+        assert!(!p.thrown && p.velocity_x == 0.0);
+        assert_eq!(p.tick_x(10.0, 0.0, 100.0, 0.1), 10.0);
+    }
+
+    #[test]
+    fn a_non_finite_throw_is_ignored() {
+        let mut p = PhysicsState::default();
+        p.throw(f32::NAN, 0.0);
+        assert!(!p.thrown);
+    }
 
     #[test]
     fn default_is_disabled_and_static() {

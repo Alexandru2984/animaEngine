@@ -197,12 +197,17 @@ impl App {
                         entity.poke(self.mouse_x, poke_bounds);
                     }
                 }
+                // Thrown: the flight is play, as a poke's hop is — the
+                // step closes where the character was let go.
                 crate::input::multi::end_drag(
                     &mut self.scene,
                     &mut self.selection,
                     &mut self.drag,
                     tapped,
                     self.shift_held,
+                    |scene| {
+                        self.history.finish(scene);
+                    },
                 );
                 self.config_dirty = true;
                 self.save_config_if_needed();

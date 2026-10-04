@@ -2,6 +2,8 @@
 //!
 //! States: Idle → (mouse down on entity) → Dragging → (mouse up) → Idle
 
+use std::time::{Duration, Instant};
+
 /// Current drag state
 #[derive(Debug, Default)]
 pub enum DragState {
@@ -24,6 +26,19 @@ pub enum DragState {
     },
 }
 
+/// How far back the pointer's speed at release is measured.
+const FLING_WINDOW: Duration = Duration::from_millis(100);
+
+/// A pointer still for this long before the release threw nothing: it
+/// was put down, not thrown.
+const FLING_STILL: Duration = Duration::from_millis(50);
+
+/// Slower than this (px/s) at release is a put-down, not a throw.
+pub const FLING_MIN_SPEED: f32 = 300.0;
+
+/// A throw is never faster than this (px/s).
+pub const FLING_MAX_SPEED: f32 = 2000.0;
+
 /// Drag controller
 #[derive(Debug, Default)]
 pub struct DragController {
@@ -31,6 +46,9 @@ pub struct DragController {
     /// What the drag has snapped to, for the renderer to show
     /// (`crate::input::arrange`). Empty when it has not, and between drags.
     guides: Vec<crate::input::arrange::Guide>,
+    /// Where the pointer was lately, and when — the last
+    /// [`FLING_WINDOW`] of the drag, for [`DragController::fling`].
+    trail: std::collections::VecDeque<(Instant, f32, f32)>,
 }
 
 impl DragController {
@@ -57,7 +75,50 @@ impl DragController {
             narrow_on_tap: false,
         };
         self.guides.clear();
+        self.trail.clear();
+        self.trail.push_back((Instant::now(), press_x, press_y));
         tracing::debug!("Started dragging entity at index {}", entity_index);
+    }
+
+    /// The pointer is at `(x, y)` at `now`, mid-drag.
+    pub fn track(&mut self, (x, y): (f32, f32), now: Instant) {
+        if !self.is_dragging() {
+            return;
+        }
+        self.trail.push_back((now, x, y));
+        while self
+            .trail
+            .front()
+            .is_some_and(|&(t, ..)| now.saturating_duration_since(t) > FLING_WINDOW)
+            && self.trail.len() > 2
+        {
+            self.trail.pop_front();
+        }
+    }
+
+    /// How fast the pointer was going when let go at `now`, in px/s, if
+    /// that was a throw: still moving then, and at least
+    /// [`FLING_MIN_SPEED`] — capped at [`FLING_MAX_SPEED`].
+    pub fn fling(&self, now: Instant) -> Option<(f32, f32)> {
+        let &(last_t, last_x, last_y) = self.trail.back()?;
+        if now.saturating_duration_since(last_t) > FLING_STILL {
+            return None;
+        }
+        let &(first_t, first_x, first_y) = self
+            .trail
+            .iter()
+            .find(|(t, ..)| last_t.saturating_duration_since(*t) <= FLING_WINDOW)?;
+        let dt = last_t.saturating_duration_since(first_t).as_secs_f32();
+        if dt < 0.01 {
+            return None;
+        }
+        let (vx, vy) = ((last_x - first_x) / dt, (last_y - first_y) / dt);
+        let speed = vx.hypot(vy);
+        if !speed.is_finite() || speed < FLING_MIN_SPEED {
+            return None;
+        }
+        let scale = (FLING_MAX_SPEED / speed).min(1.0);
+        Some((vx * scale, vy * scale))
     }
 
     /// Update the dragged entity's position based on current mouse position.
@@ -103,6 +164,7 @@ impl DragController {
         }
         self.state = DragState::Idle;
         self.guides.clear();
+        self.trail.clear();
     }
 
     /// The guides of the last move ([`Self::guides`]).
@@ -146,6 +208,56 @@ impl DragController {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A drag from (0, 0) pressed at `t0`, then the pointer at each
+    /// `(ms after t0, x, y)`.
+    fn dragged(t0: Instant, moves: &[(u64, f32, f32)]) -> DragController {
+        let mut d = DragController::new();
+        d.start_drag(0, 0.0, 0.0, 0.0, 0.0);
+        // The press's own sample is "now"; put it at t0.
+        d.trail.clear();
+        d.trail.push_back((t0, 0.0, 0.0));
+        for &(ms, x, y) in moves {
+            d.track((x, y), t0 + Duration::from_millis(ms));
+        }
+        d
+    }
+
+    #[test]
+    fn a_fast_release_throws_at_the_pointer_speed() {
+        let t0 = Instant::now();
+        let d = dragged(t0, &[(20, 20.0, 0.0), (40, 40.0, -10.0), (60, 60.0, -20.0)]);
+        let (vx, vy) = d.fling(t0 + Duration::from_millis(65)).expect("thrown");
+        assert!((vx - 1000.0).abs() < 1.0, "vx={vx}");
+        assert!((vy + 333.3).abs() < 1.0, "vy={vy}");
+    }
+
+    #[test]
+    fn a_pointer_stopped_before_release_puts_down() {
+        let t0 = Instant::now();
+        let d = dragged(t0, &[(20, 40.0, 0.0), (40, 80.0, 0.0)]);
+        assert!(d.fling(t0 + Duration::from_millis(200)).is_none());
+    }
+
+    #[test]
+    fn a_slow_drag_puts_down() {
+        let t0 = Instant::now();
+        // 100 px/s.
+        let d = dragged(t0, &[(50, 5.0, 0.0), (100, 10.0, 0.0)]);
+        assert!(d.fling(t0 + Duration::from_millis(100)).is_none());
+    }
+
+    #[test]
+    fn only_the_last_moment_counts_and_speed_is_capped() {
+        let t0 = Instant::now();
+        // Slow for a long while, then a flick: the flick decides.
+        let mut moves: Vec<(u64, f32, f32)> = (1..=20).map(|i| (i * 20, i as f32, 0.0)).collect();
+        moves.push((420, 400.0, 0.0));
+        let d = dragged(t0, &moves);
+        let (vx, _) = d.fling(t0 + Duration::from_millis(420)).expect("thrown");
+        assert!((vx - FLING_MAX_SPEED).abs() < 0.01, "vx={vx}");
+        assert!(d.trail.len() <= 8, "old samples go: {}", d.trail.len());
+    }
 
     #[test]
     fn idle_controller_reports_no_drag() {

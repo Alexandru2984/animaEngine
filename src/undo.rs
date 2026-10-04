@@ -15,9 +15,10 @@
 //! frames, or a burst of arrow-key nudges, is one step.
 //!
 //! Characters that move on their own — walking, falling, driven by a
-//! script — change position every frame without anyone touching them.
-//! Their positions are left out of the comparison, so that motion is never
-//! mistaken for an edit, and undo leaves them where they have got to.
+//! script, or thrown and still in flight — change position every frame
+//! without anyone touching them. Their positions are left out of the
+//! comparison, so that motion is never mistaken for an edit, and undo
+//! leaves them where they have got to.
 
 use crate::behavior::Behavior;
 use crate::config::CharacterConfig;
@@ -45,6 +46,9 @@ pub struct Snapshot {
     characters: Vec<CharacterConfig>,
     groups: Vec<crate::group::GroupConfig>,
     selected: Vec<String>,
+    /// Characters thrown and still flying then (`PhysicsState::throw`):
+    /// moving by themselves, whatever their config says.
+    flying: Vec<String>,
 }
 
 impl Snapshot {
@@ -53,6 +57,7 @@ impl Snapshot {
             characters: scene.to_character_configs(),
             groups: scene.groups.clone(),
             selected: selection.selected_ids(scene),
+            flying: flying(scene),
         }
     }
 
@@ -166,17 +171,35 @@ impl UndoHistory {
     }
 }
 
+/// The characters thrown and still flying in `scene`.
+fn flying(scene: &Scene) -> Vec<String> {
+    scene
+        .entities
+        .iter()
+        .filter(|e| e.physics.thrown)
+        .map(|e| e.id.clone())
+        .collect()
+}
+
 /// Whether the user changed anything between `before` and `after`, leaving
 /// out where characters that move by themselves have moved to.
 fn edited(before: &Snapshot, scene: &Scene) -> bool {
+    let now = flying(scene);
     before.groups != scene.groups
-        || characters_edited(&before.characters, &scene.to_character_configs())
+        || characters_edited(&before.characters, &scene.to_character_configs(), |id| {
+            before.flying.iter().chain(&now).any(|f| f == id)
+        })
 }
 
-fn characters_edited(before: &[CharacterConfig], after: &[CharacterConfig]) -> bool {
+/// `adrift`: whether the character of this id was flying, then or now.
+fn characters_edited(
+    before: &[CharacterConfig],
+    after: &[CharacterConfig],
+    adrift: impl Fn(&str) -> bool,
+) -> bool {
     before.len() != after.len()
         || before.iter().zip(after).any(|(b, a)| {
-            if moves_by_itself(b) && moves_by_itself(a) {
+            if (moves_by_itself(b) && moves_by_itself(a)) || adrift(&b.id) {
                 let placed = CharacterConfig {
                     x: b.x,
                     y: b.y,
@@ -211,7 +234,8 @@ fn walkers_where_they_are(mut step: Snapshot, scene: &Scene) -> Snapshot {
     for config in &mut step.characters {
         let now = scene.entities.iter().find(|e| e.id == config.id);
         if let Some(entity) = now {
-            if moves_by_itself(config) && moves_by_itself(&entity.to_config()) {
+            let adrift = entity.physics.thrown || step.flying.contains(&config.id);
+            if (moves_by_itself(config) && moves_by_itself(&entity.to_config())) || adrift {
                 config.x = entity.x;
                 config.y = entity.y;
             }
@@ -317,6 +341,28 @@ mod tests {
         assert_eq!(s.entities[1].scale, 1.0);
         assert_eq!(x_of(&s, "w"), 300.0, "the walker stays where it walked to");
         assert!(!h.can_undo());
+    }
+
+    /// A key pressed while a thrown character is still in the air: its
+    /// flight is not an edit, and undoing something else leaves it be.
+    #[test]
+    fn a_flight_is_not_an_edit() {
+        let mut s = scene(&[character("g", 100.0), character("a", 10.0)]);
+        s.entities[0].physics.throw(900.0, -300.0);
+        let mut h = UndoHistory::default();
+        let t0 = Instant::now();
+        h.input(&s, &SelectionState::default(), t0);
+        s.entities[0].x = 600.0;
+        assert!(!h.settle(&s, false, t0 + SETTLE), "flying is no edit");
+        // It lands; an edit meanwhile, then undone: it stays down.
+        h.input(&s, &SelectionState::default(), t0 + SETTLE * 2);
+        s.entities[1].scale = 2.0;
+        s.entities[0].x = 900.0;
+        s.entities[0].physics = crate::physics::PhysicsState::default();
+        assert!(h.settle(&s, false, t0 + SETTLE * 4));
+        assert!(h.undo(&mut s, &mut SelectionState::default()));
+        assert_eq!(s.entities[1].scale, 1.0);
+        assert_eq!(x_of(&s, "g"), 900.0, "where it landed, not mid-air");
     }
 
     #[test]

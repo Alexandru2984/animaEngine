@@ -435,10 +435,21 @@ rectangle's fill and four edges, two snapping guides and the edit bar.
 A gesture holds entity indices, so `multi::cancel` lets go of it
 whenever those could change or the release could be lost: before an
 action that adds, removes or reselects characters
-(`Action::interrupts_drag`: undo, redo, cycle, delete, duplicate), when
-edit mode ends, when the overlay hides or steps aside (R56), and before
-the scene is replaced — a hot reload, a `NextScene` — while the
-characters are still the ones it froze.
+(`Action::interrupts_drag`: undo, redo, cycle, delete, duplicate, cut,
+paste), when edit mode ends, when the overlay hides or steps aside
+(R56), and before the scene is replaced — a hot reload, a `NextScene` —
+while the characters are still the ones it froze.
+
+Let go while the pointer still moves, the selection is thrown:
+`DragController` keeps the last 100 ms of the pointer (`track`), and
+`fling` at the release gives its speed if it was still going — at least
+300 px/s, at most 2000, none with reduced motion, none for `cancel`.
+`PhysicsState::throw` then flies each character with gravity whether
+its physics is on or not (`thrown`, `velocity_x`, `tick_x`): off the
+desktop's sides, onto the same floors as falling (windows, others with
+bumping on), sliding to a stop, after which physics is what it was.
+Nobody walks mid-air, a press catches one, and the pacing draws while
+anything flies.
 
 ### Arranging (`src/input/arrange.rs`)
 
@@ -520,9 +531,10 @@ a character out of its group), before the input is applied; the gesture
 closes once no button is held, no text field or list has the keyboard,
 no file chooser or import is running, and `SETTLE` (350 ms) has passed.
 A snapshot that differs from the scene then is one step. Characters
-that move by themselves (a behavior, physics) have their positions left
-out of the comparison and out of the restore. A tap closes the gesture
-before the poke's hop, which is play rather than an edit. Restoring
+that move by themselves (a behavior, physics, a throw still in flight —
+`Snapshot::flying`) have their positions left out of the comparison and
+out of the restore. A tap closes the gesture before the poke's hop, and
+a throw where it was let go: both are play rather than an edit. Restoring
 (`Scene::restore_configs`) sets properties back in place where a
 character still shows the same asset and reloads only the rest. Both
 loops feed it (`input`, `settle`); Undo and Redo are shared actions

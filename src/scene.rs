@@ -242,6 +242,11 @@ impl Scene {
         self.reduced_motion = reduced;
     }
 
+    /// Whether motion is to be kept down (a11y): no throwing, for one.
+    pub fn reduces_motion(&self) -> bool {
+        self.reduced_motion
+    }
+
     pub fn set_hover_startle(&mut self, enabled: bool) {
         self.hover_startle = enabled;
     }

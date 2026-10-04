@@ -52,6 +52,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
   Bubbles show on every monitor.
+- **Throw characters.** Let go of one mid-drag while the mouse is still
+  moving and it flies: up and across, off the screen's sides, down onto
+  the floor, a window or — with bumping on — someone's head, then
+  slides to a stop. It works with physics off too; the character then
+  stays where it landed. Grab it mid-air to catch it. Undo puts it back
+  where you picked it up. Off with Reduce motion.
 - **Share a scene as one file.** Each saved scene in the Scene tab has
   a Share button that writes it, pictures and all, to one
   `.animascene` file wherever you choose; Import… (or dropping the file

@@ -41,7 +41,10 @@ pub fn redraw_pacing(scene: &Scene, ui_animating: bool) -> RedrawPacing {
     }
     let mut deadline: Option<Instant> = None;
     for entity in scene.visible_entities() {
-        if entity.physics.enabled || !matches!(entity.behavior, crate::behavior::Behavior::Idle) {
+        if entity.physics.enabled
+            || entity.physics.thrown
+            || !matches!(entity.behavior, crate::behavior::Behavior::Idle)
+        {
             return RedrawPacing::Continuous;
         }
         if entity.animation().playing && entity.animation().frame_count() > 1 {

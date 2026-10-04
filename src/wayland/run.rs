@@ -1142,12 +1142,17 @@ pub fn run_native(
                                 entity.poke(gx, poke_bounds);
                             }
                         }
+                        // Thrown: the flight is play, as a poke's hop is —
+                        // the step closes where the character was let go.
                         crate::input::multi::end_drag(
                             &mut scene,
                             &mut selection,
                             &mut drag,
                             tapped,
                             modifiers.shift,
+                            |scene| {
+                                history.finish(scene);
+                            },
                         );
                         config_dirty = true;
                     }

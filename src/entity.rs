@@ -302,9 +302,10 @@ impl Entity {
             reduced_motion,
         };
 
-        // Behavior — autonomous motion (can affect both X and Y).
+        // Behavior — autonomous motion (can affect both X and Y). Not
+        // while thrown: nobody walks mid-air.
         let x_before = self.x;
-        if !self.tick_script(&ctx, scripts) {
+        if !self.physics.thrown && !self.tick_script(&ctx, scripts) {
             self.behavior
                 .tick(&mut self.behavior_state, &mut self.x, &mut self.y, &ctx);
         }
@@ -329,9 +330,9 @@ impl Entity {
             }
         }
 
-        let dx = self.x - x_before;
-
         self.apply_gravity(dt, bounds, platforms, sprite_w, sprite_h);
+        // After gravity, which carries a thrown character across too.
+        let dx = self.x - x_before;
 
         // Facing follows horizontal motion; standing still keeps the
         // last direction (U.2).
@@ -344,7 +345,7 @@ impl Entity {
         // locomotion; horizontal motion plays Walk; otherwise Idle.
         // Missing states fall back to Idle inside the set, so this is
         // safe for single-state entities (the switch is then a no-op).
-        let falling = self.physics.enabled && !self.physics.grounded;
+        let falling = (self.physics.enabled || self.physics.thrown) && !self.physics.grounded;
         let desired = desired_state(self.dragging, falling, dx);
         if self.animations.switch(desired) {
             self.texture_dirty = true;
@@ -388,6 +389,9 @@ impl Entity {
         let floor = floor_feet - sprite_h;
         self.physics.release_if_floor_dropped(self.y, floor);
         self.y = self.physics.tick(self.y, floor, dt);
+        // A thrown character moves across too, kept on the desktop.
+        let max_x = (bounds.max_x - sprite_w).max(bounds.min_x);
+        self.x = self.physics.tick_x(self.x, bounds.min_x, max_x, dt);
     }
 
     /// Gravity alone, for dozing off (`crate::doze`): no behavior, no
@@ -401,7 +405,7 @@ impl Entity {
     ) -> bool {
         let (w, h) = (self.scaled_width(), self.scaled_height());
         self.apply_gravity(dt, bounds, platforms, w, h);
-        !self.physics.enabled || self.physics.grounded
+        self.physics.at_rest()
     }
 
     /// Take the idle pose — asleep (`crate::doze`), not frozen mid-stride.
