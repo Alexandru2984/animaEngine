@@ -654,6 +654,12 @@ impl Entity {
     /// Set every property [`Entity::to_config`] reads back from `config`,
     /// the asset aside (see [`Entity::shows_asset_of`]).
     pub fn set_properties(&mut self, config: &CharacterConfig) {
+        // Set somewhere else — a scene switched in, a reload — it stays
+        // there rather than flying on from it. Undo puts a flying one
+        // back where it already is (`undo::walkers_where_they_are`).
+        if (self.x, self.y) != (config.x, config.y) {
+            self.physics.stop_throw();
+        }
         self.name = config.name.clone();
         self.x = config.x;
         self.y = config.y;
@@ -760,6 +766,19 @@ mod tests {
             rgba[i + 3] = 255;
         }
         Frame::new(rgba, 4, 4)
+    }
+
+    #[test]
+    fn set_somewhere_else_a_flying_character_stays_there() {
+        let mut e = entity_at(100.0, 100.0);
+        e.physics.throw(500.0, -200.0);
+        let mut config = e.to_config();
+        e.set_properties(&config);
+        assert!(e.physics.thrown, "put back where it is: flies on");
+        config.x = 400.0;
+        e.set_properties(&config);
+        assert!(!e.physics.thrown, "put elsewhere: stays");
+        assert_eq!(e.x, 400.0);
     }
 
     #[test]

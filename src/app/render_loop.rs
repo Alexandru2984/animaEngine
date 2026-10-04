@@ -213,6 +213,8 @@ impl App {
         if self.scene.take_spoke() {
             self.request_redraw_all();
         }
+        // A thrown one landed: save where, with the next save.
+        self.config_dirty |= self.scene.take_landed();
 
         // Precompute multi-window facts before the renderer borrow —
         // the methods take &self and would conflict with &mut renderer.

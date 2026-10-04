@@ -385,7 +385,19 @@ pub fn run_native(
                 // The key that asked may be a while ago: open a step if it
                 // closed.
                 history.input(&scene, &selection, Instant::now());
-                outcomes::apply_pasted(content, at, &mut outcome_ctx!());
+                let pasted = outcomes::apply_pasted(content, at, &mut outcome_ctx!());
+                for path in pasted.to_import {
+                    // A shared scene or a Shimeji pack copied in a file
+                    // manager goes where a drop of it would.
+                    if crate::scene_file::is_scene_file(&path) {
+                        if pending_transfer.is_none() {
+                            pending_transfer = Some(crate::outcomes::SceneTransfer::import(path));
+                        }
+                    } else if pending_shimeji.is_none() {
+                        pending_shimeji =
+                            ShimejiImport::start(&path, library_root.as_deref(), at, &mut toasts);
+                    }
+                }
             }
         }
         if let Some(transfer) = &mut pending_transfer {
@@ -928,7 +940,24 @@ pub fn run_native(
                         ));
                     match layer.read_clipboard() {
                         crate::wayland::layer_window::ClipboardRead::Ready(content) => {
-                            outcomes::apply_pasted(content, at, &mut outcome_ctx!());
+                            let pasted = outcomes::apply_pasted(content, at, &mut outcome_ctx!());
+                            for path in pasted.to_import {
+                                // A shared scene or a Shimeji pack copied in a file
+                                // manager goes where a drop of it would.
+                                if crate::scene_file::is_scene_file(&path) {
+                                    if pending_transfer.is_none() {
+                                        pending_transfer =
+                                            Some(crate::outcomes::SceneTransfer::import(path));
+                                    }
+                                } else if pending_shimeji.is_none() {
+                                    pending_shimeji = ShimejiImport::start(
+                                        &path,
+                                        library_root.as_deref(),
+                                        at,
+                                        &mut toasts,
+                                    );
+                                }
+                            }
                         }
                         crate::wayland::layer_window::ClipboardRead::Pending(answer) => {
                             pending_paste.get_or_insert((answer, at));
@@ -1274,6 +1303,8 @@ pub fn run_native(
         }
         // A character spoke up on its own (`crate::phrases`): show it.
         activity |= scene.take_spoke();
+        // A thrown one landed: save where.
+        config_dirty |= scene.take_landed();
 
         for (path, err) in audio_host.take_new_failures() {
             let mut args = fluent::FluentArgs::new();

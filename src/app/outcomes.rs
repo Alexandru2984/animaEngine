@@ -118,8 +118,18 @@ impl App {
         // The key that asked may be a while ago: open a step if it closed.
         self.history
             .input(&self.scene, &self.selection, std::time::Instant::now());
-        if outcomes::apply_pasted(content, at, &mut outcome_ctx!(self)) {
+        let pasted = outcomes::apply_pasted(content, at, &mut outcome_ctx!(self));
+        if pasted.added {
             self.save_config_if_needed();
+        }
+        // A shared scene or a Shimeji pack copied in a file manager goes
+        // where a drop of it would.
+        for path in pasted.to_import {
+            if crate::scene_file::is_scene_file(&path) {
+                self.import_scene(Some(path));
+            } else {
+                self.import_shimeji_pack(&path, at);
+            }
         }
         self.request_redraw_all();
     }

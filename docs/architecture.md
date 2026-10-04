@@ -475,7 +475,10 @@ its physics is on or not (`thrown`, `velocity_x`, `tick_x`): off the
 desktop's sides, onto the same floors as falling (windows, others with
 bumping on), sliding to a stop, after which physics is what it was.
 Nobody walks mid-air, a press catches one, and the pacing draws while
-anything flies.
+anything flies. Coming to rest marks the config for saving
+(`Scene::take_landed` — the save at the release had it in mid-air), and
+a character set somewhere else while flying — a scene switched in, a
+reload — stays there (`Entity::set_properties`).
 
 ### Arranging (`src/input/arrange.rs`)
 
@@ -553,7 +556,9 @@ and plain text (`clipboard::take_claim`, handed on by the loops); a
 paste asks the desktop first and goes by its types (`system_clipboard::pick`):
 ours still → the characters copied here; an image → saved under
 `pasted/` in the data directory and added like a drop; `text/uri-list` →
-the files, like a drop; anything else → the characters copied here. So
+the files, like a drop — a shared scene or a Shimeji pack to its
+importer (`outcomes::Pasted::to_import`); anything else → the
+characters copied here. So
 whoever copied last decides, without timestamps. Native Wayland goes
 through `wl_data_device` (`layer_window::clipboard`: a copy-paste
 source served from the event loop, the selection offer read on a thread

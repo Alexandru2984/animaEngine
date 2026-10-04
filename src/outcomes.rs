@@ -330,15 +330,25 @@ pub fn paste_entities(copied: &crate::clipboard::Copied, ctx: &mut OutcomeCtx<'_
     pasted
 }
 
+/// What a paste did ([`apply_pasted`]).
+#[derive(Debug, Default)]
+pub struct Pasted {
+    /// Characters were added.
+    pub added: bool,
+    /// Files a drop of them would hand to an importer — a shared scene, a
+    /// Shimeji pack — for the caller, which runs those, to start.
+    pub to_import: Vec<PathBuf>,
+}
+
 /// What Ctrl+V brings once the desktop's clipboard has answered
 /// (`crate::system_clipboard`): an image as a new character, files as if
 /// dropped — around `at` — and otherwise the characters copied here, if
-/// any. Returns whether anything was added.
+/// any.
 pub fn apply_pasted(
     content: crate::system_clipboard::Content,
     at: (f32, f32),
     ctx: &mut OutcomeCtx<'_>,
-) -> bool {
+) -> Pasted {
     use crate::system_clipboard::{pasted_dir, save_image_in, Content};
     match content {
         Content::Image(bytes, ext) => {
@@ -350,7 +360,7 @@ pub fn apply_pasted(
                     args.set("error", e.to_string());
                     ctx.toasts
                         .error(crate::i18n::t_args("toast-paste-failed", &args));
-                    return false;
+                    return Pasted::default();
                 }
             };
             let added = add_dropped_file(&path, at, ctx).is_some();
@@ -358,15 +368,22 @@ pub fn apply_pasted(
                 // Refused like a drop would be: nothing keeps the file.
                 let _ = std::fs::remove_file(&path);
             }
-            added
+            Pasted {
+                added,
+                to_import: Vec::new(),
+            }
         }
         Content::Files(paths) => {
-            let mut added = false;
-            for (i, path) in paths.iter().enumerate() {
+            let mut pasted = Pasted::default();
+            for (i, path) in paths.into_iter().enumerate() {
+                if crate::scene_file::is_scene_file(&path) || is_shimeji_pack(&path) {
+                    pasted.to_import.push(path);
+                    continue;
+                }
                 let step = 48.0 * (i % 8) as f32;
-                added |= add_dropped_file(path, (at.0 + step, at.1 + step), ctx).is_some();
+                pasted.added |= add_dropped_file(&path, (at.0 + step, at.1 + step), ctx).is_some();
             }
-            added
+            pasted
         }
         Content::Failed(why) => {
             tracing::warn!("Clipboard read failed: {why}");
@@ -374,10 +391,13 @@ pub fn apply_pasted(
             args.set("error", why);
             ctx.toasts
                 .error(crate::i18n::t_args("toast-paste-failed", &args));
-            false
+            Pasted::default()
         }
         // Text, an empty clipboard, or still ours: what was copied here.
-        Content::Ours | Content::Nothing => paste_copied(ctx),
+        Content::Ours | Content::Nothing => Pasted {
+            added: paste_copied(ctx),
+            to_import: Vec::new(),
+        },
     }
 }
 
@@ -1437,6 +1457,28 @@ mod tests {
         assert_eq!(pasted.len(), 1);
         assert_eq!(w.scene.entities.len(), before + 1);
         assert_eq!(w.messages().len(), 2, "the failure, then the paste");
+    }
+
+    /// Copied in a file manager, a shared scene goes to the importer as a
+    /// drop of it would; a picture is added.
+    #[test]
+    fn a_pasted_scene_file_goes_to_the_importer() {
+        let mut w = demo_world();
+        let before = w.scene.entities.len();
+        let picture = std::path::PathBuf::from(&w.scene.entities[1].asset_path);
+        let picture = crate::config::AppConfig::resolve_asset_path(&picture.to_string_lossy());
+        let content = crate::system_clipboard::Content::Files(vec![
+            PathBuf::from("/tmp/somewhere/party.animascene"),
+            picture,
+        ]);
+        let pasted = apply_pasted(content, (10.0, 10.0), &mut w.ctx());
+        assert_eq!(
+            pasted.to_import,
+            [PathBuf::from("/tmp/somewhere/party.animascene")]
+        );
+        // The demo's second character is a folder of frames, which a drop
+        // refuses too: nothing added, and said so.
+        assert_eq!(w.scene.entities.len() - before, usize::from(pasted.added));
     }
 
     /// Duplicating an entity whose asset cannot be loaded reports it rather

@@ -55,6 +55,9 @@ pub struct Scene {
     /// A character spoke up on its own this tick (`crate::phrases`): the
     /// loops draw the frame that shows it ([`Scene::take_spoke`]).
     spoke: bool,
+    /// A thrown character came to rest: where it is now is worth saving
+    /// ([`Scene::take_landed`]).
+    landed: bool,
 }
 
 impl Scene {
@@ -136,6 +139,7 @@ impl Scene {
             bump: false,
             doze: None,
             spoke: false,
+            landed: false,
         }
     }
 
@@ -244,6 +248,13 @@ impl Scene {
     /// Update the reduced-motion preference (cheap, called per frame).
     pub fn set_reduced_motion(&mut self, reduced: bool) {
         self.reduced_motion = reduced;
+    }
+
+    /// Whether a thrown character came to rest since last asked. The save
+    /// at the release has it in mid-air; with physics off it stays where it
+    /// landed, and that is where it should come back.
+    pub fn take_landed(&mut self) -> bool {
+        std::mem::take(&mut self.landed)
     }
 
     /// Whether a character spoke up on its own since last asked: its
@@ -359,6 +370,7 @@ impl Scene {
                 }),
                 _ => None,
             };
+            let was_thrown = entity.physics.thrown;
             entity.tick(
                 dt,
                 bounds,
@@ -368,6 +380,7 @@ impl Scene {
                 self.hover_startle,
                 per_entity,
             );
+            self.landed |= was_thrown && !entity.physics.thrown;
         }
 
         if self.bump {
@@ -427,7 +440,9 @@ impl Scene {
         let mut landed = true;
         for (i, entity) in self.entities.iter_mut().enumerate() {
             let platforms = floors.get(i).map_or(&self.window_platforms[..], |f| &f[..]);
+            let was_thrown = entity.physics.thrown;
             landed &= entity.fall(dt, bounds, platforms);
+            self.landed |= was_thrown && !entity.physics.thrown;
         }
         if let Some(doze) = self.doze.as_mut() {
             if landed || now.duration_since(doze.since) >= crate::doze::SETTLE_LIMIT {

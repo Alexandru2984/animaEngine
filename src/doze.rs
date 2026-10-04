@@ -159,6 +159,25 @@ mod tests {
     }
 
     #[test]
+    fn a_thrown_character_coming_to_rest_is_worth_saving() {
+        let mut scene = scene_of(1);
+        scene.entities[0].behavior = crate::behavior::Behavior::Idle;
+        let floor = 1000.0 - scene.entities[0].scaled_height();
+        scene.entities[0].y = floor - 5.0;
+        scene.entities[0].physics.throw(30.0, 0.0);
+        let began = Instant::now();
+        let mut landed = false;
+        while began.elapsed() < Duration::from_secs(3) && !landed {
+            std::thread::sleep(Duration::from_millis(10));
+            scene.tick(bounds(), None, None);
+            landed = scene.take_landed();
+        }
+        assert!(landed, "came to rest and said so");
+        assert!(!scene.take_landed(), "once");
+        assert!(!scene.entities[0].physics.thrown);
+    }
+
+    #[test]
     fn someone_falling_lands_before_the_scene_sleeps() {
         let mut scene = scene_of(1);
         scene.entities[0].physics.enable();

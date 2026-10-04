@@ -216,7 +216,9 @@ impl PhysicsState {
         }
     }
 
-    fn stop_throw(&mut self) {
+    /// End a throw where the entity is: no speed across, and physics as
+    /// it was before.
+    pub fn stop_throw(&mut self) {
         self.thrown = false;
         self.velocity_x = 0.0;
     }
