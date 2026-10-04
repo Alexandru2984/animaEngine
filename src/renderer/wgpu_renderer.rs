@@ -48,6 +48,9 @@ pub struct GpuShared {
     pub surface_format: wgpu::TextureFormat,
     /// Alpha mode chosen on the first surface; reused for siblings.
     pub alpha_mode: wgpu::CompositeAlphaMode,
+    /// How surfaces present: `Fifo` unless the loop paces itself and asked
+    /// for `Mailbox` ([`WgpuRenderer::prefer_mailbox`]).
+    pub present_mode: wgpu::PresentMode,
     /// UI: edit mode indicator bar texture (1x1 stretched).
     edit_bar_tex: GpuTexture,
     /// UI: selection highlight texture (semi-transparent border).
@@ -526,6 +529,7 @@ impl GpuShared {
             textures: HashMap::new(),
             surface_format,
             alpha_mode,
+            present_mode: wgpu::PresentMode::Fifo,
             edit_bar_tex,
             selection_tex,
             marquee_tex,
@@ -626,12 +630,22 @@ impl SurfaceState {
         let window_width = window_width.max(1);
         let window_height = window_height.max(1);
 
+        // The mode asked for, where this surface can do it.
+        let present_mode = if surface
+            .get_capabilities(&shared.adapter)
+            .present_modes
+            .contains(&shared.present_mode)
+        {
+            shared.present_mode
+        } else {
+            wgpu::PresentMode::Fifo
+        };
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: shared.surface_format,
             width: window_width,
             height: window_height,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode,
             alpha_mode: shared.alpha_mode,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
@@ -1095,6 +1109,35 @@ impl WgpuRenderer {
         let shared = GpuShared::new(instance, Some(&surface))?;
         let primary = SurfaceState::new(&shared, surface, window_width, window_height);
         Ok(Self { shared, primary })
+    }
+
+    /// Present with `Mailbox` where the driver has it, on this surface and
+    /// every one made after — for a loop that paces its own frames.
+    ///
+    /// `Fifo` waits for the compositor to want a frame, and a compositor
+    /// does not ask a surface it is not showing: on native Wayland, behind
+    /// a window that covers it all, the next present never returned and the
+    /// loop stopped with it — no D-Bus, no edit mode, no reload. The X11
+    /// loop leans on `Fifo` for its pacing, so it keeps it.
+    pub fn prefer_mailbox(&mut self) {
+        // Off Windows a swapchain is the only target there is.
+        #[allow(irrefutable_let_patterns)]
+        let Target::Swapchain { surface, config } = &mut self.primary.target
+        else {
+            return;
+        };
+        if !surface
+            .get_capabilities(&self.shared.adapter)
+            .present_modes
+            .contains(&wgpu::PresentMode::Mailbox)
+        {
+            tracing::info!("Presenting with Fifo: this driver has no Mailbox");
+            return;
+        }
+        self.shared.present_mode = wgpu::PresentMode::Mailbox;
+        config.present_mode = wgpu::PresentMode::Mailbox;
+        surface.configure(&self.shared.device, config);
+        tracing::info!("Presenting with Mailbox");
     }
 
     /// The `HWND` behind a winit window, for the layered presentation path.

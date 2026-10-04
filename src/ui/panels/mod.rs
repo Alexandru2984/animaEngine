@@ -246,6 +246,8 @@ pub fn settings(
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
+    // Above other windows, or under them on the desktop.
+    always_on_top: &mut bool,
     away: AwayControls<'_>,
     start_at_login: &mut bool,
     monitors: &[MonitorInfo],
@@ -423,6 +425,7 @@ pub fn settings(
                                 reduced_motion,
                                 hover_startle,
                                 on_fullscreen,
+                                always_on_top,
                                 away,
                                 start_at_login,
                             );

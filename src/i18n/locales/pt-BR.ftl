@@ -245,6 +245,8 @@ appearance-hover-startle-hint = Os mascotes se afastam do ponteiro quando ele se
 # Full-screen apps (1.5): machine-translated, pending native review.
 appearance-fullscreen-label = Quando um app está em tela cheia
 appearance-fullscreen-hint = Jogos, vídeos e apresentações que ocupam a tela. Funciona no X11 e em compositores Wayland como sway e Hyprland; no GNOME e no KDE com Wayland, só para apps que rodam pelo XWayland.
+appearance-behind-windows-label = Atrás das suas janelas
+appearance-behind-windows-hint = Os personagens vivem na área de trabalho, sob as suas janelas, em vez de por cima delas. O modo de edição os traz para a frente; se o botão ⚙ estiver coberto, abra-o com Ctrl+Shift+A ou pela bandeja.
 fullscreen-hide = Esconder os personagens
 fullscreen-pause = Pausá-los
 fullscreen-ignore = Deixá-los continuar

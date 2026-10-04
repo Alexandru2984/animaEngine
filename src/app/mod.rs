@@ -37,7 +37,7 @@ use std::time::Instant;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
-use winit::window::{Window, WindowId};
+use winit::window::{Window, WindowId, WindowLevel};
 
 /// The ⚙ toggle button's size in **physical pixels**, for a window whose
 /// scale factor is `scale_factor`.
@@ -138,6 +138,9 @@ pub struct App {
     /// What stepping aside for it currently asks — apart from the user's
     /// own hide (`overlay_hidden`) and pause.
     stepped_aside: crate::fullscreen::StepAside,
+    /// Whether the windows were last put above the others (`true`) or
+    /// under them; `None` before the first time (`apply_stacking`).
+    stacked_on_top: Option<bool>,
     /// Idle past the chosen time, as the away watch last reported
     /// (`crate::away`).
     away: bool,
@@ -324,6 +327,7 @@ impl App {
             history: crate::undo::UndoHistory::default(),
             fullscreen_in_front: false,
             stepped_aside: crate::fullscreen::StepAside::default(),
+            stacked_on_top: None,
             away: false,
             on_battery: false,
             idle_source: None,
@@ -590,6 +594,10 @@ impl App {
     /// native Wayland path gets always-on-top from the layer surface
     /// instead.
     fn reassert_always_on_top(&self) {
+        // Behind the windows by choice: nothing to keep above.
+        if !self.on_top() {
+            return;
+        }
         if let Some(x11) = &self.x11_input {
             if let Err(e) = x11.reassert_above() {
                 tracing::debug!("Re-assert always-on-top failed: {e}");
@@ -602,7 +610,46 @@ impl App {
     /// it is not (`crate::fullscreen`). Recomputed from the setting, the
     /// watch's last report and edit mode, so nothing has to be undone;
     /// called on each report, on an edit-mode change and every frame.
+    /// Whether the overlay is above other windows: unless the user put it
+    /// behind them — and in edit mode always, so the panel is in reach.
+    pub(super) fn on_top(&self) -> bool {
+        self.config.global.always_on_top || self.edit_mode
+    }
+
+    /// Put every window above the others or under them, as `on_top` says.
+    /// Cheap when nothing changes; called every frame.
+    fn apply_stacking(&mut self) {
+        let on_top = self.on_top();
+        if self.stacked_on_top == Some(on_top) || self.window.is_none() {
+            return;
+        }
+        let level = if on_top {
+            WindowLevel::AlwaysOnTop
+        } else {
+            WindowLevel::AlwaysOnBottom
+        };
+        if let Some(window) = &self.window {
+            window.set_window_level(level);
+        }
+        for slot in self.extra_windows.values() {
+            slot.window.set_window_level(level);
+        }
+        if on_top {
+            self.reassert_always_on_top();
+        }
+        self.stacked_on_top = Some(on_top);
+        tracing::info!(
+            "Overlay {}",
+            if on_top {
+                "above windows"
+            } else {
+                "behind windows"
+            }
+        );
+    }
+
     pub(super) fn update_step_aside(&mut self) {
+        self.apply_stacking();
         let wanted = crate::fullscreen::step_aside(
             self.config.global.on_fullscreen,
             self.fullscreen_in_front,

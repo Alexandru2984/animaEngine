@@ -245,6 +245,8 @@ appearance-hover-startle-hint = カーソルが近づくとマスコットが後
 # Full-screen apps (1.5): machine-translated, pending native review.
 appearance-fullscreen-label = アプリが全画面のとき
 appearance-fullscreen-hint = 画面いっぱいのゲーム、動画、プレゼンテーション。X11 と、sway や Hyprland などの Wayland コンポジターで動作します。Wayland の GNOME と KDE では、XWayland で動くアプリのみが対象です。
+appearance-behind-windows-label = ウィンドウの後ろ
+appearance-behind-windows-hint = キャラクターをウィンドウの上ではなく、ウィンドウの下のデスクトップに置きます。編集モードでは前面に出ます。⚙ ボタンが隠れているときは Ctrl+Shift+A かトレイから開けます。
 fullscreen-hide = キャラクターを隠す
 fullscreen-pause = 一時停止する
 fullscreen-ignore = そのまま続ける

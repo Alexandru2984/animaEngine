@@ -52,6 +52,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
   Bubbles show on every monitor.
+- **Behind your windows.** A switch in Appearance puts the characters on
+  the desktop, under your windows, instead of over them. Edit mode
+  brings them to the front while it lasts. Native Wayland uses the
+  bottom layer; X11 asks the window manager to keep the overlay below.
 - **Paste images from the clipboard.** Copy a picture anywhere — a
   browser, an image viewer, a screenshot tool — and press `Ctrl+V` in
   edit mode: it becomes a character where the pointer is. Files copied

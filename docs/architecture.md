@@ -319,6 +319,22 @@ winit path from a thread reading EWMH (`FullscreenWatch`, sending
 user's hide (`overlay_hidden`) and playback switch
 (`Scene::set_suspended`), so coming back needs no bookkeeping.
 
+### Behind the windows (`always_on_top`)
+
+`always_on_top` off puts the overlay under other windows, on the
+desktop: native Wayland moves every layer surface from the overlay
+layer to the bottom one (`LayerWindow::set_on_top`, new extras made on
+the current one); the winit path sets each window's level to
+`AlwaysOnBottom` (`App::apply_stacking`, new extras too) and stops
+re-asserting `_NET_WM_STATE_ABOVE` on focus. Edit mode is always in
+front, so the panel is in reach. Both run every frame, cached. A
+surface under a window that covers it is never shown, and a compositor
+sends no frame callbacks to it — under `Fifo` the next present never
+returned and the Wayland loop stopped there, so that loop, which paces
+itself at `FRAME_INTERVAL`, presents with `Mailbox` where the driver has
+it (`WgpuRenderer::prefer_mailbox`). The X11 loop leans on `Fifo` for
+its pacing and keeps it; XWayland paces a hidden window on its own.
+
 ### Characters bumping into each other (`src/bump.rs`)
 
 Optional (`characters_bump`). Before the entities tick, each gets its

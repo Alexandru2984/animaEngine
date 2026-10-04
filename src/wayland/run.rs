@@ -121,6 +121,9 @@ pub fn run_native(
         .take()
         .ok_or_else(|| AnimaError::other("LayerWindow missing wgpu surface"))?;
     let mut renderer = WgpuRenderer::from_instance_surface(instance, surface, width, height)?;
+    // This loop paces itself (`FRAME_INTERVAL`), and behind the windows a
+    // covered surface must not stall it waiting to present.
+    renderer.prefer_mailbox();
     let mut egui_renderer = WaylandEguiRenderer::new(
         &renderer.shared.device,
         renderer.shared.surface_format,
@@ -470,6 +473,9 @@ pub fn run_native(
         // Step aside while another window is full screen, and come back
         // when it is not. Recomputed every iteration from the setting, the
         // window in front and edit mode, so nothing has to be undone.
+        // In front of the windows or behind them; edit mode always in
+        // front, so the panel is in reach.
+        layer.set_on_top(config.global.always_on_top || layer.state.edit_mode);
         let wanted = crate::fullscreen::step_aside(
             config.global.on_fullscreen,
             layer.fullscreen_in_front(),
@@ -1441,6 +1447,7 @@ pub fn run_native(
                 let reduced_motion_mut = &mut config.global.reduced_motion;
                 let hover_startle_mut = &mut config.global.hover_startle;
                 let on_fullscreen_mut = &mut config.global.on_fullscreen;
+                let always_on_top_mut = &mut config.global.always_on_top;
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
                 let on_battery_mut = &mut config.global.pause_on_battery;
                 let start_at_login_mut = &mut config.global.start_at_login;
@@ -1522,6 +1529,7 @@ pub fn run_native(
                                 reduced_motion_mut,
                                 hover_startle_mut,
                                 on_fullscreen_mut,
+                                always_on_top_mut,
                                 panels::AwayControls {
                                     idle_minutes: &mut *idle_minutes_mut,
                                     on_battery: &mut *on_battery_mut,

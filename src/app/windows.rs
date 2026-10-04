@@ -291,6 +291,10 @@ impl App {
             if self.overlay_hidden || self.stepped_aside.hidden {
                 window.set_visible(false);
             }
+            // Behind the windows, if that is where the overlay is.
+            if !self.on_top() {
+                window.set_window_level(WindowLevel::AlwaysOnBottom);
+            }
             self.extra_windows.insert(
                 window.id(),
                 WindowSlot {

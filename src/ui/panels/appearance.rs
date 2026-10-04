@@ -24,6 +24,7 @@ pub(super) fn appearance_tab(
     reduced_motion: &mut bool,
     hover_startle: &mut bool,
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
+    always_on_top: &mut bool,
     away: super::AwayControls<'_>,
     start_at_login: &mut bool,
 ) {
@@ -83,6 +84,17 @@ pub(super) fn appearance_tab(
     }
     ui.add_space(SPACE_S);
     if fullscreen_picker(ui, on_fullscreen) {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    // On the desktop under the windows rather than over them (1.5).
+    let mut behind = !*always_on_top;
+    if ui
+        .checkbox(&mut behind, t("appearance-behind-windows-label"))
+        .on_hover_text(t("appearance-behind-windows-hint"))
+        .changed()
+    {
+        *always_on_top = !behind;
         *config_dirty = true;
     }
     ui.add_space(SPACE_S);

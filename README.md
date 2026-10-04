@@ -79,6 +79,8 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   to other characters (hold Alt to place freely).
 - **Undo / redo** (`Ctrl+Z` / `Ctrl+Shift+Z`): every edit in edit mode —
   a move, a delete, a changed property, a preset's Replace.
+- **On top or behind**: the characters live over your windows, or —
+  one switch in Appearance — on the desktop under them.
 - **Steps aside for full-screen apps**: the characters hide (or pause)
   while a game, a video or a presentation fills the screen — doze off
   while you are away, and hold still on battery if you like.

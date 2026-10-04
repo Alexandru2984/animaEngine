@@ -138,6 +138,9 @@ pub struct WaylandState {
     /// The serial of the last key or button press: setting the clipboard
     /// needs one.
     pub last_serial: u32,
+    /// On the overlay layer, above windows; off, on the bottom layer
+    /// under them (`LayerWindow::set_on_top`).
+    pub on_top: bool,
     /// Whether the user is away (`crate::away`). See `idle`.
     pub idle: super::idle::Idle,
 }

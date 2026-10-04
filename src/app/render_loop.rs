@@ -405,6 +405,7 @@ impl App {
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
                         let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
+                        let always_on_top_mut = &mut self.config.global.always_on_top;
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
                         let on_battery_mut = &mut self.config.global.pause_on_battery;
                         let start_at_login_mut = &mut self.config.global.start_at_login;
@@ -496,6 +497,7 @@ impl App {
                                     reduced_motion_mut,
                                     hover_startle_mut,
                                     on_fullscreen_mut,
+                                    always_on_top_mut,
                                     panels::AwayControls {
                                         idle_minutes: &mut *idle_minutes_mut,
                                         on_battery: &mut *on_battery_mut,

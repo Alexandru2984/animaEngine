@@ -217,6 +217,7 @@ impl LayerWindow {
             idle: idle::Idle::new(idle_notifier),
             clipboard_claim: None,
             last_serial: 0,
+            on_top: true,
         };
 
         // Learn the output list before the wgpu surface is built.
@@ -495,7 +496,12 @@ impl LayerWindow {
         let layer = self.state._layer_shell.create_layer_surface(
             &qh,
             wl_surface.clone(),
-            Layer::Overlay,
+            // In front or behind, as the primary is now (`set_on_top`).
+            if self.state.on_top {
+                Layer::Overlay
+            } else {
+                Layer::Bottom
+            },
             Some("anima_engine"),
             Some(output),
         );
@@ -618,6 +624,35 @@ impl LayerWindow {
     /// the current value is a no-op so the dispatch loop can call this
     /// every time it suspects a flip happened without spamming the
     /// compositor.
+    /// Above other windows (the overlay layer), or under them on the
+    /// desktop (the bottom layer) — every surface. Cheap when nothing
+    /// changes; the loop calls it every frame.
+    pub fn set_on_top(&mut self, on_top: bool) {
+        if self.state.on_top == on_top {
+            return;
+        }
+        let layer = if on_top {
+            Layer::Overlay
+        } else {
+            Layer::Bottom
+        };
+        self.state.layer.set_layer(layer);
+        self.state.layer.commit();
+        for extra in &self.state.extra_layers {
+            extra.layer.set_layer(layer);
+            extra.layer.commit();
+        }
+        self.state.on_top = on_top;
+        tracing::info!(
+            "Overlay {}",
+            if on_top {
+                "above windows"
+            } else {
+                "behind windows"
+            }
+        );
+    }
+
     pub fn set_edit_mode(&mut self, on: bool, toggle_size: u32) -> Result<()> {
         if self.state.edit_mode == on {
             return Ok(());
