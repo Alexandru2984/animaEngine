@@ -293,6 +293,8 @@ toast-scene-imported = Scène importée : { $name }
 toast-scene-import-failed = Échec de l’import : { $error }
 toast-no-scenes = Aucune scène enregistrée pour l’instant — enregistrez-en une dans l’onglet Scène.
 palette-load-scene = Passer à la scène : { $name }
+palette-snooze-minutes = Mettre en veille { $minutes } minutes
+palette-snooze-morning = Mettre en veille jusqu’au matin
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Rappels
 scene-reminders-hint = Un personnage le dit de temps en temps, dans une bulle. Le temps passé loin de l’ordinateur compte comme une pause et le remet à zéro.

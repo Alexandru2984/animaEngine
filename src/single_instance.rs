@@ -168,6 +168,24 @@ impl ActivationService {
     async fn next_scene(&self) {
         self.post(AnimaEvent::NextScene);
     }
+
+    /// Snooze for `minutes` (`crate::snooze`); 0 is until the morning.
+    async fn snooze(&self, minutes: u32) {
+        self.post(AnimaEvent::Snooze(snooze_for(minutes)));
+    }
+
+    /// Wake up from a snooze.
+    async fn wake(&self) {
+        self.post(AnimaEvent::Wake);
+    }
+}
+
+/// D-Bus `Snooze`'s minutes: 0 is until the morning.
+fn snooze_for(minutes: u32) -> crate::snooze::SnoozeFor {
+    match minutes {
+        0 => crate::snooze::SnoozeFor::Morning,
+        m => crate::snooze::SnoozeFor::Minutes(m),
+    }
 }
 
 /// Wayland-flavoured twin of `ActivationService`. The native Wayland
@@ -209,6 +227,14 @@ impl WaylandActivationService {
 
     async fn next_scene(&self) {
         Self::dispatch(&self.tx, AnimaEvent::NextScene, "NextScene");
+    }
+
+    async fn snooze(&self, minutes: u32) {
+        Self::dispatch(&self.tx, AnimaEvent::Snooze(snooze_for(minutes)), "Snooze");
+    }
+
+    async fn wake(&self) {
+        Self::dispatch(&self.tx, AnimaEvent::Wake, "Wake");
     }
 }
 

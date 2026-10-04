@@ -300,6 +300,8 @@ toast-scene-imported = Scene imported: { $name }
 toast-scene-import-failed = Import failed: { $error }
 toast-no-scenes = No saved scenes yet — save one in the Scene tab.
 palette-load-scene = Switch to scene: { $name }
+palette-snooze-minutes = Snooze for { $minutes } minutes
+palette-snooze-morning = Snooze until morning
 # Reminders (1.5)
 scene-reminders-header = Reminders
 scene-reminders-hint = A character says it every so often, in a bubble. Time away from the computer counts as a break and starts it over.

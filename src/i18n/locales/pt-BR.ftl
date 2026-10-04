@@ -293,6 +293,8 @@ toast-scene-imported = Cena importada: { $name }
 toast-scene-import-failed = Falha ao importar: { $error }
 toast-no-scenes = Nenhuma cena salva ainda — salve uma na aba Cena.
 palette-load-scene = Mudar para a cena: { $name }
+palette-snooze-minutes = Soneca de { $minutes } minutos
+palette-snooze-morning = Soneca até de manhã
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Lembretes
 scene-reminders-hint = Um personagem diz isso de vez em quando, num balão. O tempo longe do computador conta como pausa e recomeça a contagem.

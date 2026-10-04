@@ -6,11 +6,9 @@
 //! executor; menu activations route back to whichever loop is running —
 //! winit's or the native Wayland one — through an [`EventSink`].
 //!
-//! The tray currently shows static labels — it does not reflect live
-//! state changes from the UI thread. That's a deliberate simplification
-//! to keep the cross-thread surface tiny; reflecting state would need an
-//! async channel + per-update `handle.update()` await. Worth doing once
-//! the menu earns it.
+//! The menu is static but for snoozing (`tray_menu::entries`), whose
+//! state lives in a process-wide atomic the tray thread looks at every
+//! few seconds, asking ksni to show the menu again when it changed.
 
 use crate::event::{AnimaEvent, EventSink};
 use ksni::TrayMethods;
@@ -49,21 +47,25 @@ impl ksni::Tray for AnimaTray {
         self.sink.send(crate::tray_menu::ACTIVATE);
     }
 
-    /// Rendered from `tray_menu::MENU`, which the Windows tray shares.
+    /// Rendered from `tray_menu::entries`, which the Windows tray shares.
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
-        use crate::tray_menu::{TrayItem, MENU};
+        use crate::tray_menu::Entry;
         use ksni::menu::*;
-        MENU.iter()
-            .map(|item| match *item {
-                TrayItem::Separator => MenuItem::Separator,
-                TrayItem::Action { label, event } => StandardItem {
-                    label: label.into(),
+        crate::tray_menu::entries()
+            .into_iter()
+            .map(|entry| match entry {
+                Entry::Separator => MenuItem::Separator,
+                Entry::Item { label, event } => StandardItem {
+                    label,
                     icon_name: match event {
-                        AnimaEvent::Quit => "application-exit".into(),
+                        Some(AnimaEvent::Quit) => "application-exit".into(),
                         _ => String::new(),
                     },
+                    enabled: event.is_some(),
                     activate: Box::new(move |this: &mut Self| {
-                        this.sink.send(event);
+                        if let Some(event) = event {
+                            this.sink.send(event);
+                        }
                     }),
                     ..Default::default()
                 }
@@ -92,12 +94,21 @@ pub fn spawn(sink: EventSink) -> thread::JoinHandle<()> {
                 // name instead, as ksni documents and Chromium does.
                 let in_flatpak = std::path::Path::new("/.flatpak-info").exists();
                 match tray.disable_dbus_name(in_flatpak).spawn().await {
-                    Ok(_handle) => {
+                    Ok(handle) => {
                         tracing::info!("System tray registered (StatusNotifierItem)");
-                        // Park the executor — ksni keeps a server task alive
-                        // on its own; we just need to keep this thread running
-                        // so the D-Bus connection isn't dropped.
-                        std::future::pending::<()>().await;
+                        // ksni keeps a server task alive on its own; this
+                        // thread stays to keep the D-Bus connection, and
+                        // looks every few seconds whether snoozing began or
+                        // ended, so the menu shows it (`tray_menu::entries`).
+                        let mut shown = crate::snooze::until_label();
+                        loop {
+                            async_io::Timer::after(std::time::Duration::from_secs(3)).await;
+                            let now = crate::snooze::until_label();
+                            if now != shown {
+                                shown = now;
+                                handle.update(|_| {}).await;
+                            }
+                        }
                     }
                     Err(e) => {
                         tracing::warn!(

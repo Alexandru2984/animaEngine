@@ -293,6 +293,8 @@ toast-scene-imported = Zaimportowano scenę: { $name }
 toast-scene-import-failed = Import nie powiódł się: { $error }
 toast-no-scenes = Brak zapisanych scen — zapisz jedną w karcie Scena.
 palette-load-scene = Przełącz na scenę: { $name }
+palette-snooze-minutes = Drzemka na { $minutes } minut
+palette-snooze-morning = Drzemka do rana
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Przypomnienia
 scene-reminders-hint = Postać mówi to co jakiś czas, w dymku. Czas z dala od komputera liczy się jako przerwa i zaczyna odliczanie od nowa.

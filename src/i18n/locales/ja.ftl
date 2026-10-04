@@ -293,6 +293,8 @@ toast-scene-imported = シーンを読み込みました: { $name }
 toast-scene-import-failed = 読み込みに失敗しました: { $error }
 toast-no-scenes = 保存したシーンはまだありません。シーンタブで保存してください。
 palette-load-scene = シーンに切り替え: { $name }
+palette-snooze-minutes = { $minutes } 分スヌーズ
+palette-snooze-morning = 朝までスヌーズ
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = リマインダー
 scene-reminders-hint = キャラクターが時々吹き出しで知らせます。コンピューターから離れていた時間は休憩として数え、最初からやり直します。

@@ -40,6 +40,10 @@ pub enum AnimaEvent {
     /// Switch to the next saved scene, by name (`crate::scenes`): the
     /// tray's "Next scene" and D-Bus `NextScene`.
     NextScene,
+    /// Snooze for a while (`crate::snooze`): the tray, D-Bus.
+    Snooze(crate::snooze::SnoozeFor),
+    /// Wake up from a snooze.
+    Wake,
 }
 
 /// Where a background thread — the tray, the D-Bus service — sends its

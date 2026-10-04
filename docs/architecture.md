@@ -319,6 +319,19 @@ winit path from a thread reading EWMH (`FullscreenWatch`, sending
 user's hide (`overlay_hidden`) and playback switch
 (`Scene::set_suspended`), so coming back needs no bookkeeping.
 
+### Snoozing (`src/snooze.rs`)
+
+A snooze is a deadline in one process-wide atomic (seconds since the
+epoch, 0 for none) that the tray, D-Bus and the palette set through
+`AnimaEvent::Snooze` and the loops read every frame: while it holds,
+`StepAside::or_snoozing` makes them step aside hidden and still, as for
+a full-screen app set to hide, so nothing else needs to know. Snoozing
+leaves edit mode. The X11 heartbeat runs `update_step_aside` too, or a
+snooze ending with every window unmapped would wait for a frame that
+never comes. The tray menu is `tray_menu::entries`, built on each
+showing; ksni's thread looks at the deadline every few seconds and
+asks for the menu again when it changed.
+
 ### Behind the windows (`always_on_top`)
 
 `always_on_top` off puts the overlay under other windows, on the

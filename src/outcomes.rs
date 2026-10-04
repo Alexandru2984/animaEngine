@@ -605,7 +605,9 @@ pub fn apply_palette_outcome(
         // Each backend runs these itself before calling this — an action
         // through the same code as its shortcut, "Add file…" through its
         // own chooser — so nothing reaches this arm.
-        PaletteOutcome::RunAction(_) | PaletteOutcome::AddFile => return,
+        PaletteOutcome::RunAction(_) | PaletteOutcome::AddFile | PaletteOutcome::Snooze(_) => {
+            return
+        }
         PaletteOutcome::LoadScene(path) => {
             load_scene(&path, ctx, &mut config.global.active_scene);
             return;

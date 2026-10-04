@@ -14,7 +14,65 @@ pub enum TrayItem {
         label: &'static str,
         event: AnimaEvent,
     },
+    /// Snoozing (`crate::snooze`): the choices, or how long it lasts and
+    /// a way out — see [`entries`].
+    Snooze,
     Separator,
+}
+
+/// One line of the menu as shown now ([`entries`]).
+#[derive(Debug, Clone)]
+pub enum Entry {
+    /// A label, and what choosing it sends — `None` shows it greyed out.
+    Item {
+        label: String,
+        event: Option<AnimaEvent>,
+    },
+    Separator,
+}
+
+/// The menu as it should be shown now: [`MENU`] with the snooze block
+/// filled in. Every tray renders this.
+pub fn entries() -> Vec<Entry> {
+    use crate::snooze::SnoozeFor;
+    let item = |label: &str, event: AnimaEvent| Entry::Item {
+        label: label.to_string(),
+        event: Some(event),
+    };
+    let mut out = Vec::new();
+    for entry in MENU {
+        match *entry {
+            TrayItem::Action { label, event } => out.push(item(label, event)),
+            TrayItem::Separator => out.push(Entry::Separator),
+            TrayItem::Snooze => match crate::snooze::until_label() {
+                Some(until) => {
+                    out.push(Entry::Item {
+                        label: format!("Snoozing until {until}"),
+                        event: None,
+                    });
+                    out.push(item("Wake up now", AnimaEvent::Wake));
+                }
+                None if crate::snooze::active() => {
+                    out.push(item("Wake up now", AnimaEvent::Wake));
+                }
+                None => {
+                    out.push(item(
+                        "Snooze 15 minutes",
+                        AnimaEvent::Snooze(SnoozeFor::Minutes(15)),
+                    ));
+                    out.push(item(
+                        "Snooze 1 hour",
+                        AnimaEvent::Snooze(SnoozeFor::Minutes(60)),
+                    ));
+                    out.push(item(
+                        "Snooze until morning",
+                        AnimaEvent::Snooze(SnoozeFor::Morning),
+                    ));
+                }
+            },
+        }
+    }
+    out
 }
 
 /// The menu, top to bottom.
@@ -40,6 +98,8 @@ pub const MENU: &[TrayItem] = &[
         label: "Hide overlay",
         event: AnimaEvent::HideOverlay,
     },
+    TrayItem::Separator,
+    TrayItem::Snooze,
     TrayItem::Separator,
     TrayItem::Action {
         label: "Quit",
@@ -68,6 +128,30 @@ mod tests {
                 ..
             }
         )));
+    }
+
+    /// The snooze block offers the choices, or how long and a way out.
+    #[test]
+    fn snoozing_shows_in_the_menu() {
+        let labels = |entries: Vec<Entry>| -> Vec<String> {
+            entries
+                .into_iter()
+                .filter_map(|e| match e {
+                    Entry::Item { label, .. } => Some(label),
+                    Entry::Separator => None,
+                })
+                .collect()
+        };
+        let _turn = crate::snooze::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        crate::snooze::wake();
+        assert!(labels(entries()).iter().any(|l| l == "Snooze 1 hour"));
+        crate::snooze::snooze(crate::snooze::SnoozeFor::Minutes(30));
+        let now = labels(entries());
+        crate::snooze::wake();
+        assert!(now.iter().any(|l| l == "Wake up now"), "{now:?}");
+        assert!(!now.iter().any(|l| l == "Snooze 1 hour"));
     }
 
     #[test]

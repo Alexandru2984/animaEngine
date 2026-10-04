@@ -496,7 +496,9 @@ pub fn run_native(
             config.global.on_fullscreen,
             layer.fullscreen_in_front(),
             layer.state.edit_mode,
-        );
+        )
+        // Snoozing (`crate::snooze`): out of sight and still until it ends.
+        .or_snoozing(crate::snooze::active());
         // In the Flatpak, the Background portal's answer to "start at
         // login", once it comes (`crate::autostart`).
         if let Some(granted) = crate::autostart::take_portal_answer() {
@@ -568,11 +570,13 @@ pub fn run_native(
             aside = wanted;
             activity = true;
             tracing::info!(
-                "Full-screen app {}: overlay {}",
-                if layer.fullscreen_in_front() {
-                    "in front"
+                "{}: overlay {}",
+                if crate::snooze::active() {
+                    "Snoozing"
+                } else if layer.fullscreen_in_front() {
+                    "Full-screen app in front"
                 } else {
-                    "gone"
+                    "Full-screen app gone"
                 },
                 if aside.hidden {
                     "hidden"
@@ -697,6 +701,7 @@ pub fn run_native(
             let mut last_visibility: Option<AnimaEvent> = None;
             let mut quit = false;
             let mut next_scene = false;
+            let mut snoozing = false;
             if let Some(rx) = &command_rx {
                 while let Ok(ev) = rx.try_recv() {
                     activity = true;
@@ -717,6 +722,11 @@ pub fn run_native(
                         // Idle comes from the compositor here.
                         AnimaEvent::Away(_) | AnimaEvent::IdleSource(_) => {}
                         AnimaEvent::NextScene => next_scene = true,
+                        AnimaEvent::Snooze(what) => {
+                            crate::snooze::snooze(what);
+                            snoozing = true;
+                        }
+                        AnimaEvent::Wake => crate::snooze::wake(),
                     }
                 }
             }
@@ -759,6 +769,8 @@ pub fn run_native(
                     }
                 }
             }
+            // Snoozing out of edit mode: the panel goes with the rest.
+            toggle_edit_xor ^= snoozing && layer.state.edit_mode;
             if toggle_edit_xor {
                 // Through `flip_edit_mode`, like the keyboard and the ⚙
                 // button. This path used to set the mode directly, so
@@ -1860,6 +1872,21 @@ pub fn run_native(
                                 renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
                                 renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
                             )));
+                        }
+                    }
+                    // As the tray's would: snoozing, out of edit mode.
+                    Some(panels::PaletteOutcome::Snooze(what)) => {
+                        crate::snooze::snooze(what);
+                        if layer.state.edit_mode {
+                            flip_edit_mode(
+                                &mut layer,
+                                &monitors_now,
+                                &mut config,
+                                &scene,
+                                &mut config_dirty,
+                                &mut config_watch,
+                                "Wayland, palette snooze",
+                            );
                         }
                     }
                     Some(out) => {

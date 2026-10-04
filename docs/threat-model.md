@@ -146,9 +146,10 @@ to video frames coming out of openh264.
 
 ### D-Bus interface — `com.animaengine.Anima`
 
-Both flavours expose the same six methods on `org.animaengine.Anima`
+Both flavours expose the same eight methods on `org.animaengine.Anima`
 — `Activate`, `ToggleEditMode`, `HideOverlay`, `ShowOverlay`,
-`ToggleGlobalPlayback`, and since 1.5 `NextScene`
+`ToggleGlobalPlayback`, and since 1.5 `NextScene`, `Snooze(u32
+minutes)` and `Wake`
 (`src/single_instance.rs`'s `ActivationService`
 is shared code; only the dispatch target differs). They exist because
 Wayland has no `XGrabKey` equivalent and these are the substitute that
@@ -161,7 +162,10 @@ longer holds on either build; this section documents the new surface
 and the mitigations applied.
 
 **What every method does:** flips an in-memory bool / forwards to
-the scene's playback toggle. No process spawn. No clipboard read. Each
+the scene's playback toggle. No process spawn. No clipboard read.
+`Snooze` takes the one argument on the interface, a number of minutes
+clamped to a day (0 is until 07:00), and only sets a deadline
+(`crate::snooze`). Each
 call is one atomic state mutation per frame — nothing more. The one
 file read is `NextScene`'s: it loads the next of the user's own saved
 scenes (`~/.config/animaengine/scenes/*.toml`, see `crate::scenes`)

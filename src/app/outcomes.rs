@@ -206,6 +206,14 @@ impl App {
             // The same function its shortcut goes through.
             panels::PaletteOutcome::RunAction(action) => self.dispatch_action(action, event_loop),
             panels::PaletteOutcome::AddFile => self.open_file_chooser(),
+            // As the tray's would.
+            panels::PaletteOutcome::Snooze(what) => {
+                winit::application::ApplicationHandler::user_event(
+                    self,
+                    event_loop,
+                    crate::event::AnimaEvent::Snooze(what),
+                );
+            }
             other => {
                 outcomes::apply_palette_outcome(other, &mut outcome_ctx!(self), &mut self.config)
             }

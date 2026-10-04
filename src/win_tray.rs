@@ -17,7 +17,7 @@
 //! until the pointer happens to pass over it.
 
 use crate::event::AnimaEvent;
-use crate::tray_menu::{TrayItem, ACTIVATE, MENU, TITLE};
+use crate::tray_menu::{Entry, ACTIVATE, TITLE};
 use std::cell::RefCell;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -28,8 +28,9 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
     DispatchMessageW, GetCursorPos, GetMessageW, LoadIconW, PostMessageW, PostQuitMessage,
     RegisterClassW, RegisterWindowMessageW, SetForegroundWindow, TrackPopupMenu, TranslateMessage,
-    IDI_APPLICATION, MF_SEPARATOR, MF_STRING, MSG, TPM_NONOTIFY, TPM_RETURNCMD, TPM_RIGHTBUTTON,
-    WM_APP, WM_CLOSE, WM_CONTEXTMENU, WM_DESTROY, WM_LBUTTONUP, WM_NULL, WM_RBUTTONUP, WNDCLASSW,
+    IDI_APPLICATION, MF_GRAYED, MF_SEPARATOR, MF_STRING, MSG, TPM_NONOTIFY, TPM_RETURNCMD,
+    TPM_RIGHTBUTTON, WM_APP, WM_CLOSE, WM_CONTEXTMENU, WM_DESTROY, WM_LBUTTONUP, WM_NULL,
+    WM_RBUTTONUP, WNDCLASSW,
 };
 use winit::event_loop::EventLoopProxy;
 
@@ -37,7 +38,7 @@ use winit::event_loop::EventLoopProxy;
 const WM_TRAY: u32 = WM_APP + 1;
 /// Our one icon's id within the window.
 const ICON_ID: u32 = 1;
-/// Menu command ids are the item's index in `MENU`, offset so that 0 —
+/// Menu command ids are the item's index in `tray_menu::entries`, offset so that 0 —
 /// what `TrackPopupMenu` returns when the menu is dismissed — is never
 /// an item.
 const FIRST_COMMAND: usize = 1;
@@ -224,14 +225,21 @@ unsafe fn show_menu(hwnd: HWND) {
     if menu == 0 {
         return;
     }
-    for (i, item) in MENU.iter().enumerate() {
-        match item {
-            TrayItem::Action { label, .. } => {
+    // Built once per showing: the snooze block changes.
+    let entries = crate::tray_menu::entries();
+    for (i, entry) in entries.iter().enumerate() {
+        match entry {
+            Entry::Item { label, event } => {
                 // AppendMenuW copies the string during the call.
                 let label = wide(label);
-                AppendMenuW(menu, MF_STRING, FIRST_COMMAND + i, label.as_ptr());
+                let flags = if event.is_some() {
+                    MF_STRING
+                } else {
+                    MF_STRING | MF_GRAYED
+                };
+                AppendMenuW(menu, flags, FIRST_COMMAND + i, label.as_ptr());
             }
-            TrayItem::Separator => {
+            Entry::Separator => {
                 AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
             }
         }
@@ -252,16 +260,16 @@ unsafe fn show_menu(hwnd: HWND) {
     );
     PostMessageW(hwnd, WM_NULL, 0, 0);
     DestroyMenu(menu);
-    if let Some(event) = command_event(chosen as usize) {
+    if let Some(event) = command_event(chosen as usize, &entries) {
         send(event);
     }
 }
 
-/// The event a menu command id stands for.
-fn command_event(command: usize) -> Option<AnimaEvent> {
-    match MENU.get(command.checked_sub(FIRST_COMMAND)?)? {
-        TrayItem::Action { event, .. } => Some(*event),
-        TrayItem::Separator => None,
+/// The event a menu command id stands for, in the menu `entries` shown.
+fn command_event(command: usize, entries: &[Entry]) -> Option<AnimaEvent> {
+    match entries.get(command.checked_sub(FIRST_COMMAND)?)? {
+        Entry::Item { event, .. } => *event,
+        Entry::Separator => None,
     }
 }
 
@@ -299,21 +307,22 @@ mod tests {
     /// map to an item — least of all to Quit.
     #[test]
     fn a_dismissed_menu_does_nothing() {
-        assert!(command_event(0).is_none());
+        assert!(command_event(0, &crate::tray_menu::entries()).is_none());
     }
 
     #[test]
     fn every_action_round_trips_through_its_command_id() {
-        for (i, item) in MENU.iter().enumerate() {
-            let got = command_event(FIRST_COMMAND + i);
-            match item {
-                TrayItem::Action { event, .. } => {
-                    assert_eq!(format!("{got:?}"), format!("{:?}", Some(*event)));
+        let entries = crate::tray_menu::entries();
+        for (i, entry) in entries.iter().enumerate() {
+            let got = command_event(FIRST_COMMAND + i, &entries);
+            match entry {
+                Entry::Item { event, .. } => {
+                    assert_eq!(format!("{got:?}"), format!("{event:?}"));
                 }
-                TrayItem::Separator => assert!(got.is_none()),
+                Entry::Separator => assert!(got.is_none()),
             }
         }
-        assert!(command_event(FIRST_COMMAND + MENU.len()).is_none());
+        assert!(command_event(FIRST_COMMAND + entries.len(), &entries).is_none());
     }
 
     #[test]

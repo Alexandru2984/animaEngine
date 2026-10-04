@@ -657,7 +657,9 @@ impl App {
             self.config.global.on_fullscreen,
             self.fullscreen_in_front,
             self.edit_mode,
-        );
+        )
+        // Snoozing (`crate::snooze`): out of sight and still until it ends.
+        .or_snoozing(crate::snooze::active());
         // Away or on battery, if asked: held still too (`crate::away`).
         let global = &self.config.global;
         crate::away::configure(
@@ -682,11 +684,13 @@ impl App {
         if wanted != self.stepped_aside {
             self.stepped_aside = wanted;
             tracing::info!(
-                "Full-screen app {}: overlay {}",
-                if self.fullscreen_in_front {
-                    "in front"
+                "{}: overlay {}",
+                if crate::snooze::active() {
+                    "Snoozing"
+                } else if self.fullscreen_in_front {
+                    "Full-screen app in front"
                 } else {
-                    "gone"
+                    "Full-screen app gone"
                 },
                 if wanted.hidden {
                     "hidden"
@@ -768,6 +772,9 @@ impl ApplicationHandler<AnimaEvent> for App {
             self.check_file_chooser();
             self.check_scene_transfer();
             self.check_clipboard();
+            // A snooze ending while every window is hidden: no frame would
+            // notice, so the heartbeat looks.
+            self.update_step_aside();
             self.request_redraw();
         }
     }
@@ -799,6 +806,19 @@ impl ApplicationHandler<AnimaEvent> for App {
                     window.focus_window();
                 }
                 tracing::info!("Raised by second-instance handshake");
+            }
+            AnimaEvent::Snooze(what) => {
+                crate::snooze::snooze(what);
+                // The panel goes with the rest.
+                if self.edit_mode {
+                    self.toggle_edit_mode();
+                }
+                self.update_step_aside();
+            }
+            AnimaEvent::Wake => {
+                crate::snooze::wake();
+                self.update_step_aside();
+                self.request_redraw_all();
             }
             AnimaEvent::Quit => {
                 tracing::info!("Quit requested from tray");

@@ -53,6 +53,7 @@ pub mod sysload;
 // both trays render the one menu in `tray_menu`.
 #[cfg(unix)]
 pub mod single_instance;
+pub mod snooze;
 pub mod soak;
 pub mod speech;
 pub mod system_clipboard;

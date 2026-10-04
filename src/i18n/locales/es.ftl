@@ -293,6 +293,8 @@ toast-scene-imported = Escena importada: { $name }
 toast-scene-import-failed = No se pudo importar: { $error }
 toast-no-scenes = Aún no hay escenas guardadas: guarda una en la pestaña Escena.
 palette-load-scene = Cambiar a la escena: { $name }
+palette-snooze-minutes = Dormitar { $minutes } minutos
+palette-snooze-morning = Dormitar hasta la mañana
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Recordatorios
 scene-reminders-hint = Un personaje lo dice de vez en cuando, en un bocadillo. El tiempo lejos del ordenador cuenta como descanso y lo reinicia.

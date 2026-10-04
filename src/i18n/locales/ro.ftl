@@ -293,6 +293,8 @@ toast-scene-imported = Scenă importată: { $name }
 toast-scene-import-failed = Importul a eșuat: { $error }
 toast-no-scenes = Încă nu ai scene salvate — salvează una în tabul Scenă.
 palette-load-scene = Treci la scena: { $name }
+palette-snooze-minutes = Ațipește { $minutes } minute
+palette-snooze-morning = Ațipește până dimineață
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Mementouri
 scene-reminders-hint = Un personaj îl spune din când în când, într-un balon. Timpul petrecut departe de calculator contează ca pauză și o ia de la capăt.

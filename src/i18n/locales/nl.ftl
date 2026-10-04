@@ -293,6 +293,8 @@ toast-scene-imported = Scène geïmporteerd: { $name }
 toast-scene-import-failed = Importeren mislukt: { $error }
 toast-no-scenes = Nog geen opgeslagen scènes — sla er een op in het tabblad Scène.
 palette-load-scene = Naar scène wisselen: { $name }
+palette-snooze-minutes = { $minutes } minuten sluimeren
+palette-snooze-morning = Sluimeren tot de ochtend
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Herinneringen
 scene-reminders-hint = Een figuur zegt het af en toe, in een tekstballon. Tijd weg van de computer telt als pauze en begint opnieuw.

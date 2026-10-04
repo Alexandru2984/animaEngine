@@ -25,6 +25,9 @@ pub enum PaletteOutcome {
     AddFile,
     /// User picked a saved scene (`crate::scenes`).
     LoadScene(std::path::PathBuf),
+    /// User picked a snooze (`crate::snooze`) — the way in on a desktop
+    /// with no tray, GNOME's by default.
+    Snooze(crate::snooze::SnoozeFor),
 }
 
 /// Height of the scrolling result list. With every action listed the
@@ -334,6 +337,29 @@ fn rows(query: &str, keybindings: &KeyBindings, has_selection: bool) -> Vec<Row>
                 hint: None,
                 hover: Some(preset.description),
                 outcome: PaletteOutcome::ApplyPreset(*pid, ApplyMode::Append),
+            });
+        }
+    }
+    for what in [
+        crate::snooze::SnoozeFor::Minutes(15),
+        crate::snooze::SnoozeFor::Minutes(60),
+        crate::snooze::SnoozeFor::Morning,
+    ] {
+        let label = match what {
+            crate::snooze::SnoozeFor::Minutes(minutes) => {
+                let mut args = fluent::FluentArgs::new();
+                args.set("minutes", minutes);
+                crate::i18n::t_args("palette-snooze-minutes", &args)
+            }
+            crate::snooze::SnoozeFor::Morning => crate::i18n::t("palette-snooze-morning"),
+        };
+        if matches_filter(&label) || matches_filter("snooze") {
+            rows.push(Row {
+                icon: icons::SNOOZE,
+                label,
+                hint: None,
+                hover: None,
+                outcome: PaletteOutcome::Snooze(what),
             });
         }
     }

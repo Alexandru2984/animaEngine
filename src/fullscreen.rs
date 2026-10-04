@@ -55,6 +55,20 @@ pub struct StepAside {
 
 /// Decide, from the setting and whether a full-screen app is in front.
 /// Never while editing: in edit mode the overlay is the window in use.
+impl StepAside {
+    /// Hidden and still while snoozing (`crate::snooze`), whatever else.
+    pub fn or_snoozing(self, snoozing: bool) -> Self {
+        if snoozing {
+            Self {
+                hidden: true,
+                paused: true,
+            }
+        } else {
+            self
+        }
+    }
+}
+
 pub fn step_aside(setting: OnFullscreen, fullscreen_in_front: bool, edit_mode: bool) -> StepAside {
     if !fullscreen_in_front || edit_mode {
         return StepAside::default();

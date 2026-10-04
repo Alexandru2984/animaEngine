@@ -52,6 +52,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
   Bubbles show on every monitor.
+- **Snooze.** "Snooze 15 minutes", "Snooze 1 hour" and "Snooze until
+  morning" in the tray and the command palette put the characters out
+  of sight and still; they come back on their own — the tray shows until
+  when, with "Wake up now". D-Bus has `Snooze(minutes)` and `Wake` for
+  a key binding of your own.
 - **Characters say their own lines.** The Inspector's new "Says"
   section takes a phrase per line: a tap on the character in edit mode
   makes it say one, it can speak up on its own about every 1, 5, 15 or
