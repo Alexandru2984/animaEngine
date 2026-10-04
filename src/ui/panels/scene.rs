@@ -107,7 +107,8 @@ pub(super) fn scene_tab(
             *request = Some(super::SceneRequest::AddFile);
         }
         // Where characters copied in another scene come in, for someone
-        // not using the keyboard (`crate::clipboard`).
+        // not using the keyboard (`crate::clipboard`) — or an image copied
+        // elsewhere (`crate::system_clipboard`), so never greyed out.
         let copied = crate::clipboard::count();
         let hint = if copied == 0 {
             t("scene-paste-empty")
@@ -117,12 +118,8 @@ pub(super) fn scene_tab(
             crate::i18n::t_args("scene-paste-tooltip", &args)
         };
         if ui
-            .add_enabled(
-                copied > 0,
-                egui::Button::new(format!("{}  {}", icons::PASTE, t("scene-paste"))),
-            )
+            .button(format!("{}  {}", icons::PASTE, t("scene-paste")))
             .on_hover_text(&hint)
-            .on_disabled_hover_text(&hint)
             .clicked()
         {
             *request = Some(super::SceneRequest::Paste);

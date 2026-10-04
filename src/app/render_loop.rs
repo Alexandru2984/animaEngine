@@ -130,6 +130,7 @@ impl App {
         self.check_shimeji_import();
         self.check_file_chooser();
         self.check_scene_transfer();
+        self.check_clipboard();
 
         // Appearance-tab monitor-mode switches rebuild the extra
         // overlay windows (T.6); topology changes do the same (T.9).
@@ -804,6 +805,7 @@ impl App {
         if self.pending_file_chooser.is_some()
             || self.pending_shimeji.is_some()
             || self.pending_transfer.is_some()
+            || self.pending_paste.is_some()
         {
             let poll = now + std::time::Duration::from_millis(100);
             at = Some(at.map_or(poll, |a| a.min(poll)));

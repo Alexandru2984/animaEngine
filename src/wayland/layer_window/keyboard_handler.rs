@@ -106,9 +106,10 @@ impl KeyboardHandler for WaylandState {
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
         _keyboard: &wl_keyboard::WlKeyboard,
-        _serial: u32,
+        serial: u32,
         event: KeyEvent,
     ) {
+        self.last_serial = serial;
         self.push_key_event(&event, true);
         // UTF-8 text — already composed by xkbcommon. Push as a
         // separate Text event so text widgets get the character; chord

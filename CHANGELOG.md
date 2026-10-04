@@ -52,6 +52,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the frontmost one. Time away from the computer counts as the break and
   starts the reminder over; one due while the overlay is hidden waits.
   Bubbles show on every monitor.
+- **Paste images from the clipboard.** Copy a picture anywhere — a
+  browser, an image viewer, a screenshot tool — and press `Ctrl+V` in
+  edit mode: it becomes a character where the pointer is. Files copied
+  in a file manager come in as if dropped. Both are checked like a
+  dropped file. Copying characters here puts their names on the
+  desktop's clipboard, so whatever was copied last is what `Ctrl+V`
+  brings. Native Wayland and X11 (XWayland included).
 - **Throw characters.** Let go of one mid-drag while the mouse is still
   moving and it flies: up and across, off the screen's sides, down onto
   the floor, a window or — with bumping on — someone's head, then

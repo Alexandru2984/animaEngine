@@ -54,6 +54,7 @@ pub mod sysload;
 pub mod single_instance;
 pub mod soak;
 pub mod speech;
+pub mod system_clipboard;
 #[cfg(unix)]
 pub mod tray;
 pub mod tray_menu;
@@ -67,5 +68,7 @@ pub mod win_instance;
 #[cfg(windows)]
 pub mod win_tray;
 pub mod window;
+#[cfg(unix)]
+pub mod x11_clipboard;
 
 pub use error::{AnimaError, Result};

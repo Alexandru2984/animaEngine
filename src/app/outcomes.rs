@@ -63,16 +63,65 @@ impl App {
         }
     }
 
-    /// Paste what was copied, or say there is nothing, and save.
+    /// Paste: ask the desktop's clipboard first — an image or files
+    /// copied elsewhere since the last copy here come in as characters —
+    /// and otherwise the characters copied here (`crate::system_clipboard`).
+    /// Lands at the pointer.
     pub(super) fn paste(&mut self) {
-        match crate::clipboard::get() {
-            Some(copied) => {
-                if !outcomes::paste_entities(&copied, &mut outcome_ctx!(self)).is_empty() {
-                    self.save_config_if_needed();
+        #[cfg(unix)]
+        {
+            let at = (self.mouse_x, self.mouse_y);
+            if let Some(clipboard) = self.x11_clipboard() {
+                let answer = clipboard.read();
+                if self.pending_paste.is_none() {
+                    self.pending_paste = Some((answer, at));
                 }
+                return;
             }
-            None => self.toasts.info(crate::i18n::t("toast-nothing-to-paste")),
         }
+        if outcomes::paste_copied(&mut outcome_ctx!(self)) {
+            self.save_config_if_needed();
+        }
+    }
+
+    /// The clipboard thread, started at first use.
+    #[cfg(unix)]
+    fn x11_clipboard(&mut self) -> Option<&crate::x11_clipboard::X11Clipboard> {
+        self.x11_clipboard
+            .get_or_insert_with(crate::x11_clipboard::X11Clipboard::start)
+            .as_ref()
+    }
+
+    /// Hand a copy's names to the desktop's clipboard, and apply a paste
+    /// once the clipboard has answered. Called once per frame.
+    pub(super) fn check_clipboard(&mut self) {
+        if let Some(text) = crate::clipboard::take_claim() {
+            #[cfg(unix)]
+            if let Some(clipboard) = self.x11_clipboard() {
+                clipboard.claim(text);
+            }
+            #[cfg(not(unix))]
+            let _ = text;
+        }
+        let Some((answer, at)) = &self.pending_paste else {
+            return;
+        };
+        let content = match answer.try_recv() {
+            Ok(content) => content,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                crate::system_clipboard::Content::Nothing
+            }
+        };
+        let at = *at;
+        self.pending_paste = None;
+        // The key that asked may be a while ago: open a step if it closed.
+        self.history
+            .input(&self.scene, &self.selection, std::time::Instant::now());
+        if outcomes::apply_pasted(content, at, &mut outcome_ctx!(self)) {
+            self.save_config_if_needed();
+        }
+        self.request_redraw_all();
     }
 
     pub(super) fn handle_library_outcome(&mut self, outcome: panels::LibraryOutcome) {

@@ -45,7 +45,8 @@ impl PointerHandler for WaylandState {
                     self.pending_egui_events
                         .push(egui::Event::PointerMoved(egui::pos2(x, y)));
                 }
-                PointerEventKind::Press { button, .. } => {
+                PointerEventKind::Press { button, serial, .. } => {
+                    self.last_serial = *serial;
                     if let Some(b) = linux_button_to_egui(*button) {
                         if let Some((x, y)) = self.cursor_pos {
                             self.pending_egui_events.push(egui::Event::PointerButton {

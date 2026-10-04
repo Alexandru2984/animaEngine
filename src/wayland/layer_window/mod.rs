@@ -28,6 +28,8 @@
 //!    queue. The caller drives both per frame.
 //! 3. Dropping `LayerWindow` releases the layer surface and disconnects.
 
+mod clipboard;
+pub use clipboard::ClipboardRead;
 mod drag_drop;
 mod handlers;
 mod idle;
@@ -213,6 +215,8 @@ impl LayerWindow {
             _toplevel_manager: toplevel_manager,
             toplevels: toplevels::Toplevels::default(),
             idle: idle::Idle::new(idle_notifier),
+            clipboard_claim: None,
+            last_serial: 0,
         };
 
         // Learn the output list before the wgpu surface is built.

@@ -66,6 +66,20 @@ memory at parse or decode time. Truncation is logged at `warn` level.
 
 The user sees a clear `Rejected: …` toast on failure.
 
+### The desktop's clipboard (1.5.0)
+
+`Ctrl+V` in edit mode reads the desktop's clipboard
+(`src/system_clipboard.rs`): an image another app put there becomes a
+character, and a `text/uri-list` of files is added as a drop. What
+comes in is someone else's data, so: only image types, a file list or
+our own type are asked for; reads are capped (64 MB, 64 KiB) on a thread
+of their own; the image is written under the data directory with a name
+we choose, never one from the clipboard, and then goes through the drop
+path — `pre_validate_dropped_file`, the decoders, the memory budget — and
+is deleted if refused. A file list names files the user can already
+read, each checked like a dropped one. Going out, a copy puts only the
+characters' names on the clipboard.
+
 ### Shared scene files (1.5.0)
 
 A scene can be shared as one `.animascene` file (`src/scene_file/`) —

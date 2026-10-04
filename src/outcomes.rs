@@ -330,6 +330,68 @@ pub fn paste_entities(copied: &crate::clipboard::Copied, ctx: &mut OutcomeCtx<'_
     pasted
 }
 
+/// What Ctrl+V brings once the desktop's clipboard has answered
+/// (`crate::system_clipboard`): an image as a new character, files as if
+/// dropped — around `at` — and otherwise the characters copied here, if
+/// any. Returns whether anything was added.
+pub fn apply_pasted(
+    content: crate::system_clipboard::Content,
+    at: (f32, f32),
+    ctx: &mut OutcomeCtx<'_>,
+) -> bool {
+    use crate::system_clipboard::{pasted_dir, save_image_in, Content};
+    match content {
+        Content::Image(bytes, ext) => {
+            let name = crate::i18n::t("pasted-image-name");
+            let path = match save_image_in(&pasted_dir(), &name, &bytes, ext) {
+                Ok(path) => path,
+                Err(e) => {
+                    let mut args = fluent::FluentArgs::new();
+                    args.set("error", e.to_string());
+                    ctx.toasts
+                        .error(crate::i18n::t_args("toast-paste-failed", &args));
+                    return false;
+                }
+            };
+            let added = add_dropped_file(&path, at, ctx).is_some();
+            if !added {
+                // Refused like a drop would be: nothing keeps the file.
+                let _ = std::fs::remove_file(&path);
+            }
+            added
+        }
+        Content::Files(paths) => {
+            let mut added = false;
+            for (i, path) in paths.iter().enumerate() {
+                let step = 48.0 * (i % 8) as f32;
+                added |= add_dropped_file(path, (at.0 + step, at.1 + step), ctx).is_some();
+            }
+            added
+        }
+        Content::Failed(why) => {
+            tracing::warn!("Clipboard read failed: {why}");
+            let mut args = fluent::FluentArgs::new();
+            args.set("error", why);
+            ctx.toasts
+                .error(crate::i18n::t_args("toast-paste-failed", &args));
+            false
+        }
+        // Text, an empty clipboard, or still ours: what was copied here.
+        Content::Ours | Content::Nothing => paste_copied(ctx),
+    }
+}
+
+/// Paste the characters copied here, or say there are none.
+pub fn paste_copied(ctx: &mut OutcomeCtx<'_>) -> bool {
+    match crate::clipboard::get() {
+        Some(copied) => !paste_entities(&copied, ctx).is_empty(),
+        None => {
+            ctx.toasts.info(crate::i18n::t("toast-nothing-to-paste"));
+            false
+        }
+    }
+}
+
 /// Make the entities at `members` a group named `name` that looks like
 /// `source` — the same offset, scale and visibility.
 fn group_like(

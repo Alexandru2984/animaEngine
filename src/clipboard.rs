@@ -90,11 +90,26 @@ impl Copied {
 
 static CLIPBOARD: Mutex<Option<Copied>> = Mutex::new(None);
 
-/// Keep `copied` for the next paste, in place of what was there.
+/// The names of the last copy, waiting to go on the desktop's clipboard.
+static CLAIM: Mutex<Option<String>> = Mutex::new(None);
+
+/// Keep `copied` for the next paste, in place of what was there — and
+/// put its names on the desktop's clipboard, so a copy made elsewhere
+/// later is the one Ctrl+V brings (`crate::system_clipboard`).
 pub fn put(copied: Copied) {
+    let names = crate::system_clipboard::names_text(&copied);
     if let Ok(mut held) = CLIPBOARD.lock() {
         *held = Some(copied);
     }
+    if let Ok(mut claim) = CLAIM.lock() {
+        *claim = Some(names);
+    }
+}
+
+/// The text to put on the desktop's clipboard for the last copy, once.
+/// The loops hand it to their backend.
+pub fn take_claim() -> Option<String> {
+    CLAIM.lock().ok().and_then(|mut c| c.take())
 }
 
 /// What the next paste would add, if anything was copied.

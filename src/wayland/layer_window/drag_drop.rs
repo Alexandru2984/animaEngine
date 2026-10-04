@@ -31,8 +31,8 @@
 //! - `DropCounterGuard` RAII — keeps the in-flight worker count
 //!   honest even when a reader panics during `read_to_end`.
 //!
-//! `DataSourceHandler` is a no-op set; the overlay never starts
-//! outgoing drags. The trait is still required by `delegate_data_device!`.
+//! `DataSourceHandler` serves the clipboard alone (`clipboard`); the
+//! overlay never starts outgoing drags.
 
 use super::state::WaylandState;
 use crate::wayland::data_device::{parse_uri_list, URI_LIST_MIME};
@@ -142,8 +142,8 @@ impl DataDeviceHandler for WaylandState {
         _qh: &QueueHandle<Self>,
         _data_device: &wayland_client::protocol::wl_data_device::WlDataDevice,
     ) {
-        // Clipboard selection — not a drop. Overlay doesn't consume
-        // clipboard, so ignored.
+        // The clipboard — not a drop. Read when pasting, not as it
+        // changes (`clipboard`).
     }
 
     fn drop_performed(
@@ -229,9 +229,9 @@ impl DataDeviceHandler for WaylandState {
 }
 
 /// We never start outgoing drags from the overlay (no
-/// `create_drag_and_drop_source` call site). The trait is required by
-/// `delegate_data_device!` since the manager handles WlDataSource
-/// dispatch too — every method here is a no-op.
+/// `create_drag_and_drop_source` call site): the only source is the
+/// clipboard's (`clipboard`), which these serve; the drag methods are
+/// no-ops.
 impl DataSourceHandler for WaylandState {
     fn accept_mime(
         &mut self,
@@ -246,18 +246,21 @@ impl DataSourceHandler for WaylandState {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _source: &wayland_client::protocol::wl_data_source::WlDataSource,
+        source: &wayland_client::protocol::wl_data_source::WlDataSource,
         _mime: String,
-        _fd: WritePipe,
+        fd: WritePipe,
     ) {
+        // The clipboard (`clipboard`): every type we offer is the names.
+        self.send_clipboard(source, fd);
     }
 
     fn cancelled(
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _source: &wayland_client::protocol::wl_data_source::WlDataSource,
+        source: &wayland_client::protocol::wl_data_source::WlDataSource,
     ) {
+        self.clipboard_cancelled(source);
     }
 
     fn dnd_dropped(

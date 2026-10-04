@@ -263,7 +263,7 @@ impl Action {
             Self::ResetTransform => "Restore scale 1.0 and opacity 1.0.",
             Self::CopySelected => "Keep the selection to paste, here or in another scene.",
             Self::CutSelected => "Copy the selection and remove it, to paste elsewhere.",
-            Self::Paste => "Add the copied characters to this scene.",
+            Self::Paste => "Add the copied characters, or an image copied elsewhere.",
             Self::GroupSelected => "Make a group of the selection; a click then takes all of it.",
             Self::UngroupSelected => "Dissolve the groups the selection is in.",
             Self::BringForward => "Raise the selected entity by one z-step.",

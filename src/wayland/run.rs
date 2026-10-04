@@ -179,6 +179,11 @@ pub fn run_native(
     let mut pending_file_chooser: Option<crate::outcomes::FileChooserAdd> = None;
     // A scene being shared or imported (`crate::scene_file`).
     let mut pending_transfer: Option<crate::outcomes::SceneTransfer> = None;
+    // A paste waiting on the clipboard's answer, and where it lands.
+    let mut pending_paste: Option<(
+        std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
+        (f32, f32),
+    )> = None;
     // Actions picked in the command palette, run next frame through the
     // same `match` as the ones bound to keys.
     let mut palette_actions: Vec<Action> = Vec::new();
@@ -360,6 +365,24 @@ pub fn run_native(
                 if added > 0 {
                     config_dirty = true;
                 }
+            }
+        }
+        if let Some((answer, at)) = &pending_paste {
+            let content = match answer.try_recv() {
+                Ok(content) => Some(content),
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    Some(crate::system_clipboard::Content::Nothing)
+                }
+            };
+            if let Some(content) = content {
+                let at = *at;
+                pending_paste = None;
+                activity = true;
+                // The key that asked may be a while ago: open a step if it
+                // closed.
+                history.input(&scene, &selection, Instant::now());
+                outcomes::apply_pasted(content, at, &mut outcome_ctx!());
             }
         }
         if let Some(transfer) = &mut pending_transfer {
@@ -885,12 +908,27 @@ pub fn run_native(
                         }
                     }
                 }
-                Action::Paste => match crate::clipboard::get() {
-                    Some(copied) => {
-                        outcomes::paste_entities(&copied, &mut outcome_ctx!());
+                // The desktop's clipboard first: an image or files copied
+                // elsewhere since the last copy here come in as characters
+                // (`crate::system_clipboard`), at the pointer.
+                Action::Paste => {
+                    let at = layer
+                        .state
+                        .cursor_pos
+                        .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1))
+                        .unwrap_or((
+                            renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                            renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
+                        ));
+                    match layer.read_clipboard() {
+                        crate::wayland::layer_window::ClipboardRead::Ready(content) => {
+                            outcomes::apply_pasted(content, at, &mut outcome_ctx!());
+                        }
+                        crate::wayland::layer_window::ClipboardRead::Pending(answer) => {
+                            pending_paste.get_or_insert((answer, at));
+                        }
                     }
-                    None => toasts.info(crate::i18n::t("toast-nothing-to-paste")),
-                },
+                }
                 // Everything that only touches the scene and the selection
                 // is shared with the winit path. Before this, the table was
                 // consulted here and matched ToggleEditMode alone, so the
@@ -917,6 +955,11 @@ pub fn run_native(
                     crate::keybindings::shared::dispatch_shared(other, &mut ctx);
                 }
             }
+        }
+        // A copy just made: its names on the desktop's clipboard, while the
+        // press that made it is the latest (setting it needs its serial).
+        if let Some(text) = crate::clipboard::take_claim() {
+            layer.claim_clipboard(text);
         }
 
         // Right-click on an entity opens the context menu and selects

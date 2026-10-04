@@ -521,6 +521,23 @@ group was copied. Copy is a shared action; Cut and Paste add and remove
 textures, so the backends run them beside Delete and Duplicate. The
 Scene tab's Paste button reaches them through `panels::SceneRequest`.
 
+The desktop's clipboard sits beside it (`src/system_clipboard.rs`). A
+copy also puts the names there, under `application/x-animaengine-characters`
+and plain text (`clipboard::take_claim`, handed on by the loops); a
+paste asks the desktop first and goes by its types (`system_clipboard::pick`):
+ours still → the characters copied here; an image → saved under
+`pasted/` in the data directory and added like a drop; `text/uri-list` →
+the files, like a drop; anything else → the characters copied here. So
+whoever copied last decides, without timestamps. Native Wayland goes
+through `wl_data_device` (`layer_window::clipboard`: a copy-paste
+source served from the event loop, the selection offer read on a thread
+of its own); X11, whose winit windows have no say in selections, through
+a window and connection of its own on one thread (`src/x11_clipboard.rs`),
+answering `TARGETS` and text while it owns `CLIPBOARD`, and reading
+others' answers in one piece or `INCR` pieces. Reads are capped (64 MB
+for an image, 64 KiB for a file list) and land a frame or two later
+(`pending_paste`), with an undo step opened then.
+
 ### Undo (`src/undo.rs`)
 
 Edits reach the scene from dozens of places, so undo watches *gestures*

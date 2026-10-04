@@ -132,6 +132,12 @@ pub struct WaylandState {
     /// Other applications' windows, for stepping aside while one is full
     /// screen. See `toplevels`.
     pub toplevels: super::toplevels::Toplevels,
+    /// The clipboard while it holds what was copied here
+    /// (`crate::system_clipboard`). See `clipboard`.
+    pub clipboard_claim: Option<super::clipboard::Claim>,
+    /// The serial of the last key or button press: setting the clipboard
+    /// needs one.
+    pub last_serial: u32,
     /// Whether the user is away (`crate::away`). See `idle`.
     pub idle: super::idle::Idle,
 }

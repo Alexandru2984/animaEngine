@@ -111,6 +111,15 @@ pub struct App {
     pending_file_chooser: Option<crate::outcomes::FileChooserAdd>,
     /// A scene being shared or imported (`crate::scene_file`).
     pending_transfer: Option<crate::outcomes::SceneTransfer>,
+    /// The desktop's clipboard (`crate::x11_clipboard`): `None` until the
+    /// first copy or paste, then what starting it gave.
+    #[cfg(unix)]
+    x11_clipboard: Option<Option<crate::x11_clipboard::X11Clipboard>>,
+    /// A paste waiting on the clipboard's answer, and where it lands.
+    pending_paste: Option<(
+        std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
+        (f32, f32),
+    )>,
     /// egui integration. Paints in BOTH modes — the ⚙ toggle button is an
     /// egui widget that lives in pass-through too. Other UI (settings panel,
     /// context menu, toasts) is gated to edit mode inside the build closure.
@@ -306,6 +315,9 @@ impl App {
             pending_shimeji: None,
             pending_file_chooser: None,
             pending_transfer: None,
+            #[cfg(unix)]
+            x11_clipboard: None,
+            pending_paste: None,
             ui: None,
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),
@@ -705,6 +717,7 @@ impl ApplicationHandler<AnimaEvent> for App {
             self.check_shimeji_import();
             self.check_file_chooser();
             self.check_scene_transfer();
+            self.check_clipboard();
             self.request_redraw();
         }
     }
