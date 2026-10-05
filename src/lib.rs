@@ -59,6 +59,7 @@ pub mod snooze;
 pub mod soak;
 pub mod speech;
 pub mod system_clipboard;
+pub mod tap;
 #[cfg(unix)]
 pub mod tray;
 pub mod tray_menu;

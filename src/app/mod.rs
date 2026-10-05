@@ -148,6 +148,13 @@ pub struct App {
     bedtime_now: bool,
     /// An app the user chose is the window in front (`crate::chosen_apps`).
     chosen_app_in_front: bool,
+    /// Tapping in pass-through (`crate::tap`): the characters' rectangles
+    /// on the primary window, when they last followed them, whether the
+    /// windows may take the keyboard, and a press waiting for its release.
+    tap_rects: Vec<crate::tap::SurfaceRect>,
+    tap_refreshed: Instant,
+    focusable: Option<bool>,
+    tap_gesture: crate::tap::TapGesture,
     /// Idle past the chosen time, as the away watch last reported
     /// (`crate::away`).
     away: bool,
@@ -339,6 +346,10 @@ impl App {
             bedtime_watch: Default::default(),
             bedtime_now: false,
             chosen_app_in_front: false,
+            tap_rects: Vec::new(),
+            tap_refreshed: Instant::now(),
+            focusable: None,
+            tap_gesture: Default::default(),
             away: false,
             on_battery: false,
             idle_source: None,
@@ -584,7 +595,9 @@ impl App {
             let result = if self.edit_mode {
                 x11.set_full_input()
             } else {
-                x11.set_passthrough_with_button(button_px)
+                // The ⚙ corner, and the characters when they take taps
+                // (`crate::tap`).
+                x11.set_passthrough_with_rects(button_px, &self.tap_rects)
             };
             if let Err(e) = result {
                 tracing::warn!("Failed to apply input shape: {}", e);

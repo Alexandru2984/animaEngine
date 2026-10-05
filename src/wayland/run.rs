@@ -184,6 +184,10 @@ pub fn run_native(
     let mut pending_transfer: Option<crate::outcomes::SceneTransfer> = None;
     // Bedtime against the clock (`crate::bedtime`).
     let mut bedtime_watch = crate::bedtime::Watch::default();
+    // Tapping in pass-through (`crate::tap`): when the input region last
+    // followed the characters, and a press waiting for its release.
+    let mut tap_refreshed = Instant::now();
+    let mut tap_gesture = crate::tap::TapGesture::default();
     // Text a text field asked for with Ctrl+V, on its way.
     let mut pending_text_paste: Option<
         std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
@@ -637,12 +641,58 @@ pub fn run_native(
             }
         }
 
+        // Tapping (`crate::tap`): in pass-through, with the setting on,
+        // the characters take clicks too — their rectangles join the ⚙
+        // corner, a few times a second at most — and a click on one must
+        // not take the keyboard. A click on the ⚙ still does, so edit mode
+        // has the keys from its first moment: the pointer is over it before
+        // the press.
+        let tapping = config.global.tap_characters
+            && !layer.state.edit_mode
+            && !(overlay_hidden || aside.hidden)
+            && !widen;
+        layer.set_keyboard_wanted(
+            layer.state.edit_mode || !config.global.tap_characters || egui_renderer.owns_pointer(),
+        );
+        let tap_refresh = tapping && tap_refreshed.elapsed() >= crate::tap::REFRESH;
+        if tap_refresh {
+            tap_refreshed = Instant::now();
+            let base = region_for_state(
+                false,
+                false,
+                renderer.primary.window_width,
+                renderer.primary.window_height,
+                toggle_button_units(&monitors_now),
+            );
+            let rects = crate::tap::rects(
+                &scene,
+                primary_origin,
+                (
+                    renderer.primary.window_width,
+                    renderer.primary.window_height,
+                ),
+            );
+            layer.sync_tap_region(base, rects);
+        } else if !tapping && layer.tap_region_applied() {
+            // Tapping just went off: the plain region again.
+            let region = region_for_state(
+                overlay_hidden || aside.hidden,
+                layer.state.edit_mode || widen,
+                renderer.primary.window_width,
+                renderer.primary.window_height,
+                toggle_button_units(&monitors_now),
+            );
+            if let Err(e) = layer.set_input_region(region) {
+                tracing::warn!("tap region: {e}");
+            }
+        }
+
         // The per-monitor extra surfaces follow the primary: open to
         // input in edit mode, or while a drag is over the overlay, and
-        // click-through otherwise. Their offsets into the primary's
-        // space come from the same output snapshot as `primary_origin`,
-        // so a click, drag or drop on another monitor lands in the
-        // right global place.
+        // click-through otherwise — but for the characters, when tapping.
+        // Their offsets into the primary's space come from the same output
+        // snapshot as `primary_origin`, so a click, drag or drop on
+        // another monitor lands in the right global place.
         layer.sync_extra_layers(
             extras_take_input(overlay_hidden || aside.hidden, layer.state.edit_mode, widen),
             |name| {
@@ -650,6 +700,21 @@ pub fn run_native(
                     .iter()
                     .find(|m| m.name == name)
                     .map(|m| (m.x as f32 - primary_origin.0, m.y as f32 - primary_origin.1))
+            },
+            |name| {
+                if !tapping {
+                    return Some(Vec::new());
+                }
+                if !tap_refresh {
+                    return None;
+                }
+                let mon = monitors_now.iter().find(|m| m.name == name)?;
+                let surface = extra_surfaces.get(name)?;
+                Some(crate::tap::rects(
+                    &scene,
+                    (mon.x as f32, mon.y as f32),
+                    (surface.window_width, surface.window_height),
+                ))
             },
         );
 
@@ -1280,11 +1345,8 @@ pub fn run_native(
                             ),
                         );
                         if tapped {
-                            if let Some(entity) = drag
-                                .dragging_entity()
-                                .and_then(|idx| scene.entities.get_mut(idx))
-                            {
-                                entity.poke(gx, poke_bounds);
+                            if let Some(idx) = drag.dragging_entity() {
+                                crate::tap::poke(&mut scene, idx, gx, poke_bounds);
                             }
                         }
                         // Thrown: the flight is play, as a poke's hop is —
@@ -1320,6 +1382,43 @@ pub fn run_native(
                             at,
                             snap_to.as_deref(),
                         );
+                    }
+                    _ => {}
+                }
+            }
+        } else if config.global.tap_characters && !(overlay_hidden || aside.hidden) {
+            // Pass-through with tapping on (`crate::tap`): a press and a
+            // release close together on a character poke it. Presses on
+            // the ⚙ button are egui's.
+            for event in &events {
+                match event {
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        ..
+                    } if !egui_owns_pointer => {
+                        let at = global(pos);
+                        tap_gesture.press(&scene, at.x, at.y);
+                    }
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        ..
+                    } => {
+                        let at = global(pos);
+                        if let Some(idx) = tap_gesture.release(&scene, at.x, at.y) {
+                            let bounds = monitor::covered_bounds(
+                                &plan,
+                                (
+                                    renderer.primary.window_width as f32,
+                                    renderer.primary.window_height as f32,
+                                ),
+                            );
+                            crate::tap::poke(&mut scene, idx, at.x, bounds);
+                            activity = true;
+                        }
                     }
                     _ => {}
                 }
@@ -1550,6 +1649,7 @@ pub fn run_native(
                 let always_on_top_mut = &mut config.global.always_on_top;
                 let step_aside_apps_mut = &mut config.global.step_aside_apps;
                 let bedtime_mut = &mut config.global.bedtime;
+                let tap_characters_mut = &mut config.global.tap_characters;
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
                 let on_battery_mut = &mut config.global.pause_on_battery;
                 let start_at_login_mut = &mut config.global.start_at_login;
@@ -1633,6 +1733,7 @@ pub fn run_native(
                                 on_fullscreen_mut,
                                 step_aside_apps_mut,
                                 always_on_top_mut,
+                                tap_characters_mut,
                                 bedtime_mut,
                                 panels::AwayControls {
                                     idle_minutes: &mut *idle_minutes_mut,

@@ -80,6 +80,25 @@ is deleted if refused. A file list names files the user can already
 read, each checked like a dropped one. Going out, a copy puts only the
 characters' names on the clipboard.
 
+### Taps outside edit mode (1.5.0)
+
+With "Characters can be tapped" on (`tap_characters`, off by default),
+pass-through takes clicks on the characters' drawn rectangles as well as
+the ⚙ corner (`src/tap.rs`): the input region (`wl_surface` on native
+Wayland, the XShape input shape on X11) follows them, a few times a
+second at most. Only clicks the compositor or X server delivers to those
+rectangles reach us; the pointer elsewhere is not read. A character
+covers what is under it, so a click meant for a button behind one pokes
+it instead — what the user sees on top is what takes the click; behind
+the windows the windows are on top. A tap must not take the keyboard
+from the app being typed in: native Wayland sets the surfaces'
+keyboard interactivity to none in pass-through, X11 sets `WM_HINTS`'
+input field to false (ICCCM's "no input"), and both go back while the
+pointer is over the ⚙ so that click still gives edit mode the keys.
+Window managers that follow ICCCM honour the hint; sway focuses an
+XWayland window on any click, so there the X11 path still takes focus
+(sway runs the native path).
+
 ### Shared scene files (1.5.0)
 
 A scene can be shared as one `.animascene` file (`src/scene_file/`) —

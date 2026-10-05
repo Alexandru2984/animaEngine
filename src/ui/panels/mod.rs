@@ -249,6 +249,7 @@ pub fn settings(
     step_aside_apps: &mut Vec<String>,
     // Above other windows, or under them on the desktop.
     always_on_top: &mut bool,
+    tap_characters: &mut bool,
     bedtime: &mut crate::bedtime::Bedtime,
     away: AwayControls<'_>,
     start_at_login: &mut bool,
@@ -429,6 +430,7 @@ pub fn settings(
                                 on_fullscreen,
                                 step_aside_apps,
                                 always_on_top,
+                                tap_characters,
                                 away,
                                 bedtime,
                                 start_at_login,

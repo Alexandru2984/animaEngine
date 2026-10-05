@@ -215,6 +215,8 @@ impl App {
         }
         // A thrown one landed: save where, with the next save.
         self.config_dirty |= self.scene.take_landed();
+        // Characters taking taps in pass-through (`crate::tap`).
+        self.refresh_tap_regions();
 
         // Precompute multi-window facts before the renderer borrow —
         // the methods take &self and would conflict with &mut renderer.
@@ -416,6 +418,7 @@ impl App {
                         let always_on_top_mut = &mut self.config.global.always_on_top;
                         let step_aside_apps_mut = &mut self.config.global.step_aside_apps;
                         let bedtime_mut = &mut self.config.global.bedtime;
+                        let tap_characters_mut = &mut self.config.global.tap_characters;
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
                         let on_battery_mut = &mut self.config.global.pause_on_battery;
                         let start_at_login_mut = &mut self.config.global.start_at_login;
@@ -509,6 +512,7 @@ impl App {
                                     on_fullscreen_mut,
                                     step_aside_apps_mut,
                                     always_on_top_mut,
+                                    tap_characters_mut,
                                     bedtime_mut,
                                     panels::AwayControls {
                                         idle_minutes: &mut *idle_minutes_mut,

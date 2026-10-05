@@ -225,6 +225,24 @@ region.destroy();                        // compositor copied it
 Behavior matches X11 exactly: button cutout in pass-through, full
 region in edit mode.
 
+### Taps (`src/tap.rs`)
+
+With `tap_characters` on, pass-through also takes clicks on the
+characters: `tap::rects` gives each visible one's drawn rectangle on a
+surface, rounded outward to 8 px, and the loops add them to the ⚙
+cutout — `LayerWindow::sync_tap_region` and the extras'
+`ExtraInput::Rects` on Wayland, `set_passthrough_with_rects` on X11 —
+at most every `tap::REFRESH` and only when they changed, so a walker
+does not cost a region a frame. Any other path that sets the region
+(`set_input_region`, `reapply_input_shape`) clears what taps set, and
+the next refresh puts it back. A press and a release close together on
+one character (`TapGesture`) are a tap; `tap::poke` gives it the same
+hop and line as a tap in edit mode. The keyboard stays with the app in
+front: Wayland's keyboard interactivity is none in pass-through
+(`set_keyboard_wanted`), X11's `WM_HINTS` input is false
+(`set_focusable`); both turn back while egui has the pointer — the ⚙ —
+so its click still focuses edit mode.
+
 ## Native Wayland status
 
 | Feature | X11 path | Wayland native (opt-in, beta) |

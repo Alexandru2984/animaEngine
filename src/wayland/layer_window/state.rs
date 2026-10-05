@@ -141,6 +141,13 @@ pub struct WaylandState {
     /// On the overlay layer, above windows; off, on the bottom layer
     /// under them (`LayerWindow::set_on_top`).
     pub on_top: bool,
+    /// The primary's input region as `LayerWindow::sync_tap_region` last
+    /// set it — the ⚙ corner and the characters — or `None` when
+    /// something else set it since.
+    pub tap_applied: Option<(Option<InputRect>, Vec<crate::tap::SurfaceRect>)>,
+    /// Whether the surfaces may take the keyboard on a click
+    /// (`LayerWindow::set_keyboard_wanted`).
+    pub keyboard_on_demand: bool,
     /// Ctrl+V was pressed: if a text field has the keyboard, the loop
     /// pastes the desktop clipboard's text into it.
     pub text_paste_requested: bool,
@@ -174,16 +181,24 @@ pub struct ExtraLayer {
     /// space (its output's position minus the primary's). Refreshed
     /// every frame by `LayerWindow::sync_extra_layers`.
     pub offset: (f32, f32),
-    /// Whether the input region currently covers the whole surface
-    /// (edit mode, or a drag over the overlay) or nothing.
-    pub input_full: bool,
+    /// What the input region was last set to: the whole surface (edit
+    /// mode, or a drag over the overlay), or the characters' rectangles
+    /// (`crate::tap`) — none, usually.
+    pub input: ExtraInput,
     /// Last size from this layer's own `configure` event, drained by
     /// `LayerWindow::drain_extra_resizes` each frame.
     pub pending_size: Option<(u32, u32)>,
 }
 
+/// An extra layer's input region ([`ExtraLayer::input`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExtraInput {
+    Full,
+    Rects(Vec<crate::tap::SurfaceRect>),
+}
+
 /// Rectangular cutout used by `LayerWindow::set_input_region`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InputRect {
     pub x: i32,
     pub y: i32,

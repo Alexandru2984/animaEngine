@@ -77,6 +77,9 @@ pub(super) struct WindowSlot {
     pub pending_events: Vec<egui::Event>,
     /// Where the pointer last was over this window, in its points.
     pub pointer: Option<egui::Pos2>,
+    /// The characters' rectangles on it while they take taps
+    /// (`crate::tap`); empty otherwise.
+    pub tap_rects: Vec<crate::tap::SurfaceRect>,
 }
 
 /// Draw what `slot`'s monitor shows over the characters with its own egui
@@ -305,8 +308,11 @@ impl App {
                     egui: None,
                     pending_events: Vec::new(),
                     pointer: None,
+                    tap_rects: Vec::new(),
                 },
             );
+            // The new window gets the keyboard hint on the next frame.
+            self.focusable = None;
         }
     }
 
@@ -530,7 +536,9 @@ impl App {
                 let result = if edit {
                     mgr.set_full_input()
                 } else {
-                    mgr.set_passthrough_total()
+                    // Nothing but the characters when they take taps
+                    // (`crate::tap`); nothing at all otherwise.
+                    mgr.set_passthrough_with_rects(0, &slot.tap_rects)
                 };
                 if let Err(e) = result {
                     tracing::warn!("Input shape on {} failed: {e}", slot.monitor.name);

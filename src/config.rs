@@ -73,6 +73,11 @@ pub struct GlobalConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub step_aside_apps: Vec<String>,
 
+    /// Characters take taps outside edit mode (`crate::tap`). Off by
+    /// default: their rectangles then stop passing clicks through.
+    #[serde(default)]
+    pub tap_characters: bool,
+
     /// Hold the scene still after this many minutes without input; 0
     /// never (`crate::away`). Ten by default: nobody is watching, and a
     /// still scene costs next to nothing.
@@ -162,6 +167,7 @@ impl Default for GlobalConfig {
             hover_startle: false,
             on_fullscreen: crate::fullscreen::OnFullscreen::default(),
             step_aside_apps: Vec::new(),
+            tap_characters: false,
             pause_when_idle_minutes: default_pause_when_idle_minutes(),
             pause_on_battery: false,
             active_scene: None,

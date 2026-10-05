@@ -45,6 +45,28 @@ pub trait OverlayPlatform {
 
     /// Fully interactive — the whole surface receives input (edit mode).
     fn set_full_input(&mut self) -> Result<()>;
+
+    /// Click-through but for the ⚙ corner (`button_size`, 0 for none) and
+    /// `rects`, the characters when they take taps (`crate::tap`). A
+    /// backend without it keeps to the corner.
+    fn set_passthrough_with_rects(
+        &mut self,
+        button_size: u32,
+        rects: &[crate::tap::SurfaceRect],
+    ) -> Result<()> {
+        let _ = rects;
+        if button_size > 0 {
+            self.set_passthrough_with_button(button_size)
+        } else {
+            self.set_passthrough_total()
+        }
+    }
+
+    /// Whether a click may give the window the keyboard (`crate::tap`).
+    fn set_focusable(&self, focusable: bool) -> Result<()> {
+        let _ = focusable;
+        Ok(())
+    }
 }
 
 /// Build the overlay backend for `window` on the current OS, or `None`

@@ -74,6 +74,9 @@ hover_startle = false       # characters recoil from an approaching
 on_fullscreen = "hide"      # while another app is full screen: hide
                             # the characters, "pause" them, or
                             # "ignore" it. Never in edit mode.
+tap_characters = false      # outside edit mode too, a click on a
+                            # character pokes it; clicks elsewhere
+                            # still reach the windows underneath
 pause_when_idle_minutes = 10 # hold the characters still after this
                             # long without input (0 = never): 1, 5,
                             # 10 or 30 in Appearance. GNOME, a real X

@@ -58,6 +58,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   follows anyone on their own; a character cannot follow itself, and the
   list leaves out anyone who would close a circle. One whose leader is
   gone or hidden stands still.
+- **Tap them without edit mode.** With "Characters can be tapped" on in
+  Appearance (off by default), a click on a character pokes it — a hop,
+  and one of its lines — while a click anywhere else still goes to the
+  window underneath, as before. A tap leaves the keyboard with the app
+  you are typing in. Native Wayland and X11.
 - **Step aside for apps you choose.** Under the full-screen setting in
   Appearance, pick apps from the ones open now — a video call, a
   streaming tool, a game — and the characters hide while one of them is

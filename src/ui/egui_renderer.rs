@@ -107,6 +107,11 @@ impl EguiRenderer {
             || crate::ui::panels::keyboard_held(&self.context)
     }
 
+    /// Whether the pointer is over the UI — in pass-through, the ⚙ button.
+    pub fn owns_pointer(&self) -> bool {
+        self.context.is_pointer_over_area()
+    }
+
     /// Whether a screen reader has requests waiting for the next frame.
     pub fn has_screen_reader_requests(&self) -> bool {
         #[cfg(unix)]

@@ -26,6 +26,7 @@ pub(super) fn appearance_tab(
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
     step_aside_apps: &mut Vec<String>,
     always_on_top: &mut bool,
+    tap_characters: &mut bool,
     away: super::AwayControls<'_>,
     bedtime: &mut crate::bedtime::Bedtime,
     start_at_login: &mut bool,
@@ -90,6 +91,15 @@ pub(super) fn appearance_tab(
     }
     ui.add_space(SPACE_S);
     if chosen_apps_controls(ui, step_aside_apps) {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    // Characters that take taps outside edit mode (`crate::tap`).
+    if ui
+        .checkbox(tap_characters, t("appearance-tap-label"))
+        .on_hover_text(t("appearance-tap-hint"))
+        .changed()
+    {
         *config_dirty = true;
     }
     ui.add_space(SPACE_S);

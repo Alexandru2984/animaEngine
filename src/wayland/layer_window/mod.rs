@@ -219,6 +219,8 @@ impl LayerWindow {
             last_serial: 0,
             on_top: true,
             text_paste_requested: false,
+            tap_applied: None,
+            keyboard_on_demand: true,
         };
 
         // Learn the output list before the wgpu surface is built.
@@ -524,7 +526,7 @@ impl LayerWindow {
             layer,
             output_name: monitor_name.to_string(),
             offset: (0.0, 0.0),
-            input_full: false,
+            input: state::ExtraInput::Rects(Vec::new()),
             pending_size: None,
         });
         Ok(wl_surface)
@@ -541,32 +543,110 @@ impl LayerWindow {
     /// Before this, extras stayed click-through in edit mode too: the
     /// characters on a second monitor were drawn but could not be
     /// selected, dragged or dropped onto.
+    /// `tap_rects`: for a layer not taking all input, the characters'
+    /// rectangles on it to take taps on (`crate::tap`), or `None` to
+    /// leave them as they are this frame.
     pub fn sync_extra_layers(
         &mut self,
         input: bool,
         offset_of: impl Fn(&str) -> Option<(f32, f32)>,
+        tap_rects: impl Fn(&str) -> Option<Vec<crate::tap::SurfaceRect>>,
     ) {
         let qh = self.event_queue.handle();
         for extra in &mut self.state.extra_layers {
             if let Some(offset) = offset_of(&extra.output_name) {
                 extra.offset = offset;
             }
-            if extra.input_full == input {
+            let wanted = if input {
+                state::ExtraInput::Full
+            } else {
+                match tap_rects(&extra.output_name) {
+                    Some(rects) => state::ExtraInput::Rects(rects),
+                    None if extra.input == state::ExtraInput::Full => {
+                        state::ExtraInput::Rects(Vec::new())
+                    }
+                    None => continue,
+                }
+            };
+            if extra.input == wanted {
                 continue;
             }
             let region = self.state.compositor.wl_compositor().create_region(&qh, ());
-            if input {
-                // Larger than any output: the compositor clips the
-                // region to the surface, and this way a resize never
-                // leaves a strip that ignores the pointer.
-                const ANY_OUTPUT: i32 = 1 << 20;
-                region.add(0, 0, ANY_OUTPUT, ANY_OUTPUT);
+            match &wanted {
+                state::ExtraInput::Full => {
+                    // Larger than any output: the compositor clips the
+                    // region to the surface, and this way a resize never
+                    // leaves a strip that ignores the pointer.
+                    const ANY_OUTPUT: i32 = 1 << 20;
+                    region.add(0, 0, ANY_OUTPUT, ANY_OUTPUT);
+                }
+                state::ExtraInput::Rects(rects) => {
+                    for &(x, y, w, h) in rects {
+                        region.add(x, y, w as i32, h as i32);
+                    }
+                }
             }
             extra.layer.wl_surface().set_input_region(Some(&region));
             extra.layer.commit();
             region.destroy();
-            extra.input_full = input;
+            extra.input = wanted;
         }
+    }
+
+    /// The primary's input region in pass-through with tapping on: the ⚙
+    /// corner `base` and the characters' `rects` (`crate::tap`). Set only
+    /// when it changed.
+    pub fn sync_tap_region(
+        &mut self,
+        base: Option<InputRect>,
+        rects: Vec<crate::tap::SurfaceRect>,
+    ) {
+        let key = (base, rects);
+        if self.state.tap_applied.as_ref() == Some(&key) {
+            return;
+        }
+        let qh = self.event_queue.handle();
+        let region = self.state.compositor.wl_compositor().create_region(&qh, ());
+        if let Some(rect) = key.0 {
+            region.add(rect.x, rect.y, rect.w as i32, rect.h as i32);
+        }
+        for &(x, y, w, h) in &key.1 {
+            region.add(x, y, w as i32, h as i32);
+        }
+        self.state
+            .layer
+            .wl_surface()
+            .set_input_region(Some(&region));
+        self.state.layer.commit();
+        region.destroy();
+        self.state.tap_applied = Some(key);
+    }
+
+    /// Whether the primary's region is the one `sync_tap_region` set.
+    pub fn tap_region_applied(&self) -> bool {
+        self.state.tap_applied.is_some()
+    }
+
+    /// Whether a click may give the surfaces the keyboard: yes in edit
+    /// mode; with tapping on, not in pass-through — a tap on a character
+    /// must not take the keys from the app being typed in. Cheap when
+    /// unchanged; called every frame.
+    pub fn set_keyboard_wanted(&mut self, on_demand: bool) {
+        if self.state.keyboard_on_demand == on_demand {
+            return;
+        }
+        let mode = if on_demand {
+            KeyboardInteractivity::OnDemand
+        } else {
+            KeyboardInteractivity::None
+        };
+        self.state.layer.set_keyboard_interactivity(mode);
+        self.state.layer.commit();
+        for extra in &self.state.extra_layers {
+            extra.layer.set_keyboard_interactivity(mode);
+            extra.layer.commit();
+        }
+        self.state.keyboard_on_demand = on_demand;
     }
 
     /// Keep the input-method state in step with egui, once per frame:
@@ -683,6 +763,8 @@ impl LayerWindow {
     /// - Pass `cutout = Some(InputRect::full(w, h))` to make the entire
     ///   surface receive input — used for edit mode.
     pub fn set_input_region(&mut self, cutout: Option<InputRect>) -> Result<()> {
+        // Whatever `sync_tap_region` set is gone.
+        self.state.tap_applied = None;
         let qh = self.event_queue.handle();
         // `wl_compositor::create_region` is a constructor — the returned
         // proxy is fresh state owned by the client. We hand it back to

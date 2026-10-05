@@ -206,7 +206,7 @@ impl X11InputManager {
     /// connection — and the pass-through self-heal reshapes twice a
     /// second, so a persistent failure leaked at that rate. Cleanup here
     /// runs regardless of how the stamping ends.
-    fn apply_input_shape(&self, base: u32, cutout: Option<Rectangle>) -> Result<(u16, u16)> {
+    fn apply_input_shape(&self, base: u32, cutouts: &[Rectangle]) -> Result<(u16, u16)> {
         use x11rb::protocol::shape;
 
         let geom = self.conn.get_geometry(self.x11_window)?.reply()?;
@@ -242,9 +242,9 @@ impl X11InputManager {
             // must not be skipped by an early return below.
             let drawn = (|| -> Result<()> {
                 poly_fill_rectangle(&self.conn, pixmap, gc, &[full])?;
-                if let Some(rect) = cutout {
+                if !cutouts.is_empty() {
                     change_gc(&self.conn, gc, &ChangeGCAux::new().foreground(1))?;
-                    poly_fill_rectangle(&self.conn, pixmap, gc, &[rect])?;
+                    poly_fill_rectangle(&self.conn, pixmap, gc, cutouts)?;
                 }
                 shape::mask(
                     &self.conn,
@@ -269,20 +269,41 @@ impl X11InputManager {
     }
 
     pub fn set_passthrough_with_button(&mut self, button_size: u32) -> Result<()> {
+        self.set_passthrough_with_rects(button_size, &[])
+    }
+
+    /// Click-through but for the ⚙ corner (`button_size`, 0 for none) and
+    /// `rects`, the characters' rectangles when they take taps
+    /// (`crate::tap`).
+    pub fn set_passthrough_with_rects(
+        &mut self,
+        button_size: u32,
+        rects: &[crate::tap::SurfaceRect],
+    ) -> Result<()> {
         // Geometry isn't known until the mask is built, so the button is
         // anchored from the right edge inside `apply_input_shape`'s
         // coordinate space — take the width first.
         let width = self.conn.get_geometry(self.x11_window)?.reply()?.width;
         let button_x = width as i16 - button_size as i16;
-        let (w, h) = self.apply_input_shape(
-            0,
-            Some(Rectangle {
+        let clamp16 = |v: i32| v.clamp(i16::MIN.into(), i16::MAX.into()) as i16;
+        let mut cutouts: Vec<Rectangle> = rects
+            .iter()
+            .map(|&(x, y, w, h)| Rectangle {
+                x: clamp16(x),
+                y: clamp16(y),
+                width: w.min(u16::MAX.into()) as u16,
+                height: h.min(u16::MAX.into()) as u16,
+            })
+            .collect();
+        if button_size > 0 {
+            cutouts.push(Rectangle {
                 x: button_x,
                 y: 0,
                 width: button_size as u16,
                 height: button_size as u16,
-            }),
-        )?;
+            });
+        }
+        let (w, h) = self.apply_input_shape(0, &cutouts)?;
 
         // Debug, not info: this fires on every mode toggle, resize, focus
         // change, and the periodic click-through self-heal (twice a
@@ -305,17 +326,60 @@ impl X11InputManager {
     /// primary-window affordance, so in pass-through mode the extras
     /// reserve nothing.
     pub fn set_passthrough_total(&mut self) -> Result<()> {
-        self.apply_input_shape(0, None)?;
+        self.apply_input_shape(0, &[])?;
         tracing::debug!("X11 input shape: fully click-through");
         Ok(())
     }
 
     /// Set the window to receive input on the entire surface (edit mode).
     pub fn set_full_input(&mut self) -> Result<()> {
-        self.apply_input_shape(1, None)?;
+        self.apply_input_shape(1, &[])?;
         tracing::info!("X11 input shape: full window receives input (edit mode)");
         Ok(())
     }
+
+    /// Whether the window manager may give this window the keyboard when
+    /// it is clicked: ICCCM `WM_HINTS`' input field. Off in pass-through
+    /// with tapping on, so a tap on a character leaves the keyboard with
+    /// the app being typed in (`crate::tap`).
+    pub fn set_focusable(&self, focusable: bool) -> Result<()> {
+        // Keep what else the hints say (winit sets some); change only
+        // the input flag (bit 0) and field.
+        let mut hints: Vec<u32> = self
+            .conn
+            .get_property(
+                false,
+                self.x11_window,
+                AtomEnum::WM_HINTS,
+                AtomEnum::WM_HINTS,
+                0,
+                9,
+            )?
+            .reply()?
+            .value32()
+            .map(|v| v.collect())
+            .unwrap_or_default();
+        hints.resize(9, 0);
+        hints[0] |= 1;
+        hints[1] = u32::from(focusable);
+        change_property(
+            &self.conn,
+            PropMode::REPLACE,
+            self.x11_window,
+            AtomEnum::WM_HINTS,
+            AtomEnum::WM_HINTS,
+            32,
+            9,
+            &bytemuck_hints(&hints),
+        )?;
+        self.conn.flush()?;
+        Ok(())
+    }
+}
+
+/// `hints` as the bytes `change_property` wants, native-endian.
+fn bytemuck_hints(hints: &[u32]) -> Vec<u8> {
+    hints.iter().flat_map(|h| h.to_ne_bytes()).collect()
 }
 
 // X11 is the first `OverlayPlatform` backend. The winit run loop holds a
@@ -333,6 +397,16 @@ impl crate::window::overlay::OverlayPlatform for X11InputManager {
     }
     fn set_passthrough_with_button(&mut self, button_size: u32) -> Result<()> {
         self.set_passthrough_with_button(button_size)
+    }
+    fn set_passthrough_with_rects(
+        &mut self,
+        button_size: u32,
+        rects: &[crate::tap::SurfaceRect],
+    ) -> Result<()> {
+        self.set_passthrough_with_rects(button_size, rects)
+    }
+    fn set_focusable(&self, focusable: bool) -> Result<()> {
+        self.set_focusable(focusable)
     }
     fn set_passthrough_total(&mut self) -> Result<()> {
         self.set_passthrough_total()

@@ -48,6 +48,98 @@ impl App {
         }
     }
 
+    /// The region the overlay covers, which a poke's recoil stays in.
+    fn poke_bounds(&self) -> crate::monitor::DesktopBounds {
+        let fallback = self
+            .window
+            .as_ref()
+            .map(|w| {
+                let s = w.inner_size();
+                (s.width as f32, s.height as f32)
+            })
+            .unwrap_or((1920.0, 1080.0));
+        crate::monitor::covered_bounds(
+            &crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors),
+            fallback,
+        )
+    }
+
+    /// Tapping (`crate::tap`): while taps are on in pass-through, the input
+    /// shapes follow the characters, a few times a second at most, and no
+    /// window takes the keyboard on a click. Called every frame.
+    pub(super) fn refresh_tap_regions(&mut self) {
+        // A click on the ⚙ still takes the keyboard, so edit mode has the
+        // keys from its first moment: the pointer is over it before the
+        // press, and the window manager reads the hint at the press.
+        let focusable = self.edit_mode
+            || !self.config.global.tap_characters
+            || self.ui.as_ref().is_some_and(|ui| ui.owns_pointer());
+        if self.focusable != Some(focusable) {
+            if let Some(x11) = &self.x11_input {
+                if let Err(e) = x11.set_focusable(focusable) {
+                    tracing::debug!("WM_HINTS: {e}");
+                }
+            }
+            for slot in self.extra_windows.values() {
+                if let Some(mgr) = &slot.x11_input {
+                    let _ = mgr.set_focusable(focusable);
+                }
+            }
+            self.focusable = Some(focusable);
+        }
+        let tapping = self.config.global.tap_characters
+            && !self.edit_mode
+            && !self.overlay_hidden
+            && !self.stepped_aside.hidden;
+        if !tapping {
+            // Taps just went off: the plain shapes again.
+            let any = !self.tap_rects.is_empty()
+                || self.extra_windows.values().any(|s| !s.tap_rects.is_empty());
+            if any {
+                self.tap_rects.clear();
+                for slot in self.extra_windows.values_mut() {
+                    slot.tap_rects.clear();
+                }
+                self.reapply_input_shape();
+                self.reapply_extra_input_shapes();
+            }
+            return;
+        }
+        if self.tap_refreshed.elapsed() < crate::tap::REFRESH {
+            return;
+        }
+        self.tap_refreshed = std::time::Instant::now();
+        let size = self
+            .window
+            .as_ref()
+            .map(|w| {
+                let s = w.inner_size();
+                (s.width, s.height)
+            })
+            .unwrap_or((0, 0));
+        let rects = crate::tap::rects(&self.scene, self.primary_origin(), size);
+        if rects != self.tap_rects {
+            self.tap_rects = rects;
+            self.reapply_input_shape();
+        }
+        let mut extras_changed = false;
+        for slot in self.extra_windows.values_mut() {
+            let s = slot.window.inner_size();
+            let rects = crate::tap::rects(
+                &self.scene,
+                (slot.monitor.x as f32, slot.monitor.y as f32),
+                (s.width, s.height),
+            );
+            if rects != slot.tap_rects {
+                slot.tap_rects = rects;
+                extras_changed = true;
+            }
+        }
+        if extras_changed {
+            self.reapply_extra_input_shapes();
+        }
+    }
+
     pub(super) fn handle_mouse_input(&mut self, state: ElementState, button: MouseButton) {
         tracing::debug!(
             "MouseInput: {:?} {:?} at ({:.0}, {:.0}) edit_mode={}",
@@ -60,10 +152,27 @@ impl App {
 
         // Toggle ⚙ button click is handled by egui (consumed at the
         // top of window_event) → if we got here in pass-through, the
-        // click was on a transparent area we don't care about.
-
-        // Edit mode: handle entity selection, drag, and right-click context menu.
+        // click was on a character taking taps (`crate::tap`), or on a
+        // transparent area we don't care about.
         if !self.edit_mode {
+            if self.config.global.tap_characters && button == MouseButton::Left {
+                match state {
+                    ElementState::Pressed => {
+                        self.tap_gesture
+                            .press(&self.scene, self.mouse_x, self.mouse_y);
+                    }
+                    ElementState::Released => {
+                        if let Some(idx) =
+                            self.tap_gesture
+                                .release(&self.scene, self.mouse_x, self.mouse_y)
+                        {
+                            let bounds = self.poke_bounds();
+                            crate::tap::poke(&mut self.scene, idx, self.mouse_x, bounds);
+                            self.request_redraw_all();
+                        }
+                    }
+                }
+            }
             return;
         }
 
@@ -174,27 +283,12 @@ impl App {
                 // shove a mascot off the region it's allowed to occupy —
                 // and, on a multi-monitor desktop, doesn't clamp one that
                 // lives on a secondary monitor back onto the primary.
-                let fallback = self
-                    .window
-                    .as_ref()
-                    .map(|w| {
-                        let s = w.inner_size();
-                        (s.width as f32, s.height as f32)
-                    })
-                    .unwrap_or((1920.0, 1080.0));
-                let poke_bounds = crate::monitor::covered_bounds(
-                    &crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors),
-                    fallback,
-                );
+                let poke_bounds = self.poke_bounds();
                 // Drop the freeze. Physics remains whatever the user set —
                 // off by default (entity stays put), on if they pressed G.
                 if tapped {
-                    if let Some(entity) = self
-                        .drag
-                        .dragging_entity()
-                        .and_then(|idx| self.scene.entities.get_mut(idx))
-                    {
-                        entity.poke(self.mouse_x, poke_bounds);
+                    if let Some(idx) = self.drag.dragging_entity() {
+                        crate::tap::poke(&mut self.scene, idx, self.mouse_x, poke_bounds);
                     }
                 }
                 // Thrown: the flight is play, as a poke's hop is — the
