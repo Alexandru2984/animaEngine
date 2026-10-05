@@ -40,6 +40,7 @@ pub mod pacing;
 pub mod perf;
 pub mod phrases;
 pub mod physics;
+pub mod placeholders;
 pub mod platforms;
 #[cfg(unix)]
 pub mod portal;

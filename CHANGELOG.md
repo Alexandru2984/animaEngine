@@ -76,6 +76,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Placeholders in lines.** `{time}`, `{day}`, `{date}` and `{name}` in
+  a character's lines, in reminders and in a script's `say` are filled in
+  when it is said — "It's {time}, tea time!" — the day and date in your
+  language, the name the speaker's.
 - **Welcome back.** After a while away from the computer, the character
   in front greets you as you return — "Good morning!" when you come back
   in the morning after the night. Not at bedtime, nor while the

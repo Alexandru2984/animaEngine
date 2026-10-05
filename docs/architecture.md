@@ -482,7 +482,11 @@ says one (`Entity::say_a_phrase`, never the last one again), and
 pace changes, skipped while it is mid-sentence). Only a running scene
 ticks that far, so nobody speaks while paused or asleep;
 `Scene::take_spoke` tells the loops to draw the frame. The Inspector
-edits them as a text box, one line each.
+edits them as a text box, one line each. Whatever a character says goes
+through `placeholders::fill_now` in `Entity::say` and `say_a_phrase`:
+`{time}`, `{day}`, `{date}` and `{name}`, from `schedule::local_now`
+(which reads the day and month too) and the locale's weekday and month
+names and `placeholder-date` pattern.
 
 A tap sound (`talk.sound`, `src/sounds.rs`) is a path into the asset
 library, tidied with the lines. A poke sets the entity's `sound_wanted`,

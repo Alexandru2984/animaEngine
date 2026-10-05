@@ -385,6 +385,15 @@ fn talk_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool 
             .desired_width(f32::INFINITY),
     );
     crate::ui::accessible::name_text_field(&field, &t("inspector-section-talk"));
+    // {time}, {day}, {date}, {name} (`crate::placeholders`).
+    ui.add(
+        egui::Label::new(
+            egui::RichText::new(crate::placeholders::hint())
+                .text_style(theme::caption())
+                .weak(),
+        )
+        .wrap(),
+    );
     if field.changed() {
         let phrases = tidied(&text);
         if phrases != entity.talk.phrases {

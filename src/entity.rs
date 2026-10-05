@@ -130,7 +130,9 @@ impl Entity {
     /// Say `text` for `seconds` (`crate::speech`): a bubble over the
     /// character, replacing what it was saying.
     pub fn say(&mut self, text: &str, seconds: f32) {
-        if let Some(speech) = crate::speech::Speech::new(text, seconds, std::time::Instant::now()) {
+        let text = crate::placeholders::fill_now(text, &self.name);
+        if let Some(speech) = crate::speech::Speech::new(&text, seconds, std::time::Instant::now())
+        {
             self.speech = Some(speech);
         }
     }
@@ -200,8 +202,8 @@ impl Entity {
             return false;
         };
         self.chatter.last = Some(i);
-        self.speech =
-            crate::speech::Speech::new(&self.talk.phrases[i], crate::phrases::SAY_SECONDS, now);
+        let text = crate::placeholders::fill_now(&self.talk.phrases[i], &self.name);
+        self.speech = crate::speech::Speech::new(&text, crate::phrases::SAY_SECONDS, now);
         self.speech.is_some()
     }
 

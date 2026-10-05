@@ -242,7 +242,10 @@ sound = "sounds/meow.ogg"   # played on a tap: .ogg, .wav, .flac or
 ```
 
 The Inspector's "Says" section writes all three. A shared scene keeps
-the lines and leaves the sound behind.
+the lines and leaves the sound behind. In a line — and in a reminder's
+`text` — `{time}`, `{day}`, `{date}` and `{name}` are filled in when it
+is said (`{time}` as HH:MM, the day and date in the app's language,
+`{name}` the speaker's); anything else in braces stays as written.
 
 ### Its own hours
 

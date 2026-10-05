@@ -409,6 +409,15 @@ fn reminders_section(
             .desired_width(f32::INFINITY),
     );
     crate::ui::accessible::name_text_field(&field, &t("scene-reminder-text-hint"));
+    // {time}, {day}, {date}, {name} (`crate::placeholders`).
+    ui.add(
+        egui::Label::new(
+            egui::RichText::new(crate::placeholders::hint())
+                .text_style(theme::caption())
+                .weak(),
+        )
+        .wrap(),
+    );
     let mut add = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
     ui.horizontal(|ui| {
         let label = ui.label(t("scene-reminder-minutes"));

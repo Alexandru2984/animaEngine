@@ -80,12 +80,14 @@ pub fn format_hhmm(minute: u32) -> String {
     format!("{:02}:{:02}", (minute / 60) % 24, minute % 60)
 }
 
-/// A moment of local time: the day of the week (0 = Sunday) and the
-/// minute of that day.
+/// A moment of local time: the day of the week (0 = Sunday), the minute
+/// of that day, and the date's day (1–31) and month (1–12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalTime {
     pub weekday: u8,
     pub minute: u32,
+    pub day: u8,
+    pub month: u8,
 }
 
 /// Local time now, from the system's own time zone.
@@ -105,6 +107,8 @@ pub fn local_now() -> Option<LocalTime> {
         ok.then(|| LocalTime {
             weekday: tm.tm_wday.clamp(0, 6) as u8,
             minute: (tm.tm_hour.clamp(0, 23) * 60 + tm.tm_min.clamp(0, 59)) as u32,
+            day: tm.tm_mday.clamp(1, 31) as u8,
+            month: (tm.tm_mon.clamp(0, 11) + 1) as u8,
         })
     }
     #[cfg(windows)]
@@ -116,6 +120,8 @@ pub fn local_now() -> Option<LocalTime> {
         Some(LocalTime {
             weekday: (st.wDayOfWeek % 7) as u8,
             minute: u32::from(st.wHour.min(23)) * 60 + u32::from(st.wMinute.min(59)),
+            day: st.wDay.clamp(1, 31) as u8,
+            month: st.wMonth.clamp(1, 12) as u8,
         })
     }
     #[cfg(not(any(unix, windows)))]
@@ -205,6 +211,8 @@ mod tests {
         LocalTime {
             weekday,
             minute: parse_hhmm(hhmm).unwrap(),
+            day: 1,
+            month: 1,
         }
     }
 
