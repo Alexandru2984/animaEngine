@@ -455,7 +455,11 @@ impl Entity {
         }
         // In a game of tag, the game moves it (`crate::tag`).
         let gaming = self.game_move.is_some();
-        if let Some(game) = self.game_move.filter(|_| !self.physics.thrown && !still) {
+        // Not while the user holds it.
+        if let Some(game) = self
+            .game_move
+            .filter(|_| !self.physics.thrown && !still && !self.dragging)
+        {
             game.apply(
                 &mut self.x,
                 &mut self.y,

@@ -132,6 +132,11 @@ pub(crate) fn step(scene: &mut Scene, now: Instant) {
         if speaking(scene, a, now) || speaking(scene, b, now) {
             continue;
         }
+        // Two playing tag meet at every catch: that is the game, not a
+        // meeting (`crate::tag`).
+        if scene.entities[a].game_move.is_some() && scene.entities[b].game_move.is_some() {
+            continue;
+        }
         tracing::debug!(
             "{} and {} meet",
             scene.entities[a].name,
@@ -241,6 +246,24 @@ mod tests {
         scene.tick(bounds, None, None);
         assert_ne!(scene.entities[0].x, x, "walking again");
         assert!(scene.entities[0].still_until.is_none());
+    }
+
+    #[test]
+    fn players_of_tag_do_not_stop_to_greet() {
+        let mut scene = scene_at(&[("a", 100.0), ("b", 600.0)]);
+        let t0 = Instant::now();
+        step(&mut scene, t0);
+        let game = crate::tag::Move {
+            point: (0.0, 0.0),
+            away: false,
+            speed: 1.0,
+        };
+        for e in &mut scene.entities {
+            e.game_move = Some(game);
+        }
+        scene.entities[1].x = 100.0 + scene.entities[0].scaled_width();
+        step(&mut scene, t0 + Duration::from_millis(100));
+        assert!(!said(&scene, "a") && !said(&scene, "b"));
     }
 
     #[test]
