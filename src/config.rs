@@ -277,6 +277,9 @@ pub struct CharacterConfig {
     /// it says nothing.
     #[serde(default, skip_serializing_if = "Talk::is_empty")]
     pub talk: Talk,
+    /// When it is there (`crate::hours`): absent for all day.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hours: Option<crate::hours::Hours>,
 }
 
 /// A character's own lines (`crate::phrases`): one said when it is poked,
@@ -375,6 +378,9 @@ impl CharacterConfig {
         // every tick, so they need the same coercion as the scalars above.
         self.behavior.sanitize();
         crate::phrases::tidy(&mut self.talk);
+        if let Some(hours) = self.hours.as_mut() {
+            hours.sanitize();
+        }
     }
 }
 
@@ -541,6 +547,7 @@ impl Default for AppConfig {
                     easing: None,
                     animations: std::collections::BTreeMap::new(),
                     talk: Default::default(),
+                    hours: None,
                 },
                 CharacterConfig {
                     id: "slime".to_string(),
@@ -563,6 +570,7 @@ impl Default for AppConfig {
                     easing: None,
                     animations: std::collections::BTreeMap::new(),
                     talk: Default::default(),
+                    hours: None,
                 },
                 CharacterConfig {
                     id: "heart".to_string(),
@@ -585,6 +593,7 @@ impl Default for AppConfig {
                     easing: None,
                     animations: std::collections::BTreeMap::new(),
                     talk: Default::default(),
+                    hours: None,
                 },
                 CharacterConfig {
                     id: "star".to_string(),
@@ -607,6 +616,7 @@ impl Default for AppConfig {
                     easing: None,
                     animations: std::collections::BTreeMap::new(),
                     talk: Default::default(),
+                    hours: None,
                 },
                 CharacterConfig {
                     id: "cat".to_string(),
@@ -629,6 +639,7 @@ impl Default for AppConfig {
                     easing: None,
                     animations: std::collections::BTreeMap::new(),
                     talk: Default::default(),
+                    hours: None,
                 },
             ],
             // 0.3 fresh installs use the legacy single-window shape;
@@ -1125,6 +1136,7 @@ mod windows_tests {
             easing: None,
             animations: std::collections::BTreeMap::new(),
             talk: Default::default(),
+            hours: None,
         }
     }
 

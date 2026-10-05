@@ -76,6 +76,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Characters with their own hours.** "Only at certain hours" in the
+  Inspector keeps a character off the screen outside the hours you give
+  it — the ghost from 22:00 to 06:00, the sun the other way round. Edit
+  mode shows everyone, so all can still be edited.
 - **Save a character as a GIF.** "Save as GIF…" on the right-click
   menu writes its animation as it plays — at its size on screen, up to
   400 pixels a side, facing the way it faces — as a GIF that loops

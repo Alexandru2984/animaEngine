@@ -237,6 +237,7 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, S
         easing: None,
         animations,
         talk: Default::default(),
+        hours: None,
     });
 
     Ok(report)

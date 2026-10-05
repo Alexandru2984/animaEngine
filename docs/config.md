@@ -241,6 +241,17 @@ sound = "sounds/meow.ogg"   # played on a tap: .ogg, .wav, .flac or
 The Inspector's "Says" section writes all three. A shared scene keeps
 the lines and leaves the sound behind.
 
+### Its own hours
+
+```toml
+[characters.hours]          # on screen only from … to, local time;
+from = "22:00"              # may run past midnight. Omit for all day.
+to = "06:00"
+```
+
+Times that do not read, or the same time twice, mean all day. Edit mode
+shows everyone whatever their hours.
+
 ### Asset types
 
 | `asset_type` value | What it expects |

@@ -107,6 +107,7 @@ mod tests {
             easing: None,
             animations: std::collections::BTreeMap::new(),
             talk: Default::default(),
+            hours: None,
         };
         let frames = (0..frames)
             .map(|_| crate::animation::frame::Frame::new(vec![0u8; 4], 1, 1))

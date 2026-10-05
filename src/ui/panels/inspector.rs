@@ -283,6 +283,9 @@ fn entity_inspector(
             } else if opacity_resp.changed() {
                 change.any_field = true;
             }
+            if hours_controls(ui, entity) {
+                change.any_field = true;
+            }
         },
     );
 
@@ -495,6 +498,30 @@ fn sound_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
             )
             .wrap(),
         );
+    }
+    changed
+}
+
+/// Its own hours (`crate::hours`): a switch, and from when to when.
+/// Returns whether they changed.
+fn hours_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool {
+    let mut on = entity.hours.is_some();
+    let mut changed = false;
+    if ui
+        .checkbox(&mut on, t("inspector-hours-label"))
+        .on_hover_text(t("inspector-hours-hint"))
+        .changed()
+    {
+        entity.hours = on.then(crate::hours::Hours::default);
+        changed = true;
+    }
+    if let Some(hours) = entity.hours.as_mut() {
+        ui.horizontal(|ui| {
+            changed |=
+                super::appearance::hhmm_field(ui, &mut hours.from, &t("inspector-hours-from"));
+            ui.add_space(SPACE_XS);
+            changed |= super::appearance::hhmm_field(ui, &mut hours.to, &t("inspector-hours-to"));
+        });
     }
     changed
 }

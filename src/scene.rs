@@ -407,6 +407,25 @@ impl Scene {
         }
     }
 
+    /// Who is outside their own hours (`crate::hours`) at `minute` of the
+    /// day; `None` — in edit mode, or with no clock to read — leaves
+    /// everyone there. Cheap, called per frame. Returns whether anyone came
+    /// or went.
+    pub fn set_clock(&mut self, minute: Option<u32>) -> bool {
+        let mut changed = false;
+        for entity in &mut self.entities {
+            let off = minute.is_some_and(|m| entity.hours.as_ref().is_some_and(|h| !h.contains(m)));
+            if entity.off_hours != off {
+                entity.off_hours = off;
+                changed = true;
+            }
+        }
+        if changed {
+            self.mark_visible_dirty();
+        }
+        changed
+    }
+
     /// Whether those who meet say hello (`crate::greet`). Cheap, called per
     /// frame; switching it off forgets who was near whom.
     pub fn set_greet(&mut self, enabled: bool) {
@@ -676,7 +695,7 @@ impl Scene {
     /// by the user doesn't catch clicks either.
     pub(crate) fn effective_visible(&self, idx: usize) -> bool {
         let entity = &self.entities[idx];
-        if !entity.visible {
+        if !entity.visible || entity.off_hours {
             return false;
         }
         if self.groups.is_empty() {
@@ -827,6 +846,7 @@ impl Scene {
             easing: None,
             animations: std::collections::BTreeMap::new(),
             talk: Default::default(),
+            hours: None,
         };
 
         // Load frames and resize to overlay-friendly dimensions
@@ -1073,6 +1093,7 @@ mod tests {
             easing: None,
             animations: std::collections::BTreeMap::new(),
             talk: Default::default(),
+            hours: None,
         };
         Entity::from_config(&cfg, anim)
     }

@@ -184,6 +184,7 @@ pub fn run_native(
     let mut pending_transfer: Option<crate::outcomes::SceneTransfer> = None;
     // Bedtime against the clock (`crate::bedtime`).
     let mut bedtime_watch = crate::bedtime::Watch::default();
+    let mut hours_clock = crate::hours::Clock::default();
     // Tapping in pass-through (`crate::tap`): when the input region last
     // followed the characters, and a press waiting for its release.
     let mut tap_refreshed = Instant::now();
@@ -534,6 +535,16 @@ pub fn run_native(
         crate::away::configure(idle_watch, global.pause_on_battery);
         // Bedtime by the clock (`crate::bedtime`) — not while editing.
         let bedtime_now = !layer.state.edit_mode && bedtime_watch.now(&global.bedtime);
+        // Characters with hours of their own (`crate::hours`) — everyone
+        // while editing.
+        let minute = if layer.state.edit_mode {
+            None
+        } else {
+            hours_clock.minute()
+        };
+        if scene.set_clock(minute) {
+            activity = true;
+        }
         let still = crate::away::stillness(
             global.pause_when_idle_minutes,
             layer.is_idle(),

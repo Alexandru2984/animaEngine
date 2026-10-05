@@ -360,6 +360,7 @@ mod tests {
                 easing: None,
                 animations: std::collections::BTreeMap::new(),
                 talk: Default::default(),
+                hours: None,
             })
             .collect();
         scene.restore_configs(&configs);

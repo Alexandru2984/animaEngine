@@ -150,6 +150,7 @@ fn demo_character(
         easing: None,
         animations: std::collections::BTreeMap::new(),
         talk: Default::default(),
+        hours: None,
     }
 }
 

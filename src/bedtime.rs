@@ -47,21 +47,7 @@ impl Bedtime {
     /// Off, or with a time that does not read, never; from 23:00 to 23:00
     /// is no time at all.
     pub fn asleep_at(&self, minute: u32) -> bool {
-        if !self.enabled {
-            return false;
-        }
-        let (Some(from), Some(to)) = (
-            crate::schedule::parse_hhmm(&self.from),
-            crate::schedule::parse_hhmm(&self.to),
-        ) else {
-            return false;
-        };
-        let minute = minute % (24 * 60);
-        if from <= to {
-            (from..to).contains(&minute)
-        } else {
-            minute >= from || minute < to
-        }
+        self.enabled && crate::hours::within(&self.from, &self.to, minute).unwrap_or(false)
     }
 }
 

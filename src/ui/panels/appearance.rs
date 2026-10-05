@@ -405,7 +405,7 @@ fn bedtime_controls(ui: &mut egui::Ui, bedtime: &mut crate::bedtime::Bedtime) ->
 
 /// An "HH:MM" as two drag values, labelled `label`. Returns whether it
 /// changed.
-fn hhmm_field(ui: &mut egui::Ui, text: &mut String, label: &str) -> bool {
+pub(super) fn hhmm_field(ui: &mut egui::Ui, text: &mut String, label: &str) -> bool {
     let minute = crate::schedule::parse_hhmm(text).unwrap_or(0);
     let (mut hour, mut min) = (minute / 60, minute % 60);
     let caption = ui.label(label);

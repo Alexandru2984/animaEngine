@@ -405,6 +405,17 @@ itself at `FRAME_INTERVAL`, presents with `Mailbox` where the driver has
 it (`WgpuRenderer::prefer_mailbox`). The X11 loop leans on `Fifo` for
 its pacing and keeps it; XWayland paces a hidden window on its own.
 
+### Own hours (`src/hours.rs`)
+
+A character's `hours` (config and entity) are a window of the day;
+`hours::within` is the window test bedtime uses too. The loops read the
+clock through an `hours::Clock` (every ten seconds) where they read
+bedtime, and hand `Scene::set_clock` the minute — `None` in edit mode —
+which sets each entity's runtime `off_hours` and marks the visibility
+cache dirty when anyone came or went. `Scene::effective_visible` counts
+`off_hours` as hidden, so drawing, hit tests, taps, bubbles, speakers
+and effects all leave such a character out without knowing why.
+
 ### Greetings (`src/greet.rs`)
 
 With `characters_greet` on, `Scene::tick` runs `greet::step` after the

@@ -145,6 +145,8 @@ pub struct App {
     stacked_on_top: Option<bool>,
     /// Bedtime against the clock (`crate::bedtime`), and whether it is.
     bedtime_watch: crate::bedtime::Watch,
+    /// The clock for characters' own hours (`crate::hours`).
+    hours_clock: crate::hours::Clock,
     bedtime_now: bool,
     /// An app the user chose is the window in front (`crate::chosen_apps`).
     chosen_app_in_front: bool,
@@ -344,6 +346,7 @@ impl App {
             stepped_aside: crate::fullscreen::StepAside::default(),
             stacked_on_top: None,
             bedtime_watch: Default::default(),
+            hours_clock: Default::default(),
             bedtime_now: false,
             chosen_app_in_front: false,
             tap_rects: Vec::new(),
@@ -691,6 +694,16 @@ impl App {
         crate::chosen_apps::configure(&self.config.global.step_aside_apps);
         // Bedtime by the clock (`crate::bedtime`) — not while editing.
         self.bedtime_now = !self.edit_mode && self.bedtime_watch.now(&self.config.global.bedtime);
+        // Characters with hours of their own (`crate::hours`) — everyone
+        // while editing.
+        let minute = if self.edit_mode {
+            None
+        } else {
+            self.hours_clock.minute()
+        };
+        if self.scene.set_clock(minute) {
+            self.request_redraw_all();
+        }
         // Away or on battery, if asked: held still too (`crate::away`).
         let global = &self.config.global;
         crate::away::configure(

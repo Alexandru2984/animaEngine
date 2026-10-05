@@ -83,6 +83,10 @@ pub struct Entity {
     pub speech: Option<crate::speech::Speech>,
     /// Its own lines, and how often it speaks up (`crate::phrases`).
     pub talk: crate::config::Talk,
+    /// When it is there (`crate::hours`); `None`, all day.
+    pub hours: Option<crate::hours::Hours>,
+    /// Outside its hours now: not shown (`Scene::set_clock`) — runtime-only.
+    pub off_hours: bool,
     /// What was last said and when to speak up next — runtime-only.
     pub chatter: Chatter,
     /// Its tap sound is to be played: the loop plays it
@@ -176,12 +180,14 @@ impl Entity {
             facing_left: false,
             speech: None,
             talk: config.talk.clone(),
+            hours: config.hours.clone(),
             chatter: Chatter {
                 rng: seed.rotate_left(17) | 1,
                 ..Chatter::default()
             },
             sound_wanted: false,
             still_until: None,
+            off_hours: false,
             leader: None,
         }
     }
@@ -647,9 +653,11 @@ impl Entity {
             facing_left: false,
             speech: None,
             talk: Default::default(),
+            hours: None,
             chatter: Chatter::default(),
             sound_wanted: false,
             still_until: None,
+            off_hours: false,
             leader: None,
         }
     }
@@ -677,6 +685,7 @@ impl Entity {
             easing: self.animation().easing,
             animations: self.state_configs.clone(),
             talk: self.talk.clone(),
+            hours: self.hours.clone(),
         }
     }
 
@@ -718,6 +727,7 @@ impl Entity {
         }
         self.behavior = config.behavior.clone();
         self.talk = config.talk.clone();
+        self.hours = config.hours.clone();
         // A bounce oscillates around where it started; moved, it starts
         // again from here — as after a nudge.
         self.behavior_state.bounce_invalidate();

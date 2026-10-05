@@ -30,6 +30,7 @@ pub mod gif_export;
 pub mod greet;
 pub mod group;
 pub mod hotkeys;
+pub mod hours;
 pub mod i18n;
 pub mod input;
 pub mod keybindings;
