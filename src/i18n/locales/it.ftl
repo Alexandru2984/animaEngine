@@ -222,6 +222,11 @@ scene-snap = Aggancia durante il trascinamento
 scene-snap-tooltip = Bordi e centri si agganciano a quelli degli schermi e degli altri personaggi. Tieni premuto Alt mentre trascini per posizionare liberamente.
 scene-bump = I personaggi si scontrano
 scene-bump-tooltip = Con la gravità attiva (G), i personaggi atterrano sulla testa degli altri; chi cammina torna indietro quando si incontrano.
+scene-greet = I personaggi si salutano quando si incontrano
+scene-greet-tooltip = Due che si avvicinano — camminando, seguendosi, atterrando l’uno sull’altro — si fermano un attimo e si salutano, con un cuore. Non troppo spesso.
+greet-hi = Ciao!
+greet-hello = Salve!
+greet-hey = Ehi!
 
 action-cycle-entity = Passa al personaggio successivo
 action-delete-selected = Elimina il personaggio selezionato

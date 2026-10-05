@@ -212,8 +212,10 @@ impl Scene {
         self.restore_configs(&saved.characters);
         self.groups = saved.groups.clone();
         self.mark_visible_dirty();
-        // Hearts go with a character by id, and another scene's may share it.
+        // Hearts go with a character by id, and another scene's may share
+        // it; and who was near whom is another scene's story.
         self.effects.clear();
+        self.greetings.reset();
     }
 }
 

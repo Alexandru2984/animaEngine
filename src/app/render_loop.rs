@@ -173,6 +173,7 @@ impl App {
             self.scene
                 .set_hover_startle(self.config.global.hover_startle);
             self.scene.set_bump(self.config.global.characters_bump);
+            self.scene.set_greet(self.config.global.characters_greet);
             self.scene
                 .set_little_effects(self.config.global.little_effects);
             // Bounds are the desktop region our windows actually cover,
@@ -439,6 +440,7 @@ impl App {
                         let window_awareness_mut = &mut self.config.global.window_awareness;
                         let snap_mut = &mut self.config.global.snap_while_dragging;
                         let bump_mut = &mut self.config.global.characters_bump;
+                        let greet_mut = &mut self.config.global.characters_greet;
                         let active_scene_mut = &mut self.config.global.active_scene;
                         let reminders_mut = &mut self.config.reminders;
                         let focus_mut = &mut self.config.global.focus;
@@ -534,6 +536,7 @@ impl App {
                                     true,
                                     snap_mut,
                                     bump_mut,
+                                    greet_mut,
                                     active_scene_mut,
                                     reminders_mut,
                                     scene_schedule_mut,

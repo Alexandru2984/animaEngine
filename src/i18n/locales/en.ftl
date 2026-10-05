@@ -232,6 +232,11 @@ scene-snap = Snap while dragging
 scene-snap-tooltip = Edges and centres snap to the monitors’ and to other characters’. Hold Alt while dragging to place freely.
 scene-bump = Characters bump into each other
 scene-bump-tooltip = With gravity on (G), characters land on each other’s heads; walkers turn around when they meet.
+scene-greet = Characters say hello when they meet
+scene-greet-tooltip = Two who come together — walking, following, landing on one another — stand still a moment and greet each other, with a heart. Not too often.
+greet-hi = Hi!
+greet-hello = Hello!
+greet-hey = Hey there!
 
 action-cycle-entity = Cycle to next entity
 action-delete-selected = Delete selected entity

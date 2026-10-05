@@ -94,6 +94,8 @@ active_scene = "Work"       # the saved scene last loaded or saved;
                             # files in scenes/ beside this one (below).
 characters_bump = false     # characters land on each other's heads
                             # and walkers turn around when they meet
+characters_greet = false    # characters who meet stand still a moment
+                            # and say hello, with a heart
 snap_while_dragging = true  # a dragged selection snaps to monitor
                             # edges and other characters; hold Alt
                             # while dragging to place freely.

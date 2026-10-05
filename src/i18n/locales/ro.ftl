@@ -222,6 +222,11 @@ scene-snap = Lipește la tragere
 scene-snap-tooltip = Marginile și centrele se lipesc de ale ecranelor și ale altor personaje. Ține Alt apăsat în timpul tragerii ca să le plasezi liber.
 scene-bump = Personajele se ciocnesc între ele
 scene-bump-tooltip = Cu gravitația pornită (G), personajele aterizează pe capul altora; cele care merg se întorc când se întâlnesc.
+scene-greet = Personajele se salută când se întâlnesc
+scene-greet-tooltip = Doi care ajung unul lângă altul — mergând, urmărindu-se, aterizând unul pe altul — se opresc o clipă și se salută, cu o inimioară. Nu prea des.
+greet-hi = Salut!
+greet-hello = Bună!
+greet-hey = Hei!
 
 action-cycle-entity = Treci la următoarea entitate
 action-delete-selected = Șterge entitatea selectată

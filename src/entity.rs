@@ -88,10 +88,16 @@ pub struct Entity {
     /// Its tap sound is to be played: the loop plays it
     /// (`Scene::take_sounds`) — runtime-only.
     pub sound_wanted: bool,
+    /// Standing still until then, whatever its behavior — greeting
+    /// someone (`crate::greet`). Runtime-only.
+    pub still_until: Option<Instant>,
     /// The middle of the character it follows, as the scene found it
     /// this tick (`Behavior::FollowCharacter`) — runtime-only.
     pub leader: Option<(f32, f32)>,
 }
+
+/// How long a greeting stays up (`Entity::greet`).
+const GREET_SECONDS: f32 = 3.5;
 
 /// Where a character is with its lines (`crate::phrases`).
 #[derive(Debug, Clone, Default)]
@@ -106,7 +112,7 @@ pub struct Chatter {
 
 impl Chatter {
     /// A number in `0.0..1.0` — xorshift64, as the behaviors use.
-    fn roll(&mut self) -> f32 {
+    pub(crate) fn roll(&mut self) -> f32 {
         let mut x = self.rng.max(1);
         x ^= x << 13;
         x ^= x >> 7;
@@ -175,6 +181,7 @@ impl Entity {
                 ..Chatter::default()
             },
             sound_wanted: false,
+            still_until: None,
             leader: None,
         }
     }
@@ -190,6 +197,22 @@ impl Entity {
         self.speech =
             crate::speech::Speech::new(&self.talk.phrases[i], crate::phrases::SAY_SECONDS, now);
         self.speech.is_some()
+    }
+
+    /// Say hello to someone it met (`crate::greet`): one of its own lines
+    /// if it has any, or a plain greeting — not `heard`, what the other
+    /// just said. Returns what it said.
+    pub fn greet(&mut self, now: Instant, heard: Option<&str>) -> Option<String> {
+        if self.say_a_phrase(now) {
+            return self.speech.as_ref().map(|s| s.text.clone());
+        }
+        const HELLOS: [&str; 3] = ["greet-hi", "greet-hello", "greet-hey"];
+        let mut i = ((self.chatter.roll() * HELLOS.len() as f32) as usize).min(HELLOS.len() - 1);
+        if heard == Some(crate::i18n::t(HELLOS[i]).as_str()) {
+            i = (i + 1) % HELLOS.len();
+        }
+        self.speech = crate::speech::Speech::new(&crate::i18n::t(HELLOS[i]), GREET_SECONDS, now);
+        self.speech.as_ref().map(|s| s.text.clone())
     }
 
     /// Speak up if its time has come — about every `talk.every_minutes`
@@ -393,7 +416,11 @@ impl Entity {
         // Behavior — autonomous motion (can affect both X and Y). Not
         // while thrown: nobody walks mid-air.
         let x_before = self.x;
-        if !self.physics.thrown && !self.tick_script(&ctx, scripts) {
+        let still = self.still_until.is_some_and(|until| Instant::now() < until);
+        if !still {
+            self.still_until = None;
+        }
+        if !self.physics.thrown && !still && !self.tick_script(&ctx, scripts) {
             self.behavior
                 .tick(&mut self.behavior_state, &mut self.x, &mut self.y, &ctx);
         }
@@ -622,6 +649,7 @@ impl Entity {
             talk: Default::default(),
             chatter: Chatter::default(),
             sound_wanted: false,
+            still_until: None,
             leader: None,
         }
     }

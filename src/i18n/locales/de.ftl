@@ -222,6 +222,11 @@ scene-snap = Beim Ziehen einrasten
 scene-snap-tooltip = Kanten und Mitten rasten an denen der Bildschirme und anderer Figuren ein. Beim Ziehen Alt halten, um frei zu platzieren.
 scene-bump = Figuren stoßen aneinander
 scene-bump-tooltip = Mit Schwerkraft (G) landen Figuren auf den Köpfen anderer; laufende Figuren kehren um, wenn sie sich treffen.
+scene-greet = Figuren grüßen sich, wenn sie sich treffen
+scene-greet-tooltip = Zwei, die zusammenkommen — beim Laufen, beim Folgen, wenn eine auf der anderen landet —, bleiben kurz stehen und grüßen sich, mit einem Herz. Nicht zu oft.
+greet-hi = Hallo!
+greet-hello = Hi!
+greet-hey = Hey!
 
 action-cycle-entity = Zur nächsten Figur wechseln
 action-delete-selected = Ausgewählte Figur löschen

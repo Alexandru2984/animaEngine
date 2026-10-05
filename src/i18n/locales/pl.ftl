@@ -222,6 +222,11 @@ scene-snap = Przyciągaj podczas przeciągania
 scene-snap-tooltip = Krawędzie i środki przyciągają się do krawędzi i środków ekranów oraz innych postaci. Przytrzymaj Alt podczas przeciągania, by umieszczać swobodnie.
 scene-bump = Postacie zderzają się ze sobą
 scene-bump-tooltip = Przy włączonej grawitacji (G) postacie lądują sobie na głowach, a chodzące zawracają, gdy się spotkają.
+scene-greet = Postacie witają się, gdy się spotkają
+scene-greet-tooltip = Dwie, które się zbliżą — idąc, podążając za sobą, lądując jedna na drugiej — przystają na chwilę i witają się, z serduszkiem. Nie za często.
+greet-hi = Cześć!
+greet-hello = Hej!
+greet-hey = Dzień dobry!
 
 action-cycle-entity = Przejdź do następnej postaci
 action-delete-selected = Usuń zaznaczoną postać

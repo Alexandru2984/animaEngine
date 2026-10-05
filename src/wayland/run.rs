@@ -1457,6 +1457,7 @@ pub fn run_native(
         scene.set_reduced_motion(config.global.reduced_motion);
         scene.set_hover_startle(config.global.hover_startle);
         scene.set_bump(config.global.characters_bump);
+        scene.set_greet(config.global.characters_greet);
         scene.set_little_effects(config.global.little_effects);
         {
             let _s = perf_sampler.scope(crate::perf::Category::SceneUpdate);
@@ -1687,6 +1688,7 @@ pub fn run_native(
                 let window_awareness_mut = &mut config.global.window_awareness;
                 let snap_mut = &mut config.global.snap_while_dragging;
                 let bump_mut = &mut config.global.characters_bump;
+                let greet_mut = &mut config.global.characters_greet;
                 let active_scene_mut = &mut config.global.active_scene;
                 let reminders_mut = &mut config.reminders;
                 let focus_mut = &mut config.global.focus;
@@ -1772,6 +1774,7 @@ pub fn run_native(
                                 false,
                                 snap_mut,
                                 bump_mut,
+                                greet_mut,
                                 active_scene_mut,
                                 reminders_mut,
                                 scene_schedule_mut,

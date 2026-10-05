@@ -76,6 +76,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Greetings when they meet**, when switched on in the Scene tab (off
+  by default): two characters who come together — walking, following,
+  one landing on the other — stand still a moment and say hello, one
+  answering the other, with a heart between them. A character with
+  lines of its own says one of those. Each pair at most every couple of
+  minutes, and nobody talks over someone already talking.
 - **A focus timer.** Work for 25 minutes, and a character says it is
   time for a break; 5 minutes later, that it is time to get back to it;
   and round again until you stop it. Start and stop it from the tray,

@@ -405,6 +405,22 @@ itself at `FRAME_INTERVAL`, presents with `Mailbox` where the driver has
 it (`WgpuRenderer::prefer_mailbox`). The X11 loop leans on `Fifo` for
 its pacing and keeps it; XWayland paces a hidden window on its own.
 
+### Greetings (`src/greet.rs`)
+
+With `characters_greet` on, `Scene::tick` runs `greet::step` after the
+walkers turn: the pairs whose seen shapes (`Scene::seen_rect`, sides
+inset as bumping does) are within `greet::NEAR` of each other, by id,
+against last tick's — a pair that was not near and is now has met. The
+first set taken after a start, a scene switch or the setting coming on
+only primes it, so those already together say nothing. A meeting has
+the first say hello (`Entity::greet`: a line of its own, or one of three
+plain ones), queues the other's answer a moment later — not what it just
+heard — sets both entities' `still_until`, which skips their behavior
+step while it lasts, and puts a heart between them
+(`Scene::heart_between`). A pair waits `PAIR_EVERY`, the scene
+`ANY_EVERY`, and nobody who is talking is made to. Only a running scene
+ticks, so nobody greets while paused or asleep.
+
 ### Characters bumping into each other (`src/bump.rs`)
 
 Optional (`characters_bump`). Before the entities tick, each gets its

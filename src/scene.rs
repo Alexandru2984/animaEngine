@@ -62,6 +62,9 @@ pub struct Scene {
     pub effects: crate::effects::Effects,
     /// `little_effects`: whether there are any.
     little_effects: bool,
+    /// `characters_greet`: whether those who meet say hello (`crate::greet`).
+    greet: bool,
+    pub(crate) greetings: crate::greet::Greetings,
 }
 
 impl Scene {
@@ -146,6 +149,8 @@ impl Scene {
             landed: false,
             effects: crate::effects::Effects::default(),
             little_effects: config.global.little_effects,
+            greet: config.global.characters_greet,
+            greetings: crate::greet::Greetings::default(),
         }
     }
 
@@ -317,7 +322,7 @@ impl Scene {
     /// What can be seen of the character at `idx`: its drawn rectangle
     /// less the empty rows above its head and under its feet — where
     /// hearts and z's rise from and dust is raised.
-    fn seen_rect(&self, idx: usize) -> Option<crate::input::arrange::Rect> {
+    pub(crate) fn seen_rect(&self, idx: usize) -> Option<crate::input::arrange::Rect> {
         let (l, t, r, b) = crate::input::arrange::drawn_rect(self, idx)?;
         let e = &self.entities[idx];
         let (_, _, gscale) = crate::group::transform_for_member(&self.groups, &e.id);
@@ -388,6 +393,27 @@ impl Scene {
                 self.effects.zzz((r - (r - l) * 0.25, t), now);
             }
         }
+    }
+
+    /// A heart between the characters at `a` and `b`, over their heads —
+    /// they just met (`crate::greet`).
+    pub(crate) fn heart_between(&mut self, a: usize, b: usize) {
+        if !self.effects_on() {
+            return;
+        }
+        if let (Some(x), Some(y)) = (self.seen_rect(a), self.seen_rect(b)) {
+            let middle = ((x.0 + x.2 + y.0 + y.2) / 4.0, x.1.min(y.1));
+            self.effects.heart_at(middle, Instant::now());
+        }
+    }
+
+    /// Whether those who meet say hello (`crate::greet`). Cheap, called per
+    /// frame; switching it off forgets who was near whom.
+    pub fn set_greet(&mut self, enabled: bool) {
+        if self.greet && !enabled {
+            self.greetings.reset();
+        }
+        self.greet = enabled;
     }
 
     /// Whether characters land on and turn at each other (cheap, called
@@ -506,6 +532,9 @@ impl Scene {
 
         if self.bump {
             crate::bump::turn_walkers(self);
+        }
+        if self.greet {
+            crate::greet::step(self, now);
         }
 
         // Lines said about as often as each was asked to

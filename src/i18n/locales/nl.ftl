@@ -222,6 +222,11 @@ scene-snap = Magnetisch slepen
 scene-snap-tooltip = Randen en middens klikken vast aan die van de schermen en van andere figuren. Houd Alt ingedrukt tijdens het slepen om vrij te plaatsen.
 scene-bump = Figuren botsen tegen elkaar
 scene-bump-tooltip = Met zwaartekracht aan (G) landen figuren op elkaars hoofd; lopende figuren keren om als ze elkaar tegenkomen.
+scene-greet = Figuren groeten elkaar als ze elkaar tegenkomen
+scene-greet-tooltip = Twee die bij elkaar komen — lopend, volgend, of de een die op de ander landt — staan even stil en groeten elkaar, met een hartje. Niet te vaak.
+greet-hi = Hoi!
+greet-hello = Hallo!
+greet-hey = Hé daar!
 
 action-cycle-entity = Naar het volgende personage
 action-delete-selected = Geselecteerd personage verwijderen

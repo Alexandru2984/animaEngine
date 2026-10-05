@@ -30,6 +30,7 @@ pub(super) fn scene_tab(
     window_awareness_supported: bool,
     snap_while_dragging: &mut bool,
     characters_bump: &mut bool,
+    characters_greet: &mut bool,
     active_scene: &mut Option<String>,
     reminders: &mut Vec<crate::reminders::ReminderConfig>,
     scene_schedule: &mut Vec<crate::schedule::ScheduleRule>,
@@ -87,6 +88,14 @@ pub(super) fn scene_tab(
     if ui
         .checkbox(characters_bump, t("scene-bump"))
         .on_hover_text(t("scene-bump-tooltip"))
+        .changed()
+    {
+        *config_dirty = true;
+    }
+    // And saying hello when they meet (`crate::greet`).
+    if ui
+        .checkbox(characters_greet, t("scene-greet"))
+        .on_hover_text(t("scene-greet-tooltip"))
         .changed()
     {
         *config_dirty = true;

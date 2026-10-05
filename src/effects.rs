@@ -83,6 +83,19 @@ impl Effects {
         }
     }
 
+    /// One heart rising from `at`, staying where it began.
+    pub fn heart_at(&mut self, at: (f32, f32), now: Instant) {
+        self.add(Effect {
+            kind: Kind::Heart,
+            at,
+            with: None,
+            start: now,
+            life: Duration::from_millis(1300),
+            drift: 0.0,
+            strength: 1.1,
+        });
+    }
+
     /// A puff of dust either side of `feet`, the middle of a character's
     /// bottom edge, for a landing at `speed` pixels a second.
     pub fn dust(&mut self, feet: (f32, f32), speed: f32, now: Instant) {

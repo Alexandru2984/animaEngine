@@ -222,6 +222,11 @@ scene-snap = ドラッグ中にスナップ
 scene-snap-tooltip = 端と中心が画面や他のキャラクターの端と中心に吸着します。ドラッグ中に Alt を押すと自由に配置できます。
 scene-bump = キャラクター同士がぶつかる
 scene-bump-tooltip = 重力 (G) がオンのとき、キャラクターは他のキャラクターの頭に着地し、歩くキャラクターは出会うと向きを変えます。
+scene-greet = 出会ったキャラクター同士があいさつする
+scene-greet-tooltip = 歩いたり、ついて行ったり、上に着地したりして近づいた二人は、少し立ち止まってハートと一緒にあいさつします。頻度は控えめです。
+greet-hi = やあ！
+greet-hello = こんにちは！
+greet-hey = おっ、やあ！
 
 action-cycle-entity = 次のキャラクターへ
 action-delete-selected = 選択したキャラクターを削除

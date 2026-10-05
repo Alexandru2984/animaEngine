@@ -222,6 +222,11 @@ scene-snap = Magnétisme pendant le glissement
 scene-snap-tooltip = Les bords et les centres s’aimantent à ceux des écrans et des autres personnages. Maintenez Alt en glissant pour placer librement.
 scene-bump = Les personnages se heurtent
 scene-bump-tooltip = Avec la gravité (G), les personnages atterrissent sur la tête des autres ; ceux qui marchent font demi-tour en se croisant.
+scene-greet = Les personnages se saluent quand ils se croisent
+scene-greet-tooltip = Deux qui se rejoignent — en marchant, en se suivant, en atterrissant l’un sur l’autre — s’arrêtent un instant et se saluent, avec un cœur. Pas trop souvent.
+greet-hi = Salut !
+greet-hello = Bonjour !
+greet-hey = Coucou !
 
 action-cycle-entity = Passer au personnage suivant
 action-delete-selected = Supprimer le personnage sélectionné

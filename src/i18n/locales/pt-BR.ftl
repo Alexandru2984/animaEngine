@@ -222,6 +222,11 @@ scene-snap = Encaixar ao arrastar
 scene-snap-tooltip = Bordas e centros se encaixam nos das telas e de outros personagens. Segure Alt ao arrastar para posicionar livremente.
 scene-bump = Os personagens esbarram uns nos outros
 scene-bump-tooltip = Com a gravidade ligada (G), os personagens pousam na cabeça dos outros; os que andam dão meia-volta ao se encontrarem.
+scene-greet = Os personagens se cumprimentam quando se encontram
+scene-greet-tooltip = Dois que se aproximam — andando, seguindo, aterrissando um no outro — param um instante e se cumprimentam, com um coração. Não com muita frequência.
+greet-hi = Oi!
+greet-hello = Olá!
+greet-hey = E aí!
 
 action-cycle-entity = Ir para o próximo personagem
 action-delete-selected = Excluir o personagem selecionado
