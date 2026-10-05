@@ -72,3 +72,19 @@ pub fn paint(ctx: &egui::Context, bubbles: &[Shown], pixels_per_point: f32) {
         ctx.request_repaint_after(bubble.until.saturating_duration_since(now));
     }
 }
+
+/// Tell a screen reader the latest line a character said
+/// (`crate::announce`): a live label at the top of the panel's tree, under
+/// an id of its own for each line, so the bridge announces it when it
+/// first appears. Nothing with the bridge off.
+pub fn announce(ctx: &egui::Context) {
+    let Some((n, text)) = crate::announce::latest() else {
+        return;
+    };
+    ctx.accesskit_node_builder(egui::Id::new(("anima.spoken", n)), |node| {
+        // A label's name is its value, to the bridge.
+        node.set_role(egui::accesskit::Role::Label);
+        node.set_value(text);
+        node.set_live(egui::accesskit::Live::Polite);
+    });
+}

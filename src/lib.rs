@@ -2,6 +2,7 @@
 pub mod a11y;
 pub mod anim;
 pub mod animation;
+pub mod announce;
 pub mod app;
 pub mod asset_library;
 pub mod audio;

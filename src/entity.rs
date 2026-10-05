@@ -133,6 +133,7 @@ impl Entity {
         let text = crate::placeholders::fill_now(text, &self.name);
         if let Some(speech) = crate::speech::Speech::new(&text, seconds, std::time::Instant::now())
         {
+            crate::announce::said(&self.name, &speech.text);
             self.speech = Some(speech);
         }
     }
@@ -204,6 +205,9 @@ impl Entity {
         self.chatter.last = Some(i);
         let text = crate::placeholders::fill_now(&self.talk.phrases[i], &self.name);
         self.speech = crate::speech::Speech::new(&text, crate::phrases::SAY_SECONDS, now);
+        if let Some(speech) = &self.speech {
+            crate::announce::said(&self.name, &speech.text);
+        }
         self.speech.is_some()
     }
 
@@ -220,6 +224,9 @@ impl Entity {
             i = (i + 1) % HELLOS.len();
         }
         self.speech = crate::speech::Speech::new(&crate::i18n::t(HELLOS[i]), GREET_SECONDS, now);
+        if let Some(speech) = &self.speech {
+            crate::announce::said(&self.name, &speech.text);
+        }
         self.speech.as_ref().map(|s| s.text.clone())
     }
 

@@ -67,6 +67,17 @@ semantic meaning; surfacing them as widgets would only pollute the
 focus order. The accessible tree describes the *controls*, not the
 canvas.
 
+**What they say is read out (1.5).** A speech bubble is drawn, not a
+widget, yet it can carry what someone needs to hear: a reminder, the
+focus timer's break, a greeting. Every line a character starts saying —
+its own, a reminder, the focus timer, a welcome back, a greeting, a
+script's `say` — becomes a live label at the top of the tree, "Cat: Time
+for a break!", which the bridge announces (`object:announcement`, polite)
+the moment it appears ([src/announce.rs](../src/announce.rs),
+`ui::speech::announce`). Each line is a new node, so a reminder said
+again is read again. The Zzz… of a sleeping scene is not announced. With
+the setting off, or no reader listening, nothing is built.
+
 **Names.** The icons are private-use characters from an icon font, for
 which a reader has nothing to say. The bridge drops them from every
 name and value, so "+  Add file…" reads "Add file…", and hides what is

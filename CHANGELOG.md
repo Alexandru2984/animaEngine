@@ -76,6 +76,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Screen readers hear what the characters say.** Their lines,
+  reminders, the focus timer, greetings and a welcome back are announced
+  over AT-SPI as they are said, so Orca reads them out — politely, after
+  what it is saying. Only with a screen reader listening and the
+  accessibility tree switched on in Appearance.
 - **Share one character.** "Share character…" on the right-click menu
   writes a character as one `.animachar` file — its pictures, lines and
   behavior, never a script or a sound. Dropped on the overlay, pasted
