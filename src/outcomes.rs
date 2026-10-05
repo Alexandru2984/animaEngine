@@ -627,6 +627,14 @@ pub fn apply_palette_outcome(
             load_scene(&path, ctx, &mut config.global.active_scene);
             return;
         }
+        PaletteOutcome::Focus(start) => {
+            if start {
+                crate::focus::start(config.global.focus);
+            } else {
+                crate::focus::stop();
+            }
+            return;
+        }
         PaletteOutcome::ApplyPreset(id, mode) => {
             let preset = Preset::for_id(id);
             let existing = ctx.scene.to_character_configs();

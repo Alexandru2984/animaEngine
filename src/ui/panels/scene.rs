@@ -33,6 +33,7 @@ pub(super) fn scene_tab(
     active_scene: &mut Option<String>,
     reminders: &mut Vec<crate::reminders::ReminderConfig>,
     scene_schedule: &mut Vec<crate::schedule::ScheduleRule>,
+    focus: &mut crate::focus::FocusConfig,
     // Kept separate from window-awareness even though both are false on
     // the same backend today: they are different capabilities, and a
     // future backend could have one without the other.
@@ -162,6 +163,8 @@ pub(super) fn scene_tab(
     schedule_section(ui, scene_schedule, config_dirty);
     ui.add_space(SPACE_L);
     reminders_section(ui, scene, reminders, config_dirty);
+    ui.add_space(SPACE_L);
+    focus_section(ui, focus, config_dirty);
     if !is_empty {
         ui.add_space(SPACE_L);
         ui.separator();
@@ -189,6 +192,77 @@ struct Renaming {
 enum GroupAction {
     Select(String),
     Dissolve(String),
+}
+
+/// The focus timer (1.5, `crate::focus`): how long the work and the break
+/// last, where it is now, and a start or a stop.
+fn focus_section(
+    ui: &mut egui::Ui,
+    focus: &mut crate::focus::FocusConfig,
+    config_dirty: &mut bool,
+) {
+    ui.label(
+        egui::RichText::new(format!("{}  {}", icons::FOCUS, t("scene-focus-header")))
+            .text_style(h2()),
+    );
+    ui.add_space(SPACE_S);
+    ui.add(
+        egui::Label::new(
+            egui::RichText::new(t("scene-focus-hint"))
+                .text_style(theme::caption())
+                .weak(),
+        )
+        .wrap(),
+    );
+    ui.add_space(SPACE_S);
+    ui.horizontal(|ui| {
+        let work = ui.label(t("scene-focus-work"));
+        let changed_work = ui
+            .add(
+                egui::DragValue::new(&mut focus.minutes)
+                    .range(1..=180)
+                    .suffix(" min"),
+            )
+            .labelled_by(work.id)
+            .changed();
+        let rest = ui.label(t("scene-focus-break"));
+        let changed_rest = ui
+            .add(
+                egui::DragValue::new(&mut focus.break_minutes)
+                    .range(1..=60)
+                    .suffix(" min"),
+            )
+            .labelled_by(rest.id)
+            .changed();
+        if changed_work || changed_rest {
+            *config_dirty = true;
+        }
+    });
+    ui.add_space(SPACE_S);
+    match crate::focus::until_label() {
+        Some((phase, until)) => {
+            let mut args = fluent::FluentArgs::new();
+            args.set("until", until);
+            let key = match phase {
+                crate::focus::Phase::Work => "scene-focus-working",
+                crate::focus::Phase::Break => "scene-focus-on-break",
+            };
+            ui.horizontal(|ui| {
+                ui.label(crate::i18n::t_args(key, &args));
+                if ui.button(t("scene-focus-stop")).clicked() {
+                    crate::focus::stop();
+                }
+            });
+        }
+        None => {
+            if ui
+                .button(format!("{}  {}", icons::FOCUS, t("scene-focus-start")))
+                .clicked()
+            {
+                crate::focus::start(*focus);
+            }
+        }
+    }
 }
 
 /// The reminder being written below the list, kept between frames.

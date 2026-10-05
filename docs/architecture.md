@@ -375,6 +375,20 @@ never comes. The tray menu is `tray_menu::entries`, built on each
 showing; ksni's thread looks at the deadline every few seconds and
 asks for the menu again when it changed.
 
+### The focus timer (`src/focus.rs`)
+
+Work, break, work, … until stopped: one process-wide timer behind a
+mutex, started and stopped through `AnimaEvent::StartFocus` (the tray,
+D-Bus) and `StopFocus`, or directly by the palette and the Scene tab.
+Reading it moves it on: a part that is over gives way to the next from
+now — a machine that slept is not made to catch up — and leaves the news
+to say. The loops call `focus::say_news` next to `reminders::deliver`
+every frame: the frontmost visible character says it, and it waits
+while the overlay is out of sight or nobody is there. Reminders take
+the timer's part into account: during the work they cannot speak, and
+the break counts as being away, so their timers start over. The tray's
+block (`TrayItem::Focus`) shows until when, like the snooze's.
+
 ### Behind the windows (`always_on_top`)
 
 `always_on_top` off puts the overlay under other windows, on the

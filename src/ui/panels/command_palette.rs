@@ -28,6 +28,8 @@ pub enum PaletteOutcome {
     /// User picked a snooze (`crate::snooze`) — the way in on a desktop
     /// with no tray, GNOME's by default.
     Snooze(crate::snooze::SnoozeFor),
+    /// User started (`true`) or stopped the focus timer (`crate::focus`).
+    Focus(bool),
 }
 
 /// Height of the scrolling result list. With every action listed the
@@ -362,6 +364,22 @@ fn rows(query: &str, keybindings: &KeyBindings, has_selection: bool) -> Vec<Row>
                 outcome: PaletteOutcome::Snooze(what),
             });
         }
+    }
+    // The focus timer (`crate::focus`): a start, or a stop while it runs.
+    let focusing = crate::focus::phase().is_some();
+    let label = if focusing {
+        crate::i18n::t("palette-focus-stop")
+    } else {
+        crate::i18n::t("palette-focus-start")
+    };
+    if matches_filter(&label) || matches_filter("focus") || matches_filter("pomodoro") {
+        rows.push(Row {
+            icon: icons::FOCUS,
+            label,
+            hint: None,
+            hover: None,
+            outcome: PaletteOutcome::Focus(!focusing),
+        });
     }
     for scene in crate::scenes::shelf() {
         let mut args = fluent::FluentArgs::new();

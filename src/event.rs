@@ -47,6 +47,12 @@ pub enum AnimaEvent {
     Snooze(crate::snooze::SnoozeFor),
     /// Wake up from a snooze.
     Wake,
+    /// Start the focus timer (`crate::focus`): this many minutes of work,
+    /// or 0 for the length set in the Scene tab. The tray, D-Bus, the
+    /// palette.
+    StartFocus(u32),
+    /// Stop the focus timer.
+    StopFocus,
 }
 
 /// Where a background thread — the tray, the D-Bus service — sends its

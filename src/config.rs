@@ -107,6 +107,10 @@ pub struct GlobalConfig {
     #[serde(default, skip_serializing_if = "crate::bedtime::Bedtime::is_default")]
     pub bedtime: crate::bedtime::Bedtime,
 
+    /// How long the focus timer's work and break last (`crate::focus`).
+    #[serde(default, skip_serializing_if = "crate::focus::FocusConfig::is_default")]
+    pub focus: crate::focus::FocusConfig,
+
     /// Window-awareness: desktop windows become physics platforms —
     /// mascots land on and walk along window top edges. X11 sessions
     /// only (Wayland exposes no global window geometry); silently
@@ -179,6 +183,7 @@ impl Default for GlobalConfig {
             active_scene: None,
             start_at_login: false,
             bedtime: Default::default(),
+            focus: Default::default(),
             window_awareness: false,
             snap_while_dragging: true,
             characters_bump: false,

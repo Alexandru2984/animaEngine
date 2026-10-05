@@ -76,6 +76,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **A focus timer.** Work for 25 minutes, and a character says it is
+  time for a break; 5 minutes later, that it is time to get back to it;
+  and round again until you stop it. Start and stop it from the tray,
+  the command palette or the Scene tab, which sets the lengths, or over
+  D-Bus (`StartFocus(minutes)`, `StopFocus`). Reminders wait while you
+  work, and the break counts as a break for them. A line that comes
+  while the characters are out of sight waits for them.
 - **Scene pictures.** Each saved scene in the Scene tab shows a small
   picture of its characters, taken when it is saved, so "Work" and
   "Evening" can be told apart at a glance. It goes along when the scene

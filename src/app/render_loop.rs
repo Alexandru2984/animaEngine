@@ -266,17 +266,23 @@ impl App {
         }
         // Reminders due now (`crate::reminders`), said by any character:
         // every monitor draws its bubbles.
+        // While the focus timer runs (`crate::focus`), reminders wait out
+        // the work, and its break counts as a break.
+        let focus = crate::focus::phase();
+        let shown = !self.overlay_hidden && !self.stepped_aside.hidden;
         let reminded = crate::reminders::deliver(
             &mut self.reminder_timers,
             &self.config.reminders,
             &mut self.scene,
-            !self.overlay_hidden && !self.stepped_aside.hidden,
+            shown && focus != Some(crate::focus::Phase::Work),
             // Watched for reminders even with pausing off; the night
             // counts as a break too.
-            self.away || self.bedtime_now,
+            self.away || self.bedtime_now || focus == Some(crate::focus::Phase::Break),
             |_| true,
         );
-        if reminded {
+        // Each turn of the timer, said once it can be seen.
+        let focus_said = crate::focus::say_news(&mut self.scene, shown, |_| true);
+        if reminded || focus_said {
             self.request_redraw();
         }
         // The right-click menu's monitor went — unplugged, or the overlay
@@ -435,6 +441,7 @@ impl App {
                         let bump_mut = &mut self.config.global.characters_bump;
                         let active_scene_mut = &mut self.config.global.active_scene;
                         let reminders_mut = &mut self.config.reminders;
+                        let focus_mut = &mut self.config.global.focus;
                         let scene_schedule_mut = &mut self.config.scene_schedule;
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
@@ -530,6 +537,7 @@ impl App {
                                     active_scene_mut,
                                     reminders_mut,
                                     scene_schedule_mut,
+                                    focus_mut,
                                     // X11's root window is one screen across
                                     // every monitor, so Span really spans.
                                     true,

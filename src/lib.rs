@@ -24,6 +24,7 @@ pub mod entity;
 pub mod error;
 pub mod event;
 pub mod file_chooser;
+pub mod focus;
 pub mod fullscreen;
 pub mod group;
 pub mod hotkeys;

@@ -138,6 +138,24 @@ Time away from the computer starts every reminder over: as long without
 input as `pause_when_idle_minutes` says, or five minutes when pausing is
 off. One that comes due while the overlay is hidden waits.
 
+### Bedtime and the focus timer
+
+```toml
+[global.bedtime]            # the characters doze off between these
+enabled = true              # hours, whoever is at the keyboard
+from = "23:00"              # local time, HH:MM; may run past midnight
+to = "07:00"
+
+[global.focus]              # the focus timer's lengths, in minutes
+minutes = 25                # of work, 1..=180
+break_minutes = 5           # of break, 1..=60
+```
+
+Both are left out while they are as they come. The focus timer itself
+is not saved: it starts from the tray, the command palette, the Scene
+tab or D-Bus, and stops with the app. While it runs, reminders wait out
+the work, and its break counts as a break.
+
 ### Named scenes
 
 Scenes saved from the Scene tab live beside this file, one each in

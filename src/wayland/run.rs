@@ -576,15 +576,22 @@ pub fn run_native(
         // Reminders due now (`crate::reminders`), said by any character:
         // every monitor draws its bubbles. Before the frame gate: a still
         // scene would never reach the drawing code.
+        // While the focus timer runs (`crate::focus`), reminders wait out
+        // the work, and its break counts as a break.
+        let focus = crate::focus::phase();
         if crate::reminders::deliver(
             &mut reminder_timers,
             &config.reminders,
             &mut scene,
-            !(overlay_hidden || wanted.hidden),
+            !(overlay_hidden || wanted.hidden) && focus != Some(crate::focus::Phase::Work),
             // The night counts as a break too.
-            layer.is_idle() || bedtime_now,
+            layer.is_idle() || bedtime_now || focus == Some(crate::focus::Phase::Break),
             |_| true,
         ) {
+            activity = true;
+        }
+        // Each turn of the timer, said once it can be seen.
+        if crate::focus::say_news(&mut scene, !(overlay_hidden || wanted.hidden), |_| true) {
             activity = true;
         }
         if wanted != aside {
@@ -813,6 +820,14 @@ pub fn run_native(
                             snoozing = true;
                         }
                         AnimaEvent::Wake => crate::snooze::wake(),
+                        AnimaEvent::StartFocus(minutes) => {
+                            crate::focus::start(crate::focus::lengths_for(
+                                minutes,
+                                config.global.focus,
+                            ));
+                            activity = true;
+                        }
+                        AnimaEvent::StopFocus => crate::focus::stop(),
                     }
                 }
             }
@@ -1674,6 +1689,7 @@ pub fn run_native(
                 let bump_mut = &mut config.global.characters_bump;
                 let active_scene_mut = &mut config.global.active_scene;
                 let reminders_mut = &mut config.reminders;
+                let focus_mut = &mut config.global.focus;
                 let scene_schedule_mut = &mut config.scene_schedule;
                 let reduced_motion_mut = &mut config.global.reduced_motion;
                 let hover_startle_mut = &mut config.global.hover_startle;
@@ -1759,6 +1775,7 @@ pub fn run_native(
                                 active_scene_mut,
                                 reminders_mut,
                                 scene_schedule_mut,
+                                focus_mut,
                                 // A layer surface belongs to one output, so no single
                                 // surface can span the desktop here.
                                 false,

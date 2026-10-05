@@ -178,6 +178,17 @@ impl ActivationService {
     async fn wake(&self) {
         self.post(AnimaEvent::Wake);
     }
+
+    /// Start the focus timer (`crate::focus`) with `minutes` of work; 0 is
+    /// the length set in the Scene tab.
+    async fn start_focus(&self, minutes: u32) {
+        self.post(AnimaEvent::StartFocus(minutes));
+    }
+
+    /// Stop the focus timer.
+    async fn stop_focus(&self) {
+        self.post(AnimaEvent::StopFocus);
+    }
 }
 
 /// D-Bus `Snooze`'s minutes: 0 is until the morning.
@@ -235,6 +246,14 @@ impl WaylandActivationService {
 
     async fn wake(&self) {
         Self::dispatch(&self.tx, AnimaEvent::Wake, "Wake");
+    }
+
+    async fn start_focus(&self, minutes: u32) {
+        Self::dispatch(&self.tx, AnimaEvent::StartFocus(minutes), "StartFocus");
+    }
+
+    async fn stop_focus(&self) {
+        Self::dispatch(&self.tx, AnimaEvent::StopFocus, "StopFocus");
     }
 }
 

@@ -863,6 +863,11 @@ impl ApplicationHandler<AnimaEvent> for App {
                 self.update_step_aside();
                 self.request_redraw_all();
             }
+            AnimaEvent::StartFocus(minutes) => {
+                crate::focus::start(crate::focus::lengths_for(minutes, self.config.global.focus));
+                self.request_redraw_all();
+            }
+            AnimaEvent::StopFocus => crate::focus::stop(),
             AnimaEvent::Quit => {
                 tracing::info!("Quit requested from tray");
                 self.save_and_exit(event_loop);

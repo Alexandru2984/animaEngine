@@ -17,6 +17,9 @@ pub enum TrayItem {
     /// Snoozing (`crate::snooze`): the choices, or how long it lasts and
     /// a way out — see [`entries`].
     Snooze,
+    /// The focus timer (`crate::focus`): a start, or which part it is in
+    /// until when and a stop.
+    Focus,
     Separator,
 }
 
@@ -31,8 +34,8 @@ pub enum Entry {
     Separator,
 }
 
-/// The menu as it should be shown now: [`MENU`] with the snooze block
-/// filled in. Every tray renders this.
+/// The menu as it should be shown now: [`MENU`] with the snooze and
+/// focus blocks filled in. Every tray renders this.
 pub fn entries() -> Vec<Entry> {
     use crate::snooze::SnoozeFor;
     let item = |label: &str, event: AnimaEvent| Entry::Item {
@@ -44,6 +47,20 @@ pub fn entries() -> Vec<Entry> {
         match *entry {
             TrayItem::Action { label, event } => out.push(item(label, event)),
             TrayItem::Separator => out.push(Entry::Separator),
+            TrayItem::Focus => match crate::focus::until_label() {
+                Some((phase, until)) => {
+                    let label = match phase {
+                        crate::focus::Phase::Work => format!("Focusing until {until}"),
+                        crate::focus::Phase::Break => format!("On a break until {until}"),
+                    };
+                    out.push(Entry::Item { label, event: None });
+                    out.push(item("Stop focus", AnimaEvent::StopFocus));
+                }
+                None if crate::focus::phase().is_some() => {
+                    out.push(item("Stop focus", AnimaEvent::StopFocus));
+                }
+                None => out.push(item("Start focus", AnimaEvent::StartFocus(0))),
+            },
             TrayItem::Snooze => match crate::snooze::until_label() {
                 Some(until) => {
                     out.push(Entry::Item {
@@ -99,6 +116,7 @@ pub const MENU: &[TrayItem] = &[
         event: AnimaEvent::HideOverlay,
     },
     TrayItem::Separator,
+    TrayItem::Focus,
     TrayItem::Snooze,
     TrayItem::Separator,
     TrayItem::Action {
@@ -128,6 +146,30 @@ mod tests {
                 ..
             }
         )));
+    }
+
+    /// The focus block offers a start, or until when and a stop.
+    #[test]
+    fn focusing_shows_in_the_menu() {
+        let labels = |entries: Vec<Entry>| -> Vec<String> {
+            entries
+                .into_iter()
+                .filter_map(|e| match e {
+                    Entry::Item { label, .. } => Some(label),
+                    Entry::Separator => None,
+                })
+                .collect()
+        };
+        let _turn = crate::focus::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        crate::focus::stop();
+        assert!(labels(entries()).iter().any(|l| l == "Start focus"));
+        crate::focus::start(crate::focus::FocusConfig::default());
+        let now = labels(entries());
+        crate::focus::stop();
+        assert!(now.iter().any(|l| l == "Stop focus"), "{now:?}");
+        assert!(!now.iter().any(|l| l == "Start focus"));
     }
 
     /// The snooze block offers the choices, or how long and a way out.
