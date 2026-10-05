@@ -61,6 +61,9 @@ pub enum MenuAction {
     Group(usize),
     Ungroup(usize),
     Arrange(usize, crate::input::arrange::Arrange),
+    /// Save its animation as a GIF (`crate::gif_export`); the loops ask
+    /// where, as they do for sharing a scene.
+    SaveGif(usize),
 }
 
 /// What the Scene tab asks of the caller, which has what it takes.

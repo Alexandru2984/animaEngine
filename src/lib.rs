@@ -26,6 +26,7 @@ pub mod event;
 pub mod file_chooser;
 pub mod focus;
 pub mod fullscreen;
+pub mod gif_export;
 pub mod greet;
 pub mod group;
 pub mod hotkeys;

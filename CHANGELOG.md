@@ -76,6 +76,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Save a character as a GIF.** "Save as GIF…" on the right-click
+  menu writes its animation as it plays — at its size on screen, up to
+  400 pixels a side, facing the way it faces — as a GIF that loops
+  forever, wherever you choose (Downloads where there is no chooser).
 - **Greetings when they meet**, when switched on in the Scene tab (off
   by default): two characters who come together — walking, following,
   one landing on the other — stand still a moment and say hello, one

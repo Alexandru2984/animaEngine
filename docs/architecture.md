@@ -661,6 +661,17 @@ decodes it under caps and writes what it decoded beside the new scene —
 or draws one from the scene on screen when the file has none or the
 scene was fitted onto this desktop.
 
+### Saving a GIF (`src/gif_export.rs`)
+
+"Save as GIF…" on the right-click menu is `MenuAction::SaveGif`, which
+the loops catch before `apply_menu_action`, as they do a scene's Share:
+`SceneTransfer::save_gif` copies the character's current animation into
+a `GifJob` on the UI thread — scaled to its size on screen within
+`MAX_SIDE`, turned the way it faces, each frame with its own delay — and
+asks the portal's `SaveFile` where; a worker encodes it with `image`'s
+GIF encoder (looping forever) straight into the chosen file. GIF delays
+are in hundredths of a second, so they round.
+
 ### Copy and paste (`src/clipboard.rs`)
 
 The app keeps its own clipboard, not the desktop's: a copy is the

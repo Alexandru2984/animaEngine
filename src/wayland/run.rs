@@ -2054,6 +2054,14 @@ pub fn run_native(
                         panels::ContextMenuOutcome::Close => {
                             context_menu_state = None;
                         }
+                        // Asks where first, as sharing a scene does.
+                        panels::ContextMenuOutcome::Action(panels::MenuAction::SaveGif(idx)) => {
+                            if pending_transfer.is_none() {
+                                pending_transfer =
+                                    crate::outcomes::SceneTransfer::save_gif(&scene, idx);
+                            }
+                            context_menu_state = None;
+                        }
                         panels::ContextMenuOutcome::Action(action) => {
                             outcomes::apply_menu_action(action, &mut outcome_ctx!());
                             context_menu_state = None;

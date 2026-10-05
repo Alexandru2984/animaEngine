@@ -141,6 +141,13 @@ Exporting reads only the files the scene's characters already show,
 each held to the drop size cap, and writes to the one file the user
 picked (in the Flatpak, the one the document portal opened to us).
 
+### Saving a GIF (1.5.0)
+
+Saving a character as a GIF (`crate::gif_export`) reads nothing from
+disk — the frames are the ones already decoded, copied, scaled to at
+most 400 pixels a side and 120 frames — and writes the one file the user
+picked, or a new name in Downloads where there is no chooser.
+
 ### Atomic writes for stateful files
 
 `util::atomic_write_bytes` is used by `AppConfig::save` and

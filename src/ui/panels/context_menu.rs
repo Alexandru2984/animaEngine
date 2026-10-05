@@ -129,6 +129,17 @@ pub(crate) fn context_menu(
                     picked = Some(MenuAction::SendBackward(idx));
                 }
                 ui.separator();
+                if ui
+                    .button(format!(
+                        "{}  {}",
+                        icons::GIF,
+                        crate::i18n::t("menu-save-gif")
+                    ))
+                    .clicked()
+                {
+                    picked = Some(MenuAction::SaveGif(idx));
+                }
+                ui.separator();
                 let error_color = ui.visuals().error_fg_color;
                 if ui
                     .button(

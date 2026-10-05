@@ -23,6 +23,14 @@ impl App {
             panels::ContextMenuOutcome::Close => {
                 self.ui_state.context_menu = None;
             }
+            // Asks where first, as sharing a scene does.
+            panels::ContextMenuOutcome::Action(panels::MenuAction::SaveGif(idx)) => {
+                if self.pending_transfer.is_none() {
+                    self.pending_transfer =
+                        crate::outcomes::SceneTransfer::save_gif(&self.scene, idx);
+                }
+                self.ui_state.context_menu = None;
+            }
             panels::ContextMenuOutcome::Action(action) => {
                 let structural = matches!(
                     action,

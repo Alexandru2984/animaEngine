@@ -254,6 +254,7 @@ pub const CLIPBOARD: &str = ph::CLIPBOARD;
 pub const CUT: &str = ph::SCISSORS;
 pub const PASTE: &str = ph::CLIPBOARD_TEXT;
 pub const SHARE: &str = ph::EXPORT;
+pub const GIF: &str = ph::GIF;
 pub const SNOOZE: &str = ph::MOON_STARS;
 pub const FOCUS: &str = ph::TIMER;
 pub const IMPORT: &str = ph::FILE_ARROW_DOWN;

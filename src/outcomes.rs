@@ -67,6 +67,8 @@ pub fn apply_menu_action(action: MenuAction, ctx: &mut OutcomeCtx<'_>) {
             let targets = covered(idx, ctx.selection);
             copy_entities(&targets, ctx.scene, ctx.toasts);
         }
+        // The loops start it: it asks where, off the frame (`SceneTransfer`).
+        MenuAction::SaveGif(_) => {}
         MenuAction::Cut(idx) => {
             let targets = covered(idx, ctx.selection);
             cut_entities(&targets, ctx);
@@ -867,6 +869,11 @@ enum TransferStage {
     OpenFrom {
         chooser: crate::file_chooser::FileChooser,
     },
+    /// Asking where to write a character's GIF (`crate::gif_export`).
+    GifTo {
+        chooser: crate::file_chooser::FileChooser,
+        job: Option<crate::gif_export::GifJob>,
+    },
     /// Writing or reading.
     Working(std::sync::mpsc::Receiver<TransferDone>),
 }
@@ -874,6 +881,7 @@ enum TransferStage {
 enum TransferDone {
     Shared(Result<(PathBuf, crate::scene_file::Exported), String>),
     Imported(Result<crate::scene_file::Imported, String>),
+    Gif(Result<PathBuf, String>),
 }
 
 /// Where a [`SceneTransfer`] is.
@@ -921,6 +929,23 @@ impl SceneTransfer {
                 None
             }
         }
+    }
+
+    /// Save the character at `idx` as a GIF: ask where. `None` when it
+    /// has nothing to show.
+    pub fn save_gif(scene: &crate::scene::Scene, idx: usize) -> Option<Self> {
+        let job = crate::gif_export::GifJob::of(scene.entities.get(idx)?)?;
+        let name = job.file_name();
+        Some(Self {
+            stage: TransferStage::GifTo {
+                chooser: crate::file_chooser::FileChooser::ask(
+                    crate::i18n::t("gif-chooser-title"),
+                    String::new(),
+                    crate::file_chooser::Ask::Save { name },
+                ),
+                job: Some(job),
+            },
+        })
     }
 
     /// Import a scene file: ask which.
@@ -981,6 +1006,22 @@ impl SceneTransfer {
                     )
                 }
             },
+            TransferStage::GifTo { chooser, job } => match chooser.poll() {
+                None => return Transfer::Pending,
+                Some(Chosen::Files(paths)) => match (paths.into_iter().next(), job.take()) {
+                    (Some(to), Some(job)) => gif_to(job, to),
+                    _ => return Transfer::Done,
+                },
+                Some(Chosen::Cancelled) => return Transfer::Done,
+                Some(Chosen::Unavailable(reason)) => match job.take() {
+                    Some(job) => {
+                        tracing::warn!("File chooser unavailable, saving to Downloads: {reason}");
+                        let to = fallback_path(&job.name, "gif");
+                        gif_to(job, to)
+                    }
+                    None => return Transfer::Done,
+                },
+            },
             TransferStage::OpenFrom { chooser } => match chooser.poll() {
                 None => return Transfer::Pending,
                 Some(Chosen::Files(paths)) => match paths.into_iter().next() {
@@ -1024,6 +1065,20 @@ impl SceneTransfer {
                         let mut args = fluent::FluentArgs::new();
                         args.set("error", e);
                         toasts.error(crate::i18n::t_args("toast-scene-share-failed", &args));
+                        Transfer::Done
+                    }
+                    Ok(TransferDone::Gif(Ok(path))) => {
+                        tracing::info!("GIF saved: {}", redact_path(&path));
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("path", path.display().to_string());
+                        toasts.success(crate::i18n::t_args("toast-gif-saved", &args));
+                        Transfer::Done
+                    }
+                    Ok(TransferDone::Gif(Err(e))) => {
+                        tracing::warn!("Saving a GIF failed: {e}");
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("error", e);
+                        toasts.error(crate::i18n::t_args("toast-gif-failed", &args));
                         Transfer::Done
                     }
                     Ok(TransferDone::Imported(Ok(saved))) => Transfer::Imported(saved),
@@ -1072,9 +1127,21 @@ fn export_to(
     }))
 }
 
+fn gif_to(job: crate::gif_export::GifJob, to: PathBuf) -> TransferStage {
+    TransferStage::Working(spawn_transfer(move || {
+        TransferDone::Gif(job.write(&to).map(|_| to).map_err(|e| e.to_string()))
+    }))
+}
+
 /// Downloads (or home) / `name.animascene`, or `name-2.animascene` and
 /// upward if that is taken.
 fn fallback_share_path(name: &str) -> PathBuf {
+    fallback_path(name, crate::scene_file::EXTENSION)
+}
+
+/// Downloads (or home) / `name.ext`, or `name-2.ext` and upward if that is
+/// taken.
+fn fallback_path(name: &str, ext: &str) -> PathBuf {
     let dir = directories::UserDirs::new()
         .and_then(|u| {
             u.download_dir()
@@ -1083,7 +1150,6 @@ fn fallback_share_path(name: &str) -> PathBuf {
         })
         .unwrap_or_else(std::env::temp_dir);
     let stem = crate::scenes::slug(name);
-    let ext = crate::scene_file::EXTENSION;
     std::iter::once(dir.join(format!("{stem}.{ext}")))
         .chain((2..).map(|n| dir.join(format!("{stem}-{n}.{ext}"))))
         .find(|p| !p.exists())
