@@ -2058,6 +2058,13 @@ pub fn run_native(
                     Some(panels::SceneRequest::Import) if pending_transfer.is_none() => {
                         pending_transfer = Some(crate::outcomes::SceneTransfer::import_chooser());
                     }
+                    Some(panels::SceneRequest::BackUp) if pending_transfer.is_none() => {
+                        pending_transfer =
+                            Some(crate::outcomes::SceneTransfer::back_up(&config, &scene));
+                    }
+                    Some(panels::SceneRequest::Restore) if pending_transfer.is_none() => {
+                        pending_transfer = Some(crate::outcomes::SceneTransfer::restore_chooser());
+                    }
                     _ => {}
                 }
                 if scene_request == Some(panels::SceneRequest::AddFile)

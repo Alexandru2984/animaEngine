@@ -881,6 +881,15 @@ enum TransferStage {
     OpenFrom {
         chooser: crate::file_chooser::FileChooser,
     },
+    /// Asking where to write a backup.
+    BackUpTo {
+        chooser: crate::file_chooser::FileChooser,
+        config: Box<crate::config::AppConfig>,
+    },
+    /// Asking which backup to restore.
+    RestoreFrom {
+        chooser: crate::file_chooser::FileChooser,
+    },
     /// Asking where to write a shared character.
     CharacterTo {
         chooser: crate::file_chooser::FileChooser,
@@ -900,6 +909,8 @@ enum TransferDone {
     Imported(Result<crate::scene_file::Imported, String>),
     Gif(Result<PathBuf, String>),
     CharacterShared(Result<(PathBuf, crate::scene_file::Exported), String>),
+    BackedUp(Result<PathBuf, String>),
+    Restored(Result<usize, String>),
 }
 
 /// Where a [`SceneTransfer`] is.
@@ -946,6 +957,42 @@ impl SceneTransfer {
                 toasts.error(crate::i18n::t_args("toast-scene-share-failed", &args));
                 None
             }
+        }
+    }
+
+    /// Back everything up in one file (`scene_file::backup`): ask where.
+    /// `config` is the settings as they are, with the scene on screen.
+    pub fn back_up(config: &crate::config::AppConfig, scene: &crate::scene::Scene) -> Self {
+        let mut config = config.clone();
+        config.characters = scene.to_character_configs();
+        config.groups = scene.groups.clone();
+        Self {
+            stage: TransferStage::BackUpTo {
+                chooser: crate::file_chooser::FileChooser::ask(
+                    crate::i18n::t("backup-chooser-title"),
+                    String::new(),
+                    crate::file_chooser::Ask::Save {
+                        name: format!("animaengine.{}", crate::scene_file::backup::EXTENSION),
+                    },
+                ),
+                config: Box::new(config),
+            },
+        }
+    }
+
+    /// Restore a backup: ask which.
+    pub fn restore_chooser() -> Self {
+        Self {
+            stage: TransferStage::RestoreFrom {
+                chooser: crate::file_chooser::FileChooser::ask(
+                    crate::i18n::t("restore-chooser-title"),
+                    crate::i18n::t("restore-chooser-filter"),
+                    crate::file_chooser::Ask::Open {
+                        extensions: vec![crate::scene_file::backup::EXTENSION.to_string()],
+                        multiple: false,
+                    },
+                ),
+            },
         }
     }
 
@@ -1050,6 +1097,32 @@ impl SceneTransfer {
                     )
                 }
             },
+            TransferStage::BackUpTo { chooser, config } => match chooser.poll() {
+                None => return Transfer::Pending,
+                Some(Chosen::Files(paths)) => match paths.into_iter().next() {
+                    Some(to) => backup_to((**config).clone(), to),
+                    None => return Transfer::Done,
+                },
+                Some(Chosen::Cancelled) => return Transfer::Done,
+                Some(Chosen::Unavailable(reason)) => {
+                    tracing::warn!("File chooser unavailable, backing up to Downloads: {reason}");
+                    let to = fallback_path("animaengine", crate::scene_file::backup::EXTENSION);
+                    backup_to((**config).clone(), to)
+                }
+            },
+            TransferStage::RestoreFrom { chooser } => match chooser.poll() {
+                None => return Transfer::Pending,
+                Some(Chosen::Files(paths)) => match paths.into_iter().next() {
+                    Some(file) => restore_from(file),
+                    None => return Transfer::Done,
+                },
+                Some(Chosen::Cancelled) => return Transfer::Done,
+                Some(Chosen::Unavailable(reason)) => {
+                    tracing::warn!("File chooser unavailable: {reason}");
+                    toasts.error(crate::i18n::t("file-chooser-unavailable-toast"));
+                    return Transfer::Done;
+                }
+            },
             TransferStage::CharacterTo { chooser, config } => match chooser.poll() {
                 None => return Transfer::Pending,
                 Some(Chosen::Files(paths)) => match paths.into_iter().next() {
@@ -1145,6 +1218,27 @@ impl SceneTransfer {
                         toasts.error(crate::i18n::t_args("toast-scene-share-failed", &args));
                         Transfer::Done
                     }
+                    Ok(TransferDone::BackedUp(Ok(path))) => {
+                        tracing::info!("Backed up to {}", redact_path(&path));
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("path", path.display().to_string());
+                        toasts.success(crate::i18n::t_args("toast-backup-saved", &args));
+                        Transfer::Done
+                    }
+                    Ok(TransferDone::BackedUp(Err(e))) | Ok(TransferDone::Restored(Err(e))) => {
+                        tracing::warn!("Backup or restore failed: {e}");
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("error", e);
+                        toasts.error(crate::i18n::t_args("toast-backup-failed", &args));
+                        Transfer::Done
+                    }
+                    Ok(TransferDone::Restored(Ok(scenes))) => {
+                        tracing::info!("Restored a backup: {scenes} scenes");
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("count", scenes);
+                        toasts.success(crate::i18n::t_args("toast-restored", &args));
+                        Transfer::Done
+                    }
                     Ok(TransferDone::Gif(Ok(path))) => {
                         tracing::info!("GIF saved: {}", redact_path(&path));
                         let mut args = fluent::FluentArgs::new();
@@ -1200,6 +1294,37 @@ fn export_to(
         TransferDone::Shared(
             crate::scene_file::export(&saved, thumbnail.as_deref(), &to)
                 .map(|exported| (to, exported))
+                .map_err(|e| e.to_string()),
+        )
+    }))
+}
+
+fn backup_to(config: crate::config::AppConfig, to: PathBuf) -> TransferStage {
+    TransferStage::Working(spawn_transfer(move || {
+        // The saved scenes, each with its picture, read here, off the frame.
+        let scenes: Vec<_> = crate::scenes::list_in(&crate::scenes::dir())
+            .into_iter()
+            .filter_map(|entry| {
+                let scene = crate::scenes::load(&entry.path).ok()?;
+                let thumb =
+                    crate::scene_thumb::read(&crate::scene_thumb::path_for(&entry.path)).ok();
+                Some((scene, thumb))
+            })
+            .collect();
+        TransferDone::BackedUp(
+            crate::scene_file::backup::back_up(&config, &scenes, &to)
+                .map(|_| to)
+                .map_err(|e| e.to_string()),
+        )
+    }))
+}
+
+fn restore_from(file: PathBuf) -> TransferStage {
+    TransferStage::Working(spawn_transfer(move || {
+        let into = crate::scene_file::fresh_dir(&crate::scene_file::imports_dir(), "backup");
+        TransferDone::Restored(
+            crate::scene_file::backup::read(&file, &into)
+                .and_then(crate::scene_file::backup::put_in_place)
                 .map_err(|e| e.to_string()),
         )
     }))

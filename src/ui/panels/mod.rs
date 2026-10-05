@@ -81,6 +81,11 @@ pub enum SceneRequest {
     Share(std::path::PathBuf),
     /// "Import…": open a shared scene.
     Import,
+    /// Appearance's "Back up…": everything in one file
+    /// (`scene_file::backup`).
+    BackUp,
+    /// Appearance's "Restore…": a backup, over these settings.
+    Restore,
 }
 
 /// The settings for holding still while nobody is there (`crate::away`),
@@ -457,6 +462,7 @@ pub fn settings(
                                 away,
                                 bedtime,
                                 start_at_login,
+                                scene_request,
                             );
                         }
                         SettingsTab::Keybindings => {

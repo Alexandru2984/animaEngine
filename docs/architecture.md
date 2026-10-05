@@ -707,6 +707,16 @@ import carries the flag (`Imported::character`) and where it was dropped
 chooser — and adds it as a paste does (`paste_with`: fresh ids, on top,
 selected), instead of shelving and switching to a scene.
 
+Everything goes out the same way too (`scene_file::backup`): the
+settings — with the scene on screen — and every saved scene, packed by
+the same `Packer` and `pack_character`, under `backup.toml`. Restoring
+reads it with the same pieces (`tidy`, `local_path`, `unpack`), then
+`put_in_place` adds the scenes under free names and saves the settings
+over `config.toml`, kept first as `config.toml.before-restore`; the
+running app takes them as it does an edit of the file, through
+`config_watch`'s hot reload, on both backends. Both run on the
+`SceneTransfer` worker behind the portal's chooser.
+
 Each saved scene has a picture beside its TOML, under the same name
 (`src/scene_thumb.rs`): `scenes::save_in` draws it on the CPU from the
 frames already decoded — the characters framed, each twice its size,

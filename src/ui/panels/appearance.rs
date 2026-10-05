@@ -31,6 +31,7 @@ pub(super) fn appearance_tab(
     away: super::AwayControls<'_>,
     bedtime: &mut crate::bedtime::Bedtime,
     start_at_login: &mut bool,
+    request: &mut Option<super::SceneRequest>,
 ) {
     ui.label(egui::RichText::new(t("appearance-theme-header")).text_style(h2()));
     ui.add_space(SPACE_S);
@@ -135,6 +136,28 @@ pub(super) fn appearance_tab(
         *config_dirty = true;
     }
     ui.add_space(SPACE_M);
+
+    // ── Back up and restore (`scene_file::backup`) ───────────────────
+    // Through the desktop's chooser, so Unix only, as Import… is.
+    if cfg!(unix) {
+        ui.horizontal(|ui| {
+            if ui
+                .button(format!("{}  {}", icons::SHARE, t("appearance-backup")))
+                .on_hover_text(t("appearance-backup-hint"))
+                .clicked()
+            {
+                *request = Some(super::SceneRequest::BackUp);
+            }
+            if ui
+                .button(format!("{}  {}", icons::IMPORT, t("appearance-restore")))
+                .on_hover_text(t("appearance-restore-hint"))
+                .clicked()
+            {
+                *request = Some(super::SceneRequest::Restore);
+            }
+        });
+        ui.add_space(SPACE_M);
+    }
 
     // ── Reset onboarding hints (D.7) ─────────────────────────────────
     // Single button — retakes every progressive hint plus the

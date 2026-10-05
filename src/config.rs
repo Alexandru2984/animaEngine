@@ -530,7 +530,7 @@ impl AppConfig {
     /// Coerce every character's renderer-facing scalars into safe, finite
     /// ranges (see [`CharacterConfig::sanitize`]). Called once on load so
     /// a hand-edited or corrupt config can't feed `NaN`/`inf` to the GPU.
-    fn sanitize(&mut self) {
+    pub(crate) fn sanitize(&mut self) {
         self.global.reminder_sound.sanitize();
         for c in &mut self.characters {
             c.sanitize();

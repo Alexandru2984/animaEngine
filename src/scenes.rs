@@ -42,7 +42,7 @@ pub fn dir() -> PathBuf {
 }
 
 /// At most this many scene files are looked at.
-const MAX_SCENES: usize = 200;
+pub const MAX_SCENES: usize = 200;
 
 /// Every scene saved in `dir`, by name. Unreadable files are left out.
 pub fn list_in(dir: &Path) -> Vec<SceneEntry> {

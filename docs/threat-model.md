@@ -159,6 +159,24 @@ history; that is what the switch says. Calls go out from one thread
 through a queue of 16 that drops what does not fit, never blocking the
 loops, and nothing comes back but the call's result.
 
+### Backups (1.5.0)
+
+A `.animabackup` (`scene_file::backup`) is the scene file's zip with a
+manifest of its own, `backup.toml` — the settings and every saved scene —
+plus `thumbs/<number>.png` and `assets/<n>/…`. It may come from anyone,
+so it is read as a shared scene is: the same reader and file cap, the
+manifest at most 32 MB, anything not named as above failing the read,
+pictures unpacked into a folder that did not exist and held to the drop
+checks, scene pictures decoded under `scene_thumb`'s caps, each scene
+and the settings' own characters through `scene_file::tidy` (scripts
+stood still, sounds and monitors dropped, followers and partners from
+elsewhere cleared), the settings through the config's own sanitising.
+Restoring writes only where the app keeps its own files: scenes are
+added under free names — none written over — and the settings replace
+`config.toml` after a copy to `config.toml.before-restore`. Only the
+Appearance button restores; a backup dropped on the overlay is refused
+like any file it does not take.
+
 ### Saving a GIF (1.5.0)
 
 Saving a character as a GIF (`crate::gif_export`) reads nothing from

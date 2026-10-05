@@ -76,6 +76,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Back up everything, restore it anywhere.** Appearance's "Back up…"
+  writes one `.animabackup` file: the settings, every saved scene with
+  its picture, and the pictures they show, once each. "Restore…" brings
+  one back: its scenes join yours under names of their own, its settings
+  replace these — the old file kept as `config.toml.before-restore` —
+  and the app picks them up at once. Read with the same checks as a
+  shared scene: scripts stand still, sounds stay behind.
 - **Characters play tag — when you say so.** A new behavior in the
   Inspector, "Play tag", with a partner: whoever is "it" runs after the
   other, which runs a little slower; a catch makes both stop for a

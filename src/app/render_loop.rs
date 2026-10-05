@@ -708,6 +708,17 @@ impl App {
                         Some(panels::SceneRequest::Paste) => self.paste(),
                         Some(panels::SceneRequest::Share(path)) => self.share_scene(&path),
                         Some(panels::SceneRequest::Import) => self.import_scene(None, None),
+                        Some(panels::SceneRequest::BackUp) if self.pending_transfer.is_none() => {
+                            self.pending_transfer = Some(crate::outcomes::SceneTransfer::back_up(
+                                &self.config,
+                                &self.scene,
+                            ));
+                        }
+                        Some(panels::SceneRequest::Restore) if self.pending_transfer.is_none() => {
+                            self.pending_transfer =
+                                Some(crate::outcomes::SceneTransfer::restore_chooser());
+                        }
+                        Some(panels::SceneRequest::BackUp | panels::SceneRequest::Restore) => {}
                         None => {}
                     }
                 }

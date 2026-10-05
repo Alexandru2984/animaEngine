@@ -22,6 +22,7 @@
 //! `thumbnail.png`, when it has one, and comes in checked like the rest:
 //! capped, a PNG, small — or the import fails.
 
+pub mod backup;
 mod zip;
 
 use crate::config::{AppConfig, AssetType};
@@ -133,22 +134,7 @@ fn export_as(
     let mut packer = Packer::default();
     let mut scripts_left_out = 0;
     for c in &mut scene.characters {
-        let why = |e: AnimaError| AnimaError::other(format!("{}: {e}", c.name));
-        c.asset_path = packer.place(&c.asset_type, &c.asset_path).map_err(why)?;
-        for state in c.animations.values_mut() {
-            state.asset_path = packer
-                .place(&state.asset_type, &state.asset_path)
-                .map_err(|e| AnimaError::other(format!("{}: {e}", c.name)))?;
-        }
-        if matches!(c.behavior, crate::behavior::Behavior::Script { .. }) {
-            c.behavior = crate::behavior::Behavior::Idle;
-            scripts_left_out += 1;
-        }
-        // A tap sound is a file in this library, which stays here.
-        c.talk.sound.clear();
-        // Monitor names belong to this machine; there, a character lands
-        // by where it is.
-        c.monitor = None;
+        scripts_left_out += usize::from(pack_character(c, &mut packer)?);
     }
     let manifest = toml::to_string_pretty(&Manifest {
         format: FORMAT,
@@ -166,6 +152,31 @@ fn export_as(
         scripts_left_out,
         bytes: written?,
     })
+}
+
+/// Make `c` ready to go out: its pictures packed (paths now inside the
+/// file), a script stood still, its sound and monitor left behind.
+/// Returns whether a script was left out.
+fn pack_character(c: &mut crate::config::CharacterConfig, packer: &mut Packer) -> Result<bool> {
+    let why = |name: &str, e: AnimaError| AnimaError::other(format!("{name}: {e}"));
+    c.asset_path = packer
+        .place(&c.asset_type, &c.asset_path)
+        .map_err(|e| why(&c.name, e))?;
+    for state in c.animations.values_mut() {
+        state.asset_path = packer
+            .place(&state.asset_type, &state.asset_path)
+            .map_err(|e| why(&c.name, e))?;
+    }
+    let script = matches!(c.behavior, crate::behavior::Behavior::Script { .. });
+    if script {
+        c.behavior = crate::behavior::Behavior::Idle;
+    }
+    // A tap sound is a file in this library, which stays here.
+    c.talk.sound.clear();
+    // Monitor names belong to this machine; there, a character lands by
+    // where it is.
+    c.monitor = None;
+    Ok(script)
 }
 
 fn write_zip(
