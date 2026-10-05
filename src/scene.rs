@@ -694,8 +694,14 @@ impl Scene {
     /// the visibility cache and the hit-test below so a group hidden
     /// by the user doesn't catch clicks either.
     pub(crate) fn effective_visible(&self, idx: usize) -> bool {
+        !self.entities[idx].off_hours && self.visible_any_hour(idx)
+    }
+
+    /// Visible by its own flag and its group's, whatever its hours
+    /// (`crate::hours`) — the scene as saved, for its picture.
+    pub(crate) fn visible_any_hour(&self, idx: usize) -> bool {
         let entity = &self.entities[idx];
-        if !entity.visible || entity.off_hours {
+        if !entity.visible {
             return false;
         }
         if self.groups.is_empty() {
@@ -969,6 +975,9 @@ impl Scene {
     /// `MAX_ENTITIES`, and a character that would take the decoded frames
     /// past the budget gets the fallback instead.
     pub fn restore_configs(&mut self, configs: &[CharacterConfig]) {
+        // Characters arriving where they are put — an undo, another scene
+        // — have not met anyone (`crate::greet`).
+        self.greetings.reset();
         let mut current: std::collections::HashMap<String, Entity> =
             self.entities.drain(..).map(|e| (e.id.clone(), e)).collect();
         let budget = max_total_decoded_bytes();

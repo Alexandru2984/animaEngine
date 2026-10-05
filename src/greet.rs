@@ -25,8 +25,11 @@ pub const PAIR_EVERY: Duration = Duration::from_secs(120);
 pub const ANY_EVERY: Duration = Duration::from_secs(12);
 /// How long the two stand still.
 pub const STAND_STILL: Duration = Duration::from_millis(2500);
-/// When the second answers.
+/// When the second answers…
 const REPLY_AFTER: Duration = Duration::from_millis(900);
+/// …and how late it may still: one held up — the scene fell asleep, say —
+/// would answer nothing anyone remembers.
+const REPLY_LATEST: Duration = Duration::from_secs(5);
 
 /// Who is near whom, and who greeted when.
 #[derive(Debug, Default)]
@@ -90,7 +93,10 @@ pub(crate) fn step(scene: &mut Scene, now: Instant) {
         let replies = &mut scene.greetings.replies;
         let (due, later): (Vec<_>, Vec<_>) = replies.drain(..).partition(|(_, at, _)| *at <= now);
         *replies = later;
-        due.into_iter().map(|(id, _, heard)| (id, heard)).collect()
+        due.into_iter()
+            .filter(|(_, at, _)| now.duration_since(*at) <= REPLY_LATEST)
+            .map(|(id, _, heard)| (id, heard))
+            .collect()
     };
     for (id, heard) in due {
         if let Some(i) = scene.entities.iter().position(|e| e.id == id) {
@@ -207,6 +213,18 @@ mod tests {
         step(&mut scene, t0);
         step(&mut scene, t0 + Duration::from_secs(1));
         assert!(!said(&scene, "a") && !said(&scene, "b"));
+    }
+
+    #[test]
+    fn an_answer_held_up_too_long_is_not_given() {
+        let mut scene = scene_at(&[("a", 100.0), ("b", 600.0)]);
+        let t0 = Instant::now();
+        step(&mut scene, t0);
+        scene.entities[1].x = 100.0 + scene.entities[0].scaled_width();
+        step(&mut scene, t0);
+        // Asleep for an hour: nobody ticked.
+        step(&mut scene, t0 + Duration::from_secs(3600));
+        assert!(!said(&scene, "b"));
     }
 
     #[test]

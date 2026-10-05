@@ -40,8 +40,9 @@ pub fn path_for(scene_file: &Path) -> PathBuf {
 /// The visible characters of `scene` as they look now, framed; `None`
 /// when nobody can be seen.
 pub fn render(scene: &Scene) -> Option<image::RgbaImage> {
+    // Everyone in the scene, whatever the hour (`crate::hours`).
     let mut order: Vec<usize> = (0..scene.entities.len())
-        .filter(|&i| scene.effective_visible(i))
+        .filter(|&i| scene.visible_any_hour(i))
         .collect();
     order.sort_by_key(|&i| scene.entities[i].z_index);
     let placed: Vec<(usize, crate::input::arrange::Rect)> = order
