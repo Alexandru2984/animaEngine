@@ -124,7 +124,8 @@ else, so it gets the drop's treatment and then some:
   zip, read by the same reader with the same limits and `tidy` (scripts
   stood still, sounds dropped); only a flag in `scene.toml` differs, and
   it changes where the characters go — into the scene on screen, with
-  fresh ids, as a paste — not what is let in.
+  fresh ids, as a paste — not what is let in. A follower whose leader is
+  not in the file follows nobody, rather than whoever has that id here.
 - **The scene's own picture, checked.** A `thumbnail.png` entry is at
   most 256 KB, a PNG, and at most 512 pixels a side — read from its
   header before anything is decoded (`scene_thumb::decode`) — or the

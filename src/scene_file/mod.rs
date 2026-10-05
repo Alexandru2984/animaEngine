@@ -562,6 +562,17 @@ fn tidy(scene: &mut SavedScene) {
         };
     }
     scene.groups.retain(|g| !g.member_ids.is_empty());
+    // A follower whose leader is not in the file follows nobody: the id
+    // was someone on the sender's screen, and here it may be anyone.
+    let ids: std::collections::BTreeSet<String> =
+        scene.characters.iter().map(|c| c.id.clone()).collect();
+    for c in &mut scene.characters {
+        if let crate::behavior::Behavior::FollowCharacter { target, .. } = &mut c.behavior {
+            if !ids.contains(target.as_str()) {
+                target.clear();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -756,6 +767,20 @@ mod tests {
         };
         cat.talk.sound = "meow.ogg".into();
         let file = dir.join("cat.animachar");
+        let mut follower = cat.clone();
+        follower.behavior = crate::behavior::Behavior::FollowCharacter {
+            target: "ghost".into(),
+            distance: 40.0,
+            speed: 80.0,
+        };
+        let follows_file = dir.join("follower.animachar");
+        export_character(&follower, &follows_file).unwrap();
+        let back = import(&follows_file, &dir.join("in-f")).unwrap();
+        assert!(
+            matches!(&back.scene.characters[0].behavior,
+                crate::behavior::Behavior::FollowCharacter { target, .. } if target.is_empty()),
+            "a leader from elsewhere is nobody here"
+        );
         let exported = export_character(&cat, &file).unwrap();
         assert_eq!((exported.characters, exported.scripts_left_out), (1, 1));
         assert!(is_scene_file(&file), "read the same way");
