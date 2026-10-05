@@ -35,6 +35,7 @@ pub(super) fn scene_tab(
     reminders: &mut Vec<crate::reminders::ReminderConfig>,
     scene_schedule: &mut Vec<crate::schedule::ScheduleRule>,
     focus: &mut crate::focus::FocusConfig,
+    reminder_sound: &mut crate::reminders::ReminderSound,
     // Kept separate from window-awareness even though both are false on
     // the same backend today: they are different capabilities, and a
     // future backend could have one without the other.
@@ -174,6 +175,10 @@ pub(super) fn scene_tab(
     reminders_section(ui, scene, reminders, config_dirty);
     ui.add_space(SPACE_L);
     focus_section(ui, focus, config_dirty);
+    ui.add_space(SPACE_S);
+    if reminder_sound_row(ui, reminder_sound, scene) {
+        *config_dirty = true;
+    }
     if !is_empty {
         ui.add_space(SPACE_L);
         ui.separator();
@@ -272,6 +277,51 @@ fn focus_section(
             }
         }
     }
+}
+
+/// What sounds with a reminder or a turn of the focus timer
+/// (`crate::reminders::ReminderSound`): nothing, the speaker's own tap
+/// sound, or a file from the asset library — picking one plays it, by the
+/// character in front. Returns whether it changed.
+fn reminder_sound_row(
+    ui: &mut egui::Ui,
+    sound: &mut crate::reminders::ReminderSound,
+    scene: &mut Scene,
+) -> bool {
+    use crate::reminders::ReminderSound;
+    let mut changed = false;
+    let choices = crate::sounds::choices();
+    let label = |s: &ReminderSound| match s {
+        ReminderSound::None => t("reminder-sound-none"),
+        ReminderSound::Speaker => t("reminder-sound-speaker"),
+        ReminderSound::File(file) => file.clone(),
+    };
+    ui.horizontal(|ui| {
+        let caption = ui.label(t("reminder-sound-label"));
+        let combo = egui::ComboBox::from_id_salt("anima.reminder-sound")
+            .selected_text(label(sound))
+            .show_ui(ui, |ui| {
+                let options = [ReminderSound::None, ReminderSound::Speaker]
+                    .into_iter()
+                    .chain(choices.iter().cloned().map(ReminderSound::File));
+                for option in options {
+                    if ui
+                        .selectable_label(*sound == option, label(&option))
+                        .clicked()
+                        && *sound != option
+                    {
+                        // Heard once, from whoever is in front.
+                        if let Some(i) = scene.frontmost_visible() {
+                            option.play_by(&mut scene.entities[i]);
+                        }
+                        *sound = option;
+                        changed = true;
+                    }
+                }
+            });
+        combo.response.labelled_by(caption.id);
+    });
+    changed
 }
 
 /// The reminder being written below the list, kept between frames.

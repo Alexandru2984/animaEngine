@@ -76,6 +76,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **A sound with reminders and the focus timer.** Under the Focus
+  section of the Scene tab, pick what plays when a reminder or a turn of
+  the focus timer is said: nothing (as it comes), the speaker's own tap
+  sound, or any sound file in the asset library. Picking one plays it.
 - **Screen readers hear what the characters say.** Their lines,
   reminders, the focus timer, greetings and a welcome back are announced
   over AT-SPI as they are said, so Orca reads them out — politely, after

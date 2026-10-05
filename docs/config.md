@@ -156,6 +156,11 @@ minutes = 25                # of work, 1..=180
 break_minutes = 5           # of break, 1..=60
 ```
 
+`reminder_sound` (in `[global]`) is what plays when a reminder or a turn
+of the focus timer is said: omitted for nothing, `"speaker"` for the
+speaker's own tap sound, or `{ file = "sounds/chime.ogg" }` for a file in
+the asset library.
+
 Both are left out while they are as they come. The focus timer itself
 is not saved: it starts from the tray, the command palette, the Scene
 tab or D-Bus, and stops with the app. While it runs, reminders wait out

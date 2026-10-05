@@ -89,9 +89,9 @@ pub struct Entity {
     pub off_hours: bool,
     /// What was last said and when to speak up next — runtime-only.
     pub chatter: Chatter,
-    /// Its tap sound is to be played: the loop plays it
-    /// (`Scene::take_sounds`) — runtime-only.
-    pub sound_wanted: bool,
+    /// A sound it is to play — its tap sound, or a reminder's — which the
+    /// loop plays (`Scene::take_sounds`). Runtime-only.
+    pub sound_wanted: Option<String>,
     /// Standing still until then, whatever its behavior — greeting
     /// someone (`crate::greet`). Runtime-only.
     pub still_until: Option<Instant>,
@@ -188,7 +188,7 @@ impl Entity {
                 rng: seed.rotate_left(17) | 1,
                 ..Chatter::default()
             },
-            sound_wanted: false,
+            sound_wanted: None,
             still_until: None,
             off_hours: false,
             leader: None,
@@ -209,6 +209,20 @@ impl Entity {
             crate::announce::said(&self.name, &speech.text);
         }
         self.speech.is_some()
+    }
+
+    /// Play its tap sound, if it has one (`crate::sounds`).
+    pub fn want_tap_sound(&mut self) {
+        if !self.talk.sound.is_empty() {
+            self.sound_wanted = Some(self.talk.sound.clone());
+        }
+    }
+
+    /// Play `sound`, a file in the asset library, from where it stands.
+    pub fn want_sound(&mut self, sound: &str) {
+        if !sound.is_empty() {
+            self.sound_wanted = Some(sound.to_string());
+        }
     }
 
     /// Say hello to someone it met (`crate::greet`): one of its own lines
@@ -277,7 +291,7 @@ impl Entity {
         self.physics.poke_hop();
         // A poke gets a word out of it, if it has any, and its sound.
         self.say_a_phrase(Instant::now());
-        self.sound_wanted |= !self.talk.sound.is_empty();
+        self.want_tap_sound();
     }
 
     /// The active state's animation.
@@ -664,7 +678,7 @@ impl Entity {
             talk: Default::default(),
             hours: None,
             chatter: Chatter::default(),
-            sound_wanted: false,
+            sound_wanted: None,
             still_until: None,
             off_hours: false,
             leader: None,

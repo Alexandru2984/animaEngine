@@ -107,6 +107,14 @@ pub struct GlobalConfig {
     #[serde(default, skip_serializing_if = "crate::bedtime::Bedtime::is_default")]
     pub bedtime: crate::bedtime::Bedtime,
 
+    /// What sounds with a reminder or a turn of the focus timer
+    /// (`crate::reminders::ReminderSound`).
+    #[serde(
+        default,
+        skip_serializing_if = "crate::reminders::ReminderSound::is_none"
+    )]
+    pub reminder_sound: crate::reminders::ReminderSound,
+
     /// How long the focus timer's work and break last (`crate::focus`).
     #[serde(default, skip_serializing_if = "crate::focus::FocusConfig::is_default")]
     pub focus: crate::focus::FocusConfig,
@@ -193,6 +201,7 @@ impl Default for GlobalConfig {
             start_at_login: false,
             bedtime: Default::default(),
             focus: Default::default(),
+            reminder_sound: Default::default(),
             window_awareness: false,
             snap_while_dragging: true,
             characters_bump: false,
@@ -516,6 +525,7 @@ impl AppConfig {
     /// ranges (see [`CharacterConfig::sanitize`]). Called once on load so
     /// a hand-edited or corrupt config can't feed `NaN`/`inf` to the GPU.
     fn sanitize(&mut self) {
+        self.global.reminder_sound.sanitize();
         for c in &mut self.characters {
             c.sanitize();
         }

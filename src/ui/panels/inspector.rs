@@ -476,7 +476,7 @@ fn sound_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
                         && entity.talk.sound != *sound
                     {
                         entity.talk.sound = sound.clone();
-                        entity.sound_wanted = true;
+                        entity.want_tap_sound();
                         changed = true;
                     }
                 }
@@ -488,7 +488,7 @@ fn sound_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
             )
             .clicked()
         {
-            entity.sound_wanted = true;
+            entity.want_tap_sound();
         }
     });
     if choices.is_empty() {

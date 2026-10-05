@@ -41,6 +41,48 @@ pub const MAX_MINUTES: u32 = 24 * 60;
 /// How long a reminder's bubble stays.
 pub const SAY_SECONDS: f32 = 12.0;
 
+/// What sounds when a reminder — or a turn of the focus timer
+/// (`crate::focus`) — is said (1.5): nothing, as it comes; the speaker's
+/// own tap sound; or a file in the asset library (`crate::sounds`).
+/// `reminder_sound = "speaker"`, or `reminder_sound = { file = "…" }`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReminderSound {
+    #[default]
+    None,
+    Speaker,
+    File(String),
+}
+
+impl ReminderSound {
+    /// Left out of the config while it is as it comes.
+    pub fn is_none(&self) -> bool {
+        *self == Self::None
+    }
+
+    /// Have `entity`, which is saying a reminder, play it.
+    pub fn play_by(&self, entity: &mut Entity) {
+        match self {
+            Self::None => {}
+            Self::Speaker => entity.want_tap_sound(),
+            Self::File(sound) => entity.want_sound(sound),
+        }
+    }
+
+    /// A file kept as a sound path is (`sounds::tidy`); none, if it is no
+    /// sound.
+    pub fn sanitize(&mut self) {
+        if let Self::File(sound) = self {
+            let kept = crate::sounds::tidy(sound);
+            *self = if kept.is_empty() {
+                Self::None
+            } else {
+                Self::File(kept)
+            };
+        }
+    }
+}
+
 impl ReminderConfig {
     fn every(&self) -> Duration {
         Duration::from_secs(u64::from(self.every_minutes.clamp(MIN_MINUTES, MAX_MINUTES)) * 60)
@@ -101,6 +143,7 @@ impl Timers {
 pub fn deliver(
     timers: &mut Timers,
     reminders: &[ReminderConfig],
+    sound: &ReminderSound,
     scene: &mut Scene,
     shown: bool,
     away: bool,
@@ -131,6 +174,7 @@ pub fn deliver(
         if let Some(i) = chosen.or_else(frontmost) {
             tracing::info!("Reminder said by {}: {}", scene.entities[i].name, r.text);
             scene.entities[i].say(&r.text, SAY_SECONDS);
+            sound.play_by(&mut scene.entities[i]);
         }
     }
     !fired.is_empty()
@@ -232,20 +276,76 @@ mod tests {
         assert!(deliver(
             &mut t,
             std::slice::from_ref(&r),
+            &ReminderSound::None,
             &mut scene,
             true,
             false,
             |_| true
         ));
         assert!(scene.entities[0].speech.is_some());
+        assert!(scene.take_sounds().is_empty(), "no sound as it comes");
         // Gone from the scene: the frontmost says it.
         let mut gone = every("hello", 1);
         gone.character = Some("nobody".into());
         t.due.push((gone.clone(), Instant::now() - MIN));
-        deliver(&mut t, &[r, gone], &mut scene, true, false, |_| true);
+        deliver(
+            &mut t,
+            &[r, gone],
+            &ReminderSound::None,
+            &mut scene,
+            true,
+            false,
+            |_| true,
+        );
         let front = (0..scene.entities.len())
             .max_by_key(|&i| scene.entities[i].z_index)
             .unwrap();
         assert_eq!(scene.entities[front].speech.as_ref().unwrap().text, "hello");
+    }
+
+    #[test]
+    fn a_reminder_sounds_as_asked() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let r = every("water", 1);
+        let say = |scene: &mut Scene, sound: &ReminderSound| {
+            let mut t = Timers::default();
+            t.due.push((r.clone(), Instant::now() - MIN));
+            deliver(
+                &mut t,
+                std::slice::from_ref(&r),
+                sound,
+                scene,
+                true,
+                false,
+                |_| true,
+            );
+            scene.take_sounds()
+        };
+        let chime = ReminderSound::File("chime.ogg".into());
+        let sounds = say(&mut scene, &chime);
+        assert_eq!(sounds.len(), 1);
+        assert_eq!(sounds[0].1, "chime.ogg");
+        // The speaker's own: none here until it has one.
+        assert!(say(&mut scene, &ReminderSound::Speaker).is_empty());
+        for e in &mut scene.entities {
+            e.talk.sound = "meow.ogg".into();
+        }
+        assert_eq!(say(&mut scene, &ReminderSound::Speaker)[0].1, "meow.ogg");
+    }
+
+    #[test]
+    fn the_setting_reads_and_tidies() {
+        #[derive(serde::Deserialize)]
+        struct G {
+            reminder_sound: ReminderSound,
+        }
+        let g: G = toml::from_str("reminder_sound = \"speaker\"").unwrap();
+        assert_eq!(g.reminder_sound, ReminderSound::Speaker);
+        let mut g: G = toml::from_str("reminder_sound = { file = \" a/chime.ogg \" }").unwrap();
+        g.reminder_sound.sanitize();
+        assert_eq!(g.reminder_sound, ReminderSound::File("a/chime.ogg".into()));
+        let mut not_a_sound = ReminderSound::File("x.png".into());
+        not_a_sound.sanitize();
+        assert!(not_a_sound.is_none());
     }
 }

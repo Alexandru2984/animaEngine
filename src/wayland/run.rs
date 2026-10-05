@@ -595,6 +595,7 @@ pub fn run_native(
         if crate::reminders::deliver(
             &mut reminder_timers,
             &config.reminders,
+            &config.global.reminder_sound,
             &mut scene,
             !(overlay_hidden || wanted.hidden) && focus != Some(crate::focus::Phase::Work),
             // The night counts as a break too.
@@ -604,7 +605,12 @@ pub fn run_native(
             activity = true;
         }
         // Each turn of the timer, said once it can be seen.
-        if crate::focus::say_news(&mut scene, !(overlay_hidden || wanted.hidden), |_| true) {
+        if crate::focus::say_news(
+            &mut scene,
+            !(overlay_hidden || wanted.hidden),
+            &config.global.reminder_sound,
+            |_| true,
+        ) {
             activity = true;
         }
         // Back after being away (`crate::welcome`): greeted where it can be
@@ -1719,6 +1725,7 @@ pub fn run_native(
                 let active_scene_mut = &mut config.global.active_scene;
                 let reminders_mut = &mut config.reminders;
                 let focus_mut = &mut config.global.focus;
+                let reminder_sound_mut = &mut config.global.reminder_sound;
                 let scene_schedule_mut = &mut config.scene_schedule;
                 let reduced_motion_mut = &mut config.global.reduced_motion;
                 let hover_startle_mut = &mut config.global.hover_startle;
@@ -1809,6 +1816,7 @@ pub fn run_native(
                                 reminders_mut,
                                 scene_schedule_mut,
                                 focus_mut,
+                                reminder_sound_mut,
                                 // A layer surface belongs to one output, so no single
                                 // surface can span the desktop here.
                                 false,

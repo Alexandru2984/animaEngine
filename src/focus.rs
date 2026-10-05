@@ -224,6 +224,7 @@ pub const SAY_SECONDS: f32 = 12.0;
 pub fn say_news(
     scene: &mut crate::scene::Scene,
     shown: bool,
+    sound: &crate::reminders::ReminderSound,
     on_surface: impl Fn(&crate::entity::Entity) -> bool,
 ) -> bool {
     let speaker = (0..scene.entities.len())
@@ -238,6 +239,7 @@ pub fn say_news(
     let text = line(news);
     tracing::info!("Focus said by {}: {text}", scene.entities[i].name);
     scene.entities[i].say(&text, SAY_SECONDS);
+    sound.play_by(&mut scene.entities[i]);
     true
 }
 

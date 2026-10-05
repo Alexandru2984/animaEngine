@@ -271,21 +271,15 @@ impl Scene {
         std::mem::take(&mut self.landed)
     }
 
-    /// The tap sounds asked for since last asked (`crate::sounds`) — by a
-    /// tap, or the Inspector's Play: whose, which file, and where the
+    /// The sounds asked for since last asked (`crate::sounds`) — by a tap,
+    /// the Inspector's Play, a reminder: whose, which file, and where the
     /// middle of the character is across, for the panning.
     pub fn take_sounds(&mut self) -> Vec<(String, String, f32)> {
         self.entities
             .iter_mut()
             .filter_map(|e| {
-                let wanted = std::mem::take(&mut e.sound_wanted);
-                (wanted && !e.talk.sound.is_empty()).then(|| {
-                    (
-                        e.id.clone(),
-                        e.talk.sound.clone(),
-                        e.x + e.scaled_width() / 2.0,
-                    )
-                })
+                let sound = e.sound_wanted.take()?;
+                Some((e.id.clone(), sound, e.x + e.scaled_width() / 2.0))
             })
             .collect()
     }

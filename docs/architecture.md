@@ -489,8 +489,9 @@ through `placeholders::fill_now` in `Entity::say` and `say_a_phrase`:
 names and `placeholder-date` pattern.
 
 A tap sound (`talk.sound`, `src/sounds.rs`) is a path into the asset
-library, tidied with the lines. A poke sets the entity's `sound_wanted`,
-as the Inspector's Play does, and the loops drain them right after the
+library, tidied with the lines. A poke sets the entity's `sound_wanted`
+to it, as the Inspector's Play does — and a reminder or a focus turn to
+`reminder_sound`'s choice (`ReminderSound::play_by`) — and the loops drain them right after the
 tick (`Scene::take_sounds`) into `AudioHost::play` — the path a script's
 `play` takes, so the same containment, caps, cooldown and lazily opened
 device. The Inspector's list comes from `sounds::choices`: a bounded walk
