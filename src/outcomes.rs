@@ -316,14 +316,16 @@ fn paste_with(
         }
     }
     // A follower pasted with its leader follows the pasted leader, not
-    // the one it was copied beside (`Behavior::FollowCharacter`).
+    // the one it was copied beside (`Behavior::FollowCharacter`); a player
+    // likewise plays with the pasted partner (`Behavior::PlayTag`).
     for &idx in &pasted {
-        if let Some(crate::behavior::Behavior::FollowCharacter { target, .. }) =
-            ctx.scene.entities.get_mut(idx).map(|e| &mut e.behavior)
-        {
-            if let Some(new) = renamed.get(target.as_str()) {
-                *target = new.clone();
-            }
+        let other = match ctx.scene.entities.get_mut(idx).map(|e| &mut e.behavior) {
+            Some(crate::behavior::Behavior::FollowCharacter { target, .. }) => target,
+            Some(crate::behavior::Behavior::PlayTag { partner, .. }) => partner,
+            _ => continue,
+        };
+        if let Some(new) = renamed.get(other.as_str()) {
+            *other = new.clone();
         }
     }
     if let Some(error) = failed {

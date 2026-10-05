@@ -69,6 +69,7 @@ pub mod soak;
 pub mod sounds;
 pub mod speech;
 pub mod system_clipboard;
+pub mod tag;
 pub mod tap;
 #[cfg(unix)]
 pub mod tray;

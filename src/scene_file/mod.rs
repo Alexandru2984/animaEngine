@@ -567,10 +567,14 @@ fn tidy(scene: &mut SavedScene) {
     let ids: std::collections::BTreeSet<String> =
         scene.characters.iter().map(|c| c.id.clone()).collect();
     for c in &mut scene.characters {
-        if let crate::behavior::Behavior::FollowCharacter { target, .. } = &mut c.behavior {
-            if !ids.contains(target.as_str()) {
-                target.clear();
-            }
+        let other = match &mut c.behavior {
+            crate::behavior::Behavior::FollowCharacter { target, .. } => target,
+            // A partner in tag likewise (`crate::tag`).
+            crate::behavior::Behavior::PlayTag { partner, .. } => partner,
+            _ => continue,
+        };
+        if !ids.contains(other.as_str()) {
+            other.clear();
         }
     }
 }

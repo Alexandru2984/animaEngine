@@ -65,6 +65,8 @@ pub struct Scene {
     /// `characters_greet`: whether those who meet say hello (`crate::greet`).
     greet: bool,
     pub(crate) greetings: crate::greet::Greetings,
+    /// Games of tag going on (`crate::tag`).
+    pub(crate) games: crate::tag::Games,
 }
 
 impl Scene {
@@ -151,6 +153,7 @@ impl Scene {
             little_effects: config.global.little_effects,
             greet: config.global.characters_greet,
             greetings: crate::greet::Greetings::default(),
+            games: crate::tag::Games::default(),
         }
     }
 
@@ -525,6 +528,15 @@ impl Scene {
 
         let floors = self.floors();
         self.find_leaders();
+        // Games of tag, before anyone moves (`crate::tag`).
+        if self.games.any()
+            || self
+                .entities
+                .iter()
+                .any(|e| matches!(e.behavior, crate::behavior::Behavior::PlayTag { .. }))
+        {
+            crate::tag::step(self, now);
+        }
         for (i, entity) in self.entities.iter_mut().enumerate() {
             let platforms = floors.get(i).map_or(&self.window_platforms[..], |f| &f[..]);
             // Re-borrow per entity: the host is `&mut` and the loop needs
@@ -978,8 +990,9 @@ impl Scene {
     /// past the budget gets the fallback instead.
     pub fn restore_configs(&mut self, configs: &[CharacterConfig]) {
         // Characters arriving where they are put — an undo, another scene
-        // — have not met anyone (`crate::greet`).
+        // — have not met anyone (`crate::greet`), nor are they playing.
         self.greetings.reset();
+        self.games.reset();
         let mut current: std::collections::HashMap<String, Entity> =
             self.entities.drain(..).map(|e| (e.id.clone(), e)).collect();
         let budget = max_total_decoded_bytes();

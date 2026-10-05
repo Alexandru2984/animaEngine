@@ -95,6 +95,9 @@ pub struct Entity {
     /// Standing still until then, whatever its behavior — greeting
     /// someone (`crate::greet`). Runtime-only.
     pub still_until: Option<Instant>,
+    /// In a game of tag this tick (`crate::tag`): where it goes instead
+    /// of what its behavior would do. Runtime-only.
+    pub game_move: Option<crate::tag::Move>,
     /// The middle of the character it follows, as the scene found it
     /// this tick (`Behavior::FollowCharacter`) — runtime-only.
     pub leader: Option<(f32, f32)>,
@@ -190,6 +193,7 @@ impl Entity {
             },
             sound_wanted: None,
             still_until: None,
+            game_move: None,
             off_hours: false,
             leader: None,
         }
@@ -449,7 +453,20 @@ impl Entity {
         if !still {
             self.still_until = None;
         }
-        if !self.physics.thrown && !still && !self.tick_script(&ctx, scripts) {
+        // In a game of tag, the game moves it (`crate::tag`).
+        let gaming = self.game_move.is_some();
+        if let Some(game) = self.game_move.filter(|_| !self.physics.thrown && !still) {
+            game.apply(
+                &mut self.x,
+                &mut self.y,
+                sprite_w,
+                sprite_h,
+                bounds,
+                self.physics.enabled,
+                dt,
+            );
+        }
+        if !gaming && !self.physics.thrown && !still && !self.tick_script(&ctx, scripts) {
             self.behavior
                 .tick(&mut self.behavior_state, &mut self.x, &mut self.y, &ctx);
         }
@@ -680,6 +697,7 @@ impl Entity {
             chatter: Chatter::default(),
             sound_wanted: None,
             still_until: None,
+            game_move: None,
             off_hours: false,
             leader: None,
         }

@@ -423,6 +423,21 @@ cache dirty when anyone came or went. `Scene::effective_visible` counts
 `off_hours` as hidden, so drawing, hit tests, taps, bubbles, speakers
 and effects all leave such a character out without knowing why.
 
+### Tag (`src/tag.rs`)
+
+`Behavior::PlayTag { partner, speed }` holds still on its own; the game
+lives in the scene (`Scene::games`). Each tick before anyone moves,
+`tag::step` pairs each player with its partner (one game per character,
+both visible), keeps each pair's game — who is "it", playing or resting
+until when, when a catch next counts — and gives both an
+`Entity::game_move` for the tick: toward the runner, or away from the
+chaser at `RUNNER` of the speed. `Entity::tick` follows that instead of
+its behavior (across only with physics on). A catch (middles within
+`REACH` of their half widths) sets both `still_until`, swaps who is it,
+and holds the next catch off for a head start. Paste remaps a partner
+pasted alongside; an import clears one not in the file; a restore
+forgets the games.
+
 ### Greetings (`src/greet.rs`)
 
 With `characters_greet` on, `Scene::tick` runs `greet::step` after the

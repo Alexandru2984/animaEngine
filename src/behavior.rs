@@ -92,6 +92,17 @@ pub enum Behavior {
         #[serde(default = "default_follow_character_speed")]
         speed: f32,
     },
+    /// Plays tag with another character (1.5): `crate::tag` runs the game —
+    /// whoever is "it" chases, catches, and they swap — for a while, then
+    /// a rest. Chosen per character; the partner needs no setting of its
+    /// own, and goes back to what it was doing between games.
+    PlayTag {
+        /// The id of the character to play with.
+        #[serde(default)]
+        partner: String,
+        #[serde(default = "default_tag_speed")]
+        speed: f32,
+    },
     /// Motion driven by a user-supplied script rather than a variant
     /// baked into this enum. See `docs/plans/v1.2-scripting.md`.
     ///
@@ -191,6 +202,10 @@ impl Behavior {
                 *distance = finite_clamp(*distance, 0.0, MAX_DIST, default_follow_distance());
                 *speed = finite_clamp(*speed, 0.0, MAX_SPEED, default_follow_character_speed());
             }
+            Behavior::PlayTag { partner, speed } => {
+                *partner = partner.trim().chars().take(64).collect();
+                *speed = finite_clamp(*speed, 0.0, MAX_SPEED, default_tag_speed());
+            }
             Behavior::Script { path, params } => {
                 // A hand-edited config is exactly how a hostile path gets
                 // here, so drop anything that isn't a plain relative path
@@ -268,6 +283,9 @@ fn default_bounce_period() -> f32 {
 
 fn default_walk_speed() -> f32 {
     60.0
+}
+fn default_tag_speed() -> f32 {
+    220.0
 }
 fn default_follow_distance() -> f32 {
     90.0
@@ -417,6 +435,9 @@ impl Behavior {
     ) {
         match self {
             Behavior::Idle => {}
+            // The game moves it (`crate::tag`, `Entity::game_move`); between
+            // games it rests.
+            Behavior::PlayTag { .. } => {}
             // Reached only when `Entity::tick_script` declined to run —
             // no host, no library root, or the script failed. Holding
             // still is the deliberate fallback.

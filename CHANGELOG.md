@@ -76,6 +76,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Characters play tag — when you say so.** A new behavior in the
+  Inspector, "Play tag", with a partner: whoever is "it" runs after the
+  other, which runs a little slower; a catch makes both stop for a
+  breath and swaps them, the new runner with a head start. After twenty
+  seconds they rest for a minute and a half, then play again. The
+  partner needs no setting of its own and goes back to what it was doing
+  between games.
 - **Desktop notifications, if you want them.** "Also as desktop
   notifications" in the Scene tab sends reminders and the focus timer to
   the desktop's notifications as well — and, with the characters out of

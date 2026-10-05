@@ -79,6 +79,18 @@ pub(super) fn inspector_tab(
                 .collect()
         })
         .unwrap_or_default();
+    // Whom it may play tag with: anyone else (`crate::tag`).
+    let partners: Vec<(String, String)> = selected_idx
+        .and_then(|idx| scene.entities.get(idx))
+        .map(|selected| {
+            scene
+                .entities
+                .iter()
+                .filter(|e| e.id != selected.id)
+                .map(|e| (e.id.clone(), e.name.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut arrange_picked = None;
     match selected_idx.and_then(|idx| scene.entities.get_mut(idx).map(|e| (idx, e))) {
         Some((_idx, entity)) => {
@@ -111,7 +123,10 @@ pub(super) fn inspector_tab(
                 collapse_state,
                 config_dirty,
                 group_hint.as_deref(),
-                &leaders,
+                Others {
+                    leaders: &leaders,
+                    partners: &partners,
+                },
             );
             if changed.any() {
                 *config_dirty = true;
@@ -153,7 +168,7 @@ fn entity_inspector(
     collapse_state: &mut CollapseState,
     config_dirty: &mut bool,
     group_hint: Option<&str>,
-    leaders: &[(String, String)],
+    others: Others<'_>,
 ) -> EntityChange {
     let mut change = EntityChange::default();
 
@@ -327,7 +342,7 @@ fn entity_inspector(
         &mut collapse_state.inspector_behavior,
         config_dirty,
         |ui| {
-            if behavior_picker(ui, &mut entity.behavior, leaders) {
+            if behavior_picker(ui, &mut entity.behavior, others) {
                 change.any_field = true;
             }
         },
@@ -733,13 +748,19 @@ fn script_controls(
     changed
 }
 
-/// `leaders`: whom this character may follow, by id and name
-/// (`behavior::follow_candidates`).
-fn behavior_picker(
-    ui: &mut egui::Ui,
-    behavior: &mut Behavior,
-    leaders: &[(String, String)],
-) -> bool {
+/// Who else is in the scene, by id and name, for the behaviors that name
+/// another character.
+#[derive(Clone, Copy)]
+struct Others<'a> {
+    /// Whom it may follow (`behavior::follow_candidates`).
+    leaders: &'a [(String, String)],
+    /// Whom it may play tag with (`crate::tag`).
+    partners: &'a [(String, String)],
+}
+
+/// `others`: whom this character may follow or play with.
+fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior, others: Others<'_>) -> bool {
+    let Others { leaders, partners } = others;
     let mut changed = false;
 
     // ComboBox with the three concrete variants. selectable_value compares
@@ -786,6 +807,17 @@ fn behavior_picker(
                             .unwrap_or_default(),
                         distance: 90.0,
                         speed: 140.0,
+                    },
+                },
+                // Likewise: with the first one it may play with.
+                match &prev {
+                    Behavior::PlayTag { .. } => prev.clone(),
+                    _ => Behavior::PlayTag {
+                        partner: partners
+                            .first()
+                            .map(|(id, _)| id.clone())
+                            .unwrap_or_default(),
+                        speed: 220.0,
                     },
                 },
                 // Starts empty: an entity gets a script only once the
@@ -860,6 +892,49 @@ fn behavior_picker(
             if ui
                 .add(
                     egui::Slider::new(speed, 20.0..=400.0)
+                        .text(t("inspector-behavior-speed"))
+                        .suffix(" px/s"),
+                )
+                .changed()
+            {
+                changed = true;
+            }
+        }
+        Behavior::PlayTag { partner, speed } => {
+            let nobody = t("inspector-follow-nobody");
+            let current = partners
+                .iter()
+                .find(|(id, _)| id == partner)
+                .map_or(nobody.clone(), |(_, name)| name.clone());
+            ui.horizontal(|ui| {
+                let caption = ui.label(t("inspector-tag-partner"));
+                let combo = egui::ComboBox::from_id_salt("behavior_tag_partner")
+                    .selected_text(current.clone())
+                    .show_ui(ui, |ui| {
+                        for (id, name) in partners {
+                            if ui.selectable_label(partner == id, name).clicked() && partner != id {
+                                *partner = id.clone();
+                                changed = true;
+                            }
+                        }
+                    });
+                crate::ui::accessible::name_combo(
+                    &combo.response.labelled_by(caption.id),
+                    &t("inspector-tag-partner"),
+                    &current,
+                );
+            });
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(t("inspector-tag-hint"))
+                        .text_style(theme::caption())
+                        .weak(),
+                )
+                .wrap(),
+            );
+            if ui
+                .add(
+                    egui::Slider::new(speed, 40.0..=500.0)
                         .text(t("inspector-behavior-speed"))
                         .suffix(" px/s"),
                 )
@@ -1028,6 +1103,7 @@ fn behavior_label_with_icon(b: &Behavior) -> String {
         ),
         Behavior::BoundedWander { .. } => (icons::BEHAVIOR_WANDER, "behavior-wander"),
         Behavior::Bounce { .. } => (icons::BEHAVIOR_BOUNCE, "behavior-bounce"),
+        Behavior::PlayTag { .. } => (icons::BEHAVIOR_PLAY_TAG, "behavior-play-tag"),
         Behavior::Script { .. } => (icons::BEHAVIOR_SCRIPT, "behavior-script"),
     };
     format!("{icon}  {}", t(key))
