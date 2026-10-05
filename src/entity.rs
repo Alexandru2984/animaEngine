@@ -85,6 +85,9 @@ pub struct Entity {
     pub talk: crate::config::Talk,
     /// What was last said and when to speak up next — runtime-only.
     pub chatter: Chatter,
+    /// Its tap sound is to be played: the loop plays it
+    /// (`Scene::take_sounds`) — runtime-only.
+    pub sound_wanted: bool,
     /// The middle of the character it follows, as the scene found it
     /// this tick (`Behavior::FollowCharacter`) — runtime-only.
     pub leader: Option<(f32, f32)>,
@@ -171,6 +174,7 @@ impl Entity {
                 rng: seed.rotate_left(17) | 1,
                 ..Chatter::default()
             },
+            sound_wanted: false,
             leader: None,
         }
     }
@@ -233,8 +237,9 @@ impl Entity {
             self.scaled_width(),
         );
         self.physics.poke_hop();
-        // A poke gets a word out of it, if it has any.
+        // A poke gets a word out of it, if it has any, and its sound.
         self.say_a_phrase(Instant::now());
+        self.sound_wanted |= !self.talk.sound.is_empty();
     }
 
     /// The active state's animation.
@@ -616,6 +621,7 @@ impl Entity {
             speech: None,
             talk: Default::default(),
             chatter: Chatter::default(),
+            sound_wanted: false,
             leader: None,
         }
     }
@@ -811,6 +817,7 @@ mod tests {
         e.talk = crate::config::Talk {
             phrases: vec!["Hi".into()],
             every_minutes: 1,
+            ..Default::default()
         };
         let t0 = Instant::now();
         assert!(!e.speak_up(t0), "the first time only counts from now");
@@ -840,6 +847,7 @@ mod tests {
         c.talk = crate::config::Talk {
             phrases: vec!["Hi".into(), "Bye".into()],
             every_minutes: 15,
+            sound: "cats/meow.ogg".into(),
         };
         let text = toml::to_string(&c).unwrap();
         assert!(text.contains("[talk]"), "{text}");

@@ -46,6 +46,10 @@ inspector-talk-pace = Speaks up
 inspector-talk-only-poked = Only when tapped
 inspector-talk-every = About every { $minutes } min
 inspector-talk-say-now = Say one now
+inspector-sound-label = Sound on a tap
+inspector-sound-none = None
+inspector-sound-play = Play
+inspector-sound-hint = Sound files (.ogg, .wav, .flac, .mp3) put in { $path } show up here.
 inspector-visible = Visible
 inspector-gravity = Gravity
 inspector-scale = Scale
@@ -86,6 +90,7 @@ behavior-script-param-name = name
 behavior-script-add-param = Add
 behavior-script-remove-param = Remove this parameter
 script-failed-toast = Behavior script { $script } failed: { $error }
+sound-failed-toast = The sound { $sound } could not be played: { $error }
 
 # ── Scene tab ─────────────────────────────────────────────────────────
 scene-empty-headline = Empty scene

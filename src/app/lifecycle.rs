@@ -89,6 +89,7 @@ impl App {
                 }
             }
             self.library = Some(idx);
+            crate::sounds::set_root(&root);
             self.library_root = Some(root);
         } else {
             tracing::info!("No asset library root found; Library tab will show empty state.");

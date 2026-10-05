@@ -441,6 +441,15 @@ ticks that far, so nobody speaks while paused or asleep;
 `Scene::take_spoke` tells the loops to draw the frame. The Inspector
 edits them as a text box, one line each.
 
+A tap sound (`talk.sound`, `src/sounds.rs`) is a path into the asset
+library, tidied with the lines. A poke sets the entity's `sound_wanted`,
+as the Inspector's Play does, and the loops drain them right after the
+tick (`Scene::take_sounds`) into `AudioHost::play` — the path a script's
+`play` takes, so the same containment, caps, cooldown and lazily opened
+device. The Inspector's list comes from `sounds::choices`: a bounded walk
+of the library that passes links by, cached for a few seconds; the loops
+hand it the root (`sounds::set_root`).
+
 ### Little effects (`src/effects.rs`)
 
 Hearts, dust and z's are a list on the scene (`Scene::effects`), each

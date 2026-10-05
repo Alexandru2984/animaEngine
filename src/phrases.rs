@@ -36,6 +36,7 @@ pub fn tidy(talk: &mut crate::config::Talk) {
         .take(MAX_PHRASES)
         .collect();
     talk.every_minutes = talk.every_minutes.min(24 * 60);
+    talk.sound = crate::sounds::tidy(&talk.sound);
 }
 
 /// Which line to say: any of `count` but `last`, the one said before,
@@ -83,8 +84,10 @@ mod tests {
                 "x".repeat(500),
             ],
             every_minutes: 99_999,
+            sound: " cats/meow.ogg\n".into(),
         };
         tidy(&mut talk);
+        assert_eq!(talk.sound, "cats/meow.ogg");
         assert_eq!(talk.phrases[0], "Hi there!");
         assert_eq!(talk.phrases[1], "linebell");
         assert_eq!(talk.phrases[2].chars().count(), crate::speech::MAX_CHARS);
@@ -92,7 +95,7 @@ mod tests {
         assert_eq!(talk.every_minutes, 1440);
         let mut many = Talk {
             phrases: (0..80).map(|i| i.to_string()).collect(),
-            every_minutes: 0,
+            ..Default::default()
         };
         tidy(&mut many);
         assert_eq!(many.phrases.len(), MAX_PHRASES);

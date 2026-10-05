@@ -204,6 +204,23 @@ easing = "ease_out_quad"   # Optional per-frame timing curve. Omit for
 `easing` accepts `linear` (default), `ease_in_quad`, `ease_out_quad`,
 `ease_in_out_quad`, `sine`, `bounce_out`.
 
+### Lines and a tap sound
+
+```toml
+[characters.talk]
+phrases = ["Mrrp!", "Hey there"] # one is said on a poke, never the
+                            # same twice running (at most 50)
+every_minutes = 15          # and about this often on its own, in
+                            # minutes (the Inspector offers 1, 5, 15
+                            # or 60; at most 1440); 0 or omitted, only
+                            # when poked
+sound = "sounds/meow.ogg"   # played on a tap: .ogg, .wav, .flac or
+                            # .mp3, relative to the asset library
+```
+
+The Inspector's "Says" section writes all three. A shared scene keeps
+the lines and leaves the sound behind.
+
 ### Asset types
 
 | `asset_type` value | What it expects |

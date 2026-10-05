@@ -192,15 +192,25 @@ impl App {
                         root,
                     });
             self.scene.tick(bounds, cursor, scripts);
+            // Tap sounds (`crate::sounds`), panned across what the
+            // windows cover.
+            let sounds = self.scene.take_sounds();
+            if let Some(root) = self.library_root.as_deref() {
+                for (id, sound, x) in sounds {
+                    self.audio_host
+                        .play(root, &sound, &id, x, bounds.min_x, bounds.max_x);
+                }
+            }
 
-            // Surface script failures once each. `take_new_failures`
-            // already deduped them, so this cannot flood.
+            // Surface sound and script failures once each.
+            // `take_new_failures` already deduped them, so this cannot
+            // flood.
             for (path, err) in self.audio_host.take_new_failures() {
                 let mut args = fluent::FluentArgs::new();
-                args.set("script", path);
+                args.set("sound", path);
                 args.set("error", err);
                 self.toasts
-                    .error(crate::i18n::t_args("script-failed-toast", &args));
+                    .error(crate::i18n::t_args("sound-failed-toast", &args));
             }
             for (path, err) in self.script_host.take_new_failures() {
                 let mut args = fluent::FluentArgs::new();

@@ -68,6 +68,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fall asleep. A switch in Appearance turns them off, and Reduce motion
   does too. They last a moment; a sleeping scene goes back to holding
   still once they are over.
+- **A sound on a tap.** The Inspector's "Says" section can give a
+  character a sound — any `.ogg`, `.wav`, `.flac` or `.mp3` in the asset
+  library, picked from a list — played when it is tapped, in edit mode
+  or out of it, from where it stands on the screen. Picking one plays
+  it; "Play" plays it again. None by default; a shared scene leaves its
+  sounds behind. A sound that cannot be played says so, rather than
+  calling itself a behavior script.
+
 - **Step aside for apps you choose.** Under the full-screen setting in
   Appearance, pick apps from the ones open now — a video call, a
   streaming tool, a game — and the characters hide while one of them is
@@ -158,6 +166,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The settings panel's footer covered the last row of a long tab.**
+  The character count sat over it, and it could not be scrolled into
+  view — in the Inspector, the bottom of the "Says" section.
 - **The panel's text fields had no copy and paste**, on either
   backend: Ctrl+C, Ctrl+X and Ctrl+V did nothing in a scene's name, a
   reminder's text or the palette's search. They now go through the

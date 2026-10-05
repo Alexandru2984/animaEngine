@@ -365,7 +365,7 @@ fn talk_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool 
     let tidied = |text: &str| {
         let mut talk = crate::config::Talk {
             phrases: text.lines().map(str::to_string).collect(),
-            every_minutes: 0,
+            ..Default::default()
         };
         crate::phrases::tidy(&mut talk);
         talk.phrases
@@ -424,6 +424,77 @@ fn talk_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool 
         .clicked()
     {
         entity.say_a_phrase(std::time::Instant::now());
+    }
+    ui.add_space(SPACE_S);
+    if sound_controls(ui, entity) {
+        changed = true;
+    }
+    changed
+}
+
+/// The sound a tap makes (`crate::sounds`): none, or a file from the
+/// asset library — picking one plays it — and a button to hear it again.
+/// Returns whether it changed.
+fn sound_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool {
+    let mut changed = false;
+    let choices = crate::sounds::choices();
+    let none = t("inspector-sound-none");
+    ui.horizontal(|ui| {
+        ui.label(t("inspector-sound-label"));
+        let current = if entity.talk.sound.is_empty() {
+            none.clone()
+        } else {
+            entity.talk.sound.clone()
+        };
+        egui::ComboBox::from_id_salt(("anima.inspector.sound", entity.id.as_str()))
+            .selected_text(current)
+            .show_ui(ui, |ui| {
+                if ui
+                    .selectable_label(entity.talk.sound.is_empty(), none.as_str())
+                    .clicked()
+                    && !entity.talk.sound.is_empty()
+                {
+                    entity.talk.sound.clear();
+                    changed = true;
+                }
+                for sound in &choices {
+                    if ui
+                        .selectable_label(entity.talk.sound == *sound, sound.as_str())
+                        .clicked()
+                        && entity.talk.sound != *sound
+                    {
+                        entity.talk.sound = sound.clone();
+                        entity.sound_wanted = true;
+                        changed = true;
+                    }
+                }
+            });
+        if ui
+            .add_enabled(
+                !entity.talk.sound.is_empty(),
+                egui::Button::new(t("inspector-sound-play")),
+            )
+            .clicked()
+        {
+            entity.sound_wanted = true;
+        }
+    });
+    if choices.is_empty() {
+        let mut args = fluent::FluentArgs::new();
+        args.set(
+            "path",
+            crate::sounds::root()
+                .map(|r| r.display().to_string())
+                .unwrap_or_default(),
+        );
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(crate::i18n::t_args("inspector-sound-hint", &args))
+                    .text_style(theme::caption())
+                    .weak(),
+            )
+            .wrap(),
+        );
     }
     changed
 }

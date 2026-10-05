@@ -58,6 +58,7 @@ pub mod sysload;
 pub mod single_instance;
 pub mod snooze;
 pub mod soak;
+pub mod sounds;
 pub mod speech;
 pub mod system_clipboard;
 pub mod tap;

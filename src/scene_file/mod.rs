@@ -93,6 +93,8 @@ pub fn export(saved: &SavedScene, to: &Path) -> Result<Exported> {
             c.behavior = crate::behavior::Behavior::Idle;
             scripts_left_out += 1;
         }
+        // A tap sound is a file in this library, which stays here.
+        c.talk.sound.clear();
         // Monitor names belong to this machine; there, a character lands
         // by where it is.
         c.monitor = None;
@@ -433,6 +435,8 @@ fn tidy(scene: &mut SavedScene) {
         if matches!(c.behavior, crate::behavior::Behavior::Script { .. }) {
             c.behavior = crate::behavior::Behavior::Idle;
         }
+        // The sound file stays behind, as a script does.
+        c.talk.sound.clear();
         c.monitor = None;
         c.name = c
             .name
@@ -517,6 +521,7 @@ mod tests {
             params: Default::default(),
         };
         saved.characters[1].monitor = Some("HDMI-A-1".into());
+        saved.characters[1].talk.sound = "cats/meow.ogg".into();
         let file = dir.join("demo.animascene");
         let exported = export(&saved, &file).unwrap();
         assert_eq!(exported.characters, saved.characters.len());
@@ -538,6 +543,7 @@ mod tests {
             assert!(b.monitor.is_none());
         }
         assert_eq!(back.characters[0].behavior, crate::behavior::Behavior::Idle);
+        assert!(back.characters[1].talk.sound.is_empty(), "no sounds travel");
         // And the pictures load, not the stand-in for a broken one.
         let mut scene = crate::scene::Scene::from_config(&AppConfig::default());
         scene.entities.clear();

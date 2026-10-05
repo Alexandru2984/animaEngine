@@ -270,18 +270,21 @@ pub struct CharacterConfig {
 }
 
 /// A character's own lines (`crate::phrases`): one said when it is poked,
-/// and one about every `every_minutes` — 0, only when poked.
+/// and one about every `every_minutes` — 0, only when poked. And the sound
+/// a tap makes (`crate::sounds`), a file in the asset library.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Talk {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub phrases: Vec<String>,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub every_minutes: u32,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub sound: String,
 }
 
 impl Talk {
     pub fn is_empty(&self) -> bool {
-        self.phrases.is_empty() && self.every_minutes == 0
+        self.phrases.is_empty() && self.every_minutes == 0 && self.sound.is_empty()
     }
 }
 

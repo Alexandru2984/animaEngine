@@ -254,6 +254,7 @@ pub fn run_native(
             }
         }
         library = Some(idx);
+        crate::sounds::set_root(&root);
         library_root = Some(root);
     } else {
         tracing::info!("No asset library root found; Library tab will show empty state.");
@@ -1472,12 +1473,26 @@ pub fn run_native(
         activity |= scene.take_spoke();
         // A thrown one landed: save where.
         config_dirty |= scene.take_landed();
+        // Tap sounds (`crate::sounds`), panned across what the overlay covers.
+        let sounds = scene.take_sounds();
+        if let Some(root) = library_root.as_deref() {
+            let bounds = crate::monitor::covered_bounds(
+                &plan,
+                (
+                    renderer.primary.window_width as f32,
+                    renderer.primary.window_height as f32,
+                ),
+            );
+            for (id, sound, x) in sounds {
+                audio_host.play(root, &sound, &id, x, bounds.min_x, bounds.max_x);
+            }
+        }
 
         for (path, err) in audio_host.take_new_failures() {
             let mut args = fluent::FluentArgs::new();
-            args.set("script", path);
+            args.set("sound", path);
             args.set("error", err);
-            toasts.error(crate::i18n::t_args("script-failed-toast", &args));
+            toasts.error(crate::i18n::t_args("sound-failed-toast", &args));
         }
 
         // Update any dirty textures (animation frame advance).

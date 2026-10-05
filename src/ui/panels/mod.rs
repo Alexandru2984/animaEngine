@@ -378,8 +378,13 @@ pub fn settings(
                 1.0,
                 crate::ui::motion::time(ctx, 0.1),
             );
+            // Up to the footer below, not under it: it used to cover the
+            // last row of a long tab, which could not be scrolled to.
+            let footer =
+                ui.text_style_height(&theme::caption()) + SPACE_S + ui.spacing().item_spacing.y;
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
+                .max_height((ui.available_height() - footer).max(0.0))
                 .show(ui, |ui| {
                     ui.set_opacity(tab_alpha);
                     match active_tab {
