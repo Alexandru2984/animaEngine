@@ -36,6 +36,7 @@ pub mod i18n;
 pub mod input;
 pub mod keybindings;
 pub mod monitor;
+pub mod notify;
 pub mod outcomes;
 pub mod pacing;
 pub mod perf;

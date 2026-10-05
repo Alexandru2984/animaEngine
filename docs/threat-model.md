@@ -147,6 +147,18 @@ Exporting reads only the files the scene's characters already show,
 each held to the drop size cap, and writes to the one file the user
 picked (in the Flatpak, the one the document portal opened to us).
 
+### Desktop notifications (1.5.0)
+
+Off by default. With `notify_reminders` on, the text of a reminder or a
+focus-timer line — the user's own words, placeholders filled in — and
+the speaking character's name leave the process for the desktop's
+notification service: `org.freedesktop.Notifications` on the session
+bus, or the Notification portal in the Flatpak (no permission beyond
+the portal). That service may show them on a lock screen or keep a
+history; that is what the switch says. Calls go out from one thread
+through a queue of 16 that drops what does not fit, never blocking the
+loops, and nothing comes back but the call's result.
+
 ### Saving a GIF (1.5.0)
 
 Saving a character as a GIF (`crate::gif_export`) reads nothing from

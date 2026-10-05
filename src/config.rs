@@ -115,6 +115,11 @@ pub struct GlobalConfig {
     )]
     pub reminder_sound: crate::reminders::ReminderSound,
 
+    /// Reminders and the focus timer go to the desktop's notifications too
+    /// (`crate::notify`). Off by default.
+    #[serde(default)]
+    pub notify_reminders: bool,
+
     /// How long the focus timer's work and break last (`crate::focus`).
     #[serde(default, skip_serializing_if = "crate::focus::FocusConfig::is_default")]
     pub focus: crate::focus::FocusConfig,
@@ -202,6 +207,7 @@ impl Default for GlobalConfig {
             bedtime: Default::default(),
             focus: Default::default(),
             reminder_sound: Default::default(),
+            notify_reminders: false,
             window_awareness: false,
             snap_while_dragging: true,
             characters_bump: false,

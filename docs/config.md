@@ -156,6 +156,10 @@ minutes = 25                # of work, 1..=180
 break_minutes = 5           # of break, 1..=60
 ```
 
+`notify_reminders = true` (in `[global]`) sends reminders and the focus
+timer to the desktop's notifications too, and at once while the
+characters are out of sight.
+
 `reminder_sound` (in `[global]`) is what plays when a reminder or a turn
 of the focus timer is said: omitted for nothing, `"speaker"` for the
 speaker's own tap sound, or `{ file = "sounds/chime.ogg" }` for a file in

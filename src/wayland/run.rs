@@ -596,6 +596,7 @@ pub fn run_native(
             &mut reminder_timers,
             &config.reminders,
             &config.global.reminder_sound,
+            config.global.notify_reminders,
             &mut scene,
             !(overlay_hidden || wanted.hidden) && focus != Some(crate::focus::Phase::Work),
             // The night counts as a break too.
@@ -609,6 +610,7 @@ pub fn run_native(
             &mut scene,
             !(overlay_hidden || wanted.hidden),
             &config.global.reminder_sound,
+            config.global.notify_reminders,
             |_| true,
         ) {
             activity = true;
@@ -1726,6 +1728,7 @@ pub fn run_native(
                 let reminders_mut = &mut config.reminders;
                 let focus_mut = &mut config.global.focus;
                 let reminder_sound_mut = &mut config.global.reminder_sound;
+                let notify_mut = &mut config.global.notify_reminders;
                 let scene_schedule_mut = &mut config.scene_schedule;
                 let reduced_motion_mut = &mut config.global.reduced_motion;
                 let hover_startle_mut = &mut config.global.hover_startle;
@@ -1817,6 +1820,7 @@ pub fn run_native(
                                 scene_schedule_mut,
                                 focus_mut,
                                 reminder_sound_mut,
+                                notify_mut,
                                 // A layer surface belongs to one output, so no single
                                 // surface can span the desktop here.
                                 false,

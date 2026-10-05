@@ -225,18 +225,25 @@ pub fn say_news(
     scene: &mut crate::scene::Scene,
     shown: bool,
     sound: &crate::reminders::ReminderSound,
+    notify: bool,
     on_surface: impl Fn(&crate::entity::Entity) -> bool,
 ) -> bool {
     let speaker = (0..scene.entities.len())
         .filter(|&i| scene.effective_visible(i) && on_surface(&scene.entities[i]))
-        .max_by_key(|&i| scene.entities[i].z_index);
-    let Some(news) = take_news(shown && speaker.is_some()) else {
-        return false;
-    };
-    let Some(i) = speaker else {
+        .max_by_key(|&i| scene.entities[i].z_index)
+        .filter(|_| shown);
+    // Out of sight it waits — unless it can go to the desktop's
+    // notifications (`crate::notify`).
+    let Some(news) = take_news(speaker.is_some() || notify) else {
         return false;
     };
     let text = line(news);
+    if notify {
+        crate::notify::send(&crate::i18n::t("scene-focus-header"), &text);
+    }
+    let Some(i) = speaker else {
+        return false;
+    };
     tracing::info!("Focus said by {}: {text}", scene.entities[i].name);
     scene.entities[i].say(&text, SAY_SECONDS);
     sound.play_by(&mut scene.entities[i]);

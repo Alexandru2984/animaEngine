@@ -140,10 +140,12 @@ impl Timers {
 /// Have the due reminders said, by characters `on_surface` accepts (the
 /// ones whose bubble shows). `shown` is whether the overlay is on screen at
 /// all. Returns whether anything was said.
+#[allow(clippy::too_many_arguments)]
 pub fn deliver(
     timers: &mut Timers,
     reminders: &[ReminderConfig],
     sound: &ReminderSound,
+    notify: bool,
     scene: &mut Scene,
     shown: bool,
     away: bool,
@@ -152,13 +154,22 @@ pub fn deliver(
     let speakers: Vec<usize> = (0..scene.entities.len())
         .filter(|&i| scene.effective_visible(i) && on_surface(&scene.entities[i]))
         .collect();
-    let fired = timers.poll(
-        Instant::now(),
-        reminders,
-        away,
-        shown && !speakers.is_empty(),
-    );
+    // Out of sight, a reminder waits for the characters — unless it can go
+    // to the desktop's notifications (`crate::notify`).
+    let can_say = shown && !speakers.is_empty();
+    let fired = timers.poll(Instant::now(), reminders, away, can_say || notify);
     for r in &fired {
+        if notify {
+            let name = r
+                .character
+                .as_deref()
+                .and_then(|id| scene.entities.iter().find(|e| e.id == id))
+                .map_or_else(|| "animaEngine".to_string(), |e| e.name.clone());
+            crate::notify::send(&name, &crate::placeholders::fill_now(&r.text, &name));
+        }
+        if !can_say {
+            continue;
+        }
         let chosen = r.character.as_deref().and_then(|id| {
             speakers
                 .iter()
@@ -277,6 +288,7 @@ mod tests {
             &mut t,
             std::slice::from_ref(&r),
             &ReminderSound::None,
+            false,
             &mut scene,
             true,
             false,
@@ -292,6 +304,7 @@ mod tests {
             &mut t,
             &[r, gone],
             &ReminderSound::None,
+            false,
             &mut scene,
             true,
             false,
@@ -314,6 +327,7 @@ mod tests {
                 &mut t,
                 std::slice::from_ref(&r),
                 sound,
+                false,
                 scene,
                 true,
                 false,
@@ -331,6 +345,33 @@ mod tests {
             e.talk.sound = "meow.ogg".into();
         }
         assert_eq!(say(&mut scene, &ReminderSound::Speaker)[0].1, "meow.ogg");
+    }
+
+    #[test]
+    fn out_of_sight_it_waits_unless_it_can_notify() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let r = every("water", 1);
+        let mut t = Timers::default();
+        t.due.push((r.clone(), Instant::now() - MIN));
+        let list = std::slice::from_ref(&r);
+        let none = ReminderSound::None;
+        deliver(&mut t, list, &none, false, &mut scene, false, false, |_| {
+            true
+        });
+        assert!(t.due[0].1 <= Instant::now(), "hidden: still due, waiting");
+        deliver(&mut t, list, &none, true, &mut scene, false, false, |_| {
+            true
+        });
+        assert!(
+            t.due[0].1 > Instant::now(),
+            "sent as a notification instead"
+        );
+        assert!(
+            scene.entities.iter().all(|e| e.speech.is_none()),
+            "nobody said it"
+        );
+        let sent = crate::notify::SENT.lock().unwrap();
+        assert!(sent.iter().any(|(_, body)| body == "water"), "{sent:?}");
     }
 
     #[test]

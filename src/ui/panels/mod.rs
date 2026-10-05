@@ -251,6 +251,7 @@ pub fn settings(
     scene_schedule: &mut Vec<crate::schedule::ScheduleRule>,
     focus: &mut crate::focus::FocusConfig,
     reminder_sound: &mut crate::reminders::ReminderSound,
+    notify_reminders: &mut bool,
     // Whether one overlay can cover every monitor. False on native
     // Wayland, where a layer surface belongs to a single output.
     span_supported: bool,
@@ -427,6 +428,7 @@ pub fn settings(
                                 scene_schedule,
                                 focus,
                                 reminder_sound,
+                                notify_reminders,
                                 span_supported,
                                 monitors,
                                 collapse_state,

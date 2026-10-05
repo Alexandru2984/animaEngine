@@ -389,6 +389,13 @@ the timer's part into account: during the work they cannot speak, and
 the break counts as being away, so their timers start over. The tray's
 block (`TrayItem::Focus`) shows until when, like the snooze's.
 
+With `notify_reminders` on, `reminders::deliver` and `focus::say_news`
+also hand what they say to `notify::send` — a queue to one thread on the
+session bus (`Notify`, or the portal's `AddNotification` in a Flatpak) —
+and no longer wait for the characters when they are out of sight. In
+tests `send` only records (`notify::SENT`), so a test run never reaches
+the desktop of whoever runs it.
+
 ### Behind the windows (`always_on_top`)
 
 `always_on_top` off puts the overlay under other windows, on the

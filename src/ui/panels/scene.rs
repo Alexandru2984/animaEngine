@@ -36,6 +36,7 @@ pub(super) fn scene_tab(
     scene_schedule: &mut Vec<crate::schedule::ScheduleRule>,
     focus: &mut crate::focus::FocusConfig,
     reminder_sound: &mut crate::reminders::ReminderSound,
+    notify_reminders: &mut bool,
     // Kept separate from window-awareness even though both are false on
     // the same backend today: they are different capabilities, and a
     // future backend could have one without the other.
@@ -177,6 +178,14 @@ pub(super) fn scene_tab(
     focus_section(ui, focus, config_dirty);
     ui.add_space(SPACE_S);
     if reminder_sound_row(ui, reminder_sound, scene) {
+        *config_dirty = true;
+    }
+    // To the desktop's notifications too (`crate::notify`).
+    if ui
+        .checkbox(notify_reminders, t("reminder-notify-label"))
+        .on_hover_text(t("reminder-notify-hint"))
+        .changed()
+    {
         *config_dirty = true;
     }
     if !is_empty {

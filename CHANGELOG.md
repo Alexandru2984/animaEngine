@@ -76,6 +76,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Desktop notifications, if you want them.** "Also as desktop
+  notifications" in the Scene tab sends reminders and the focus timer to
+  the desktop's notifications as well — and, with the characters out of
+  sight (hidden, snoozed, stepped aside for a full-screen app), sends
+  them there at once instead of waiting. Off by default. Natively through
+  `org.freedesktop.Notifications`, in the Flatpak through the
+  Notification portal.
 - **A sound with reminders and the focus timer.** Under the Focus
   section of the Scene tab, pick what plays when a reminder or a turn of
   the focus timer is said: nothing (as it comes), the speaker's own tap

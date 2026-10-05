@@ -275,6 +275,7 @@ impl App {
             &mut self.reminder_timers,
             &self.config.reminders,
             &self.config.global.reminder_sound,
+            self.config.global.notify_reminders,
             &mut self.scene,
             shown && focus != Some(crate::focus::Phase::Work),
             // Watched for reminders even with pausing off; the night
@@ -287,6 +288,7 @@ impl App {
             &mut self.scene,
             shown,
             &self.config.global.reminder_sound,
+            self.config.global.notify_reminders,
             |_| true,
         );
         // Back after being away (`crate::welcome`): greeted where it can
@@ -464,6 +466,7 @@ impl App {
                         let reminders_mut = &mut self.config.reminders;
                         let focus_mut = &mut self.config.global.focus;
                         let reminder_sound_mut = &mut self.config.global.reminder_sound;
+                        let notify_mut = &mut self.config.global.notify_reminders;
                         let scene_schedule_mut = &mut self.config.scene_schedule;
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
@@ -565,6 +568,7 @@ impl App {
                                     scene_schedule_mut,
                                     focus_mut,
                                     reminder_sound_mut,
+                                    notify_mut,
                                     // X11's root window is one screen across
                                     // every monitor, so Span really spans.
                                     true,
