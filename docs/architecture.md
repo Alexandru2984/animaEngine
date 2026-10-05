@@ -618,6 +618,17 @@ no portal, and `OpenFile` or a drop to import — as one pending
 `outcomes::SceneTransfer` each loop polls. Imported pictures stay when
 their scene is deleted, like the library's.
 
+Each saved scene has a picture beside its TOML, under the same name
+(`src/scene_thumb.rs`): `scenes::save_in` draws it on the CPU from the
+frames already decoded — the characters framed, each twice its size,
+each thumbnail pixel the average of what it covers — and
+`scenes::delete` takes it along. The Scene tab shows it as a texture
+read again when the file changes (looked at every two seconds). A share
+puts it in the file as `thumbnail.png`, checked first; an import
+decodes it under caps and writes what it decoded beside the new scene —
+or draws one from the scene on screen when the file has none or the
+scene was fitted onto this desktop.
+
 ### Copy and paste (`src/clipboard.rs`)
 
 The app keeps its own clipboard, not the desktop's: a copy is the

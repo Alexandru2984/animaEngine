@@ -13,6 +13,10 @@
 //! Imported pictures go to a folder of their own under the data
 //! directory (`imports_dir`), and the scene is saved to the shelf like any
 //! other; its characters point at that folder.
+//!
+//! The scene's own picture (`crate::scene_thumb`) goes along as
+//! `thumbnail.png`, when it has one, and comes in checked like the rest:
+//! capped, a PNG, small — or the import fails.
 
 mod zip;
 
@@ -37,6 +41,9 @@ const MAX_ENTRIES: usize = 4096;
 /// The scene inside, beside its `assets/`.
 const MANIFEST: &str = "scene.toml";
 
+/// Its picture, if it has one.
+const THUMBNAIL: &str = "thumbnail.png";
+
 /// This layout. A file with a higher number was made by a newer version.
 const FORMAT: u32 = 1;
 
@@ -44,6 +51,13 @@ const FORMAT: u32 = 1;
 struct Manifest {
     format: u32,
     scene: SavedScene,
+}
+
+/// What an import read: the scene, and its picture if the file has one.
+#[derive(Debug, Clone)]
+pub struct Imported {
+    pub scene: SavedScene,
+    pub thumbnail: Option<image::RgbaImage>,
 }
 
 /// What an export wrote.
@@ -76,8 +90,9 @@ pub fn fresh_dir(root: &Path, name: &str) -> PathBuf {
         .unwrap_or_else(|| root.join(stem))
 }
 
-/// Write `saved`, with the pictures its characters show, to `to`.
-pub fn export(saved: &SavedScene, to: &Path) -> Result<Exported> {
+/// Write `saved`, with the pictures its characters show, to `to` — and
+/// `thumbnail`, a PNG of it, if given.
+pub fn export(saved: &SavedScene, thumbnail: Option<&[u8]>, to: &Path) -> Result<Exported> {
     let mut scene = saved.clone();
     let mut packer = Packer::default();
     let mut scripts_left_out = 0;
@@ -104,7 +119,7 @@ pub fn export(saved: &SavedScene, to: &Path) -> Result<Exported> {
         scene,
     })?;
 
-    let written = write_zip(to, manifest.as_bytes(), &packer.files);
+    let written = write_zip(to, manifest.as_bytes(), thumbnail, &packer.files);
     if written.is_err() {
         // Half a scene is no use to anyone.
         let _ = std::fs::remove_file(to);
@@ -116,7 +131,12 @@ pub fn export(saved: &SavedScene, to: &Path) -> Result<Exported> {
     })
 }
 
-fn write_zip(to: &Path, manifest: &[u8], files: &[(String, PathBuf)]) -> Result<u64> {
+fn write_zip(
+    to: &Path,
+    manifest: &[u8],
+    thumbnail: Option<&[u8]>,
+    files: &[(String, PathBuf)],
+) -> Result<u64> {
     use std::io::Write;
     // Straight to `to`: in the Flatpak it is the one file the portal
     // opened to us, and a temporary beside it could not be made.
@@ -124,6 +144,10 @@ fn write_zip(to: &Path, manifest: &[u8], files: &[(String, PathBuf)]) -> Result<
     let mut zip = zip::Writer::new(out);
     zip.add(MANIFEST, manifest)?;
     let mut total = manifest.len() as u64;
+    if let Some(png) = thumbnail {
+        zip.add(THUMBNAIL, png)?;
+        total += png.len() as u64;
+    }
     for (name, source) in files {
         let data = read_asset(source)?;
         total += data.len() as u64;
@@ -213,8 +237,8 @@ impl Packer {
 
 /// Read the scene file `file`, and put its pictures in `into` — a folder
 /// that does not exist yet. Returns the scene, its characters pointing
-/// there. On failure nothing is left in `into`.
-pub fn import(file: &Path, into: &Path) -> Result<SavedScene> {
+/// there, and its own picture. On failure nothing is left in `into`.
+pub fn import(file: &Path, into: &Path) -> Result<Imported> {
     let meta = std::fs::metadata(file)?;
     if !meta.is_file() {
         return Err(AnimaError::other("not a regular file"));
@@ -245,8 +269,13 @@ pub fn import(file: &Path, into: &Path) -> Result<SavedScene> {
     }
 
     let mut assets = Vec::new();
+    let mut thumbnail = None;
     for entry in &entries {
         if entry.name == MANIFEST {
+            continue;
+        }
+        if entry.name == THUMBNAIL {
+            thumbnail = Some(crate::scene_thumb::decode(entry.data)?);
             continue;
         }
         if !is_asset_name(entry.name) {
@@ -287,7 +316,7 @@ pub fn import(file: &Path, into: &Path) -> Result<SavedScene> {
         let _ = std::fs::remove_dir_all(into);
     }
     unpacked?;
-    Ok(scene)
+    Ok(Imported { scene, thumbnail })
 }
 
 /// Fit a scene laid out for someone else's screens into `bounds`, the
@@ -523,13 +552,13 @@ mod tests {
         saved.characters[1].monitor = Some("HDMI-A-1".into());
         saved.characters[1].talk.sound = "cats/meow.ogg".into();
         let file = dir.join("demo.animascene");
-        let exported = export(&saved, &file).unwrap();
+        let exported = export(&saved, None, &file).unwrap();
         assert_eq!(exported.characters, saved.characters.len());
         assert_eq!(exported.scripts_left_out, 1);
         assert!(is_scene_file(&file));
 
         let into = dir.join("unpacked");
-        let back = import(&file, &into).unwrap();
+        let back = import(&file, &into).unwrap().scene;
         assert_eq!(back.name, "Demo");
         assert_eq!(back.characters.len(), saved.characters.len());
         for (b, s) in back.characters.iter().zip(&saved.characters) {
@@ -557,7 +586,7 @@ mod tests {
     fn a_folder_already_there_is_not_written_into() {
         let dir = tmp("taken");
         let file = dir.join("s.animascene");
-        export(&demo(), &file).unwrap();
+        export(&demo(), None, &file).unwrap();
         let into = dir.join("taken");
         std::fs::create_dir_all(&into).unwrap();
         assert!(import(&file, &into).is_err());
@@ -637,14 +666,38 @@ mod tests {
             visible: true,
         });
         let file = dir.join("t.animascene");
-        export(&saved, &file).unwrap();
-        let back = import(&file, &dir.join("in")).unwrap();
+        export(&saved, None, &file).unwrap();
+        let back = import(&file, &dir.join("in")).unwrap().scene;
         assert_eq!(back.name, "[31m");
         let ids: std::collections::BTreeSet<_> =
             back.characters.iter().map(|c| c.id.clone()).collect();
         assert_eq!(ids.len(), back.characters.len(), "ids made distinct");
         assert!(back.characters[0].scale.is_finite());
         assert!(back.groups.is_empty(), "a group of nobody goes");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_scene_s_picture_goes_along_and_a_bad_one_fails_the_import() {
+        let dir = tmp("thumb");
+        let picture = image::RgbaImage::from_pixel(
+            crate::scene_thumb::WIDTH,
+            crate::scene_thumb::HEIGHT,
+            image::Rgba([10, 200, 30, 255]),
+        );
+        let png = crate::scene_thumb::encode(&picture).unwrap();
+        let file = dir.join("t.animascene");
+        export(&demo(), Some(&png), &file).unwrap();
+        let back = import(&file, &dir.join("in")).unwrap();
+        assert_eq!(back.thumbnail.as_ref(), Some(&picture));
+
+        export(&demo(), None, &file).unwrap();
+        assert!(import(&file, &dir.join("in2")).unwrap().thumbnail.is_none());
+
+        let into = dir.join("in3");
+        export(&demo(), Some(b"not a png"), &file).unwrap();
+        assert!(import(&file, &into).is_err());
+        assert!(!into.exists(), "nothing left behind");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

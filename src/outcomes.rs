@@ -852,6 +852,8 @@ enum TransferStage {
     SaveTo {
         chooser: crate::file_chooser::FileChooser,
         saved: crate::scenes::SavedScene,
+        /// Its picture (`crate::scene_thumb`), checked, to go along.
+        thumbnail: Option<Vec<u8>>,
     },
     /// Asking which file to read.
     OpenFrom {
@@ -863,7 +865,7 @@ enum TransferStage {
 
 enum TransferDone {
     Shared(Result<(PathBuf, crate::scene_file::Exported), String>),
-    Imported(Result<crate::scenes::SavedScene, String>),
+    Imported(Result<crate::scene_file::Imported, String>),
 }
 
 /// Where a [`SceneTransfer`] is.
@@ -874,7 +876,7 @@ pub enum Transfer {
     Done,
     /// Read: the caller puts it on screen (`apply_imported`), with an
     /// undo step open first.
-    Imported(crate::scenes::SavedScene),
+    Imported(crate::scene_file::Imported),
 }
 
 impl SceneTransfer {
@@ -888,6 +890,10 @@ impl SceneTransfer {
                     crate::scenes::slug(&saved.name),
                     crate::scene_file::EXTENSION
                 );
+                // Its picture goes along, if it has a good one.
+                let thumbnail = crate::scene_thumb::read(&crate::scene_thumb::path_for(path))
+                    .ok()
+                    .filter(|png| crate::scene_thumb::decode(png).is_ok());
                 Some(Self {
                     stage: TransferStage::SaveTo {
                         chooser: crate::file_chooser::FileChooser::ask(
@@ -896,6 +902,7 @@ impl SceneTransfer {
                             crate::file_chooser::Ask::Save { name },
                         ),
                         saved,
+                        thumbnail,
                     },
                 })
             }
@@ -944,10 +951,14 @@ impl SceneTransfer {
     pub fn poll(&mut self, toasts: &mut ToastQueue) -> Transfer {
         use crate::file_chooser::Chosen;
         let next = match &mut self.stage {
-            TransferStage::SaveTo { chooser, saved } => match chooser.poll() {
+            TransferStage::SaveTo {
+                chooser,
+                saved,
+                thumbnail,
+            } => match chooser.poll() {
                 None => return Transfer::Pending,
                 Some(Chosen::Files(paths)) => match paths.into_iter().next() {
-                    Some(to) => export_to(saved.clone(), to),
+                    Some(to) => export_to(saved.clone(), thumbnail.take(), to),
                     None => return Transfer::Done,
                 },
                 Some(Chosen::Cancelled) => return Transfer::Done,
@@ -955,7 +966,11 @@ impl SceneTransfer {
                 // Downloads folder, where a person looks first.
                 Some(Chosen::Unavailable(reason)) => {
                     tracing::warn!("File chooser unavailable, sharing to Downloads: {reason}");
-                    export_to(saved.clone(), fallback_share_path(&saved.name))
+                    export_to(
+                        saved.clone(),
+                        thumbnail.take(),
+                        fallback_share_path(&saved.name),
+                    )
                 }
             },
             TransferStage::OpenFrom { chooser } => match chooser.poll() {
@@ -1035,10 +1050,14 @@ fn spawn_transfer(
     rx
 }
 
-fn export_to(saved: crate::scenes::SavedScene, to: PathBuf) -> TransferStage {
+fn export_to(
+    saved: crate::scenes::SavedScene,
+    thumbnail: Option<Vec<u8>>,
+    to: PathBuf,
+) -> TransferStage {
     TransferStage::Working(spawn_transfer(move || {
         TransferDone::Shared(
-            crate::scene_file::export(&saved, &to)
+            crate::scene_file::export(&saved, thumbnail.as_deref(), &to)
                 .map(|exported| (to, exported))
                 .map_err(|e| e.to_string()),
         )
@@ -1064,30 +1083,53 @@ fn fallback_share_path(name: &str) -> PathBuf {
 }
 
 /// Put an imported scene on the shelf — under its own name, or
-/// "name (2)" if that is taken — and on screen, as the active one, fitted
-/// into `bounds`, the area the overlay covers here
-/// (`scene_file::fit_onto`). Returns whether it did.
+/// "name (2)" if that is taken, with the picture it came with — and on
+/// screen, as the active one, fitted into `bounds`, the area the overlay
+/// covers here (`scene_file::fit_onto`). Returns whether it did.
 pub fn apply_imported(
-    mut saved: crate::scenes::SavedScene,
+    imported: crate::scene_file::Imported,
     ctx: &mut OutcomeCtx<'_>,
     active: &mut Option<String>,
     bounds: crate::monitor::DesktopBounds,
 ) -> bool {
+    let crate::scene_file::Imported {
+        scene: mut saved,
+        thumbnail,
+    } = imported;
     let dir = crate::scenes::dir();
     saved.name = crate::scenes::free_name(&crate::scenes::list_in(&dir), &saved.name);
-    if let Err(e) = crate::scenes::write_in(&dir, &saved) {
-        let mut args = fluent::FluentArgs::new();
-        args.set("error", e.to_string());
-        ctx.toasts
-            .error(crate::i18n::t_args("toast-scene-import-failed", &args));
-        return false;
-    }
+    let path = match crate::scenes::write_in(&dir, &saved) {
+        Ok(path) => path,
+        Err(e) => {
+            let mut args = fluent::FluentArgs::new();
+            args.set("error", e.to_string());
+            ctx.toasts
+                .error(crate::i18n::t_args("toast-scene-import-failed", &args));
+            return false;
+        }
+    };
     ctx.scene.apply_saved(&saved);
-    // Laid out for other screens: brought onto these, and saved so.
+    // Laid out for other screens: brought onto these, and saved so — its
+    // picture drawn again. Otherwise the one it came with, written anew
+    // from what was decoded, or one drawn now if it came without.
     if crate::scene_file::fit_onto(ctx.scene, bounds) {
         tracing::info!("Imported scene fitted onto this desktop");
         if let Err(e) = crate::scenes::save_in(&dir, &saved.name, ctx.scene) {
             tracing::warn!("Fitted scene not saved: {e}");
+        }
+    } else {
+        let written = thumbnail.map(|image| {
+            crate::scene_thumb::encode(&image).and_then(|png| {
+                Ok(crate::util::atomic_write_bytes(
+                    &crate::scene_thumb::path_for(&path),
+                    &png,
+                )?)
+            })
+        });
+        match written {
+            Some(Ok(())) => {}
+            Some(Err(e)) => tracing::debug!("Imported scene's picture not saved: {e}"),
+            None => crate::scene_thumb::save_for(&path, ctx.scene),
         }
     }
     // Indices into the scene that was just replaced.

@@ -75,6 +75,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Scene pictures.** Each saved scene in the Scene tab shows a small
+  picture of its characters, taken when it is saved, so "Work" and
+  "Evening" can be told apart at a glance. It goes along when the scene
+  is shared, and comes in with one that is imported.
 
 - **Step aside for apps you choose.** Under the full-screen setting in
   Appearance, pick apps from the ones open now — a video call, a

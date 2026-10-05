@@ -99,20 +99,23 @@ fn shelf_changed() {
 }
 
 /// Save what `scene` holds under `name`, in `dir` — over the scene of
-/// that name if there is one. Returns its file.
+/// that name if there is one — with a picture of it beside
+/// (`crate::scene_thumb`). Returns its file.
 pub fn save_in(dir: &Path, name: &str, scene: &Scene) -> Result<PathBuf> {
     let name = name.trim();
     if name.is_empty() {
         return Err(AnimaError::other("a scene needs a name"));
     }
-    write_in(
+    let path = write_in(
         dir,
         &SavedScene {
             name: name.to_string(),
             characters: scene.to_character_configs(),
             groups: scene.groups.clone(),
         },
-    )
+    )?;
+    crate::scene_thumb::save_for(&path, scene);
+    Ok(path)
 }
 
 /// Save `saved` in `dir` under its own name — over the scene of that name
@@ -153,9 +156,10 @@ pub fn load(path: &Path) -> Result<SavedScene> {
     Ok(saved)
 }
 
-/// Delete the scene in `path`.
+/// Delete the scene in `path`, and its picture.
 pub fn delete(path: &Path) -> Result<()> {
     std::fs::remove_file(path)?;
+    let _ = std::fs::remove_file(crate::scene_thumb::path_for(path));
     shelf_changed();
     Ok(())
 }
@@ -267,6 +271,11 @@ mod tests {
         let scene = scene_of(&["a", "b"]);
         let path = save_in(&dir, " Work ", &scene).unwrap();
         assert_eq!(path.file_name().unwrap(), "work.toml");
+        let picture = crate::scene_thumb::path_for(&path);
+        assert!(
+            crate::scene_thumb::load(&picture).is_ok(),
+            "its picture beside it"
+        );
         save_in(&dir, "stream", &scene_of(&["c"])).unwrap();
         let names: Vec<_> = list_in(&dir).into_iter().map(|e| e.name).collect();
         assert_eq!(names, ["stream", "Work"], "by name, case aside");
@@ -278,6 +287,7 @@ mod tests {
         assert_eq!(loaded.characters[0].id, "x");
         delete(&path).unwrap();
         assert_eq!(list_in(&dir).len(), 1);
+        assert!(!picture.exists(), "and it goes with it");
         assert!(save_in(&dir, "  ", &scene).is_err(), "no name");
         let _ = std::fs::remove_dir_all(&dir);
     }

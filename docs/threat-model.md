@@ -111,7 +111,7 @@ else, so it gets the drop's treatment and then some:
   still on import whatever the file says. No sound, no other file
   travels — a character's lines (`talk`) are text, tidied like any
   config, and its tap sound, a path into this library, is cleared both
-  ways; an entry that is not `scene.toml` or
+  ways; an entry that is not `scene.toml`, `thumbnail.png` or
   `assets/<number>/<plain name>.<drop extension>` fails the import.
 - **A reader that takes only what we write.** Stored entries only (no
   compression, so no inflate at all), no encryption, no zip64, CRC
@@ -120,6 +120,11 @@ else, so it gets the drop's treatment and then some:
   two entries over the same bytes. Stored data cannot expand, so with
   no overlap what comes out is never larger than the file, which is
   capped at `scene_file::MAX_FILE_BYTES` (512 MB) and 4096 entries.
+- **The scene's own picture, checked.** A `thumbnail.png` entry is at
+  most 256 KB, a PNG, and at most 512 pixels a side — read from its
+  header before anything is decoded (`scene_thumb::decode`) — or the
+  import fails. What is written beside the scene is encoded again from
+  what was decoded, never the bytes that came in.
 - **Contained writes.** Pictures go to a folder that did not exist,
   `imported-scenes/<name>/` under the data directory, at paths built
   from the checked names — never from anything in `scene.toml`. Each

@@ -44,6 +44,7 @@ pub mod reminders;
 pub mod renderer;
 pub mod scene;
 pub mod scene_file;
+pub mod scene_thumb;
 pub mod scenes;
 pub mod schedule;
 pub mod scripting;

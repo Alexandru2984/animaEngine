@@ -570,6 +570,15 @@ fn scenes_section(
     let mut action: Option<SceneAction> = None;
     for entry in &shelf {
         ui.horizontal(|ui| {
+            // Its picture, or an empty frame where there is none yet.
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(80.0, 50.0), egui::Sense::hover());
+            ui.painter()
+                .rect_filled(rect, theme::RADIUS_SM, ui.visuals().faint_bg_color);
+            if let Some(texture) = scene_thumbnail(ui, &entry.path) {
+                egui::Image::new(&texture)
+                    .corner_radius(theme::RADIUS_SM)
+                    .paint_at(ui, rect);
+            }
             let is_active = active.as_deref() == Some(entry.name.as_str());
             if ui
                 .selectable_label(is_active, &entry.name)
@@ -716,6 +725,53 @@ fn scenes_section(
             }
         }
     });
+}
+
+/// The picture of the scene saved in `scene_file` (`crate::scene_thumb`),
+/// as a texture: read again when its file changes, which is looked at
+/// every couple of seconds.
+fn scene_thumbnail(ui: &egui::Ui, scene_file: &std::path::Path) -> Option<egui::TextureHandle> {
+    use std::time::{Duration, Instant, SystemTime};
+    #[derive(Clone)]
+    struct Held {
+        checked: Instant,
+        modified: Option<SystemTime>,
+        texture: Option<egui::TextureHandle>,
+    }
+    let png = crate::scene_thumb::path_for(scene_file);
+    let id = egui::Id::new(("anima.scene-thumb", png.as_path()));
+    let held = ui.ctx().memory(|m| m.data.get_temp::<Held>(id));
+    if let Some(held) = &held {
+        if held.checked.elapsed() < Duration::from_secs(2) {
+            return held.texture.clone();
+        }
+    }
+    let modified = std::fs::metadata(&png).and_then(|m| m.modified()).ok();
+    let texture = match held {
+        Some(held) if held.modified == modified => held.texture,
+        _ => modified
+            .and_then(|_| crate::scene_thumb::load(&png).ok())
+            .map(|image| {
+                let size = [image.width() as usize, image.height() as usize];
+                let color = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
+                ui.ctx().load_texture(
+                    format!("scene-thumb-{}", png.display()),
+                    color,
+                    egui::TextureOptions::LINEAR,
+                )
+            }),
+    };
+    ui.ctx().memory_mut(|m| {
+        m.data.insert_temp(
+            id,
+            Held {
+                checked: Instant::now(),
+                modified,
+                texture: texture.clone(),
+            },
+        )
+    });
+    texture
 }
 
 /// Save what is on screen as the scene `name`, which becomes the active
