@@ -1438,6 +1438,7 @@ pub fn run_native(
         scene.set_reduced_motion(config.global.reduced_motion);
         scene.set_hover_startle(config.global.hover_startle);
         scene.set_bump(config.global.characters_bump);
+        scene.set_little_effects(config.global.little_effects);
         {
             let _s = perf_sampler.scope(crate::perf::Category::SceneUpdate);
             scene.tick(
@@ -1555,6 +1556,19 @@ pub fn run_native(
                 .as_ref()
                 .is_none_or(|name| crate::app::windows::entity_on_monitor(monitors, e, name))
         });
+        // And the hearts, dust and z's on it (`crate::effects`).
+        let effects = if overlay_hidden || aside.hidden {
+            Vec::new()
+        } else {
+            scene.effects_shown(
+                primary_origin,
+                (
+                    renderer.primary.window_width as f32,
+                    renderer.primary.window_height as f32,
+                ),
+                now,
+            )
+        };
         let drawn: Vec<&Entity> = if overlay_hidden || aside.hidden {
             // Hidden: present a cleared (fully transparent) surface. The
             // layer surface stays mapped — that is what a layer shell
@@ -1650,6 +1664,7 @@ pub fn run_native(
                 let step_aside_apps_mut = &mut config.global.step_aside_apps;
                 let bedtime_mut = &mut config.global.bedtime;
                 let tap_characters_mut = &mut config.global.tap_characters;
+                let little_effects_mut = &mut config.global.little_effects;
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
                 let on_battery_mut = &mut config.global.pause_on_battery;
                 let start_at_login_mut = &mut config.global.start_at_login;
@@ -1698,6 +1713,7 @@ pub fn run_native(
                         }
                         // Positions here are already in points: pointer
                         // events map to them one to one.
+                        crate::ui::effects::paint(ctx, &effects, 1.0);
                         crate::ui::speech::paint(ctx, &bubbles, 1.0);
                         if crate::ui::onboarding::coach_marks(
                             ctx,
@@ -1734,6 +1750,7 @@ pub fn run_native(
                                 step_aside_apps_mut,
                                 always_on_top_mut,
                                 tap_characters_mut,
+                                little_effects_mut,
                                 bedtime_mut,
                                 panels::AwayControls {
                                     idle_minutes: &mut *idle_minutes_mut,
@@ -1866,6 +1883,15 @@ pub fn run_native(
                                         )
                                     })
                                 };
+                                let effects = if overlay_hidden || aside.hidden {
+                                    Vec::new()
+                                } else {
+                                    scene.effects_shown(
+                                        origin,
+                                        (surface.window_width as f32, surface.window_height as f32),
+                                        now,
+                                    )
+                                };
                                 let asked =
                                     extra_eguis.get(name).is_some_and(|e| e.repaint_due(now));
                                 // Hidden means hidden, as on the panel's surface.
@@ -1873,7 +1899,11 @@ pub fn run_native(
                                     m.surface.as_ref() == Some(name)
                                         && !(overlay_hidden || aside.hidden)
                                 });
-                                if !bubbles.is_empty() || asked || menu_here.is_some() {
+                                if !bubbles.is_empty()
+                                    || !effects.is_empty()
+                                    || asked
+                                    || menu_here.is_some()
+                                {
                                     let egui =
                                         extra_eguis.entry(name.clone()).or_insert_with(|| {
                                             crate::ui::surface_egui::SurfaceEgui::new(
@@ -1898,6 +1928,7 @@ pub fn run_native(
                                         egui::Modifiers::default(),
                                         |ctx| {
                                             // In points already, as on the primary.
+                                            crate::ui::effects::paint(ctx, &effects, 1.0);
                                             crate::ui::speech::paint(ctx, &bubbles, 1.0);
                                             if let Some(state) = menu_here {
                                                 menu_outcome = Some(panels::context_menu(

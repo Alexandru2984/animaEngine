@@ -69,11 +69,12 @@ impl TapGesture {
     }
 }
 
-/// Poke the character at `idx` from `from_x`: the hop and the line every
-/// tap gets, in edit mode or out of it.
+/// Poke the character at `idx` from `from_x`: the hop, the line and the
+/// hearts (`crate::effects`) every tap gets, in edit mode or out of it.
 pub fn poke(scene: &mut Scene, idx: usize, from_x: f32, bounds: crate::monitor::DesktopBounds) {
     if let Some(entity) = scene.entities.get_mut(idx) {
         entity.poke(from_x, bounds);
+        scene.hearts_for(idx);
     }
 }
 

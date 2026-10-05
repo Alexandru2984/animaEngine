@@ -54,6 +54,9 @@ pub struct PhysicsState {
     /// Velocity across in pixels per second (positive = right); only a
     /// throw sets it.
     pub velocity_x: f32,
+    /// How fast it last hit its floor, in pixels per second, until the
+    /// scene takes it for a puff of dust (`crate::effects`); 0 for none.
+    pub impact: f32,
 }
 
 impl Default for PhysicsState {
@@ -65,6 +68,7 @@ impl Default for PhysicsState {
             frozen: false,
             thrown: false,
             velocity_x: 0.0,
+            impact: 0.0,
         }
     }
 }
@@ -108,6 +112,7 @@ impl PhysicsState {
 
         if new_y >= floor {
             new_y = floor;
+            self.impact = self.velocity_y.max(0.0);
             self.velocity_y = -self.velocity_y * BOUNCE_FACTOR;
 
             // Each landing takes some of the speed across too.

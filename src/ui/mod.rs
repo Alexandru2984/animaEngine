@@ -12,6 +12,7 @@
 pub mod accessible;
 pub mod banner;
 pub mod collapse;
+pub mod effects;
 mod egui_renderer;
 pub mod icons;
 pub mod keyboard;

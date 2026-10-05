@@ -58,6 +58,10 @@ pub struct Scene {
     /// A thrown character came to rest: where it is now is worth saving
     /// ([`Scene::take_landed`]).
     landed: bool,
+    /// Hearts, dust and z's (`crate::effects`).
+    pub effects: crate::effects::Effects,
+    /// `little_effects`: whether there are any.
+    little_effects: bool,
 }
 
 impl Scene {
@@ -140,6 +144,8 @@ impl Scene {
             doze: None,
             spoke: false,
             landed: false,
+            effects: crate::effects::Effects::default(),
+            little_effects: config.global.little_effects,
         }
     }
 
@@ -248,6 +254,9 @@ impl Scene {
     /// Update the reduced-motion preference (cheap, called per frame).
     pub fn set_reduced_motion(&mut self, reduced: bool) {
         self.reduced_motion = reduced;
+        if reduced {
+            self.effects.clear();
+        }
     }
 
     /// Whether a thrown character came to rest since last asked. The save
@@ -270,6 +279,96 @@ impl Scene {
 
     pub fn set_hover_startle(&mut self, enabled: bool) {
         self.hover_startle = enabled;
+    }
+
+    /// Whether there are hearts, dust and z's (`crate::effects`): with
+    /// `little_effects` on, unless motion is kept down. Cheap, called per
+    /// frame.
+    pub fn set_little_effects(&mut self, enabled: bool) {
+        self.little_effects = enabled;
+        if !enabled {
+            self.effects.clear();
+        }
+    }
+
+    fn effects_on(&self) -> bool {
+        self.little_effects && !self.reduced_motion
+    }
+
+    /// What can be seen of the character at `idx`: its drawn rectangle
+    /// less the empty rows above its head and under its feet — where
+    /// hearts and z's rise from and dust is raised.
+    fn seen_rect(&self, idx: usize) -> Option<crate::input::arrange::Rect> {
+        let (l, t, r, b) = crate::input::arrange::drawn_rect(self, idx)?;
+        let e = &self.entities[idx];
+        let (_, _, gscale) = crate::group::transform_for_member(&self.groups, &e.id);
+        let (above, under) = e.animation().steady_margins();
+        let scale = e.scale * gscale;
+        Some((
+            l,
+            t + above * scale,
+            r,
+            (b - under * scale).max(t + above * scale),
+        ))
+    }
+
+    /// Hearts over the character at `idx` — it was tapped.
+    pub fn hearts_for(&mut self, idx: usize) {
+        if !self.effects_on() || !self.effective_visible(idx) {
+            return;
+        }
+        if let Some((l, t, r, _)) = self.seen_rect(idx) {
+            let id = self.entities[idx].id.clone();
+            self.effects.hearts(&id, ((l + r) / 2.0, t), Instant::now());
+        }
+    }
+
+    /// The effects on a surface at `origin` of `size`, in its pixels
+    /// (`effects::Effects::shown`).
+    pub fn effects_shown(
+        &self,
+        origin: (f32, f32),
+        size: (f32, f32),
+        now: Instant,
+    ) -> Vec<crate::effects::Drawn> {
+        self.effects.shown(origin, size, now, |id| {
+            let idx = self.entities.iter().position(|e| e.id == id)?;
+            let (l, t, r, _) = self.seen_rect(idx)?;
+            Some(((l + r) / 2.0, t))
+        })
+    }
+
+    /// Dust where whoever hit the floor hard this tick stands
+    /// (`physics::PhysicsState::impact`).
+    fn raise_dust(&mut self) {
+        let now = Instant::now();
+        for i in 0..self.entities.len() {
+            let speed = std::mem::take(&mut self.entities[i].physics.impact);
+            if speed < crate::effects::DUST_SPEED
+                || !self.effects_on()
+                || !self.effective_visible(i)
+            {
+                continue;
+            }
+            if let Some((l, _, r, b)) = self.seen_rect(i) {
+                self.effects.dust(((l + r) / 2.0, b), speed, now);
+            }
+        }
+    }
+
+    /// Z's over everyone who can be seen — they just fell asleep.
+    fn float_zzz(&mut self, now: Instant) {
+        if !self.effects_on() {
+            return;
+        }
+        for i in 0..self.entities.len() {
+            if !self.effective_visible(i) {
+                continue;
+            }
+            if let Some((l, t, r, _)) = self.seen_rect(i) {
+                self.effects.zzz((r - (r - l) * 0.25, t), now);
+            }
+        }
     }
 
     /// Whether characters land on and turn at each other (cheap, called
@@ -328,6 +427,7 @@ impl Scene {
         if let Some(a) = audio.as_deref_mut() {
             a.begin_tick();
         }
+        self.effects.prune(now);
         // Bubbles end on the clock, paused or not: a reminder speaks to a
         // still scene too (`crate::speech`). Asleep, a Zzz… takes the
         // place of one that ends.
@@ -383,6 +483,7 @@ impl Scene {
             );
             self.landed |= was_thrown && !entity.physics.thrown;
         }
+        self.raise_dust();
 
         if self.bump {
             crate::bump::turn_walkers(self);
@@ -478,13 +579,16 @@ impl Scene {
             landed &= entity.fall(dt, bounds, platforms);
             self.landed |= was_thrown && !entity.physics.thrown;
         }
-        if let Some(doze) = self.doze.as_mut() {
-            if landed || now.duration_since(doze.since) >= crate::doze::SETTLE_LIMIT {
-                doze.settled = true;
-                for entity in &mut self.entities {
-                    entity.rest();
-                }
+        self.raise_dust();
+        let Some(doze) = self.doze.as_mut() else {
+            return;
+        };
+        if landed || now.duration_since(doze.since) >= crate::doze::SETTLE_LIMIT {
+            doze.settled = true;
+            for entity in &mut self.entities {
+                entity.rest();
             }
+            self.float_zzz(now);
         }
     }
 

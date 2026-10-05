@@ -173,6 +173,8 @@ impl App {
             self.scene
                 .set_hover_startle(self.config.global.hover_startle);
             self.scene.set_bump(self.config.global.characters_bump);
+            self.scene
+                .set_little_effects(self.config.global.little_effects);
             // Bounds are the desktop region our windows actually cover,
             // not the primary window's size: in PerMonitor mode an entity
             // on a secondary monitor was otherwise clamped back onto the
@@ -287,6 +289,18 @@ impl App {
                 .as_ref()
                 .is_none_or(|name| super::windows::entity_on_monitor(&self.monitors, e, name))
         });
+        // And the hearts, dust and z's on it (`crate::effects`).
+        let effects = match &self.window {
+            Some(window) if !(self.overlay_hidden || self.stepped_aside.hidden) => {
+                let size = window.inner_size();
+                self.scene.effects_shown(
+                    primary_origin,
+                    (size.width as f32, size.height as f32),
+                    std::time::Instant::now(),
+                )
+            }
+            _ => Vec::new(),
+        };
 
         // Surface-recovery bookkeeping for this frame. Resolved after
         // the renderer borrow below is released (we can't reassign
@@ -419,6 +433,7 @@ impl App {
                         let step_aside_apps_mut = &mut self.config.global.step_aside_apps;
                         let bedtime_mut = &mut self.config.global.bedtime;
                         let tap_characters_mut = &mut self.config.global.tap_characters;
+                        let little_effects_mut = &mut self.config.global.little_effects;
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
                         let on_battery_mut = &mut self.config.global.pause_on_battery;
                         let start_at_login_mut = &mut self.config.global.start_at_login;
@@ -469,7 +484,8 @@ impl App {
                                 if panels::toggle_button(ctx, edit_mode) {
                                     *toggle_requested_ref = true;
                                 }
-                                // Bubbles are in window pixels.
+                                // Bubbles and effects are in window pixels.
+                                crate::ui::effects::paint(ctx, &effects, ctx.pixels_per_point());
                                 crate::ui::speech::paint(ctx, &bubbles, ctx.pixels_per_point());
                                 // First-run tour (V.2): floats on the
                                 // overlay in both modes; advances to
@@ -513,6 +529,7 @@ impl App {
                                     step_aside_apps_mut,
                                     always_on_top_mut,
                                     tap_characters_mut,
+                                    little_effects_mut,
                                     bedtime_mut,
                                     panels::AwayControls {
                                         idle_minutes: &mut *idle_minutes_mut,

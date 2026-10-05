@@ -99,11 +99,19 @@ fn paint_overlay(
     let origin = (slot.monitor.x as f32, slot.monitor.y as f32);
     let name = slot.monitor.name.clone();
     let bubbles = crate::speech::shown(scene, origin, |e| entity_on_monitor(monitors, e, &name));
+    let effects = scene.effects_shown(
+        origin,
+        (
+            slot.surface.window_width as f32,
+            slot.surface.window_height as f32,
+        ),
+        std::time::Instant::now(),
+    );
     let asked = slot
         .egui
         .as_ref()
         .is_some_and(|e| e.repaint_due(std::time::Instant::now()));
-    if bubbles.is_empty() && menu.is_none() && !asked {
+    if bubbles.is_empty() && effects.is_empty() && menu.is_none() && !asked {
         slot.pending_events.clear();
         return None;
     }
@@ -125,6 +133,7 @@ fn paint_overlay(
         std::mem::take(&mut slot.pending_events),
         egui::Modifiers::default(),
         |ctx| {
+            crate::ui::effects::paint(ctx, &effects, pixels_per_point);
             crate::ui::speech::paint(ctx, &bubbles, pixels_per_point);
             if let Some((state, offers)) = menu {
                 outcome = Some(crate::ui::panels::context_menu(ctx, state, offers));

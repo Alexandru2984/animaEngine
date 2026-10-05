@@ -441,6 +441,24 @@ ticks that far, so nobody speaks while paused or asleep;
 `Scene::take_spoke` tells the loops to draw the frame. The Inspector
 edits them as a text box, one line each.
 
+### Little effects (`src/effects.rs`)
+
+Hearts, dust and z's are a list on the scene (`Scene::effects`), each
+an origin, a start and a lifetime, drawn on the clock: `tap::poke` adds
+hearts (`Scene::hearts_for`), `Scene::tick` and dozing off's settling
+add dust where `PhysicsState::impact` — the speed of the last floor hit,
+taken each tick — is past `effects::DUST_SPEED`, and the settling adds
+z's once everyone is asleep. They start from what can be seen of a
+character (its drawn rectangle less its empty rows), and hearts move
+with theirs, so a poke's hop does not leave them at its feet. The loops
+gather each surface's share with the bubbles (`Scene::effects_shown`)
+and paint it under them (`ui::effects`; a heart is a fan mesh with a
+one-pixel fringe). While one is alive `pacing::redraw_pacing` says
+`Continuous`, a still or sleeping scene's too — a second or two — and
+`Scene::tick` drops the finished ones. None are made with
+`little_effects` off or Reduce motion on, and switching either clears
+them.
+
 ### Starting at login (`src/autostart.rs`)
 
 Installed natively the switch *is* the XDG autostart entry: reading it

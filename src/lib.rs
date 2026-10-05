@@ -19,6 +19,7 @@ pub mod crash;
 pub mod demo;
 pub mod doze;
 pub mod drop_validate;
+pub mod effects;
 pub mod entity;
 pub mod error;
 pub mod event;

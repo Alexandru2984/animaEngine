@@ -63,6 +63,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and one of its lines — while a click anywhere else still goes to the
   window underneath, as before. A tap leaves the keyboard with the app
   you are typing in. Native Wayland and X11.
+- **Little effects.** A few hearts rise from a character you tap, a
+  puff of dust goes up where one lands hard, and z's float up as they
+  fall asleep. A switch in Appearance turns them off, and Reduce motion
+  does too. They last a moment; a sleeping scene goes back to holding
+  still once they are over.
 - **Step aside for apps you choose.** Under the full-screen setting in
   Appearance, pick apps from the ones open now — a video call, a
   streaming tool, a game — and the characters hide while one of them is

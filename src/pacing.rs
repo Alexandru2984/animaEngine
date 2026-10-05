@@ -36,6 +36,11 @@ pub fn redraw_pacing(scene: &Scene, ui_animating: bool) -> RedrawPacing {
     if ui_animating {
         return RedrawPacing::Continuous;
     }
+    // Hearts, dust and z's run on the clock, a sleeping scene's too
+    // (`crate::effects`); they are over in a moment or two.
+    if scene.effects.alive(Instant::now()) {
+        return RedrawPacing::Continuous;
+    }
     if !scene.is_running() {
         return RedrawPacing::Idle;
     }
@@ -114,6 +119,17 @@ mod tests {
         let mut scene = Scene::from_config(&crate::config::AppConfig::default());
         scene.entities = entities;
         scene
+    }
+
+    #[test]
+    fn an_effect_is_drawn_through_to_its_end_on_a_still_scene() {
+        let mut s = scene(vec![entity(1, false, Behavior::Idle)]);
+        s.global_playing = false;
+        assert_eq!(redraw_pacing(&s, false), RedrawPacing::Idle);
+        s.effects.hearts("e", (100.0, 100.0), Instant::now());
+        assert_eq!(redraw_pacing(&s, false), RedrawPacing::Continuous);
+        s.effects.clear();
+        assert_eq!(redraw_pacing(&s, false), RedrawPacing::Idle);
     }
 
     #[test]
