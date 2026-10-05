@@ -130,6 +130,11 @@ pub struct GlobalConfig {
     /// Characters who meet say hello (`crate::greet`). Off by default.
     #[serde(default)]
     pub characters_greet: bool,
+
+    /// A character greets you back after you were away (`crate::welcome`).
+    /// On by default.
+    #[serde(default = "default_true")]
+    pub welcome_back: bool,
     /// Generate AccessKit tree updates (the AT-SPI bridge that drives
     /// screen readers like Orca). On by default — the overhead is
     /// negligible and we want screen-reader users to "just work" out
@@ -192,6 +197,7 @@ impl Default for GlobalConfig {
             snap_while_dragging: true,
             characters_bump: false,
             characters_greet: false,
+            welcome_back: true,
             accesskit_enabled: true,
             hotkey_backend: crate::hotkeys::probe::HotkeyBackend::Auto,
             last_seen_whats_new: None,

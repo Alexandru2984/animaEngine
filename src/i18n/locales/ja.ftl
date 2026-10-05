@@ -299,6 +299,10 @@ away-after-minutes = { $minutes } 分後
 appearance-away-unavailable = このセッションでは離席を検知できません。GNOME、実際の X サーバー、またはアイドル通知に対応した Wayland コンポジターが必要です。
 appearance-battery-label = バッテリー駆動中は一時停止
 appearance-battery-hint = コンピューターがバッテリーで動いている間、キャラクターを止めます。
+appearance-welcome-label = 戻ったらあいさつする
+appearance-welcome-hint = しばらくコンピューターから離れていると、戻ったときにキャラクターがあいさつします。夜明けには「おはようございます！」。就寝時間中は除きます。
+welcome-back = おかえりなさい！
+welcome-morning = おはようございます！
 # Start at login (1.5): machine-translated, pending native review.
 appearance-autostart-label = ログイン時に起動
 appearance-autostart-hint = デスクトップにログインしたときに animaEngine を起動します。

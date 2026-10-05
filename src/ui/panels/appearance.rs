@@ -493,6 +493,13 @@ fn away_controls(ui: &mut egui::Ui, away: super::AwayControls<'_>) -> bool {
     {
         changed = true;
     }
+    if ui
+        .checkbox(away.welcome_back, t("appearance-welcome-label"))
+        .on_hover_text(t("appearance-welcome-hint"))
+        .changed()
+    {
+        changed = true;
+    }
     changed
 }
 

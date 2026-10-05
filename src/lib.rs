@@ -75,6 +75,7 @@ pub mod undo;
 pub mod util;
 #[cfg(unix)]
 pub mod wayland;
+pub mod welcome;
 #[cfg(windows)]
 pub mod win_instance;
 #[cfg(windows)]

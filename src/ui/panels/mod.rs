@@ -85,6 +85,8 @@ pub enum SceneRequest {
 pub struct AwayControls<'a> {
     pub idle_minutes: &'a mut u32,
     pub on_battery: &'a mut bool,
+    /// Greeted back after being away (`crate::welcome`).
+    pub welcome_back: &'a mut bool,
     /// Whether the user's idle time can be read here; `None` until the
     /// watch has looked.
     pub idle_available: Option<bool>,

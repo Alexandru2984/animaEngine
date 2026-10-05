@@ -306,6 +306,10 @@ away-after-minutes = After { $minutes } min
 appearance-away-unavailable = This session cannot tell when you are away: that takes GNOME, a real X server, or a Wayland compositor with idle notifications.
 appearance-battery-label = Pause on battery
 appearance-battery-hint = Hold the characters still while the computer runs on battery.
+appearance-welcome-label = Say hello when I come back
+appearance-welcome-hint = After a while away from the computer, a character greets you as you return — “Good morning!” after the night. Not at bedtime.
+welcome-back = Welcome back!
+welcome-morning = Good morning!
 # Start at login (1.5)
 appearance-autostart-label = Start at login
 appearance-autostart-hint = Start animaEngine when you log in to the desktop.

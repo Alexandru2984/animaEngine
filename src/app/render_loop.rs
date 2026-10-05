@@ -283,7 +283,20 @@ impl App {
         );
         // Each turn of the timer, said once it can be seen.
         let focus_said = crate::focus::say_news(&mut self.scene, shown, |_| true);
-        if reminded || focus_said {
+        // Back after being away (`crate::welcome`): greeted where it can
+        // be seen, and not by sleepers.
+        let minute = self.hours_clock.minute();
+        let welcomed = self
+            .welcome
+            .check(self.away, minute)
+            .filter(|_| self.config.global.welcome_back && shown && !self.bedtime_now)
+            .and_then(|greeting| {
+                let i = self.scene.frontmost_visible()?;
+                self.scene.entities[i].say(&greeting.line(), crate::welcome::SAY_SECONDS);
+                Some(())
+            })
+            .is_some();
+        if reminded || focus_said || welcomed {
             self.request_redraw();
         }
         // The right-click menu's monitor went — unplugged, or the overlay
@@ -455,6 +468,7 @@ impl App {
                         let little_effects_mut = &mut self.config.global.little_effects;
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
                         let on_battery_mut = &mut self.config.global.pause_on_battery;
+                        let welcome_back_mut = &mut self.config.global.welcome_back;
                         let start_at_login_mut = &mut self.config.global.start_at_login;
                         let idle_available = self.idle_source;
                         // Snapshot the AccessKit flag BEFORE taking
@@ -555,6 +569,7 @@ impl App {
                                     panels::AwayControls {
                                         idle_minutes: &mut *idle_minutes_mut,
                                         on_battery: &mut *on_battery_mut,
+                                        welcome_back: &mut *welcome_back_mut,
                                         idle_available,
                                     },
                                     start_at_login_mut,

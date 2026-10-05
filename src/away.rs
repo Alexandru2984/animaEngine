@@ -46,11 +46,13 @@ pub const REMINDER_AWAY_MINUTES: u32 = 5;
 
 /// How long without input counts as away, in minutes; 0 not watched.
 /// Pausing sets it; with pausing off, reminders still need to know — time
-/// away is the break that starts them over — so they get their own.
-pub fn idle_watch_minutes(pause_minutes: u32, has_reminders: bool) -> u32 {
+/// away is the break that starts them over — and so does the welcome back
+/// (`crate::welcome`), so they get their own: `needed` says whether either
+/// is there.
+pub fn idle_watch_minutes(pause_minutes: u32, needed: bool) -> u32 {
     if pause_minutes > 0 {
         pause_minutes
-    } else if has_reminders {
+    } else if needed {
         REMINDER_AWAY_MINUTES
     } else {
         0

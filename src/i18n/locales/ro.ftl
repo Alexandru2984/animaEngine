@@ -299,6 +299,10 @@ away-after-minutes = După { $minutes } min
 appearance-away-unavailable = Sesiunea asta nu poate ști când nu ești la calculator: e nevoie de GNOME, un server X adevărat sau un compositor Wayland cu notificări de inactivitate.
 appearance-battery-label = Pauză pe baterie
 appearance-battery-hint = Personajele stau pe loc cât timp calculatorul merge pe baterie.
+appearance-welcome-label = Salută-mă când revin
+appearance-welcome-hint = După o vreme departe de calculator, un personaj te salută când revii — „Bună dimineața!” după noapte. Nu la ora de culcare.
+welcome-back = Bine ai revenit!
+welcome-morning = Bună dimineața!
 # Start at login (1.5): machine-translated, pending native review.
 appearance-autostart-label = Pornește la autentificare
 appearance-autostart-hint = Pornește animaEngine când intri în sesiunea desktop.

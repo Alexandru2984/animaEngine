@@ -299,6 +299,10 @@ away-after-minutes = Na { $minutes } min
 appearance-away-unavailable = Deze sessie kan niet zien wanneer u weg bent: daarvoor is GNOME nodig, een echte X-server of een Wayland-compositor met inactiviteitsmeldingen.
 appearance-battery-label = Pauzeren op batterij
 appearance-battery-hint = De figuren staan stil zolang de computer op de batterij draait.
+appearance-welcome-label = Groeten als ik terugkom
+appearance-welcome-hint = Na een tijdje weg van de computer groet een figuur bij terugkomst — ‘Goedemorgen!’ na de nacht. Niet tijdens bedtijd.
+welcome-back = Welkom terug!
+welcome-morning = Goedemorgen!
 # Start at login (1.5): machine-translated, pending native review.
 appearance-autostart-label = Starten bij aanmelden
 appearance-autostart-hint = animaEngine starten wanneer u zich aanmeldt bij het bureaublad.

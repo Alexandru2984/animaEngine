@@ -185,6 +185,7 @@ pub fn run_native(
     // Bedtime against the clock (`crate::bedtime`).
     let mut bedtime_watch = crate::bedtime::Watch::default();
     let mut hours_clock = crate::hours::Clock::default();
+    let mut welcome = crate::welcome::Welcome::default();
     // Tapping in pass-through (`crate::tap`): when the input region last
     // followed the characters, and a press waiting for its release.
     let mut tap_refreshed = Instant::now();
@@ -529,7 +530,7 @@ pub fn run_native(
         // Watched for reminders even with pausing off.
         let idle_watch = crate::away::idle_watch_minutes(
             global.pause_when_idle_minutes,
-            !config.reminders.is_empty(),
+            !config.reminders.is_empty() || global.welcome_back,
         );
         layer.set_idle_timeout(idle_watch);
         crate::away::configure(idle_watch, global.pause_on_battery);
@@ -604,6 +605,17 @@ pub fn run_native(
         // Each turn of the timer, said once it can be seen.
         if crate::focus::say_news(&mut scene, !(overlay_hidden || wanted.hidden), |_| true) {
             activity = true;
+        }
+        // Back after being away (`crate::welcome`): greeted where it can be
+        // seen, and not by sleepers.
+        let minute = hours_clock.minute();
+        if let Some(greeting) = welcome.check(layer.is_idle(), minute).filter(|_| {
+            config.global.welcome_back && !(overlay_hidden || wanted.hidden) && !bedtime_now
+        }) {
+            if let Some(i) = scene.frontmost_visible() {
+                scene.entities[i].say(&greeting.line(), crate::welcome::SAY_SECONDS);
+                activity = true;
+            }
         }
         if wanted != aside {
             aside = wanted;
@@ -1714,6 +1726,7 @@ pub fn run_native(
                 let little_effects_mut = &mut config.global.little_effects;
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
                 let on_battery_mut = &mut config.global.pause_on_battery;
+                let welcome_back_mut = &mut config.global.welcome_back;
                 let start_at_login_mut = &mut config.global.start_at_login;
                 let idle_available = Some(layer.idle_available());
                 let accesskit_mut = &mut config.global.accesskit_enabled;
@@ -1804,6 +1817,7 @@ pub fn run_native(
                                 panels::AwayControls {
                                     idle_minutes: &mut *idle_minutes_mut,
                                     on_battery: &mut *on_battery_mut,
+                                    welcome_back: &mut *welcome_back_mut,
                                     idle_available,
                                 },
                                 start_at_login_mut,

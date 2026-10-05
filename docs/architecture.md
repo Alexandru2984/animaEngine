@@ -572,6 +572,15 @@ on. The loops hand it the settings through `away::configure`, and it
 sends `AnimaEvent::Away` / `OnBattery` / `IdleSource` on change,
 retrying a full channel rather than giving up.
 
+
+Coming back is greeted (`src/welcome.rs`): the loops hand
+`welcome::Welcome::check` the away flag every frame, and the step from
+away to back yields "Welcome back!" or, coming back in the morning after
+the night (away four hours, or since before 04:00, or since the evening
+before), "Good morning!" — said by `Scene::frontmost_visible` when the
+overlay is on screen and it is not bedtime. With `welcome_back` on, idle
+is watched even with pausing off (`away::idle_watch_minutes`'s
+`needed`), as for reminders.
 ### Several selected (`src/input/multi.rs`)
 
 `SelectionState` keeps a *primary* — what the Inspector shows and what

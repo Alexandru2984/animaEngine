@@ -147,6 +147,8 @@ pub struct App {
     bedtime_watch: crate::bedtime::Watch,
     /// The clock for characters' own hours (`crate::hours`).
     hours_clock: crate::hours::Clock,
+    /// Watching for the user's return (`crate::welcome`).
+    welcome: crate::welcome::Welcome,
     bedtime_now: bool,
     /// An app the user chose is the window in front (`crate::chosen_apps`).
     chosen_app_in_front: bool,
@@ -347,6 +349,7 @@ impl App {
             stacked_on_top: None,
             bedtime_watch: Default::default(),
             hours_clock: Default::default(),
+            welcome: Default::default(),
             bedtime_now: false,
             chosen_app_in_front: false,
             tap_rects: Vec::new(),
@@ -709,7 +712,7 @@ impl App {
         crate::away::configure(
             crate::away::idle_watch_minutes(
                 global.pause_when_idle_minutes,
-                !self.config.reminders.is_empty(),
+                !self.config.reminders.is_empty() || global.welcome_back,
             ),
             global.pause_on_battery,
         );
@@ -901,6 +904,10 @@ impl ApplicationHandler<AnimaEvent> for App {
                 tracing::info!("User {}", if away { "away" } else { "back" });
                 self.away = away;
                 self.update_step_aside();
+                // Back: the welcome is said on the next frame (`crate::welcome`).
+                if !away {
+                    self.request_redraw_all();
+                }
             }
             AnimaEvent::OnBattery(on_battery) => {
                 tracing::info!("On battery: {on_battery}");

@@ -86,6 +86,9 @@ pause_when_idle_minutes = 10 # hold the characters still after this
                             # server, or a Wayland compositor with
                             # idle notifications.
 pause_on_battery = false    # hold them still on battery (UPower)
+welcome_back = true         # a character greets you back after you
+                            # were away (watched for five minutes
+                            # even with pausing off)
 start_at_login = false      # Flatpak only: what the Background portal
                             # last granted. Installed natively, the
                             # switch reads ~/.config/autostart instead.

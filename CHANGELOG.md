@@ -76,6 +76,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Welcome back.** After a while away from the computer, the character
+  in front greets you as you return — "Good morning!" when you come back
+  in the morning after the night. Not at bedtime, nor while the
+  characters are out of sight; a switch in Appearance turns it off.
 - **Characters with their own hours.** "Only at certain hours" in the
   Inspector keeps a character off the screen outside the hours you give
   it — the ghost from 22:00 to 06:00, the sun the other way round. Edit

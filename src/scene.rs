@@ -426,6 +426,14 @@ impl Scene {
         changed
     }
 
+    /// The visible character in front of the others, to speak for the
+    /// app (`crate::welcome`).
+    pub fn frontmost_visible(&self) -> Option<usize> {
+        (0..self.entities.len())
+            .filter(|&i| self.effective_visible(i))
+            .max_by_key(|&i| self.entities[i].z_index)
+    }
+
     /// Whether those who meet say hello (`crate::greet`). Cheap, called per
     /// frame; switching it off forgets who was near whom.
     pub fn set_greet(&mut self, enabled: bool) {
