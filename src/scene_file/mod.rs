@@ -14,6 +14,10 @@
 //! directory (`imports_dir`), and the scene is saved to the shelf like any
 //! other; its characters point at that folder.
 //!
+//! One character goes out the same way, as `name.animachar` — a scene of
+//! one, marked so in `scene.toml` — and comes in to join the scene on
+//! screen rather than to be a scene of its own (`Imported::character`).
+//!
 //! The scene's own picture (`crate::scene_thumb`) goes along as
 //! `thumbnail.png`, when it has one, and comes in checked like the rest:
 //! capped, a PNG, small — or the import fails.
@@ -30,6 +34,9 @@ use std::path::{Path, PathBuf};
 
 /// A scene file's extension.
 pub const EXTENSION: &str = "animascene";
+
+/// A shared character's: the same file, of one character.
+pub const CHARACTER_EXTENSION: &str = "animachar";
 
 /// The biggest scene file written or read.
 pub const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
@@ -50,6 +57,9 @@ const FORMAT: u32 = 1;
 #[derive(Serialize, Deserialize)]
 struct Manifest {
     format: u32,
+    /// A character to add, not a scene to switch to.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    character: bool,
     scene: SavedScene,
 }
 
@@ -58,6 +68,11 @@ struct Manifest {
 pub struct Imported {
     pub scene: SavedScene,
     pub thumbnail: Option<image::RgbaImage>,
+    /// A shared character (`.animachar`): its characters join the scene
+    /// on screen…
+    pub character: bool,
+    /// …there, where it was dropped; set by the caller.
+    pub at: Option<(f32, f32)>,
 }
 
 /// What an export wrote.
@@ -69,11 +84,23 @@ pub struct Exported {
     pub bytes: u64,
 }
 
-/// Whether `path` names a scene file.
+/// Whether `path` names a scene file — or a shared character, which is
+/// read the same way.
 pub fn is_scene_file(path: &Path) -> bool {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| e.eq_ignore_ascii_case(EXTENSION))
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+        e.eq_ignore_ascii_case(EXTENSION) || e.eq_ignore_ascii_case(CHARACTER_EXTENSION)
+    })
+}
+
+/// Write the character `config`, with its pictures, to `to`: a scene of
+/// one, marked as a character.
+pub fn export_character(config: &crate::config::CharacterConfig, to: &Path) -> Result<Exported> {
+    let saved = SavedScene {
+        name: config.name.clone(),
+        characters: vec![config.clone()],
+        groups: Vec::new(),
+    };
+    export_as(&saved, None, true, to)
 }
 
 /// Where imported scenes keep their pictures.
@@ -93,6 +120,15 @@ pub fn fresh_dir(root: &Path, name: &str) -> PathBuf {
 /// Write `saved`, with the pictures its characters show, to `to` — and
 /// `thumbnail`, a PNG of it, if given.
 pub fn export(saved: &SavedScene, thumbnail: Option<&[u8]>, to: &Path) -> Result<Exported> {
+    export_as(saved, thumbnail, false, to)
+}
+
+fn export_as(
+    saved: &SavedScene,
+    thumbnail: Option<&[u8]>,
+    character: bool,
+    to: &Path,
+) -> Result<Exported> {
     let mut scene = saved.clone();
     let mut packer = Packer::default();
     let mut scripts_left_out = 0;
@@ -116,6 +152,7 @@ pub fn export(saved: &SavedScene, thumbnail: Option<&[u8]>, to: &Path) -> Result
     }
     let manifest = toml::to_string_pretty(&Manifest {
         format: FORMAT,
+        character,
         scene,
     })?;
 
@@ -260,8 +297,11 @@ pub fn import(file: &Path, into: &Path) -> Result<Imported> {
     }
     let text = std::str::from_utf8(manifest.data)
         .map_err(|_| AnimaError::other("its scene.toml is not text"))?;
-    let Manifest { format, mut scene } =
-        toml::from_str(text).map_err(|e| AnimaError::other(format!("scene.toml: {e}")))?;
+    let Manifest {
+        format,
+        character,
+        mut scene,
+    } = toml::from_str(text).map_err(|e| AnimaError::other(format!("scene.toml: {e}")))?;
     if format > FORMAT {
         return Err(AnimaError::other(
             "made by a newer animaEngine; update to open it",
@@ -316,7 +356,12 @@ pub fn import(file: &Path, into: &Path) -> Result<Imported> {
         let _ = std::fs::remove_dir_all(into);
     }
     unpacked?;
-    Ok(Imported { scene, thumbnail })
+    Ok(Imported {
+        scene,
+        thumbnail,
+        character,
+        at: None,
+    })
 }
 
 /// Fit a scene laid out for someone else's screens into `bounds`, the
@@ -702,10 +747,40 @@ mod tests {
     }
 
     #[test]
+    fn one_character_goes_out_and_comes_in_as_a_character() {
+        let dir = tmp("character");
+        let mut cat = demo().characters[1].clone();
+        cat.behavior = crate::behavior::Behavior::Script {
+            path: "hello.rhai".into(),
+            params: Default::default(),
+        };
+        cat.talk.sound = "meow.ogg".into();
+        let file = dir.join("cat.animachar");
+        let exported = export_character(&cat, &file).unwrap();
+        assert_eq!((exported.characters, exported.scripts_left_out), (1, 1));
+        assert!(is_scene_file(&file), "read the same way");
+        let back = import(&file, &dir.join("in")).unwrap();
+        assert!(back.character);
+        assert_eq!(back.scene.characters.len(), 1);
+        let c = &back.scene.characters[0];
+        assert_eq!(c.behavior, crate::behavior::Behavior::Idle);
+        assert!(c.talk.sound.is_empty());
+        // A scene file says it is none.
+        export(&demo(), None, &dir.join("s.animascene")).unwrap();
+        assert!(
+            !import(&dir.join("s.animascene"), &dir.join("in2"))
+                .unwrap()
+                .character
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_character_whose_picture_is_missing_fails_the_import() {
         let dir = tmp("missing");
         let manifest = toml::to_string_pretty(&Manifest {
             format: FORMAT,
+            character: false,
             scene: SavedScene {
                 name: "M".into(),
                 characters: vec![CharacterConfig {

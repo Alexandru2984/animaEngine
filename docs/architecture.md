@@ -674,6 +674,16 @@ no portal, and `OpenFile` or a drop to import — as one pending
 `outcomes::SceneTransfer` each loop polls. Imported pictures stay when
 their scene is deleted, like the library's.
 
+One character goes out the same way (`scene_file::export_character`,
+`.animachar`): a scene of one, `character = true` in `scene.toml`.
+Everything that routes a `.animascene` routes it too
+(`scene_file::is_scene_file`), through the same reader and `tidy`; the
+import carries the flag (`Imported::character`) and where it was dropped
+(`Imported::at`), and `outcomes::apply_imported` hands it to
+`add_shared_characters`, which places it there — or mid-screen from the
+chooser — and adds it as a paste does (`paste_with`: fresh ids, on top,
+selected), instead of shelving and switching to a scene.
+
 Each saved scene has a picture beside its TOML, under the same name
 (`src/scene_thumb.rs`): `scenes::save_in` draws it on the CPU from the
 frames already decoded — the characters framed, each twice its size,

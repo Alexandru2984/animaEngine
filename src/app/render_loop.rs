@@ -693,7 +693,7 @@ impl App {
                         Some(panels::SceneRequest::AddFile) => self.open_file_chooser(),
                         Some(panels::SceneRequest::Paste) => self.paste(),
                         Some(panels::SceneRequest::Share(path)) => self.share_scene(&path),
-                        Some(panels::SceneRequest::Import) => self.import_scene(None),
+                        Some(panels::SceneRequest::Import) => self.import_scene(None, None),
                         None => {}
                     }
                 }

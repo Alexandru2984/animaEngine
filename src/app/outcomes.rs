@@ -31,6 +31,13 @@ impl App {
                 }
                 self.ui_state.context_menu = None;
             }
+            panels::ContextMenuOutcome::Action(panels::MenuAction::ShareCharacter(idx)) => {
+                if self.pending_transfer.is_none() {
+                    self.pending_transfer =
+                        crate::outcomes::SceneTransfer::share_character(&self.scene, idx);
+                }
+                self.ui_state.context_menu = None;
+            }
             panels::ContextMenuOutcome::Action(action) => {
                 let structural = matches!(
                     action,
@@ -177,7 +184,7 @@ impl App {
         // where a drop of it would.
         for path in pasted.to_import {
             if crate::scene_file::is_scene_file(&path) {
-                self.import_scene(Some(path));
+                self.import_scene(Some(path), Some(at));
             } else {
                 self.import_shimeji_pack(&path, at);
             }

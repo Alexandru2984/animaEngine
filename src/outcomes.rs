@@ -67,8 +67,9 @@ pub fn apply_menu_action(action: MenuAction, ctx: &mut OutcomeCtx<'_>) {
             let targets = covered(idx, ctx.selection);
             copy_entities(&targets, ctx.scene, ctx.toasts);
         }
-        // The loops start it: it asks where, off the frame (`SceneTransfer`).
-        MenuAction::SaveGif(_) => {}
+        // The loops start these: they ask where, off the frame
+        // (`SceneTransfer`).
+        MenuAction::SaveGif(_) | MenuAction::ShareCharacter(_) => {}
         MenuAction::Cut(idx) => {
             let targets = covered(idx, ctx.selection);
             cut_entities(&targets, ctx);
@@ -271,6 +272,16 @@ pub fn cut_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> usize {
 /// says where), on top of the others, and select them. A whole group
 /// copied comes back as a group. Returns the new characters' indices.
 pub fn paste_entities(copied: &crate::clipboard::Copied, ctx: &mut OutcomeCtx<'_>) -> Vec<usize> {
+    paste_with(copied, ctx, ("toast-pasted", "toast-pasted-many"))
+}
+
+/// Add `copied` to the scene, selected — fresh ids, on top, out of the
+/// way of who is there — and say so with `said` (one name, or how many).
+fn paste_with(
+    copied: &crate::clipboard::Copied,
+    ctx: &mut OutcomeCtx<'_>,
+    said: (&str, &str),
+) -> Vec<usize> {
     let mut pasted = Vec::new();
     let mut names = Vec::new();
     let mut failed: Option<String> = None;
@@ -292,7 +303,7 @@ pub fn paste_entities(copied: &crate::clipboard::Copied, ctx: &mut OutcomeCtx<'_
                         entity.texture_dirty = false;
                     }
                 }
-                tracing::info!("Pasted '{}' at ({:.0}, {:.0})", cfg.name, cfg.x, cfg.y);
+                tracing::info!("Added '{}' at ({:.0}, {:.0})", cfg.name, cfg.x, cfg.y);
                 pasted.push(idx);
                 names.push(cfg.name);
             }
@@ -342,8 +353,7 @@ pub fn paste_entities(copied: &crate::clipboard::Copied, ctx: &mut OutcomeCtx<'_
     }
     ctx.selection.select_all_of(&pasted);
     *ctx.config_dirty = true;
-    ctx.toasts
-        .success(name_or_count(&names, "toast-pasted", "toast-pasted-many"));
+    ctx.toasts.success(name_or_count(&names, said.0, said.1));
     pasted
 }
 
@@ -869,6 +879,11 @@ enum TransferStage {
     OpenFrom {
         chooser: crate::file_chooser::FileChooser,
     },
+    /// Asking where to write a shared character.
+    CharacterTo {
+        chooser: crate::file_chooser::FileChooser,
+        config: Box<crate::config::CharacterConfig>,
+    },
     /// Asking where to write a character's GIF (`crate::gif_export`).
     GifTo {
         chooser: crate::file_chooser::FileChooser,
@@ -882,6 +897,7 @@ enum TransferDone {
     Shared(Result<(PathBuf, crate::scene_file::Exported), String>),
     Imported(Result<crate::scene_file::Imported, String>),
     Gif(Result<PathBuf, String>),
+    CharacterShared(Result<(PathBuf, crate::scene_file::Exported), String>),
 }
 
 /// Where a [`SceneTransfer`] is.
@@ -931,6 +947,26 @@ impl SceneTransfer {
         }
     }
 
+    /// Share the character at `idx` as one file: ask where.
+    pub fn share_character(scene: &crate::scene::Scene, idx: usize) -> Option<Self> {
+        let config = scene.entities.get(idx)?.to_config();
+        let name = format!(
+            "{}.{}",
+            crate::scenes::slug(&config.name),
+            crate::scene_file::CHARACTER_EXTENSION
+        );
+        Some(Self {
+            stage: TransferStage::CharacterTo {
+                chooser: crate::file_chooser::FileChooser::ask(
+                    crate::i18n::t("character-chooser-title"),
+                    String::new(),
+                    crate::file_chooser::Ask::Save { name },
+                ),
+                config: Box::new(config),
+            },
+        })
+    }
+
     /// Save the character at `idx` as a GIF: ask where. `None` when it
     /// has nothing to show.
     pub fn save_gif(scene: &crate::scene::Scene, idx: usize) -> Option<Self> {
@@ -956,7 +992,10 @@ impl SceneTransfer {
                     crate::i18n::t("import-chooser-title"),
                     crate::i18n::t("import-chooser-filter"),
                     crate::file_chooser::Ask::Open {
-                        extensions: vec![crate::scene_file::EXTENSION.to_string()],
+                        extensions: vec![
+                            crate::scene_file::EXTENSION.to_string(),
+                            crate::scene_file::CHARACTER_EXTENSION.to_string(),
+                        ],
                         multiple: false,
                     },
                 ),
@@ -964,8 +1003,9 @@ impl SceneTransfer {
         }
     }
 
-    /// Import the scene file `file` — one dropped on the overlay.
-    pub fn import(file: PathBuf) -> Self {
+    /// Import the scene file `file` — one dropped on the overlay at `at`,
+    /// where a shared character in it is to land.
+    pub fn import(file: PathBuf, at: Option<(f32, f32)>) -> Self {
         Self {
             stage: TransferStage::Working(spawn_transfer(move || {
                 let stem = file
@@ -974,7 +1014,9 @@ impl SceneTransfer {
                     .unwrap_or_default();
                 let into = crate::scene_file::fresh_dir(&crate::scene_file::imports_dir(), &stem);
                 TransferDone::Imported(
-                    crate::scene_file::import(&file, &into).map_err(|e| e.to_string()),
+                    crate::scene_file::import(&file, &into)
+                        .map(|imported| crate::scene_file::Imported { at, ..imported })
+                        .map_err(|e| e.to_string()),
                 )
             })),
         }
@@ -1006,6 +1048,19 @@ impl SceneTransfer {
                     )
                 }
             },
+            TransferStage::CharacterTo { chooser, config } => match chooser.poll() {
+                None => return Transfer::Pending,
+                Some(Chosen::Files(paths)) => match paths.into_iter().next() {
+                    Some(to) => character_to((**config).clone(), to),
+                    None => return Transfer::Done,
+                },
+                Some(Chosen::Cancelled) => return Transfer::Done,
+                Some(Chosen::Unavailable(reason)) => {
+                    tracing::warn!("File chooser unavailable, sharing to Downloads: {reason}");
+                    let to = fallback_path(&config.name, crate::scene_file::CHARACTER_EXTENSION);
+                    character_to((**config).clone(), to)
+                }
+            },
             TransferStage::GifTo { chooser, job } => match chooser.poll() {
                 None => return Transfer::Pending,
                 Some(Chosen::Files(paths)) => match (paths.into_iter().next(), job.take()) {
@@ -1025,7 +1080,7 @@ impl SceneTransfer {
             TransferStage::OpenFrom { chooser } => match chooser.poll() {
                 None => return Transfer::Pending,
                 Some(Chosen::Files(paths)) => match paths.into_iter().next() {
-                    Some(file) => Self::import(file).stage,
+                    Some(file) => Self::import(file, None).stage,
                     None => return Transfer::Done,
                 },
                 Some(Chosen::Cancelled) => return Transfer::Done,
@@ -1062,6 +1117,27 @@ impl SceneTransfer {
                     }
                     Ok(TransferDone::Shared(Err(e))) => {
                         tracing::warn!("Sharing a scene failed: {e}");
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("error", e);
+                        toasts.error(crate::i18n::t_args("toast-scene-share-failed", &args));
+                        Transfer::Done
+                    }
+                    Ok(TransferDone::CharacterShared(Ok((path, exported)))) => {
+                        tracing::info!(
+                            "Character shared: {} ({} bytes)",
+                            redact_path(&path),
+                            exported.bytes
+                        );
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("path", path.display().to_string());
+                        toasts.success(crate::i18n::t_args("toast-character-shared", &args));
+                        if exported.scripts_left_out > 0 {
+                            toasts.info(crate::i18n::t("toast-character-shared-script"));
+                        }
+                        Transfer::Done
+                    }
+                    Ok(TransferDone::CharacterShared(Err(e))) => {
+                        tracing::warn!("Sharing a character failed: {e}");
                         let mut args = fluent::FluentArgs::new();
                         args.set("error", e);
                         toasts.error(crate::i18n::t_args("toast-scene-share-failed", &args));
@@ -1127,6 +1203,16 @@ fn export_to(
     }))
 }
 
+fn character_to(config: crate::config::CharacterConfig, to: PathBuf) -> TransferStage {
+    TransferStage::Working(spawn_transfer(move || {
+        TransferDone::CharacterShared(
+            crate::scene_file::export_character(&config, &to)
+                .map(|exported| (to, exported))
+                .map_err(|e| e.to_string()),
+        )
+    }))
+}
+
 fn gif_to(job: crate::gif_export::GifJob, to: PathBuf) -> TransferStage {
     TransferStage::Working(spawn_transfer(move || {
         TransferDone::Gif(job.write(&to).map(|_| to).map_err(|e| e.to_string()))
@@ -1156,6 +1242,43 @@ fn fallback_path(name: &str, ext: &str) -> PathBuf {
         .unwrap_or_else(|| dir.join(format!("{stem}.{ext}")))
 }
 
+/// Add the characters of a shared character file to the scene on screen,
+/// as a paste would: where the file was dropped — or in the middle of
+/// `bounds` — keeping how they stood among themselves. Returns whether
+/// any came.
+fn add_shared_characters(
+    imported: crate::scene_file::Imported,
+    ctx: &mut OutcomeCtx<'_>,
+    bounds: crate::monitor::DesktopBounds,
+) -> bool {
+    let mut characters = imported.scene.characters;
+    let Some(first) = characters.first().map(|c| (c.x, c.y)) else {
+        return false;
+    };
+    let target = imported.at.unwrap_or((
+        (bounds.min_x + bounds.max_x) / 2.0,
+        (bounds.min_y + bounds.max_y) / 2.0,
+    ));
+    // Its middle about where it was let go: pictures are rarely smaller.
+    const HALF: f32 = 64.0;
+    for c in &mut characters {
+        c.x = (target.0 - HALF + c.x - first.0)
+            .clamp(bounds.min_x, (bounds.max_x - 2.0 * HALF).max(bounds.min_x));
+        c.y = (target.1 - HALF + c.y - first.1)
+            .clamp(bounds.min_y, (bounds.max_y - 2.0 * HALF).max(bounds.min_y));
+    }
+    let copied = crate::clipboard::Copied {
+        characters,
+        group: None,
+    };
+    let added = paste_with(
+        &copied,
+        ctx,
+        ("toast-character-added", "toast-characters-added"),
+    );
+    !added.is_empty()
+}
+
 /// Put an imported scene on the shelf — under its own name, or
 /// "name (2)" if that is taken, with the picture it came with — and on
 /// screen, as the active one, fitted into `bounds`, the area the overlay
@@ -1166,9 +1289,13 @@ pub fn apply_imported(
     active: &mut Option<String>,
     bounds: crate::monitor::DesktopBounds,
 ) -> bool {
+    if imported.character {
+        return add_shared_characters(imported, ctx, bounds);
+    }
     let crate::scene_file::Imported {
         scene: mut saved,
         thumbnail,
+        ..
     } = imported;
     let dir = crate::scenes::dir();
     saved.name = crate::scenes::free_name(&crate::scenes::list_in(&dir), &saved.name);
@@ -1766,6 +1893,42 @@ mod tests {
     }
 
     /// The containment check runs before anything is decoded.
+    #[test]
+    fn a_shared_character_joins_the_scene_where_it_was_dropped() {
+        let mut w = demo_world();
+        let template = w.scene.entities[0].to_config();
+        let before = w.scene.entities.len();
+        let imported = crate::scene_file::Imported {
+            scene: crate::scenes::SavedScene {
+                name: "Cat".into(),
+                characters: vec![crate::config::CharacterConfig {
+                    name: "Cat".into(),
+                    x: 3000.0,
+                    y: 3000.0,
+                    ..template.clone()
+                }],
+                groups: Vec::new(),
+            },
+            thumbnail: None,
+            character: true,
+            at: Some((500.0, 400.0)),
+        };
+        let mut active = Some("Work".to_string());
+        let bounds = crate::monitor::DesktopBounds::from_size(1600.0, 1000.0);
+        assert!(apply_imported(imported, &mut w.ctx(), &mut active, bounds));
+        assert_eq!(w.scene.entities.len(), before + 1, "added, not switched to");
+        assert_eq!(active.as_deref(), Some("Work"), "the scene stays the scene");
+        let added = &w.scene.entities[before];
+        assert_ne!(added.id, w.scene.entities[0].id, "an id of its own");
+        assert!(
+            (added.x - 436.0).abs() < 1.0 && (added.y - 336.0).abs() < 1.0,
+            "{} {}",
+            added.x,
+            added.y
+        );
+        assert!(w.selection.is_selected(before), "selected, as a paste is");
+    }
+
     #[test]
     fn a_library_path_escaping_the_root_is_rejected() {
         let root = std::env::temp_dir().join(format!("anima-outcomes-{}", std::process::id()));

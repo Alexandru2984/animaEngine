@@ -404,7 +404,8 @@ pub fn run_native(
                     // manager goes where a drop of it would.
                     if crate::scene_file::is_scene_file(&path) {
                         if pending_transfer.is_none() {
-                            pending_transfer = Some(crate::outcomes::SceneTransfer::import(path));
+                            pending_transfer =
+                                Some(crate::outcomes::SceneTransfer::import(path, Some(at)));
                         }
                     } else if pending_shimeji.is_none() {
                         pending_shimeji =
@@ -775,8 +776,10 @@ pub fn run_native(
                 } else if crate::scene_file::is_scene_file(path) {
                     // A shared scene replaces this one.
                     if pending_transfer.is_none() {
-                        pending_transfer =
-                            Some(crate::outcomes::SceneTransfer::import(path.clone()));
+                        pending_transfer = Some(crate::outcomes::SceneTransfer::import(
+                            path.clone(),
+                            Some(at),
+                        ));
                     }
                 } else if outcomes::add_dropped_file(path, at, &mut outcome_ctx!()).is_some() {
                     added = true;
@@ -1119,8 +1122,9 @@ pub fn run_native(
                                 // manager goes where a drop of it would.
                                 if crate::scene_file::is_scene_file(&path) {
                                     if pending_transfer.is_none() {
-                                        pending_transfer =
-                                            Some(crate::outcomes::SceneTransfer::import(path));
+                                        pending_transfer = Some(
+                                            crate::outcomes::SceneTransfer::import(path, Some(at)),
+                                        );
                                     }
                                 } else if pending_shimeji.is_none() {
                                     pending_shimeji = ShimejiImport::start(
@@ -2084,6 +2088,15 @@ pub fn run_native(
                             if pending_transfer.is_none() {
                                 pending_transfer =
                                     crate::outcomes::SceneTransfer::save_gif(&scene, idx);
+                            }
+                            context_menu_state = None;
+                        }
+                        panels::ContextMenuOutcome::Action(panels::MenuAction::ShareCharacter(
+                            idx,
+                        )) => {
+                            if pending_transfer.is_none() {
+                                pending_transfer =
+                                    crate::outcomes::SceneTransfer::share_character(&scene, idx);
                             }
                             context_menu_state = None;
                         }

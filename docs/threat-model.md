@@ -120,6 +120,11 @@ else, so it gets the drop's treatment and then some:
   two entries over the same bytes. Stored data cannot expand, so with
   no overlap what comes out is never larger than the file, which is
   capped at `scene_file::MAX_FILE_BYTES` (512 MB) and 4096 entries.
+- **A shared character is a scene file.** `.animachar` is the same
+  zip, read by the same reader with the same limits and `tidy` (scripts
+  stood still, sounds dropped); only a flag in `scene.toml` differs, and
+  it changes where the characters go — into the scene on screen, with
+  fresh ids, as a paste — not what is let in.
 - **The scene's own picture, checked.** A `thumbnail.png` entry is at
   most 256 KB, a PNG, and at most 512 pixels a side — read from its
   header before anything is decoded (`scene_thumb::decode`) — or the

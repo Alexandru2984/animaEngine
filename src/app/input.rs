@@ -401,12 +401,12 @@ impl App {
     }
 
     /// Import the scene file `file`, or one picked in the chooser.
-    pub(super) fn import_scene(&mut self, file: Option<PathBuf>) {
+    pub(super) fn import_scene(&mut self, file: Option<PathBuf>, at: Option<(f32, f32)>) {
         if self.pending_transfer.is_some() {
             return;
         }
         self.pending_transfer = Some(match file {
-            Some(file) => crate::outcomes::SceneTransfer::import(file),
+            Some(file) => crate::outcomes::SceneTransfer::import(file, at),
             None => crate::outcomes::SceneTransfer::import_chooser(),
         });
     }
@@ -501,7 +501,7 @@ impl App {
         }
         // A shared scene (`crate::scene_file`) replaces this one.
         if crate::scene_file::is_scene_file(&path) {
-            self.import_scene(Some(path));
+            self.import_scene(Some(path), Some(at));
             return;
         }
         if crate::outcomes::add_dropped_file(&path, at, &mut outcome_ctx!(self)).is_some() {

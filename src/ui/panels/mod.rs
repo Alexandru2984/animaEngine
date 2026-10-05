@@ -64,6 +64,9 @@ pub enum MenuAction {
     /// Save its animation as a GIF (`crate::gif_export`); the loops ask
     /// where, as they do for sharing a scene.
     SaveGif(usize),
+    /// Share it as one file (`crate::scene_file`, `.animachar`); asked
+    /// where likewise.
+    ShareCharacter(usize),
 }
 
 /// What the Scene tab asks of the caller, which has what it takes.

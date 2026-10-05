@@ -139,6 +139,16 @@ pub(crate) fn context_menu(
                 {
                     picked = Some(MenuAction::SaveGif(idx));
                 }
+                if ui
+                    .button(format!(
+                        "{}  {}",
+                        icons::SHARE,
+                        crate::i18n::t("menu-share-character")
+                    ))
+                    .clicked()
+                {
+                    picked = Some(MenuAction::ShareCharacter(idx));
+                }
                 ui.separator();
                 let error_color = ui.visuals().error_fg_color;
                 if ui

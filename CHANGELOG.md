@@ -76,6 +76,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Share one character.** "Share character…" on the right-click menu
+  writes a character as one `.animachar` file — its pictures, lines and
+  behavior, never a script or a sound. Dropped on the overlay, pasted
+  from a file manager, or opened with the Scene tab's Import…, it joins
+  the scene on screen where it was dropped, under a name of its own.
+  It is checked as a shared scene is.
 - **Placeholders in lines.** `{time}`, `{day}`, `{date}` and `{name}` in
   a character's lines, in reminders and in a script's `say` are filled in
   when it is said — "It's {time}, tea time!" — the day and date in your
