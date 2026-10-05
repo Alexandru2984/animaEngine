@@ -67,6 +67,17 @@ impl App {
     /// Tapping (`crate::tap`): while taps are on in pass-through, the input
     /// shapes follow the characters, a few times a second at most, and no
     /// window takes the keyboard on a click. Called every frame.
+    /// Whether the characters take taps now (`crate::tap`): with the
+    /// setting on, in pass-through, on screen — and not over a full-screen
+    /// app, even one they only pause for: a game's clicks are the game's.
+    fn taps_wanted(&self) -> bool {
+        self.config.global.tap_characters
+            && !self.edit_mode
+            && !self.overlay_hidden
+            && !self.stepped_aside.hidden
+            && !self.stepped_aside.paused
+    }
+
     pub(super) fn refresh_tap_regions(&mut self) {
         // A click on the ⚙ still takes the keyboard, so edit mode has the
         // keys from its first moment: the pointer is over it before the
@@ -87,10 +98,7 @@ impl App {
             }
             self.focusable = Some(focusable);
         }
-        let tapping = self.config.global.tap_characters
-            && !self.edit_mode
-            && !self.overlay_hidden
-            && !self.stepped_aside.hidden;
+        let tapping = self.taps_wanted();
         if !tapping {
             // Taps just went off: the plain shapes again.
             let any = !self.tap_rects.is_empty()
@@ -155,7 +163,7 @@ impl App {
         // click was on a character taking taps (`crate::tap`), or on a
         // transparent area we don't care about.
         if !self.edit_mode {
-            if self.config.global.tap_characters && button == MouseButton::Left {
+            if self.taps_wanted() && button == MouseButton::Left {
                 match state {
                     ElementState::Pressed => {
                         self.tap_gesture

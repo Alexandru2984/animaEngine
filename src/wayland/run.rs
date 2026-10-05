@@ -648,9 +648,11 @@ pub fn run_native(
         // not take the keyboard. A click on the ⚙ still does, so edit mode
         // has the keys from its first moment: the pointer is over it before
         // the press.
+        // Not over a full-screen app either, even one they only pause
+        // for: a game's clicks are the game's.
         let tapping = config.global.tap_characters
             && !layer.state.edit_mode
-            && !(overlay_hidden || aside.hidden)
+            && !(overlay_hidden || aside.hidden || aside.paused)
             && !widen;
         layer.set_keyboard_wanted(
             layer.state.edit_mode || !config.global.tap_characters || egui_renderer.owns_pointer(),
@@ -1387,7 +1389,8 @@ pub fn run_native(
                     _ => {}
                 }
             }
-        } else if config.global.tap_characters && !(overlay_hidden || aside.hidden) {
+        } else if config.global.tap_characters && !(overlay_hidden || aside.hidden || aside.paused)
+        {
             // Pass-through with tapping on (`crate::tap`): a press and a
             // release close together on a character poke it. Presses on
             // the ⚙ button are egui's.

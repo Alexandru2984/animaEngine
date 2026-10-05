@@ -61,8 +61,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Tap them without edit mode.** With "Characters can be tapped" on in
   Appearance (off by default), a click on a character pokes it — a hop,
   and one of its lines — while a click anywhere else still goes to the
-  window underneath, as before. A tap leaves the keyboard with the app
-  you are typing in. Native Wayland and X11.
+  window underneath, as before; over a full-screen app, even one they
+  only pause for, every click does. A tap leaves the keyboard with the
+  app you are typing in. Native Wayland and X11.
 - **Little effects.** A few hearts rise from a character you tap, a
   puff of dust goes up where one lands hard, and z's float up as they
   fall asleep. A switch in Appearance turns them off, and Reduce motion

@@ -237,7 +237,9 @@ does not cost a region a frame. Any other path that sets the region
 (`set_input_region`, `reapply_input_shape`) clears what taps set, and
 the next refresh puts it back. A press and a release close together on
 one character (`TapGesture`) are a tap; `tap::poke` gives it the same
-hop and line as a tap in edit mode. The keyboard stays with the app in
+hop and line as a tap in edit mode. Taps are off while a full-screen app
+is in front, even with `on_fullscreen = "pause"`, when the characters
+stay on screen over it. The keyboard stays with the app in
 front: Wayland's keyboard interactivity is none in pass-through
 (`set_keyboard_wanted`), X11's `WM_HINTS` input is false
 (`set_focusable`); both turn back while egui has the pointer — the ⚙ —
