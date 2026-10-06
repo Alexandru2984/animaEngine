@@ -423,6 +423,17 @@ cache dirty when anyone came or went. `Scene::effective_visible` counts
 `off_hours` as hidden, so drawing, hit tests, taps, bubbles, speakers
 and effects all leave such a character out without knowing why.
 
+### Moods (`src/moods.rs`)
+
+With `moods` on, `Moods::step` — called by both loops every frame,
+reading the clock every ten seconds — sets each entity's runtime `tempo`
+from `tempo_at`, a smooth curve over the day (1.2 in the morning, 1 in
+the day, 0.7 at night). `Entity::tick` scales a walker's or wanderer's
+step by it (other behaviors keep their own pace) and hands it to the
+animation, whose frame holds it divides (`Animation::tempo`). With
+bedtime on, each visible character yawns once a night in the half hour
+before it, at a moment its id picks. Off, the tempos go back to 1.
+
 ### Fading (`Scene::fade_step`)
 
 Each entity carries a runtime `fade`, 0 to 1, that the renderer

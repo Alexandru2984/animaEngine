@@ -149,6 +149,8 @@ pub struct App {
     hours_clock: crate::hours::Clock,
     /// Watching for the user's return (`crate::welcome`).
     welcome: crate::welcome::Welcome,
+    /// The pace by the time of day, and the yawns (`crate::moods`).
+    moods: crate::moods::Moods,
     /// Whether the overlay was out of sight last frame: back, everyone
     /// fades in (`Scene::fade_all_in`).
     was_hidden: bool,
@@ -353,6 +355,7 @@ impl App {
             bedtime_watch: Default::default(),
             hours_clock: Default::default(),
             welcome: Default::default(),
+            moods: Default::default(),
             was_hidden: false,
             bedtime_now: false,
             chosen_app_in_front: false,

@@ -300,6 +300,14 @@ impl App {
             self.config.global.notify_reminders,
             |_| true,
         );
+        // The pace by the time of day, and a yawn before bedtime
+        // (`crate::moods`).
+        self.moods.step(
+            &mut self.scene,
+            self.config.global.moods,
+            &self.config.global.bedtime,
+            shown,
+        );
         // Back after being away (`crate::welcome`): greeted where it can
         // be seen, and not by sleepers.
         let minute = self.hours_clock.minute();
@@ -485,6 +493,7 @@ impl App {
                         let always_on_top_mut = &mut self.config.global.always_on_top;
                         let step_aside_apps_mut = &mut self.config.global.step_aside_apps;
                         let bedtime_mut = &mut self.config.global.bedtime;
+                        let moods_mut = &mut self.config.global.moods;
                         let tap_characters_mut = &mut self.config.global.tap_characters;
                         let little_effects_mut = &mut self.config.global.little_effects;
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
@@ -592,6 +601,7 @@ impl App {
                                     tap_characters_mut,
                                     little_effects_mut,
                                     bedtime_mut,
+                                    moods_mut,
                                     panels::AwayControls {
                                         idle_minutes: &mut *idle_minutes_mut,
                                         on_battery: &mut *on_battery_mut,

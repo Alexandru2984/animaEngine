@@ -41,6 +41,9 @@ pub struct Animation {
     pub easing: Option<crate::anim::EasingCurve>,
     /// See [`Animation::steady_margins`]; worked out the first time asked.
     margins: std::sync::OnceLock<(f32, f32)>,
+    /// How fast it plays, runtime-only: 1 as made, more or less with the
+    /// time of day (`crate::moods`). Divides every frame's hold.
+    pub tempo: f32,
 }
 
 impl Animation {
@@ -55,6 +58,7 @@ impl Animation {
             has_per_frame_delays,
             easing: None,
             margins: std::sync::OnceLock::new(),
+            tempo: 1.0,
         }
     }
 
@@ -128,10 +132,12 @@ impl Animation {
     ///    the loop's total duration stays at `n / fps` while the
     ///    individual frame holds vary.
     fn current_frame_duration(&self) -> std::time::Duration {
+        // Faster or slower with the time of day (`crate::moods`).
+        let tempo = self.tempo.clamp(0.25, 4.0);
         if let Some(frame) = self.frames.get(self.current_frame) {
             if let Some(delay_ms) = frame.delay_ms {
                 if delay_ms > 0 {
-                    return std::time::Duration::from_millis(delay_ms as u64);
+                    return std::time::Duration::from_secs_f32(delay_ms as f32 / 1000.0 / tempo);
                 }
             }
         }
@@ -145,7 +151,7 @@ impl Animation {
         // Defensive: an extreme curve at very low frame count can in
         // theory produce a near-zero interval. Floor at 1ms so the
         // engine never tight-loops trying to advance the frame.
-        let interval = interval.max(0.001);
+        let interval = (interval / tempo).max(0.001);
         std::time::Duration::from_secs_f32(interval)
     }
 
@@ -387,6 +393,20 @@ mod tests {
 
     fn one_frame_anim(marker: u8) -> Animation {
         Animation::new(vec![Frame::new(vec![marker; 4], 1, 1)], 1.0, true)
+    }
+
+    #[test]
+    fn a_faster_tempo_holds_each_frame_shorter() {
+        let mut anim = two_frame_anim();
+        let plain = anim.current_frame_duration();
+        anim.tempo = 2.0;
+        let fast = anim.current_frame_duration();
+        assert!((plain.as_secs_f32() / fast.as_secs_f32() - 2.0).abs() < 0.01);
+        anim.tempo = 0.0;
+        assert!(
+            anim.current_frame_duration() <= plain * 4,
+            "held within bounds"
+        );
     }
 
     fn two_frame_anim() -> Animation {

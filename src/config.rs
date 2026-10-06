@@ -125,6 +125,11 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub large_bubbles: bool,
 
+    /// Livelier in the morning, slower at night, a yawn before bedtime
+    /// (`crate::moods`). Off by default.
+    #[serde(default)]
+    pub moods: bool,
+
     /// How long the focus timer's work and break last (`crate::focus`).
     #[serde(default, skip_serializing_if = "crate::focus::FocusConfig::is_default")]
     pub focus: crate::focus::FocusConfig,
@@ -214,6 +219,7 @@ impl Default for GlobalConfig {
             reminder_sound: Default::default(),
             notify_reminders: false,
             large_bubbles: false,
+            moods: false,
             window_awareness: false,
             snap_while_dragging: true,
             characters_bump: false,

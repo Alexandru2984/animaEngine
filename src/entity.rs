@@ -98,6 +98,9 @@ pub struct Entity {
     /// In a game of tag this tick (`crate::tag`): where it goes instead
     /// of what its behavior would do. Runtime-only.
     pub game_move: Option<crate::tag::Move>,
+    /// Its pace with the time of day (`crate::moods`): walking and its
+    /// animation go this much faster. 1 as made. Runtime-only.
+    pub tempo: f32,
     /// How far faded in, 0 to 1 (`Scene::fade_step`): drawn at its opacity
     /// times this. 1 as made; the scene starts the ones that arrive at 0.
     /// Runtime-only.
@@ -199,6 +202,7 @@ impl Entity {
             still_until: None,
             game_move: None,
             fade: 1.0,
+            tempo: 1.0,
             off_hours: false,
             leader: None,
         }
@@ -476,8 +480,21 @@ impl Entity {
             );
         }
         if !gaming && !self.physics.thrown && !still && !self.tick_script(&ctx, scripts) {
+            let y_before = self.y;
             self.behavior
                 .tick(&mut self.behavior_state, &mut self.x, &mut self.y, &ctx);
+            // Walking, faster or slower with the time of day
+            // (`crate::moods`); the other behaviors keep their own pace.
+            if self.tempo != 1.0
+                && matches!(
+                    self.behavior,
+                    crate::behavior::Behavior::WalkAround { .. }
+                        | crate::behavior::Behavior::BoundedWander { .. }
+                )
+            {
+                self.x = bounds.clamp_x(x_before + (self.x - x_before) * self.tempo, sprite_w);
+                self.y = y_before + (self.y - y_before) * self.tempo;
+            }
         }
 
         // Hover-startle: recoil from a cursor that comes too close.
@@ -521,7 +538,8 @@ impl Entity {
             self.texture_dirty = true;
         }
 
-        // Animation frame advance.
+        // Animation frame advance, at its pace (`crate::moods`).
+        self.animations.current_mut().tempo = self.tempo;
         if self.animations.current_mut().tick() {
             self.texture_dirty = true;
             return true;
@@ -708,6 +726,7 @@ impl Entity {
             still_until: None,
             game_move: None,
             fade: 1.0,
+            tempo: 1.0,
             off_hours: false,
             leader: None,
         }

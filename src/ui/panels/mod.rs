@@ -270,6 +270,7 @@ pub fn settings(
     tap_characters: &mut bool,
     little_effects: &mut bool,
     bedtime: &mut crate::bedtime::Bedtime,
+    moods: &mut bool,
     away: AwayControls<'_>,
     start_at_login: &mut bool,
     monitors: &[MonitorInfo],
@@ -463,6 +464,7 @@ pub fn settings(
                                 little_effects,
                                 away,
                                 bedtime,
+                                moods,
                                 start_at_login,
                                 scene_request,
                             );

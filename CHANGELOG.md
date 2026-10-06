@@ -76,6 +76,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Moods by the time of day**, if you want them (Appearance, off by
+  default): the characters walk and animate a little faster in the
+  morning and slower at night, smoothly through the day, and — with
+  bedtime set — each yawns once in the half hour before it.
 - **Bubbles of their own, and large text.** The Inspector's "Says"
   section gives a character's bubbles a colour and a text size — the
   text turns light on a dark bubble — and Appearance has "Large text in

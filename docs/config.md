@@ -182,6 +182,11 @@ of the focus timer is said: omitted for nothing, `"speaker"` for the
 speaker's own tap sound, or `{ file = "sounds/chime.ogg" }` for a file in
 the asset library.
 
+`moods = true` (in `[global]`) makes the characters livelier in the
+morning and slower at night — walking and animation, by about a fifth
+either way — and, with bedtime on, each yawns once in the half hour
+before it.
+
 Both are left out while they are as they come. The focus timer itself
 is not saved: it starts from the tray, the command palette, the Scene
 tab or D-Bus, and stops with the app. While it runs, reminders wait out

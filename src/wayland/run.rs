@@ -187,6 +187,7 @@ pub fn run_native(
     let mut hours_clock = crate::hours::Clock::default();
     let mut welcome = crate::welcome::Welcome::default();
     let mut was_hidden = false;
+    let mut moods = crate::moods::Moods::default();
     // Tapping in pass-through (`crate::tap`): when the input region last
     // followed the characters, and a press waiting for its release.
     let mut tap_refreshed = Instant::now();
@@ -621,6 +622,14 @@ pub fn run_native(
         ) {
             activity = true;
         }
+        // The pace by the time of day, and a yawn before bedtime
+        // (`crate::moods`).
+        moods.step(
+            &mut scene,
+            config.global.moods,
+            &config.global.bedtime,
+            !(overlay_hidden || wanted.hidden),
+        );
         // Back after being away (`crate::welcome`): greeted where it can be
         // seen, and not by sleepers.
         let minute = hours_clock.minute();
@@ -1770,6 +1779,7 @@ pub fn run_native(
                 let always_on_top_mut = &mut config.global.always_on_top;
                 let step_aside_apps_mut = &mut config.global.step_aside_apps;
                 let bedtime_mut = &mut config.global.bedtime;
+                let moods_mut = &mut config.global.moods;
                 let tap_characters_mut = &mut config.global.tap_characters;
                 let little_effects_mut = &mut config.global.little_effects;
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
@@ -1867,6 +1877,7 @@ pub fn run_native(
                                 tap_characters_mut,
                                 little_effects_mut,
                                 bedtime_mut,
+                                moods_mut,
                                 panels::AwayControls {
                                     idle_minutes: &mut *idle_minutes_mut,
                                     on_battery: &mut *on_battery_mut,

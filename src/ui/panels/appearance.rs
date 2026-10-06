@@ -31,6 +31,7 @@ pub(super) fn appearance_tab(
     little_effects: &mut bool,
     away: super::AwayControls<'_>,
     bedtime: &mut crate::bedtime::Bedtime,
+    moods: &mut bool,
     start_at_login: &mut bool,
     request: &mut Option<super::SceneRequest>,
 ) {
@@ -140,6 +141,14 @@ pub(super) fn appearance_tab(
     }
     ui.add_space(SPACE_S);
     if bedtime_controls(ui, bedtime) {
+        *config_dirty = true;
+    }
+    // Livelier in the morning, slower at night (`crate::moods`).
+    if ui
+        .checkbox(moods, t("appearance-moods-label"))
+        .on_hover_text(t("appearance-moods-hint"))
+        .changed()
+    {
         *config_dirty = true;
     }
     if cfg!(unix) && autostart_switch(ui, start_at_login) {
