@@ -423,6 +423,21 @@ cache dirty when anyone came or went. `Scene::effective_visible` counts
 `off_hours` as hidden, so drawing, hit tests, taps, bubbles, speakers
 and effects all leave such a character out without knowing why.
 
+### Fading (`Scene::fade_step`)
+
+Each entity carries a runtime `fade`, 0 to 1, that the renderer
+multiplies into its opacity. `Scene::fade_step`, called every frame by
+both loops whether the scene runs or not, moves it toward 1 while the
+entity is effectively visible and toward 0 while not, over
+`FADE_SECONDS` (at once with Reduce motion). Entities start at 1 as made
+— tests and tools see them whole — and the scene sets 0 for those that
+arrive: at startup, an add, the new ones of a restore. `fade_all_in`
+does it for everyone when the overlay comes back into sight (X11:
+`sync_window_visibility`; Wayland: the loop's own hidden flag).
+`Scene::drawn_entities` is what the loops draw — the visible, and those
+still fading out — while hit tests keep `effective_visible`; while
+anything fades, `pacing` asks for frames.
+
 ### Tag (`src/tag.rs`)
 
 `Behavior::PlayTag { partner, speed }` holds still on its own; the game

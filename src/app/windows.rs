@@ -421,7 +421,7 @@ impl App {
             .unwrap_or_default();
         let mut outcome = None;
 
-        let visible = self.scene.visible_entities();
+        let visible = self.scene.drawn_entities();
         for slot in self.extra_windows.values_mut() {
             let drawn: Vec<&Entity> = visible
                 .iter()
@@ -490,7 +490,7 @@ impl App {
             .as_ref()
             .map(|m| crate::outcomes::menu_offers(m.entity_idx, &self.scene, &self.selection))
             .unwrap_or_default();
-        let visible = self.scene.visible_entities();
+        let visible = self.scene.drawn_entities();
         let Some(slot) = self.extra_windows.get_mut(&id) else {
             return;
         };

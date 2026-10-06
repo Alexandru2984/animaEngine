@@ -67,7 +67,12 @@ pub struct Scene {
     pub(crate) greetings: crate::greet::Greetings,
     /// Games of tag going on (`crate::tag`).
     pub(crate) games: crate::tag::Games,
+    /// When the fades last moved (`Scene::fade_step`).
+    last_fade: Instant,
 }
+
+/// How long a character takes to fade in or out (`Scene::fade_step`).
+pub const FADE_SECONDS: f32 = 0.35;
 
 impl Scene {
     /// Build a scene from app config
@@ -122,6 +127,10 @@ impl Scene {
 
         // Sort by z_index for correct draw order
         entities.sort_by_key(|e| e.z_index);
+        // They fade in as the app comes up (`Scene::fade_step`).
+        for e in &mut entities {
+            e.fade = 0.0;
+        }
 
         tracing::info!("Scene loaded with {} entities", entities.len());
 
@@ -154,6 +163,7 @@ impl Scene {
             greet: config.global.characters_greet,
             greetings: crate::greet::Greetings::default(),
             games: crate::tag::Games::default(),
+            last_fade: Instant::now(),
         }
     }
 
@@ -429,6 +439,61 @@ impl Scene {
         (0..self.entities.len())
             .filter(|&i| self.effective_visible(i))
             .max_by_key(|&i| self.entities[i].z_index)
+    }
+
+    /// One step of fading (1.5): each character's `fade` goes toward 1
+    /// while it can be seen and toward 0 while it cannot, over
+    /// [`FADE_SECONDS`] — at once with Reduce motion. The loops call it
+    /// every frame, the scene paused or not. Returns whether anything
+    /// still fades.
+    pub fn fade_step(&mut self, now: Instant) -> bool {
+        let dt = now.duration_since(self.last_fade).as_secs_f32().min(0.1);
+        self.last_fade = now;
+        let step = if self.reduced_motion {
+            1.0
+        } else {
+            dt / FADE_SECONDS
+        };
+        let mut fading = false;
+        for i in 0..self.entities.len() {
+            let target = if self.effective_visible(i) { 1.0 } else { 0.0 };
+            let fade = &mut self.entities[i].fade;
+            if *fade != target {
+                *fade = if *fade < target {
+                    (*fade + step).min(target)
+                } else {
+                    (*fade - step).max(target)
+                };
+                fading |= *fade != target;
+            }
+        }
+        fading
+    }
+
+    /// Whether a character is fading in or out: frames are wanted.
+    pub fn is_fading(&self) -> bool {
+        (0..self.entities.len()).any(|i| {
+            let target = if self.effective_visible(i) { 1.0 } else { 0.0 };
+            self.entities[i].fade != target
+        })
+    }
+
+    /// Fade everyone in from nothing — the overlay comes back from hidden,
+    /// snoozed or stepped aside.
+    pub fn fade_all_in(&mut self) {
+        for e in &mut self.entities {
+            e.fade = 0.0;
+        }
+    }
+
+    /// What is drawn, back to front: who can be seen, and who is still
+    /// fading out.
+    pub fn drawn_entities(&self) -> Vec<&Entity> {
+        let mut order: Vec<usize> = (0..self.entities.len())
+            .filter(|&i| self.effective_visible(i) || self.entities[i].fade > 0.0)
+            .collect();
+        order.sort_by_key(|&i| self.entities[i].z_index);
+        order.into_iter().map(|i| &self.entities[i]).collect()
     }
 
     /// Whether those who meet say hello (`crate::greet`). Cheap, called per
@@ -1003,34 +1068,39 @@ impl Scene {
                     entity.set_properties(cfg);
                     entity
                 }
-                _ => match Self::load_entity(cfg) {
-                    Ok(entity)
-                        if check_budget(
-                            decoded_total,
-                            entity.animations.decoded_bytes(),
-                            budget,
-                        )
-                        .is_ok() =>
-                    {
-                        entity
-                    }
-                    Ok(_) => {
-                        tracing::warn!(
-                            "Entity '{}' would exceed the {} MB decode budget; using fallback",
-                            cfg.id,
-                            budget / (1024 * 1024),
-                        );
-                        Self::create_fallback_entity(cfg)
-                    }
-                    Err(err) => {
-                        tracing::warn!(
-                            "Entity '{}' failed to reload: {}; using fallback",
-                            cfg.id,
-                            err
-                        );
-                        Self::create_fallback_entity(cfg)
-                    }
-                },
+                // New here: it fades in (`Scene::fade_step`).
+                _ => {
+                    let mut fresh = match Self::load_entity(cfg) {
+                        Ok(entity)
+                            if check_budget(
+                                decoded_total,
+                                entity.animations.decoded_bytes(),
+                                budget,
+                            )
+                            .is_ok() =>
+                        {
+                            entity
+                        }
+                        Ok(_) => {
+                            tracing::warn!(
+                                "Entity '{}' would exceed the {} MB decode budget; using fallback",
+                                cfg.id,
+                                budget / (1024 * 1024),
+                            );
+                            Self::create_fallback_entity(cfg)
+                        }
+                        Err(err) => {
+                            tracing::warn!(
+                                "Entity '{}' failed to reload: {}; using fallback",
+                                cfg.id,
+                                err
+                            );
+                            Self::create_fallback_entity(cfg)
+                        }
+                    };
+                    fresh.fade = 0.0;
+                    fresh
+                }
             };
             decoded_total = decoded_total.saturating_add(entity.animations.decoded_bytes());
             self.entities.push(entity);
@@ -1056,7 +1126,9 @@ impl Scene {
                 "entity limit reached ({MAX_ENTITIES}); remove some before adding more"
             )));
         }
-        let entity = Self::load_entity(cfg)?;
+        let mut entity = Self::load_entity(cfg)?;
+        // Arrives fading in (`Scene::fade_step`).
+        entity.fade = 0.0;
 
         check_budget(
             self.total_decoded_bytes(),
@@ -1089,6 +1161,43 @@ fn check_budget(current: usize, incoming: usize, budget: usize) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn characters_fade_in_and_out() {
+        let mut scene = Scene::from_config(&AppConfig::default());
+        let t0 = Instant::now();
+        scene.last_fade = t0;
+        assert!(scene.is_fading(), "they come up fading in");
+        scene.fade_step(t0 + std::time::Duration::from_millis(100));
+        let half = scene.entities[0].fade;
+        assert!(half > 0.0 && half < 1.0, "{half}");
+        for k in 2..10 {
+            scene.fade_step(t0 + std::time::Duration::from_millis(100 * k));
+        }
+        assert!(!scene.is_fading());
+        assert_eq!(scene.entities[0].fade, 1.0);
+        // Hidden: still drawn while it fades out, then not.
+        scene.entities[0].visible = false;
+        scene.mark_visible_dirty();
+        let n = scene.drawn_entities().len();
+        scene.fade_step(t0 + std::time::Duration::from_millis(1100));
+        assert_eq!(scene.drawn_entities().len(), n, "fading out, still drawn");
+        for k in 12..20 {
+            scene.fade_step(t0 + std::time::Duration::from_millis(100 * k));
+        }
+        assert_eq!(scene.drawn_entities().len(), n - 1);
+    }
+
+    #[test]
+    fn with_reduce_motion_they_come_and_go_at_once() {
+        let mut scene = Scene::from_config(&AppConfig::default());
+        scene.set_reduced_motion(true);
+        scene.fade_step(Instant::now());
+        assert!(scene.entities.iter().all(|e| e.fade == 1.0));
+        scene.fade_all_in();
+        scene.fade_step(Instant::now());
+        assert!(!scene.is_fading());
+    }
     use super::*;
     use crate::animation::frame::Frame;
     use crate::config::{AssetType, GlobalConfig};

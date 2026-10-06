@@ -891,7 +891,8 @@ impl SurfaceState {
                     shared,
                     quad_idx,
                     (local_x, local_y, width, height),
-                    entity.opacity,
+                    // Fading in or out (`Scene::fade_step`).
+                    entity.opacity * entity.fade.clamp(0.0, 1.0),
                     entity.facing_left,
                 );
                 draws.push(DrawCmd {

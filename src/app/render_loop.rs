@@ -193,6 +193,8 @@ impl App {
                         root,
                     });
             self.scene.tick(bounds, cursor, scripts);
+            // The fades move on, paused or not (`Scene::fade_step`).
+            self.scene.fade_step(std::time::Instant::now());
             // Tap sounds (`crate::sounds`), panned across what the
             // windows cover.
             let sounds = self.scene.take_sounds();
@@ -378,7 +380,8 @@ impl App {
             // mutable one to drive sliders / list mutations.
             let render_result = {
                 let _s = self.perf_sampler.scope(crate::perf::Category::WgpuSubmit);
-                let visible = self.scene.visible_entities();
+                // Those fading out are drawn too (`Scene::fade_step`).
+                let visible = self.scene.drawn_entities();
                 // In PerMonitor mode the primary window covers exactly
                 // its monitor: entities live in global desktop coords
                 // and translate by the monitor's origin (T.6). The

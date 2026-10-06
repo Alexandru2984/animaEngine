@@ -186,6 +186,7 @@ pub fn run_native(
     let mut bedtime_watch = crate::bedtime::Watch::default();
     let mut hours_clock = crate::hours::Clock::default();
     let mut welcome = crate::welcome::Welcome::default();
+    let mut was_hidden = false;
     // Tapping in pass-through (`crate::tap`): when the input region last
     // followed the characters, and a press waiting for its release.
     let mut tap_refreshed = Instant::now();
@@ -1540,6 +1541,14 @@ pub fn run_native(
                     }),
             );
         }
+        // Back from hidden, everyone fades in; and the fades move on,
+        // paused or not.
+        let hidden_now = overlay_hidden || aside.hidden;
+        if was_hidden && !hidden_now {
+            scene.fade_all_in();
+        }
+        was_hidden = hidden_now;
+        scene.fade_step(Instant::now());
         // A character spoke up on its own (`crate::phrases`): show it.
         activity |= scene.take_spoke();
         // A thrown one landed: save where.
@@ -1625,7 +1634,8 @@ pub fn run_native(
             marquee: marquee.as_ref().map(|m| m.rect()),
             guides: drag.guides(),
         };
-        let visible = scene.visible_entities();
+        // Those fading out are drawn too (`Scene::fade_step`).
+        let visible = scene.drawn_entities();
         // In PerMonitor mode the primary surface covers exactly its
         // own output: entities live in global coords (once extras
         // exist) and need filtering to just the primary's monitor,
@@ -1944,7 +1954,7 @@ pub fn run_native(
                     let extra_visible = if overlay_hidden || aside.hidden {
                         Vec::new()
                     } else {
-                        scene.visible_entities()
+                        scene.drawn_entities()
                     };
                     for (name, surface) in extra_surfaces.iter_mut() {
                         let Some(mon) = monitors_now.iter().find(|m| &m.name == name) else {

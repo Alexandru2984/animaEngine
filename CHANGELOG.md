@@ -76,6 +76,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Characters fade in and out.** Coming and going — at their own
+  hours, hidden with V or the Visible switch, a group hidden, a new one
+  added, a scene switched, the overlay back from hidden, a snooze or a
+  full-screen app — they fade over a third of a second instead of
+  popping. Hiding the overlay itself is still at once. None with Reduce
+  motion.
 - **Shortcuts for the focus timer and snoozing.** Two new actions in
   Keybindings — start or stop the focus timer, snooze for a quarter of
   an hour or wake up — that work from anywhere once given a key: through

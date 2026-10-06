@@ -38,7 +38,7 @@ pub fn redraw_pacing(scene: &Scene, ui_animating: bool) -> RedrawPacing {
     }
     // Hearts, dust and z's run on the clock, a sleeping scene's too
     // (`crate::effects`); they are over in a moment or two.
-    if scene.effects.alive(Instant::now()) {
+    if scene.effects.alive(Instant::now()) || scene.is_fading() {
         return RedrawPacing::Continuous;
     }
     if !scene.is_running() {

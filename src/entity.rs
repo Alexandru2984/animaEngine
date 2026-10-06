@@ -98,6 +98,10 @@ pub struct Entity {
     /// In a game of tag this tick (`crate::tag`): where it goes instead
     /// of what its behavior would do. Runtime-only.
     pub game_move: Option<crate::tag::Move>,
+    /// How far faded in, 0 to 1 (`Scene::fade_step`): drawn at its opacity
+    /// times this. 1 as made; the scene starts the ones that arrive at 0.
+    /// Runtime-only.
+    pub fade: f32,
     /// The middle of the character it follows, as the scene found it
     /// this tick (`Behavior::FollowCharacter`) — runtime-only.
     pub leader: Option<(f32, f32)>,
@@ -194,6 +198,7 @@ impl Entity {
             sound_wanted: None,
             still_until: None,
             game_move: None,
+            fade: 1.0,
             off_hours: false,
             leader: None,
         }
@@ -702,6 +707,7 @@ impl Entity {
             sound_wanted: None,
             still_until: None,
             game_move: None,
+            fade: 1.0,
             off_hours: false,
             leader: None,
         }

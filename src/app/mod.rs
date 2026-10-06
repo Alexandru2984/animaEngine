@@ -149,6 +149,9 @@ pub struct App {
     hours_clock: crate::hours::Clock,
     /// Watching for the user's return (`crate::welcome`).
     welcome: crate::welcome::Welcome,
+    /// Whether the overlay was out of sight last frame: back, everyone
+    /// fades in (`Scene::fade_all_in`).
+    was_hidden: bool,
     bedtime_now: bool,
     /// An app the user chose is the window in front (`crate::chosen_apps`).
     chosen_app_in_front: bool,
@@ -350,6 +353,7 @@ impl App {
             bedtime_watch: Default::default(),
             hours_clock: Default::default(),
             welcome: Default::default(),
+            was_hidden: false,
             bedtime_now: false,
             chosen_app_in_front: false,
             tap_rects: Vec::new(),
@@ -512,6 +516,11 @@ impl App {
     /// stepping aside for a full-screen app together.
     fn sync_window_visibility(&mut self) {
         let visible = !self.overlay_hidden && !self.stepped_aside.hidden;
+        // Back in sight, everyone fades in (`Scene::fade_all_in`).
+        if visible && self.was_hidden {
+            self.scene.fade_all_in();
+        }
+        self.was_hidden = !visible;
         if let Some(window) = &self.window {
             window.set_visible(visible);
         }
