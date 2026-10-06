@@ -510,8 +510,9 @@ the frame gate — and it restarts every timer while the user is away.
 Reminders at a set time (`ReminderConfig::at`, `reminders::At`) are
 `Timers::poll_timed`'s: once a day each, on its days or its date, from
 its time to `LATE_BY_MINUTES` after (a date's to midnight), against a
-local clock read every ten seconds; away or unable to be said, they
-wait within that time rather than start over. Several due in one frame
+local clock read every ten seconds; away (no input — not bedtime: a
+time was asked for) or unable to be said, they wait within that time
+rather than start over (`reminders::Away`). Several due in one frame
 go to several characters, front to back. Idle is watched for them even with pausing off
 (`away::idle_watch_minutes`: the pause's time, or five minutes); only the
 pause setting decides whether the scene holds still.

@@ -601,7 +601,12 @@ pub fn run_native(
             &mut scene,
             !(overlay_hidden || wanted.hidden) && focus != Some(crate::focus::Phase::Work),
             // The night counts as a break too.
-            layer.is_idle() || bedtime_now || focus == Some(crate::focus::Phase::Break),
+            crate::reminders::Away {
+                on_a_break: layer.is_idle()
+                    || bedtime_now
+                    || focus == Some(crate::focus::Phase::Break),
+                idle: layer.is_idle(),
+            },
             |_| true,
         ) {
             activity = true;

@@ -284,7 +284,12 @@ impl App {
             shown && focus != Some(crate::focus::Phase::Work),
             // Watched for reminders even with pausing off; the night
             // counts as a break too.
-            self.away || self.bedtime_now || focus == Some(crate::focus::Phase::Break),
+            crate::reminders::Away {
+                on_a_break: self.away
+                    || self.bedtime_now
+                    || focus == Some(crate::focus::Phase::Break),
+                idle: self.away,
+            },
             |_| true,
         );
         // Each turn of the timer, said once it can be seen.

@@ -233,6 +233,16 @@ impl Timers {
     }
 }
 
+/// Whether the user is away, for reminders: `on_a_break` starts the ones
+/// every so often over — time without input, bedtime, the focus timer's
+/// break; only `idle`, no input, makes one at a set time wait: it was
+/// asked for that time, bedtime or not.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Away {
+    pub on_a_break: bool,
+    pub idle: bool,
+}
+
 /// Have the due reminders said, by characters `on_surface` accepts (the
 /// ones whose bubble shows). `shown` is whether the overlay is on screen at
 /// all. Returns whether anything was said.
@@ -244,7 +254,7 @@ pub fn deliver(
     notify: bool,
     scene: &mut Scene,
     shown: bool,
-    away: bool,
+    away: Away,
     on_surface: impl Fn(&Entity) -> bool,
 ) -> bool {
     let speakers: Vec<usize> = (0..scene.entities.len())
@@ -254,9 +264,9 @@ pub fn deliver(
     // to the desktop's notifications (`crate::notify`).
     let can_say = shown && !speakers.is_empty();
     let now = Instant::now();
-    let mut fired = timers.poll(now, reminders, away, can_say || notify);
+    let mut fired = timers.poll(now, reminders, away.on_a_break, can_say || notify);
     let clock = timers.clock(now);
-    fired.extend(timers.poll_timed(clock, reminders, away, can_say || notify));
+    fired.extend(timers.poll_timed(clock, reminders, away.idle, can_say || notify));
     let mut used: Vec<usize> = Vec::new();
     for r in &fired {
         if notify {
@@ -398,7 +408,7 @@ mod tests {
             false,
             &mut scene,
             true,
-            false,
+            Away::default(),
             |_| true
         ));
         assert!(scene.entities[0].speech.is_some());
@@ -414,7 +424,7 @@ mod tests {
             false,
             &mut scene,
             true,
-            false,
+            Away::default(),
             |_| true,
         );
         let front = (0..scene.entities.len())
@@ -437,7 +447,7 @@ mod tests {
                 false,
                 scene,
                 true,
-                false,
+                Away::default(),
                 |_| true,
             );
             scene.take_sounds()
@@ -462,13 +472,12 @@ mod tests {
         t.due.push((r.clone(), Instant::now() - MIN));
         let list = std::slice::from_ref(&r);
         let none = ReminderSound::None;
-        deliver(&mut t, list, &none, false, &mut scene, false, false, |_| {
+        let here = Away::default();
+        deliver(&mut t, list, &none, false, &mut scene, false, here, |_| {
             true
         });
         assert!(t.due[0].1 <= Instant::now(), "hidden: still due, waiting");
-        deliver(&mut t, list, &none, true, &mut scene, false, false, |_| {
-            true
-        });
+        deliver(&mut t, list, &none, true, &mut scene, false, here, |_| true);
         assert!(
             t.due[0].1 > Instant::now(),
             "sent as a notification instead"
@@ -541,6 +550,48 @@ mod tests {
     }
 
     #[test]
+    fn bedtime_does_not_hold_a_reminder_at_a_set_time() {
+        use crate::schedule::Days;
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let now = crate::schedule::local_now().unwrap();
+        let hhmm = crate::schedule::format_hhmm(now.minute);
+        let list = [at(&hhmm, Days::Every, None)];
+        let none = ReminderSound::None;
+        let mut t = Timers::default();
+        let bedtime = Away {
+            on_a_break: true,
+            idle: false,
+        };
+        deliver(
+            &mut t,
+            &list,
+            &none,
+            false,
+            &mut scene,
+            true,
+            bedtime,
+            |_| true,
+        );
+        assert!(
+            scene.entities.iter().any(|e| e.speech.is_some()),
+            "said at bedtime"
+        );
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let mut t = Timers::default();
+        let idle = Away {
+            on_a_break: true,
+            idle: true,
+        };
+        deliver(&mut t, &list, &none, false, &mut scene, true, idle, |_| {
+            true
+        });
+        assert!(
+            scene.entities.iter().all(|e| e.speech.is_none()),
+            "waits for you"
+        );
+    }
+
+    #[test]
     fn two_at_once_are_said_by_two() {
         let mut scene = Scene::from_config(&crate::config::AppConfig::default());
         let (a, b) = (every("water", 1), every("stretch", 1));
@@ -555,7 +606,7 @@ mod tests {
             false,
             &mut scene,
             true,
-            false,
+            Away::default(),
             |_| true,
         );
         let said: Vec<_> = scene
