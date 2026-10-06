@@ -39,6 +39,8 @@ const PORTAL_ACTIONS: &[Action] = &[
     Action::ToggleEditMode,
     Action::HideOverlay,
     Action::PauseAll,
+    Action::ToggleFocus,
+    Action::ToggleSnooze,
 ];
 
 /// Messages from the portal thread. The handshake outcome arrives as
@@ -73,6 +75,8 @@ pub fn action_slug(action: Action) -> Option<&'static str> {
         Action::ToggleEditMode => "toggle-edit-mode",
         Action::HideOverlay => "hide-overlay",
         Action::PauseAll => "pause-all",
+        Action::ToggleFocus => "toggle-focus",
+        Action::ToggleSnooze => "toggle-snooze",
         _ => return None,
     })
 }
@@ -83,6 +87,8 @@ pub fn slug_action(slug: &str) -> Option<Action> {
         "toggle-edit-mode" => Action::ToggleEditMode,
         "hide-overlay" => Action::HideOverlay,
         "pause-all" => Action::PauseAll,
+        "toggle-focus" => Action::ToggleFocus,
+        "toggle-snooze" => Action::ToggleSnooze,
         _ => return None,
     })
 }
@@ -96,6 +102,8 @@ fn action_description(action: Action) -> &'static str {
         Action::ToggleEditMode => "Toggle edit mode",
         Action::HideOverlay => "Hide or show the overlay",
         Action::PauseAll => "Pause or resume all animations",
+        Action::ToggleFocus => "Start or stop the focus timer",
+        Action::ToggleSnooze => "Snooze for 15 minutes, or wake up",
         _ => "",
     }
 }

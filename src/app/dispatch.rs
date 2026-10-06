@@ -58,6 +58,13 @@ impl App {
             // edit mode — we leave the handling to the original sites
             // rather than duplicate it here.
             Action::HideOverlay | Action::OpenCommandPalette => {}
+            // As the global shortcuts do: the event each stands for now.
+            Action::ToggleFocus | Action::ToggleSnooze => {
+                let visible = std::sync::atomic::AtomicBool::new(!self.overlay_hidden);
+                if let Some(event) = crate::hotkeys::action_to_event(action, &visible) {
+                    winit::application::ApplicationHandler::user_event(self, event_loop, event);
+                }
+            }
             // Everything else is backend-independent and lives in
             // `keybindings::shared`, so the native Wayland loop can run it
             // too — it previously handled one action out of twenty-eight.

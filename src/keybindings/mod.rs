@@ -44,9 +44,13 @@ mod tests {
                 !action.description().is_empty(),
                 "{action:?} has empty description"
             );
-            assert!(
-                !action.default_chords().is_empty(),
-                "{action:?} has no default chords"
+            // The timers' are unbound as they come: a default would be a
+            // key taken from every other app once global.
+            let unbound = matches!(action, Action::ToggleFocus | Action::ToggleSnooze);
+            assert_eq!(
+                action.default_chords().is_empty(),
+                unbound,
+                "{action:?}'s default chords"
             );
         }
     }
@@ -56,7 +60,7 @@ mod tests {
         let set: HashSet<&Action> = Action::ALL.iter().collect();
         assert_eq!(set.len(), Action::ALL.len(), "ALL contains duplicates");
         // Bumped manually when a variant is added.
-        assert_eq!(Action::ALL.len(), 35);
+        assert_eq!(Action::ALL.len(), 37);
     }
 
     #[test]

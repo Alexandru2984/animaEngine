@@ -545,10 +545,13 @@ finding #6 in the project notes.
 
 ### Global hotkeys
 
-Exactly three actions are eligible for global registration —
-`ToggleEditMode`, `HideOverlay`, `PauseAll` (`hotkeys::GLOBAL_ACTIONS`).
-Their chords are **user-configurable** (defaults ship, rebindable in
-Settings → Keybindings and `[keybindings.map]`), and the backend is
+Exactly five actions are eligible for global registration —
+`ToggleEditMode`, `HideOverlay`, `PauseAll`, and since 1.5
+`ToggleFocus` and `ToggleSnooze` (`hotkeys::GLOBAL_ACTIONS`). Their
+chords are **user-configurable** (rebindable in Settings → Keybindings
+and `[keybindings.map]`; the first three ship with defaults, the two
+timers ship unbound, so no key is taken from other apps until the user
+picks one), and the backend is
 selectable via `[global].hotkey_backend` (`auto` probes the
 GlobalShortcuts portal, then falls back to `XGrabKey` on X11). Every
 other action (nudge, toggle-visible, etc.) is **in-app only** and never

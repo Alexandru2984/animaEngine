@@ -51,6 +51,8 @@ const GLOBAL_ACTIONS: &[Action] = &[
     Action::ToggleEditMode,
     Action::HideOverlay,
     Action::PauseAll,
+    Action::ToggleFocus,
+    Action::ToggleSnooze,
 ];
 
 /// Map a globally-triggered action onto the event the main loop
@@ -70,6 +72,21 @@ pub fn action_to_event(action: Action, visible: &AtomicBool) -> Option<AnimaEven
             }
         }
         Action::PauseAll => AnimaEvent::ToggleGlobalPlayback,
+        // Which way each goes is decided now, by what holds now.
+        Action::ToggleFocus => {
+            if crate::focus::phase().is_some() {
+                AnimaEvent::StopFocus
+            } else {
+                AnimaEvent::StartFocus(0)
+            }
+        }
+        Action::ToggleSnooze => {
+            if crate::snooze::active() {
+                AnimaEvent::Wake
+            } else {
+                AnimaEvent::Snooze(crate::snooze::SnoozeFor::Minutes(15))
+            }
+        }
         _ => return None,
     })
 }

@@ -889,6 +889,9 @@ pub fn run_native(
                             hotkey_backend_status = "none (compositor bindings + D-Bus)".into();
                         }
                         PortalMsg::Activated(action) => match action {
+                            KbAction::ToggleFocus | KbAction::ToggleSnooze => {
+                                snoozing |= timer_shortcut(action, config.global.focus);
+                            }
                             KbAction::ToggleEditMode => toggle_edit_xor ^= true,
                             KbAction::PauseAll => toggle_playback_xor ^= true,
                             KbAction::HideOverlay => {
@@ -1043,6 +1046,20 @@ pub fn run_native(
                         &mut config_watch,
                         "Wayland",
                     );
+                }
+                // As the global shortcuts do; snoozing leaves edit mode.
+                Action::ToggleFocus | Action::ToggleSnooze => {
+                    if timer_shortcut(action, config.global.focus) && layer.state.edit_mode {
+                        flip_edit_mode(
+                            &mut layer,
+                            &monitors_now,
+                            &mut config,
+                            &scene,
+                            &mut config_dirty,
+                            &mut config_watch,
+                            "Wayland",
+                        );
+                    }
                 }
                 // The next four are not shareable — each one reaches for
                 // something only this loop owns (its config, its shutdown
@@ -2425,6 +2442,25 @@ fn dispatch_with_timeout(
 /// adding an entity or toggling playback set `config_dirty`, saved the
 /// *stale* scene, and silently discarded the edit. Any save on this path
 /// must go through here.
+/// A focus or snooze shortcut, as the event it stands for now
+/// (`hotkeys::action_to_event`), done here. Returns whether it snoozed.
+fn timer_shortcut(action: Action, focus: crate::focus::FocusConfig) -> bool {
+    let visible = std::sync::atomic::AtomicBool::new(true);
+    match crate::hotkeys::action_to_event(action, &visible) {
+        Some(AnimaEvent::StartFocus(minutes)) => {
+            crate::focus::start(crate::focus::lengths_for(minutes, focus));
+        }
+        Some(AnimaEvent::StopFocus) => crate::focus::stop(),
+        Some(AnimaEvent::Snooze(what)) => {
+            crate::snooze::snooze(what);
+            return true;
+        }
+        Some(AnimaEvent::Wake) => crate::snooze::wake(),
+        _ => {}
+    }
+    false
+}
+
 fn sync_and_save(config: &mut AppConfig, scene: &Scene) -> Result<()> {
     config.take_scene(scene);
     config.save()

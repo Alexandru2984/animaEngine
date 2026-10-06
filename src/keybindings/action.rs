@@ -27,6 +27,12 @@ pub enum Action {
     ToggleEditMode,
     HideOverlay,
     PauseAll,
+    /// Start the focus timer, or stop it (`crate::focus`). Unbound as it
+    /// comes: a default would be taken from every other app when global.
+    ToggleFocus,
+    /// Snooze for a quarter of an hour, or wake up (`crate::snooze`).
+    /// Unbound likewise.
+    ToggleSnooze,
 
     // ── Window / persistence ──
     QuitWithSave,
@@ -99,6 +105,8 @@ impl Action {
         Self::ToggleEditMode,
         Self::HideOverlay,
         Self::PauseAll,
+        Self::ToggleFocus,
+        Self::ToggleSnooze,
         Self::QuitWithSave,
         Self::SaveNow,
         Self::OpenCommandPalette,
@@ -190,7 +198,12 @@ impl Action {
     /// by design, because a hidden overlay can only be brought back from
     /// outside it — by the shortcut, the tray or D-Bus.
     pub fn in_palette(self) -> bool {
-        !matches!(self, Self::OpenCommandPalette | Self::HideOverlay)
+        // The palette has its own focus and snooze entries, which say
+        // which way they go.
+        !matches!(
+            self,
+            Self::OpenCommandPalette | Self::HideOverlay | Self::ToggleFocus | Self::ToggleSnooze
+        )
     }
 
     /// Short human-readable label for the settings panel and command
@@ -200,6 +213,8 @@ impl Action {
             Self::ToggleEditMode => "Toggle edit mode",
             Self::HideOverlay => "Hide / show overlay",
             Self::PauseAll => "Pause all animations",
+            Self::ToggleFocus => "Start or stop the focus timer",
+            Self::ToggleSnooze => "Snooze 15 minutes or wake up",
             Self::QuitWithSave => "Quit (save config)",
             Self::SaveNow => "Save config now",
             Self::OpenCommandPalette => "Command palette",
@@ -242,6 +257,8 @@ impl Action {
             Self::ToggleEditMode => "Switch between pass-through and edit mode.",
             Self::HideOverlay => "Show or hide the whole overlay (tray-compatible).",
             Self::PauseAll => "Freeze every animation. Useful for screenshots.",
+            Self::ToggleFocus => "Work, a break, and round again — or stop it.",
+            Self::ToggleSnooze => "Out of sight for a quarter of an hour — or back now.",
             Self::QuitWithSave => "Persist any pending edits and exit.",
             Self::SaveNow => "Force-write the config without exiting.",
             Self::OpenCommandPalette => {
@@ -392,6 +409,7 @@ impl Action {
             Self::ToggleEditMode => Self::C_TOGGLE_EDIT_MODE,
             Self::HideOverlay => Self::C_HIDE_OVERLAY,
             Self::PauseAll => Self::C_PAUSE_ALL,
+            Self::ToggleFocus | Self::ToggleSnooze => &[],
             Self::QuitWithSave => Self::C_QUIT_WITH_SAVE,
             Self::SaveNow => Self::C_SAVE_NOW,
             Self::OpenCommandPalette => Self::C_OPEN_CMD_PALETTE,
@@ -438,6 +456,8 @@ impl Action {
             Self::ToggleEditMode => "action-toggle-edit-mode",
             Self::HideOverlay => "action-hide-overlay",
             Self::PauseAll => "action-pause-all",
+            Self::ToggleFocus => "action-toggle-focus",
+            Self::ToggleSnooze => "action-toggle-snooze",
             Self::QuitWithSave => "action-quit-with-save",
             Self::SaveNow => "action-save-now",
             Self::OpenCommandPalette => "action-open-command-palette",

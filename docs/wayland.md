@@ -86,9 +86,11 @@ affected — it works in the compositor's scaled coordinate space.
 
 Wayland has no `XGrabKey` equivalent. The sanctioned mechanism is the
 **`org.freedesktop.portal.GlobalShortcuts`** desktop portal: at
-startup animaEngine creates a portal session and binds its three
-global actions (`toggle-edit-mode`, `hide-overlay`, `pause-all`) with
-the chords from your Keybindings tab as preferred triggers. The
+startup animaEngine creates a portal session and binds its global
+actions (`toggle-edit-mode`, `hide-overlay`, `pause-all`, and since 1.5
+`toggle-focus` and `toggle-snooze`) with the chords from your
+Keybindings tab as preferred triggers — the last two have none until you
+give them one, and the desktop's shortcut settings can. The
 desktop shows a one-time approval dialog (GNOME) or a shortcut editor
 (KDE); after that, presses arrive as portal signals — no X server, no
 compositor config, works inside the Flatpak sandbox.
