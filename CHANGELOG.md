@@ -76,6 +76,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Reminders at a set time.** Besides every so many minutes, a
+  reminder can come at a time of day — every day, on weekdays or at
+  weekends ("10:00: stand-up") — or on a date each year ("12 October:
+  Ana's birthday"). Once that day; if the computer was off or asleep
+  then, still within two hours (a date's, until midnight); and if you are
+  away, when you come back. Several due at once go to several
+  characters, so one bubble does not cover another.
 - **Back up everything, restore it anywhere.** Appearance's "Back up…"
   writes one `.animabackup` file: the settings, every saved scene with
   its picture, and the pictures they show, once each. "Restore…" brings

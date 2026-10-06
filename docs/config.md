@@ -143,6 +143,23 @@ Time away from the computer starts every reminder over: as long without
 input as `pause_when_idle_minutes` says, or five minutes when pausing is
 off. One that comes due while the overlay is hidden waits.
 
+A reminder can come at a set time instead (`every_minutes` is then not
+used):
+
+```toml
+[[reminders]]
+text = "Stand-up"
+at = { time = "10:00", days = "weekdays" }  # every | weekdays | weekends
+
+[[reminders]]
+text = "Ana's birthday"
+at = { time = "09:00", date = "10-12" }     # MM-DD, each year
+```
+
+It is said once that day, from its time to two hours after — a date's to
+midnight — so a late start or a wake from sleep still brings it; while
+you are away it waits for you, within that time.
+
 ### Bedtime and the focus timer
 
 ```toml

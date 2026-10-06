@@ -58,8 +58,13 @@ fn weekday(weekday: u8) -> String {
     crate::i18n::t(WEEKDAYS[usize::from(weekday.min(6))])
 }
 
+/// The name of `month` (1–12), in the user's language.
+pub fn month_name(month: u8) -> String {
+    crate::i18n::t(MONTHS[usize::from(month.clamp(1, 12) - 1)])
+}
+
 /// The day and month (1–12), as the user's language writes them.
-fn date(day: u8, month: u8) -> String {
+pub fn date(day: u8, month: u8) -> String {
     let mut args = fluent::FluentArgs::new();
     args.set("day", day);
     args.set(

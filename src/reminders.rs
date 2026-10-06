@@ -25,6 +25,54 @@ pub struct ReminderConfig {
     pub character: Option<String>,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// At a set time instead of every so often (`At`): `every_minutes`
+    /// is then not used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<At>,
+}
+
+/// When a reminder at a set time is said (1.5): a time of day on some
+/// days — `at = { time = "10:00", days = "weekdays" }` — or on a date each
+/// year, whatever the day — `at = { time = "09:00", date = "10-12" }`
+/// (month-day).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct At {
+    /// "HH:MM", local time.
+    pub time: String,
+    #[serde(default)]
+    pub days: crate::schedule::Days,
+    /// "MM-DD".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date: Option<String>,
+}
+
+/// How late a reminder at a set time is still said: a start, or a wake
+/// from sleep, a little after its time still brings it — not an evening
+/// start the morning's stand-up. A date's lasts the rest of the day.
+pub const LATE_BY_MINUTES: u32 = 120;
+
+impl At {
+    /// The (month, day) of its date, if it has one that reads.
+    pub fn date(&self) -> Option<(u8, u8)> {
+        let (m, d) = self.date.as_deref()?.trim().split_once('-')?;
+        let (m, d): (u8, u8) = (m.parse().ok()?, d.parse().ok()?);
+        ((1..=12).contains(&m) && (1..=31).contains(&d)).then_some((m, d))
+    }
+
+    /// Whether it is due at local `now`: on its day, from its time to
+    /// [`LATE_BY_MINUTES`] after — or to midnight, for a date. Never if
+    /// the time does not read.
+    pub fn due_at(&self, now: crate::schedule::LocalTime) -> bool {
+        let Some(time) = crate::schedule::parse_hhmm(&self.time) else {
+            return false;
+        };
+        let (day, late) = match self.date() {
+            Some(date) => (date == (now.month, now.day), 24 * 60),
+            None if self.date.is_some() => return false,
+            None => (self.days.holds_on(now.weekday), time + LATE_BY_MINUTES),
+        };
+        day && now.minute >= time && now.minute < late
+    }
 }
 
 fn default_every() -> u32 {
@@ -95,6 +143,10 @@ impl ReminderConfig {
 #[derive(Debug, Default)]
 pub struct Timers {
     due: Vec<(ReminderConfig, Instant)>,
+    /// Reminders at a set time, and the (month, day) each was last said.
+    said_on: Vec<(ReminderConfig, (u8, u8))>,
+    /// The local clock, read at most every ten seconds.
+    clock: Option<(Instant, Option<crate::schedule::LocalTime>)>,
 }
 
 impl Timers {
@@ -110,7 +162,8 @@ impl Timers {
         // Match the list: keep a timer for each reminder still there, start
         // one for each new one.
         let mut old = std::mem::take(&mut self.due);
-        for r in reminders {
+        // Those at a set time are `poll_timed`'s.
+        for r in reminders.iter().filter(|r| r.at.is_none()) {
             let due = match old.iter().position(|(o, _)| o == r) {
                 Some(i) => old.swap_remove(i).1,
                 None => now + r.every(),
@@ -137,6 +190,49 @@ impl Timers {
     }
 }
 
+impl Timers {
+    /// The reminders at a set time due at local `clock`, each once a day.
+    /// Away, or unable to be said, they wait — within their time.
+    pub fn poll_timed(
+        &mut self,
+        clock: Option<crate::schedule::LocalTime>,
+        reminders: &[ReminderConfig],
+        away: bool,
+        can_say: bool,
+    ) -> Vec<ReminderConfig> {
+        self.said_on.retain(|(r, _)| reminders.contains(r));
+        let Some(now) = clock.filter(|_| !away && can_say) else {
+            return Vec::new();
+        };
+        let today = (now.month, now.day);
+        let mut fired = Vec::new();
+        for r in reminders.iter().filter(|r| r.enabled) {
+            let Some(at) = &r.at else {
+                continue;
+            };
+            let said_today = self.said_on.iter().any(|(s, on)| s == r && *on == today);
+            if at.due_at(now) && !said_today {
+                self.said_on.retain(|(s, _)| s != r);
+                self.said_on.push((r.clone(), today));
+                fired.push(r.clone());
+            }
+        }
+        fired
+    }
+
+    /// The local clock now, read at most every ten seconds.
+    fn clock(&mut self, now: Instant) -> Option<crate::schedule::LocalTime> {
+        match self.clock {
+            Some((at, clock)) if now.duration_since(at) < Duration::from_secs(10) => clock,
+            _ => {
+                let clock = crate::schedule::local_now();
+                self.clock = Some((now, clock));
+                clock
+            }
+        }
+    }
+}
+
 /// Have the due reminders said, by characters `on_surface` accepts (the
 /// ones whose bubble shows). `shown` is whether the overlay is on screen at
 /// all. Returns whether anything was said.
@@ -157,7 +253,11 @@ pub fn deliver(
     // Out of sight, a reminder waits for the characters — unless it can go
     // to the desktop's notifications (`crate::notify`).
     let can_say = shown && !speakers.is_empty();
-    let fired = timers.poll(Instant::now(), reminders, away, can_say || notify);
+    let now = Instant::now();
+    let mut fired = timers.poll(now, reminders, away, can_say || notify);
+    let clock = timers.clock(now);
+    fired.extend(timers.poll_timed(clock, reminders, away, can_say || notify));
+    let mut used: Vec<usize> = Vec::new();
     for r in &fired {
         if notify {
             let name = r
@@ -176,13 +276,19 @@ pub fn deliver(
                 .copied()
                 .find(|&i| scene.entities[i].id == id)
         });
+        // Several at once go to several characters, front to back, where
+        // there are: one bubble would cover the other.
         let frontmost = || {
+            let by_z = |&i: &usize| scene.entities[i].z_index;
             speakers
                 .iter()
                 .copied()
-                .max_by_key(|&i| scene.entities[i].z_index)
+                .filter(|i| !used.contains(i))
+                .max_by_key(by_z)
+                .or_else(|| speakers.iter().copied().max_by_key(by_z))
         };
         if let Some(i) = chosen.or_else(frontmost) {
+            used.push(i);
             tracing::info!("Reminder said by {}: {}", scene.entities[i].name, r.text);
             scene.entities[i].say(&r.text, SAY_SECONDS);
             sound.play_by(&mut scene.entities[i]);
@@ -201,6 +307,7 @@ mod tests {
             every_minutes: minutes,
             character: None,
             enabled: true,
+            at: None,
         }
     }
 
@@ -372,6 +479,118 @@ mod tests {
         );
         let sent = crate::notify::SENT.lock().unwrap();
         assert!(sent.iter().any(|(_, body)| body == "water"), "{sent:?}");
+    }
+
+    fn at(time: &str, days: crate::schedule::Days, date: Option<&str>) -> ReminderConfig {
+        ReminderConfig {
+            at: Some(At {
+                time: time.into(),
+                days,
+                date: date.map(Into::into),
+            }),
+            ..every("stand-up", 60)
+        }
+    }
+
+    fn clock(weekday: u8, hhmm: &str, month: u8, day: u8) -> Option<crate::schedule::LocalTime> {
+        Some(crate::schedule::LocalTime {
+            weekday,
+            minute: crate::schedule::parse_hhmm(hhmm).unwrap(),
+            day,
+            month,
+        })
+    }
+
+    #[test]
+    fn a_reminder_at_a_set_time_comes_once_on_its_days() {
+        use crate::schedule::Days;
+        let mut t = Timers::default();
+        let list = [at("10:00", Days::Weekdays, None)];
+        // Monday.
+        assert!(t
+            .poll_timed(clock(1, "09:59", 10, 5), &list, false, true)
+            .is_empty());
+        assert_eq!(
+            t.poll_timed(clock(1, "10:00", 10, 5), &list, false, true)
+                .len(),
+            1
+        );
+        assert!(
+            t.poll_timed(clock(1, "10:01", 10, 5), &list, false, true)
+                .is_empty(),
+            "once"
+        );
+        // Tuesday, started late: still within its two hours.
+        assert_eq!(
+            t.poll_timed(clock(2, "11:30", 10, 6), &list, false, true)
+                .len(),
+            1
+        );
+        // Wednesday evening: too late for the morning's.
+        assert!(t
+            .poll_timed(clock(3, "19:00", 10, 7), &list, false, true)
+            .is_empty());
+        // Saturday: not a weekday.
+        assert!(t
+            .poll_timed(clock(6, "10:00", 10, 10), &list, false, true)
+            .is_empty());
+        // The interval timers leave it alone.
+        assert!(t
+            .poll(Instant::now() + 3 * 60 * MIN, &list, false, true)
+            .is_empty());
+    }
+
+    #[test]
+    fn two_at_once_are_said_by_two() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let (a, b) = (every("water", 1), every("stretch", 1));
+        let mut t = Timers::default();
+        t.due.push((a.clone(), Instant::now() - MIN));
+        t.due.push((b.clone(), Instant::now() - MIN));
+        let none = ReminderSound::None;
+        deliver(
+            &mut t,
+            &[a, b],
+            &none,
+            false,
+            &mut scene,
+            true,
+            false,
+            |_| true,
+        );
+        let said: Vec<_> = scene
+            .entities
+            .iter()
+            .filter_map(|e| e.speech.as_ref().map(|s| s.text.clone()))
+            .collect();
+        assert_eq!(said.len(), 2, "{said:?}");
+    }
+
+    #[test]
+    fn a_date_is_said_that_day_and_a_reminder_waits_for_you() {
+        use crate::schedule::Days;
+        let mut t = Timers::default();
+        let list = [at("09:00", Days::Every, Some("10-12"))];
+        assert!(t
+            .poll_timed(clock(0, "09:30", 10, 11), &list, false, true)
+            .is_empty());
+        // Away at nine: it waits for the return, even the evening.
+        assert!(t
+            .poll_timed(clock(1, "09:30", 10, 12), &list, true, true)
+            .is_empty());
+        assert_eq!(
+            t.poll_timed(clock(1, "18:00", 10, 12), &list, false, true)
+                .len(),
+            1
+        );
+        assert!(t
+            .poll_timed(clock(1, "18:01", 10, 12), &list, false, true)
+            .is_empty());
+        // A date that does not read is never.
+        let odd = [at("09:00", Days::Every, Some("13-40"))];
+        assert!(t
+            .poll_timed(clock(1, "09:00", 10, 12), &odd, false, true)
+            .is_empty());
     }
 
     #[test]

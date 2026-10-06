@@ -339,15 +339,40 @@ struct ReminderDraft {
     text: String,
     minutes: u32,
     character: Option<String>,
+    /// At a set time, rather than every so often.
+    timed: bool,
+    time: String,
+    days: crate::schedule::Days,
+    /// On a date each year, rather than on `days`.
+    on_date: bool,
+    day: u8,
+    month: u8,
 }
 
 impl Default for ReminderDraft {
     fn default() -> Self {
+        // A date starts as today's.
+        let today = crate::schedule::local_now();
         Self {
             text: String::new(),
             minutes: 60,
             character: None,
+            timed: false,
+            time: "09:00".into(),
+            days: crate::schedule::Days::Every,
+            on_date: false,
+            day: today.map_or(1, |t| t.day),
+            month: today.map_or(1, |t| t.month),
         }
+    }
+}
+
+/// When a reminder at a set time comes, as the list says it: "10:00 ·
+/// weekdays", or "12 October · 09:00".
+fn at_label(at: &crate::reminders::At) -> String {
+    match at.date() {
+        Some((month, day)) => format!("{} · {}", crate::placeholders::date(day, month), at.time),
+        None => format!("{} · {}", at.time, t(at.days.i18n_key())),
     }
 }
 
@@ -413,6 +438,7 @@ fn reminders_section(
                     every_minutes: minutes,
                     character: None,
                     enabled: true,
+                    at: None,
                 });
                 *config_dirty = true;
             }
@@ -445,7 +471,8 @@ fn reminders_section(
             ui.label(
                 egui::RichText::new(format!(
                     "{} · {}",
-                    every(r.every_minutes),
+                    r.at.as_ref()
+                        .map_or_else(|| every(r.every_minutes), at_label),
                     who(&r.character)
                 ))
                 .text_style(theme::caption())
@@ -478,14 +505,79 @@ fn reminders_section(
         .wrap(),
     );
     let mut add = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+    // Every so often, or at a set time (`reminders::At`).
+    ui.checkbox(&mut draft.timed, t("scene-reminder-timed"));
+    if draft.timed {
+        ui.horizontal(|ui| {
+            super::appearance::hhmm_field(ui, &mut draft.time, &t("scene-reminder-at"));
+            let days_label = if draft.on_date {
+                t("scene-reminder-on-date")
+            } else {
+                t(draft.days.i18n_key())
+            };
+            let combo = egui::ComboBox::from_id_salt("anima.reminder-days")
+                .selected_text(days_label.clone())
+                .show_ui(ui, |ui| {
+                    for option in crate::schedule::Days::ALL {
+                        if ui
+                            .selectable_label(
+                                !draft.on_date && draft.days == option,
+                                t(option.i18n_key()),
+                            )
+                            .picked()
+                        {
+                            draft.days = option;
+                            draft.on_date = false;
+                        }
+                    }
+                    if ui
+                        .selectable_label(draft.on_date, t("scene-reminder-on-date"))
+                        .picked()
+                    {
+                        draft.on_date = true;
+                    }
+                });
+            crate::ui::accessible::name_combo(
+                &combo.response,
+                &t("scene-reminder-days"),
+                &days_label,
+            );
+        });
+        if draft.on_date {
+            ui.horizontal(|ui| {
+                let label = ui.label(t("scene-reminder-date"));
+                ui.add(egui::DragValue::new(&mut draft.day).range(1..=31))
+                    .labelled_by(label.id);
+                let month = crate::placeholders::month_name(draft.month);
+                let combo = egui::ComboBox::from_id_salt("anima.reminder-month")
+                    .selected_text(month.clone())
+                    .show_ui(ui, |ui| {
+                        for m in 1..=12u8 {
+                            ui.selectable_value(
+                                &mut draft.month,
+                                m,
+                                crate::placeholders::month_name(m),
+                            );
+                        }
+                    });
+                crate::ui::accessible::name_combo(
+                    &combo.response,
+                    &t("scene-reminder-date"),
+                    &month,
+                );
+            });
+        }
+    }
     ui.horizontal(|ui| {
-        let label = ui.label(t("scene-reminder-minutes"));
-        ui.add(
-            egui::DragValue::new(&mut draft.minutes)
-                .range(MIN_MINUTES..=MAX_MINUTES)
-                .speed(1.0),
-        )
-        .labelled_by(label.id);
+        if !draft.timed {
+            let label = ui.label(t("scene-reminder-minutes"));
+            ui.add(
+                egui::DragValue::new(&mut draft.minutes)
+                    .range(MIN_MINUTES..=MAX_MINUTES)
+                    .speed(1.0),
+            )
+            .labelled_by(label.id);
+        }
         let chosen = who(&draft.character);
         let combo = egui::ComboBox::from_id_salt("anima.reminder-character")
             .selected_text(chosen.clone())
@@ -522,6 +614,13 @@ fn reminders_section(
             every_minutes: draft.minutes.clamp(MIN_MINUTES, MAX_MINUTES),
             character: draft.character.clone(),
             enabled: true,
+            at: draft.timed.then(|| crate::reminders::At {
+                time: draft.time.clone(),
+                days: draft.days,
+                date: draft
+                    .on_date
+                    .then(|| format!("{:02}-{:02}", draft.month, draft.day)),
+            }),
         });
         *config_dirty = true;
         draft = ReminderDraft::default();
