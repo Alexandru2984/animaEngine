@@ -11,6 +11,9 @@ that sit closest to untrusted input:
 | `cache_deserialize` | `animation::cache::deserialize_frames` | `~/.cache/animaengine/textures/*.bin` — our own binary format, corruptible by a crash mid-write or a tampered cache |
 | `avcc_nalu_walk` | `animation::video_loader::avcc_to_annex_b` | one MP4 sample's length-prefixed NALU bytes (hand-written length/offset walk) |
 | `shimeji_xml` | `shimeji::fuzz_parse_actions` | `actions.xml` inside downloaded third-party mascot packs |
+| `scene_file_read` | `scene_file::fuzz_read` | `.animascene`, `.animachar` and `.animabackup` files (1.5): the strict zip reader, entry names, the manifests (`scene.toml`, `backup.toml`) parsed and tidied, the thumbnails decoded |
+| `thumbnail_decode` | `scene_thumb::decode` | a scene's thumbnail PNG, inside a shared or restored file |
+| `small_parsers` | `speech::fuzz_small_parsers` | 1.5's hand-written text parsers fed from `config.toml`: bubble colours, `HH:MM` times, `MM-DD` dates and when a reminder is due, sound names, own hours, `{placeholders}` |
 
 The invariant for every target is "**never panic**, return a typed
 error or sensible default on adversarial input." The asset decoders
@@ -19,6 +22,9 @@ delegate to `image` and `mp4parse` upstream, both of which have their
 own fuzz suites — but the **hand-written** parsers around them (our
 cache codec, the NALU length-prefix walk, the Shimeji XML reader) are
 exactly the bespoke code that warrants fuzzing, added in W.4 (0.9).
+The readers of the files 1.5 opens and its small parsers followed; the
+first run of `small_parsers` found an overflow in `HH:MM` parsing
+(`"122412244:1"`, kept as a seed).
 
 Committed seed inputs live under `fuzz/seeds/<target>/` — **every**
 target carries a handful: valid examples plus adversarial variants
@@ -38,6 +44,7 @@ cargo install cargo-fuzz --locked
 cargo +nightly fuzz run keychord_parse        # ^C when you've had enough
 cargo +nightly fuzz run uri_list_parse
 cargo +nightly fuzz run asset_type_detect
+cargo +nightly fuzz run scene_file_read
 ```
 
 Corpora live under `fuzz/corpus/<target>/`; libfuzzer seeds itself

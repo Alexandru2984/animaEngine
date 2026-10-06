@@ -375,6 +375,35 @@ pub fn import(file: &Path, into: &Path) -> Result<Imported> {
     })
 }
 
+/// Fuzz entry point (1.5): everything a scene, character or backup file
+/// goes through on the way in, short of writing — the zip reader, each
+/// entry's name, a manifest of either kind parsed and tidied, the scene
+/// pictures decoded. Exposed only for the `scene_file_read` fuzz target;
+/// not part of any supported API.
+#[doc(hidden)]
+pub fn fuzz_read(data: &[u8]) {
+    let Ok(entries) = zip::read(data, MAX_ENTRIES) else {
+        return;
+    };
+    for entry in &entries {
+        let _ = is_asset_name(entry.name);
+        let _ = backup::fuzz_thumb_index(entry.name);
+        if entry.name == THUMBNAIL || entry.name.starts_with("thumbs/") {
+            let _ = crate::scene_thumb::decode(entry.data);
+        }
+        let Ok(text) = std::str::from_utf8(entry.data) else {
+            continue;
+        };
+        if entry.name == MANIFEST {
+            if let Ok(Manifest { mut scene, .. }) = toml::from_str::<Manifest>(text) {
+                tidy(&mut scene);
+            }
+        } else {
+            backup::fuzz_manifest(text);
+        }
+    }
+}
+
 /// Fit a scene laid out for someone else's screens into `bounds`, the
 /// area the overlay covers here. Along each axis, an arrangement that
 /// fits stays as it is; one that would not is moved as a block, the least
@@ -770,6 +799,28 @@ mod tests {
         assert!(import(&file, &into).is_err());
         assert!(!into.exists(), "nothing left behind");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The fuzz seeds are real files, so the fuzzer starts deep inside
+    /// the reader rather than at its first check.
+    #[test]
+    fn the_fuzz_seeds_read() {
+        let seeds = Path::new(env!("CARGO_MANIFEST_DIR")).join("fuzz/seeds/scene_file_read");
+        for name in ["scene.zip", "character.zip", "backup.zip"] {
+            let bytes = std::fs::read(seeds.join(name)).unwrap();
+            let entries = zip::read(&bytes, MAX_ENTRIES).unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert!(entries.len() >= 2, "{name}");
+        }
+        let scene = std::fs::read(seeds.join("scene.zip")).unwrap();
+        let entries = zip::read(&scene, MAX_ENTRIES).unwrap();
+        let manifest = entries.iter().find(|e| e.name == MANIFEST).unwrap();
+        let parsed: Manifest = toml::from_str(std::str::from_utf8(manifest.data).unwrap()).unwrap();
+        assert_eq!(parsed.scene.characters.len(), 1);
+        assert!(zip::read(
+            &std::fs::read(seeds.join("truncated.zip")).unwrap(),
+            MAX_ENTRIES
+        )
+        .is_err());
     }
 
     #[test]

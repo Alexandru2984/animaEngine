@@ -148,6 +148,27 @@ pub struct Restored {
     pub scenes: Vec<(SavedScene, Option<image::RgbaImage>)>,
 }
 
+/// For `super::fuzz_read`: a backup's manifest parsed and each scene in
+/// it tidied, as a restore would.
+#[doc(hidden)]
+pub fn fuzz_manifest(text: &str) {
+    if let Ok(Manifest {
+        mut config, scenes, ..
+    }) = toml::from_str::<Manifest>(text)
+    {
+        config.sanitize();
+        for mut scene in scenes {
+            super::tidy(&mut scene);
+        }
+    }
+}
+
+/// For `super::fuzz_read`.
+#[doc(hidden)]
+pub fn fuzz_thumb_index(name: &str) -> Option<usize> {
+    thumb_index(name)
+}
+
 /// `thumbs/<number>.png`, the number of a scene in the manifest.
 fn thumb_index(name: &str) -> Option<usize> {
     let n = name.strip_prefix("thumbs/")?.strip_suffix(".png")?;

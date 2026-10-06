@@ -72,7 +72,9 @@ impl ScheduleRule {
 pub fn parse_hhmm(text: &str) -> Option<u32> {
     let (h, m) = text.trim().split_once(':')?;
     let (h, m): (u32, u32) = (h.trim().parse().ok()?, m.trim().parse().ok()?);
-    (h < 24 && m < 60).then_some(h * 60 + m)
+    // `then`, not `then_some`: the sum must not be worked out for an hour
+    // past any bound — "122412244:1" overflowed it (found by fuzzing).
+    (h < 24 && m < 60).then(|| h * 60 + m)
 }
 
 /// Minutes since midnight to "HH:MM".
@@ -196,6 +198,12 @@ impl Schedule {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_huge_hour_is_refused_not_overflowed() {
+        assert_eq!(parse_hhmm("122412244:1"), None);
+        assert_eq!(parse_hhmm("4294967295:59"), None);
+    }
     use super::*;
 
     fn rule(scene: &str, at: &str, days: Days) -> ScheduleRule {

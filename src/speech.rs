@@ -81,6 +81,32 @@ pub const LARGE: f32 = 1.4;
 /// A bubble's colour as it comes.
 pub const WHITE: [u8; 3] = [255, 255, 255];
 
+/// Fuzz entry point (1.5): the small hand-written readers of what a
+/// person types into the config — a colour, a time, a date, hours, a
+/// sound path, a line with placeholders — over one arbitrary string.
+/// Exposed only for the `small_parsers` fuzz target.
+#[doc(hidden)]
+pub fn fuzz_small_parsers(text: &str) {
+    let _ = parse_colour(text);
+    let minute = crate::schedule::parse_hhmm(text);
+    let _ = crate::sounds::tidy(text);
+    let _ = crate::hours::within(text, text, minute.unwrap_or(0));
+    let at = crate::reminders::At {
+        time: text.to_string(),
+        days: crate::schedule::Days::Weekdays,
+        date: Some(text.to_string()),
+    };
+    let _ = at.date();
+    let now = crate::schedule::LocalTime {
+        weekday: (text.len() % 7) as u8,
+        minute: minute.unwrap_or(0),
+        day: 1 + (text.len() % 31) as u8,
+        month: 1 + (text.len() % 12) as u8,
+    };
+    let _ = at.due_at(now);
+    let _ = crate::placeholders::fill(text, text, Some(now));
+}
+
 /// "#rrggbb" as red, green and blue; `None` if it does not read.
 pub fn parse_colour(text: &str) -> Option<[u8; 3]> {
     let hex = text.trim().strip_prefix('#')?;

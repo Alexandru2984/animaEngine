@@ -598,7 +598,8 @@ jobs:
       - name: Seed corpora
         run: |
           for t in cache_deserialize avcc_nalu_walk shimeji_xml \
-                   keychord_parse uri_list_parse asset_type_detect; do
+                   keychord_parse uri_list_parse asset_type_detect \
+                   scene_file_read thumbnail_decode small_parsers; do
             mkdir -p "fuzz/corpus/$t"
             if [ -d "fuzz/seeds/$t" ]; then cp fuzz/seeds/$t/* "fuzz/corpus/$t/"; fi
           done
@@ -607,7 +608,8 @@ jobs:
       - name: Fuzz each target
         run: |
           for t in cache_deserialize avcc_nalu_walk shimeji_xml \
-                   keychord_parse uri_list_parse asset_type_detect; do
+                   keychord_parse uri_list_parse asset_type_detect \
+                   scene_file_read thumbnail_decode small_parsers; do
             echo "::group::fuzz $t"
             cargo +nightly fuzz run "$t" -- -max_total_time=60
             echo "::endgroup::"

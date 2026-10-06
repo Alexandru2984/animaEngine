@@ -48,3 +48,21 @@ name = "shimeji_xml"
 path = "fuzz_targets/shimeji_xml.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "scene_file_read"
+path = "fuzz_targets/scene_file_read.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "thumbnail_decode"
+path = "fuzz_targets/thumbnail_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "small_parsers"
+path = "fuzz_targets/small_parsers.rs"
+test = false
+doc = false

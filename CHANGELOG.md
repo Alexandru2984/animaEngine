@@ -304,6 +304,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The pulse on the selected row in the Scene tab ignored **Reduce
   motion**. It holds still now, and otherwise runs at ten frames a
   second instead of every frame.
+- **A time with a huge hour** — `"122412244:1"` in a reminder, bedtime
+  or own hours, by hand or from a restored backup — crashed a debug
+  build working out the minutes; a release build refused it, as both do
+  now. Found by three new fuzz targets, over the readers of the files
+  1.5 opens (scenes, characters, backups, thumbnails) and its small
+  parsers (colours, times, dates, sound names, placeholders).
 
 ## [1.4.0] — 2026-09-28
 
