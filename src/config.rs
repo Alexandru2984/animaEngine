@@ -120,6 +120,11 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub notify_reminders: bool,
 
+    /// Bigger text in every speech bubble (`crate::speech::LARGE`), for
+    /// reading. Off by default.
+    #[serde(default)]
+    pub large_bubbles: bool,
+
     /// How long the focus timer's work and break last (`crate::focus`).
     #[serde(default, skip_serializing_if = "crate::focus::FocusConfig::is_default")]
     pub focus: crate::focus::FocusConfig,
@@ -208,6 +213,7 @@ impl Default for GlobalConfig {
             focus: Default::default(),
             reminder_sound: Default::default(),
             notify_reminders: false,
+            large_bubbles: false,
             window_awareness: false,
             snap_while_dragging: true,
             characters_bump: false,
@@ -314,11 +320,22 @@ pub struct Talk {
     pub every_minutes: u32,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub sound: String,
+    /// Its bubbles' colour, "#rrggbb" (`crate::speech`); white as it comes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bubble: Option<String>,
+    /// Its bubbles' text size, in points; [`crate::speech::TEXT_SIZE`] as
+    /// it comes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_size: Option<f32>,
 }
 
 impl Talk {
     pub fn is_empty(&self) -> bool {
-        self.phrases.is_empty() && self.every_minutes == 0 && self.sound.is_empty()
+        self.phrases.is_empty()
+            && self.every_minutes == 0
+            && self.sound.is_empty()
+            && self.bubble.is_none()
+            && self.text_size.is_none()
     }
 }
 

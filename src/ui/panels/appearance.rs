@@ -22,6 +22,7 @@ pub(super) fn appearance_tab(
     accesskit_enabled: &mut bool,
     accesskit_supported: bool,
     reduced_motion: &mut bool,
+    large_bubbles: &mut bool,
     hover_startle: &mut bool,
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
     step_aside_apps: &mut Vec<String>,
@@ -75,6 +76,15 @@ pub(super) fn appearance_tab(
     if ui
         .checkbox(reduced_motion, t("appearance-reduced-motion-label"))
         .on_hover_text(t("appearance-reduced-motion-hint"))
+        .changed()
+    {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    // Bigger text in every bubble, for reading (`crate::speech::LARGE`).
+    if ui
+        .checkbox(large_bubbles, t("appearance-large-bubbles-label"))
+        .on_hover_text(t("appearance-large-bubbles-hint"))
         .changed()
     {
         *config_dirty = true;

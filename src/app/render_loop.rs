@@ -175,6 +175,8 @@ impl App {
             self.scene.set_bump(self.config.global.characters_bump);
             self.scene.set_greet(self.config.global.characters_greet);
             self.scene
+                .set_large_bubbles(self.config.global.large_bubbles);
+            self.scene
                 .set_little_effects(self.config.global.little_effects);
             // Bounds are the desktop region our windows actually cover,
             // not the primary window's size: in PerMonitor mode an entity
@@ -472,6 +474,7 @@ impl App {
                         let notify_mut = &mut self.config.global.notify_reminders;
                         let scene_schedule_mut = &mut self.config.scene_schedule;
                         let reduced_motion_mut = &mut self.config.global.reduced_motion;
+                        let large_bubbles_mut = &mut self.config.global.large_bubbles;
                         let hover_startle_mut = &mut self.config.global.hover_startle;
                         let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
                         let always_on_top_mut = &mut self.config.global.always_on_top;
@@ -576,6 +579,7 @@ impl App {
                                     // every monitor, so Span really spans.
                                     true,
                                     reduced_motion_mut,
+                                    large_bubbles_mut,
                                     hover_startle_mut,
                                     on_fullscreen_mut,
                                     step_aside_apps_mut,

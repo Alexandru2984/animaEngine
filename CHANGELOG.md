@@ -76,6 +76,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Bubbles of their own, and large text.** The Inspector's "Says"
+  section gives a character's bubbles a colour and a text size — the
+  text turns light on a dark bubble — and Appearance has "Large text in
+  bubbles", which makes every bubble's text larger for reading at a
+  distance or with low vision.
 - **Characters fade in and out.** Coming and going — at their own
   hours, hidden with V or the Visible switch, a group hidden, a new one
   added, a scene switched, the overlay back from hidden, a snooze or a

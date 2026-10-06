@@ -37,6 +37,15 @@ pub fn tidy(talk: &mut crate::config::Talk) {
         .collect();
     talk.every_minutes = talk.every_minutes.min(24 * 60);
     talk.sound = crate::sounds::tidy(&talk.sound);
+    // A colour that does not read, or a size out of bounds, is as it comes.
+    talk.bubble = talk
+        .bubble
+        .take()
+        .filter(|c| crate::speech::parse_colour(c).is_some());
+    talk.text_size = talk
+        .text_size
+        .filter(|s| s.is_finite())
+        .map(|s| s.clamp(crate::speech::TEXT_SIZE_MIN, crate::speech::TEXT_SIZE_MAX));
 }
 
 /// Which line to say: any of `count` but `last`, the one said before,
@@ -85,8 +94,12 @@ mod tests {
             ],
             every_minutes: 99_999,
             sound: " cats/meow.ogg\n".into(),
+            bubble: Some("not a colour".into()),
+            text_size: Some(99.0),
         };
         tidy(&mut talk);
+        assert_eq!(talk.bubble, None, "a colour that does not read");
+        assert_eq!(talk.text_size, Some(crate::speech::TEXT_SIZE_MAX));
         assert_eq!(talk.sound, "cats/meow.ogg");
         assert_eq!(talk.phrases[0], "Hi there!");
         assert_eq!(talk.phrases[1], "linebell");

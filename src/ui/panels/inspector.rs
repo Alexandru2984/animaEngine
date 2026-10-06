@@ -456,6 +456,60 @@ fn talk_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool 
     if sound_controls(ui, entity) {
         changed = true;
     }
+    ui.add_space(SPACE_S);
+    if bubble_controls(ui, entity) {
+        changed = true;
+    }
+    changed
+}
+
+/// How its bubbles look (`crate::speech`): their colour and text size,
+/// and a way back to how they come. Returns whether either changed.
+fn bubble_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool {
+    use crate::speech::{
+        colour_text, parse_colour, TEXT_SIZE, TEXT_SIZE_MAX, TEXT_SIZE_MIN, WHITE,
+    };
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        let caption = ui.label(t("inspector-bubble-colour"));
+        let mut rgb = entity
+            .talk
+            .bubble
+            .as_deref()
+            .and_then(parse_colour)
+            .unwrap_or(WHITE);
+        if egui::color_picker::color_edit_button_srgb(ui, &mut rgb)
+            .labelled_by(caption.id)
+            .changed()
+        {
+            entity.talk.bubble = (rgb != WHITE).then(|| colour_text(rgb));
+            changed = true;
+        }
+        let custom = entity.talk.bubble.is_some() || entity.talk.text_size.is_some();
+        if ui
+            .add_enabled(
+                custom,
+                egui::Button::new(t("inspector-bubble-reset")).small(),
+            )
+            .clicked()
+        {
+            entity.talk.bubble = None;
+            entity.talk.text_size = None;
+            changed = true;
+        }
+    });
+    let mut size = entity.talk.text_size.unwrap_or(TEXT_SIZE);
+    if ui
+        .add(
+            egui::Slider::new(&mut size, TEXT_SIZE_MIN..=TEXT_SIZE_MAX)
+                .text(t("inspector-bubble-size"))
+                .suffix(" pt"),
+        )
+        .changed()
+    {
+        entity.talk.text_size = ((size - TEXT_SIZE).abs() > 0.01).then_some(size);
+        changed = true;
+    }
     changed
 }
 

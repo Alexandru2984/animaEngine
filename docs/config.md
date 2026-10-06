@@ -265,7 +265,12 @@ every_minutes = 15          # and about this often on its own, in
                             # when poked
 sound = "sounds/meow.ogg"   # played on a tap: .ogg, .wav, .flac or
                             # .mp3, relative to the asset library
+bubble = "#3b82f6"          # its bubbles' colour; white when omitted
+text_size = 18.0            # their text, 10..=28 points; 14 when omitted
 ```
+
+`large_bubbles = true` in `[global]` makes every bubble's text larger
+(×1.4), for reading.
 
 The Inspector's "Says" section writes all three. A shared scene keeps
 the lines and leaves the sound behind. In a line — and in a reminder's

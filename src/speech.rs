@@ -65,6 +65,35 @@ pub struct Shown {
     pub text: String,
     pub character: (f32, f32, f32, f32),
     pub until: Instant,
+    /// Its colour, red green blue (1.5: per character).
+    pub fill: [u8; 3],
+    /// Its text size, in points.
+    pub size: f32,
+}
+
+/// A bubble's text size as it comes, in points…
+pub const TEXT_SIZE: f32 = 14.0;
+/// …and the bounds a character's may take.
+pub const TEXT_SIZE_MIN: f32 = 10.0;
+pub const TEXT_SIZE_MAX: f32 = 28.0;
+/// How much bigger "large text in bubbles" makes every bubble's.
+pub const LARGE: f32 = 1.4;
+/// A bubble's colour as it comes.
+pub const WHITE: [u8; 3] = [255, 255, 255];
+
+/// "#rrggbb" as red, green and blue; `None` if it does not read.
+pub fn parse_colour(text: &str) -> Option<[u8; 3]> {
+    let hex = text.trim().strip_prefix('#')?;
+    if hex.len() != 6 || !hex.is_ascii() {
+        return None;
+    }
+    let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
+    Some([byte(0)?, byte(2)?, byte(4)?])
+}
+
+/// `rgb` as "#rrggbb".
+pub fn colour_text(rgb: [u8; 3]) -> String {
+    format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2])
 }
 
 /// The bubbles of every visible character `on_surface` accepts, placed
@@ -85,10 +114,18 @@ pub fn shown(
                 return None;
             }
             let (l, t, r, b) = crate::input::arrange::drawn_rect(scene, i)?;
+            let large = if scene.large_bubbles() { LARGE } else { 1.0 };
             Some(Shown {
                 text: speech.text.clone(),
                 character: (l - origin.0, t - origin.1, r - origin.0, b - origin.1),
                 until: speech.until,
+                fill: e
+                    .talk
+                    .bubble
+                    .as_deref()
+                    .and_then(parse_colour)
+                    .unwrap_or(WHITE),
+                size: e.talk.text_size.unwrap_or(TEXT_SIZE) * large,
             })
         })
         .collect()
@@ -119,6 +156,16 @@ pub fn place(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn colours_read_as_hex() {
+        assert_eq!(parse_colour("#ffcc00"), Some([255, 204, 0]));
+        assert_eq!(parse_colour(" #FFCC00 "), Some([255, 204, 0]));
+        assert_eq!(parse_colour("ffcc00"), None);
+        assert_eq!(parse_colour("#ffcc0"), None);
+        assert_eq!(parse_colour("#ggcc00"), None);
+        assert_eq!(colour_text([255, 204, 0]), "#ffcc00");
+    }
     use super::*;
 
     #[test]

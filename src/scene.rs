@@ -69,6 +69,8 @@ pub struct Scene {
     pub(crate) games: crate::tag::Games,
     /// When the fades last moved (`Scene::fade_step`).
     last_fade: Instant,
+    /// `large_bubbles`: bigger text in every bubble (`crate::speech`).
+    large_bubbles: bool,
 }
 
 /// How long a character takes to fade in or out (`Scene::fade_step`).
@@ -164,6 +166,7 @@ impl Scene {
             greetings: crate::greet::Greetings::default(),
             games: crate::tag::Games::default(),
             last_fade: Instant::now(),
+            large_bubbles: config.global.large_bubbles,
         }
     }
 
@@ -494,6 +497,17 @@ impl Scene {
             .collect();
         order.sort_by_key(|&i| self.entities[i].z_index);
         order.into_iter().map(|i| &self.entities[i]).collect()
+    }
+
+    /// Bigger text in every bubble (`crate::speech::LARGE`). Cheap, called
+    /// per frame.
+    pub fn set_large_bubbles(&mut self, large: bool) {
+        self.large_bubbles = large;
+    }
+
+    /// Whether bubbles have bigger text.
+    pub fn large_bubbles(&self) -> bool {
+        self.large_bubbles
     }
 
     /// Whether those who meet say hello (`crate::greet`). Cheap, called per

@@ -261,6 +261,7 @@ pub fn settings(
     // Wayland, where a layer surface belongs to a single output.
     span_supported: bool,
     reduced_motion: &mut bool,
+    large_bubbles: &mut bool,
     hover_startle: &mut bool,
     on_fullscreen: &mut crate::fullscreen::OnFullscreen,
     step_aside_apps: &mut Vec<String>,
@@ -453,6 +454,7 @@ pub fn settings(
                                 accesskit_enabled,
                                 accesskit_supported,
                                 reduced_motion,
+                                large_bubbles,
                                 hover_startle,
                                 on_fullscreen,
                                 step_aside_apps,

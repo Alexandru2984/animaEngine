@@ -937,6 +937,8 @@ mod tests {
             phrases: vec!["Hi".into(), "Bye".into()],
             every_minutes: 15,
             sound: "cats/meow.ogg".into(),
+            bubble: Some("#ffcc00".into()),
+            text_size: Some(18.0),
         };
         let text = toml::to_string(&c).unwrap();
         assert!(text.contains("[talk]"), "{text}");

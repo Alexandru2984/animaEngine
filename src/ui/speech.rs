@@ -29,19 +29,34 @@ pub fn paint(ctx: &egui::Context, bubbles: &[Shown], pixels_per_point: f32) {
     let painter = ctx.layer_painter(egui::LayerId::background());
     let screen = ctx.screen_rect();
     let area = (screen.left(), screen.top(), screen.right(), screen.bottom());
-    let fill = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 245);
-    let ink = egui::Color32::from_rgb(28, 28, 32);
-    let edge = egui::Stroke::new(1.0_f32, egui::Color32::from_gray(150));
     let now = std::time::Instant::now();
     for bubble in bubbles {
+        let [r_, g_, b_] = bubble.fill;
+        let fill = egui::Color32::from_rgba_unmultiplied(r_, g_, b_, 245);
+        // Dark text on a light bubble, light on a dark one; an edge a
+        // little darker than the fill.
+        let luminance =
+            (0.2126 * f32::from(r_) + 0.7152 * f32::from(g_) + 0.0722 * f32::from(b_)) / 255.0;
+        let ink = if luminance > 0.55 {
+            egui::Color32::from_rgb(28, 28, 32)
+        } else {
+            egui::Color32::from_rgb(250, 250, 250)
+        };
+        let darker = |c: u8| (f32::from(c) * 0.6) as u8;
+        let edge = egui::Stroke::new(
+            1.0_f32,
+            egui::Color32::from_rgb(darker(r_), darker(g_), darker(b_)),
+        );
         let (l, t, r, b) = bubble.character;
         let ppp = pixels_per_point.max(0.1);
         let character = (l / ppp, t / ppp, r / ppp, b / ppp);
+        // Larger text wraps wider, so a line keeps about as many words.
+        let width = MAX_WIDTH * (bubble.size / crate::speech::TEXT_SIZE).max(1.0);
         let galley = painter.layout(
             bubble.text.clone(),
-            egui::FontId::proportional(14.0),
+            egui::FontId::proportional(bubble.size),
             ink,
-            MAX_WIDTH,
+            width,
         );
         let size = galley.size() + PADDING * 2.0;
         let ((x, y), below) = crate::speech::place(character, (size.x, size.y), area, TAIL);

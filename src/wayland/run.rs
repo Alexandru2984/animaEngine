@@ -1511,6 +1511,7 @@ pub fn run_native(
         scene.set_hover_startle(config.global.hover_startle);
         scene.set_bump(config.global.characters_bump);
         scene.set_greet(config.global.characters_greet);
+        scene.set_large_bubbles(config.global.large_bubbles);
         scene.set_little_effects(config.global.little_effects);
         {
             let _s = perf_sampler.scope(crate::perf::Category::SceneUpdate);
@@ -1758,6 +1759,7 @@ pub fn run_native(
                 let notify_mut = &mut config.global.notify_reminders;
                 let scene_schedule_mut = &mut config.scene_schedule;
                 let reduced_motion_mut = &mut config.global.reduced_motion;
+                let large_bubbles_mut = &mut config.global.large_bubbles;
                 let hover_startle_mut = &mut config.global.hover_startle;
                 let on_fullscreen_mut = &mut config.global.on_fullscreen;
                 let always_on_top_mut = &mut config.global.always_on_top;
@@ -1852,6 +1854,7 @@ pub fn run_native(
                                 // surface can span the desktop here.
                                 false,
                                 reduced_motion_mut,
+                                large_bubbles_mut,
                                 hover_startle_mut,
                                 on_fullscreen_mut,
                                 step_aside_apps_mut,

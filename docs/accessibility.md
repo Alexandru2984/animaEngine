@@ -78,6 +78,12 @@ the moment it appears ([src/announce.rs](../src/announce.rs),
 again is read again. The Zzz… of a sleeping scene is not announced. With
 the setting off, or no reader listening, nothing is built.
 
+**Larger bubbles (1.5).** Appearance → "Large text in bubbles"
+(`large_bubbles`) makes every bubble's text 1.4 times larger, wrapping
+wider to match; a character's own text size (the Inspector's "Says")
+scales with it. A bubble given a dark colour gets light text, picked by
+its luminance, so it stays readable.
+
 **Names.** The icons are private-use characters from an icon font, for
 which a reader has nothing to say. The bridge drops them from every
 name and value, so "+  Add file…" reads "Add file…", and hides what is
