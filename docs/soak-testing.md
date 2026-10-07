@@ -166,6 +166,63 @@ the table above for the responsible subsystem.
 closed, and the 7-day desktop run (below) started here and carried
 through release.
 
+### 1.5: everything on at once (rig, 2026-10-06)
+
+1.5 added a lot that runs by itself, so before it shipped every piece
+ran together: ten characters in the headless test rig (sway, software
+rendering, a private D-Bus, no sound device), 30 minutes on native
+Wayland and 20 on the X11 path. Two pairs played tag, the rest walked,
+wandered, bounced or stood; greetings and bumping were on; a click
+landed on a character every ten seconds (hearts, a line, its sound
+decoded); three reminders ran — every minute, every two, one at a set
+time — beside the focus timer at 1 + 1 minutes for the first quarter,
+with desktop notifications going to a stand-in server; moods were on,
+bedtime fell inside the run (dozing, yawns), one character kept hours
+that brought it in and out (fading), and a stretch with no input sent
+them to doze and brought a welcome back. The app's own emitter
+(`ANIMA_SOAK_METRICS`, every 30 s) ran beside CPU, threads and file
+descriptors read from `/proc`.
+
+| | Native Wayland, 30 min | X11, 20 min |
+|---|---|---|
+| Resident memory | 229.8 → 225.3 MB | 193.3 → 195.2 MB (one step as they dozed off, flat after) |
+| Textures, decoded bytes | 10, 4.46 MB — constant | the same |
+| Threads, file descriptors | 142, 45 — constant | 144, 29 — constant |
+| Log | 9 KB in 30 min, tag and greeting debug lines included | 11 KB in 20 min, the same |
+| CPU, one core = 100 % | about 100 % while they move, 2 % dozing | about 470 %, 2 % dozing |
+| Frame p95 | — | 1.4–3.8 ms |
+
+The CPU is the rig's, not the app's: it renders in software — GLES on
+llvmpipe for Wayland, lavapipe for X11, the only driver that gives the
+X11 path a transparent window under XWayland — 60 frames a second
+while anything moves. Most of the 142 threads are llvmpipe's and the
+image decoders' pool, one per core of the 32; their number never moved.
+
+Nothing grew. The run found four things wrong, all fixed before the X11
+half: a reminder due during the focus timer's work went to the desktop's
+notifications instead of waiting; the line for a turn of the timer
+covered a reminder said at the same moment; a game of tag stopped for
+good once a character held to the ground was "it" against one that
+flies — two catches in 30 minutes, against 153 in the 20 after the fix;
+and greetings remembered every pair that ever met. The sounds were only
+decoded: with no device in the rig, playing them belongs to a desktop
+run.
+
+What 1.5 keeps in memory, and what bounds it:
+
+| State | Bound |
+|---|---|
+| Little effects | 96 at most, the spent ones dropped every frame (`effects.rs`) |
+| Greetings | the pairs near each other now; a pair's last greeting forgotten after the two-minute pause (`greet.rs`, fixed in this run) |
+| Games of tag | one per pair playing, rebuilt every tick (`tag.rs`) |
+| Reminder timers | one per reminder, and for one at a set time the day it was said (`reminders.rs`) |
+| Desktop notifications | a queue of 16; past that they are dropped (`notify.rs`) |
+| Lines for screen readers | the latest only (`announce.rs`) |
+| Undo | 100 steps (`undo.rs`) |
+| Sounds | decoded ones cached up to 32 MB, 8 started a tick at most (`audio.rs`) |
+| Yawns | one per character, for that night (`moods.rs`) |
+| Scene pictures | one texture per saved scene, replaced when its file changes |
+
 ## 7-day desktop protocol (manual, pre-1.0)
 
 The automated soak runs headless on synthetic load; the real-session
