@@ -35,6 +35,10 @@ pub struct Move {
     pub away: bool,
     /// Pixels a second.
     pub speed: f32,
+    /// For a runner that flies from a chaser held to the ground: the
+    /// height (of its middle) to come down or up to as it runs, instead of
+    /// fleeing up and down too — the chaser could never reach it there.
+    pub level: Option<f32>,
 }
 
 impl Move {
@@ -54,10 +58,10 @@ impl Move {
         let (cx, cy) = (*x + w / 2.0, *y + h / 2.0);
         let sign = if self.away { -1.0 } else { 1.0 };
         let dx = (self.point.0 - cx) * sign;
-        let dy = if grounded {
-            0.0
-        } else {
-            (self.point.1 - cy) * sign
+        let dy = match self.level {
+            _ if grounded => 0.0,
+            Some(level) => level - cy,
+            None => (self.point.1 - cy) * sign,
         };
         let gap = (dx * dx + dy * dy).sqrt();
         if gap < 0.5 {
@@ -67,7 +71,14 @@ impl Move {
         let step = if self.away { step } else { step.min(gap) };
         *x = bounds.clamp_x(*x + dx / gap * step, w);
         if !grounded {
-            *y = (*y + dy / gap * step).clamp(bounds.min_y, (bounds.max_y - h).max(bounds.min_y));
+            // Not past the level it is making for.
+            let rise = dy / gap * step;
+            let rise = if self.level.is_some() {
+                rise.clamp(-dy.abs(), dy.abs())
+            } else {
+                rise
+            };
+            *y = (*y + rise).clamp(bounds.min_y, (bounds.max_y - h).max(bounds.min_y));
         }
     }
 }
@@ -190,11 +201,17 @@ fn play(scene: &mut Scene, game: &mut Game, i: usize, j: usize, speed: f32, now:
         point: (r.0, r.1),
         away: false,
         speed,
+        level: None,
     });
+    // A chaser held to the ground runs only across: a runner that flies
+    // keeps to its height, or it would never be caught — and, "it" from
+    // then on, game after game, the chaser would run under it for good.
+    let held = |k: usize| scene.entities[k].physics.enabled;
     scene.entities[runner].game_move = Some(Move {
         point: (c.0, c.1),
         away: true,
         speed: speed * RUNNER,
+        level: (held(chaser) && !held(runner)).then_some(c.1),
     });
 }
 
@@ -290,6 +307,35 @@ mod tests {
     }
 
     #[test]
+    fn it_held_to_the_ground_still_catches_one_that_flies() {
+        let mut scene = players();
+        let bounds = crate::monitor::DesktopBounds::from_size(1600.0, 1000.0);
+        // The slime walks the floor; the cat flies, high up.
+        scene.entities[1].physics.enabled = true;
+        scene.entities[1].y = 800.0;
+        scene.entities[0].y = 100.0;
+        let t0 = Instant::now();
+        step(&mut scene, t0);
+        scene.games.games[0].player_chases = false;
+        let dt = 1.0 / 60.0;
+        let mut caught = false;
+        for tick in 1..(PLAY_FOR.as_secs() as u32 * 60) {
+            step(&mut scene, t0 + Duration::from_secs_f32(tick as f32 * dt));
+            if scene.games.games[0].player_chases {
+                caught = true;
+                break;
+            }
+            for e in &mut scene.entities {
+                let (w, h, grounded) = (e.scaled_width(), e.scaled_height(), e.physics.enabled);
+                if let Some(m) = e.game_move {
+                    m.apply(&mut e.x, &mut e.y, w, h, bounds, grounded, dt);
+                }
+            }
+        }
+        assert!(caught, "the cat came down to run, and was caught");
+    }
+
+    #[test]
     fn a_runner_moves_away_and_a_chaser_toward() {
         let bounds = crate::monitor::DesktopBounds::from_size(1600.0, 1000.0);
         let (mut x, mut y) = (500.0, 400.0);
@@ -297,6 +343,7 @@ mod tests {
             point: (900.0, 450.0),
             away: false,
             speed: 100.0,
+            level: None,
         }
         .apply(&mut x, &mut y, 100.0, 100.0, bounds, true, 0.5);
         assert!(
@@ -307,6 +354,7 @@ mod tests {
             point: (900.0, 450.0),
             away: true,
             speed: 100.0,
+            level: None,
         }
         .apply(&mut x, &mut y, 100.0, 100.0, bounds, true, 0.5);
         assert!((x - 500.0).abs() < 0.1);

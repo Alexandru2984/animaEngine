@@ -233,14 +233,17 @@ impl Timers {
     }
 }
 
-/// Whether the user is away, for reminders: `on_a_break` starts the ones
-/// every so often over — time without input, bedtime, the focus timer's
-/// break; only `idle`, no input, makes one at a set time wait: it was
-/// asked for that time, bedtime or not.
+/// Where the user is, for reminders: `on_a_break` starts the ones every so
+/// often over — time without input, bedtime, the focus timer's break; only
+/// `idle`, no input, makes one at a set time wait: it was asked for that
+/// time, bedtime or not.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Away {
     pub on_a_break: bool,
     pub idle: bool,
+    /// The focus timer's work (`crate::focus`): every reminder waits it
+    /// out — on screen and in the desktop's notifications alike.
+    pub working: bool,
 }
 
 /// Have the due reminders said, by characters `on_surface` accepts (the
@@ -261,43 +264,38 @@ pub fn deliver(
         .filter(|&i| scene.effective_visible(i) && on_surface(&scene.entities[i]))
         .collect();
     // Out of sight, a reminder waits for the characters — unless it can go
-    // to the desktop's notifications (`crate::notify`).
+    // to the desktop's notifications (`crate::notify`). While the focus
+    // timer's work lasts it waits either way: the notifications stand in
+    // for characters out of sight, not for the quiet that focus asks.
     let can_say = shown && !speakers.is_empty();
+    let can = !away.working && (can_say || notify);
     let now = Instant::now();
-    let mut fired = timers.poll(now, reminders, away.on_a_break, can_say || notify);
+    let mut fired = timers.poll(now, reminders, away.on_a_break, can);
     let clock = timers.clock(now);
-    fired.extend(timers.poll_timed(clock, reminders, away.idle, can_say || notify));
+    fired.extend(timers.poll_timed(clock, reminders, away.idle, can));
     let mut used: Vec<usize> = Vec::new();
     for r in &fired {
+        let speaker = if can_say {
+            pick(scene, &speakers, r, &used)
+        } else {
+            None
+        };
         if notify {
-            let name = r
-                .character
-                .as_deref()
-                .and_then(|id| scene.entities.iter().find(|e| e.id == id))
+            // Under the name of who says it — or would, were they in
+            // sight — so a `{name}` in it reads as it does in the bubble.
+            let by_z = |e: &&Entity| e.z_index;
+            let name = speaker
+                .map(|i| &scene.entities[i])
+                .or_else(|| {
+                    r.character
+                        .as_deref()
+                        .and_then(|id| scene.entities.iter().find(|e| e.id == id))
+                })
+                .or_else(|| scene.entities.iter().max_by_key(by_z))
                 .map_or_else(|| "animaEngine".to_string(), |e| e.name.clone());
             crate::notify::send(&name, &crate::placeholders::fill_now(&r.text, &name));
         }
-        if !can_say {
-            continue;
-        }
-        let chosen = r.character.as_deref().and_then(|id| {
-            speakers
-                .iter()
-                .copied()
-                .find(|&i| scene.entities[i].id == id)
-        });
-        // Several at once go to several characters, front to back, where
-        // there are: one bubble would cover the other.
-        let frontmost = || {
-            let by_z = |&i: &usize| scene.entities[i].z_index;
-            speakers
-                .iter()
-                .copied()
-                .filter(|i| !used.contains(i))
-                .max_by_key(by_z)
-                .or_else(|| speakers.iter().copied().max_by_key(by_z))
-        };
-        if let Some(i) = chosen.or_else(frontmost) {
+        if let Some(i) = speaker {
             used.push(i);
             tracing::info!("Reminder said by {}: {}", scene.entities[i].name, r.text);
             scene.entities[i].say(&r.text, SAY_SECONDS);
@@ -305,6 +303,27 @@ pub fn deliver(
         }
     }
     !fired.is_empty()
+}
+
+/// Who of `speakers` says `r`: the character it names, if it is there, or
+/// the frontmost not yet `used` — several at once go to several, front to
+/// back, where there are: one bubble would cover the other.
+fn pick(scene: &Scene, speakers: &[usize], r: &ReminderConfig, used: &[usize]) -> Option<usize> {
+    let chosen = r.character.as_deref().and_then(|id| {
+        speakers
+            .iter()
+            .copied()
+            .find(|&i| scene.entities[i].id == id)
+    });
+    let by_z = |&i: &usize| scene.entities[i].z_index;
+    chosen.or_else(|| {
+        speakers
+            .iter()
+            .copied()
+            .filter(|i| !used.contains(i))
+            .max_by_key(by_z)
+            .or_else(|| speakers.iter().copied().max_by_key(by_z))
+    })
 }
 
 #[cfg(test)]
@@ -560,7 +579,7 @@ mod tests {
         let mut t = Timers::default();
         let bedtime = Away {
             on_a_break: true,
-            idle: false,
+            ..Away::default()
         };
         deliver(
             &mut t,
@@ -581,6 +600,7 @@ mod tests {
         let idle = Away {
             on_a_break: true,
             idle: true,
+            ..Away::default()
         };
         deliver(&mut t, &list, &none, false, &mut scene, true, idle, |_| {
             true
@@ -589,6 +609,88 @@ mod tests {
             scene.entities.iter().all(|e| e.speech.is_none()),
             "waits for you"
         );
+    }
+
+    #[test]
+    fn focusing_holds_them_back_notifications_too() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let r = every("focus-held water", 1);
+        let mut t = Timers::default();
+        t.due.push((r.clone(), Instant::now() - MIN));
+        let list = std::slice::from_ref(&r);
+        let none = ReminderSound::None;
+        let sent = |text: &str| {
+            let sent = crate::notify::SENT.lock().unwrap();
+            sent.iter().any(|(_, body)| body == text)
+        };
+        let working = Away {
+            working: true,
+            ..Away::default()
+        };
+        // Notifications on, in sight or not: nothing while the work lasts.
+        for shown in [true, false] {
+            assert!(!deliver(
+                &mut t,
+                list,
+                &none,
+                true,
+                &mut scene,
+                shown,
+                working,
+                |_| true
+            ));
+        }
+        assert!(scene.entities.iter().all(|e| e.speech.is_none()));
+        assert!(!sent("focus-held water"), "no notification either");
+        assert!(t.due[0].1 <= Instant::now(), "still due, waiting");
+        // The work over, it comes.
+        assert!(deliver(
+            &mut t,
+            list,
+            &none,
+            true,
+            &mut scene,
+            true,
+            Away::default(),
+            |_| true
+        ));
+        assert!(scene.entities.iter().any(|e| e.speech.is_some()));
+        assert!(sent("focus-held water"));
+    }
+
+    #[test]
+    fn a_notification_goes_under_the_speakers_name() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let r = every("Water, {name}?", 1);
+        let front = scene
+            .entities
+            .iter()
+            .max_by_key(|e| e.z_index)
+            .unwrap()
+            .name
+            .clone();
+        let none = ReminderSound::None;
+        // Said, and out of sight: the one who says it, or would.
+        for shown in [true, false] {
+            let mut t = Timers::default();
+            t.due.push((r.clone(), Instant::now() - MIN));
+            deliver(
+                &mut t,
+                std::slice::from_ref(&r),
+                &none,
+                true,
+                &mut scene,
+                shown,
+                Away::default(),
+                |_| true,
+            );
+            let sent = crate::notify::SENT.lock().unwrap();
+            let body = format!("Water, {front}?");
+            assert!(
+                sent.iter().any(|(title, b)| *title == front && *b == body),
+                "{sent:?}"
+            );
+        }
     }
 
     #[test]

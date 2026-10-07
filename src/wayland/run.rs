@@ -600,13 +600,14 @@ pub fn run_native(
             &config.global.reminder_sound,
             config.global.notify_reminders,
             &mut scene,
-            !(overlay_hidden || wanted.hidden) && focus != Some(crate::focus::Phase::Work),
+            !(overlay_hidden || wanted.hidden),
             // The night counts as a break too.
             crate::reminders::Away {
                 on_a_break: layer.is_idle()
                     || bedtime_now
                     || focus == Some(crate::focus::Phase::Break),
                 idle: layer.is_idle(),
+                working: focus == Some(crate::focus::Phase::Work),
             },
             |_| true,
         ) {

@@ -149,6 +149,11 @@ pub(crate) fn step(scene: &mut Scene, now: Instant) {
         scene.heart_between(a, b);
         let g = &mut scene.greetings;
         g.replies.push((pair.1.clone(), now + REPLY_AFTER, said));
+        // A meeting older than `PAIR_EVERY` holds nobody back: forget it,
+        // or every pair that ever met — ids come and go with scenes — is
+        // kept for as long as the app runs.
+        g.last_pair
+            .retain(|_, at| now.duration_since(*at) < PAIR_EVERY);
         g.last_pair.insert(pair, now);
         g.last_any = Some(now);
     }
@@ -257,6 +262,7 @@ mod tests {
             point: (0.0, 0.0),
             away: false,
             speed: 1.0,
+            level: None,
         };
         for e in &mut scene.entities {
             e.game_move = Some(game);
@@ -264,6 +270,25 @@ mod tests {
         scene.entities[1].x = 100.0 + scene.entities[0].scaled_width();
         step(&mut scene, t0 + Duration::from_millis(100));
         assert!(!said(&scene, "a") && !said(&scene, "b"));
+    }
+
+    #[test]
+    fn old_meetings_are_forgotten() {
+        let mut scene = scene_at(&[("a", 100.0), ("b", 600.0)]);
+        let t0 = Instant::now();
+        step(&mut scene, t0);
+        scene
+            .greetings
+            .last_pair
+            .insert(("gone".into(), "long ago".into()), t0);
+        scene.entities[1].x = 100.0 + scene.entities[0].scaled_width();
+        step(&mut scene, t0 + PAIR_EVERY);
+        assert!(said(&scene, "a"));
+        assert_eq!(
+            scene.greetings.last_pair.len(),
+            1,
+            "only the pair that just met"
+        );
     }
 
     #[test]

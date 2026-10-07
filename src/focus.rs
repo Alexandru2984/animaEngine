@@ -228,10 +228,9 @@ pub fn say_news(
     notify: bool,
     on_surface: impl Fn(&crate::entity::Entity) -> bool,
 ) -> bool {
-    let speaker = (0..scene.entities.len())
-        .filter(|&i| scene.effective_visible(i) && on_surface(&scene.entities[i]))
-        .max_by_key(|&i| scene.entities[i].z_index)
-        .filter(|_| shown);
+    let speaker = shown
+        .then(|| pick_speaker(scene, &on_surface, std::time::Instant::now()))
+        .flatten();
     // Out of sight it waits — unless it can go to the desktop's
     // notifications (`crate::notify`).
     let Some(news) = take_news(speaker.is_some() || notify) else {
@@ -250,9 +249,53 @@ pub fn say_news(
     true
 }
 
+/// Who says a turn of the timer: the frontmost character in sight that is
+/// not saying something already — a reminder that waited out the work comes
+/// at the very moment the break does, and one bubble would cover the
+/// other — or the frontmost, when all are.
+fn pick_speaker(
+    scene: &crate::scene::Scene,
+    on_surface: impl Fn(&crate::entity::Entity) -> bool,
+    now: std::time::Instant,
+) -> Option<usize> {
+    let in_sight: Vec<usize> = (0..scene.entities.len())
+        .filter(|&i| scene.effective_visible(i) && on_surface(&scene.entities[i]))
+        .collect();
+    let by_z = |&i: &usize| scene.entities[i].z_index;
+    let speaking = |i: usize| {
+        scene.entities[i]
+            .speech
+            .as_ref()
+            .is_some_and(|s| s.showing(now))
+    };
+    in_sight
+        .iter()
+        .copied()
+        .filter(|&i| !speaking(i))
+        .max_by_key(by_z)
+        .or_else(|| in_sight.iter().copied().max_by_key(by_z))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_turn_goes_to_one_not_already_talking() {
+        let mut scene = crate::scene::Scene::from_config(&crate::config::AppConfig::default());
+        let now = std::time::Instant::now();
+        let mut by_z: Vec<usize> = (0..scene.entities.len()).collect();
+        by_z.sort_by_key(|&i| std::cmp::Reverse(scene.entities[i].z_index));
+        assert_eq!(pick_speaker(&scene, |_| true, now), Some(by_z[0]));
+        // The frontmost says a reminder: the next one says the turn.
+        scene.entities[by_z[0]].say("Stand-up", 6.0);
+        assert_eq!(pick_speaker(&scene, |_| true, now), Some(by_z[1]));
+        // All talking: the frontmost after all.
+        for e in &mut scene.entities {
+            e.say("hi", 6.0);
+        }
+        assert_eq!(pick_speaker(&scene, |_| true, now), Some(by_z[0]));
+    }
 
     fn lengths(minutes: u32, break_minutes: u32) -> FocusConfig {
         FocusConfig {

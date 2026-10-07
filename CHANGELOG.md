@@ -192,7 +192,9 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   breath and swaps them, the new runner with a head start. After twenty
   seconds they rest for a minute and a half, then play again. The
   partner needs no setting of its own and goes back to what it was doing
-  between games.
+  between games. When one is held to the ground by gravity and the other
+  flies, the flier comes down to run along the floor, so either can be
+  caught.
 - **Greetings when they meet**, when switched on in the Scene tab (off
   by default): two characters who come together — walking, following,
   one landing on the other — stand still a moment and say hello, one
@@ -229,7 +231,8 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   the command palette or the Scene tab, which sets the lengths, or over
   D-Bus (`StartFocus(minutes)`, `StopFocus`). Reminders wait while you
   work, and the break counts as a break for them. A line that comes
-  while the characters are out of sight waits for them.
+  while the characters are out of sight waits for them, and goes to one
+  not already saying something.
 - **A sound with reminders and the focus timer.** Under the Focus
   section of the Scene tab, pick what plays when a reminder or a turn of
   the focus timer is said: nothing (as it comes), the speaker's own tap
@@ -238,8 +241,10 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   notifications" in the Scene tab sends reminders and the focus timer to
   the desktop's notifications as well — and, with the characters out of
   sight (hidden, snoozed, stepped aside for a full-screen app), sends
-  them there at once instead of waiting. Off by default. Natively through
-  `org.freedesktop.Notifications`, in the Flatpak through the
+  them there at once instead of waiting. While the focus timer's work
+  lasts, reminders wait there as they do on screen. A `{name}` in one is
+  the name of the character who says it. Off by default. Natively
+  through `org.freedesktop.Notifications`, in the Flatpak through the
   Notification portal.
 - **Shortcuts for the focus timer and snoozing.** Two new actions in
   Keybindings — start or stop the focus timer, snooze for a quarter of

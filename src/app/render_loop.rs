@@ -281,7 +281,7 @@ impl App {
             &self.config.global.reminder_sound,
             self.config.global.notify_reminders,
             &mut self.scene,
-            shown && focus != Some(crate::focus::Phase::Work),
+            shown,
             // Watched for reminders even with pausing off; the night
             // counts as a break too.
             crate::reminders::Away {
@@ -289,6 +289,7 @@ impl App {
                     || self.bedtime_now
                     || focus == Some(crate::focus::Phase::Break),
                 idle: self.away,
+                working: focus == Some(crate::focus::Phase::Work),
             },
             |_| true,
         );
