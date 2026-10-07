@@ -306,8 +306,9 @@ pub fn deliver(
 }
 
 /// Who of `speakers` says `r`: the character it names, if it is there, or
-/// the frontmost not yet `used` — several at once go to several, front to
-/// back, where there are: one bubble would cover the other.
+/// the frontmost free one — not yet `used`, and not in the middle of
+/// saying something else. Several at once go to several, front to back,
+/// where there are: one bubble would cover the other.
 fn pick(scene: &Scene, speakers: &[usize], r: &ReminderConfig, used: &[usize]) -> Option<usize> {
     let chosen = r.character.as_deref().and_then(|id| {
         speakers
@@ -316,14 +317,24 @@ fn pick(scene: &Scene, speakers: &[usize], r: &ReminderConfig, used: &[usize]) -
             .find(|&i| scene.entities[i].id == id)
     });
     let by_z = |&i: &usize| scene.entities[i].z_index;
-    chosen.or_else(|| {
+    let now = Instant::now();
+    let talking = |i: usize| {
+        scene.entities[i]
+            .speech
+            .as_ref()
+            .is_some_and(|s| s.showing(now))
+    };
+    let frontmost = |free: &dyn Fn(usize) -> bool| {
         speakers
             .iter()
             .copied()
-            .filter(|i| !used.contains(i))
+            .filter(|&i| free(i))
             .max_by_key(by_z)
-            .or_else(|| speakers.iter().copied().max_by_key(by_z))
-    })
+    };
+    chosen
+        .or_else(|| frontmost(&|i| !used.contains(&i) && !talking(i)))
+        .or_else(|| frontmost(&|i| !used.contains(&i)))
+        .or_else(|| frontmost(&|_| true))
 }
 
 #[cfg(test)]
@@ -691,6 +702,30 @@ mod tests {
                 "{sent:?}"
             );
         }
+    }
+
+    #[test]
+    fn it_goes_to_one_not_already_talking() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let mut by_z: Vec<usize> = (0..scene.entities.len()).collect();
+        by_z.sort_by_key(|&i| std::cmp::Reverse(scene.entities[i].z_index));
+        scene.entities[by_z[0]].say("Break time!", 6.0);
+        let r = every("water", 1);
+        let mut t = Timers::default();
+        t.due.push((r.clone(), Instant::now() - MIN));
+        deliver(
+            &mut t,
+            std::slice::from_ref(&r),
+            &ReminderSound::None,
+            false,
+            &mut scene,
+            true,
+            Away::default(),
+            |_| true,
+        );
+        let text = |i: usize| scene.entities[i].speech.as_ref().map(|s| s.text.clone());
+        assert_eq!(text(by_z[0]).as_deref(), Some("Break time!"), "not covered");
+        assert_eq!(text(by_z[1]).as_deref(), Some("water"));
     }
 
     #[test]

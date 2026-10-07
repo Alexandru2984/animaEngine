@@ -224,7 +224,8 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   Ana's birthday"). Once that day; if the computer was off or asleep
   then, still within two hours (a date's, until midnight); and if you are
   away, when you come back. Several due at once go to several
-  characters, so one bubble does not cover another.
+  characters, and one that names no speaker goes to someone not already
+  talking, so one bubble does not cover another.
 - **A focus timer.** Work for 25 minutes, and a character says it is
   time for a break; 5 minutes later, that it is time to get back to it;
   and round again until you stop it. Start and stop it from the tray,
