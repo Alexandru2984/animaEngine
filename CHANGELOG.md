@@ -346,6 +346,15 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 - The pulse on the selected row in the Scene tab ignored **Reduce
   motion**. It holds still now, and otherwise runs at ten frames a
   second instead of every frame.
+- **Sounds stopped for good when the sound server restarted.** A stream
+  whose PipeWire went away stops without a word — no error reaches the
+  app — and the app went on playing into it: every sound after it
+  silent, and with a script playing every few seconds, for as long as it
+  ran. A silent count in the mixer now notices a stream that stopped
+  taking sound; it is closed, and the next sound opens the device again,
+  within seconds of the server coming back (a failed open is retried
+  after 10 s, not 60). Found by giving the test rig a sound server of its
+  own: until then sounds could only be decoded there.
 - **Setting up the GPU cost memory and threads for nothing.** The
   renderer asked for Vulkan and GL at once, which sets GL up too — on
   Linux every vendor's EGL driver, and on Wayland a second context for

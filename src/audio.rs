@@ -94,10 +94,15 @@ const MAX_VOICES_PER_TICK: usize = 8;
 #[cfg(feature = "audio")]
 const LINGER: Duration = Duration::from_secs(30);
 /// How long after a failed open the next sound tries again — so a sound
-/// server started after the overlay is picked up, without a script that
-/// plays every frame retrying sixty times a second.
+/// server started, or restarted, after the overlay is picked up within
+/// seconds, without a script that plays every frame retrying sixty times
+/// a second.
 #[cfg(feature = "audio")]
-const RETRY_AFTER: Duration = Duration::from_secs(60);
+const RETRY_AFTER: Duration = Duration::from_secs(10);
+/// How long an open stream may take nothing from the mixer before it is
+/// taken for dead — see [`Pulse`].
+#[cfg(feature = "audio")]
+const STALLED_AFTER: Duration = Duration::from_secs(2);
 
 /// A decoded sound, kept ready to play again without touching the disk.
 #[cfg(feature = "audio")]
@@ -187,6 +192,105 @@ impl rodio::Source for SharedSamples {
     }
 }
 
+/// A silent source that never ends, put in the mixer when the device opens
+/// to count what the device takes from it.
+///
+/// A stream whose sound server went away — PipeWire restarted, say — stops
+/// asking for samples without a word: cpal reports no error, and every
+/// sound after it played into nothing until the scene had been quiet for
+/// [`LINGER`], which a script that plays often never is. Seen in the test
+/// rig with a private PipeWire stopped and started again. With the count
+/// standing still ([`Liveness`]), the host closes the stream, and the next
+/// sound opens whatever device there is by then.
+#[cfg(feature = "audio")]
+struct Pulse {
+    /// Bumped once every [`Pulse::EVERY`] samples taken.
+    taken: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    channels: rodio::ChannelCount,
+    sample_rate: rodio::SampleRate,
+    n: u32,
+}
+
+#[cfg(feature = "audio")]
+impl Pulse {
+    const EVERY: u32 = 1024;
+}
+
+#[cfg(feature = "audio")]
+impl Iterator for Pulse {
+    type Item = rodio::Sample;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.n += 1;
+        if self.n >= Self::EVERY {
+            self.n = 0;
+            self.taken
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        Some(0.0)
+    }
+}
+
+#[cfg(feature = "audio")]
+impl rodio::Source for Pulse {
+    #[inline]
+    fn current_span_len(&self) -> Option<usize> {
+        None
+    }
+
+    #[inline]
+    fn channels(&self) -> rodio::ChannelCount {
+        self.channels
+    }
+
+    #[inline]
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.sample_rate
+    }
+
+    #[inline]
+    fn total_duration(&self) -> Option<Duration> {
+        None
+    }
+}
+
+/// Why an open stream is closed.
+#[cfg(feature = "audio")]
+enum Closing {
+    Failed,
+    Stalled,
+    Quiet,
+}
+
+/// Whether a [`Pulse`]'s count has stood still for [`STALLED_AFTER`].
+#[cfg(feature = "audio")]
+#[derive(Debug)]
+struct Liveness {
+    seen: u64,
+    since: Instant,
+}
+
+#[cfg(feature = "audio")]
+impl Liveness {
+    fn new(now: Instant) -> Self {
+        Self {
+            seen: 0,
+            since: now,
+        }
+    }
+
+    /// `taken` is the pulse's count at `now`.
+    fn stalled(&mut self, taken: u64, now: Instant) -> bool {
+        if taken != self.seen {
+            self.seen = taken;
+            self.since = now;
+            return false;
+        }
+        now.duration_since(self.since) >= STALLED_AFTER
+    }
+}
+
 /// The output device's state. See "The device is open only while there
 /// is sound" in the module docs.
 #[cfg(feature = "audio")]
@@ -200,6 +304,10 @@ enum Output {
         /// Set from the audio thread when the stream fails — the device
         /// was unplugged, the sound server went away.
         failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        /// The [`Pulse`]'s count, and whether it still moves: a stream
+        /// can also die without failing.
+        taken: std::sync::Arc<std::sync::atomic::AtomicU64>,
+        liveness: Liveness,
     },
     /// The last open failed; sounds are skipped until `retry_at`.
     Unavailable { retry_at: Instant },
@@ -217,6 +325,9 @@ pub struct AudioHost {
     logged_open: bool,
     #[cfg(feature = "audio")]
     logged_unavailable: bool,
+    /// Whether a stream found dead ([`Liveness`]) has been logged.
+    #[cfg(feature = "audio")]
+    logged_stalled: bool,
     #[cfg(feature = "audio")]
     cache: BTreeMap<String, std::sync::Arc<Cached>>,
     #[cfg(feature = "audio")]
@@ -260,6 +371,8 @@ impl AudioHost {
             #[cfg(feature = "audio")]
             logged_unavailable: false,
             #[cfg(feature = "audio")]
+            logged_stalled: false,
+            #[cfg(feature = "audio")]
             cache: BTreeMap::new(),
             #[cfg(feature = "audio")]
             cached_bytes: 0,
@@ -293,18 +406,47 @@ impl AudioHost {
         #[cfg(feature = "audio")]
         {
             self.voices_this_tick = 0;
-            if let Output::Open {
-                close_at, failed, ..
-            } = &self.output
-            {
-                // A failed stream is dropped too, not kept: the next sound
-                // then opens whatever the default device is by then.
-                if failed.load(std::sync::atomic::Ordering::Relaxed) {
-                    self.output = Output::Closed;
-                    tracing::debug!("Audio output closed after a stream error");
-                } else if Instant::now() >= *close_at {
-                    self.output = Output::Closed;
-                    tracing::debug!("Audio output closed: nothing has played for a while");
+            let now = Instant::now();
+            // A failed stream is dropped too, not kept, and so is one that
+            // stopped taking sound: the next sound then opens whatever the
+            // default device is by then.
+            let why = match &mut self.output {
+                Output::Open {
+                    close_at,
+                    failed,
+                    taken,
+                    liveness,
+                    ..
+                } => {
+                    use std::sync::atomic::Ordering::Relaxed;
+                    if failed.load(Relaxed) {
+                        Some(Closing::Failed)
+                    } else if liveness.stalled(taken.load(Relaxed), now) {
+                        Some(Closing::Stalled)
+                    } else if now >= *close_at {
+                        Some(Closing::Quiet)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            let Some(why) = why else {
+                return;
+            };
+            self.output = Output::Closed;
+            match why {
+                Closing::Stalled if !self.logged_stalled => {
+                    self.logged_stalled = true;
+                    tracing::warn!(
+                        "Audio output stopped taking sound (the sound server went away?); \
+                         it is reopened for the next sound."
+                    );
+                }
+                Closing::Stalled => tracing::debug!("Audio output closed: it stopped taking sound"),
+                Closing::Failed => tracing::debug!("Audio output closed after a stream error"),
+                Closing::Quiet => {
+                    tracing::debug!("Audio output closed: nothing has played for a while")
                 }
             }
         }
@@ -441,6 +583,13 @@ impl AudioHost {
         match open_default_output(std::sync::Arc::clone(&failed)) {
             Ok(sink) => {
                 let c = sink.config();
+                let taken = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+                sink.mixer().add(Pulse {
+                    taken: std::sync::Arc::clone(&taken),
+                    channels: c.channel_count(),
+                    sample_rate: c.sample_rate(),
+                    n: 0,
+                });
                 if !self.logged_open {
                     self.logged_open = true;
                     tracing::info!(
@@ -455,6 +604,8 @@ impl AudioHost {
                     sink,
                     close_at: now + LINGER,
                     failed,
+                    taken,
+                    liveness: Liveness::new(now),
                 };
             }
             Err(e) => {
@@ -584,6 +735,42 @@ fn load_sound(root: &std::path::Path, rel: &str) -> Result<Cached, String> {
 
 // The panning maths is only compiled with the feature, so its tests are
 // too. CI runs both configurations, so this stays covered.
+#[cfg(all(test, feature = "audio"))]
+mod pulse_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+
+    #[test]
+    fn a_pulse_is_silent_and_counts_what_is_taken() {
+        let taken = Arc::new(AtomicU64::new(0));
+        let mut pulse = Pulse {
+            taken: Arc::clone(&taken),
+            channels: rodio::ChannelCount::new(2).unwrap(),
+            sample_rate: rodio::SampleRate::new(48_000).unwrap(),
+            n: 0,
+        };
+        for _ in 0..Pulse::EVERY * 3 {
+            assert_eq!(pulse.next(), Some(0.0), "silence, and never done");
+        }
+        assert_eq!(taken.load(Ordering::Relaxed), 3);
+    }
+
+    #[test]
+    fn a_stream_is_dead_once_its_count_stands_still() {
+        let t0 = Instant::now();
+        let mut live = Liveness::new(t0);
+        // Moving: never stalled, however long it runs.
+        for k in 1..10u64 {
+            assert!(!live.stalled(k, t0 + STALLED_AFTER * k as u32));
+        }
+        // Standing still: not at once, but past STALLED_AFTER.
+        let last = t0 + STALLED_AFTER * 9;
+        assert!(!live.stalled(9, last + STALLED_AFTER / 2));
+        assert!(live.stalled(9, last + STALLED_AFTER));
+    }
+}
+
 #[cfg(all(test, feature = "audio"))]
 mod pan_tests {
     use super::*;
