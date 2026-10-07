@@ -445,10 +445,11 @@ action-toggle-perf-overlay = Comută suprapunerea de performanță
 
 # ── Panou "What's new" (D.7) ──────────────────────────────────────────
 # 1.4 highlights: machine-translated, pending native review.
-whats-new-header = Noutăți în 1.4
-whats-new-add-file = „Adaugă fișier…” din tab-ul Scenă adaugă personaje prin selectorul de fișiere al desktopului tău — fără să tragi nimic.
-whats-new-palette = Ctrl+K rulează acum orice acțiune și îi arată scurtătura alături.
-whats-new-screen-readers = Cititoarele de ecran precum Orca pot acum citi și folosi panoul de setări.
+whats-new-header = Noutăți în 1.5
+whats-new-alive = Personajele prind viață: atinge-le și lasă-le să se salute, să se joace de-a prinselea sau să se urmeze unele pe altele.
+whats-new-your-day = Mementouri la o oră anume, un cronometru de concentrare, ora de culcare și ațipirea — și un salut când revii.
+whats-new-editing = Anulează cu Ctrl+Z, selectează mai multe personaje deodată, grupează-le și aliniază-le.
+whats-new-files = Scenele primesc nume, imagini și un program; partajează o scenă sau un singur personaj ori fă o copie de rezervă a tuturor într-un singur fișier.
 
 # ── Hint-uri onboarding noi (D.7) ─────────────────────────────────────
 onboarding-keybindings = Apasă × pe o combinație ca s-o elimini; apasă o combinație nouă ca s-o înregistrezi.

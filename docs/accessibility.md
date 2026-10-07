@@ -40,6 +40,14 @@ strobe under their assistive tech. We turn them off unconditionally,
 not as a separate setting — the assumption is that anyone who wants
 reduced motion will also want HC, and the reverse is rarely false.
 
+Reduce motion in Appearance (`reduced_motion`) is the setting of its
+own, for any theme, and it reaches the characters too: no decorative
+bobbing, no recoil from the cursor, no throw when one is let go
+mid-drag, none of the little effects (hearts, dust, z's), and no fades —
+they come and go at once (1.5). The selected row's pulse in the Scene
+tab holds still. What a character does — walking, a behavior, a game of
+tag — is left as it is: that is the scene, not decoration.
+
 ### 4. Screen readers, over AT-SPI (both backends since 1.4)
 
 egui describes every widget it draws as an AccessKit tree.

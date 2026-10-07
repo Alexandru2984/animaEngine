@@ -445,10 +445,11 @@ action-toggle-perf-overlay = Alternar overlay de desempenho
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
 # 1.4 highlights: machine-translated, pending native review.
-whats-new-header = Novidades da 1.4
-whats-new-add-file = “Adicionar arquivo…”, na aba Cena, adiciona personagens pelo seletor de arquivos do seu desktop — sem arrastar nada.
-whats-new-palette = Ctrl+K agora executa qualquer ação e mostra o atalho ao lado.
-whats-new-screen-readers = Leitores de tela como o Orca agora podem ler e operar o painel de configurações.
+whats-new-header = Novidades da 1.5
+whats-new-alive = Os personagens ganham vida: toque neles e deixe que se cumprimentem, brinquem de pega-pega ou sigam uns aos outros.
+whats-new-your-day = Lembretes em um horário definido, um timer de foco, hora de dormir e soneca — e um cumprimento quando você volta.
+whats-new-editing = Desfaça com Ctrl+Z, selecione vários personagens de uma vez, agrupe e alinhe.
+whats-new-files = As cenas ganham nome, imagem e horário; compartilhe uma cena ou um só personagem, ou faça backup de tudo em um único arquivo.
 onboarding-keybindings = Clique em um atalho para removê-lo; pressione uma combinação para gravar um novo.
 onboarding-perf-overlay = Pressione Ctrl+Shift+` para abrir o overlay de desempenho ao vivo.
 appearance-reset-onboarding = Restaurar dicas de boas-vindas

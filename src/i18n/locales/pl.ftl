@@ -445,10 +445,11 @@ action-toggle-perf-overlay = Przełącz nakładkę wydajności
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
 # 1.4 highlights: machine-translated, pending native review.
-whats-new-header = Nowości w 1.4
-whats-new-add-file = „Dodaj plik…” w karcie Scena dodaje postacie przez okno wyboru plików twojego pulpitu — bez przeciągania.
-whats-new-palette = Ctrl+K uruchamia teraz dowolną akcję i pokazuje obok jej skrót.
-whats-new-screen-readers = Czytniki ekranu, takie jak Orca, mogą teraz czytać i obsługiwać panel ustawień.
+whats-new-header = Nowości w 1.5
+whats-new-alive = Postacie ożywają: stuknij je, a będą się witać, bawić w berka albo podążać za sobą.
+whats-new-your-day = Przypomnienia o określonej godzinie, minutnik skupienia, pora snu i drzemka — a po powrocie powitanie.
+whats-new-editing = Cofaj zmiany Ctrl+Z, zaznaczaj kilka postaci naraz, grupuj je i wyrównuj.
+whats-new-files = Sceny mają nazwy, obrazki i harmonogram; udostępnij scenę lub jedną postać albo zrób kopię zapasową wszystkiego w jednym pliku.
 onboarding-keybindings = Kliknij skrót, aby go usunąć; naciśnij kombinację, aby nagrać nowy.
 onboarding-perf-overlay = Naciśnij Ctrl+Shift+`, aby otworzyć nakładkę wydajności na żywo.
 appearance-reset-onboarding = Przywróć wskazówki startowe

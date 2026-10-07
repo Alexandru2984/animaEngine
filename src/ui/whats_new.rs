@@ -24,27 +24,32 @@ struct Highlight {
     icon: &'static str,
     /// i18n key for the highlight body.
     body_key: &'static str,
-    /// Whether this build has the feature. The file chooser and screen
-    /// readers are Unix-only for now; a Windows user is not told about
-    /// them.
+    /// Whether this build has the feature, so a platform without it is
+    /// not told about it (1.4's file chooser and screen readers were
+    /// Unix-only).
     here: bool,
 }
 
 const HIGHLIGHTS: &[Highlight] = &[
     Highlight {
-        icon: icons::ADD,
-        body_key: "whats-new-add-file",
-        here: cfg!(unix),
-    },
-    Highlight {
-        icon: icons::COMMAND_PALETTE,
-        body_key: "whats-new-palette",
+        icon: icons::HEART,
+        body_key: "whats-new-alive",
         here: true,
     },
     Highlight {
-        icon: icons::ACCESSIBILITY,
-        body_key: "whats-new-screen-readers",
-        here: cfg!(unix),
+        icon: icons::FOCUS,
+        body_key: "whats-new-your-day",
+        here: true,
+    },
+    Highlight {
+        icon: icons::GROUP,
+        body_key: "whats-new-editing",
+        here: true,
+    },
+    Highlight {
+        icon: icons::SHARE,
+        body_key: "whats-new-files",
+        here: true,
     },
 ];
 

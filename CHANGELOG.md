@@ -6,7 +6,28 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+The characters come to life, and the overlay finds a place in your day.
+They can be tapped, talk in bubbles of their own, greet each other, play
+tag and follow one another; they doze while you are away and at bedtime,
+keep their own hours and step aside for full-screen apps. Reminders come
+every so often or at a set time, beside a focus timer. Editing gains
+undo, several characters at once, groups and alignment; scenes get names,
+pictures and a schedule, and travel as files — a scene, a character, or
+everything in one backup.
+
+Every new setting is optional, so a 1.4 config loads unchanged. Most
+of what is new is off until you turn it on; five things are on from the
+start, and each has its switch: the characters step aside for
+full-screen apps, doze after ten minutes away and greet you back, little
+effects play, and a drag snaps. New D-Bus methods (`StartFocus`,
+`StopFocus`, `Snooze`, `Wake`, `NextScene`) join the old ones, which are
+unchanged. The Flatpak asks for two more read-only D-Bus names, for the
+idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
+(`org.freedesktop.UPower`).
+
 ### Added
+
+#### Editing
 
 - **Undo and redo.** `Ctrl+Z` takes back the last edit to the scene,
   `Ctrl+Shift+Z` (or `Ctrl+Y`) puts it back; both are in the command
@@ -23,17 +44,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   P, the z-order and opacity keys and the right-click menu act on all of
   them; centring moves them as one block. The Inspector edits one and
   says so. Undo brings deleted characters back selected.
-- **Groups, from the selection.** `Ctrl+G` makes a group of the
-  selected characters and `Ctrl+Shift+G` dissolves it; both are also on
-  the right-click menu and in the command palette. A click on a grouped
+- **Groups, from the selection.** `Ctrl+G` makes a group of the selected
+  characters and `Ctrl+Shift+G` dissolves it; both are also on the
+  right-click menu and in the command palette. A click on a grouped
   character takes the whole group, so a drag moves it as one; a second
   click takes just that character. The Scene tab lists the groups: a
   click on one selects it, and each can be renamed, hidden and shown, or
-  dissolved. Nothing moves when a group is made or dissolved. Duplicating
-  a whole group makes a group of the copies; deleting a group's last
-  character removes the group. Groups used
-  to exist only for those who wrote them into `config.toml` by hand, and
-  the Scene tab listed them read-only, in English whatever the language.
+  dissolved. Nothing moves when a group is made or dissolved.
+  Duplicating a whole group makes a group of the copies; deleting a
+  group's last character removes the group. Groups used to exist only
+  for those who wrote them into `config.toml` by hand, and the Scene tab
+  listed them read-only, in English whatever the language.
 - **Align, space and snap.** With several characters selected, a row in
   the Inspector and on the right-click menu lines them up on an edge or
   a centre — Align bottom edges puts them on one floor — or spaces them
@@ -41,164 +62,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   centre to the monitors' and to other characters' within 8 px, and a
   thin line shows what it snapped to; hold Alt to place freely, or turn
   it off in the Scene tab.
-- **Characters bump into each other**, when switched on in the Scene
-  tab (off by default): one falling with gravity lands on another's head
-  — on what can be seen of it, not the empty rows of its image — and a
-  walker turns around when it meets someone.
-- **Speech bubbles and reminders.** A character can say something in a
-  bubble: behavior scripts call `say("…")`, and the Scene tab sets up
-  reminders — "Time for a short break!" every 50 minutes, a glass of
-  water, a stretch, or your own text — said by a character you pick or
-  the frontmost one. Time away from the computer counts as the break and
-  starts the reminder over; one due while the overlay is hidden waits.
-  Bubbles show on every monitor.
-- **Characters follow each other — when you say so.** A new behavior in
-  the Inspector, "Follow a character": pick whom, how far behind and how
-  fast, and a kitten trails the cat, a ghost haunts the heart. Nobody
-  follows anyone on their own; a character cannot follow itself, and the
-  list leaves out anyone who would close a circle. One whose leader is
-  gone or hidden stands still.
-- **Tap them without edit mode.** With "Characters can be tapped" on in
-  Appearance (off by default), a click on a character pokes it — a hop,
-  and one of its lines — while a click anywhere else still goes to the
-  window underneath, as before; over a full-screen app, even one they
-  only pause for, every click does. A tap leaves the keyboard with the
-  app you are typing in. Native Wayland and X11.
-- **Little effects.** A few hearts rise from a character you tap, a
-  puff of dust goes up where one lands hard, and z's float up as they
-  fall asleep. A switch in Appearance turns them off, and Reduce motion
-  does too. They last a moment; a sleeping scene goes back to holding
-  still once they are over.
-- **A sound on a tap.** The Inspector's "Says" section can give a
-  character a sound — any `.ogg`, `.wav`, `.flac` or `.mp3` in the asset
-  library, picked from a list — played when it is tapped, in edit mode
-  or out of it, from where it stands on the screen. Picking one plays
-  it; "Play" plays it again. None by default; a shared scene leaves its
-  sounds behind. A sound that cannot be played says so, rather than
-  calling itself a behavior script.
-- **Moods by the time of day**, if you want them (Appearance, off by
-  default): the characters walk and animate a little faster in the
-  morning and slower at night, smoothly through the day, and — with
-  bedtime set — each yawns once in the half hour before it.
-- **Bubbles of their own, and large text.** The Inspector's "Says"
-  section gives a character's bubbles a colour and a text size — the
-  text turns light on a dark bubble — and Appearance has "Large text in
-  bubbles", which makes every bubble's text larger for reading at a
-  distance or with low vision.
-- **Characters fade in and out.** Coming and going — at their own
-  hours, hidden with V or the Visible switch, a group hidden, a new one
-  added, a scene switched, the overlay back from hidden, a snooze or a
-  full-screen app — they fade over a third of a second instead of
-  popping. Hiding the overlay itself is still at once. None with Reduce
-  motion.
-- **Shortcuts for the focus timer and snoozing.** Two new actions in
-  Keybindings — start or stop the focus timer, snooze for a quarter of
-  an hour or wake up — that work from anywhere once given a key: through
-  the GlobalShortcuts portal on Wayland (GNOME and KDE also let you set
-  them in their own shortcut settings), `XGrabKey` on X11. They come
-  unbound, so they take no key from other apps until you choose one.
-- **Reminders at a set time.** Besides every so many minutes, a
-  reminder can come at a time of day — every day, on weekdays or at
-  weekends ("10:00: stand-up") — or on a date each year ("12 October:
-  Ana's birthday"). Once that day; if the computer was off or asleep
-  then, still within two hours (a date's, until midnight); and if you are
-  away, when you come back. Several due at once go to several
-  characters, so one bubble does not cover another.
-- **Back up everything, restore it anywhere.** Appearance's "Back up…"
-  writes one `.animabackup` file: the settings, every saved scene with
-  its picture, and the pictures they show, once each. "Restore…" brings
-  one back: its scenes join yours under names of their own, its settings
-  replace these — the old file kept as `config.toml.before-restore` —
-  and the app picks them up at once. Read with the same checks as a
-  shared scene: scripts stand still, sounds stay behind.
-- **Characters play tag — when you say so.** A new behavior in the
-  Inspector, "Play tag", with a partner: whoever is "it" runs after the
-  other, which runs a little slower; a catch makes both stop for a
-  breath and swaps them, the new runner with a head start. After twenty
-  seconds they rest for a minute and a half, then play again. The
-  partner needs no setting of its own and goes back to what it was doing
-  between games.
-- **Desktop notifications, if you want them.** "Also as desktop
-  notifications" in the Scene tab sends reminders and the focus timer to
-  the desktop's notifications as well — and, with the characters out of
-  sight (hidden, snoozed, stepped aside for a full-screen app), sends
-  them there at once instead of waiting. Off by default. Natively through
-  `org.freedesktop.Notifications`, in the Flatpak through the
-  Notification portal.
-- **A sound with reminders and the focus timer.** Under the Focus
-  section of the Scene tab, pick what plays when a reminder or a turn of
-  the focus timer is said: nothing (as it comes), the speaker's own tap
-  sound, or any sound file in the asset library. Picking one plays it.
-- **Screen readers hear what the characters say.** Their lines,
-  reminders, the focus timer, greetings and a welcome back are announced
-  over AT-SPI as they are said, so Orca reads them out — politely, after
-  what it is saying. Only with a screen reader listening and the
-  accessibility tree switched on in Appearance.
-- **Share one character.** "Share character…" on the right-click menu
-  writes a character as one `.animachar` file — its pictures, lines and
-  behavior, never a script or a sound. Dropped on the overlay, pasted
-  from a file manager, or opened with the Scene tab's Import…, it joins
-  the scene on screen where it was dropped, under a name of its own.
-  It is checked as a shared scene is.
-- **Placeholders in lines.** `{time}`, `{day}`, `{date}` and `{name}` in
-  a character's lines, in reminders and in a script's `say` are filled in
-  when it is said — "It's {time}, tea time!" — the day and date in your
-  language, the name the speaker's.
-- **Welcome back.** After a while away from the computer, the character
-  in front greets you as you return — "Good morning!" when you come back
-  in the morning after the night. Not at bedtime, nor while the
-  characters are out of sight; a switch in Appearance turns it off.
-- **Characters with their own hours.** "Only at certain hours" in the
-  Inspector keeps a character off the screen outside the hours you give
-  it — the ghost from 22:00 to 06:00, the sun the other way round. Edit
-  mode shows everyone, so all can still be edited.
-- **Save a character as a GIF.** "Save as GIF…" on the right-click
-  menu writes its animation as it plays — at its size on screen, up to
-  400 pixels a side, facing the way it faces — as a GIF that loops
-  forever, wherever you choose (Downloads where there is no chooser).
-- **Greetings when they meet**, when switched on in the Scene tab (off
-  by default): two characters who come together — walking, following,
-  one landing on the other — stand still a moment and say hello, one
-  answering the other, with a heart between them. A character with
-  lines of its own says one of those. Each pair at most every couple of
-  minutes, and nobody talks over someone already talking.
-- **A focus timer.** Work for 25 minutes, and a character says it is
-  time for a break; 5 minutes later, that it is time to get back to it;
-  and round again until you stop it. Start and stop it from the tray,
-  the command palette or the Scene tab, which sets the lengths, or over
-  D-Bus (`StartFocus(minutes)`, `StopFocus`). Reminders wait while you
-  work, and the break counts as a break for them. A line that comes
-  while the characters are out of sight waits for them.
-- **Scene pictures.** Each saved scene in the Scene tab shows a small
-  picture of its characters, taken when it is saved, so "Work" and
-  "Evening" can be told apart at a glance. It goes along when the scene
-  is shared, and comes in with one that is imported.
-
-- **Step aside for apps you choose.** Under the full-screen setting in
-  Appearance, pick apps from the ones open now — a video call, a
-  streaming tool, a game — and the characters hide while one of them is
-  the window in front, full screen or not. X11, and Wayland compositors
-  such as sway and Hyprland; under GNOME and KDE on Wayland, apps that
-  run through XWayland.
-- **Bedtime.** Pick hours in Appearance — 23:00 to 07:00 to begin
-  with — and the characters doze off then, Zzz… and all, whoever is at
-  the keyboard. Edit mode wakes them while it lasts; the night counts
-  as a break for the reminders. Off by default.
-- **Snooze.** "Snooze 15 minutes", "Snooze 1 hour" and "Snooze until
-  morning" in the tray and the command palette put the characters out
-  of sight and still; they come back on their own — the tray shows until
-  when, with "Wake up now". D-Bus has `Snooze(minutes)` and `Wake` for
-  a key binding of your own.
-- **Characters say their own lines.** The Inspector's new "Says"
-  section takes a phrase per line: a tap on the character in edit mode
-  makes it say one, it can speak up on its own about every 1, 5, 15 or
-  60 minutes, and "Say one now" tries them out. Never the same line
-  twice in a row; nothing while the scene is paused or asleep. The lines
-  travel with copies and shared scenes.
-- **Behind your windows.** A switch in Appearance puts the characters on
-  the desktop, under your windows, instead of over them. Edit mode
-  brings them to the front while it lasts. Native Wayland uses the
-  bottom layer; X11 asks the window manager to keep the overlay below.
+- **Copy, cut and paste characters.** `Ctrl+C`, `Ctrl+X` and `Ctrl+V`
+  in edit mode (rebindable), Copy and Cut on the right-click menu, and
+  Paste in the Scene tab. A copy keeps everything about the character —
+  its animations, behavior, size — and a whole group comes back as a
+  group. It lasts until the app quits, so cutting in one saved scene and
+  pasting in another moves characters between them; a paste lands where
+  they were, or steps aside when something is already there.
 - **Paste images from the clipboard.** Copy a picture anywhere — a
   browser, an image viewer, a screenshot tool — and press `Ctrl+V` in
   edit mode: it becomes a character where the pointer is. Files copied
@@ -212,25 +82,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   slides to a stop. It works with physics off too; the character then
   stays where it landed. Grab it mid-air to catch it. Undo puts it back
   where you picked it up. Off with Reduce motion.
-- **Share a scene as one file.** Each saved scene in the Scene tab has
-  a Share button that writes it, pictures and all, to one
-  `.animascene` file wherever you choose; Import… (or dropping the file
-  on the overlay) opens one someone sent you, as a saved scene of its
-  own, fitted onto your screens if it was made for bigger or more of
-  them. Pictures and settings travel, behavior scripts do not — a
-  scripted character arrives standing still — and a file coming in is
-  checked like a dropped picture, and more (see the threat model).
-- **Copy, cut and paste characters.** `Ctrl+C`, `Ctrl+X` and `Ctrl+V`
-  in edit mode (rebindable), Copy and Cut on the right-click menu, and
-  Paste in the Scene tab. A copy keeps everything about the character —
-  its animations, behavior, size — and a whole group comes back as a
-  group. It lasts until the app quits, so cutting in one saved scene and
-  pasting in another moves characters between them; a paste lands where
-  they were, or steps aside when something is already there.
-- **Start at login.** A switch in Appearance: installed natively it
-  writes a standard autostart entry (the one the desktop's "Startup
-  Applications" lists too), and in the Flatpak it asks the Background
-  portal, which may ask you. Off by default.
+
+#### Scenes and files
+
 - **Named scenes.** Save what is on screen — the characters and their
   groups — under a name ("Work", "Stream"), and switch between scenes
   from the Scene tab, the command palette or the tray's new "Next scene"
@@ -242,17 +96,185 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   until the next one; a start catches up on the latest rule already
   passed today, and edit mode is never switched under you — the rule
   waits until you leave it.
-- **The characters doze off while you are away.** After ten minutes
-  with no mouse or keyboard input, by default, they stop walking, anyone
-  in the air lands, and each settles into its idle pose with a "Zzz…"
-  — then the scene holds still, as cheap as a pause. Your next input
-  wakes them. With a full-screen app in front — a film — nobody is
-  taken to be away: no Zzz over it, the scene only pauses. Appearance offers 1, 5, 10 or 30 minutes, or never, and
-  pausing on battery as well (a plain pause: you are there). The idle time comes
-  from GNOME (on X11 or Wayland), a real X server, or a Wayland
-  compositor with idle notifications (sway, Hyprland, KDE); elsewhere
-  the setting says it is unavailable. The Flatpak asks for the two
-  read-only D-Bus names it needs.
+- **Scene pictures.** Each saved scene in the Scene tab shows a small
+  picture of its characters, taken when it is saved, so "Work" and
+  "Evening" can be told apart at a glance. It goes along when the scene
+  is shared, and comes in with one that is imported.
+- **Share a scene as one file.** Each saved scene in the Scene tab has
+  a Share button that writes it, pictures and all, to one
+  `.animascene` file wherever you choose; Import… (or dropping the file
+  on the overlay) opens one someone sent you, as a saved scene of its
+  own, fitted onto your screens if it was made for bigger or more of
+  them. Pictures and settings travel, behavior scripts do not — a
+  scripted character arrives standing still — and a file coming in is
+  checked like a dropped picture, and more (see the threat model).
+- **Share one character.** "Share character…" on the right-click menu
+  writes a character as one `.animachar` file — its pictures, lines and
+  behavior, never a script or a sound. Dropped on the overlay, pasted
+  from a file manager, or opened with the Scene tab's Import…, it joins
+  the scene on screen where it was dropped, under a name of its own.
+  It is checked as a shared scene is.
+- **Save a character as a GIF.** "Save as GIF…" on the right-click
+  menu writes its animation as it plays — at its size on screen, up to
+  400 pixels a side, facing the way it faces — as a GIF that loops
+  forever, wherever you choose (Downloads where there is no chooser).
+- **Back up everything, restore it anywhere.** Appearance's "Back up…"
+  writes one `.animabackup` file: the settings, every saved scene with
+  its picture, and the pictures they show, once each. "Restore…" brings
+  one back: its scenes join yours under names of their own, its settings
+  replace these — the old file kept as `config.toml.before-restore` —
+  and the app picks them up at once. Read with the same checks as a
+  shared scene: scripts stand still, sounds stay behind.
+
+#### What the characters say
+
+- **Speech bubbles and reminders.** A character can say something in a
+  bubble: behavior scripts call `say("…")`, and the Scene tab sets up
+  reminders — "Time for a short break!" every 50 minutes, a glass of
+  water, a stretch, or your own text — said by a character you pick or
+  the frontmost one. Time away from the computer counts as the break and
+  starts the reminder over; one due while the overlay is hidden waits.
+  Bubbles show on every monitor.
+- **Characters say their own lines.** The Inspector's new "Says"
+  section takes a phrase per line: a tap on the character in edit mode
+  makes it say one, it can speak up on its own about every 1, 5, 15 or
+  60 minutes, and "Say one now" tries them out. Never the same line
+  twice in a row; nothing while the scene is paused or asleep. The lines
+  travel with copies and shared scenes.
+- **Bubbles of their own, and large text.** The Inspector's "Says"
+  section gives a character's bubbles a colour and a text size — the
+  text turns light on a dark bubble — and Appearance has "Large text in
+  bubbles", which makes every bubble's text larger for reading at a
+  distance or with low vision.
+- **Placeholders in lines.** `{time}`, `{day}`, `{date}` and `{name}` in
+  a character's lines, in reminders and in a script's `say` are filled in
+  when it is said — "It's {time}, tea time!" — the day and date in your
+  language, the name the speaker's.
+- **Screen readers hear what the characters say.** Their lines,
+  reminders, the focus timer, greetings and a welcome back are announced
+  over AT-SPI as they are said, so Orca reads them out — politely, after
+  what it is saying. Only with a screen reader listening and the
+  accessibility tree switched on in Appearance.
+
+#### What they do
+
+- **Tap them without edit mode.** With "Characters can be tapped" on in
+  Appearance (off by default), a click on a character pokes it — a hop,
+  and one of its lines — while a click anywhere else still goes to the
+  window underneath, as before; over a full-screen app, even one they
+  only pause for, every click does. A tap leaves the keyboard with the
+  app you are typing in. Native Wayland and X11.
+- **A sound on a tap.** The Inspector's "Says" section can give a
+  character a sound — any `.ogg`, `.wav`, `.flac` or `.mp3` in the asset
+  library, picked from a list — played when it is tapped, in edit mode
+  or out of it, from where it stands on the screen. Picking one plays
+  it; "Play" plays it again. None by default; a shared scene leaves its
+  sounds behind. A sound that cannot be played says so, rather than
+  calling itself a behavior script.
+- **Little effects.** A few hearts rise from a character you tap, a
+  puff of dust goes up where one lands hard, and z's float up as they
+  fall asleep. A switch in Appearance turns them off, and Reduce motion
+  does too. They last a moment; a sleeping scene goes back to holding
+  still once they are over.
+- **Characters bump into each other**, when switched on in the Scene
+  tab (off by default): one falling with gravity lands on another's head
+  — on what can be seen of it, not the empty rows of its image — and a
+  walker turns around when it meets someone.
+- **Characters follow each other — when you say so.** A new behavior in
+  the Inspector, "Follow a character": pick whom, how far behind and how
+  fast, and a kitten trails the cat, a ghost haunts the heart. Nobody
+  follows anyone on their own; a character cannot follow itself, and the
+  list leaves out anyone who would close a circle. One whose leader is
+  gone or hidden stands still.
+- **Characters play tag — when you say so.** A new behavior in the
+  Inspector, "Play tag", with a partner: whoever is "it" runs after the
+  other, which runs a little slower; a catch makes both stop for a
+  breath and swaps them, the new runner with a head start. After twenty
+  seconds they rest for a minute and a half, then play again. The
+  partner needs no setting of its own and goes back to what it was doing
+  between games.
+- **Greetings when they meet**, when switched on in the Scene tab (off
+  by default): two characters who come together — walking, following,
+  one landing on the other — stand still a moment and say hello, one
+  answering the other, with a heart between them. A character with
+  lines of its own says one of those. Each pair at most every couple of
+  minutes, and nobody talks over someone already talking.
+- **Characters fade in and out.** Coming and going — at their own
+  hours, hidden with V or the Visible switch, a group hidden, a new one
+  added, a scene switched, the overlay back from hidden, a snooze or a
+  full-screen app — they fade over a third of a second instead of
+  popping. Hiding the overlay itself is still at once. None with Reduce
+  motion.
+- **Characters with their own hours.** "Only at certain hours" in the
+  Inspector keeps a character off the screen outside the hours you give
+  it — the ghost from 22:00 to 06:00, the sun the other way round. Edit
+  mode shows everyone, so all can still be edited.
+- **Moods by the time of day**, if you want them (Appearance, off by
+  default): the characters walk and animate a little faster in the
+  morning and slower at night, smoothly through the day, and — with
+  bedtime set — each yawns once in the half hour before it.
+
+#### Around your day
+
+- **Reminders at a set time.** Besides every so many minutes, a
+  reminder can come at a time of day — every day, on weekdays or at
+  weekends ("10:00: stand-up") — or on a date each year ("12 October:
+  Ana's birthday"). Once that day; if the computer was off or asleep
+  then, still within two hours (a date's, until midnight); and if you are
+  away, when you come back. Several due at once go to several
+  characters, so one bubble does not cover another.
+- **A focus timer.** Work for 25 minutes, and a character says it is
+  time for a break; 5 minutes later, that it is time to get back to it;
+  and round again until you stop it. Start and stop it from the tray,
+  the command palette or the Scene tab, which sets the lengths, or over
+  D-Bus (`StartFocus(minutes)`, `StopFocus`). Reminders wait while you
+  work, and the break counts as a break for them. A line that comes
+  while the characters are out of sight waits for them.
+- **A sound with reminders and the focus timer.** Under the Focus
+  section of the Scene tab, pick what plays when a reminder or a turn of
+  the focus timer is said: nothing (as it comes), the speaker's own tap
+  sound, or any sound file in the asset library. Picking one plays it.
+- **Desktop notifications, if you want them.** "Also as desktop
+  notifications" in the Scene tab sends reminders and the focus timer to
+  the desktop's notifications as well — and, with the characters out of
+  sight (hidden, snoozed, stepped aside for a full-screen app), sends
+  them there at once instead of waiting. Off by default. Natively through
+  `org.freedesktop.Notifications`, in the Flatpak through the
+  Notification portal.
+- **Shortcuts for the focus timer and snoozing.** Two new actions in
+  Keybindings — start or stop the focus timer, snooze for a quarter of
+  an hour or wake up — that work from anywhere once given a key: through
+  the GlobalShortcuts portal on Wayland (GNOME and KDE also let you set
+  them in their own shortcut settings), `XGrabKey` on X11. They come
+  unbound, so they take no key from other apps until you choose one.
+- **Snooze.** "Snooze 15 minutes", "Snooze 1 hour" and "Snooze until
+  morning" in the tray and the command palette put the characters out
+  of sight and still; they come back on their own — the tray shows until
+  when, with "Wake up now". D-Bus has `Snooze(minutes)` and `Wake` for
+  a key binding of your own.
+- **Bedtime.** Pick hours in Appearance — 23:00 to 07:00 to begin
+  with — and the characters doze off then, Zzz… and all, whoever is at
+  the keyboard. Edit mode wakes them while it lasts; the night counts
+  as a break for the reminders. Off by default.
+- **The characters doze off while you are away.** After ten minutes with
+  no mouse or keyboard input, by default, they stop walking, anyone in
+  the air lands, and each settles into its idle pose with a "Zzz…" —
+  then the scene holds still, as cheap as a pause. Your next input wakes
+  them. With a full-screen app in front — a film — nobody is taken to be
+  away: no Zzz over it, the scene only pauses. Appearance offers 1, 5,
+  10 or 30 minutes, or never, and pausing on battery as well (a plain
+  pause: you are there). The idle time comes from GNOME (on X11 or
+  Wayland), a real X server, or a Wayland compositor with idle
+  notifications (sway, Hyprland, KDE); elsewhere the setting says it is
+  unavailable. The Flatpak asks for the two read-only D-Bus names it
+  needs.
+- **Welcome back.** After a while away from the computer, the character
+  in front greets you as you return — "Good morning!" when you come back
+  in the morning after the night. Not at bedtime, nor while the
+  characters are out of sight; a switch in Appearance turns it off.
+
+#### On the desktop
+
 - **The overlay steps aside for full-screen apps.** While the window in
   front is full screen — a game, a video, a presentation — the
   characters hide and hold still, by default, and come back when it is
@@ -261,6 +283,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   wlroots compositors (sway, Hyprland) the overlay used to draw over
   full-screen windows. Seen on X11 and on those compositors; under GNOME
   or KDE on Wayland only X11 apps running through XWayland are.
+- **Step aside for apps you choose.** Under the full-screen setting in
+  Appearance, pick apps from the ones open now — a video call, a
+  streaming tool, a game — and the characters hide while one of them is
+  the window in front, full screen or not. X11, and Wayland compositors
+  such as sway and Hyprland; under GNOME and KDE on Wayland, apps that
+  run through XWayland.
+- **Behind your windows.** A switch in Appearance puts the characters on
+  the desktop, under your windows, instead of over them. Edit mode
+  brings them to the front while it lasts. Native Wayland uses the
+  bottom layer; X11 asks the window manager to keep the overlay below.
+- **Start at login.** A switch in Appearance: installed natively it
+  writes a standard autostart entry (the one the desktop's "Startup
+  Applications" lists too), and in the Flatpak it asks the Background
+  portal, which may ask you. Off by default.
 
 ### Fixed
 

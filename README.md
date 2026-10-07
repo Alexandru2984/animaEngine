@@ -33,9 +33,14 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   Library / Appearance / Keybindings), right-click context menus, collapsible
   inspector sections, sliders for every field, drag-and-drop placement.
 - **Autonomous behaviors** per entity: `Idle` (default), `WalkAround`,
-  `FollowCursor`, `BoundedWander`, `Bounce` — wired through the UI.
+  `FollowCursor`, `BoundedWander`, `Bounce`, following another
+  character, or playing tag with one — wired through the UI.
   Optionally, characters bump into each other: they land on each
   other's heads and turn around when they meet.
+- **A life of their own**, as much as you want: tap a character outside
+  edit mode too and it hops, says a line, plays its sound, with a few
+  hearts; two who meet say hello; they fade in and out, keep hours of
+  their own, and can be livelier in the morning and slower at night.
 - **Scripted behaviors**: a character's motion can be a small
   [Rhai](https://rhai.rs) script from your asset library, sandboxed and
   bounded (no files, no network, capped operations). Scripts can play
@@ -61,13 +66,21 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 - **Themes**: Dark and Light plus high-contrast siblings for both,
   switchable instantly without restart. HC variants clear WCAG AAA.
 - **Speech bubbles and reminders**: characters can say things — lines
-  of their own when tapped or every so often, from a script, or to
-  remind you of a break or a glass of water.
+  of their own when tapped or every so often, from a script, or a
+  reminder of a break or a glass of water, at intervals or at a set
+  time. Bubbles take a colour and text size of their own, `{time}`,
+  `{day}`, `{date}` and `{name}` are filled in, and screen readers hear
+  what is said.
+- **Around your day**: a focus timer, bedtime, snoozing, dozing while
+  you are away and a welcome back when you return; reminders and the
+  timer can also go to the desktop's notifications, with a sound.
 - **Named scenes**: save what is on screen under a name and switch
   between your scenes from the Scene tab, the command palette or the
-  tray — or at set times of day. Share one as a single `.animascene`
-  file, pictures included; it opens on another machine by dropping it
-  on the overlay or with Import….
+  tray — or at set times of day; each shows a picture of itself. Share
+  one as a single `.animascene` file, pictures included; it opens on
+  another machine by dropping it on the overlay or with Import…. One
+  character travels the same way (`.animachar`) or as a GIF, and a
+  backup (`.animabackup`) carries everything to another machine.
 - **Bundled presets**: six curated one-click scenes (Cozy Companion,
   Productivity Zen, Halloween Party, Birthday Confetti, Studio
   Session, Cursor Follower) — Append or Replace.
@@ -82,8 +95,8 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 - **On top or behind**: the characters live over your windows, or —
   one switch in Appearance — on the desktop under them.
 - **Steps aside for full-screen apps**: the characters hide (or pause)
-  while a game, a video or a presentation fills the screen — doze off
-  while you are away, and hold still on battery if you like.
+  while a game, a video or a presentation fills the screen, or while an
+  app you choose is in front — and hold still on battery if you like.
 - **Ten UI languages**: English, Română, Español, Deutsch, Français,
   Italiano, Português (BR), Polski, Nederlands, 日本語 — auto-detected
   from `LANG`, switchable in Appearance.
@@ -143,12 +156,14 @@ cargo build --release
 | Move a character | Drag it (edit mode) or use the X/Y sliders; let go mid-swing to throw it |
 | Adjust scale / opacity / FPS | Sliders in the settings panel |
 | Toggle visibility / playback | `V` / `P` keys, or checkboxes |
-| Set behavior | Dropdown in the Inspector (Idle / Walk / Follow cursor / Follow a character / Bounded / Bounce / Script) |
+| Set behavior | Dropdown in the Inspector (Idle / Walk / Follow cursor / Follow a character / Play tag / Bounded / Bounce / Script) |
 | Delete | `Delete`, right-click → Delete, or the trash button in the Scene list |
 | Group / ungroup | `Ctrl+G` / `Ctrl+Shift+G` on the selection, or right-click → Group |
 | Copy / cut / paste | `Ctrl+C` / `Ctrl+X` / `Ctrl+V`, right-click → Copy or Cut, and Paste in the Scene tab — into this scene or another saved one; `Ctrl+V` also pastes a picture copied anywhere |
 | Hide overlay | `Ctrl+Shift+H` (global) or tray menu |
+| Tap a character | With "Characters can be tapped" on (Appearance), click it — clicks elsewhere still reach your windows |
 | Snooze | Tray or command palette: 15 minutes, 1 hour or until morning; they come back on their own |
+| Focus timer | Tray, command palette or the Scene tab; a shortcut of your choice in Keybindings |
 | Pause animations | `Space` (edit mode), `Ctrl+Shift+P` (global), or tray |
 | Save & quit | `Q` (edit mode), tray → Quit, or close the window |
 
@@ -239,6 +254,9 @@ flag needed there.
 | Perf overlay | stable | stable |
 | Global hotkeys | stable (XGrabKey) | via D-Bus + compositor binding |
 | Hot-reload | stable | stable |
+| Tapping characters outside edit mode | stable | stable |
+| Full-screen apps seen | EWMH (X11 apps) | `wlr-foreign-toplevel-management` |
+| Idle time (dozing, welcome back) | GNOME, or a real X server | `ext-idle-notify` (sway, Hyprland) |
 
 Global shortcuts on the native path go through `org.animaengine.Anima`
 D-Bus methods that compositor bindings call via `gdbus` — see

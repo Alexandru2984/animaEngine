@@ -49,7 +49,8 @@ that doesn't parse is ignored, with a toast, and nothing is written.
 
 ```toml
 [global]
-always_on_top = true
+always_on_top = true        # false: on the desktop, under your windows
+                            # (Appearance → Behind your windows)
 transparent = true
 playback_enabled = true     # Space key inverts this
 window_width = 0            # 0 = autodetect from primary monitor
@@ -74,6 +75,11 @@ hover_startle = false       # characters recoil from an approaching
 on_fullscreen = "hide"      # while another app is full screen: hide
                             # the characters, "pause" them, or
                             # "ignore" it. Never in edit mode.
+step_aside_apps = ["obs", "zoom"] # and hide while one of these apps
+                            # is in front, full screen or not: its
+                            # WM_CLASS on X11, its app_id on native
+                            # Wayland, without case. Appearance picks
+                            # them from the apps open now.
 tap_characters = false      # outside edit mode too, a click on a
                             # character pokes it; clicks elsewhere
                             # still reach the windows underneath
@@ -401,6 +407,23 @@ amplitude_px = 24.0         # peak displacement, applied symmetrically
 period_sec = 1.5            # one full cycle; clamped to >= 0.05
 axis = "vertical"           # vertical (default) | horizontal | both
                             # ("both" = 90°-offset circular motion)
+
+# Keeps near another character: walks to a spot `distance` px from it,
+# on its own side, and waits there. One whose target is gone or hidden
+# stands still; nobody can follow itself.
+[characters.behavior]
+type = "follow_character"
+target = "cat"              # the other character's id
+distance = 90.0
+speed = 140.0
+
+# Plays tag with another character: whoever is "it" chases, the other
+# runs a little slower; a catch swaps them. Twenty seconds of play, a
+# minute and a half of rest. The partner needs no setting of its own.
+[characters.behavior]
+type = "play_tag"
+partner = "slime"           # the other character's id
+speed = 220.0               # the chaser's; the runner's is 0.8 of it
 
 # A Rhai script from your asset library moves the character instead.
 [characters.behavior]

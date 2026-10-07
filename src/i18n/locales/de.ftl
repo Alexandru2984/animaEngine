@@ -445,10 +445,11 @@ action-toggle-perf-overlay = Performance-Overlay umschalten
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
 # 1.4 highlights: machine-translated, pending native review.
-whats-new-header = Neu in 1.4
-whats-new-add-file = „Datei hinzufügen …“ im Tab Szene fügt Figuren über die Dateiauswahl Ihres Desktops hinzu – ganz ohne Ziehen.
-whats-new-palette = Strg+K führt jetzt jede Aktion aus und zeigt ihr Tastenkürzel daneben.
-whats-new-screen-readers = Screenreader wie Orca können das Einstellungsfenster jetzt vorlesen und bedienen.
+whats-new-header = Neu in 1.5
+whats-new-alive = Die Figuren werden lebendig: Tippen Sie sie an, und lassen Sie sie einander grüßen, Fangen spielen oder einander folgen.
+whats-new-your-day = Erinnerungen zu einer festen Zeit, ein Fokus-Timer, Schlafenszeit und Schlummern – und ein Gruß, wenn Sie zurückkommen.
+whats-new-editing = Rückgängig mit Strg+Z, mehrere Figuren auf einmal auswählen, gruppieren und ausrichten.
+whats-new-files = Szenen bekommen Namen, Bilder und einen Zeitplan; teilen Sie eine Szene oder eine einzelne Figur, oder sichern Sie alles in einer Datei.
 onboarding-keybindings = Klicken Sie auf ein Kürzel, um es zu entfernen; drücken Sie eine Kombination, um ein neues aufzunehmen.
 onboarding-perf-overlay = Strg+Shift+` öffnet das Live-Performance-Overlay.
 appearance-reset-onboarding = Einführungshinweise zurücksetzen

@@ -28,9 +28,10 @@ change to any of them is a breaking change and waits for 2.0 (see
   the conventional reverse-DNS `org.…` — a `gdbus` binding needs both,
   e.g. `--dest com.animaengine.Anima … --method org.animaengine.Anima.ToggleEditMode`.)
   The method set — `Activate`, `ToggleEditMode`, `HideOverlay`,
-  `ShowOverlay`, `ToggleGlobalPlayback` — keeps its names and (empty)
-  signatures. Methods may be *added*; existing ones aren't removed or
-  repurposed.
+  `ShowOverlay`, `ToggleGlobalPlayback`, and since 1.5 `NextScene`,
+  `Snooze(u minutes)`, `Wake`, `StartFocus(u minutes)` and `StopFocus`
+  — keeps its names and signatures. Methods may be *added*; existing
+  ones aren't removed or repurposed.
 - **CLI flags.** `--help` / `-h`, `--recover` / `-r` and `--version` /
   `-V` keep their meaning. New flags may be added; these
   don't change under you.

@@ -445,10 +445,11 @@ action-toggle-perf-overlay = パフォーマンス表示を切り替え
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
 # 1.4 highlights: machine-translated, pending native review.
-whats-new-header = 1.4 の新機能
-whats-new-add-file = シーンタブの「ファイルを追加…」で、デスクトップのファイル選択ダイアログからキャラクターを追加できます。ドラッグは不要です。
-whats-new-palette = Ctrl+K で任意の操作を実行できるようになり、横にショートカットも表示されます。
-whats-new-screen-readers = Orca などのスクリーンリーダーで設定パネルを読み上げ・操作できるようになりました。
+whats-new-header = 1.5 の新機能
+whats-new-alive = キャラクターが生き生きと動きます。タップに反応し、あいさつし合い、鬼ごっこをしたり、互いについていったりします。
+whats-new-your-day = 決まった時刻のリマインダー、集中タイマー、おやすみ時間、スヌーズ。戻ったときにはあいさつも。
+whats-new-editing = Ctrl+Z で元に戻す、複数のキャラクターをまとめて選択、グループ化、整列。
+whats-new-files = シーンに名前・画像・スケジュール。シーンやキャラクター 1 体を共有したり、すべてを 1 つのファイルにバックアップしたりできます。
 onboarding-keybindings = ショートカットをクリックすると削除、キーの組み合わせを押すと新規登録できます。
 onboarding-perf-overlay = Ctrl+Shift+` でライブのパフォーマンス表示を開けます。
 appearance-reset-onboarding = オンボーディングのヒントをリセット

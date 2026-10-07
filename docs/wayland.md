@@ -123,6 +123,14 @@ running:
 | `ShowOverlay` | Show it again |
 | `ToggleGlobalPlayback` | Pause / resume every animation |
 | `Activate` | Single-instance handshake; the second launch invokes this |
+| `NextScene` | Switch to the next saved scene, by name (1.5) |
+| `Snooze` `(u minutes)` | Put the characters out of sight for that long; 0 is until the morning (1.5) |
+| `Wake` | End a snooze now (1.5) |
+| `StartFocus` `(u minutes)` | Start the focus timer with that much work; 0 is the length set in the Scene tab (1.5) |
+| `StopFocus` | Stop the focus timer (1.5) |
+
+The ones with an argument take it after the method name: `gdbus call …
+--method org.animaengine.Anima.Snooze 60`.
 
 ### Calling them from a shell
 

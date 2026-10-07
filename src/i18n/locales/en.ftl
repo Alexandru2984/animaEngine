@@ -450,10 +450,11 @@ warning-config-unreadable = Your config file could not be read, so the default s
 action-toggle-perf-overlay = Toggle perf overlay
 
 # ── What's new panel (D.7) ────────────────────────────────────────────
-whats-new-header = What's new in 1.4
-whats-new-add-file = Add file… in the Scene tab adds characters through your desktop's file chooser — no dragging needed.
-whats-new-palette = Ctrl+K now runs any action, with its shortcut shown beside it.
-whats-new-screen-readers = Screen readers such as Orca can now read and operate the settings panel.
+whats-new-header = What's new in 1.5
+whats-new-alive = Characters come alive: tap them, and let them greet each other, play tag or follow one another.
+whats-new-your-day = Reminders at a set time, a focus timer, bedtime and snooze — and a welcome when you come back.
+whats-new-editing = Undo with Ctrl+Z, select several characters at once, group them and line them up.
+whats-new-files = Scenes get names, pictures and a schedule; share a scene or one character, or back up everything in one file.
 
 # ── New onboarding hints (D.7) ────────────────────────────────────────
 onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.

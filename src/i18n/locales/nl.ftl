@@ -445,10 +445,11 @@ action-toggle-perf-overlay = Prestatie-overlay omschakelen
 
 # ── What's new (D.7) — placeholder pending native-speaker audit
 # 1.4 highlights: machine-translated, pending native review.
-whats-new-header = Nieuw in 1.4
-whats-new-add-file = ‘Bestand toevoegen…’ op het tabblad Scène voegt figuren toe via de bestandskiezer van uw bureaublad — zonder slepen.
-whats-new-palette = Ctrl+K voert nu elke actie uit, met de sneltoets ernaast.
-whats-new-screen-readers = Schermlezers zoals Orca kunnen het instellingenpaneel nu voorlezen en bedienen.
+whats-new-header = Nieuw in 1.5
+whats-new-alive = De figuren komen tot leven: tik ze aan, en laat ze elkaar groeten, tikkertje spelen of elkaar volgen.
+whats-new-your-day = Herinneringen op een vast tijdstip, een focustimer, bedtijd en sluimeren — en een groet als u terugkomt.
+whats-new-editing = Ongedaan maken met Ctrl+Z, meerdere figuren tegelijk selecteren, groeperen en uitlijnen.
+whats-new-files = Scènes krijgen een naam, een afbeelding en een schema; deel een scène of één figuur, of maak een back-up van alles in één bestand.
 onboarding-keybindings = Klik op een sneltoets om hem te verwijderen; druk een combinatie om een nieuwe op te nemen.
 onboarding-perf-overlay = Druk Ctrl+Shift+` om de live prestatie-overlay te openen.
 appearance-reset-onboarding = Introductietips herstellen

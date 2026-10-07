@@ -20,9 +20,13 @@
     <ul>
       <li>Click-through by default — your desktop stays fully usable</li>
       <li>Add characters by dropping PNG, GIF, WebP, JPEG or H.264 MP4 files on the screen, or by picking them in the file chooser</li>
-      <li>Behaviors: walk around, wander, follow the cursor, bounce, or a sandboxed Rhai script</li>
+      <li>Behaviors: walk around, wander, follow the cursor or another character, play tag, bounce, or a sandboxed Rhai script</li>
+      <li>Characters you can tap, with lines of their own in speech bubbles; they greet each other, fade in and out, and keep their own hours</li>
+      <li>Reminders every so often or at a set time, a focus timer, bedtime and snooze — on screen, and as desktop notifications if you like</li>
+      <li>The characters step aside for full-screen apps and doze while you are away</li>
       <li>Scripts can play sounds, panned to where the character is on screen</li>
-      <li>Edit mode with an inspector, a scene list, an asset library and six ready-made scenes</li>
+      <li>Edit mode with an inspector, a scene list, an asset library and six ready-made scenes; undo, several characters at once, groups and alignment</li>
+      <li>Named scenes with pictures and a schedule; share a scene or a character as one file, or back up everything</li>
       <li>Dark, light and two high-contrast themes, and ten interface languages</li>
       <li>Rebindable shortcuts that work on any keyboard layout, and a command palette that runs any of them</li>
       <li>Works with screen readers such as Orca</li>
