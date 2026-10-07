@@ -6,6 +6,12 @@ use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+/// At most this many threads decode a sequence. They are the load's own
+/// and go when it is done: rayon's global pool would keep one per core
+/// for the life of the app — 32, idle, on a 16-core machine — for work
+/// that happens at start and on a drop.
+const DECODE_THREADS: usize = 8;
+
 /// Load a PNG sequence from a directory.
 /// Files are sorted alphabetically — name them frame_001.png, frame_002.png, etc.
 ///
@@ -98,38 +104,56 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
     // their decoded frame and bail out once the cap would be crossed.
     let total_bytes = AtomicUsize::new(0);
     let truncated_for_bytes = AtomicBool::new(false);
-    let decoded: Vec<Option<Frame>> = entries
-        .par_iter()
-        .map(|path| {
-            if truncated_for_bytes.load(Ordering::Acquire) {
-                return None;
-            }
-            let frame = match load_single_png(path) {
-                Ok(f) => f,
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to load PNG {}: {}",
-                        crate::drop_validate::redact_path(path),
-                        e
-                    );
+    let decode = || -> Vec<Option<Frame>> {
+        entries
+            .par_iter()
+            .map(|path| {
+                if truncated_for_bytes.load(Ordering::Acquire) {
                     return None;
                 }
-            };
-            let want = frame.rgba.len();
-            // Reserve our slice of the budget atomically. If the
-            // reservation crosses the cap, mark the run truncated and
-            // discard this frame (preserving ordering of the kept
-            // prefix — par_iter().collect() honours source order, so
-            // the trailing `None`s end up after any kept frame).
-            let prev = total_bytes.fetch_add(want, Ordering::AcqRel);
-            if prev.saturating_add(want) > MAX_DECODED_ASSET_BYTES {
-                total_bytes.fetch_sub(want, Ordering::AcqRel);
-                truncated_for_bytes.store(true, Ordering::Release);
-                return None;
-            }
-            Some(frame)
-        })
-        .collect();
+                let frame = match load_single_png(path) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to load PNG {}: {}",
+                            crate::drop_validate::redact_path(path),
+                            e
+                        );
+                        return None;
+                    }
+                };
+                let want = frame.rgba.len();
+                // Reserve our slice of the budget atomically. If the
+                // reservation crosses the cap, mark the run truncated and
+                // discard this frame (preserving ordering of the kept
+                // prefix — par_iter().collect() honours source order, so
+                // the trailing `None`s end up after any kept frame).
+                let prev = total_bytes.fetch_add(want, Ordering::AcqRel);
+                if prev.saturating_add(want) > MAX_DECODED_ASSET_BYTES {
+                    total_bytes.fetch_sub(want, Ordering::AcqRel);
+                    truncated_for_bytes.store(true, Ordering::Release);
+                    return None;
+                }
+                Some(frame)
+            })
+            .collect()
+    };
+    let threads = std::thread::available_parallelism()
+        .map_or(1, |n| n.get())
+        .min(DECODE_THREADS)
+        .min(entries.len().max(1));
+    let decoded = match rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .thread_name(|i| format!("anima-decode-{i}"))
+        .build()
+    {
+        Ok(pool) => pool.install(decode),
+        // No threads to be had: rayon's own pool still decodes it.
+        Err(e) => {
+            tracing::debug!("PNG sequence: no pool of its own ({e})");
+            decode()
+        }
+    };
     // Collapse the per-file results, preserving source order (rayon's
     // collect maps results back to input positions). `None`s are
     // dropped wherever they sit: a corrupt file mid-sequence is

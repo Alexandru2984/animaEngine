@@ -34,9 +34,23 @@ WgpuRenderer (src/renderer/wgpu_renderer.rs)
   └─ Per-entity GpuTexture cache (src/renderer/texture.rs)
 
 Two entry points:
-  - new(window: Arc<winit::Window>)               winit path
-  - from_instance_surface(instance, surface, w, h)  backend-agnostic
+  - new(window: Arc<winit::Window>)                 winit path
+  - with_surface_from(make_surface, w, h)           backend-agnostic: a
+    surface for each instance it tries (native Wayland)
 ```
+
+**Picking the GPU** (`choose_gpu`, Linux and the BSDs). A Vulkan-only
+instance is tried first, and GL only when Vulkan offers no adapter or a
+software one (lavapipe), keeping GL's if it reaches a GPU. One instance
+asked for both would set GL up as well — EGL loads every vendor's
+driver through glvnd and, on Wayland, makes a second context for the
+window — even when Vulkan is used: on an AMD laptop that was 14.5 MB
+and 11 threads for nothing. The Vulkan loader still loads every
+installed ICD (lavapipe brings LLVM, NVIDIA's its GL libraries): about
+85 MB of resident, shared, clean file pages on that laptop, which only
+`VK_LOADER_DRIVERS_DISABLE` set before the loader starts could avoid.
+Windows asks for DX12, Vulkan and GL at once and draws through
+`win_layered`.
 
 **Surface-loss recovery** (`app/render_loop.rs`). `get_current_texture`
 returns `SurfaceError`, matched exhaustively — there is no `unwrap`, so
@@ -145,7 +159,8 @@ animation::loader::load_asset()           src/animation/loader.rs
    ├─ validate_image_dimensions()         decompression-bomb guard
    ├─ cache::try_load()                   on-disk RGBA cache, Phase 2.4
    └─ format dispatch:
-         PngSequence   → png_sequence::load_png_sequence() (parallel, rayon)
+         PngSequence   → png_sequence::load_png_sequence() (parallel, on a
+                         rayon pool of its own, up to 8 threads, gone after)
          PngStatic     → png_sequence::load_single_png()
          Gif           → gif_loader
          WebpAnimated  → webp_loader

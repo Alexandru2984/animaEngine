@@ -107,20 +107,13 @@ pub fn run_native(
         .size
         .ok_or_else(|| AnimaError::other("compositor produced no initial size"))?;
 
-    // Take the wgpu instance + surface out of the LayerWindow and hand
-    // them to the renderer. The wl_surface backing the wgpu surface
-    // stays alive inside `layer.state.layer` for the rest of this scope;
-    // ordering guarantees `renderer` is dropped before `layer` (Rust
-    // drops locals in reverse declaration order).
-    let instance = layer
-        .wgpu_instance
-        .take()
-        .ok_or_else(|| AnimaError::other("LayerWindow missing wgpu instance"))?;
-    let surface = layer
-        .wgpu_surface
-        .take()
-        .ok_or_else(|| AnimaError::other("LayerWindow missing wgpu surface"))?;
-    let mut renderer = WgpuRenderer::from_instance_surface(instance, surface, width, height)?;
+    // The renderer builds its surface from the layer, for each instance
+    // it tries. The wl_surface backing it stays alive inside
+    // `layer.state.layer` for the rest of this scope; ordering guarantees
+    // `renderer` is dropped before `layer` (Rust drops locals in reverse
+    // declaration order).
+    let mut renderer =
+        WgpuRenderer::with_surface_from(&|instance| layer.wgpu_surface(instance), width, height)?;
     // This loop paces itself (`FRAME_INTERVAL`), and behind the windows a
     // covered surface must not stall it waiting to present.
     renderer.prefer_mailbox();

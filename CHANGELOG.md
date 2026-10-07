@@ -346,6 +346,15 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 - The pulse on the selected row in the Scene tab ignored **Reduce
   motion**. It holds still now, and otherwise runs at ten frames a
   second instead of every frame.
+- **Setting up the GPU cost memory and threads for nothing.** The
+  renderer asked for Vulkan and GL at once, which sets GL up too — on
+  Linux every vendor's EGL driver, and on Wayland a second context for
+  the window — though Vulkan is what nearly every machine uses. GL is
+  now tried only when Vulkan has no GPU to offer: on an AMD laptop,
+  14.5 MB and 11 threads less. And a PNG sequence was decoded on rayon's
+  global pool, which kept one thread per core for the life of the app —
+  32, idle, on a 16-core machine. Its decoding has a pool of its own now,
+  up to 8 threads, gone when the load is done.
 - **A time with a huge hour** — `"122412244:1"` in a reminder, bedtime
   or own hours, by hand or from a restored backup — crashed a debug
   build working out the minutes; a release build refused it, as both do

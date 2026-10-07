@@ -292,6 +292,97 @@ fn pick_alpha_mode(available: &[wgpu::CompositeAlphaMode]) -> Result<wgpu::Compo
     )))
 }
 
+/// Ask `instance` for an adapter that can present to `surface`, the
+/// low-power one where there are several.
+fn request_adapter(
+    instance: &wgpu::Instance,
+    surface: Option<&wgpu::Surface<'static>>,
+    force_fallback_adapter: bool,
+) -> Option<wgpu::Adapter> {
+    pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::LowPower,
+        compatible_surface: surface,
+        force_fallback_adapter,
+    }))
+}
+
+/// One backend tried: its instance, a surface from it, and the adapter it
+/// offered, if any.
+#[cfg(not(windows))]
+struct Tried {
+    // The surface first: it is dropped before the instance it came from.
+    surface: wgpu::Surface<'static>,
+    instance: wgpu::Instance,
+    adapter: Option<wgpu::Adapter>,
+}
+
+/// The instance, adapter and surface to render with: Vulkan first, GL only
+/// when Vulkan has nothing better than software to offer.
+///
+/// One instance asked for both sets both up, and the GL half is not free:
+/// on Linux it is EGL, which loads and starts every vendor's driver
+/// through glvnd — Mesa's with LLVM, NVIDIA's — and on Wayland a second
+/// context for the window, even though Vulkan is what gets used on nearly
+/// every machine. In the test rig that was 33 MB and 32 threads spent for
+/// nothing. GL is still tried when Vulkan offers no adapter, or only a
+/// software one (lavapipe): a GPU too old for Vulkan may still have GL,
+/// and wgpu, asked for both, would have picked it over software. With
+/// software either way, Vulkan's is kept, as wgpu picked before.
+#[cfg(not(windows))]
+fn choose_gpu(
+    make_surface: &dyn Fn(&wgpu::Instance) -> Result<wgpu::Surface<'static>>,
+) -> Result<(wgpu::Instance, wgpu::Adapter, wgpu::Surface<'static>)> {
+    let try_backend = |backends: wgpu::Backends| -> Option<Tried> {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends,
+            ..Default::default()
+        });
+        let surface = make_surface(&instance)
+            .map_err(|e| tracing::info!("No {backends:?} surface: {e}"))
+            .ok()?;
+        let adapter = request_adapter(&instance, Some(&surface), false);
+        Some(Tried {
+            surface,
+            instance,
+            adapter,
+        })
+    };
+    let hardware = |t: &Tried| {
+        t.adapter
+            .as_ref()
+            .is_some_and(|a| a.get_info().device_type != wgpu::DeviceType::Cpu)
+    };
+    let done = |t: Tried| t.adapter.map(|a| (t.instance, a, t.surface));
+
+    let vulkan = match try_backend(wgpu::Backends::VULKAN) {
+        Some(v) if hardware(&v) => return done(v).ok_or(AnimaError::NoAdapter),
+        other => other,
+    };
+    tracing::info!("No Vulkan GPU adapter; trying GL as well");
+    let gl = try_backend(wgpu::Backends::GL);
+    let (vulkan, gl) = match (vulkan, gl) {
+        (_, Some(g)) if hardware(&g) => return done(g).ok_or(AnimaError::NoAdapter),
+        (Some(v), g) if v.adapter.is_some() => {
+            drop(g);
+            return done(v).ok_or(AnimaError::NoAdapter);
+        }
+        (v, Some(g)) if g.adapter.is_some() => {
+            drop(v);
+            return done(g).ok_or(AnimaError::NoAdapter);
+        }
+        pair => pair,
+    };
+    // Nothing at all: a software fallback, as on Windows.
+    tracing::warn!("No GPU adapter; retrying with a software fallback");
+    for mut t in [vulkan, gl].into_iter().flatten() {
+        t.adapter = request_adapter(&t.instance, Some(&t.surface), true);
+        if let Some(chosen) = done(t) {
+            return Ok(chosen);
+        }
+    }
+    Err(AnimaError::NoAdapter)
+}
+
 impl GpuShared {
     /// Build the process-wide GPU state. `surface` is only used for
     /// adapter compatibility and capability queries — it is not
@@ -300,14 +391,10 @@ impl GpuShared {
     /// swapchain at all (see the `renderer::win_layered` module — plain
     /// text because it is `#[cfg(windows)]`); the format is then fixed by
     /// the blit rather than negotiated with a compositor.
+    #[cfg(windows)]
     fn new(instance: wgpu::Instance, surface: Option<&wgpu::Surface<'static>>) -> Result<Self> {
-        let request = |force_fallback_adapter| {
-            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::LowPower,
-                compatible_surface: surface,
-                force_fallback_adapter,
-            }))
-        };
+        let request =
+            |force_fallback_adapter| request_adapter(&instance, surface, force_fallback_adapter);
         // A hardware adapter first. When there is none, ask again for a
         // fallback one rather than failing startup: wgpu excludes CPU
         // adapters from an ordinary request, so a Windows box with no GPU
@@ -324,7 +411,17 @@ impl GpuShared {
                 request(true).ok_or(AnimaError::NoAdapter)?
             }
         };
+        Self::with_adapter(instance, adapter, surface)
+    }
 
+    /// Build the GPU state on `adapter`, from `instance`. `surface` is only
+    /// queried for its formats and alpha modes — the caller wraps it into a
+    /// [`SurfaceState`] next — and is `None` on the Windows layered path.
+    fn with_adapter(
+        instance: wgpu::Instance,
+        adapter: wgpu::Adapter,
+        surface: Option<&wgpu::Surface<'static>>,
+    ) -> Result<Self> {
         tracing::info!("GPU adapter: {}", adapter.get_info().name);
         tracing::info!("Backend: {:?}", adapter.get_info().backend);
         // GPU pass-time in the perf HUD needs TIMESTAMP_QUERY. Software
@@ -619,8 +716,7 @@ impl GpuShared {
 impl SurfaceState {
     /// Configure a surface against the shared device and build its
     /// per-window buffers. The surface must come from
-    /// `shared.instance` (or the instance handed to
-    /// [`WgpuRenderer::from_instance_surface`]).
+    /// `shared.instance`.
     pub fn new(
         shared: &GpuShared,
         surface: wgpu::Surface<'static>,
@@ -1061,23 +1157,20 @@ impl WgpuRenderer {
         let window_width = size.width.max(1);
         let window_height = size.height.max(1);
 
-        // Backend mask, not `Backends::all()` — we only claim the ones the
-        // renderer is actually exercised against. Vulkan-first with a GL
-        // fallback is right for Linux/BSD; on Windows DX12 has to lead, and
-        // has to be in the mask at all: the OS ships it, while a Vulkan ICD
-        // may simply not exist (a fresh install, a VM, an RDP session).
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            #[cfg(windows)]
-            backends: wgpu::Backends::DX12 | wgpu::Backends::VULKAN | wgpu::Backends::GL,
-            #[cfg(not(windows))]
-            backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
-            ..Default::default()
-        });
         // Windows takes the layered path: no swapchain is created at all,
         // because none of them can be transparent there (the measurement
         // is in `crate::renderer::win_layered`).
         #[cfg(windows)]
         {
+            // Backend mask, not `Backends::all()` — we only claim the ones
+            // the renderer is actually exercised against. DX12 has to lead,
+            // and has to be in the mask at all: the OS ships it, while a
+            // Vulkan ICD may simply not exist (a fresh install, a VM, an RDP
+            // session).
+            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+                backends: wgpu::Backends::DX12 | wgpu::Backends::VULKAN | wgpu::Backends::GL,
+                ..Default::default()
+            });
             let hwnd = Self::win_hwnd(&window)
                 .ok_or_else(|| AnimaError::other("overlay window is not a Win32 window"))?;
             let shared = GpuShared::new(instance, None)?;
@@ -1087,18 +1180,21 @@ impl WgpuRenderer {
         }
         #[cfg(not(windows))]
         {
-            let surface = instance.create_surface(window.clone())?;
-            Self::from_instance_surface(instance, surface, window_width, window_height)
+            Self::with_surface_from(
+                &|instance: &wgpu::Instance| Ok(instance.create_surface(window.clone())?),
+                window_width,
+                window_height,
+            )
         }
     }
 
-    /// Construct from a pre-built `Instance` and `Surface`. This is the
-    /// backend-agnostic entry point — the native Wayland path (and any
-    /// future backend) calls this directly after attaching a surface
-    /// to its own window handle.
-    pub fn from_instance_surface(
-        instance: wgpu::Instance,
-        surface: wgpu::Surface<'static>,
+    /// Construct for a window `make_surface` gives a surface of, from
+    /// whichever instance it is handed — Vulkan's first, GL's if need be
+    /// (`choose_gpu`). The backend-agnostic entry point: the native Wayland
+    /// path calls it with its own window handle.
+    #[cfg(not(windows))]
+    pub fn with_surface_from(
+        make_surface: &dyn Fn(&wgpu::Instance) -> Result<wgpu::Surface<'static>>,
         window_width: u32,
         window_height: u32,
     ) -> Result<Self> {
@@ -1107,7 +1203,8 @@ impl WgpuRenderer {
             window_width,
             window_height
         );
-        let shared = GpuShared::new(instance, Some(&surface))?;
+        let (instance, adapter, surface) = choose_gpu(make_surface)?;
+        let shared = GpuShared::with_adapter(instance, adapter, Some(&surface))?;
         let primary = SurfaceState::new(&shared, surface, window_width, window_height);
         Ok(Self { shared, primary })
     }

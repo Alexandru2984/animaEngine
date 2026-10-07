@@ -68,22 +68,12 @@ use wayland_client::{
 /// What `try_create` produces. The caller stores it and drives the event
 /// loop manually (we don't spawn anything internally).
 ///
-/// `wgpu_instance` / `wgpu_surface` are `Option` so the run-loop can
-/// `.take()` them and hand them to `WgpuRenderer::from_instance_surface`
-/// without copying or transmuting. The `LayerWindow` keeps the underlying
-/// `wl_surface` alive afterward — the raw handle baked into the wgpu
-/// surface remains valid until the `LayerWindow` is dropped, so the
-/// caller must drop `WgpuRenderer` first.
+/// The renderer asks it for a wgpu surface ([`LayerWindow::wgpu_surface`])
+/// for each instance it tries. The `LayerWindow` keeps the underlying
+/// `wl_surface` alive — the raw handle baked into a wgpu surface remains
+/// valid until the `LayerWindow` is dropped, so the caller must drop
+/// `WgpuRenderer` first.
 pub struct LayerWindow {
-    // Field order is load-bearing: Rust drops fields top-to-bottom, and
-    // `wgpu_surface` holds raw pointers into `connection` + `state`'s
-    // `wl_surface` and borrows `wgpu_instance`, so it MUST drop before all
-    // of them. Declaring it first makes that invariant structural instead
-    // of relying on the caller's drop order — which the `.take()` hand-off
-    // to the renderer normally provides, but an error/abandon path (surface
-    // built, never taken) would not, leaving a use-after-free on drop.
-    pub wgpu_surface: Option<wgpu::Surface<'static>>,
-    pub wgpu_instance: Option<wgpu::Instance>,
     pub connection: Connection,
     pub event_queue: EventQueue<WaylandState>,
     pub state: WaylandState,
@@ -179,14 +169,6 @@ impl LayerWindow {
         layer.set_exclusive_zone(-1);
         layer.commit();
 
-        // Build the wgpu instance now; the surface is built *after* `state`
-        // below (see the comment there) so their drop order stays correct
-        // if the initial roundtrip fails.
-        let wgpu_instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
-            ..Default::default()
-        });
-
         let mut state = WaylandState {
             registry_state,
             output_state,
@@ -260,19 +242,6 @@ impl LayerWindow {
             }
         }
 
-        // Build the wgpu surface from the wl_surface now owned by `state`,
-        // *after* `state` is constructed. Declaration order is (reversed)
-        // drop order for locals: putting this after `state` means that if
-        // the roundtrip below returns `Err`, `wgpu_surface` is dropped
-        // before `state`, so wgpu tears the surface down before the
-        // `LayerSurface` inside `state` runs `wl_surface.destroy()`. The
-        // reverse order (surface first) would destroy the wl_surface while
-        // the wgpu surface still references it — the lifetime violation
-        // `build_wgpu_surface`'s SAFETY contract forbids. On the success
-        // path the returned struct's field order enforces the same teardown.
-        let wgpu_surface =
-            build_wgpu_surface(&wgpu_instance, &connection, state.layer.wl_surface())?;
-
         // Round-trip so the compositor sends us its first `configure`
         // event and we learn the size. This also surfaces protocol errors
         // (bad anchor combination, etc.) early.
@@ -285,8 +254,6 @@ impl LayerWindow {
             connection,
             event_queue,
             state,
-            wgpu_surface: Some(wgpu_surface),
-            wgpu_instance: Some(wgpu_instance),
             size,
         })
     }
@@ -339,6 +306,13 @@ pub(crate) fn build_wgpu_surface(
 }
 
 impl LayerWindow {
+    /// A wgpu surface for the layer, from `instance` — the renderer asks
+    /// for one per instance it tries (`WgpuRenderer::with_surface_from`).
+    /// It must be dropped before this window (`build_wgpu_surface`).
+    pub fn wgpu_surface(&self, instance: &wgpu::Instance) -> Result<wgpu::Surface<'static>> {
+        build_wgpu_surface(instance, &self.connection, self.state.layer.wl_surface())
+    }
+
     /// Drain pointer events accumulated since the previous call. Frame
     /// callbacks invoke this and feed the result into egui.
     /// Whether the input waiting to be drained holds anything someone did,
