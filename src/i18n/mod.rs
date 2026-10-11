@@ -107,6 +107,93 @@ pub fn t_args(key: &str, args: &FluentArgs<'_>) -> String {
     t_with(key, Some(args))
 }
 
+/// Something to tell the user: a message in the `.ftl` files and its
+/// arguments, said in their language where it is shown ([`Msg::said`])
+/// and in English where it is logged (`Display`) — a log is read by
+/// whoever helps, whatever their language. A system's or a library's
+/// own words, which no `.ftl` holds, travel as they are ([`Msg::text`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Msg {
+    /// A message id, and its arguments by name.
+    Said {
+        id: &'static str,
+        args: Vec<(&'static str, String)>,
+    },
+    /// Words as they are.
+    Text(String),
+}
+
+impl Msg {
+    /// The message `id`, with no arguments yet.
+    pub fn new(id: &'static str) -> Self {
+        Self::Said {
+            id,
+            args: Vec::new(),
+        }
+    }
+
+    /// With the argument `name` set to `value`.
+    #[must_use]
+    pub fn arg(mut self, name: &'static str, value: impl ToString) -> Self {
+        if let Self::Said { args, .. } = &mut self {
+            args.push((name, value.to_string()));
+        }
+        self
+    }
+
+    /// Words as they are, said the same in every language.
+    pub fn text(words: impl Into<String>) -> Self {
+        Self::Text(words.into())
+    }
+
+    /// In the user's language.
+    pub fn said(&self) -> String {
+        match self {
+            Self::Said { id, args } => t_args(id, &fluent_args(args)),
+            Self::Text(words) => words.clone(),
+        }
+    }
+}
+
+fn fluent_args<'a>(args: &'a [(&'static str, String)]) -> FluentArgs<'a> {
+    let mut out = FluentArgs::new();
+    for (name, value) in args {
+        out.set(*name, value.as_str());
+    }
+    out
+}
+
+impl std::fmt::Display for Msg {
+    /// In English, for the log.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Said { id, args } => {
+                static ENGLISH: OnceLock<FluentBundle<FluentResource>> = OnceLock::new();
+                let english = ENGLISH.get_or_init(|| build_bundle(FALLBACK));
+                match format_in(english, id, Some(&fluent_args(args))) {
+                    Some(words) => f.write_str(&words),
+                    None => write!(f, "?{id}?"),
+                }
+            }
+            Self::Text(words) => f.write_str(words),
+        }
+    }
+}
+
+impl std::error::Error for Msg {}
+
+impl From<String> for Msg {
+    fn from(words: String) -> Self {
+        Self::Text(words)
+    }
+}
+
+impl From<&str> for Msg {
+    fn from(words: &str) -> Self {
+        Self::Text(words.to_string())
+    }
+}
+
 fn t_with(key: &str, args: Option<&FluentArgs<'_>>) -> String {
     let Some(state) = STATE.get() else {
         // Subsystem not initialised — return the raw key so we still
@@ -605,6 +692,65 @@ mod tests {
             "these en.ftl keys are translated in every locale but never \
              referenced — the UI is probably drawing hardcoded English \
              instead: {unused:?}",
+        );
+    }
+
+    /// Every message the code names exists, in English at least: a key
+    /// mistyped in `t("…")` or `Msg::new("…")` shows the user `?key?`.
+    /// Only literal keys are checked — test code aside, where a missing
+    /// key can be the point.
+    #[test]
+    fn every_key_the_source_names_exists() {
+        let keys: std::collections::BTreeSet<String> = collect_keys("en").into_iter().collect();
+        let mut missing = Vec::new();
+        fn scan(
+            dir: &std::path::Path,
+            keys: &std::collections::BTreeSet<String>,
+            missing: &mut Vec<String>,
+        ) {
+            for entry in std::fs::read_dir(dir).expect("src is readable").flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    scan(&path, keys, missing);
+                    continue;
+                }
+                if path.extension().is_none_or(|e| e != "rs") {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path).expect("source is readable");
+                let body = text.split("\n#[cfg(test)]").next().unwrap_or("");
+                for call in ["t(\"", "t_args(\"", "Msg::new(\"", "i18n_key: \""] {
+                    for (at, _) in body.match_indices(call) {
+                        // `t(` only as a call of its own, not `set(`, `get(`…
+                        if call == "t(\"" || call == "t_args(\"" {
+                            let before = body[..at].chars().next_back();
+                            if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
+                                continue;
+                            }
+                        }
+                        let rest = &body[at + call.len()..];
+                        let Some(end) = rest.find('"') else { continue };
+                        let key = &rest[..end];
+                        let looks_like_a_key = !key.is_empty()
+                            && key
+                                .chars()
+                                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+                        if looks_like_a_key && !keys.contains(key) {
+                            let line = body[..at].lines().count();
+                            missing.push(format!("{}:{line}: {key}", path.display()));
+                        }
+                    }
+                }
+            }
+        }
+        scan(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+            &keys,
+            &mut missing,
+        );
+        assert!(
+            missing.is_empty(),
+            "keys named but not in en.ftl: {missing:#?}"
         );
     }
 

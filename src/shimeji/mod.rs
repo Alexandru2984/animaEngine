@@ -18,6 +18,7 @@
 
 use crate::behavior::Behavior;
 use crate::config::{AssetType, CharacterConfig, StateSequenceConfig};
+use crate::i18n::Msg;
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use std::collections::BTreeMap;
@@ -80,7 +81,11 @@ struct ParsedAction {
 
 /// Import one pack directory. `dest_root` is the asset-library root;
 /// sprites land under `dest_root/imported/<slug>/`.
-pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, String> {
+///
+/// What stops a whole pack is said to the user in their language where
+/// it is something they can act on — no actions, no idle pose, an
+/// encoding, a size — and in the reader's own words otherwise.
+pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, Msg> {
     let pack_root = pack_root
         .canonicalize()
         .map_err(|e| format!("pack root unreachable: {e}"))?;
@@ -98,17 +103,15 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, S
 
     // ── Stat-based pack caps, before any decode ─────────────────────
     let (sprite_count, pack_bytes) = pack_stats(&pack_root)?;
-    if sprite_count > MAX_PACK_SPRITES {
-        return Err(format!(
-            "pack has {sprite_count} sprites; cap is {MAX_PACK_SPRITES}"
-        ));
-    }
-    if pack_bytes > MAX_PACK_BYTES {
-        return Err(format!(
-            "pack is {} MiB on disk; cap is {} MiB",
+    if sprite_count > MAX_PACK_SPRITES || pack_bytes > MAX_PACK_BYTES {
+        tracing::warn!(
+            "Shimeji pack too big: {sprite_count} sprites (cap {MAX_PACK_SPRITES}), {} MiB (cap {} MiB)",
             pack_bytes / (1024 * 1024),
             MAX_PACK_BYTES / (1024 * 1024)
-        ));
+        );
+        return Err(Msg::new("shimeji-too-big")
+            .arg("sprites", MAX_PACK_SPRITES)
+            .arg("max", MAX_PACK_BYTES / (1024 * 1024)));
     }
 
     // ── Locate + parse actions.xml ──────────────────────────────────
@@ -121,7 +124,7 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, S
         .iter()
         .find(|a| a.kind == ActionKind::Stay && !a.poses.is_empty());
     let Some(idle) = idle else {
-        return Err("no usable Stay action — a pack needs at least an idle pose".into());
+        return Err(Msg::new("shimeji-no-idle"));
     };
     let walk = actions
         .iter()
@@ -313,14 +316,13 @@ fn pack_stats(root: &Path) -> Result<(usize, u64), String> {
 
 /// `conf/actions.xml` by convention; otherwise the first `conf/*.xml`
 /// whose root element local-name is `Mascot`.
-fn find_actions_xml(root: &Path) -> Result<PathBuf, String> {
+fn find_actions_xml(root: &Path) -> Result<PathBuf, Msg> {
     let conventional = root.join("conf").join("actions.xml");
     if is_regular_file(&conventional) {
         return Ok(conventional);
     }
     let conf = root.join("conf");
-    let entries =
-        std::fs::read_dir(&conf).map_err(|_| "pack has no conf/ directory".to_string())?;
+    let entries = std::fs::read_dir(&conf).map_err(|_| Msg::new("shimeji-no-actions"))?;
     for entry in entries.flatten() {
         let p = entry.path();
         if p.extension().and_then(|e| e.to_str()) != Some("xml") {
@@ -343,7 +345,7 @@ fn find_actions_xml(root: &Path) -> Result<PathBuf, String> {
             }
         }
     }
-    Err("no actions.xml found (and no conf/*.xml with a <Mascot> root)".into())
+    Err(Msg::new("shimeji-no-actions"))
 }
 
 /// True only for a *regular* file — not a symlink, FIFO, socket,
@@ -358,7 +360,7 @@ fn is_regular_file(path: &Path) -> bool {
 }
 
 /// Read a file with the XML size cap, requiring valid UTF-8.
-fn read_capped_utf8(path: &Path) -> Result<String, String> {
+fn read_capped_utf8(path: &Path) -> Result<String, Msg> {
     // Reject symlinks / FIFOs / sockets / devices before touching the
     // bytes: `symlink_metadata` doesn't follow, so a `conf/*.xml` symlink
     // can't redirect the read outside the pack, and a named pipe can't
@@ -372,7 +374,8 @@ fn read_capped_utf8(path: &Path) -> Result<String, String> {
             "XML is {} KiB; cap is {} KiB",
             meta.len() / 1024,
             MAX_XML_BYTES / 1024
-        ));
+        )
+        .into());
     }
     // Open with O_NOFOLLOW on Linux/BSD: even if `path` were swapped for a
     // symlink between the stat above and here (TOCTOU), the open fails
@@ -393,15 +396,14 @@ fn read_capped_utf8(path: &Path) -> Result<String, String> {
             .read_to_end(&mut buf)
             .map_err(|e| format!("read: {e}"))?;
         if buf.len() as u64 > MAX_XML_BYTES {
-            return Err(format!("XML exceeds {} KiB cap", MAX_XML_BYTES / 1024));
+            return Err(format!("XML exceeds {} KiB cap", MAX_XML_BYTES / 1024).into());
         }
         buf
     };
     #[cfg(not(unix))]
     let bytes = std::fs::read(path).map_err(|e| format!("read: {e}"))?;
 
-    String::from_utf8(bytes)
-        .map_err(|_| "XML is not valid UTF-8 (Shift-JIS packs are not supported)".into())
+    String::from_utf8(bytes).map_err(|_| Msg::new("shimeji-not-utf8"))
 }
 
 /// Stream-parse the `<ActionList>` into our intermediate shape.
@@ -933,7 +935,7 @@ mod tests {
         let no_stay = ACTIONS_XML.replace("Type=\"Stay\"", "Type=\"Animate\"");
         std::fs::write(pack.join("conf").join("actions.xml"), no_stay).unwrap();
         let err = import_pack(&pack, &dest).unwrap_err();
-        assert!(err.contains("Stay"), "got: {err}");
+        assert_eq!(err, Msg::new("shimeji-no-idle"));
     }
 
     #[test]
@@ -945,7 +947,7 @@ mod tests {
         }
         std::fs::write(pack.join("conf").join("actions.xml"), bomb).unwrap();
         let err = import_pack(&pack, &dest).unwrap_err();
-        assert!(err.contains("depth"), "got: {err}");
+        assert!(err.to_string().contains("depth"), "got: {err}");
     }
 
     #[test]
@@ -957,7 +959,7 @@ mod tests {
         )
         .unwrap();
         let err = import_pack(&pack, &dest).unwrap_err();
-        assert!(err.contains("UTF-8"), "got: {err}");
+        assert_eq!(err, Msg::new("shimeji-not-utf8"));
     }
 
     #[test]

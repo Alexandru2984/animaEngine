@@ -113,10 +113,13 @@ pub struct Entry<'a> {
     pub data: &'a [u8],
 }
 
+/// What [`read`] says of bytes that are no zip archive at all.
+pub const NOT_A_ZIP: &str = "not a zip file";
+
 /// The entries of the zip in `bytes`, at most `max_entries` of them, or
 /// why it is not one this reader takes.
 pub fn read(bytes: &[u8], max_entries: usize) -> Result<Vec<Entry<'_>>, String> {
-    let end = find_end(bytes).ok_or("not a zip file")?;
+    let end = find_end(bytes).ok_or(NOT_A_ZIP)?;
     let (disk, cd_disk) = (u16_at(bytes, end + 4)?, u16_at(bytes, end + 6)?);
     let (here, total) = (u16_at(bytes, end + 8)?, u16_at(bytes, end + 10)?);
     if disk != 0 || cd_disk != 0 || here != total {

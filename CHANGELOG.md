@@ -357,6 +357,15 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 
 ### Fixed
 
+- **Some text stayed English in every language**: the presets in the
+  Scene tab and the command palette — their names, what they say they
+  are, the characters they add — the tray icon's tooltip, the shortcuts'
+  descriptions the desktop's settings show, a first run's demo
+  characters, and why a file was not taken: a dropped file of a kind or
+  a size that cannot be shown; a scene, character or backup file that is
+  damaged, not one, or from a newer version; a Shimeji pack with no
+  idle pose, no `actions.xml` or in Shift-JIS. A system's or a library's
+  own error text still comes as it is, and the log stays in English.
 - **After an upgrade, a new action's default could take a shortcut you
   had set.** 1.5's Undo comes with Ctrl+Z; had you given Ctrl+Z to
   another action, Undo won it. A shortcut you set now keeps its action,

@@ -28,6 +28,7 @@
 //! goal here is "obviously wrong inputs never reach decode."
 
 use crate::constants::MAX_ASSET_FILE_BYTES;
+use crate::i18n::Msg;
 use std::path::Path;
 
 /// Render a filesystem path for `tracing::info!` without exposing the
@@ -77,22 +78,21 @@ pub const DROP_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "mp4
 
 /// Sanity-check a candidate asset file before invoking the decoder.
 ///
-/// Returns the reason string when the file should be rejected, or
-/// `Ok(())` when it looks plausible. The decoders downstream still
+/// Returns the reason, for the user (`Msg::said`) and the log, when the
+/// file should be rejected, or `Ok(())` when it looks plausible. The decoders downstream still
 /// run their own format-specific validation (dimensions, frame
 /// count, codec checks); this gate only enforces the cheap filesystem-
 /// level invariants.
-pub fn pre_validate_dropped_file(path: &Path) -> Result<(), String> {
-    let meta = std::fs::metadata(path).map_err(|e| format!("can't stat file: {e}"))?;
+pub fn pre_validate_dropped_file(path: &Path) -> Result<(), Msg> {
+    let meta =
+        std::fs::metadata(path).map_err(|e| Msg::new("error-file-unreadable").arg("error", e))?;
     if !meta.is_file() {
-        return Err("not a regular file".into());
+        return Err(Msg::new("error-not-a-file"));
     }
     if meta.len() > MAX_ASSET_FILE_BYTES {
-        return Err(format!(
-            "file is {} MB; cap is {} MB",
-            meta.len() / (1024 * 1024),
-            MAX_ASSET_FILE_BYTES / (1024 * 1024)
-        ));
+        return Err(Msg::new("error-file-too-big")
+            .arg("size", meta.len() / (1024 * 1024))
+            .arg("max", MAX_ASSET_FILE_BYTES / (1024 * 1024)));
     }
 
     let ext = path
@@ -101,8 +101,8 @@ pub fn pre_validate_dropped_file(path: &Path) -> Result<(), String> {
         .map(|s| s.to_ascii_lowercase());
     match ext.as_deref() {
         Some(e) if DROP_EXTENSIONS.contains(&e) => Ok(()),
-        Some(e) => Err(format!("unsupported file type: .{e}")),
-        None => Err("file has no extension".into()),
+        Some(e) => Err(Msg::new("error-file-type").arg("ext", e)),
+        None => Err(Msg::new("error-file-no-extension")),
     }
 }
 
@@ -139,6 +139,7 @@ pub fn resolve_library_asset(root: &Path, relative: &Path) -> Result<std::path::
 #[cfg(test)]
 mod tests {
     use super::{pre_validate_dropped_file, redact_path, resolve_library_asset};
+    use crate::i18n::Msg;
     use std::path::{Path, PathBuf};
 
     #[test]
@@ -183,7 +184,12 @@ mod tests {
         let path = dir.join("evil.exe");
         std::fs::write(&path, b"x").unwrap();
         let err = pre_validate_dropped_file(&path).unwrap_err();
-        assert!(err.contains("unsupported"));
+        assert_eq!(err, Msg::new("error-file-type").arg("ext", "exe"));
+        assert_eq!(
+            err.to_string(),
+            "Files ending in .exe cannot be shown; PNG, JPEG, GIF, WebP and MP4 can.",
+            "English in the log"
+        );
     }
 
     #[test]
@@ -198,7 +204,7 @@ mod tests {
     fn drop_rejects_directory() {
         let dir = workspace_tmp("is_dir");
         let err = pre_validate_dropped_file(&dir).unwrap_err();
-        assert!(err.contains("not a regular file"));
+        assert_eq!(err, Msg::new("error-not-a-file"));
     }
 
     #[test]
@@ -207,7 +213,7 @@ mod tests {
         let path = dir.join("noext");
         std::fs::write(&path, b"x").unwrap();
         let err = pre_validate_dropped_file(&path).unwrap_err();
-        assert!(err.contains("no extension"));
+        assert_eq!(err, Msg::new("error-file-no-extension"));
     }
 
     #[test]
@@ -247,6 +253,15 @@ mod tests {
         let dir = workspace_tmp("missing");
         let path = dir.join("ghost.png");
         let err = pre_validate_dropped_file(&path).unwrap_err();
-        assert!(err.contains("stat") || err.contains("file"));
+        assert!(
+            matches!(
+                &err,
+                Msg::Said {
+                    id: "error-file-unreadable",
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
     }
 }

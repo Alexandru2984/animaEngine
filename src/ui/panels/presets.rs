@@ -62,9 +62,9 @@ fn preset_card(
                 ui.label(egui::RichText::new(preset.icon).size(18.0).color(accent));
                 ui.add_space(SPACE_S);
                 ui.vertical(|ui| {
-                    ui.label(egui::RichText::new(preset.name).strong().color(body_color));
+                    ui.label(egui::RichText::new(&preset.name).strong().color(body_color));
                     ui.label(
-                        egui::RichText::new(preset.description)
+                        egui::RichText::new(&preset.description)
                             .text_style(theme::caption())
                             .weak(),
                     );
@@ -75,7 +75,7 @@ fn preset_card(
             // stepping through them, needs to hear which preset each is for.
             // The palette's rows already say exactly that.
             let mut args = fluent::FluentArgs::new();
-            args.set("preset", preset.name);
+            args.set("preset", preset.name.clone());
             ui.horizontal(|ui| {
                 if ui
                     .button(t("scene-preset-append"))

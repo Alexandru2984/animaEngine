@@ -590,7 +590,7 @@ impl App {
                 Err(e) => {
                     tracing::warn!("Failed to save config: {}", e);
                     let mut args = fluent::FluentArgs::new();
-                    args.set("error", e.to_string());
+                    args.set("error", e.said());
                     self.toasts
                         .error(crate::i18n::t_args("toast-save-failed", &args));
                 }

@@ -29,6 +29,7 @@ use crate::config::{AppConfig, AssetType};
 use crate::constants::{MAX_ASSET_FILE_BYTES, MAX_CONFIG_BYTES, MAX_ENTITIES, MAX_SEQUENCE_FILES};
 use crate::drop_validate::DROP_EXTENSIONS;
 use crate::error::{AnimaError, Result};
+use crate::i18n::Msg;
 use crate::scenes::SavedScene;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -158,14 +159,13 @@ fn export_as(
 /// file), a script stood still, its sound and monitor left behind.
 /// Returns whether a script was left out.
 fn pack_character(c: &mut crate::config::CharacterConfig, packer: &mut Packer) -> Result<bool> {
-    let why = |name: &str, e: AnimaError| AnimaError::other(format!("{name}: {e}"));
     c.asset_path = packer
         .place(&c.asset_type, &c.asset_path)
-        .map_err(|e| why(&c.name, e))?;
+        .map_err(|e| e.for_(&c.name))?;
     for state in c.animations.values_mut() {
         state.asset_path = packer
             .place(&state.asset_type, &state.asset_path)
-            .map_err(|e| why(&c.name, e))?;
+            .map_err(|e| e.for_(&c.name))?;
     }
     let script = matches!(c.behavior, crate::behavior::Behavior::Script { .. });
     if script {
@@ -200,10 +200,9 @@ fn write_zip(
         let data = read_asset(source)?;
         total += data.len() as u64;
         if total > MAX_FILE_BYTES {
-            return Err(AnimaError::other(format!(
-                "the scene is over {} MB",
-                MAX_FILE_BYTES / (1024 * 1024)
-            )));
+            return Err(AnimaError::said_as(
+                Msg::new("error-share-too-big").arg("max", MAX_FILE_BYTES / (1024 * 1024)),
+            ));
         }
         zip.add(name, &data)?;
     }
@@ -218,10 +217,10 @@ fn write_zip(
 fn read_asset(path: &Path) -> Result<Vec<u8>> {
     let meta = std::fs::metadata(path)?;
     if !meta.is_file() || meta.len() > MAX_ASSET_FILE_BYTES {
-        return Err(AnimaError::other(format!(
-            "{} is not a picture that can be shared",
-            crate::drop_validate::redact_path(path)
-        )));
+        return Err(AnimaError::said_as(
+            Msg::new("error-picture-not-shareable")
+                .arg("path", crate::drop_validate::redact_path(path)),
+        ));
     }
     Ok(std::fs::read(path)?)
 }
@@ -269,10 +268,10 @@ impl Packer {
                 .map(str::to_ascii_lowercase)
                 .filter(|e| DROP_EXTENSIONS.contains(&e.as_str()))
                 .ok_or_else(|| {
-                    AnimaError::other(format!(
-                        "{} is not a picture that can be shared",
-                        crate::drop_validate::redact_path(&source)
-                    ))
+                    AnimaError::said_as(
+                        Msg::new("error-picture-not-shareable")
+                            .arg("path", crate::drop_validate::redact_path(&source)),
+                    )
                 })?;
             let name = format!("{dir}/asset.{ext}");
             self.files.push((name.clone(), source.clone()));
@@ -283,40 +282,59 @@ impl Packer {
     }
 }
 
+/// A file of ours that does not read as one this version writes:
+/// damaged, or made by hand. The user is told so in their language; what
+/// exactly is wrong goes to the log.
+pub(crate) fn damaged(detail: impl std::fmt::Display) -> AnimaError {
+    tracing::warn!("Not read: {detail}");
+    AnimaError::said_as(Msg::new("error-file-damaged"))
+}
+
+/// A file too big to open, past [`MAX_FILE_BYTES`].
+pub(crate) fn too_big_to_open() -> AnimaError {
+    AnimaError::said_as(Msg::new("error-file-over").arg("max", MAX_FILE_BYTES / (1024 * 1024)))
+}
+
+/// What the archive reader's `e` means to the user: not one of our
+/// files at all (`not_ours`, the message for which kind), or one damaged.
+pub(crate) fn not_ours_or_damaged(e: &str, not_ours: &'static str) -> AnimaError {
+    if e == zip::NOT_A_ZIP {
+        AnimaError::said_as(Msg::new(not_ours))
+    } else {
+        damaged(e)
+    }
+}
+
 /// Read the scene file `file`, and put its pictures in `into` — a folder
 /// that does not exist yet. Returns the scene, its characters pointing
 /// there, and its own picture. On failure nothing is left in `into`.
 pub fn import(file: &Path, into: &Path) -> Result<Imported> {
     let meta = std::fs::metadata(file)?;
     if !meta.is_file() {
-        return Err(AnimaError::other("not a regular file"));
+        return Err(AnimaError::said_as(Msg::new("error-not-a-file")));
     }
     if meta.len() > MAX_FILE_BYTES {
-        return Err(AnimaError::other(format!(
-            "the file is over {} MB",
-            MAX_FILE_BYTES / (1024 * 1024)
-        )));
+        return Err(too_big_to_open());
     }
     let bytes = std::fs::read(file)?;
-    let entries = zip::read(&bytes, MAX_ENTRIES).map_err(AnimaError::other)?;
+    let entries = zip::read(&bytes, MAX_ENTRIES)
+        .map_err(|e| not_ours_or_damaged(&e, "error-not-a-scene-file"))?;
     let manifest = entries
         .iter()
         .find(|e| e.name == MANIFEST)
-        .ok_or_else(|| AnimaError::other("not a scene file: no scene.toml inside"))?;
+        .ok_or_else(|| AnimaError::said_as(Msg::new("error-not-a-scene-file")))?;
     if manifest.data.len() as u64 > MAX_CONFIG_BYTES {
-        return Err(AnimaError::other("its scene.toml is too big"));
+        return Err(damaged("its scene.toml is too big"));
     }
-    let text = std::str::from_utf8(manifest.data)
-        .map_err(|_| AnimaError::other("its scene.toml is not text"))?;
+    let text =
+        std::str::from_utf8(manifest.data).map_err(|_| damaged("its scene.toml is not text"))?;
     let Manifest {
         format,
         character,
         mut scene,
-    } = toml::from_str(text).map_err(|e| AnimaError::other(format!("scene.toml: {e}")))?;
+    } = toml::from_str(text).map_err(|e| damaged(format!("scene.toml: {e}")))?;
     if format > FORMAT {
-        return Err(AnimaError::other(
-            "made by a newer animaEngine; update to open it",
-        ));
+        return Err(AnimaError::said_as(Msg::new("error-file-newer")));
     }
 
     let mut assets = Vec::new();
@@ -330,13 +348,13 @@ pub fn import(file: &Path, into: &Path) -> Result<Imported> {
             continue;
         }
         if !is_asset_name(entry.name) {
-            return Err(AnimaError::other(format!(
+            return Err(damaged(format!(
                 "unexpected file inside: {}",
                 crate::drop_validate::redact_path(Path::new(entry.name))
             )));
         }
         if entry.data.len() as u64 > MAX_ASSET_FILE_BYTES {
-            return Err(AnimaError::other(format!(
+            return Err(damaged(format!(
                 "{} is over the {} MB a picture may be",
                 entry.name,
                 MAX_ASSET_FILE_BYTES / (1024 * 1024)
@@ -347,15 +365,11 @@ pub fn import(file: &Path, into: &Path) -> Result<Imported> {
 
     tidy(&mut scene);
     for c in &mut scene.characters {
-        c.asset_path =
-            local_path(&c.asset_type, &c.asset_path, &assets, into).ok_or_else(|| {
-                AnimaError::other(format!("{}: its picture is not in the file", c.name))
-            })?;
+        c.asset_path = local_path(&c.asset_type, &c.asset_path, &assets, into)
+            .ok_or_else(|| damaged(format!("{}: its picture is not in the file", c.name)))?;
         for state in c.animations.values_mut() {
             state.asset_path = local_path(&state.asset_type, &state.asset_path, &assets, into)
-                .ok_or_else(|| {
-                    AnimaError::other(format!("{}: its picture is not in the file", c.name))
-                })?;
+                .ok_or_else(|| damaged(format!("{}: its picture is not in the file", c.name)))?;
         }
     }
 
@@ -477,7 +491,7 @@ fn unpack(assets: &[zip::Entry<'_>], into: &Path) -> Result<()> {
         }
         std::fs::write(&path, entry.data)?;
         crate::drop_validate::pre_validate_dropped_file(&path)
-            .map_err(|why| AnimaError::other(format!("{}: {why}", entry.name)))?;
+            .map_err(|why| AnimaError::said_as(why).for_(entry.name))?;
     }
     Ok(())
 }
@@ -539,7 +553,7 @@ fn tidy(scene: &mut SavedScene) {
         .take(60)
         .collect();
     scene.name = match name.trim() {
-        "" => "Shared scene".to_string(),
+        "" => crate::i18n::t("scene-shared-unnamed"),
         trimmed => trimmed.to_string(),
     };
     scene.characters.truncate(MAX_ENTITIES);

@@ -573,7 +573,7 @@ pub fn load_scene(
         Err(e) => {
             tracing::warn!("Scene not loaded: {e}");
             let mut args = fluent::FluentArgs::new();
-            args.set("error", e.to_string());
+            args.set("error", e.said());
             ctx.toasts
                 .warn(crate::i18n::t_args("toast-scene-failed", &args));
             false
@@ -672,7 +672,7 @@ pub fn apply_palette_outcome(
                         if let Err(e) = ctx.scene.append_character_config(cfg) {
                             tracing::warn!("Palette preset append failed: {e}");
                             let mut args = fluent::FluentArgs::new();
-                            args.set("error", e.to_string());
+                            args.set("error", e.said());
                             ctx.toasts
                                 .warn(crate::i18n::t_args("toast-preset-entry-failed", &args));
                         }
@@ -713,7 +713,7 @@ pub fn apply_library_outcome(
             // zero-width, BOM) that would flip journald lines visually.
             tracing::warn!("Library asset {} rejected: {reason}", redact_path(rel_path));
             tracing::debug!("Rejected library relative path: {}", outcome.relative_path);
-            reject(ctx.toasts, reason);
+            reject(ctx.toasts, reason.into());
             return;
         }
     };
@@ -778,7 +778,7 @@ pub fn add_dropped_file(path: &Path, at: (f32, f32), ctx: &mut OutcomeCtx<'_>) -
     if let Err(reason) = pre_validate_dropped_file(path) {
         tracing::warn!("Rejecting dropped file {label}: {reason}");
         let mut args = fluent::FluentArgs::new();
-        args.set("reason", reason);
+        args.set("reason", reason.said());
         ctx.toasts
             .error(crate::i18n::t_args("toast-rejected", &args));
         return None;
@@ -812,7 +812,7 @@ pub fn add_dropped_file(path: &Path, at: (f32, f32), ctx: &mut OutcomeCtx<'_>) -
         Err(e) => {
             tracing::error!("Failed to load dropped file {label}: {e}");
             let mut args = fluent::FluentArgs::new();
-            args.set("error", e.to_string());
+            args.set("error", e.said());
             ctx.toasts
                 .error(crate::i18n::t_args("toast-load-failed", &args));
             None
@@ -910,12 +910,12 @@ enum TransferStage {
 }
 
 enum TransferDone {
-    Shared(Result<(PathBuf, crate::scene_file::Exported), String>),
-    Imported(Result<crate::scene_file::Imported, String>),
-    Gif(Result<PathBuf, String>),
-    CharacterShared(Result<(PathBuf, crate::scene_file::Exported), String>),
-    BackedUp(Result<PathBuf, String>),
-    Restored(Result<usize, String>),
+    Shared(crate::error::Result<(PathBuf, crate::scene_file::Exported)>),
+    Imported(crate::error::Result<crate::scene_file::Imported>),
+    Gif(crate::error::Result<PathBuf>),
+    CharacterShared(crate::error::Result<(PathBuf, crate::scene_file::Exported)>),
+    BackedUp(crate::error::Result<PathBuf>),
+    Restored(crate::error::Result<usize>),
 }
 
 /// Where a [`SceneTransfer`] is.
@@ -958,7 +958,7 @@ impl SceneTransfer {
             }
             Err(e) => {
                 let mut args = fluent::FluentArgs::new();
-                args.set("error", e.to_string());
+                args.set("error", e.said());
                 toasts.error(crate::i18n::t_args("toast-scene-share-failed", &args));
                 None
             }
@@ -1069,8 +1069,7 @@ impl SceneTransfer {
                 let into = crate::scene_file::fresh_dir(&crate::scene_file::imports_dir(), &stem);
                 TransferDone::Imported(
                     crate::scene_file::import(&file, &into)
-                        .map(|imported| crate::scene_file::Imported { at, ..imported })
-                        .map_err(|e| e.to_string()),
+                        .map(|imported| crate::scene_file::Imported { at, ..imported }),
                 )
             })),
         }
@@ -1198,7 +1197,7 @@ impl SceneTransfer {
                     Ok(TransferDone::Shared(Err(e))) => {
                         tracing::warn!("Sharing a scene failed: {e}");
                         let mut args = fluent::FluentArgs::new();
-                        args.set("error", e);
+                        args.set("error", e.said());
                         toasts.error(crate::i18n::t_args("toast-scene-share-failed", &args));
                         Transfer::Done
                     }
@@ -1219,7 +1218,7 @@ impl SceneTransfer {
                     Ok(TransferDone::CharacterShared(Err(e))) => {
                         tracing::warn!("Sharing a character failed: {e}");
                         let mut args = fluent::FluentArgs::new();
-                        args.set("error", e);
+                        args.set("error", e.said());
                         toasts.error(crate::i18n::t_args("toast-scene-share-failed", &args));
                         Transfer::Done
                     }
@@ -1233,7 +1232,7 @@ impl SceneTransfer {
                     Ok(TransferDone::BackedUp(Err(e))) | Ok(TransferDone::Restored(Err(e))) => {
                         tracing::warn!("Backup or restore failed: {e}");
                         let mut args = fluent::FluentArgs::new();
-                        args.set("error", e);
+                        args.set("error", e.said());
                         toasts.error(crate::i18n::t_args("toast-backup-failed", &args));
                         Transfer::Done
                     }
@@ -1254,7 +1253,7 @@ impl SceneTransfer {
                     Ok(TransferDone::Gif(Err(e))) => {
                         tracing::warn!("Saving a GIF failed: {e}");
                         let mut args = fluent::FluentArgs::new();
-                        args.set("error", e);
+                        args.set("error", e.said());
                         toasts.error(crate::i18n::t_args("toast-gif-failed", &args));
                         Transfer::Done
                     }
@@ -1262,7 +1261,7 @@ impl SceneTransfer {
                     Ok(TransferDone::Imported(Err(e))) => {
                         tracing::warn!("Importing a scene failed: {e}");
                         let mut args = fluent::FluentArgs::new();
-                        args.set("error", e);
+                        args.set("error", e.said());
                         toasts.error(crate::i18n::t_args("toast-scene-import-failed", &args));
                         Transfer::Done
                     }
@@ -1298,8 +1297,7 @@ fn export_to(
     TransferStage::Working(spawn_transfer(move || {
         TransferDone::Shared(
             crate::scene_file::export(&saved, thumbnail.as_deref(), &to)
-                .map(|exported| (to, exported))
-                .map_err(|e| e.to_string()),
+                .map(|exported| (to, exported)),
         )
     }))
 }
@@ -1317,9 +1315,7 @@ fn backup_to(config: crate::config::AppConfig, to: PathBuf) -> TransferStage {
             })
             .collect();
         TransferDone::BackedUp(
-            crate::scene_file::backup::back_up(&config, &scenes, &to)
-                .map(|_| to)
-                .map_err(|e| e.to_string()),
+            crate::scene_file::backup::back_up(&config, &scenes, &to).map(|_| to),
         )
     }))
 }
@@ -1329,8 +1325,7 @@ fn restore_from(file: PathBuf) -> TransferStage {
         let into = crate::scene_file::fresh_dir(&crate::scene_file::imports_dir(), "backup");
         TransferDone::Restored(
             crate::scene_file::backup::read(&file, &into)
-                .and_then(crate::scene_file::backup::put_in_place)
-                .map_err(|e| e.to_string()),
+                .and_then(crate::scene_file::backup::put_in_place),
         )
     }))
 }
@@ -1338,16 +1333,14 @@ fn restore_from(file: PathBuf) -> TransferStage {
 fn character_to(config: crate::config::CharacterConfig, to: PathBuf) -> TransferStage {
     TransferStage::Working(spawn_transfer(move || {
         TransferDone::CharacterShared(
-            crate::scene_file::export_character(&config, &to)
-                .map(|exported| (to, exported))
-                .map_err(|e| e.to_string()),
+            crate::scene_file::export_character(&config, &to).map(|exported| (to, exported)),
         )
     }))
 }
 
 fn gif_to(job: crate::gif_export::GifJob, to: PathBuf) -> TransferStage {
     TransferStage::Working(spawn_transfer(move || {
-        TransferDone::Gif(job.write(&to).map(|_| to).map_err(|e| e.to_string()))
+        TransferDone::Gif(job.write(&to).map(|_| to))
     }))
 }
 
@@ -1435,7 +1428,7 @@ pub fn apply_imported(
         Ok(path) => path,
         Err(e) => {
             let mut args = fluent::FluentArgs::new();
-            args.set("error", e.to_string());
+            args.set("error", e.said());
             ctx.toasts
                 .error(crate::i18n::t_args("toast-scene-import-failed", &args));
             return false;
@@ -1477,7 +1470,7 @@ pub fn apply_imported(
     true
 }
 
-type ImportResult = Result<crate::shimeji::ImportReport, String>;
+type ImportResult = Result<crate::shimeji::ImportReport, crate::i18n::Msg>;
 
 /// A Shimeji pack import running off the UI thread.
 ///
@@ -1555,7 +1548,7 @@ fn apply_shimeji_import(result: ImportResult, at: (f32, f32), ctx: &mut OutcomeC
         Err(reason) => {
             tracing::warn!("Shimeji import failed: {reason}");
             let mut args = fluent::FluentArgs::new();
-            args.set("reason", reason);
+            args.set("reason", reason.said());
             ctx.toasts
                 .error(crate::i18n::t_args("shimeji-import-failed-toast", &args));
             return 0;
@@ -1573,7 +1566,7 @@ fn apply_shimeji_import(result: ImportResult, at: (f32, f32), ctx: &mut OutcomeC
                 tracing::warn!("Imported character '{}' rejected: {e}", cfg.name);
                 let mut args = fluent::FluentArgs::new();
                 args.set("name", cfg.name.clone());
-                args.set("error", e.to_string());
+                args.set("error", e.said());
                 ctx.toasts
                     .error(crate::i18n::t_args("toast-entity-load-failed", &args));
             }
@@ -1593,9 +1586,9 @@ fn apply_shimeji_import(result: ImportResult, at: (f32, f32), ctx: &mut OutcomeC
     added
 }
 
-fn reject(toasts: &mut ToastQueue, reason: String) {
+fn reject(toasts: &mut ToastQueue, reason: crate::i18n::Msg) {
     let mut args = fluent::FluentArgs::new();
-    args.set("reason", reason);
+    args.set("reason", reason.said());
     toasts.warn(crate::i18n::t_args("toast-rejected", &args));
 }
 

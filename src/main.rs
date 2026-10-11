@@ -142,7 +142,7 @@ fn main() {
     // First-run demo so users see something on screen. Safe to delete from config.
     demo::generate_assets();
 
-    let config = AppConfig::load();
+    let mut config = AppConfig::load();
     tracing::info!(
         "Config loaded: {} characters, playback={}",
         config.characters.len(),
@@ -167,6 +167,13 @@ fn main() {
     // is available everywhere.
     anima_engine::i18n::init(config.global.locale.as_deref());
     tracing::info!("Active locale: {}", anima_engine::i18n::current_locale());
+    // A first run's demo characters, named in that language — the config
+    // was made before the language was known.
+    if anima_engine::config::first_run() && config.name_demo_characters() {
+        if let Err(e) = config.save() {
+            tracing::warn!("Config save failed: {e}");
+        }
+    }
     // Seed the crash-recovery slot so a panic between now and the first
     // user-driven save still produces a useful snapshot.
     crash::record_known_good(&config);

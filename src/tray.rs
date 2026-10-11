@@ -38,7 +38,7 @@ impl ksni::Tray for AnimaTray {
     fn tool_tip(&self) -> ksni::ToolTip {
         ksni::ToolTip {
             title: crate::tray_menu::TITLE.into(),
-            description: "Right-click for options".into(),
+            description: crate::i18n::t("tray-tooltip"),
             ..Default::default()
         }
     }

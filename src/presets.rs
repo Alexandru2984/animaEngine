@@ -20,6 +20,7 @@
 use crate::behavior::Behavior;
 use crate::config::{AssetType, CharacterConfig};
 use crate::constants::MAX_ENTITIES;
+use crate::i18n::t;
 use crate::ui::icons;
 
 /// Identifier for a curated preset. Stable across versions — UI code
@@ -51,8 +52,9 @@ impl PresetId {
 #[derive(Debug, Clone)]
 pub struct Preset {
     pub id: PresetId,
-    pub name: &'static str,
-    pub description: &'static str,
+    /// In the app's language, as the gallery and the palette show it.
+    pub name: String,
+    pub description: String,
     /// Phosphor glyph (single character); painted alongside the name.
     pub icon: &'static str,
     pub characters: Vec<CharacterConfig>,
@@ -154,11 +156,18 @@ fn demo_character(
     }
 }
 
+/// "Ghost 1" and on, in the app's language.
+fn ghost(n: i64) -> String {
+    let mut args = fluent::FluentArgs::new();
+    args.set("n", n);
+    crate::i18n::t_args("preset-ghost-n", &args)
+}
+
 fn cozy_companion() -> Preset {
     Preset {
         id: PresetId::CozyCompanion,
-        name: "Cozy Companion",
-        description: "One gentle ghost wandering quietly on the right.",
+        name: t("preset-cozy-companion"),
+        description: t("preset-cozy-companion-about"),
         icon: icons::GHOST,
         characters: vec![CharacterConfig {
             opacity: 0.9,
@@ -172,7 +181,7 @@ fn cozy_companion() -> Preset {
             },
             ..demo_character(
                 "ghost_companion",
-                "Companion",
+                &t("preset-companion"),
                 "assets/demo/ghost",
                 1400.0,
                 600.0,
@@ -185,8 +194,8 @@ fn cozy_companion() -> Preset {
 fn productivity_zen() -> Preset {
     Preset {
         id: PresetId::ProductivityZen,
-        name: "Productivity Zen",
-        description: "Static slime + heart in a quiet corner. No motion.",
+        name: t("preset-productivity-zen"),
+        description: t("preset-productivity-zen-about"),
         icon: icons::HEART,
         characters: vec![
             CharacterConfig {
@@ -195,7 +204,7 @@ fn productivity_zen() -> Preset {
                 playing: false,
                 ..demo_character(
                     "slime_zen",
-                    "Zen slime",
+                    &t("preset-zen-slime"),
                     "assets/demo/slime",
                     100.0,
                     900.0,
@@ -208,7 +217,7 @@ fn productivity_zen() -> Preset {
                 playing: false,
                 ..demo_character(
                     "heart_zen",
-                    "Zen heart",
+                    &t("preset-zen-heart"),
                     "assets/demo/heart",
                     200.0,
                     880.0,
@@ -223,8 +232,8 @@ fn halloween_party() -> Preset {
     let speed = 90.0;
     Preset {
         id: PresetId::HalloweenParty,
-        name: "Halloween Party",
-        description: "Three ghosts marching across the bottom edge.",
+        name: t("preset-halloween-party"),
+        description: t("preset-halloween-party-about"),
         icon: icons::FLAME,
         characters: vec![
             CharacterConfig {
@@ -233,7 +242,7 @@ fn halloween_party() -> Preset {
                 behavior: Behavior::WalkAround { speed },
                 ..demo_character(
                     "ghost_1",
-                    "Ghost 1",
+                    &ghost(1),
                     "assets/demo/ghost",
                     200.0,
                     800.0,
@@ -248,7 +257,7 @@ fn halloween_party() -> Preset {
                 },
                 ..demo_character(
                     "ghost_2",
-                    "Ghost 2",
+                    &ghost(2),
                     "assets/demo/ghost",
                     700.0,
                     820.0,
@@ -263,7 +272,7 @@ fn halloween_party() -> Preset {
                 },
                 ..demo_character(
                     "ghost_3",
-                    "Ghost 3",
+                    &ghost(3),
                     "assets/demo/ghost",
                     1200.0,
                     800.0,
@@ -281,7 +290,7 @@ fn birthday_confetti() -> Preset {
         fps: 12.0,
         ..demo_character(
             id,
-            asset,
+            &t(&format!("demo-{asset}")),
             &format!("assets/demo/{asset}"),
             x,
             y,
@@ -290,8 +299,8 @@ fn birthday_confetti() -> Preset {
     };
     Preset {
         id: PresetId::BirthdayConfetti,
-        name: "Birthday Confetti",
-        description: "Hearts and stars raining down. Gravity on.",
+        name: t("preset-birthday-confetti"),
+        description: t("preset-birthday-confetti-about"),
         icon: icons::CONFETTI,
         characters: vec![
             make("heart_1", "heart", 300.0, 100.0, 0.5),
@@ -307,13 +316,13 @@ fn birthday_confetti() -> Preset {
 fn studio_session() -> Preset {
     Preset {
         id: PresetId::StudioSession,
-        name: "Studio Session",
-        description: "All five demo characters spread across the desktop.",
+        name: t("preset-studio-session"),
+        description: t("preset-studio-session-about"),
         icon: icons::SPARKLE,
         characters: vec![
             demo_character(
                 "ghost_studio",
-                "Ghost",
+                &t("demo-ghost"),
                 "assets/demo/ghost",
                 200.0,
                 300.0,
@@ -321,7 +330,7 @@ fn studio_session() -> Preset {
             ),
             demo_character(
                 "slime_studio",
-                "Slime",
+                &t("demo-slime"),
                 "assets/demo/slime",
                 600.0,
                 450.0,
@@ -329,7 +338,7 @@ fn studio_session() -> Preset {
             ),
             demo_character(
                 "heart_studio",
-                "Heart",
+                &t("demo-heart"),
                 "assets/demo/heart",
                 1000.0,
                 250.0,
@@ -337,7 +346,7 @@ fn studio_session() -> Preset {
             ),
             demo_character(
                 "star_studio",
-                "Star",
+                &t("demo-star"),
                 "assets/demo/star",
                 1300.0,
                 500.0,
@@ -345,7 +354,7 @@ fn studio_session() -> Preset {
             ),
             demo_character(
                 "cat_studio",
-                "Cat",
+                &t("demo-cat"),
                 "assets/demo/cat",
                 900.0,
                 700.0,
@@ -364,8 +373,8 @@ fn studio_session() -> Preset {
 fn cursor_follower() -> Preset {
     Preset {
         id: PresetId::CursorFollower,
-        name: "Cursor Follower",
-        description: "A cat tags along wherever your mouse goes.",
+        name: t("preset-cursor-follower"),
+        description: t("preset-cursor-follower-about"),
         icon: icons::CURSOR,
         characters: vec![CharacterConfig {
             scale: 0.8,
@@ -376,7 +385,7 @@ fn cursor_follower() -> Preset {
             },
             ..demo_character(
                 "cat_follower",
-                "Cat",
+                &t("demo-cat"),
                 "assets/demo/cat",
                 800.0,
                 500.0,

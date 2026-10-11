@@ -222,7 +222,7 @@ pub fn command_palette(
                             if i == selected && moved {
                                 resp.scroll_to_me(Some(egui::Align::Center));
                             }
-                            if let Some(hover) = row.hover {
+                            if let Some(hover) = &row.hover {
                                 resp = resp.on_hover_text(hover);
                             }
                             if resp.clicked() {
@@ -254,7 +254,7 @@ struct Row {
     label: String,
     /// The action's shortcut, drawn dimmed after the label.
     hint: Option<String>,
-    hover: Option<&'static str>,
+    hover: Option<String>,
     outcome: PaletteOutcome,
 }
 
@@ -321,16 +321,16 @@ fn rows(query: &str, keybindings: &KeyBindings, has_selection: bool) -> Vec<Row>
     for pid in PresetId::ALL {
         let preset = Preset::for_id(*pid);
         let mut args = fluent::FluentArgs::new();
-        args.set("preset", preset.name);
+        args.set("preset", preset.name.clone());
         let label_replace = crate::i18n::t_args("palette-replace-row", &args);
         let label_append = crate::i18n::t_args("palette-append-row", &args);
-        let any = matches_filter(preset.name) || matches_filter(preset.description);
+        let any = matches_filter(&preset.name) || matches_filter(&preset.description);
         if any || matches_filter(&label_replace) {
             rows.push(Row {
                 icon: preset.icon,
                 label: label_replace,
                 hint: None,
-                hover: Some(preset.description),
+                hover: Some(preset.description.clone()),
                 outcome: PaletteOutcome::ApplyPreset(*pid, ApplyMode::Replace),
             });
         }
@@ -339,7 +339,7 @@ fn rows(query: &str, keybindings: &KeyBindings, has_selection: bool) -> Vec<Row>
                 icon: preset.icon,
                 label: label_append,
                 hint: None,
-                hover: Some(preset.description),
+                hover: Some(preset.description.clone()),
                 outcome: PaletteOutcome::ApplyPreset(*pid, ApplyMode::Append),
             });
         }

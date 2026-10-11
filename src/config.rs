@@ -1005,6 +1005,14 @@ fn migrate_v1_v2(_table: &mut toml::Table) {}
 /// defaults instead (the original is kept as `config.toml.bak-corrupt`).
 static LOAD_FELL_BACK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// Set when startup found no config at all: a first run.
+static FIRST_RUN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether this run is the first: there was no config to load.
+pub fn first_run() -> bool {
+    FIRST_RUN.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Whether this run's config was unreadable and replaced by the defaults.
 /// Each backend turns it into a banner at startup.
 pub fn loaded_defaults_over_unreadable_config() -> bool {
@@ -1189,11 +1197,38 @@ impl AppConfig {
         if fresh_install {
             config.global.last_seen_whats_new =
                 Some(crate::constants::WHATS_NEW_VERSION.to_string());
+            FIRST_RUN.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         if let Err(e) = config.save() {
             tracing::warn!("Failed to save default config: {}", e);
         }
         config
+    }
+
+    /// Name the demo characters a first run starts with in the app's
+    /// language — "Ghost Demo" and the rest were English in every one.
+    /// Only those still under their English name: one renamed by hand is
+    /// the user's. Whether any was renamed.
+    pub fn name_demo_characters(&mut self) -> bool {
+        let mut renamed = false;
+        for c in &mut self.characters {
+            let key = match (c.id.as_str(), c.name.as_str()) {
+                ("ghost", "Ghost Demo") => "demo-ghost",
+                ("slime", "Slime Demo") => "demo-slime",
+                ("heart", "Heart Demo") => "demo-heart",
+                ("star", "Star Demo") => "demo-star",
+                ("cat", "Cat Demo") => "demo-cat",
+                _ => continue,
+            };
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", crate::i18n::t(key));
+            let name = crate::i18n::t_args("demo-name", &args);
+            if !name.contains('?') && name != c.name {
+                c.name = name;
+                renamed = true;
+            }
+        }
+        renamed
     }
 
     /// Take in what the running scene holds — its characters, its groups

@@ -991,7 +991,7 @@ fn scenes_section(
             }
             Err(e) => {
                 let mut args = fluent::FluentArgs::new();
-                args.set("error", e.to_string());
+                args.set("error", e.said());
                 error = Some(crate::i18n::t_args("toast-scene-failed", &args));
             }
         },
@@ -1090,7 +1090,7 @@ fn save_scene_as(
         }
         Err(e) => {
             let mut args = fluent::FluentArgs::new();
-            args.set("error", e.to_string());
+            args.set("error", e.said());
             Err(crate::i18n::t_args("scene-scene-save-failed", &args))
         }
     }

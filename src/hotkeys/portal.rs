@@ -96,20 +96,14 @@ pub fn slug_action(slug: &str) -> Option<Action> {
     })
 }
 
-/// Human description shown in the desktop's shortcut dialog. English
-/// on purpose: the portal stores it at bind time, so a locale switch
-/// in-app wouldn't update it anyway — better one stable string than
-/// a stale translation.
-fn action_description(action: Action) -> &'static str {
-    match action {
-        Action::ToggleEditMode => "Toggle edit mode",
-        Action::HideOverlay => "Hide or show the overlay",
-        Action::PauseAll => "Pause or resume all animations",
-        Action::ToggleFocus => "Start or stop the focus timer",
-        Action::ToggleSnooze => "Snooze for 15 minutes, or wake up",
-        Action::ToggleMute => "Mute or unmute the sounds",
-        _ => "",
-    }
+/// Human description shown in the desktop's shortcut dialog: the
+/// Keybindings tab's own words for the action, in the app's language when
+/// the shortcuts are bound. They were English on purpose — the portal
+/// keeps what it is given, so a language changed in the app shows there
+/// only from the next start — but English in a German desktop's settings
+/// is worse than words a start behind.
+fn action_description(action: Action) -> String {
+    crate::i18n::t(action.i18n_key())
 }
 
 /// Convert a chord to the XDG shortcuts-spec trigger string the
@@ -182,11 +176,7 @@ pub fn spawn_bg(bindings: &KeyBindings) -> mpsc::Receiver<PortalMsg> {
                 .chords_for(action)
                 .first()
                 .and_then(|&c| chord_to_xdg_trigger(c));
-            Some((
-                slug.to_string(),
-                action_description(action).to_string(),
-                trigger,
-            ))
+            Some((slug.to_string(), action_description(action), trigger))
         })
         .collect();
 

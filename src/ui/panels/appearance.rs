@@ -361,7 +361,7 @@ fn autostart_switch(ui: &mut egui::Ui, granted: &mut bool) -> bool {
             }
             Err(e) => {
                 let mut args = fluent::FluentArgs::new();
-                args.set("error", e.to_string());
+                args.set("error", e.said());
                 let message = crate::i18n::t_args("appearance-autostart-failed", &args);
                 ui.data_mut(|d| d.insert_temp(error_key, message));
             }

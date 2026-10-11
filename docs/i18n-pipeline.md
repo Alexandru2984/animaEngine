@@ -75,6 +75,16 @@ entity-count-plural  = { $n } entities
    ui.label(t_args("keybindings-conflict", &args));
    ```
 
+   A reason made far from where it is shown — why a file was refused,
+   why an archive does not read — is an `i18n::Msg`: a key and its
+   arguments, said in the user's language where it is shown
+   (`msg.said()`, or `AnimaError::said()` for an error wrapping one),
+   and in English where it is logged (`Display`), since a log is read by
+   whoever helps. A system's or a library's own words — an I/O error,
+   a decoder's — travel as they are, in English (`Msg::text`).
+   `every_key_the_source_names_exists` fails on a literal key the code
+   names that `en.ftl` lacks.
+
 ## Audit pass (per-locale review)
 
 The per-locale audit lives under [`docs/locale-audit/`](

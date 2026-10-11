@@ -16,6 +16,7 @@ use super::{zip, Packer, MAX_ENTRIES, MAX_FILE_BYTES};
 use crate::config::{AppConfig, CharacterConfig};
 use crate::constants::MAX_CONFIG_BYTES;
 use crate::error::{AnimaError, Result};
+use crate::i18n::Msg;
 use crate::scenes::SavedScene;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -126,10 +127,9 @@ fn write(
         let data = super::read_asset(source)?;
         total += data.len() as u64;
         if total > MAX_FILE_BYTES {
-            return Err(AnimaError::other(format!(
-                "the backup is over {} MB",
-                MAX_FILE_BYTES / (1024 * 1024)
-            )));
+            return Err(AnimaError::said_as(
+                Msg::new("error-backup-too-big").arg("max", MAX_FILE_BYTES / (1024 * 1024)),
+            ));
         }
         zip.add(name, &data)?;
     }
@@ -182,34 +182,30 @@ fn thumb_index(name: &str) -> Option<usize> {
 pub fn read(file: &Path, into: &Path) -> Result<Restored> {
     let meta = std::fs::metadata(file)?;
     if !meta.is_file() {
-        return Err(AnimaError::other("not a regular file"));
+        return Err(AnimaError::said_as(Msg::new("error-not-a-file")));
     }
     if meta.len() > MAX_FILE_BYTES {
-        return Err(AnimaError::other(format!(
-            "the file is over {} MB",
-            MAX_FILE_BYTES / (1024 * 1024)
-        )));
+        return Err(super::too_big_to_open());
     }
     let bytes = std::fs::read(file)?;
-    let entries = zip::read(&bytes, MAX_ENTRIES).map_err(AnimaError::other)?;
+    let entries = zip::read(&bytes, MAX_ENTRIES)
+        .map_err(|e| super::not_ours_or_damaged(&e, "error-not-a-backup"))?;
     let manifest = entries
         .iter()
         .find(|e| e.name == MANIFEST)
-        .ok_or_else(|| AnimaError::other("not a backup: no backup.toml inside"))?;
+        .ok_or_else(|| AnimaError::said_as(Msg::new("error-not-a-backup")))?;
     if manifest.data.len() as u64 > MAX_MANIFEST_BYTES {
-        return Err(AnimaError::other("its backup.toml is too big"));
+        return Err(super::damaged("its backup.toml is too big"));
     }
     let text = std::str::from_utf8(manifest.data)
-        .map_err(|_| AnimaError::other("its backup.toml is not text"))?;
+        .map_err(|_| super::damaged("its backup.toml is not text"))?;
     let Manifest {
         format,
         mut config,
         scenes,
-    } = toml::from_str(text).map_err(|e| AnimaError::other(format!("backup.toml: {e}")))?;
+    } = toml::from_str(text).map_err(|e| super::damaged(format!("backup.toml: {e}")))?;
     if format > FORMAT {
-        return Err(AnimaError::other(
-            "made by a newer animaEngine; update to open it",
-        ));
+        return Err(AnimaError::said_as(Msg::new("error-file-newer")));
     }
 
     let mut assets = Vec::new();
@@ -223,13 +219,13 @@ pub fn read(file: &Path, into: &Path) -> Result<Restored> {
             continue;
         }
         if !super::is_asset_name(entry.name) {
-            return Err(AnimaError::other(format!(
+            return Err(super::damaged(format!(
                 "unexpected file inside: {}",
                 crate::drop_validate::redact_path(Path::new(entry.name))
             )));
         }
         if entry.data.len() as u64 > crate::constants::MAX_ASSET_FILE_BYTES {
-            return Err(AnimaError::other(format!(
+            return Err(super::damaged(format!(
                 "{} is over the size a picture may be",
                 entry.name
             )));
@@ -256,14 +252,12 @@ pub fn read(file: &Path, into: &Path) -> Result<Restored> {
         w.characters = scene.characters;
     }
     let point = |c: &mut CharacterConfig| -> Result<()> {
-        c.asset_path =
-            super::local_path(&c.asset_type, &c.asset_path, &assets, into).ok_or_else(|| {
-                AnimaError::other(format!("{}: its picture is not in the file", c.name))
-            })?;
+        c.asset_path = super::local_path(&c.asset_type, &c.asset_path, &assets, into)
+            .ok_or_else(|| super::damaged(format!("{}: its picture is not in the file", c.name)))?;
         for state in c.animations.values_mut() {
             state.asset_path =
                 super::local_path(&state.asset_type, &state.asset_path, &assets, into).ok_or_else(
-                    || AnimaError::other(format!("{}: its picture is not in the file", c.name)),
+                    || super::damaged(format!("{}: its picture is not in the file", c.name)),
                 )?;
         }
         Ok(())
