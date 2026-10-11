@@ -267,6 +267,7 @@ pub const GROUP: &str = ph::BOUNDING_BOX;
 pub const UNGROUP: &str = ph::LINK_BREAK;
 pub const RENAME: &str = ph::PENCIL_SIMPLE;
 pub const SCENE: &str = ph::BOOKMARK_SIMPLE;
+pub const MONITOR: &str = ph::MONITOR;
 pub const REMINDER: &str = ph::BELL_SIMPLE;
 pub const SAVE: &str = ph::FLOPPY_DISK;
 pub const ALIGN_LEFT: &str = ph::ALIGN_LEFT;

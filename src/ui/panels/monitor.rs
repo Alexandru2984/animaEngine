@@ -14,7 +14,7 @@
 use crate::i18n::t;
 use crate::monitor::{MonitorInfo, MonitorMode};
 use crate::ui::accessible::ComboOption;
-use crate::ui::theme::{self, h2, SPACE_S};
+use crate::ui::theme::{self, SPACE_S};
 
 /// Scene-tab section that picks the global monitor distribution
 /// (`PerMonitor` / `Span` / `Single { name }`). Returns nothing —
@@ -29,9 +29,6 @@ pub(super) fn monitor_mode_picker(
     span_supported: bool,
     config_dirty: &mut bool,
 ) {
-    ui.label(egui::RichText::new(t("monitor-section-header")).text_style(h2()));
-    ui.add_space(SPACE_S);
-
     if monitors.is_empty() {
         ui.label(
             egui::RichText::new(t("monitor-no-monitors-detected"))

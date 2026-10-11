@@ -100,6 +100,36 @@ pub struct AwayControls<'a> {
     pub idle_available: Option<bool>,
 }
 
+/// A collapsing section with the design-system heading, its open flag
+/// kept in [`CollapseState`] so it survives a restart: seeded from `open`
+/// on the first frame, and written back from the widget's animated
+/// openness so a click marks the config dirty exactly once, not on every
+/// frame of the animation. `id` is stable — not `title`, which follows
+/// the language and may carry a count.
+pub(super) fn section(
+    ui: &mut egui::Ui,
+    id: &str,
+    title: &str,
+    open: &mut bool,
+    config_dirty: &mut bool,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    let header = egui::RichText::new(title).text_style(theme::h2());
+    let response = egui::CollapsingHeader::new(header)
+        .id_salt(("anima.section", id))
+        .default_open(*open)
+        .show(ui, |ui| {
+            ui.add_space(theme::SPACE_XS);
+            add_contents(ui);
+        });
+    let visually_open = response.openness > 0.5;
+    if visually_open != *open {
+        *open = visually_open;
+        *config_dirty = true;
+    }
+    ui.add_space(theme::SPACE_S);
+}
+
 /// The sounds' controls in Appearance (`crate::audio`).
 pub struct SoundControls<'a> {
     /// `sound_volume`, 0 to 1.

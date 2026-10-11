@@ -205,8 +205,9 @@ fn entity_inspector(
     ui.add_space(SPACE_S);
 
     // ── Collapsibles ──────────────────────────────────────────────────
-    section(
+    super::section(
         ui,
+        "inspector_position",
         &t("inspector-section-position"),
         &mut collapse_state.inspector_position,
         config_dirty,
@@ -258,8 +259,9 @@ fn entity_inspector(
         },
     );
 
-    section(
+    super::section(
         ui,
+        "inspector_appearance",
         &t("inspector-section-appearance"),
         &mut collapse_state.inspector_appearance,
         config_dirty,
@@ -304,8 +306,9 @@ fn entity_inspector(
         },
     );
 
-    section(
+    super::section(
         ui,
+        "inspector_animation",
         &t("inspector-section-animation"),
         &mut collapse_state.inspector_animation,
         config_dirty,
@@ -336,8 +339,9 @@ fn entity_inspector(
         },
     );
 
-    section(
+    super::section(
         ui,
+        "inspector_behavior",
         &t("inspector-section-behavior"),
         &mut collapse_state.inspector_behavior,
         config_dirty,
@@ -348,8 +352,9 @@ fn entity_inspector(
         },
     );
 
-    section(
+    super::section(
         ui,
+        "inspector_talk",
         &t("inspector-section-talk"),
         &mut collapse_state.inspector_talk,
         config_dirty,
@@ -602,38 +607,6 @@ fn hours_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
         });
     }
     changed
-}
-
-/// Collapsing inspector section with the design-system heading style.
-///
-/// `open` is the persisted flag from [`CollapseState`] — used as the
-/// first-frame seed via `default_open` and synced back from the
-/// widget's animated openness so a user click toggles config-dirty
-/// exactly once (not per frame during the expand/collapse animation).
-fn section(
-    ui: &mut egui::Ui,
-    title: &str,
-    open: &mut bool,
-    config_dirty: &mut bool,
-    add_contents: impl FnOnce(&mut egui::Ui),
-) {
-    let header = egui::RichText::new(title).text_style(h2());
-    let response = egui::CollapsingHeader::new(header)
-        .id_salt(("anima.inspector.section", title))
-        .default_open(*open)
-        .show(ui, |ui| {
-            ui.add_space(SPACE_XS);
-            add_contents(ui);
-        });
-    // `openness` animates 0.0..=1.0. Crossing 0.5 == user-visible
-    // state flipped — write the new value back to the persisted bool
-    // and flag dirty exactly once per toggle.
-    let visually_open = response.openness > 0.5;
-    if visually_open != *open {
-        *open = visually_open;
-        *config_dirty = true;
-    }
-    ui.add_space(SPACE_S);
 }
 
 /// Easing-curve dropdown for `Animation::easing`. `None` represents

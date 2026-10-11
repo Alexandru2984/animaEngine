@@ -14,7 +14,7 @@ use crate::ui::accessible::{AccessibleName, ComboOption};
 use crate::ui::collapse::CollapseState;
 use crate::ui::icons;
 use crate::ui::states;
-use crate::ui::theme::{self, h2, SPACE_L, SPACE_M, SPACE_S};
+use crate::ui::theme::{self, SPACE_M, SPACE_S};
 
 // UI plumbing fans out one settings struct into per-tab params — same
 // allow as `panels::settings` itself.
@@ -45,71 +45,13 @@ pub(super) fn scene_tab(
     collapse_state: &mut CollapseState,
     request: &mut Option<super::SceneRequest>,
 ) {
-    // ── Monitor distribution section ─────────────────────────────────
-    monitor_mode_picker(ui, monitor_mode, monitors, span_supported, config_dirty);
-
-    // ── Window awareness (X11) ────────────────────────────────────────
-    //
-    // Greyed out where it cannot work. The control used to stay live on
-    // every backend with only a tooltip to explain it, so on native
-    // Wayland a user could tick it, see nothing happen, and have no way
-    // to tell whether the feature or their setup was at fault. The
-    // display server is the wrong thing to test — a Wayland session
-    // running us through XWayland reads EWMH just fine — so the caller
-    // passes what it actually has.
-    ui.add_space(SPACE_S);
-    ui.add_enabled_ui(window_awareness_supported, |ui| {
-        if ui
-            .checkbox(window_awareness, t("scene-window-awareness"))
-            .on_hover_text(t("scene-window-awareness-tooltip"))
-            .changed()
-        {
-            *config_dirty = true;
-        }
-    });
-    if !window_awareness_supported {
-        ui.add(
-            egui::Label::new(
-                egui::RichText::new(t("scene-window-awareness-unavailable"))
-                    .text_style(crate::ui::theme::caption())
-                    .color(ui.visuals().weak_text_color()),
-            )
-            .wrap(),
-        );
-    }
-    // Snapping while dragging (1.5), on both backends.
-    ui.add_space(SPACE_S);
-    if ui
-        .checkbox(snap_while_dragging, t("scene-snap"))
-        .on_hover_text(t("scene-snap-tooltip"))
-        .changed()
-    {
-        *config_dirty = true;
-    }
-    // Characters bumping into each other (1.5), on both backends.
-    if ui
-        .checkbox(characters_bump, t("scene-bump"))
-        .on_hover_text(t("scene-bump-tooltip"))
-        .changed()
-    {
-        *config_dirty = true;
-    }
-    // And saying hello when they meet (`crate::greet`).
-    if ui
-        .checkbox(characters_greet, t("scene-greet"))
-        .on_hover_text(t("scene-greet-tooltip"))
-        .changed()
-    {
-        *config_dirty = true;
-    }
-    ui.add_space(SPACE_L);
-    ui.separator();
-    ui.add_space(SPACE_M);
-
+    // Sections that fold away, their state kept across restarts
+    // (`CollapseState`): the characters and what is made of them first,
+    // then the time of day, then how they behave together and where.
+    // The way in that needs no dragging comes before all of it.
     ui.horizontal(|ui| {
-        // The way in that needs no dragging — and, in the Flatpak, the one
-        // that reaches files outside Pictures and Downloads. Unix only: it
-        // goes through the XDG desktop portal.
+        // In the Flatpak, the one that reaches files outside Pictures and
+        // Downloads. Unix only: it goes through the XDG desktop portal.
         if cfg!(unix)
             && ui
                 .button(format!("{}  {}", icons::ADD, t("scene-add-file")))
@@ -139,9 +81,8 @@ pub(super) fn scene_tab(
     });
     ui.add_space(SPACE_M);
 
-    let is_empty = scene.entities.is_empty();
-
-    if is_empty {
+    let mut changed = false;
+    if scene.entities.is_empty() {
         // D.8: zero-config CTA — open the preset gallery so a fresh
         // install can land in a curated scene with one click.
         if states::empty_with_action(
@@ -152,48 +93,150 @@ pub(super) fn scene_tab(
             Some(&t("scene-empty-action-browse-presets")),
         ) {
             collapse_state.scene_presets = true;
-            *config_dirty = true;
+            changed = true;
         }
-    } else {
-        ui.label(
-            egui::RichText::new(t("scene-drop-hint"))
-                .text_style(theme::caption())
-                .weak(),
-        );
         ui.add_space(SPACE_M);
-        scene_list(ui, scene, selection, config_dirty);
+    } else {
+        let title = titled(
+            icons::GHOST,
+            "scene-characters-header",
+            scene.entities.len(),
+        );
+        super::section(
+            ui,
+            "scene_characters",
+            &title,
+            &mut collapse_state.scene_characters,
+            config_dirty,
+            |ui| {
+                ui.label(
+                    egui::RichText::new(t("scene-drop-hint"))
+                        .text_style(theme::caption())
+                        .weak(),
+                );
+                ui.add_space(SPACE_S);
+                scene_list(ui, scene, selection, &mut changed);
+            },
+        );
         // Right under the characters they are made of — with a hint on
-        // how, until there are any. Below the preset gallery it was off
-        // the bottom of the panel.
-        ui.add_space(SPACE_L);
-        groups_section(ui, scene, selection, config_dirty);
+        // how, until there are any.
+        let title = titled(icons::STACK, "scene-groups-header", scene.groups.len());
+        super::section(
+            ui,
+            "scene_groups",
+            &title,
+            &mut collapse_state.scene_groups,
+            config_dirty,
+            |ui| groups_section(ui, scene, selection, &mut changed),
+        );
     }
     // Saved scenes, even with none on screen: one may be loaded.
-    ui.add_space(SPACE_L);
-    scenes_section(ui, scene, selection, config_dirty, active_scene, request);
-    schedule_section(ui, scene_schedule, config_dirty);
-    ui.add_space(SPACE_L);
-    reminders_section(ui, scene, reminders, config_dirty);
-    ui.add_space(SPACE_L);
-    focus_section(ui, focus, config_dirty);
-    ui.add_space(SPACE_S);
-    if reminder_sound_row(ui, reminder_sound, scene) {
-        *config_dirty = true;
-    }
-    // To the desktop's notifications too (`crate::notify`).
-    if ui
-        .checkbox(notify_reminders, t("reminder-notify-label"))
-        .on_hover_text(t("reminder-notify-hint"))
-        .changed()
-    {
-        *config_dirty = true;
-    }
-    if !is_empty {
-        ui.add_space(SPACE_L);
-        ui.separator();
-    }
+    let title = titled(
+        icons::SCENE,
+        "scene-scenes-header",
+        crate::scenes::shelf().len(),
+    );
+    super::section(
+        ui,
+        "scene_saved",
+        &title,
+        &mut collapse_state.scene_saved,
+        config_dirty,
+        |ui| {
+            scenes_section(ui, scene, selection, &mut changed, active_scene, request);
+            schedule_section(ui, scene_schedule, &mut changed);
+        },
+    );
+    // Reminders, with what plays and where they go — both shared with
+    // the focus timer below, as their hints say.
+    let title = titled(icons::REMINDER, "scene-reminders-header", reminders.len());
+    super::section(
+        ui,
+        "scene_reminders",
+        &title,
+        &mut collapse_state.scene_reminders,
+        config_dirty,
+        |ui| {
+            reminders_section(ui, scene, reminders, &mut changed);
+            ui.add_space(SPACE_S);
+            changed |= reminder_sound_row(ui, reminder_sound, scene);
+            // To the desktop's notifications too (`crate::notify`).
+            changed |= ui
+                .checkbox(notify_reminders, t("reminder-notify-label"))
+                .on_hover_text(t("reminder-notify-hint"))
+                .changed();
+        },
+    );
+    super::section(
+        ui,
+        "scene_focus",
+        &titled(icons::FOCUS, "scene-focus-header", 0),
+        &mut collapse_state.scene_focus,
+        config_dirty,
+        |ui| focus_section(ui, focus, &mut changed),
+    );
+    // How the characters behave around each other and a drag.
+    super::section(
+        ui,
+        "scene_together",
+        &titled(icons::HEART, "scene-together-header", 0),
+        &mut collapse_state.scene_together,
+        config_dirty,
+        |ui| {
+            // Snapping while dragging (1.5), on both backends.
+            changed |= ui
+                .checkbox(snap_while_dragging, t("scene-snap"))
+                .on_hover_text(t("scene-snap-tooltip"))
+                .changed();
+            // Characters bumping into each other (1.5), on both backends.
+            changed |= ui
+                .checkbox(characters_bump, t("scene-bump"))
+                .on_hover_text(t("scene-bump-tooltip"))
+                .changed();
+            // And saying hello when they meet (`crate::greet`).
+            changed |= ui
+                .checkbox(characters_greet, t("scene-greet"))
+                .on_hover_text(t("scene-greet-tooltip"))
+                .changed();
+        },
+    );
+    super::section(
+        ui,
+        "scene_monitors",
+        &titled(icons::MONITOR, "monitor-section-header", 0),
+        &mut collapse_state.scene_monitors,
+        config_dirty,
+        |ui| {
+            monitor_mode_picker(ui, monitor_mode, monitors, span_supported, &mut changed);
+            // Window awareness (X11), greyed out where it cannot work. The
+            // control used to stay live on every backend with only a
+            // tooltip to explain it, so on native Wayland a user could
+            // tick it, see nothing happen, and have no way to tell whether
+            // the feature or their setup was at fault. The display server
+            // is the wrong thing to test — a Wayland session running us
+            // through XWayland reads EWMH just fine — so the caller passes
+            // what it actually has.
+            ui.add_space(SPACE_S);
+            ui.add_enabled_ui(window_awareness_supported, |ui| {
+                changed |= ui
+                    .checkbox(window_awareness, t("scene-window-awareness"))
+                    .on_hover_text(t("scene-window-awareness-tooltip"))
+                    .changed();
+            });
+            if !window_awareness_supported {
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(t("scene-window-awareness-unavailable"))
+                            .text_style(crate::ui::theme::caption())
+                            .color(ui.visuals().weak_text_color()),
+                    )
+                    .wrap(),
+                );
+            }
+        },
+    );
+    *config_dirty |= changed;
 
-    ui.add_space(SPACE_M);
     preset_gallery(
         ui,
         scene,
@@ -201,6 +244,16 @@ pub(super) fn scene_tab(
         config_dirty,
         &mut collapse_state.scene_presets,
     );
+}
+
+/// A section's title: its icon, its name, and how many it holds when it
+/// holds any — so a folded section still says what is in it.
+fn titled(icon: &str, key: &str, count: usize) -> String {
+    if count > 0 {
+        format!("{icon}  {} ({count})", t(key))
+    } else {
+        format!("{icon}  {}", t(key))
+    }
 }
 
 /// A group being renamed: which, the name it had, and whether its field
@@ -224,11 +277,6 @@ fn focus_section(
     focus: &mut crate::focus::FocusConfig,
     config_dirty: &mut bool,
 ) {
-    ui.label(
-        egui::RichText::new(format!("{}  {}", icons::FOCUS, t("scene-focus-header")))
-            .text_style(h2()),
-    );
-    ui.add_space(SPACE_S);
     ui.add(
         egui::Label::new(
             egui::RichText::new(t("scene-focus-hint"))
@@ -387,15 +435,6 @@ fn reminders_section(
     config_dirty: &mut bool,
 ) {
     use crate::reminders::{ReminderConfig, MAX_MINUTES, MIN_MINUTES};
-    ui.label(
-        egui::RichText::new(format!(
-            "{}  {}",
-            icons::REMINDER,
-            t("scene-reminders-header")
-        ))
-        .text_style(h2()),
-    );
-    ui.add_space(SPACE_S);
     let weak = ui.visuals().weak_text_color();
     let every = |minutes: u32| {
         let mut args = fluent::FluentArgs::new();
@@ -794,11 +833,6 @@ fn scenes_section(
     active: &mut Option<String>,
     request: &mut Option<super::SceneRequest>,
 ) {
-    ui.label(
-        egui::RichText::new(format!("{}  {}", icons::SCENE, t("scene-scenes-header")))
-            .text_style(h2()),
-    );
-    ui.add_space(SPACE_S);
     let weak = ui.visuals().weak_text_color();
     let shelf = crate::scenes::shelf();
     if shelf.is_empty() {
@@ -1057,11 +1091,6 @@ fn groups_section(
     selection: &mut SelectionState,
     config_dirty: &mut bool,
 ) {
-    ui.label(
-        egui::RichText::new(format!("{}  {}", icons::STACK, t("scene-groups-header")))
-            .text_style(h2()),
-    );
-    ui.add_space(SPACE_S);
     let weak = ui.visuals().weak_text_color();
     if scene.groups.is_empty() {
         ui.add(

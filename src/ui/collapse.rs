@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 /// All persistable collapse flags. New sections add a field +
 /// `#[serde(default)]` so older configs that don't carry the field
 /// still decode cleanly.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollapseState {
     /// Inspector → Position section. Default open.
     #[serde(default = "default_true")]
@@ -36,6 +36,23 @@ pub struct CollapseState {
     /// discover the curated scenes; closes on click and stays closed.
     #[serde(default = "default_true")]
     pub scene_presets: bool,
+    /// Scene tab sections (1.5): open where most visits go — the
+    /// characters, their groups, the saved scenes — and closed for the
+    /// rest, whose headers still say what they hold.
+    #[serde(default = "default_true")]
+    pub scene_characters: bool,
+    #[serde(default = "default_true")]
+    pub scene_groups: bool,
+    #[serde(default = "default_true")]
+    pub scene_saved: bool,
+    #[serde(default)]
+    pub scene_reminders: bool,
+    #[serde(default)]
+    pub scene_focus: bool,
+    #[serde(default)]
+    pub scene_together: bool,
+    #[serde(default)]
+    pub scene_monitors: bool,
 }
 
 fn default_true() -> bool {
@@ -51,6 +68,13 @@ impl Default for CollapseState {
             inspector_behavior: false,
             inspector_talk: false,
             scene_presets: true,
+            scene_characters: true,
+            scene_groups: true,
+            scene_saved: true,
+            scene_reminders: false,
+            scene_focus: false,
+            scene_together: false,
+            scene_monitors: false,
         }
     }
 }
@@ -96,14 +120,17 @@ mod tests {
             inspector_behavior: true,
             inspector_talk: true,
             scene_presets: false,
+            // The Scene tab's, each the other way from its default.
+            scene_characters: false,
+            scene_groups: false,
+            scene_saved: false,
+            scene_reminders: true,
+            scene_focus: true,
+            scene_together: true,
+            scene_monitors: true,
         };
         let s = toml::to_string(&original).unwrap();
         let back: CollapseState = toml::from_str(&s).unwrap();
-        assert_eq!(original.inspector_position, back.inspector_position);
-        assert_eq!(original.inspector_appearance, back.inspector_appearance);
-        assert_eq!(original.inspector_animation, back.inspector_animation);
-        assert_eq!(original.inspector_behavior, back.inspector_behavior);
-        assert_eq!(original.inspector_talk, back.inspector_talk);
-        assert_eq!(original.scene_presets, back.scene_presets);
+        assert_eq!(original, back);
     }
 }

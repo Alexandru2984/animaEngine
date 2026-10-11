@@ -311,6 +311,16 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   Applications" lists too), and in the Flatpak it asks the Background
   portal, which may ask you. Off by default.
 
+### Changed
+
+- **The Scene tab folds into sections**, each remembered open or closed
+  across restarts: the characters, their groups and the saved scenes
+  first, open; then reminders, the focus timer, how the characters
+  behave together, and the monitors, closed, their headers saying how
+  many each holds. The reminders' sound and notifications sit with the
+  reminders. Grown over 1.5, the tab had become one long scroll that
+  opened on monitor settings.
+
 ### Fixed
 
 - **The settings panel's footer covered the last row of a long tab.**
