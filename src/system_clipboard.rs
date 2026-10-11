@@ -259,6 +259,9 @@ mod tests {
         );
     }
 
+    // A `text/uri-list` of `file://` paths is the Unix desktops' way to
+    // copy files; elsewhere `from_bytes` reads none, on purpose.
+    #[cfg(unix)]
     #[test]
     fn copied_files_are_read_as_paths() {
         let c = Content::from_bytes(

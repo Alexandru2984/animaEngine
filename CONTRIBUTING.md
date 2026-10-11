@@ -116,14 +116,16 @@ a throwaway prefix, and no display, so nothing reaches your desktop:
 ```bash
 sudo apt install --no-install-recommends gcc-mingw-w64-x86-64 wine64
 env -u DISPLAY -u WAYLAND_DISPLAY WINEPREFIX="$(mktemp -d)" WINEDEBUG=-all \
-    WINEDLLOVERRIDES="mscoree,mshtml=" \
+    WINEDLLOVERRIDES="mscoree,mshtml=;winemenubuilder.exe=d" \
     CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc \
     CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine64 \
     cargo test --locked --target x86_64-pc-windows-gnu \
         --no-default-features --features audio --lib
 ```
 
-The prefix is about 1 GB; delete it afterwards. Running the overlay
+`winemenubuilder.exe=d` keeps a new prefix from writing menu entries and
+file associations into your real home. The prefix is about 1 GB; delete
+it afterwards. Running the overlay
 itself still needs real Windows: Wine has no GPU path worth testing on.
 
 ### Alpine / musl
