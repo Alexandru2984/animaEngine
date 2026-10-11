@@ -1,0 +1,149 @@
+version = 2
+
+[global]
+always_on_top = true
+transparent = true
+playback_enabled = true
+window_width = 0
+window_height = 0
+theme = "dark"
+reduced_motion = false
+hover_startle = false
+window_awareness = false
+accesskit_enabled = true
+hotkey_backend = "auto"
+
+[global.onboarding]
+tabs = false
+theme = false
+quick_toggles = false
+keybindings_tab = false
+perf_overlay = false
+coach_marks = false
+
+[global.monitor_mode]
+kind = "per_monitor"
+
+[[characters]]
+id = "ghost"
+name = "Ghost Demo"
+asset_type = "png_sequence"
+asset_path = "assets/demo/ghost"
+x = 200.0
+y = 300.0
+scale = 1.0
+opacity = 0.8999999761581421
+fps = 10.0
+visible = true
+playing = true
+z_index = 10
+physics_enabled = false
+
+[[characters]]
+id = "slime"
+name = "Slime Demo"
+asset_type = "png_sequence"
+asset_path = "assets/demo/slime"
+x = 600.0
+y = 400.0
+scale = 1.0
+opacity = 1.0
+fps = 8.0
+visible = true
+playing = true
+z_index = 20
+physics_enabled = false
+
+[[characters]]
+id = "heart"
+name = "Heart Demo"
+asset_type = "png_sequence"
+asset_path = "assets/demo/heart"
+x = 1000.0
+y = 200.0
+scale = 1.0
+opacity = 1.0
+fps = 8.0
+visible = true
+playing = true
+z_index = 30
+physics_enabled = false
+
+[[characters]]
+id = "star"
+name = "Star Demo"
+asset_type = "png_sequence"
+asset_path = "assets/demo/star"
+x = 1300.0
+y = 450.0
+scale = 1.0
+opacity = 1.0
+fps = 8.0
+visible = true
+playing = true
+z_index = 40
+physics_enabled = false
+
+[[characters]]
+id = "cat"
+name = "Cat Demo"
+asset_type = "png_sequence"
+asset_path = "assets/demo/cat"
+x = 900.0
+y = 600.0
+scale = 1.0
+opacity = 1.0
+fps = 8.0
+visible = true
+playing = true
+z_index = 50
+physics_enabled = false
+
+[keybindings.map]
+toggle_edit_mode = [
+    "Ctrl+Shift+A",
+    "Escape",
+]
+hide_overlay = ["Ctrl+Shift+H"]
+pause_all = [
+    "Ctrl+Shift+P",
+    "Space",
+]
+quit_with_save = ["Q"]
+save_now = ["S"]
+open_command_palette = ["Ctrl+K"]
+cycle_entity = ["Tab"]
+delete_selected = [
+    "Delete",
+    "Backspace",
+]
+nudge_up = ["ArrowUp"]
+nudge_down = ["ArrowDown"]
+nudge_left = ["ArrowLeft"]
+nudge_right = ["ArrowRight"]
+center_on_screen = ["Home"]
+toggle_visible = ["V"]
+toggle_gravity = ["G"]
+toggle_playback = ["P"]
+duplicate_selected = ["D"]
+reset_transform = ["R"]
+bring_forward = ["PageUp"]
+send_backward = ["PageDown"]
+fps_up = ["]"]
+fps_down = ["["]
+opacity_up = [
+    "+",
+    "=",
+]
+opacity_down = ["-"]
+cycle_monitor = ["Ctrl+M"]
+show_entity_info = ["I"]
+show_help = ["H"]
+toggle_perf_overlay = ["Ctrl+Shift+`"]
+
+[collapse_state]
+inspector_position = true
+inspector_appearance = true
+inspector_animation = true
+inspector_behavior = false
+scene_presets = true

@@ -230,7 +230,9 @@ fn save_snapshot_to_disk() -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("create cache dir: {e}"))?;
     }
-    let toml = toml::to_string_pretty(config).map_err(|e| format!("serialize: {e}"))?;
+    let toml = config
+        .to_toml_string()
+        .map_err(|e| format!("serialize: {e}"))?;
     // Same atomic temp+rename helper every other stateful file on disk
     // uses — a second crash (or kill) mid-write must never leave a
     // truncated snapshot that `--recover` would later restore as-is.

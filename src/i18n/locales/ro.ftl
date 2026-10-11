@@ -457,6 +457,7 @@ warning-global-hotkeys-unavailable = Scurtăturile globale nu s-au putut înregi
 warning-hot-reload-disconnected = Procesul de reîncărcare la cald s-a oprit pe neașteptate; modificările pe config nu se vor aplica până la repornire.
 # Machine-translated, pending native review.
 warning-config-unreadable = Fișierul de configurare nu a putut fi citit, așa că s-a încărcat scena implicită. Originalul e păstrat alături ca config.toml.bak-corrupt.
+warning-config-partly-unread = O parte din fișierul de configurare nu a putut fi citită — poate e de la o versiune mai nouă a animaEngine sau are o greșeală de scriere. Aplicația merge mai departe fără ea: personajele din ea sunt ascunse, iar setările sunt la valorile implicite, dar totul rămâne în fișier.
 action-toggle-perf-overlay = Comută suprapunerea de performanță
 
 # ── Panou "What's new" (D.7) ──────────────────────────────────────────

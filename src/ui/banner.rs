@@ -39,6 +39,10 @@ pub enum Warning {
     /// `config.toml.bak-corrupt`. Without this the user just saw the demo
     /// where their own characters had been.
     ConfigUnreadable,
+    /// Some of the config file did not read — written by a newer
+    /// version, or mistyped — and the app goes on without it, keeping it
+    /// in the file (`config::SetAside`).
+    ConfigPartlyUnread,
 }
 
 impl Warning {
@@ -48,6 +52,7 @@ impl Warning {
             Self::GlobalHotkeysUnavailable => Severity::Warn,
             Self::HotReloadDisconnected => Severity::Warn,
             Self::ConfigUnreadable => Severity::Error,
+            Self::ConfigPartlyUnread => Severity::Warn,
         }
     }
 
@@ -58,6 +63,7 @@ impl Warning {
             Self::GlobalHotkeysUnavailable => "warning-global-hotkeys-unavailable",
             Self::HotReloadDisconnected => "warning-hot-reload-disconnected",
             Self::ConfigUnreadable => "warning-config-unreadable",
+            Self::ConfigPartlyUnread => "warning-config-partly-unread",
         }
     }
 }

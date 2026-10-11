@@ -457,6 +457,7 @@ warning-global-hotkeys-unavailable = Globale sneltoetsen konden niet worden gere
 warning-hot-reload-disconnected = De hot-reload-worker is onverwacht gestopt; lopende configuratiewijzigingen gelden pas na een herstart.
 # Machine-translated, pending native review.
 warning-config-unreadable = Uw configuratiebestand kon niet worden gelezen, dus de standaardscène is geladen. Het origineel staat ernaast als config.toml.bak-corrupt.
+warning-config-partly-unread = Een deel van uw configuratiebestand kon niet worden gelezen — het komt misschien van een nieuwere versie van animaEngine of bevat een typefout. De app gaat zonder verder: figuren erin zijn verborgen en instellingen erin staan op hun standaardwaarde, maar alles blijft in het bestand bewaard.
 action-toggle-perf-overlay = Prestatie-overlay omschakelen
 
 # ── What's new (D.7) — placeholder pending native-speaker audit

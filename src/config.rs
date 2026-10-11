@@ -545,6 +545,9 @@ pub struct AppConfig {
     /// `CollapseState::default()`.
     #[serde(default)]
     pub collapse_state: CollapseState,
+    /// What of the file did not read, kept to be written back (1.5).
+    #[serde(skip)]
+    pub set_aside: SetAside,
     /// Forward-compatibility catch-all (W.0). Top-level `[section]`
     /// blocks this build doesn't model — e.g. a section added by a
     /// newer animaEngine — are captured here on load and written back
@@ -729,7 +732,178 @@ impl Default for AppConfig {
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
             schema_version: CURRENT_SCHEMA_VERSION,
+            set_aside: SetAside::default(),
             extra: toml::Table::new(),
+        }
+    }
+}
+
+/// What of `config.toml` this build could not read — written by a newer
+/// animaEngine, or mistyped — kept to be written back as it was (1.5).
+///
+/// One character, group or setting that did not read used to cost the
+/// whole file: the app started with the default scene. Every release
+/// adds behaviors, settings and choices an older one does not know, so
+/// opening a newer version's config in an older one did just that. Now
+/// the app goes on without those parts — a character set aside is not
+/// shown, a setting is at its default — and saves them back where they
+/// were, for the version that wrote them.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SetAside {
+    /// `[global]` keys whose values did not read: the key, the value as
+    /// written, and what the setting was at load — `None` when it is not
+    /// written out — to tell whether it has been changed here since.
+    global: Vec<(String, toml::Value, Option<toml::Value>)>,
+    /// List entries that did not read: which list, and the entry.
+    entries: Vec<(SetAsideList, toml::Value)>,
+}
+
+/// Where a [`SetAside`] entry came from.
+#[derive(Debug, Clone, PartialEq)]
+enum SetAsideList {
+    /// One of [`SET_ASIDE_LISTS`].
+    Top(&'static str),
+    /// The characters of the window with this id.
+    WindowCharacters(String),
+}
+
+/// The lists whose entries are read one by one when the whole file does
+/// not read.
+const SET_ASIDE_LISTS: [&str; 4] = ["characters", "groups", "reminders", "scene_schedule"];
+
+/// Whether one entry of `list` reads, and if not, why.
+fn entry_reads(list: &str, entry: &toml::Value) -> std::result::Result<(), String> {
+    let entry = entry.clone();
+    match list {
+        "groups" => entry.try_into::<crate::group::GroupConfig>().map(drop),
+        "reminders" => entry
+            .try_into::<crate::reminders::ReminderConfig>()
+            .map(drop),
+        "scene_schedule" => entry.try_into::<crate::schedule::ScheduleRule>().map(drop),
+        _ => entry.try_into::<CharacterConfig>().map(drop),
+    }
+    .map_err(|e| e.to_string().trim().replace('\n', " "))
+}
+
+/// A name for an entry in the log: its `name`, else its `id`.
+fn entry_label(entry: &toml::Value) -> String {
+    ["name", "id"]
+        .iter()
+        .find_map(|k| entry.get(k).and_then(toml::Value::as_str))
+        .map(|s| format!("\"{s}\""))
+        .unwrap_or_else(|| "one".to_string())
+}
+
+impl SetAside {
+    /// Whether anything was set aside.
+    pub fn is_empty(&self) -> bool {
+        self.global.is_empty() && self.entries.is_empty()
+    }
+
+    /// Take out of `table` what does not read: list entries one by one,
+    /// and `[global]` keys one by one. What is left is for the decode to
+    /// try again.
+    fn take_unreadable(table: &mut toml::Table) -> Self {
+        let mut aside = Self::default();
+        let mut sift = |list: SetAsideList, name: &str, items: &mut Vec<toml::Value>| {
+            items.retain(|entry| match entry_reads(name, entry) {
+                Ok(()) => true,
+                Err(e) => {
+                    tracing::warn!(
+                        "config: {} in `{name}` does not read ({e}); set aside, and kept in the file",
+                        entry_label(entry)
+                    );
+                    aside.entries.push((list.clone(), entry.clone()));
+                    false
+                }
+            });
+        };
+        for name in SET_ASIDE_LISTS {
+            if let Some(toml::Value::Array(items)) = table.get_mut(name) {
+                sift(SetAsideList::Top(name), name, items);
+            }
+        }
+        if let Some(toml::Value::Array(windows)) = table.get_mut("windows") {
+            for window in windows.iter_mut().filter_map(toml::Value::as_table_mut) {
+                let id = window
+                    .get("id")
+                    .and_then(toml::Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                if let Some(toml::Value::Array(items)) = window.get_mut("characters") {
+                    sift(SetAsideList::WindowCharacters(id), "characters", items);
+                }
+            }
+        }
+        // Every `[global]` setting has a default, so each reads on its
+        // own or does not.
+        if let Some(toml::Value::Table(global)) = table.get_mut("global") {
+            if toml::Value::Table(global.clone())
+                .try_into::<GlobalConfig>()
+                .is_err()
+            {
+                let keys: Vec<String> = global.keys().cloned().collect();
+                for key in keys {
+                    let alone = toml::Table::from_iter([(key.clone(), global[&key].clone())]);
+                    if let Err(e) = toml::Value::Table(alone).try_into::<GlobalConfig>() {
+                        let e = e.to_string().trim().replace('\n', " ");
+                        tracing::warn!(
+                            "config: `{key}` in [global] does not read ({e}); at its default, and kept in the file"
+                        );
+                        if let Some(value) = global.remove(&key) {
+                            aside.global.push((key, value, None));
+                        }
+                    }
+                }
+            }
+        }
+        aside
+    }
+
+    /// Note what each setting set aside is now, to be compared on save.
+    fn note_settings(&mut self, global: &GlobalConfig) {
+        let now = toml::Value::try_from(global).ok();
+        for (key, _, at_load) in &mut self.global {
+            *at_load = now.as_ref().and_then(|t| t.get(key.as_str())).cloned();
+        }
+    }
+
+    /// Put back into `table`, a config as about to be saved, what was set
+    /// aside: entries at the end of their lists — a window's only if that
+    /// window is still there — and settings unless changed here since.
+    fn write_back(&self, table: &mut toml::Table) {
+        for (list, entry) in &self.entries {
+            let items = match list {
+                SetAsideList::Top(name) => Some(
+                    table
+                        .entry(name.to_string())
+                        .or_insert_with(|| toml::Value::Array(Vec::new())),
+                ),
+                SetAsideList::WindowCharacters(id) => table
+                    .get_mut("windows")
+                    .and_then(toml::Value::as_array_mut)
+                    .and_then(|windows| {
+                        windows.iter_mut().find(|w| {
+                            w.get("id").and_then(toml::Value::as_str) == Some(id.as_str())
+                        })
+                    })
+                    .and_then(toml::Value::as_table_mut)
+                    .map(|window| {
+                        window
+                            .entry("characters")
+                            .or_insert_with(|| toml::Value::Array(Vec::new()))
+                    }),
+            };
+            if let Some(toml::Value::Array(items)) = items {
+                items.push(entry.clone());
+            }
+        }
+        if let Some(toml::Value::Table(global)) = table.get_mut("global") {
+            for (key, written, at_load) in &self.global {
+                if global.get(key) == at_load.as_ref() {
+                    global.insert(key.clone(), written.clone());
+                }
+            }
         }
     }
 }
@@ -880,9 +1054,23 @@ impl AppConfig {
         // string: a top-level scalar (`version`) sorted among the section
         // keys would trip TOML's "value after table" rule on the way back
         // out. `try_into` doesn't care about order.
-        let mut config: Self = toml::Value::Table(table)
-            .try_into()
-            .map_err(|e| format!("decode error: {e}"))?;
+        let mut config: Self = match toml::Value::Table(table.clone()).try_into() {
+            Ok(config) => config,
+            // Set aside what does not read (`SetAside`), and try again
+            // with the rest; when that does not read either, the file is
+            // unreadable as before, and says why.
+            Err(first) => {
+                let aside = SetAside::take_unreadable(&mut table);
+                if aside.is_empty() {
+                    return Err(format!("decode error: {first}"));
+                }
+                let mut config: Self = toml::Value::Table(table)
+                    .try_into()
+                    .map_err(|_| format!("decode error: {first}"))?;
+                config.set_aside = aside;
+                config
+            }
+        };
         if config.characters.len() > MAX_ENTITIES {
             tracing::warn!(
                 "Config has {} characters, capping at {} to prevent resource exhaustion",
@@ -894,7 +1082,20 @@ impl AppConfig {
         // Coerce NaN/inf/out-of-range scalars before anything reaches the
         // renderer or physics.
         config.sanitize();
+        let global = config.global.clone();
+        config.set_aside.note_settings(&global);
         Ok((config, from))
+    }
+
+    /// This config as its file says it: what is set aside
+    /// ([`SetAside`]) written back where it was.
+    pub fn to_toml_string(&self) -> std::result::Result<String, toml::ser::Error> {
+        if self.set_aside.is_empty() {
+            return toml::to_string_pretty(self);
+        }
+        let mut table = toml::Table::try_from(self)?;
+        self.set_aside.write_back(&mut table);
+        toml::to_string_pretty(&table)
     }
 
     /// Read-only config load for **hot-reload**. Reads and decodes the
@@ -1011,7 +1212,7 @@ impl AppConfig {
     #[tracing::instrument(skip(self), fields(n_chars = self.characters.len()))]
     pub fn save(&self) -> Result<()> {
         let path = Self::config_path();
-        let toml_string = toml::to_string_pretty(self)?;
+        let toml_string = self.to_toml_string()?;
         crate::util::atomic_write_bytes(&path, toml_string.as_bytes())?;
         tracing::info!(
             "Config saved to {}",
@@ -1229,6 +1430,7 @@ mod windows_tests {
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
             schema_version: CURRENT_SCHEMA_VERSION,
+            set_aside: SetAside::default(),
             extra: toml::Table::new(),
         };
         let ws = cfg.windows_normalised();
@@ -1264,6 +1466,7 @@ mod windows_tests {
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
             schema_version: CURRENT_SCHEMA_VERSION,
+            set_aside: SetAside::default(),
             extra: toml::Table::new(),
         };
         let ws = cfg.windows_normalised();
@@ -1289,6 +1492,7 @@ mod windows_tests {
             keybindings: KeyBindings::default(),
             collapse_state: CollapseState::default(),
             schema_version: CURRENT_SCHEMA_VERSION,
+            set_aside: SetAside::default(),
             extra: toml::Table::new(),
         };
         let ws = cfg.windows_normalised();
@@ -1468,12 +1672,133 @@ mod migration_tests {
         assert!(AppConfig::decode_config_str("").is_ok(), "an empty file");
     }
 
-    /// A character still needs what makes it a character.
+    /// A character still needs what makes it a character — without it,
+    /// it is set aside, not shown, and kept in the file; the rest reads.
     #[test]
-    fn a_character_without_its_asset_is_still_rejected() {
+    fn a_character_without_its_asset_is_set_aside() {
         let toml = "version = 2\n[[characters]]\nid = \"a\"\nname = \"A\"\n\
-                    asset_type = \"png_static\"\nx = 0.0\ny = 0.0\n";
-        assert!(AppConfig::decode_config_str(toml).is_err());
+                    asset_type = \"png_static\"\nx = 0.0\ny = 0.0\n\
+                    [[characters]]\nid = \"b\"\nname = \"B\"\n\
+                    asset_type = \"png_static\"\nasset_path = \"b.png\"\nx = 0.0\ny = 0.0\n";
+        let (cfg, _) = AppConfig::decode_config_str(toml).expect("the rest reads");
+        assert_eq!(cfg.characters.len(), 1);
+        assert_eq!(cfg.characters[0].id, "b");
+        assert!(!cfg.set_aside.is_empty());
+        let out = cfg.to_toml_string().unwrap();
+        assert!(out.contains("id = \"a\""), "kept in the file: {out}");
+    }
+
+    /// What a newer version wrote — a behavior, an asset type, a choice
+    /// in `[global]`, a character in a window — reads as far as this one
+    /// can, and is written back as it was. Each used to cost the whole
+    /// file, and the scene with it.
+    #[test]
+    fn what_a_newer_version_wrote_is_set_aside_and_written_back() {
+        let newer = r#"
+            version = 2
+            [global]
+            theme = "sepia"
+            hover_startle = true
+            on_fullscreen = "dim"
+
+            [[characters]]
+            id = "dancer"
+            name = "Dancer"
+            asset_type = "png_static"
+            asset_path = "d.png"
+            x = 1.0
+            y = 2.0
+            [characters.behavior]
+            type = "breakdance"
+            moves = 3
+
+            [[characters]]
+            id = "holo"
+            name = "Holo"
+            asset_type = "hologram"
+            asset_path = "h.holo"
+            x = 1.0
+            y = 2.0
+
+            [[characters]]
+            id = "plain"
+            name = "Plain"
+            asset_type = "png_static"
+            asset_path = "p.png"
+            x = 5.0
+            y = 6.0
+
+            [[windows]]
+            id = "side"
+            name = "Side"
+            [[windows.characters]]
+            id = "w"
+            name = "W"
+            asset_type = "hologram"
+            asset_path = "w.holo"
+            x = 0.0
+            y = 0.0
+
+            [[groups]]
+            id = "g"
+            name = "G"
+            member_ids = ["plain"]
+            visible = "sometimes"
+        "#;
+        let (cfg, _) = AppConfig::decode_config_str(newer).expect("reads as far as it can");
+        let ids: Vec<&str> = cfg.characters.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, ["plain"]);
+        assert!(cfg.windows[0].characters.is_empty());
+        assert!(cfg.groups.is_empty());
+        assert!(cfg.global.hover_startle, "the settings that read, read");
+        assert_eq!(cfg.global.theme, crate::ui::theme::Theme::default());
+
+        // Saved as it is, everything comes back as written.
+        let out = cfg.to_toml_string().unwrap();
+        let back: toml::Table = out.parse().unwrap();
+        let written: toml::Table = newer.parse().unwrap();
+        assert_eq!(back["global"]["theme"].as_str(), Some("sepia"));
+        assert_eq!(back["global"]["on_fullscreen"].as_str(), Some("dim"));
+        let characters = back["characters"].as_array().unwrap();
+        assert_eq!(characters.len(), 3);
+        for original in written["characters"].as_array().unwrap() {
+            let id = original["id"].as_str().unwrap();
+            let kept = characters
+                .iter()
+                .find(|c| c["id"].as_str() == Some(id))
+                .unwrap_or_else(|| panic!("{id} kept"));
+            if id != "plain" {
+                assert_eq!(kept, original, "{id} as written");
+            }
+        }
+        assert_eq!(
+            back["windows"][0]["characters"][0],
+            written["windows"][0]["characters"][0]
+        );
+        assert_eq!(back["groups"][0], written["groups"][0]);
+        // And it reads the same again.
+        let (again, _) = AppConfig::decode_config_str(&out).unwrap();
+        assert_eq!(again.set_aside, cfg.set_aside);
+
+        // A setting changed here since is the user's word, not the file's.
+        let mut changed = cfg.clone();
+        changed.global.theme = crate::ui::theme::Theme::Light;
+        let out: toml::Table = changed.to_toml_string().unwrap().parse().unwrap();
+        assert_eq!(out["global"]["theme"].as_str(), Some("light"));
+        assert_eq!(out["global"]["on_fullscreen"].as_str(), Some("dim"));
+    }
+
+    /// What does not read anywhere a list or a setting can be set aside is
+    /// still an unreadable file.
+    #[test]
+    fn a_file_that_cannot_be_read_around_is_still_an_error() {
+        assert!(AppConfig::decode_config_str("version = 2\ncollapse_state = 5\n").is_err());
+        assert!(AppConfig::decode_config_str("version = 2\nglobal = 5\n").is_err());
+        let (cfg, _) = AppConfig::decode_config_str("version = 2\n").unwrap();
+        assert!(
+            cfg.set_aside.is_empty(),
+            "nothing set aside from a good file"
+        );
     }
 
     #[test]
@@ -1639,5 +1964,98 @@ mod sanitize_tests {
         assert_eq!(c.scale, default_scale());
         assert_eq!(c.opacity, default_opacity());
         assert_eq!(c.fps, default_fps());
+    }
+}
+
+/// Configs written by released versions (`tests/fixtures/configs`) read
+/// in this one with every value they hold, and save back with it.
+#[cfg(test)]
+mod upgrade_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    const WRITTEN_BY: [(&str, &str); 3] = [
+        (
+            "1.0.0, first run",
+            include_str!("../tests/fixtures/configs/v1.0.0-default.toml"),
+        ),
+        (
+            "1.1.0 to 1.4.0, first run",
+            include_str!("../tests/fixtures/configs/v1.4.0-default.toml"),
+        ),
+        (
+            "1.4.0, every setting changed",
+            include_str!("../tests/fixtures/configs/v1.4.0-full.toml"),
+        ),
+    ];
+
+    /// Every value in a table, by its path: `global.theme`,
+    /// `characters[2].behavior.speed`.
+    fn values(path: &str, value: &toml::Value, out: &mut BTreeMap<String, toml::Value>) {
+        match value {
+            toml::Value::Table(table) => {
+                for (key, value) in table {
+                    let path = if path.is_empty() {
+                        key.clone()
+                    } else {
+                        format!("{path}.{key}")
+                    };
+                    values(&path, value, out);
+                }
+            }
+            toml::Value::Array(items) if items.iter().any(toml::Value::is_table) => {
+                for (i, item) in items.iter().enumerate() {
+                    values(&format!("{path}[{i}]"), item, out);
+                }
+            }
+            other => {
+                out.insert(path.to_string(), other.clone());
+            }
+        }
+    }
+
+    #[test]
+    fn configs_from_earlier_versions_keep_every_value() {
+        for (by, text) in WRITTEN_BY {
+            let (config, _) = AppConfig::decode_config_str(text)
+                .unwrap_or_else(|e| panic!("{by}: does not read: {e}"));
+            assert!(config.set_aside.is_empty(), "{by}: {:?}", config.set_aside);
+            assert!(
+                config.extra.is_empty(),
+                "{by}: unknown here: {:?}",
+                config.extra
+            );
+            let saved = config.to_toml_string().unwrap();
+
+            let mut before = BTreeMap::new();
+            values("", &toml::Value::Table(text.parse().unwrap()), &mut before);
+            let mut after = BTreeMap::new();
+            values("", &toml::Value::Table(saved.parse().unwrap()), &mut after);
+            let changed: Vec<String> = before
+                .iter()
+                .filter(|(path, value)| after.get(*path) != Some(value))
+                .map(|(path, value)| format!("{path}: {value} → {:?}", after.get(path)))
+                .collect();
+            assert!(changed.is_empty(), "{by}: {changed:#?}");
+        }
+    }
+
+    /// The shortcuts someone set in 1.4 still do what they did: none is
+    /// taken by an action 1.5 added with that chord as its default.
+    #[test]
+    fn shortcuts_from_earlier_versions_still_do_what_they_did() {
+        for (by, text) in WRITTEN_BY {
+            let (config, _) = AppConfig::decode_config_str(text).unwrap();
+            let bindings = &config.keybindings;
+            for (action, chords) in &bindings.map {
+                for chord in chords {
+                    assert_eq!(
+                        bindings.lookup(*chord),
+                        Some(*action),
+                        "{by}: {chord} is {action:?}'s"
+                    );
+                }
+            }
+        }
     }
 }

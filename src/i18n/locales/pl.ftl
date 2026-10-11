@@ -457,6 +457,7 @@ warning-global-hotkeys-unavailable = Nie udało się zarejestrować globalnych s
 warning-hot-reload-disconnected = Proces przeładowywania na gorąco zatrzymał się niespodziewanie; trwające zmiany konfiguracji zadziałają dopiero po restarcie aplikacji.
 # Machine-translated, pending native review.
 warning-config-unreadable = Nie udało się odczytać pliku konfiguracji, więc wczytano domyślną scenę. Oryginał zachowano obok jako config.toml.bak-corrupt.
+warning-config-partly-unread = Nie udało się odczytać części pliku konfiguracji — może pochodzi z nowszej wersji animaEngine albo zawiera literówkę. Aplikacja działa dalej bez niej: zawarte w niej postacie są ukryte, a ustawienia mają wartości domyślne, ale wszystko zostaje w pliku.
 action-toggle-perf-overlay = Przełącz nakładkę wydajności
 
 # ── What's new (D.7) — placeholder pending native-speaker audit

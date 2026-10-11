@@ -423,9 +423,13 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     #[cfg(not(any(unix, windows)))]
     let _ = instance;
 
+    let partly_unread = !config.set_aside.is_empty();
     let mut app = App::new(config, scene);
     if anima_engine::config::loaded_defaults_over_unreadable_config() {
         app.push_warning(anima_engine::ui::Warning::ConfigUnreadable);
+    }
+    if partly_unread {
+        app.push_warning(anima_engine::ui::Warning::ConfigPartlyUnread);
     }
     app.set_hotkey_backend_status(strategy.describe());
     if !hotkeys_available {

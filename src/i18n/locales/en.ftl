@@ -463,6 +463,7 @@ scene-schedule-delete = Delete rule
 warning-global-hotkeys-unavailable = Global hotkeys couldn't register (typical on a native Wayland session). The tray menu and the ⚙ button still work.
 warning-hot-reload-disconnected = The hot-reload worker stopped unexpectedly; in-flight config edits won't apply until you restart the app.
 warning-config-unreadable = Your config file could not be read, so the default scene was loaded. The original is kept next to it as config.toml.bak-corrupt.
+warning-config-partly-unread = Part of your config file could not be read — it may come from a newer version of animaEngine, or have a typo. The app goes on without it: characters in it are hidden and settings in it are at their defaults, but all of it is kept in the file.
 action-toggle-perf-overlay = Toggle perf overlay
 
 # ── What's new panel (D.7) ────────────────────────────────────────────

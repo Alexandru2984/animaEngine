@@ -7,21 +7,103 @@
 //!
 //! Linear-scan lookup is fine: total bindings stay well under 50, so
 //! each scan is sub-microsecond and runs only on key events.
+//!
+//! Read leniently (1.5): every release adds actions, and an action name
+//! this build does not know — bound by a newer animaEngine — or a chord
+//! it cannot read cost the whole `config.toml` before, which then loaded
+//! as the default scene. An unknown action is now kept as written and
+//! written back; a chord that does not read is left out, with a warning.
 
 use super::action::Action;
 use super::chord::KeyChord;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 /// User-overridable mapping from `Action` to one or more `KeyChord`s.
 /// Empty chord vector means the action is disabled.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct KeyBindings {
     /// Per-action chord lists. Missing entries fall back to defaults
     /// at lookup time, so adding a new action in a future release
-    /// doesn't silently disable it for existing users.
-    #[serde(default)]
+    /// doesn't silently disable it for existing users — less the chords
+    /// the user has given other actions (`effective`).
     pub map: BTreeMap<Action, Vec<KeyChord>>,
+    /// Actions this build does not have, as written: a newer animaEngine
+    /// bound them, and finds them again after this one has saved.
+    pub unknown: BTreeMap<String, toml::Value>,
+}
+
+/// `[keybindings]` as stored: action names to chord strings.
+#[derive(Deserialize)]
+struct Stored {
+    #[serde(default)]
+    map: BTreeMap<String, toml::Value>,
+}
+
+impl<'de> Deserialize<'de> for KeyBindings {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let stored = Stored::deserialize(deserializer)?;
+        let mut map = BTreeMap::new();
+        let mut unknown = BTreeMap::new();
+        for (name, value) in stored.map {
+            let Ok(action) = toml::Value::String(name.clone()).try_into::<Action>() else {
+                tracing::warn!("keybindings: no action `{name}` in this version; kept as written");
+                unknown.insert(name, value);
+                continue;
+            };
+            // A list of chords, or one on its own.
+            let written = match value {
+                toml::Value::Array(list) => list,
+                one @ toml::Value::String(_) => vec![one],
+                other => {
+                    tracing::warn!(
+                        "keybindings: `{name}` is not a list of keys ({other}); its defaults apply"
+                    );
+                    continue;
+                }
+            };
+            let chords = written
+                .into_iter()
+                .filter_map(|v| match v.as_str().map(str::parse::<KeyChord>) {
+                    Some(Ok(chord)) => Some(chord),
+                    _ => {
+                        tracing::warn!(
+                            "keybindings: `{name}`: {v} is not a key this version reads; left out"
+                        );
+                        None
+                    }
+                })
+                .collect();
+            map.insert(action, chords);
+        }
+        Ok(Self { map, unknown })
+    }
+}
+
+impl Serialize for KeyBindings {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        /// The known actions in their own order, then the unknown ones.
+        struct Entries<'a>(&'a KeyBindings);
+        impl Serialize for Entries<'_> {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                use serde::ser::SerializeMap;
+                let mut out = serializer.serialize_map(None)?;
+                for (action, chords) in &self.0.map {
+                    out.serialize_entry(action, chords)?;
+                }
+                for (name, value) in &self.0.unknown {
+                    out.serialize_entry(name, value)?;
+                }
+                out.end()
+            }
+        }
+        #[derive(Serialize)]
+        struct Out<'a> {
+            map: Entries<'a>,
+        }
+        Out { map: Entries(self) }.serialize(serializer)
+    }
 }
 
 impl Default for KeyBindings {
@@ -30,19 +112,38 @@ impl Default for KeyBindings {
         for &action in Action::ALL {
             map.insert(action, action.default_chords().to_vec());
         }
-        Self { map }
+        Self {
+            map,
+            unknown: BTreeMap::new(),
+        }
     }
 }
 
 impl KeyBindings {
+    /// The chords `action` answers to: as the user set them, or — for an
+    /// action they have never touched, one new since their config was
+    /// written — its defaults, less any chord the user gave another
+    /// action. A Ctrl+Z bound by hand in 1.4 stays theirs when 1.5's
+    /// Undo, whose default it is, comes along.
+    fn effective(&self, action: Action) -> Cow<'_, [KeyChord]> {
+        match self.map.get(&action) {
+            Some(chords) => Cow::Borrowed(chords),
+            None => Cow::Owned(
+                action
+                    .default_chords()
+                    .iter()
+                    .filter(|chord| !self.map.values().any(|taken| taken.contains(chord)))
+                    .copied()
+                    .collect(),
+            ),
+        }
+    }
+
     /// Live chord list for `action`, falling back to defaults if the
     /// map has no entry yet. Returns an owned slice so the caller can
     /// freely iterate and render.
     pub fn chords_for(&self, action: Action) -> Vec<KeyChord> {
-        self.map
-            .get(&action)
-            .cloned()
-            .unwrap_or_else(|| action.default_chords().to_vec())
+        self.effective(action).into_owned()
     }
 
     /// Find the action bound to `chord`. Linear scan — total bindings
@@ -50,17 +151,10 @@ impl KeyBindings {
     /// multiple actions are bound to the same chord (a conflict), the
     /// first match wins; `conflicts` surfaces the issue in the UI.
     pub fn lookup(&self, chord: KeyChord) -> Option<Action> {
-        for &action in Action::ALL {
-            let chords = self
-                .map
-                .get(&action)
-                .map(|v| v.as_slice())
-                .unwrap_or_else(|| action.default_chords());
-            if chords.contains(&chord) {
-                return Some(action);
-            }
-        }
-        None
+        Action::ALL
+            .iter()
+            .copied()
+            .find(|&action| self.effective(action).contains(&chord))
     }
 
     /// All chord collisions in the current binding table: pairs of
@@ -69,12 +163,7 @@ impl KeyBindings {
     pub fn conflicts(&self) -> Vec<(KeyChord, Vec<Action>)> {
         let mut chord_owners: BTreeMap<KeyChord, Vec<Action>> = BTreeMap::new();
         for &action in Action::ALL {
-            let chords = self
-                .map
-                .get(&action)
-                .map(|v| v.as_slice())
-                .unwrap_or_else(|| action.default_chords());
-            for &chord in chords {
+            for &chord in self.effective(action).iter() {
                 chord_owners.entry(chord).or_default().push(action);
             }
         }
@@ -98,34 +187,40 @@ impl KeyBindings {
     /// the same action (idempotent). Returns the conflicting action,
     /// if any — the UI decides whether to surface as warning or block.
     pub fn add_chord(&mut self, action: Action, chord: KeyChord) -> Option<Action> {
-        let entry = self
-            .map
-            .entry(action)
-            .or_insert_with(|| action.default_chords().to_vec());
-        if !entry.contains(&chord) {
-            entry.push(chord);
-        }
-        // Detect conflict against the rest of the table.
+        // An untouched action whose default this chord is keeps it,
+        // written down, so the two show as the conflict they are — rather
+        // than the other one losing it unseen, as a new default does to a
+        // chord the user set before it existed (`effective`).
         for &other in Action::ALL {
-            if other == action {
-                continue;
-            }
-            let chords = self
-                .map
-                .get(&other)
-                .map(|v| v.as_slice())
-                .unwrap_or_else(|| other.default_chords());
-            if chords.contains(&chord) {
-                return Some(other);
+            if other != action
+                && !self.map.contains_key(&other)
+                && self.effective(other).contains(&chord)
+            {
+                let theirs = self.effective(other).into_owned();
+                self.map.insert(other, theirs);
             }
         }
-        None
+        let mut chords = self.effective(action).into_owned();
+        if !chords.contains(&chord) {
+            chords.push(chord);
+        }
+        self.map.insert(action, chords);
+        // Detect conflict against the rest of the table.
+        Action::ALL
+            .iter()
+            .copied()
+            .find(|&other| other != action && self.effective(other).contains(&chord))
     }
 
     /// Remove a chord from `action`. No-op if the chord wasn't bound.
+    ///
+    /// An action with no entry of its own shows its defaults, and its row
+    /// a remove button for each: they are written down first, without
+    /// this one — before, the button did nothing for such an action,
+    /// which after an upgrade was every new one.
     pub fn remove_chord(&mut self, action: Action, chord: KeyChord) {
-        if let Some(list) = self.map.get_mut(&action) {
-            list.retain(|c| *c != chord);
-        }
+        let mut chords = self.effective(action).into_owned();
+        chords.retain(|c| *c != chord);
+        self.map.insert(action, chords);
     }
 }

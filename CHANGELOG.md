@@ -15,7 +15,11 @@ undo, several characters at once, groups and alignment; scenes get names,
 pictures and a schedule, and travel as files — a scene, a character, or
 everything in one backup.
 
-Every new setting is optional, so a 1.4 config loads unchanged. Most
+Every new setting is optional, so a 1.4 config loads unchanged — tests
+now hold configs written by 1.0 and 1.4 themselves to that. Going back
+is rougher: 1.4 and earlier cannot read a 1.5 config, and start with the
+default scene, keeping the file beside it as `config.toml.bak-corrupt`;
+1.5 is the first to read a newer version's config as far as it can. Most
 of what is new is off until you turn it on; five things are on from the
 start, and each has its switch: the characters step aside for
 full-screen apps, doze after ten minutes away and greet you back, little
@@ -316,6 +320,15 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 
 ### Changed
 
+- **A config written by a newer version no longer costs the whole
+  file.** A character, group, reminder or schedule rule this version
+  cannot read — a behavior or asset type from a later release, or a
+  typo — is set aside: not shown, and written back as it was when the
+  config is saved. So is a `[global]` setting it cannot read, at its
+  default meanwhile unless you change it here, and a shortcut for an
+  action it does not have. A banner in the settings panel says so. Each
+  of these used to make the whole file unreadable, and the app started
+  with the default scene.
 - **The overlay appears sooner.** On X11 the global shortcuts were
   registered one after another before the window was made — 50 ms each
   in the library that does it, a tenth of a second for the defaults —
@@ -335,6 +348,14 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 
 ### Fixed
 
+- **After an upgrade, a new action's default could take a shortcut you
+  had set.** 1.5's Undo comes with Ctrl+Z; had you given Ctrl+Z to
+  another action, Undo won it. A shortcut you set now keeps its action,
+  and the new one goes without it. A chord recorded in the Keybindings
+  tab that is an untouched action's default still shows as a conflict.
+- **The Keybindings tab could not take a default chord off an action
+  you had never changed** — after an upgrade, every new one: its ×
+  did nothing.
 - **The settings panel's footer covered the last row of a long tab.**
   The character count sat over it, and it could not be scrolled into
   view — in the Inspector, the bottom of the "Says" section.

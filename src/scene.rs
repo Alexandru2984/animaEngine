@@ -1262,6 +1262,7 @@ mod tests {
             keybindings: crate::keybindings::KeyBindings::default(),
             collapse_state: crate::ui::CollapseState::default(),
             schema_version: crate::config::CURRENT_SCHEMA_VERSION,
+            set_aside: crate::config::SetAside::default(),
             extra: toml::Table::new(),
         };
         Scene::from_config(&config)

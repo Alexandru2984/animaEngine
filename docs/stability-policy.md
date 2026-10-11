@@ -18,9 +18,15 @@ change to any of them is a breaking change and waits for 2.0 (see
   every later 1.x release. New fields are additive with serde defaults;
   any non-additive change ships a migration that runs on load, after
   copying the original to `config.toml.bak-v<n>`. The on-disk schema
-  carries a `version` key for exactly this. Unknown `[section]` tables
-  are preserved through a load → save cycle, so a config touched by a
-  newer 1.x and opened by an older one doesn't lose data.
+  carries a `version` key for exactly this, and configs written by
+  released versions themselves are kept as test fixtures
+  (`tests/fixtures/configs`). Going the other way, from 1.5 on, an older
+  1.x keeps what it cannot read of a newer config: unknown `[section]`
+  tables, list entries (characters, groups, reminders, schedule rules),
+  `[global]` settings and shortcuts that do not read are set aside and
+  written back on save. Unknown keys inside a known table are still
+  dropped when an older version saves. 1.4 and earlier cannot read a
+  1.5 config at all; see [config.md](config.md#schema-version).
 - **D-Bus surface.** The bus name `com.animaengine.Anima`, object path
   `/com/animaengine/Anima`, and interface `org.animaengine.Anima` are
   fixed. (The bus name and the interface are deliberately different

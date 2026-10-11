@@ -31,6 +31,26 @@ than dropped, so downgrading doesn't silently strip newer settings.
 (This applies to whole `[section]` tables; unknown bare keys at the
 very top of the file are not preserved.)
 
+Since 1.5, what this build cannot read is set aside rather than costing
+the whole file — a behavior or asset type from a newer version, say, or
+a typo:
+
+- a `[[characters]]` entry (also in a window), `[[groups]]`,
+  `[[reminders]]` or `[[scene_schedule]]` entry that does not read is
+  left out — the character is not shown — and written back as it was
+  when the config is saved;
+- a `[global]` setting that does not read is at its default meanwhile,
+  and written back unless you change that setting here;
+- a shortcut for an action this build does not have is kept and
+  written back; a chord it cannot read is left out.
+
+A banner in the settings panel says when this happened, and the log
+names each part. Keys a newer version added *inside* a table this build
+knows — a new option on a character, for instance — are still dropped
+when it saves. Versions before 1.5 do none of this: they cannot read a
+1.5 config, and start with the default scene, keeping your file as
+`config.toml.bak-corrupt`.
+
 ## What you can leave out
 
 Everything except what makes a character a character. Every `[global]`
@@ -39,8 +59,8 @@ key has a default, the `[global]` table itself can be omitted, and so can
 `[[characters]]` entry needs `id`, `name`, `asset_type`, `asset_path`,
 `x` and `y`; the rest default.
 
-If the file cannot be read at all — a TOML syntax error, a character
-missing one of those keys — the app starts with the default scene,
+If the file cannot be read at all — a TOML syntax error, a `[global]`
+that is not a table — the app starts with the default scene,
 keeps your file beside it as `config.toml.bak-corrupt`, and says so in a
 banner at the top of the settings panel. Hot-reload is gentler: an edit
 that doesn't parse is ignored, with a toast, and nothing is written.

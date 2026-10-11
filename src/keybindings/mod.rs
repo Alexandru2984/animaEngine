@@ -178,9 +178,91 @@ mod tests {
         // Simulates a config that has no [keybindings] section.
         let bindings = KeyBindings {
             map: BTreeMap::new(),
+            unknown: BTreeMap::new(),
         };
         let chord: KeyChord = "Q".parse().unwrap();
         assert_eq!(bindings.lookup(chord), Some(Action::QuitWithSave));
+    }
+
+    /// A 1.4 config has no Undo: its default, Ctrl+Z, comes in with 1.5 —
+    /// but not over a Ctrl+Z the user had already given something else.
+    #[test]
+    fn a_chord_set_by_hand_beats_a_new_default() {
+        let text = r#"
+            [map]
+            cycle_entity = ["Ctrl+Z"]
+            toggle_gravity = ["G"]
+        "#;
+        let bindings: KeyBindings = toml::from_str(text).unwrap();
+        let ctrl_z: KeyChord = "Ctrl+Z".parse().unwrap();
+        assert_eq!(bindings.lookup(ctrl_z), Some(Action::CycleEntity));
+        assert!(
+            bindings.chords_for(Action::Undo).is_empty(),
+            "Ctrl+Z was its only one"
+        );
+        assert!(
+            bindings.conflicts().is_empty(),
+            "{:?}",
+            bindings.conflicts()
+        );
+        // Without the hand-set one, Undo has it.
+        let fresh: KeyBindings = toml::from_str("[map]").unwrap();
+        assert_eq!(fresh.lookup(ctrl_z), Some(Action::Undo));
+    }
+
+    /// The Keybindings tab shows a new action's defaults with a remove
+    /// button each; removing one did nothing while the action had no
+    /// entry of its own.
+    #[test]
+    fn a_default_can_be_removed_from_an_action_never_set() {
+        let mut bindings: KeyBindings = toml::from_str("[map]").unwrap();
+        let ctrl_z: KeyChord = "Ctrl+Z".parse().unwrap();
+        assert!(bindings.chords_for(Action::Undo).contains(&ctrl_z));
+        bindings.remove_chord(Action::Undo, ctrl_z);
+        assert!(!bindings.chords_for(Action::Undo).contains(&ctrl_z));
+        assert_eq!(bindings.lookup(ctrl_z), None);
+    }
+
+    /// Recorded in the tab, a chord that is an untouched action's default
+    /// shows as a conflict, as between two set by hand.
+    #[test]
+    fn recording_a_default_chord_shows_the_conflict() {
+        let mut bindings: KeyBindings = toml::from_str("[map]").unwrap();
+        let ctrl_z: KeyChord = "Ctrl+Z".parse().unwrap();
+        let other = bindings.add_chord(Action::CycleEntity, ctrl_z);
+        assert_eq!(other, Some(Action::Undo));
+        assert!(bindings
+            .conflicts()
+            .iter()
+            .any(|(c, actions)| *c == ctrl_z && actions.contains(&Action::Undo)));
+    }
+
+    /// An action from a newer version, a chord this one cannot read: the
+    /// rest still reads — before, either cost the whole config — and the
+    /// newer action is written back as it was.
+    #[test]
+    fn what_a_newer_version_wrote_is_kept_or_left_out_not_fatal() {
+        let text = r#"
+            [map]
+            toggle_edit_mode = ["Ctrl+Alt+E", "Hyper+Banana"]
+            save_now = "Ctrl+S"
+            dance_party = ["Ctrl+D"]
+        "#;
+        let bindings: KeyBindings = toml::from_str(text).unwrap();
+        assert_eq!(
+            bindings.chords_for(Action::ToggleEditMode),
+            vec!["Ctrl+Alt+E".parse::<KeyChord>().unwrap()]
+        );
+        assert_eq!(
+            bindings.chords_for(Action::SaveNow),
+            vec!["Ctrl+S".parse::<KeyChord>().unwrap()],
+            "one chord on its own, not in a list"
+        );
+        let out = toml::to_string(&bindings).unwrap();
+        assert!(out.contains("dance_party = [\"Ctrl+D\"]"), "{out}");
+        let back: KeyBindings = toml::from_str(&out).unwrap();
+        assert_eq!(back.unknown, bindings.unknown);
+        assert_eq!(back.map, bindings.map);
     }
 
     #[test]

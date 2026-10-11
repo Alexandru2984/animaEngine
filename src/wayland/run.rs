@@ -159,6 +159,9 @@ pub fn run_native(
     if crate::config::loaded_defaults_over_unreadable_config() {
         warnings.insert(Warning::ConfigUnreadable);
     }
+    if !config.set_aside.is_empty() {
+        warnings.insert(Warning::ConfigPartlyUnread);
+    }
     // Right-click context menu state, mirroring `app::ContextMenuState`
     // on the X11 path. Persists across frames while the menu is open.
     let mut context_menu_state: Option<crate::app::ContextMenuState> = None;

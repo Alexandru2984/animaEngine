@@ -457,6 +457,7 @@ warning-global-hotkeys-unavailable = グローバルホットキーを登録で�
 warning-hot-reload-disconnected = ホットリロードのワーカーが予期せず停止しました。進行中の設定変更はアプリの再起動後に反映されます。
 # Machine-translated, pending native review.
 warning-config-unreadable = 設定ファイルを読み込めなかったため、既定のシーンを読み込みました。元のファイルは同じ場所に config.toml.bak-corrupt として残してあります。
+warning-config-partly-unread = 設定ファイルの一部を読み込めませんでした。新しいバージョンの animaEngine で書かれたか、入力ミスがある可能性があります。その部分を除いて動作を続けます。含まれるキャラクターは表示されず、設定は既定値になりますが、すべてファイルにそのまま残してあります。
 action-toggle-perf-overlay = パフォーマンス表示を切り替え
 
 # ── What's new (D.7) — placeholder pending native-speaker audit

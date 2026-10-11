@@ -399,6 +399,7 @@ fn test_config_new_asset_types_serialize() {
         keybindings: anima_engine::keybindings::KeyBindings::default(),
         collapse_state: anima_engine::ui::CollapseState::default(),
         schema_version: anima_engine::config::CURRENT_SCHEMA_VERSION,
+        set_aside: Default::default(),
         extra: toml::Table::new(),
     };
 
