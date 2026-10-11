@@ -78,24 +78,7 @@ static STATE: OnceLock<RwLock<State>> = OnceLock::new();
 /// twice is a no-op (the second locale wins anyway via
 /// [`set_locale`]).
 pub fn init(requested: Option<&str>) {
-    // Reject an explicit `requested` code that isn't supported, but log
-    // it — a config tampered with (or a typo'd CLI flag) shouldn't
-    // silently fall back. The env-var path is intentionally quieter
-    // because `LANG=fr_FR.UTF-8` on a non-French build is normal user
-    // behaviour, not an anomaly.
-    if let Some(code) = requested {
-        if !code_is_supported(code) {
-            tracing::warn!(
-                "Requested locale {:?} is not in the SUPPORTED list; falling back",
-                code,
-            );
-        }
-    }
-    let initial = requested
-        .map(|s| s.to_string())
-        .or_else(detect_from_env)
-        .filter(|code| code_is_supported(code))
-        .unwrap_or_else(|| FALLBACK.to_string());
+    let initial = resolve(requested);
 
     let fallback_bundle = Arc::new(build_bundle(FALLBACK));
     let active_bundle = if initial == FALLBACK {
@@ -166,6 +149,36 @@ fn strip_isolates(s: &str) -> String {
     s.chars()
         .filter(|c| !matches!(*c, '\u{2068}' | '\u{2069}'))
         .collect()
+}
+
+/// The locale `requested` names — the config's `locale` — or else the
+/// one `LANG` / `LC_ALL` name, or else English.
+fn resolve(requested: Option<&str>) -> String {
+    // Reject an explicit `requested` code that isn't supported, but log
+    // it — a config tampered with (or a typo'd CLI flag) shouldn't
+    // silently fall back. The env-var path is intentionally quieter
+    // because `LANG=fr_FR.UTF-8` on a non-French build is normal user
+    // behaviour, not an anomaly.
+    if let Some(code) = requested {
+        if !code_is_supported(code) {
+            tracing::warn!(
+                "Requested locale {:?} is not in the SUPPORTED list; falling back",
+                code,
+            );
+        }
+    }
+    requested
+        .map(|s| s.to_string())
+        .or_else(detect_from_env)
+        .filter(|code| code_is_supported(code))
+        .unwrap_or_else(|| FALLBACK.to_string())
+}
+
+/// Switch to the locale the config asks for now, resolved as at start
+/// ([`init`]): a reload of `config.toml` — edited by hand, or replaced by
+/// a restored backup — with another `locale`, or none.
+pub fn apply(requested: Option<&str>) {
+    set_locale(&resolve(requested));
 }
 
 /// Switch to a different locale. Silently no-ops if `code` is not in

@@ -6,9 +6,10 @@
 //! executor; menu activations route back to whichever loop is running —
 //! winit's or the native Wayland one — through an [`EventSink`].
 //!
-//! The menu is static but for snoozing (`tray_menu::entries`), whose
-//! state lives in a process-wide atomic the tray thread looks at every
-//! few seconds, asking ksni to show the menu again when it changed.
+//! The menu changes with snoozing and the focus timer, whose state is
+//! process-wide, and with the app's language (`tray_menu::entries`): the
+//! tray thread looks at its labels every few seconds and asks ksni to
+//! show the menu again when they changed.
 
 use crate::event::{AnimaEvent, EventSink};
 use ksni::TrayMethods;
@@ -98,12 +99,16 @@ pub fn spawn(sink: EventSink) -> thread::JoinHandle<()> {
                         tracing::info!("System tray registered (StatusNotifierItem)");
                         // ksni keeps a server task alive on its own; this
                         // thread stays to keep the D-Bus connection, and
-                        // looks every few seconds whether snoozing began or
-                        // ended, so the menu shows it (`tray_menu::entries`).
-                        let mut shown = crate::snooze::until_label();
+                        // looks every few seconds whether the menu would
+                        // read differently now — snoozing or the focus
+                        // timer began or ended, the language changed — so
+                        // it shows that (`tray_menu::labels`). It used to
+                        // look at snoozing only: the focus timer's start
+                        // and stop never reached the menu.
+                        let mut shown = crate::tray_menu::labels();
                         loop {
                             async_io::Timer::after(std::time::Duration::from_secs(3)).await;
-                            let now = crate::snooze::until_label();
+                            let now = crate::tray_menu::labels();
                             if now != shown {
                                 shown = now;
                                 handle.update(|_| {}).await;

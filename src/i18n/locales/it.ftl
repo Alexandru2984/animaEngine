@@ -387,6 +387,12 @@ palette-snooze-minutes = Sospendi per { $minutes } minuti
 palette-focus-start = Avvia il timer di concentrazione
 palette-focus-stop = Ferma il timer di concentrazione
 palette-snooze-morning = Sospendi fino al mattino
+tray-next-scene = Scena successiva
+tray-show-overlay = Mostra l’overlay
+tray-hide-overlay = Nascondi l’overlay
+tray-snoozing-until = Sospensione fino alle { $until }
+tray-wake = Risveglia ora
+tray-quit = Esci
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Promemoria
 scene-reminders-hint = Un personaggio lo dice ogni tanto, in un fumetto. Il tempo lontano dal computer conta come pausa e lo fa ripartire.

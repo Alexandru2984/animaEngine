@@ -387,6 +387,12 @@ palette-snooze-minutes = { $minutes } 分スヌーズ
 palette-focus-start = 集中タイマーを開始
 palette-focus-stop = 集中タイマーを停止
 palette-snooze-morning = 朝までスヌーズ
+tray-next-scene = 次のシーン
+tray-show-overlay = オーバーレイを表示
+tray-hide-overlay = オーバーレイを隠す
+tray-snoozing-until = { $until } までスヌーズ中
+tray-wake = 今すぐ起こす
+tray-quit = 終了
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = リマインダー
 scene-reminders-hint = キャラクターが時々吹き出しで知らせます。コンピューターから離れていた時間は休憩として数え、最初からやり直します。

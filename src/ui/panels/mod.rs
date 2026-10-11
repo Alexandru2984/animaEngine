@@ -292,6 +292,12 @@ pub fn settings(
     // Both backends run this every frame, so this is where an input
     // method composing Chinese, Japanese or Korean gets the face it needs.
     crate::ui::icons::load_cjk_for_ime(ctx);
+    // And the face the language itself needs, should it have changed
+    // without the Appearance picker — a reload of the config file, a
+    // restored backup — which re-installs the fonts on its own.
+    if crate::ui::icons::locale_needs_cjk(&crate::i18n::current_locale()) {
+        crate::ui::icons::install_with_cjk(ctx);
+    }
 
     // Frosted, semi-transparent panel: the overlay feels lighter and the
     // desktop reads through behind the settings instead of a solid slab.

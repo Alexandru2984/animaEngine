@@ -387,6 +387,12 @@ palette-snooze-minutes = Drzemka na { $minutes } minut
 palette-focus-start = Uruchom minutnik skupienia
 palette-focus-stop = Zatrzymaj minutnik skupienia
 palette-snooze-morning = Drzemka do rana
+tray-next-scene = Następna scena
+tray-show-overlay = Pokaż nakładkę
+tray-hide-overlay = Ukryj nakładkę
+tray-snoozing-until = Drzemka do { $until }
+tray-wake = Pobudka teraz
+tray-quit = Zakończ
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Przypomnienia
 scene-reminders-hint = Postać mówi to co jakiś czas, w dymku. Czas z dala od komputera liczy się jako przerwa i zaczyna odliczanie od nowa.

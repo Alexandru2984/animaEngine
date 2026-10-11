@@ -129,9 +129,10 @@ edit mode from anywhere.
 
 - [ ] **The tray** (Ubuntu's AppIndicator extension): *Snooze 15
       minutes / 1 hour / until morning*, then *Snoozing until …* and
-      *Wake up now*; *Start focus* / *Stop focus*; *Next scene* goes to
-      the next saved scene. (The menu is English only — known, not a
-      1.5 regression.)
+      *Wake up now*; *Start the focus timer* / *Stop the focus timer*,
+      with *Focusing until …* while it runs; *Next scene* goes to the
+      next saved scene. All of it in the app's language, and in another
+      a few seconds after Appearance switches it.
 - [ ] **Start at login.** Appearance → *Start at login*: the entry is
       in `~/.config/autostart/com.animaengine.Anima.desktop` and in
       GNOME's startup list; log out and in: it starts. Turn it off

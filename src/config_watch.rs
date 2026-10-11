@@ -211,6 +211,13 @@ fn install(result: Reloaded, ctx: &mut OutcomeCtx<'_>, config: &mut AppConfig) {
             .retain(|id, _| new_ids.contains(id.as_str()));
     }
 
+    // The language too: it was read only at start and from Appearance,
+    // so a hand edit of `locale`, or a backup restored from another
+    // machine, kept the old one until the app was started again. The
+    // panel's fonts follow on its next frame (`panels::settings`).
+    if result.config.global.locale != config.global.locale {
+        crate::i18n::apply(result.config.global.locale.as_deref());
+    }
     *config = result.config;
     *ctx.scene = result.scene;
     // The reloaded scene is a different list; an index into the old one

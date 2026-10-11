@@ -387,6 +387,12 @@ palette-snooze-minutes = { $minutes } minuten sluimeren
 palette-focus-start = Focustimer starten
 palette-focus-stop = Focustimer stoppen
 palette-snooze-morning = Sluimeren tot de ochtend
+tray-next-scene = Volgende scène
+tray-show-overlay = Overlay tonen
+tray-hide-overlay = Overlay verbergen
+tray-snoozing-until = Sluimert tot { $until }
+tray-wake = Nu wakker worden
+tray-quit = Afsluiten
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Herinneringen
 scene-reminders-hint = Een figuur zegt het af en toe, in een tekstballon. Tijd weg van de computer telt als pauze en begint opnieuw.

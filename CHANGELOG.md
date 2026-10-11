@@ -346,6 +346,14 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 - The pulse on the selected row in the Scene tab ignored **Reduce
   motion**. It holds still now, and otherwise runs at ten frames a
   second instead of every frame.
+- **The tray menu was in English, whatever the language.** Every item
+  is in the app's language now, and follows it when it changes. The
+  menu also kept showing "Start focus" while the focus timer ran: it
+  was shown again only when snoozing began or ended, and now whenever
+  what it says would change.
+- **A language set in `config.toml` by hand, or by a restored backup,
+  waited for the next start.** It applies as the file is reloaded, the
+  panel's fonts included — Japanese draws at once, not as boxes.
 - **Sounds stopped for good when the sound server restarted.** A stream
   whose PipeWire went away stops without a word — no error reaches the
   app — and the app went on playing into it: every sound after it

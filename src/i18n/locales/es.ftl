@@ -387,6 +387,12 @@ palette-snooze-minutes = Dormitar { $minutes } minutos
 palette-focus-start = Iniciar el temporizador de concentración
 palette-focus-stop = Detener el temporizador de concentración
 palette-snooze-morning = Dormitar hasta la mañana
+tray-next-scene = Escena siguiente
+tray-show-overlay = Mostrar el overlay
+tray-hide-overlay = Ocultar el overlay
+tray-snoozing-until = Dormitando hasta las { $until }
+tray-wake = Despertar ahora
+tray-quit = Salir
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Recordatorios
 scene-reminders-hint = Un personaje lo dice de vez en cuando, en un bocadillo. El tiempo lejos del ordenador cuenta como descanso y lo reinicia.

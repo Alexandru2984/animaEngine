@@ -387,6 +387,12 @@ palette-snooze-minutes = Ațipește { $minutes } minute
 palette-focus-start = Pornește cronometrul de concentrare
 palette-focus-stop = Oprește cronometrul de concentrare
 palette-snooze-morning = Ațipește până dimineață
+tray-next-scene = Scena următoare
+tray-show-overlay = Arată suprapunerea
+tray-hide-overlay = Ascunde suprapunerea
+tray-snoozing-until = Ațipire până la { $until }
+tray-wake = Trezește-te acum
+tray-quit = Ieșire
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Mementouri
 scene-reminders-hint = Un personaj îl spune din când în când, într-un balon. Timpul petrecut departe de calculator contează ca pauză și o ia de la capăt.

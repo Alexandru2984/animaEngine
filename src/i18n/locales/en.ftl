@@ -394,6 +394,12 @@ palette-snooze-minutes = Snooze for { $minutes } minutes
 palette-focus-start = Start the focus timer
 palette-focus-stop = Stop the focus timer
 palette-snooze-morning = Snooze until morning
+tray-next-scene = Next scene
+tray-show-overlay = Show overlay
+tray-hide-overlay = Hide overlay
+tray-snoozing-until = Snoozing until { $until }
+tray-wake = Wake up now
+tray-quit = Quit
 # Reminders (1.5)
 scene-reminders-header = Reminders
 scene-reminders-hint = A character says it every so often, in a bubble. Time away from the computer counts as a break and starts it over.

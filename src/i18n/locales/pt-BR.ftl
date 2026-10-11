@@ -387,6 +387,12 @@ palette-snooze-minutes = Soneca de { $minutes } minutos
 palette-focus-start = Iniciar o timer de foco
 palette-focus-stop = Parar o timer de foco
 palette-snooze-morning = Soneca até de manhã
+tray-next-scene = Próxima cena
+tray-show-overlay = Mostrar o overlay
+tray-hide-overlay = Ocultar o overlay
+tray-snoozing-until = Soneca até { $until }
+tray-wake = Acordar agora
+tray-quit = Sair
 # Reminders (1.5): machine-translated, pending native review.
 scene-reminders-header = Lembretes
 scene-reminders-hint = Um personagem diz isso de vez em quando, num balão. O tempo longe do computador conta como pausa e recomeça a contagem.
