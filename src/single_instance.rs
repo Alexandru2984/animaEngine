@@ -197,7 +197,7 @@ impl ActivationService {
 
     /// Mute the sounds, or bring them back — whichever they are not.
     async fn toggle_mute(&self) {
-        self.post(AnimaEvent::SetMuted(!crate::audio::muted()));
+        self.post(AnimaEvent::ToggleMute);
     }
 }
 
@@ -271,11 +271,7 @@ impl WaylandActivationService {
     }
 
     async fn toggle_mute(&self) {
-        Self::dispatch(
-            &self.tx,
-            AnimaEvent::SetMuted(!crate::audio::muted()),
-            "ToggleMute",
-        );
+        Self::dispatch(&self.tx, AnimaEvent::ToggleMute, "ToggleMute");
     }
 }
 

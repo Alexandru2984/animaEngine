@@ -889,6 +889,10 @@ impl ApplicationHandler<AnimaEvent> for App {
                 }
                 self.update_step_aside();
             }
+            AnimaEvent::ToggleMute => {
+                let muted = !self.config.global.sounds_muted;
+                self.user_event(event_loop, AnimaEvent::SetMuted(muted));
+            }
             AnimaEvent::SetMuted(muted) => {
                 self.config.global.sounds_muted = muted;
                 self.config_dirty = true;

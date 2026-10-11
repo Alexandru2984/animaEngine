@@ -191,7 +191,8 @@ impl App {
             let global = &self.config.global;
             self.audio_host.set_level(
                 global.sound_volume,
-                global.sounds_muted || (global.quiet_at_bedtime && self.bedtime_now),
+                global.sounds_muted,
+                global.quiet_at_bedtime && self.bedtime_now,
             );
             let scripts =
                 self.library_root

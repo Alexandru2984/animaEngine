@@ -56,6 +56,11 @@ pub enum AnimaEvent {
     /// Mute the sounds, or not (`sounds_muted`): the tray's and a global
     /// shortcut's way in, which cannot reach the config themselves.
     SetMuted(bool),
+    /// Mute the sounds, or bring them back — the other way from
+    /// `sounds_muted` when the loop gets to it: a global shortcut, D-Bus
+    /// `ToggleMute`. Decided there, not where it is sent, so two in a row
+    /// are two toggles.
+    ToggleMute,
 }
 
 /// Where a background thread — the tray, the D-Bus service — sends its

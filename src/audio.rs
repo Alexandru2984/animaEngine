@@ -317,9 +317,10 @@ enum Output {
     Unavailable { retry_at: Instant },
 }
 
-/// Whether the sounds are muted, as the loops last set it — for the tray
-/// and a global shortcut, which say and decide which way to go without
-/// the config at hand.
+/// Whether the user muted the sounds (`sounds_muted`), as the loops last
+/// set it — for the tray and the palette, which say which way a click
+/// goes without the config at hand. Not bedtime's quiet: that is no
+/// mute to take back.
 static MUTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Whether the sounds are muted now (`sounds_muted`).
@@ -488,12 +489,16 @@ impl AudioHost {
     }
 
     /// How loud from now on, and whether at all: the loops call it every
-    /// tick with `sound_volume`, and `muted` — `sounds_muted`, or bedtime
-    /// when it is to be quiet. Sounds already playing follow at once; a
+    /// tick with `sound_volume`, `sounds_muted`, and whether it is bedtime
+    /// and that is to be quiet. Sounds already playing follow at once; a
     /// silent host plays nothing new and opens no device.
-    pub fn set_level(&mut self, volume: f32, muted: bool) {
+    pub fn set_level(&mut self, volume: f32, muted: bool, bedtime: bool) {
         MUTED.store(muted, std::sync::atomic::Ordering::Relaxed);
-        let gain = if muted { 0.0 } else { gain_for(volume) };
+        let gain = if muted || bedtime {
+            0.0
+        } else {
+            gain_for(volume)
+        };
         self.silent = gain <= 0.0;
         #[cfg(feature = "audio")]
         self.gain
@@ -995,11 +1000,15 @@ mod host_tests {
     fn muted_or_at_no_volume_the_host_is_silent() {
         let mut host = AudioHost::new();
         assert!(!host.silent);
-        host.set_level(0.8, true);
+        host.set_level(0.8, true, false);
         assert!(host.silent && muted(), "muted");
-        host.set_level(0.0, false);
+        // Quiet for the night, but not muted: the tray and the palette
+        // still offer a mute, not an unmute that would do nothing.
+        host.set_level(0.8, false, true);
+        assert!(host.silent && !muted(), "at bedtime");
+        host.set_level(0.0, false, false);
         assert!(host.silent && !muted(), "at no volume");
-        host.set_level(0.5, false);
+        host.set_level(0.5, false, false);
         assert!(!host.silent);
         #[cfg(feature = "audio")]
         assert_eq!(

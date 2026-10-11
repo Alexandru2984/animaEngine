@@ -521,7 +521,8 @@ pub fn run_native(
         // tick: scripts play from inside it.
         audio_host.set_level(
             global.sound_volume,
-            global.sounds_muted || (global.quiet_at_bedtime && bedtime_now),
+            global.sounds_muted,
+            global.quiet_at_bedtime && bedtime_now,
         );
         // Characters with hours of their own (`crate::hours`) — everyone
         // while editing.
@@ -865,6 +866,11 @@ pub fn run_native(
                         AnimaEvent::StopFocus => crate::focus::stop(),
                         AnimaEvent::SetMuted(muted) => {
                             config.global.sounds_muted = muted;
+                            config_dirty = true;
+                            mute_changed = true;
+                        }
+                        AnimaEvent::ToggleMute => {
+                            config.global.sounds_muted = !config.global.sounds_muted;
                             config_dirty = true;
                             mute_changed = true;
                         }
@@ -2484,14 +2490,6 @@ fn dispatch_with_timeout(
     queue.dispatch_pending(state).map_err(to_err)
 }
 
-/// Mirror the live scene into `config`, then persist it.
-///
-/// The winit path does exactly this in `App::save_config_if_needed`. The
-/// native loop used to call `config.save()` directly, which wrote back
-/// whatever `characters` was parsed at startup — so dragging a sprite,
-/// adding an entity or toggling playback set `config_dirty`, saved the
-/// *stale* scene, and silently discarded the edit. Any save on this path
-/// must go through here.
 /// A focus or snooze shortcut, as the event it stands for now
 /// (`hotkeys::action_to_event`), done here. Returns whether it snoozed.
 fn timer_shortcut(action: Action, focus: crate::focus::FocusConfig) -> bool {
@@ -2511,6 +2509,14 @@ fn timer_shortcut(action: Action, focus: crate::focus::FocusConfig) -> bool {
     false
 }
 
+/// Mirror the live scene into `config`, then persist it.
+///
+/// The winit path does exactly this in `App::save_config_if_needed`. The
+/// native loop used to call `config.save()` directly, which wrote back
+/// whatever `characters` was parsed at startup — so dragging a sprite,
+/// adding an entity or toggling playback set `config_dirty`, saved the
+/// *stale* scene, and silently discarded the edit. Any save on this path
+/// must go through here.
 fn sync_and_save(config: &mut AppConfig, scene: &Scene) -> Result<()> {
     config.take_scene(scene);
     config.save()

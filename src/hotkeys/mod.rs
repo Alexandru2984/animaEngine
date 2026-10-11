@@ -88,7 +88,7 @@ pub fn action_to_event(action: Action, visible: &AtomicBool) -> Option<AnimaEven
                 AnimaEvent::Snooze(crate::snooze::SnoozeFor::Minutes(15))
             }
         }
-        Action::ToggleMute => AnimaEvent::SetMuted(!crate::audio::muted()),
+        Action::ToggleMute => AnimaEvent::ToggleMute,
         _ => return None,
     })
 }
