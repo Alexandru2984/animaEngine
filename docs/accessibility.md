@@ -145,8 +145,9 @@ would steal the key from every focused app. The default global set
 (`Ctrl+Shift+A` / `Ctrl+Shift+H` / `Ctrl+Shift+P`) maps onto
 `ToggleEditMode` / `HideOverlay` / `PauseAll`; rebinding any of those
 onto an unmodifier chord silently demotes it to in-app-only. The focus
-timer and the snooze (`ToggleFocus`, `ToggleSnooze`, 1.5) can be global
-too, once given a chord: they ship unbound.
+timer, the snooze and muting the sounds (`ToggleFocus`, `ToggleSnooze`,
+`ToggleMute`, 1.5) can be global too, once given a chord: they ship
+unbound.
 
 ### 6. Icon-only controls get names
 

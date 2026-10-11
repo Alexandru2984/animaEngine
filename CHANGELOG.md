@@ -171,6 +171,13 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   it; "Play" plays it again. None by default; a shared scene leaves its
   sounds behind. A sound that cannot be played says so, rather than
   calling itself a behavior script.
+- **Volume and mute.** Appearance has a volume for every sound — taps,
+  reminders, the focus timer, scripts — that a sound already playing
+  follows at once, "Mute sounds", which plays nothing and leaves the
+  sound device closed, and "Quiet at bedtime". The tray and the command
+  palette mute and unmute too, and Keybindings has an unbound shortcut
+  for it that works from anywhere once given a key. A mute from the
+  tray is saved at once.
 - **Little effects.** A few hearts rise from a character you tap, a
   puff of dust goes up where one lands hard, and z's float up as they
   fall asleep. A switch in Appearance turns them off, and Reduce motion

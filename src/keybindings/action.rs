@@ -33,6 +33,8 @@ pub enum Action {
     /// Snooze for a quarter of an hour, or wake up (`crate::snooze`).
     /// Unbound likewise.
     ToggleSnooze,
+    /// Mute the sounds, or not (`sounds_muted`). Unbound likewise.
+    ToggleMute,
 
     // ── Window / persistence ──
     QuitWithSave,
@@ -107,6 +109,7 @@ impl Action {
         Self::PauseAll,
         Self::ToggleFocus,
         Self::ToggleSnooze,
+        Self::ToggleMute,
         Self::QuitWithSave,
         Self::SaveNow,
         Self::OpenCommandPalette,
@@ -202,7 +205,11 @@ impl Action {
         // which way they go.
         !matches!(
             self,
-            Self::OpenCommandPalette | Self::HideOverlay | Self::ToggleFocus | Self::ToggleSnooze
+            Self::OpenCommandPalette
+                | Self::HideOverlay
+                | Self::ToggleFocus
+                | Self::ToggleSnooze
+                | Self::ToggleMute
         )
     }
 
@@ -215,6 +222,7 @@ impl Action {
             Self::PauseAll => "Pause all animations",
             Self::ToggleFocus => "Start or stop the focus timer",
             Self::ToggleSnooze => "Snooze 15 minutes or wake up",
+            Self::ToggleMute => "Mute or unmute sounds",
             Self::QuitWithSave => "Quit (save config)",
             Self::SaveNow => "Save config now",
             Self::OpenCommandPalette => "Command palette",
@@ -259,6 +267,7 @@ impl Action {
             Self::PauseAll => "Freeze every animation. Useful for screenshots.",
             Self::ToggleFocus => "Work, a break, and round again — or stop it.",
             Self::ToggleSnooze => "Out of sight for a quarter of an hour — or back now.",
+            Self::ToggleMute => "Silence every sound — or bring them back.",
             Self::QuitWithSave => "Persist any pending edits and exit.",
             Self::SaveNow => "Force-write the config without exiting.",
             Self::OpenCommandPalette => {
@@ -409,7 +418,7 @@ impl Action {
             Self::ToggleEditMode => Self::C_TOGGLE_EDIT_MODE,
             Self::HideOverlay => Self::C_HIDE_OVERLAY,
             Self::PauseAll => Self::C_PAUSE_ALL,
-            Self::ToggleFocus | Self::ToggleSnooze => &[],
+            Self::ToggleFocus | Self::ToggleSnooze | Self::ToggleMute => &[],
             Self::QuitWithSave => Self::C_QUIT_WITH_SAVE,
             Self::SaveNow => Self::C_SAVE_NOW,
             Self::OpenCommandPalette => Self::C_OPEN_CMD_PALETTE,
@@ -458,6 +467,7 @@ impl Action {
             Self::PauseAll => "action-pause-all",
             Self::ToggleFocus => "action-toggle-focus",
             Self::ToggleSnooze => "action-toggle-snooze",
+            Self::ToggleMute => "action-toggle-mute",
             Self::QuitWithSave => "action-quit-with-save",
             Self::SaveNow => "action-save-now",
             Self::OpenCommandPalette => "action-open-command-palette",

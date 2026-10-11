@@ -100,6 +100,14 @@ pub struct AwayControls<'a> {
     pub idle_available: Option<bool>,
 }
 
+/// The sounds' controls in Appearance (`crate::audio`).
+pub struct SoundControls<'a> {
+    /// `sound_volume`, 0 to 1.
+    pub volume: &'a mut f32,
+    pub muted: &'a mut bool,
+    pub quiet_at_bedtime: &'a mut bool,
+}
+
 /// What the right-click menu offers beyond its fixed entries, worked out
 /// before the frame from what it acts on (`crate::outcomes::menu_offers`).
 #[derive(Debug, Clone, Copy, Default)]
@@ -272,6 +280,7 @@ pub fn settings(
     bedtime: &mut crate::bedtime::Bedtime,
     moods: &mut bool,
     away: AwayControls<'_>,
+    sounds: SoundControls<'_>,
     start_at_login: &mut bool,
     monitors: &[MonitorInfo],
     library: Option<&LibraryIndex>,
@@ -469,6 +478,7 @@ pub fn settings(
                                 tap_characters,
                                 little_effects,
                                 away,
+                                sounds,
                                 bedtime,
                                 moods,
                                 start_at_login,

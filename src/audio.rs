@@ -141,6 +141,9 @@ impl Cached {
 struct SharedSamples {
     sound: std::sync::Arc<Cached>,
     pos: usize,
+    /// The host's gain, read on every sample, so the volume slider and
+    /// mute act on a sound already playing ([`AudioHost::set_level`]).
+    gain: std::sync::Arc<std::sync::atomic::AtomicU32>,
 }
 
 #[cfg(feature = "audio")]
@@ -153,7 +156,8 @@ impl Iterator for SharedSamples {
         if s.is_some() {
             self.pos += 1;
         }
-        s
+        let gain = f32::from_bits(self.gain.load(std::sync::atomic::Ordering::Relaxed));
+        s.map(|s| s * gain)
     }
 
     #[inline]
@@ -313,8 +317,36 @@ enum Output {
     Unavailable { retry_at: Instant },
 }
 
+/// Whether the sounds are muted, as the loops last set it — for the tray
+/// and a global shortcut, which say and decide which way to go without
+/// the config at hand.
+static MUTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether the sounds are muted now (`sounds_muted`).
+pub fn muted() -> bool {
+    MUTED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// The gain for a volume from 0 to 1: its square, nearer how loudness is
+/// heard than the volume itself — half way down is about 12 dB quieter,
+/// not 6.
+pub fn gain_for(volume: f32) -> f32 {
+    let v = if volume.is_finite() {
+        volume.clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    v * v
+}
+
 /// Owns the output device and the decoded-sound cache.
 pub struct AudioHost {
+    /// The gain every playing sound reads ([`AudioHost::set_level`]), as
+    /// `f32` bits.
+    #[cfg(feature = "audio")]
+    gain: std::sync::Arc<std::sync::atomic::AtomicU32>,
+    /// Muted, at no volume, or quiet for bedtime: nothing new plays.
+    silent: bool,
     /// Absent entirely on a build without the `audio` feature, where every
     /// play is a no-op.
     #[cfg(feature = "audio")]
@@ -364,6 +396,9 @@ impl AudioHost {
     /// A host with nothing open yet: the device waits for the first sound.
     pub fn new() -> Self {
         Self {
+            #[cfg(feature = "audio")]
+            gain: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(1.0f32.to_bits())),
+            silent: false,
             #[cfg(feature = "audio")]
             output: Output::Closed,
             #[cfg(feature = "audio")]
@@ -452,6 +487,19 @@ impl AudioHost {
         }
     }
 
+    /// How loud from now on, and whether at all: the loops call it every
+    /// tick with `sound_volume`, and `muted` — `sounds_muted`, or bedtime
+    /// when it is to be quiet. Sounds already playing follow at once; a
+    /// silent host plays nothing new and opens no device.
+    pub fn set_level(&mut self, volume: f32, muted: bool) {
+        MUTED.store(muted, std::sync::atomic::Ordering::Relaxed);
+        let gain = if muted { 0.0 } else { gain_for(volume) };
+        self.silent = gain <= 0.0;
+        #[cfg(feature = "audio")]
+        self.gain
+            .store(gain.to_bits(), std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Drain load failures the user hasn't been told about yet.
     pub fn take_new_failures(&mut self) -> Vec<(String, String)> {
         std::mem::take(&mut self.unreported)
@@ -493,7 +541,9 @@ impl AudioHost {
         max_x: f32,
     ) {
         let now = Instant::now();
-        if rel.is_empty()
+        // Muted: nothing is decoded and no device is opened for it.
+        if self.silent
+            || rel.is_empty()
             || matches!(self.output, Output::Unavailable { retry_at } if now < retry_at)
         {
             return;
@@ -562,7 +612,11 @@ impl AudioHost {
         // Shares the decoded buffer rather than copying it — see
         // `SharedSamples`.
         *close_at = (*close_at).max(now + sound.duration() + LINGER);
-        let buffer = SharedSamples { sound, pos: 0 };
+        let buffer = SharedSamples {
+            sound,
+            pos: 0,
+            gain: std::sync::Arc::clone(&self.gain),
+        };
         sink.mixer().add(panned(buffer, left, right));
 
         self.last_played.insert(key, now);
@@ -842,6 +896,11 @@ mod pan_tests {
     /// Energy per output channel of a mono tone played through a stereo
     /// mixer at the given gains — the path `play` takes, minus the device.
     fn mixed_energy(rate: u32, left: f32, right: f32) -> (f32, f32) {
+        mixed_energy_at(rate, left, right, 1.0)
+    }
+
+    /// As [`mixed_energy`], the host's gain at `gain`.
+    fn mixed_energy_at(rate: u32, left: f32, right: f32, gain: f32) -> (f32, f32) {
         use rodio::Source;
         let samples: Vec<f32> = (0..rate / 10)
             .map(|i| (i as f32 * 440.0 * std::f32::consts::TAU / rate as f32).sin() * 0.5)
@@ -855,7 +914,16 @@ mod pan_tests {
             rodio::ChannelCount::new(2).unwrap(),
             rodio::SampleRate::new(44_100).unwrap(),
         );
-        mixer.add(panned(SharedSamples { sound, pos: 0 }, left, right));
+        let gain = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(gain.to_bits()));
+        mixer.add(panned(
+            SharedSamples {
+                sound,
+                pos: 0,
+                gain,
+            },
+            left,
+            right,
+        ));
         assert_eq!(out.channels().get(), 2);
         let (mut l, mut r) = (0.0, 0.0);
         let frames: Vec<f32> = out.take(44_100).collect();
@@ -864,6 +932,17 @@ mod pan_tests {
             r += right * right;
         }
         (l, r)
+    }
+
+    #[test]
+    fn the_volume_scales_what_reaches_the_mixer() {
+        let (l, r) = mixed_energy_at(44_100, 1.0, 1.0, 1.0);
+        let (lh, rh) = mixed_energy_at(44_100, 1.0, 1.0, 0.5);
+        // Half the amplitude, a quarter of the energy.
+        assert!((lh / l - 0.25).abs() < 0.01, "{}", lh / l);
+        assert!((rh / r - 0.25).abs() < 0.01, "{}", rh / r);
+        let (l0, r0) = mixed_energy_at(44_100, 1.0, 1.0, 0.0);
+        assert!(l0 == 0.0 && r0 == 0.0, "muted is silent");
     }
 
     /// The gains have to survive rodio's mixer, not just `pan_gains`: the
@@ -894,6 +973,36 @@ mod host_tests {
     /// A host touches no device until a sound plays: an app that never
     /// makes a sound never holds a stream — and neither do these tests,
     /// which would otherwise open the sound card of whoever runs them.
+    #[test]
+    fn the_gain_follows_the_square_of_the_volume() {
+        assert_eq!(gain_for(1.0), 1.0);
+        assert_eq!(gain_for(0.5), 0.25);
+        assert_eq!(gain_for(0.0), 0.0);
+        assert_eq!(gain_for(2.0), 1.0, "held to full");
+        assert_eq!(gain_for(-1.0), 0.0);
+        assert_eq!(gain_for(f32::NAN), 1.0, "a broken value plays as it comes");
+    }
+
+    /// Muted or at no volume, nothing new plays — checked without playing,
+    /// so a failing test cannot sound on the machine running it.
+    #[test]
+    fn muted_or_at_no_volume_the_host_is_silent() {
+        let mut host = AudioHost::new();
+        assert!(!host.silent);
+        host.set_level(0.8, true);
+        assert!(host.silent && muted(), "muted");
+        host.set_level(0.0, false);
+        assert!(host.silent && !muted(), "at no volume");
+        host.set_level(0.5, false);
+        assert!(!host.silent);
+        #[cfg(feature = "audio")]
+        assert_eq!(
+            f32::from_bits(host.gain.load(std::sync::atomic::Ordering::Relaxed)),
+            0.25
+        );
+        assert!(!host.is_open(), "and no device was touched");
+    }
+
     #[test]
     fn a_new_host_opens_no_device() {
         let host = AudioHost::new();

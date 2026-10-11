@@ -22,6 +22,8 @@ pub enum TrayItem {
     /// The focus timer (`crate::focus`): a start, or which part it is in
     /// until when and a stop.
     Focus,
+    /// Mute the sounds, or bring them back (`crate::audio::muted`).
+    Mute,
     Separator,
 }
 
@@ -82,6 +84,17 @@ pub fn entries() -> Vec<Entry> {
                 }
                 None => out.push(item(t("palette-focus-start"), AnimaEvent::StartFocus(0))),
             },
+            TrayItem::Mute => {
+                let muted = crate::audio::muted();
+                out.push(item(
+                    t(if muted {
+                        "palette-unmute"
+                    } else {
+                        "palette-mute"
+                    }),
+                    AnimaEvent::SetMuted(!muted),
+                ));
+            }
             TrayItem::Snooze => match crate::snooze::until_label() {
                 Some(at) => {
                     out.push(until("tray-snoozing-until", at));
@@ -142,6 +155,7 @@ pub const MENU: &[TrayItem] = &[
     TrayItem::Separator,
     TrayItem::Focus,
     TrayItem::Snooze,
+    TrayItem::Mute,
     TrayItem::Separator,
     TrayItem::Action {
         key: "tray-quit",

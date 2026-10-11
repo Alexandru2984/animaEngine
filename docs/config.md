@@ -193,6 +193,13 @@ morning and slower at night — walking and animation, by about a fifth
 either way — and, with bedtime on, each yawns once in the half hour
 before it.
 
+`sound_volume = 0.5` (in `[global]`, 0 to 1) is how loud every sound is
+— taps, reminders, the focus timer, scripts — its square applied, so
+half way is about 12 dB quieter; `sounds_muted = true` silences them and
+leaves the sound device closed; `quiet_at_bedtime = true` silences them
+while bedtime lasts. Appearance sets all three; the tray and the command
+palette mute and unmute too.
+
 Both are left out while they are as they come. The focus timer itself
 is not saved: it starts from the tray, the command palette, the Scene
 tab or D-Bus, and stops with the app. While it runs, reminders wait out

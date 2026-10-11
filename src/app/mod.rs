@@ -886,6 +886,24 @@ impl ApplicationHandler<AnimaEvent> for App {
                 }
                 self.update_step_aside();
             }
+            AnimaEvent::SetMuted(muted) => {
+                self.config.global.sounds_muted = muted;
+                self.config_dirty = true;
+                // From the tray or a global shortcut, outside edit mode:
+                // saved at once, quietly. Nothing else would save it before
+                // the app quits, and a config left dirty ignores the file's
+                // own edits until then.
+                if !self.edit_mode {
+                    self.config.take_scene(&self.scene);
+                    match self.config.save() {
+                        Ok(()) => {
+                            self.config_dirty = false;
+                            self.config_watch.note_saved();
+                        }
+                        Err(e) => tracing::warn!("Config save failed: {e}"),
+                    }
+                }
+            }
             AnimaEvent::Wake => {
                 crate::snooze::wake();
                 self.update_step_aside();

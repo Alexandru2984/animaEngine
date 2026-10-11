@@ -53,6 +53,9 @@ pub enum AnimaEvent {
     StartFocus(u32),
     /// Stop the focus timer.
     StopFocus,
+    /// Mute the sounds, or not (`sounds_muted`): the tray's and a global
+    /// shortcut's way in, which cannot reach the config themselves.
+    SetMuted(bool),
 }
 
 /// Where a background thread — the tray, the D-Bus service — sends its

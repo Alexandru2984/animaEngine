@@ -41,6 +41,7 @@ const PORTAL_ACTIONS: &[Action] = &[
     Action::PauseAll,
     Action::ToggleFocus,
     Action::ToggleSnooze,
+    Action::ToggleMute,
 ];
 
 /// Messages from the portal thread. The handshake outcome arrives as
@@ -77,6 +78,7 @@ pub fn action_slug(action: Action) -> Option<&'static str> {
         Action::PauseAll => "pause-all",
         Action::ToggleFocus => "toggle-focus",
         Action::ToggleSnooze => "toggle-snooze",
+        Action::ToggleMute => "toggle-mute",
         _ => return None,
     })
 }
@@ -89,6 +91,7 @@ pub fn slug_action(slug: &str) -> Option<Action> {
         "pause-all" => Action::PauseAll,
         "toggle-focus" => Action::ToggleFocus,
         "toggle-snooze" => Action::ToggleSnooze,
+        "toggle-mute" => Action::ToggleMute,
         _ => return None,
     })
 }
@@ -104,6 +107,7 @@ fn action_description(action: Action) -> &'static str {
         Action::PauseAll => "Pause or resume all animations",
         Action::ToggleFocus => "Start or stop the focus timer",
         Action::ToggleSnooze => "Snooze for 15 minutes, or wake up",
+        Action::ToggleMute => "Mute or unmute the sounds",
         _ => "",
     }
 }

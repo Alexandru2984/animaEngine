@@ -30,6 +30,7 @@ pub(super) fn appearance_tab(
     tap_characters: &mut bool,
     little_effects: &mut bool,
     away: super::AwayControls<'_>,
+    sounds: super::SoundControls<'_>,
     bedtime: &mut crate::bedtime::Bedtime,
     moods: &mut bool,
     start_at_login: &mut bool,
@@ -122,6 +123,10 @@ pub(super) fn appearance_tab(
         .on_hover_text(t("appearance-effects-hint"))
         .changed()
     {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    if sound_controls(ui, sounds) {
         *config_dirty = true;
     }
     ui.add_space(SPACE_S);
@@ -430,6 +435,37 @@ fn chosen_apps_controls(ui: &mut egui::Ui, apps: &mut Vec<String>) -> bool {
 
 /// Bedtime (`crate::bedtime`): a switch, and the hours. Returns whether
 /// anything changed.
+/// How loud the sounds are — taps, reminders, the focus timer, scripts
+/// (`crate::audio`) — and whether there are any.
+fn sound_controls(ui: &mut egui::Ui, sounds: super::SoundControls<'_>) -> bool {
+    let mut changed = ui
+        .checkbox(sounds.muted, t("appearance-sounds-mute"))
+        .on_hover_text(t("appearance-sounds-hint"))
+        .changed();
+    ui.add_enabled_ui(!*sounds.muted, |ui| {
+        ui.horizontal(|ui| {
+            let label = ui.label(t("appearance-sounds-volume"));
+            let mut percent = (*sounds.volume * 100.0).round();
+            let slider = ui
+                .add(
+                    egui::Slider::new(&mut percent, 0.0..=100.0)
+                        .suffix("%")
+                        .fixed_decimals(0),
+                )
+                .labelled_by(label.id);
+            if slider.changed() {
+                *sounds.volume = percent / 100.0;
+                changed = true;
+            }
+        });
+        changed |= ui
+            .checkbox(sounds.quiet_at_bedtime, t("appearance-sounds-bedtime"))
+            .on_hover_text(t("appearance-sounds-bedtime-hint"))
+            .changed();
+    });
+    changed
+}
+
 fn bedtime_controls(ui: &mut egui::Ui, bedtime: &mut crate::bedtime::Bedtime) -> bool {
     let mut changed = ui
         .checkbox(&mut bedtime.enabled, t("appearance-bedtime-label"))

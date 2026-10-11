@@ -53,6 +53,7 @@ const GLOBAL_ACTIONS: &[Action] = &[
     Action::PauseAll,
     Action::ToggleFocus,
     Action::ToggleSnooze,
+    Action::ToggleMute,
 ];
 
 /// Map a globally-triggered action onto the event the main loop
@@ -87,6 +88,7 @@ pub fn action_to_event(action: Action, visible: &AtomicBool) -> Option<AnimaEven
                 AnimaEvent::Snooze(crate::snooze::SnoozeFor::Minutes(15))
             }
         }
+        Action::ToggleMute => AnimaEvent::SetMuted(!crate::audio::muted()),
         _ => return None,
     })
 }

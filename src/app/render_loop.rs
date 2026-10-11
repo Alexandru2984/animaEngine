@@ -186,6 +186,13 @@ impl App {
             let plan =
                 crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors);
             let bounds = crate::monitor::covered_bounds(&plan, (screen_w, screen_h));
+            // How loud the sounds are, if at all (`crate::audio`), before
+            // the tick: scripts play from inside it.
+            let global = &self.config.global;
+            self.audio_host.set_level(
+                global.sound_volume,
+                global.sounds_muted || (global.quiet_at_bedtime && self.bedtime_now),
+            );
             let scripts =
                 self.library_root
                     .as_deref()
@@ -500,6 +507,9 @@ impl App {
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
                         let on_battery_mut = &mut self.config.global.pause_on_battery;
                         let welcome_back_mut = &mut self.config.global.welcome_back;
+                        let sound_volume_mut = &mut self.config.global.sound_volume;
+                        let sounds_muted_mut = &mut self.config.global.sounds_muted;
+                        let quiet_at_bedtime_mut = &mut self.config.global.quiet_at_bedtime;
                         let start_at_login_mut = &mut self.config.global.start_at_login;
                         let idle_available = self.idle_source;
                         // Snapshot the AccessKit flag BEFORE taking
@@ -608,6 +618,11 @@ impl App {
                                         on_battery: &mut *on_battery_mut,
                                         welcome_back: &mut *welcome_back_mut,
                                         idle_available,
+                                    },
+                                    panels::SoundControls {
+                                        volume: &mut *sound_volume_mut,
+                                        muted: &mut *sounds_muted_mut,
+                                        quiet_at_bedtime: &mut *quiet_at_bedtime_mut,
                                     },
                                     start_at_login_mut,
                                     monitors_ref,

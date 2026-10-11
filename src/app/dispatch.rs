@@ -59,7 +59,7 @@ impl App {
             // rather than duplicate it here.
             Action::HideOverlay | Action::OpenCommandPalette => {}
             // As the global shortcuts do: the event each stands for now.
-            Action::ToggleFocus | Action::ToggleSnooze => {
+            Action::ToggleFocus | Action::ToggleSnooze | Action::ToggleMute => {
                 let visible = std::sync::atomic::AtomicBool::new(!self.overlay_hidden);
                 if let Some(event) = crate::hotkeys::action_to_event(action, &visible) {
                     winit::application::ApplicationHandler::user_event(self, event_loop, event);

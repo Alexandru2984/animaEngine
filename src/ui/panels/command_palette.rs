@@ -30,6 +30,8 @@ pub enum PaletteOutcome {
     Snooze(crate::snooze::SnoozeFor),
     /// User started (`true`) or stopped the focus timer (`crate::focus`).
     Focus(bool),
+    /// User muted the sounds (`true`) or brought them back.
+    Mute(bool),
 }
 
 /// Height of the scrolling result list. With every action listed the
@@ -379,6 +381,22 @@ fn rows(query: &str, keybindings: &KeyBindings, has_selection: bool) -> Vec<Row>
             hint: None,
             hover: None,
             outcome: PaletteOutcome::Focus(!focusing),
+        });
+    }
+    // The sounds (`crate::audio`): a mute, or an unmute while muted.
+    let muted = crate::audio::muted();
+    let label = crate::i18n::t(if muted {
+        "palette-unmute"
+    } else {
+        "palette-mute"
+    });
+    if matches_filter(&label) || matches_filter("mute") || matches_filter("sound") {
+        rows.push(Row {
+            icon: icons::SOUND,
+            label,
+            hint: None,
+            hover: None,
+            outcome: PaletteOutcome::Mute(!muted),
         });
     }
     for scene in crate::scenes::shelf() {

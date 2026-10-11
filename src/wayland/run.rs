@@ -532,6 +532,12 @@ pub fn run_native(
         crate::away::configure(idle_watch, global.pause_on_battery);
         // Bedtime by the clock (`crate::bedtime`) — not while editing.
         let bedtime_now = !layer.state.edit_mode && bedtime_watch.now(&global.bedtime);
+        // How loud the sounds are, if at all (`crate::audio`), before the
+        // tick: scripts play from inside it.
+        audio_host.set_level(
+            global.sound_volume,
+            global.sounds_muted || (global.quiet_at_bedtime && bedtime_now),
+        );
         // Characters with hours of their own (`crate::hours`) — everyone
         // while editing.
         let minute = if layer.state.edit_mode {
@@ -838,6 +844,7 @@ pub fn run_native(
             let mut quit = false;
             let mut next_scene = false;
             let mut snoozing = false;
+            let mut mute_changed = false;
             if let Some(rx) = &command_rx {
                 while let Ok(ev) = rx.try_recv() {
                     activity = true;
@@ -871,6 +878,11 @@ pub fn run_native(
                             activity = true;
                         }
                         AnimaEvent::StopFocus => crate::focus::stop(),
+                        AnimaEvent::SetMuted(muted) => {
+                            config.global.sounds_muted = muted;
+                            config_dirty = true;
+                            mute_changed = true;
+                        }
                     }
                 }
             }
@@ -901,6 +913,11 @@ pub fn run_native(
                             KbAction::ToggleFocus | KbAction::ToggleSnooze => {
                                 snoozing |= timer_shortcut(action, config.global.focus);
                             }
+                            KbAction::ToggleMute => {
+                                config.global.sounds_muted = !config.global.sounds_muted;
+                                config_dirty = true;
+                                mute_changed = true;
+                            }
                             KbAction::ToggleEditMode => toggle_edit_xor ^= true,
                             KbAction::PauseAll => toggle_playback_xor ^= true,
                             KbAction::HideOverlay => {
@@ -918,6 +935,19 @@ pub fn run_native(
             }
             // Snoozing out of edit mode: the panel goes with the rest.
             toggle_edit_xor ^= snoozing && layer.state.edit_mode;
+            // Muted or unmuted from the tray or a global shortcut: saved at
+            // once outside edit mode. Nothing else would save it before the
+            // app quits, and a config left dirty ignores the file's own
+            // edits until then.
+            if mute_changed && !layer.state.edit_mode {
+                match sync_and_save(&mut config, &scene) {
+                    Ok(()) => {
+                        config_dirty = false;
+                        config_watch.note_saved();
+                    }
+                    Err(e) => tracing::warn!("Config save failed: {e}"),
+                }
+            }
             if toggle_edit_xor {
                 // Through `flip_edit_mode`, like the keyboard and the ⚙
                 // button. This path used to set the mode directly, so
@@ -1057,6 +1087,10 @@ pub fn run_native(
                     );
                 }
                 // As the global shortcuts do; snoozing leaves edit mode.
+                Action::ToggleMute => {
+                    config.global.sounds_muted = !config.global.sounds_muted;
+                    config_dirty = true;
+                }
                 Action::ToggleFocus | Action::ToggleSnooze => {
                     if timer_shortcut(action, config.global.focus) && layer.state.edit_mode {
                         flip_edit_mode(
@@ -1779,6 +1813,9 @@ pub fn run_native(
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
                 let on_battery_mut = &mut config.global.pause_on_battery;
                 let welcome_back_mut = &mut config.global.welcome_back;
+                let sound_volume_mut = &mut config.global.sound_volume;
+                let sounds_muted_mut = &mut config.global.sounds_muted;
+                let quiet_at_bedtime_mut = &mut config.global.quiet_at_bedtime;
                 let start_at_login_mut = &mut config.global.start_at_login;
                 let idle_available = Some(layer.idle_available());
                 let accesskit_mut = &mut config.global.accesskit_enabled;
@@ -1877,6 +1914,11 @@ pub fn run_native(
                                     on_battery: &mut *on_battery_mut,
                                     welcome_back: &mut *welcome_back_mut,
                                     idle_available,
+                                },
+                                panels::SoundControls {
+                                    volume: &mut *sound_volume_mut,
+                                    muted: &mut *sounds_muted_mut,
+                                    quiet_at_bedtime: &mut *quiet_at_bedtime_mut,
                                 },
                                 start_at_login_mut,
                                 monitors_ref,

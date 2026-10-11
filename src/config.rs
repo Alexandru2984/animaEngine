@@ -130,6 +130,20 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub moods: bool,
 
+    /// How loud the sounds are — taps, reminders, the focus timer,
+    /// scripts — from 0 to 1 (`crate::audio`). Full as it comes.
+    #[serde(
+        default = "default_sound_volume",
+        skip_serializing_if = "is_full_volume"
+    )]
+    pub sound_volume: f32,
+    /// No sounds at all; the device is not even opened. Off by default.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sounds_muted: bool,
+    /// No sounds while bedtime lasts (`crate::bedtime`). Off by default.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub quiet_at_bedtime: bool,
+
     /// How long the focus timer's work and break last (`crate::focus`).
     #[serde(default, skip_serializing_if = "crate::focus::FocusConfig::is_default")]
     pub focus: crate::focus::FocusConfig,
@@ -179,6 +193,14 @@ pub struct GlobalConfig {
     pub last_seen_whats_new: Option<String>,
 }
 
+fn default_sound_volume() -> f32 {
+    1.0
+}
+
+fn is_full_volume(volume: &f32) -> bool {
+    *volume >= 1.0
+}
+
 fn default_pause_when_idle_minutes() -> u32 {
     10
 }
@@ -220,6 +242,9 @@ impl Default for GlobalConfig {
             notify_reminders: false,
             large_bubbles: false,
             moods: false,
+            sound_volume: default_sound_volume(),
+            sounds_muted: false,
+            quiet_at_bedtime: false,
             window_awareness: false,
             snap_while_dragging: true,
             characters_bump: false,
@@ -555,6 +580,7 @@ impl AppConfig {
     /// a hand-edited or corrupt config can't feed `NaN`/`inf` to the GPU.
     pub(crate) fn sanitize(&mut self) {
         self.global.reminder_sound.sanitize();
+        self.global.sound_volume = finite_clamp(self.global.sound_volume, 0.0, 1.0, 1.0);
         for c in &mut self.characters {
             c.sanitize();
         }

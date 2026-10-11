@@ -641,6 +641,11 @@ pub fn apply_palette_outcome(
             load_scene(&path, ctx, &mut config.global.active_scene);
             return;
         }
+        PaletteOutcome::Mute(muted) => {
+            config.global.sounds_muted = muted;
+            *ctx.config_dirty = true;
+            return;
+        }
         PaletteOutcome::Focus(start) => {
             if start {
                 crate::focus::start(config.global.focus);
