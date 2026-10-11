@@ -54,10 +54,11 @@ impl WaylandEguiRenderer {
         Self {
             surface: crate::ui::surface_egui::SurfaceEgui::new(device, output_format, theme),
             ime_caret: None,
-            // The loop wakes every frame interval, but draws only for a
-            // reason; a reader's request is one.
+            // The loop draws only for a reason, and sleeps until it has
+            // one; a reader's request is one.
             screen_reader: crate::a11y::ScreenReaderBridge::new(move || {
                 wake.store(true, std::sync::atomic::Ordering::Release);
+                crate::wayland::waker::wake();
             }),
             accesskit_allowed: true,
             screen_reader_wake,
@@ -90,6 +91,11 @@ impl WaylandEguiRenderer {
     /// Whether egui asked to be run again by `now`.
     pub fn repaint_due(&self, now: std::time::Instant) -> bool {
         self.surface.repaint_due(now)
+    }
+
+    /// When egui asked to be run again, if it did.
+    pub fn repaint_at(&self) -> Option<std::time::Instant> {
+        self.surface.repaint_at()
     }
 
     /// Follow the Appearance setting that allows screen readers the tree.

@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 /// How soon the scene needs another frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RedrawPacing {
-    /// Something moves every frame: edit mode, a toast, the perf overlay,
+    /// Something moves every frame: the perf overlay,
     /// a behavior, physics. Draw at the display's rate.
     Continuous,
     /// Only animated sprites play; the soonest of them shows its next
@@ -24,13 +24,20 @@ pub enum RedrawPacing {
     Idle,
 }
 
+/// The shortest time between two frames: about sixty a second. A
+/// present that waits for the display (`Fifo`) paces most drivers by
+/// itself, but not every one, nor a window that is not mapped.
+pub const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+
 /// The longest the overlay goes without a frame. Matches the config
 /// hot-reload poll, so an edit to the file still shows while the scene
 /// sits still.
 pub const IDLE_HEARTBEAT: Duration = Duration::from_secs(2);
 
 /// What `scene` needs next. `ui_animating` is true while something outside
-/// the scene moves every frame: a toast, the perf overlay. Edit mode is not
+/// the scene moves every frame: the perf overlay. A toast is not — it
+/// shows only in edit mode, and asks egui for its frames there — and edit
+/// mode is not
 /// one of them: egui asks for the frames the panel needs ([`sooner`]).
 pub fn redraw_pacing(scene: &Scene, ui_animating: bool) -> RedrawPacing {
     if ui_animating {
@@ -61,6 +68,32 @@ pub fn redraw_pacing(scene: &Scene, ui_animating: bool) -> RedrawPacing {
         Some(due) => RedrawPacing::Deadline(due),
         None => RedrawPacing::Idle,
     }
+}
+
+/// How often a loop that sleeps until woken looks at a result it waits
+/// for that wakes nothing — a file chooser, a clipboard read, a reload.
+pub const AWAIT_POLL: Duration = Duration::from_millis(100);
+
+/// How long a loop may sleep before it next has something to do: a frame
+/// interval while anything moves; else until `pacing`'s deadline, at most
+/// the heartbeat after the last frame (`last_draw`), and [`AWAIT_POLL`]
+/// while `awaiting` a result.
+pub fn next_wait(
+    pacing: RedrawPacing,
+    last_draw: Option<Instant>,
+    awaiting: bool,
+    now: Instant,
+) -> Duration {
+    let mut until = match pacing {
+        RedrawPacing::Continuous => return FRAME_INTERVAL,
+        RedrawPacing::Deadline(due) => due,
+        RedrawPacing::Idle => now + IDLE_HEARTBEAT,
+    };
+    until = until.min(last_draw.map_or(now, |last| last + IDLE_HEARTBEAT));
+    if awaiting {
+        until = until.min(now + AWAIT_POLL);
+    }
+    until.saturating_duration_since(now)
 }
 
 /// `pacing`, or sooner if something outside the scene needs a frame by
@@ -193,5 +226,44 @@ mod tests {
         // A single frame "playing" has nothing to show next.
         let s = scene(vec![entity(1, true, Behavior::Idle)]);
         assert_eq!(redraw_pacing(&s, false), RedrawPacing::Idle);
+    }
+
+    /// A loop that sleeps until woken sleeps as long as it can: a frame
+    /// while anything moves, else to the next deadline, never past the
+    /// heartbeat, and a tenth of a second while a result is due.
+    #[test]
+    fn a_still_scene_lets_the_loop_sleep() {
+        let now = Instant::now();
+        let ms = Duration::from_millis;
+        let drew = Some(now);
+        assert_eq!(
+            next_wait(RedrawPacing::Continuous, drew, false, now),
+            FRAME_INTERVAL
+        );
+        assert_eq!(
+            next_wait(RedrawPacing::Idle, drew, false, now),
+            IDLE_HEARTBEAT
+        );
+        assert_eq!(
+            next_wait(RedrawPacing::Deadline(now + ms(125)), drew, false, now),
+            ms(125),
+            "an 8 fps sprite's next picture"
+        );
+        assert_eq!(
+            next_wait(RedrawPacing::Deadline(now + ms(9000)), drew, false, now),
+            IDLE_HEARTBEAT
+        );
+        assert_eq!(
+            next_wait(RedrawPacing::Idle, Some(now - ms(1500)), false, now),
+            ms(500),
+            "the heartbeat counts from the last frame"
+        );
+        assert_eq!(next_wait(RedrawPacing::Idle, None, false, now), ms(0));
+        assert_eq!(next_wait(RedrawPacing::Idle, drew, true, now), AWAIT_POLL);
+        assert_eq!(
+            next_wait(RedrawPacing::Deadline(now - ms(5)), drew, false, now),
+            ms(0),
+            "overdue"
+        );
     }
 }

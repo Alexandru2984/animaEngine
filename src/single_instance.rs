@@ -286,6 +286,7 @@ impl WaylandActivationService {
         if let Err(e) = tx.try_send(ev) {
             tracing::debug!("D-Bus `{name}` dropped (queue full): {e}");
         }
+        crate::wayland::waker::wake();
     }
 }
 

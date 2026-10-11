@@ -320,6 +320,15 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 
 ### Changed
 
+- **Less work while nothing moves.** Native Wayland's loop woke every
+  16 ms to look for messages; it now sleeps until it has something to
+  do, and D-Bus, the tray, shortcuts and screen readers wake it — 2 to 3
+  times a second, hidden, snoozed, paused or asleep, where it was 70.
+  On X11 a hidden overlay drew as often as a shown one (23% of a core in
+  the test rig, 1% now), a toast — which shows only in edit mode — kept
+  both backends drawing every frame for seconds, and the full-screen
+  watch asked the X server a dozen times a second instead of waiting to
+  be told.
 - **A config written by a newer version no longer costs the whole
   file.** A character, group, reminder or schedule rule this version
   cannot read — a behavior or asset type from a later release, or a

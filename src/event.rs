@@ -82,7 +82,13 @@ impl EventSink {
     pub fn send(&self, event: AnimaEvent) -> bool {
         match self {
             Self::Winit(proxy) => proxy.send_event(event).is_ok(),
-            Self::Channel(tx) => tx.try_send(event).is_ok(),
+            Self::Channel(tx) => {
+                let sent = tx.try_send(event).is_ok();
+                // The native Wayland loop sleeps until woken.
+                #[cfg(unix)]
+                crate::wayland::waker::wake();
+                sent
+            }
         }
     }
 }

@@ -18,7 +18,7 @@
 //! 7. Present + close the perf frame + request next redraw.
 
 use super::App;
-use crate::pacing::{RedrawPacing, IDLE_HEARTBEAT};
+use crate::pacing::{RedrawPacing, FRAME_INTERVAL, IDLE_HEARTBEAT};
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::ui::panels;
 use std::time::Instant;
@@ -50,6 +50,7 @@ fn next_surface_loss_state(streak: u32) -> (u32, bool) {
 
 impl App {
     pub(super) fn handle_redraw_requested(&mut self, event_loop: &ActiveEventLoop) {
+        let frame_start = Instant::now();
         // Mark the start of a perf frame. `begin_frame` resets
         // the in-progress sample; the overlay reads from the
         // ring buffer so it's safe to begin/end every frame
@@ -839,10 +840,18 @@ impl App {
         self.history.settle(&self.scene, busy, Instant::now());
 
         match self.redraw_pacing() {
+            // At most about sixty a second (`FRAME_INTERVAL`): asked for at
+            // once, a frame came as fast as the driver would draw it — 160
+            // a second in the test rig while a toast showed.
             RedrawPacing::Continuous => {
-                event_loop.set_control_flow(ControlFlow::Wait);
-                if let Some(window) = &self.window {
-                    window.request_redraw();
+                let next = frame_start + FRAME_INTERVAL;
+                if next <= Instant::now() {
+                    event_loop.set_control_flow(ControlFlow::Wait);
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                } else {
+                    event_loop.set_control_flow(ControlFlow::WaitUntil(next));
                 }
             }
             RedrawPacing::Deadline(due) => {
@@ -934,10 +943,16 @@ impl App {
     /// come back).
     fn redraw_pacing(&self) -> RedrawPacing {
         let now = Instant::now();
-        let scene = crate::pacing::redraw_pacing(
-            &self.scene,
-            self.perf_overlay_visible || !self.toasts.is_empty(),
-        );
+        // Out of sight — hidden, or stepping aside — nothing the scene or
+        // a toast does shows, and the heartbeat is enough. A hidden
+        // overlay drew as often as a shown one: the walkers kept it going
+        // at the display's rate, and an unmapped window's present does
+        // not wait for the display.
+        let scene = if self.overlay_hidden || self.stepped_aside.hidden {
+            RedrawPacing::Idle
+        } else {
+            crate::pacing::redraw_pacing(&self.scene, self.perf_overlay_visible)
+        };
         // Edit mode used to draw every frame whatever happened. Now the
         // panel gets the frames egui asks for, and a chooser or an import
         // is polled often enough that its result is not left waiting for

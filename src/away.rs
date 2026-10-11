@@ -131,6 +131,14 @@ pub fn spawn_watch(sink: EventSink, watch_idle: bool) {
         .name("anima-away".into())
         .spawn(move || {
             let mut idle = watch_idle.then(IdleSource::open);
+            // With no idle time to watch — the native Wayland path has the
+            // compositor's — only the battery is left, and it is looked at
+            // every tenth tick anyway: sleep that long.
+            let (tick_len, battery_every) = if idle.is_some() {
+                (TICK, BATTERY_EVERY)
+            } else {
+                (TICK * BATTERY_EVERY, 1)
+            };
             if let Some(source) = &idle {
                 tracing::info!("Idle time from: {}", source.describe());
                 sink.send(AnimaEvent::IdleSource(!matches!(source, IdleSource::None)));
@@ -152,7 +160,7 @@ pub fn spawn_watch(sink: EventSink, watch_idle: bool) {
                 // At once when the setting has just been turned on (or off),
                 // then every so often.
                 let watch = WATCH_BATTERY.load(Ordering::Relaxed);
-                if tick.is_multiple_of(BATTERY_EVERY) || watch != watching_battery {
+                if tick.is_multiple_of(battery_every) || watch != watching_battery {
                     watching_battery = watch;
                     let now_on_battery = watch
                         && battery
@@ -166,7 +174,7 @@ pub fn spawn_watch(sink: EventSink, watch_idle: bool) {
                     }
                 }
                 tick = tick.wrapping_add(1);
-                std::thread::sleep(TICK);
+                std::thread::sleep(tick_len);
             }
         });
     if let Err(e) = spawned {

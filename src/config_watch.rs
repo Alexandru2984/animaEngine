@@ -67,6 +67,11 @@ impl Default for ConfigWatcher {
 }
 
 impl ConfigWatcher {
+    /// Whether a reload is being read, its answer still to come.
+    pub fn waiting(&self) -> bool {
+        self.rx.is_some()
+    }
+
     pub fn new() -> Self {
         Self {
             last_check: Instant::now(),

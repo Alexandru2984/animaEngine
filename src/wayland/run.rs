@@ -63,6 +63,7 @@ use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyChord};
 use crate::monitor::{self, MonitorInfo, WindowPlan};
 use crate::outcomes::{self, OutcomeCtx, ShimejiImport};
+use crate::pacing::FRAME_INTERVAL;
 use crate::renderer::wgpu_renderer::{SurfaceState, WgpuRenderer};
 use crate::scene::Scene;
 use crate::ui::{panels, ToastQueue, Warning};
@@ -268,18 +269,25 @@ pub fn run_native(
     }
 
     // ── Main loop ──
-    // Waits for compositor events but never longer than one frame, so
-    // animations keep ticking and channel-delivered commands are picked
-    // up even when the compositor has nothing to say. See
+    // Waits for compositor events, or for another thread to wake it
+    // (`waker`), at most until the next thing it has to do — a frame
+    // interval while anything moves, else a sprite's next picture, egui's
+    // repaint or the heartbeat (`pacing::next_wait`). See
     // `dispatch_with_timeout`.
+    let waker = crate::wayland::waker::Waker::install();
+    let mut wait = FRAME_INTERVAL;
     loop {
         let frame_start = Instant::now();
         // Opens the perf frame before the blocking dispatch, so the wait
         // for the compositor lands in `Idle` rather than vanishing — the
         // same placement the winit loop uses relative to its own wait.
         perf_sampler.begin_frame();
-        let dispatched =
-            dispatch_with_timeout(&mut layer.event_queue, &mut layer.state, FRAME_INTERVAL)?;
+        let dispatched = dispatch_with_timeout(
+            &mut layer.event_queue,
+            &mut layer.state,
+            waker.as_ref(),
+            wait,
+        )?;
         // Whether anything happened this iteration that a frame should
         // show. Input and every other compositor event count; so does
         // whatever the loop picks up from its channels below.
@@ -1627,11 +1635,9 @@ pub fn run_native(
             }
         }
 
-        // Draw only for a reason. The loop still wakes every frame
-        // interval — draining its channels and ticking the scene is cheap
-        // — but it drew an unchanged scene sixty times a second, 84% of a
-        // core in the rig with everything paused, where the winit loop
-        // sleeps (`crate::pacing`).
+        // Draw only for a reason: it drew an unchanged scene sixty times a
+        // second, 84% of a core in the rig with everything paused, where
+        // the winit loop sleeps (`crate::pacing`).
         toasts.prune();
         activity |= egui_renderer.screen_reader_woke();
         let now = Instant::now();
@@ -1642,20 +1648,52 @@ pub fn run_native(
                 || pending_shimeji.is_some(),
             now,
         );
-        let moving = !(overlay_hidden || aside.hidden)
-            && matches!(
-                crate::pacing::redraw_pacing(&scene, perf_overlay_visible || !toasts.is_empty(),),
-                crate::pacing::RedrawPacing::Continuous
-            );
+        // Out of sight, the scene asks for no frames.
+        let shown = !(overlay_hidden || aside.hidden);
+        let scene_pacing = |scene: &Scene| {
+            if shown {
+                crate::pacing::redraw_pacing(scene, perf_overlay_visible)
+            } else {
+                crate::pacing::RedrawPacing::Idle
+            }
+        };
+        let moving = matches!(
+            scene_pacing(&scene),
+            crate::pacing::RedrawPacing::Continuous
+        );
         let extras_repaint = extra_eguis.values().any(|e| e.repaint_due(now));
+        // How long the next dispatch may sleep, from the state as it is
+        // when asked — after this iteration's work.
+        macro_rules! next_wait {
+            () => {{
+                let now = Instant::now();
+                let egui_at = std::iter::once(egui_renderer.repaint_at())
+                    .chain(extra_eguis.values().map(|e| e.repaint_at()))
+                    .flatten()
+                    .min();
+                // Results the loop looks for, which wake nothing when
+                // they come.
+                let awaiting = pending_shimeji.is_some()
+                    || pending_file_chooser.is_some()
+                    || pending_transfer.is_some()
+                    || pending_paste.is_some()
+                    || pending_text_paste.is_some()
+                    || library_scan.is_some()
+                    || config_watch.waiting();
+                crate::pacing::next_wait(
+                    crate::pacing::sooner(scene_pacing(&scene), egui_at, now),
+                    frame_gate.last_draw,
+                    awaiting,
+                    now,
+                )
+            }};
+        }
         if !frame_gate.should_draw(
             now,
             activity || moving || egui_renderer.repaint_due(now) || extras_repaint,
         ) {
             perf_sampler.end_frame();
-            if let Some(rest) = FRAME_INTERVAL.checked_sub(frame_start.elapsed()) {
-                std::thread::sleep(rest);
-            }
+            wait = next_wait!();
             continue;
         }
 
@@ -2277,6 +2315,7 @@ pub fn run_native(
         if let Some(rest) = FRAME_INTERVAL.checked_sub(frame_start.elapsed()) {
             std::thread::sleep(rest);
         }
+        wait = next_wait!();
     }
 
     // Renderer (and every extra surface's wgpu::Surface) is dropped
@@ -2297,14 +2336,6 @@ pub fn run_native(
     drop(layer);
     Ok(())
 }
-
-/// Pure half of `rebuild_extra_surfaces`'s decision: given what the
-/// plan wants and what's currently tracked, which names need tearing
-/// down and which planned monitors need a brand-new surface. Split
-/// out so this decision has a unit test even though the actual
-/// teardown/creation (real Wayland + GPU calls) doesn't.
-/// Target frame interval for the native loop — a ~60 Hz soft cap.
-const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 
 /// Whether a loop iteration draws a frame: when there is a reason to, and
 /// otherwise once per [`crate::pacing::IDLE_HEARTBEAT`], so a change the
@@ -2452,6 +2483,7 @@ fn extras_take_input(hidden: bool, edit_mode: bool, drag_widened: bool) -> bool 
 fn dispatch_with_timeout(
     queue: &mut EventQueue<WaylandState>,
     state: &mut WaylandState,
+    waker: Option<&crate::wayland::waker::Waker>,
     timeout: Duration,
 ) -> Result<usize> {
     use std::os::fd::AsRawFd;
@@ -2470,17 +2502,40 @@ fn dispatch_with_timeout(
 
     if let Some(guard) = queue.prepare_read() {
         let fd = guard.connection_fd();
-        let mut pfd = libc::pollfd {
-            fd: fd.as_raw_fd(),
-            events: libc::POLLIN | libc::POLLERR,
-            revents: 0,
+        // The Wayland socket, and the waker's beside it when there is one;
+        // without it the loop waits no longer than a frame interval, and
+        // looks at its channels that often, as it used to.
+        let mut pfds = [
+            libc::pollfd {
+                fd: fd.as_raw_fd(),
+                events: libc::POLLIN | libc::POLLERR,
+                revents: 0,
+            },
+            libc::pollfd {
+                fd: waker.map_or(-1, |w| w.fd().as_raw_fd()),
+                events: libc::POLLIN,
+                revents: 0,
+            },
+        ];
+        let timeout = if waker.is_some() {
+            timeout
+        } else {
+            timeout.min(FRAME_INTERVAL)
         };
-        let ms = timeout.as_millis().min(i32::MAX as u128) as i32;
-        // SAFETY: `pfd` is one initialised `pollfd` we own for the whole
-        // call and `poll` touches only that entry; the fd stays open
-        // because `guard` borrows the live connection.
-        let ready = unsafe { libc::poll(&mut pfd, 1, ms) };
-        if ready > 0 {
+        // Rounded up, so a deadline 0.4 ms away is not a busy loop of
+        // zero-length polls.
+        let ms = timeout.as_micros().div_ceil(1000).min(i32::MAX as u128) as i32;
+        // SAFETY: `pfds` is two initialised `pollfd`s we own for the whole
+        // call, and `poll` touches only those; a negative fd is skipped.
+        // The Wayland fd stays open because `guard` borrows the live
+        // connection, the waker's because `waker` borrows it.
+        let ready = unsafe { libc::poll(pfds.as_mut_ptr(), pfds.len() as libc::nfds_t, ms) };
+        if ready > 0 && pfds[1].revents != 0 {
+            if let Some(waker) = waker {
+                waker.drain();
+            }
+        }
+        if ready > 0 && pfds[0].revents != 0 {
             // A spurious wakeup returns WouldBlock — harmless, the next
             // iteration retries, same as wayland-client's own read path.
             let _ = guard.read();
@@ -2525,6 +2580,11 @@ fn sync_and_save(config: &mut AppConfig, scene: &Scene) -> Result<()> {
     config.save()
 }
 
+/// Pure half of `rebuild_extra_surfaces`'s decision: given what the
+/// plan wants and what's currently tracked, which names need tearing
+/// down and which planned monitors need a brand-new surface. Split
+/// out so this decision has a unit test even though the actual
+/// teardown/creation (real Wayland + GPU calls) doesn't.
 fn diff_extra_plan<'a>(
     plan_extras: &'a [MonitorInfo],
     current_names: &[String],

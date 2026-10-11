@@ -346,8 +346,10 @@ resolved to that window's monitor hold it awake; `request_redraw`
 fans out only to windows whose content changed. The idle heartbeat
 stays a single timer (hot-reload is window-independent). The decision
 itself is `crate::pacing`, shared with the native Wayland loop, which
-wakes every frame interval to drain its channels and tick the scene but
-draws only when there is a reason to (`FrameGate` in `wayland/run.rs`):
+sleeps until the next thing it has to do (`pacing::next_wait`) — other
+threads wake it through a socket polled beside Wayland's
+(`wayland::waker`) — and draws only when there is a reason to
+(`FrameGate` in `wayland/run.rs`):
 input or another compositor event, a message from a channel, a sprite's
 next animation frame, a repaint egui asked for, something moving every
 frame — or the heartbeat.

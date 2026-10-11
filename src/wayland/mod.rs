@@ -27,6 +27,7 @@ pub mod keyboard;
 pub mod layer_window;
 pub mod probe;
 pub mod run;
+pub mod waker;
 
 pub use layer_window::{InputRect, LayerWindow, WaylandState};
 pub use probe::{detect, log_status, WaylandCapabilities};

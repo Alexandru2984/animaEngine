@@ -317,6 +317,57 @@ impl FullscreenWatch {
             .collect()
     }
 
+    /// Be told of the property changes that can change the answers: which
+    /// window is in front (on the root), and the state and type of the one
+    /// in front — no longer of `was`, the one before.
+    fn listen(&self, was: Option<Window>, now: Option<Window>) {
+        use x11rb::protocol::xproto::{ChangeWindowAttributesAux, EventMask};
+        let mask = |m: EventMask| ChangeWindowAttributesAux::new().event_mask(m);
+        let _ = self
+            .conn
+            .change_window_attributes(self.root, &mask(EventMask::PROPERTY_CHANGE));
+        // Gone already, it answers with an error, read and dropped with
+        // the events.
+        if let Some(was) = was.filter(|&w| Some(w) != now) {
+            let _ = self
+                .conn
+                .change_window_attributes(was, &mask(EventMask::NO_EVENT));
+        }
+        if let Some(now) = now {
+            let _ = self
+                .conn
+                .change_window_attributes(now, &mask(EventMask::PROPERTY_CHANGE));
+        }
+        let _ = self.conn.flush();
+    }
+
+    /// Sleep until the X server says something — a property changed — or
+    /// `timeout` passes, then take what it said.
+    fn wait(&self, timeout: std::time::Duration) {
+        use std::os::fd::AsRawFd;
+        if !self.drain() {
+            let mut pfd = libc::pollfd {
+                fd: self.conn.stream().as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            let ms = timeout.as_millis().min(i32::MAX as u128) as i32;
+            // SAFETY: one initialised `pollfd` we own for the call; the fd
+            // stays open, `self.conn` holding it.
+            unsafe { libc::poll(&mut pfd, 1, ms) };
+            self.drain();
+        }
+    }
+
+    /// Read every event and error waiting. Whether there were any.
+    fn drain(&self) -> bool {
+        let mut any = false;
+        while let Ok(Some(_)) = self.conn.poll_for_event() {
+            any = true;
+        }
+        any
+    }
+
     /// Two or three round-trips; any error reads as "not full screen".
     pub fn fullscreen_in_front(&self) -> bool {
         let Some(active) = self.active_window() else {
@@ -338,11 +389,13 @@ impl FullscreenWatch {
     }
 }
 
-/// Check twice a second whether the window in front is full screen, and
-/// tell the event loop when that changes. A thread of its own, with its
-/// own connection, so the answer comes as quickly while the loop sleeps
-/// through an idle scene. Ends when the loop is gone, or at once without
-/// an X server.
+/// Look whether the window in front is full screen, or an app the user
+/// chose, each time the X server says that may have changed, and tell the
+/// event loop when it has. A thread of its own, with its own connection,
+/// so the answer comes as quickly while the loop sleeps through an idle
+/// scene. It used to ask twice a second, whatever happened — a dozen
+/// round-trips a second, all day. Ends when the loop is gone, or at once
+/// without an X server.
 pub fn spawn_fullscreen_watch(sink: crate::event::EventSink) {
     let spawned = std::thread::Builder::new()
         .name("anima-fullscreen".into())
@@ -353,6 +406,8 @@ pub fn spawn_fullscreen_watch(sink: crate::event::EventSink) {
             let mut last = None;
             let mut last_chosen = None;
             let mut listed: Option<std::time::Instant> = None;
+            let mut in_front = watch.active_window();
+            watch.listen(None, in_front);
             loop {
                 let now = watch.fullscreen_in_front();
                 if last != Some(now) {
@@ -377,7 +432,21 @@ pub fn spawn_fullscreen_watch(sink: crate::event::EventSink) {
                     crate::chosen_apps::set_open(watch.open_apps());
                     listed = Some(std::time::Instant::now());
                 }
-                std::thread::sleep(std::time::Duration::from_millis(500));
+                // Until something changes: woken by the server, else
+                // every two seconds while the picker wants the open apps,
+                // and every ten for the chosen apps' list changing.
+                watch.wait(std::time::Duration::from_secs(
+                    if crate::chosen_apps::open_list_wanted() {
+                        2
+                    } else {
+                        10
+                    },
+                ));
+                let now_in_front = watch.active_window();
+                if now_in_front != in_front {
+                    watch.listen(in_front, now_in_front);
+                    in_front = now_in_front;
+                }
             }
         });
     if let Err(e) = spawned {

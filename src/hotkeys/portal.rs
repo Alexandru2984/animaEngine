@@ -219,10 +219,12 @@ async fn run_portal_session(
     match portal_handshake(&rows).await {
         Ok((conn, shortcuts_proxy, session_handle)) => {
             let _ = tx.try_send(PortalMsg::Ready);
+            crate::wayland::waker::wake();
             pump_activations(conn, shortcuts_proxy, session_handle, tx).await
         }
         Err(e) => {
             let _ = tx.try_send(PortalMsg::Failed);
+            crate::wayland::waker::wake();
             Err(e)
         }
     }
@@ -347,6 +349,7 @@ async fn pump_activations(
         if tx.try_send(PortalMsg::Activated(action)).is_err() {
             tracing::debug!("Portal activation dropped (queue full)");
         }
+        crate::wayland::waker::wake();
     }
     tracing::warn!("Portal Activated stream ended");
     Ok(())

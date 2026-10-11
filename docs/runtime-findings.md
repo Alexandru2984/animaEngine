@@ -2251,3 +2251,55 @@ the points conversion the X11 path needed at other scales. It now lies
 under the panel, with the characters, where egui had put it over.
 **Checked on the rig**, two outputs, native Wayland and X11: on the
 second monitor alone and across both.
+
+### R58 · Idle, the overlay still woke dozens of times a second — `FIXED`
+
+Found measuring what 1.5 costs while nothing happens, with nearly
+everything on — a reminder every minute with notifications, moods,
+greetings, bumping, taps, hover startle, window awareness, a chosen app,
+pausing when away and on battery, bedtime set: CPU and wake-ups (context
+switches) per thread over 30 s, in each still state, on the rig.
+
+- **Native Wayland's loop woke every 16 ms** whatever happened — 68 to 79
+  times a second on its main thread, hidden, snoozed, paused or dozing —
+  to look at channels a `poll` on the Wayland socket cannot see (R54
+  kept the wake-ups for that). It now sleeps until it has something to
+  do (`pacing::next_wait`): a frame interval while anything moves, else
+  a sprite's next picture, egui's repaint or the 2 s heartbeat, and a
+  tenth of a second while it waits for a result that wakes nothing — a
+  file chooser, a clipboard read, a reload. D-Bus, the tray, portal
+  shortcuts and screen readers wake it through a socket polled beside
+  Wayland's (`wayland::waker`). Main thread: 2.5–2.8 wake-ups a second
+  in every still state; a D-Bus `SetMuted` is saved 15–40 ms after the
+  call.
+- **On X11 a hidden overlay drew as often as a shown one**: walkers keep
+  the scene continuous, and an unmapped window's present does not wait
+  for the display — 23% of a core in the rig, as much as shown. Out of
+  sight, hidden or stepping aside, the scene asks for no frames.
+- **A toast kept both loops drawing every frame** for its few seconds,
+  though toasts show only in edit mode, where egui asks for their frames
+  itself; and X11 asked for each next frame at once, 160 a second in the
+  rig, where `Fifo` does not hold it to the display. Pacing no longer
+  counts toasts, and X11 waits out the rest of 16 ms between frames
+  (`pacing::FRAME_INTERVAL`, shared now).
+- **The X11 full-screen watch asked the X server twice a second**, a
+  dozen round-trips a second; it waits for the property changes that
+  matter now — the window in front, its state and type — and looks every
+  ten seconds for the chosen apps' list (every two while the picker
+  wants the open apps).
+- Without an idle source of its own (native Wayland, where the
+  compositor says), **the away thread woke every second** to look at the
+  battery every tenth; it sleeps the ten.
+
+| Still state | Wayland, CPU / wake-ups a second | X11 |
+|---|---|---|
+| Hidden | 1.23% / 161 → 0.70% / 78 | 23% / 4765 → 0.97% / 249 |
+| Snoozed | 1.33% / 160 → 0.47% / 77 | 1.47% / 244 → 0.97% / 244 |
+| Paused | 1.87% / 291 → 1.00% / 196 | 13.3% / 3665 → 1.03% / 239 |
+| Dozing, settled | 1.70% / 278 → 1.00% / 198 | — no idle source in the rig |
+
+The rig renders in software: most of what is left are llvmpipe's 32
+threads waking for the heartbeat's frame, which a GPU takes instead.
+Moving, nothing changed: 24–26% in the rig on both. Left: the X11
+global shortcuts' library polls the X server every 50 ms, 20 wake-ups a
+second on two threads; doing better means grabbing the keys ourselves.
