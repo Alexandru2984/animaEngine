@@ -128,6 +128,8 @@ running:
 | `Wake` | End a snooze now (1.5) |
 | `StartFocus` `(u minutes)` | Start the focus timer with that much work; 0 is the length set in the Scene tab (1.5) |
 | `StopFocus` | Stop the focus timer (1.5) |
+| `SetMuted` `(b muted)` | Mute the sounds (`true`) or bring them back (1.5) |
+| `ToggleMute` | Mute the sounds, or bring them back — whichever they are not (1.5) |
 
 The ones with an argument take it after the method name: `gdbus call …
 --method org.animaengine.Anima.Snooze 60`.

@@ -29,8 +29,8 @@ change to any of them is a breaking change and waits for 2.0 (see
   e.g. `--dest com.animaengine.Anima … --method org.animaengine.Anima.ToggleEditMode`.)
   The method set — `Activate`, `ToggleEditMode`, `HideOverlay`,
   `ShowOverlay`, `ToggleGlobalPlayback`, and since 1.5 `NextScene`,
-  `Snooze(u minutes)`, `Wake`, `StartFocus(u minutes)` and `StopFocus`
-  — keeps its names and signatures. Methods may be *added*; existing
+  `Snooze(u minutes)`, `Wake`, `StartFocus(u minutes)`, `StopFocus`,
+  `SetMuted(b muted)` and `ToggleMute` — keeps its names and signatures. Methods may be *added*; existing
   ones aren't removed or repurposed.
 - **CLI flags.** `--help` / `-h`, `--recover` / `-r` and `--version` /
   `-V` keep their meaning. New flags may be added; these

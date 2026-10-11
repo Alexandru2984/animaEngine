@@ -20,8 +20,8 @@ of what is new is off until you turn it on; five things are on from the
 start, and each has its switch: the characters step aside for
 full-screen apps, doze after ten minutes away and greet you back, little
 effects play, and a drag snaps. New D-Bus methods (`StartFocus`,
-`StopFocus`, `Snooze`, `Wake`, `NextScene`) join the old ones, which are
-unchanged. The Flatpak asks for two more read-only D-Bus names, for the
+`StopFocus`, `Snooze`, `Wake`, `NextScene`, `SetMuted`, `ToggleMute`)
+join the old ones, which are unchanged. The Flatpak asks for two more read-only D-Bus names, for the
 idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 (`org.freedesktop.UPower`).
 
@@ -176,8 +176,9 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   follows at once, "Mute sounds", which plays nothing and leaves the
   sound device closed, and "Quiet at bedtime". The tray and the command
   palette mute and unmute too, and Keybindings has an unbound shortcut
-  for it that works from anywhere once given a key. A mute from the
-  tray is saved at once.
+  for it that works from anywhere once given a key; D-Bus has
+  `SetMuted(b)` and `ToggleMute`, for a compositor binding. A mute from
+  the tray, a shortcut or D-Bus is saved at once.
 - **Little effects.** A few hearts rise from a character you tap, a
   puff of dust goes up where one lands hard, and z's float up as they
   fall asleep. A switch in Appearance turns them off, and Reduce motion

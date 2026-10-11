@@ -189,6 +189,16 @@ impl ActivationService {
     async fn stop_focus(&self) {
         self.post(AnimaEvent::StopFocus);
     }
+
+    /// Mute the sounds (`true`), or bring them back (`crate::audio`).
+    async fn set_muted(&self, muted: bool) {
+        self.post(AnimaEvent::SetMuted(muted));
+    }
+
+    /// Mute the sounds, or bring them back — whichever they are not.
+    async fn toggle_mute(&self) {
+        self.post(AnimaEvent::SetMuted(!crate::audio::muted()));
+    }
 }
 
 /// D-Bus `Snooze`'s minutes: 0 is until the morning.
@@ -254,6 +264,18 @@ impl WaylandActivationService {
 
     async fn stop_focus(&self) {
         Self::dispatch(&self.tx, AnimaEvent::StopFocus, "StopFocus");
+    }
+
+    async fn set_muted(&self, muted: bool) {
+        Self::dispatch(&self.tx, AnimaEvent::SetMuted(muted), "SetMuted");
+    }
+
+    async fn toggle_mute(&self) {
+        Self::dispatch(
+            &self.tx,
+            AnimaEvent::SetMuted(!crate::audio::muted()),
+            "ToggleMute",
+        );
     }
 }
 
