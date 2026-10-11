@@ -46,6 +46,10 @@ edit mode from anywhere.
 - [ ] **A sound on a tap, from where it stands.** Inspector → *Says* →
       a sound from the library; tap it on the left of the screen, then
       on the right: heard from that side.
+- [ ] **Volume and mute.** Appearance → *Volume* at 50%: clearly
+      quieter; tray → *Mute sounds* in the middle of a long sound: it
+      stops at once, and taps stay silent; *Unmute sounds* brings them
+      back. Quit and start: the mute (or not) is as you left it.
 - [ ] **Sound survives a sound-server restart.** With a character
       playing often (a tap a second will do):
       `systemctl --user restart pipewire pipewire-pulse wireplumber`.
@@ -131,8 +135,9 @@ edit mode from anywhere.
       minutes / 1 hour / until morning*, then *Snoozing until …* and
       *Wake up now*; *Start the focus timer* / *Stop the focus timer*,
       with *Focusing until …* while it runs; *Next scene* goes to the
-      next saved scene. All of it in the app's language, and in another
-      a few seconds after Appearance switches it.
+      next saved scene; *Mute sounds* / *Unmute sounds*. All of it in
+      the app's language, and in another a few seconds after Appearance
+      switches it.
 - [ ] **Start at login.** Appearance → *Start at login*: the entry is
       in `~/.config/autostart/com.animaengine.Anima.desktop` and in
       GNOME's startup list; log out and in: it starts. Turn it off
