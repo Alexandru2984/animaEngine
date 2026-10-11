@@ -247,6 +247,8 @@ pub struct App {
     /// path can resolve relative asset paths to absolute without
     /// re-scanning.
     library_root: Option<std::path::PathBuf>,
+    /// The library's fresh scan, until it arrives (`asset_library::open`).
+    library_scan: Option<std::sync::mpsc::Receiver<crate::asset_library::LibraryIndex>>,
     /// Rhai host for `Behavior::Script`. Lives here rather than on
     /// `Scene`, which must stay `Send` for the hot-reload worker.
     script_host: crate::scripting::ScriptHost,
@@ -387,6 +389,7 @@ impl App {
             window_platforms_active: false,
             library: None,
             library_root: None,
+            library_scan: None,
             script_host: crate::scripting::ScriptHost::new(),
             audio_host: crate::audio::AudioHost::new(),
             hotkey_backend_status: String::new(),

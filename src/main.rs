@@ -372,10 +372,36 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
         }
         hotkeys::probe::HotkeyStrategy::X11Grab => {
             // Register the user's globally-bound chords (ToggleEditMode,
-            // HideOverlay, PauseAll — anything else with a modifier).
-            let ctrl = hotkeys::register(event_loop.create_proxy(), &config.keybindings);
-            let registered = ctrl.is_some();
-            (ctrl, registered)
+            // HideOverlay, PauseAll — anything else with a modifier) off
+            // the way to the first frame: global-hotkey's thread looks for
+            // requests every 50 ms and each registration waits its turn,
+            // a tenth of a second before the window for the defaults. The
+            // thread then parks to keep them, as the portal's fallback
+            // does; none registered, the banner says so.
+            #[cfg(unix)]
+            {
+                let proxy = event_loop.create_proxy();
+                let bindings = config.keybindings.clone();
+                let spawned = std::thread::Builder::new()
+                    .name("anima-hotkeys".into())
+                    .spawn(move || match hotkeys::register(proxy.clone(), &bindings) {
+                        Some(_ctrl) => loop {
+                            std::thread::park();
+                        },
+                        None => {
+                            let _ = proxy.send_event(AnimaEvent::HotkeysUnavailable);
+                        }
+                    });
+                (None, spawned.is_ok())
+            }
+            // On Windows the hotkeys belong to the thread that registers
+            // them, and only the event loop's runs a message loop.
+            #[cfg(not(unix))]
+            {
+                let ctrl = hotkeys::register(event_loop.create_proxy(), &config.keybindings);
+                let registered = ctrl.is_some();
+                (ctrl, registered)
+            }
         }
         hotkeys::probe::HotkeyStrategy::DbusOnly => (None, false),
     };

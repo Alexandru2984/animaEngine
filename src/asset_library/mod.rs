@@ -313,6 +313,49 @@ pub fn ensure_asset_root() -> Option<PathBuf> {
     }
 }
 
+/// The library at `root`, read on a thread of its own: the index saved
+/// last time, a fresh scan merged into it and saved, sent through the
+/// receiver — then the thumbnails it is missing.
+///
+/// Both used to be read on the way to the first frame: for a library of
+/// 3000 files in the test rig, its page cache warm, the scan took 45 to
+/// 115 ms and the saved index another 30 before the window appeared at
+/// all. Nothing needs either but the Library tab, which is long after.
+pub fn open(root: &Path) -> std::sync::mpsc::Receiver<LibraryIndex> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let work = {
+        let root = root.to_path_buf();
+        move || {
+            let index_path = LibraryIndex::default_path();
+            let mut idx = LibraryIndex::load(&index_path);
+            let scanned = scan(&root);
+            let scanned_count = scanned.len();
+            idx.merge_scan(scanned);
+            if let Err(e) = idx.save(&index_path) {
+                tracing::warn!("Failed to persist library.toml: {e}");
+            }
+            tracing::info!(
+                "Asset library at {}: {} indexed ({} from this scan)",
+                crate::drop_validate::redact_path(&root),
+                idx.assets.len(),
+                scanned_count,
+            );
+            tracing::debug!("Asset library full root: {}", root.display());
+            let _ = tx.send(idx.clone());
+            // U.5: the thumbnail cache, after the scan; the grid picks
+            // thumbs up from disk as they appear.
+            generate_missing_thumbnails(&root, &idx);
+        }
+    };
+    if let Err(e) = std::thread::Builder::new()
+        .name("anima-library".into())
+        .spawn(work)
+    {
+        tracing::warn!("Library thread failed to spawn: {e}; the Library tab stays empty");
+    }
+    rx
+}
+
 /// Walk `root` recursively and return a [`LibraryAsset`] for every
 /// file whose extension is in [`LIBRARY_EXTENSIONS`]. Symlinks are
 /// followed but capped at `MAX_SYMLINK_DEPTH` (4) to defuse loops.

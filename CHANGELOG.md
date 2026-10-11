@@ -313,6 +313,15 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 
 ### Changed
 
+- **The overlay appears sooner.** On X11 the global shortcuts were
+  registered one after another before the window was made — 50 ms each
+  in the library that does it, a tenth of a second for the defaults —
+  and the asset library was read and scanned there too: 45 to 150 ms
+  more for a library of 3000 files. Both happen in the background now;
+  the Library tab fills in as the scan ends. In the test rig, with the
+  frame cache warm, the renderer is ready at about 100 ms instead of
+  280. Under GNOME or KDE on Wayland the log no longer opens with ten
+  warnings that click-through is unsupported — it is, through XWayland.
 - **The Scene tab folds into sections**, each remembered open or closed
   across restarts: the characters, their groups and the saved scenes
   first, open; then reminders, the focus timer, how the characters

@@ -535,6 +535,19 @@ impl App {
                         let menu_outcome_ref = &mut menu_outcome;
                         let palette_outcome_ref = &mut palette_outcome;
                         let library_outcome_ref = &mut library_outcome;
+                        // The library's fresh scan, once it is done.
+                        if let Some(rx) = &self.library_scan {
+                            match rx.try_recv() {
+                                Ok(index) => {
+                                    self.library = Some(index);
+                                    self.library_scan = None;
+                                }
+                                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                                    self.library_scan = None
+                                }
+                                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                            }
+                        }
                         let library_ref = self.library.as_ref();
                         let toggle_requested_ref = &mut toggle_requested;
                         let edit_mode = self.edit_mode;

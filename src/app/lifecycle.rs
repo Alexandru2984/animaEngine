@@ -59,36 +59,8 @@ impl App {
         // Discover + load + merge-scan the asset library. Errors are
         // logged but never fatal — an empty library is fine.
         if let Some(root) = crate::asset_library::ensure_asset_root() {
-            let index_path = crate::asset_library::LibraryIndex::default_path();
-            let mut idx = crate::asset_library::LibraryIndex::load(&index_path);
-            let scanned = crate::asset_library::scan(&root);
-            let scanned_count = scanned.len();
-            idx.merge_scan(scanned);
-            if let Err(e) = idx.save(&index_path) {
-                tracing::warn!("Failed to persist library.toml: {e}");
-            }
-            tracing::info!(
-                "Asset library at {}: {} indexed ({} from this scan)",
-                crate::drop_validate::redact_path(&root),
-                idx.assets.len(),
-                scanned_count,
-            );
-            tracing::debug!("Asset library full root: {}", root.display());
-            // U.5: fill the thumbnail cache off-thread; the grid
-            // picks thumbs up from disk as they appear.
-            {
-                let root = root.clone();
-                let index = idx.clone();
-                let spawned = std::thread::Builder::new()
-                    .name("anima-thumbs".into())
-                    .spawn(move || {
-                        crate::asset_library::generate_missing_thumbnails(&root, &index);
-                    });
-                if let Err(e) = spawned {
-                    tracing::warn!("Thumbnail thread failed to spawn: {e}");
-                }
-            }
-            self.library = Some(idx);
+            self.library_scan = Some(crate::asset_library::open(&root));
+            self.library = Some(crate::asset_library::LibraryIndex::default());
             crate::sounds::set_root(&root);
             self.library_root = Some(root);
         } else {

@@ -219,38 +219,12 @@ pub fn run_native(
     // `App::script_host`. Scripts resolve against `library_root`.
     let mut script_host = crate::scripting::ScriptHost::new();
     let mut audio_host = crate::audio::AudioHost::new();
+    // The scanned index arrives from its own thread (`asset_library::open`).
+    let mut library_scan: Option<std::sync::mpsc::Receiver<crate::asset_library::LibraryIndex>> =
+        None;
     if let Some(root) = crate::asset_library::ensure_asset_root() {
-        let index_path = crate::asset_library::LibraryIndex::default_path();
-        let mut idx = crate::asset_library::LibraryIndex::load(&index_path);
-        let scanned = crate::asset_library::scan(&root);
-        let scanned_count = scanned.len();
-        idx.merge_scan(scanned);
-        if let Err(e) = idx.save(&index_path) {
-            tracing::warn!("Failed to persist library.toml: {e}");
-        }
-        tracing::info!(
-            "Asset library at {}: {} indexed ({} from this scan)",
-            redact_path(&root),
-            idx.assets.len(),
-            scanned_count,
-        );
-        tracing::debug!("Asset library full root: {}", root.display());
-        {
-            let root_for_thumbs = root.clone();
-            let index_for_thumbs = idx.clone();
-            let spawned = std::thread::Builder::new()
-                .name("anima-thumbs".into())
-                .spawn(move || {
-                    crate::asset_library::generate_missing_thumbnails(
-                        &root_for_thumbs,
-                        &index_for_thumbs,
-                    );
-                });
-            if let Err(e) = spawned {
-                tracing::warn!("Thumbnail thread failed to spawn: {e}");
-            }
-        }
-        library = Some(idx);
+        library_scan = Some(crate::asset_library::open(&root));
+        library = Some(crate::asset_library::LibraryIndex::default());
         crate::sounds::set_root(&root);
         library_root = Some(root);
     } else {
@@ -532,6 +506,17 @@ pub fn run_native(
         crate::away::configure(idle_watch, global.pause_on_battery);
         // Bedtime by the clock (`crate::bedtime`) — not while editing.
         let bedtime_now = !layer.state.edit_mode && bedtime_watch.now(&global.bedtime);
+        // The library's fresh scan, once it is done (`asset_library::open`).
+        if let Some(rx) = &library_scan {
+            match rx.try_recv() {
+                Ok(index) => {
+                    library = Some(index);
+                    library_scan = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => library_scan = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
         // How loud the sounds are, if at all (`crate::audio`), before the
         // tick: scripts play from inside it.
         audio_host.set_level(

@@ -67,17 +67,16 @@ pub fn log_platform_info(native_wayland_active: bool) {
                  overlay positioning work natively here, no XWayland caveats."
             );
         }
+        // The usual case on GNOME and KDE, and nothing to warn about: the
+        // overlay runs through XWayland, click-through and placement
+        // included. Ten warning lines used to say otherwise at every start
+        // — click-through "not supported", advice to `cargo run`.
         DisplayServer::Wayland => {
-            tracing::warn!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            tracing::warn!("Running on Wayland. Some features may be limited:");
-            tracing::warn!("  • Absolute window positioning may not work");
-            tracing::warn!("  • Always-on-top behavior depends on compositor");
-            tracing::warn!("  • Click-through is not supported");
-            tracing::warn!("For best results, run under X11, or try the native");
-            tracing::warn!("Wayland path on wlroots compositors (sway, Hyprland, river):");
-            tracing::warn!("  GDK_BACKEND=x11 cargo run");
-            tracing::warn!("  ANIMA_USE_WAYLAND_NATIVE=1 cargo run");
-            tracing::warn!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            tracing::info!(
+                "Wayland session: the overlay runs through XWayland. On a wlroots \
+                 compositor (sway, Hyprland, river), ANIMA_USE_WAYLAND_NATIVE=1 \
+                 runs it natively."
+            );
         }
         DisplayServer::Unknown(_) => {
             tracing::warn!(
