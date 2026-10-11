@@ -669,6 +669,94 @@ mod tests {
         assert!(hits.is_empty(), "{hits:#?}");
     }
 
+    /// Each language says each thing one way. A pass over 1.5's strings
+    /// found the engine's word "entity" in eleven English messages beside
+    /// "character" in fifty, the same in every language — and translations
+    /// saying "entity" where the English did not; Romanian "overlay" six
+    /// times and "suprapunere" five; French, Spanish, Italian and
+    /// Portuguese a native word for the overlay twice beside "overlay"
+    /// nine times; the tray called two things in French, Italian and
+    /// Dutch. Each language now keeps the word most of its messages use
+    /// (French its standard "zone de notification"); a new message that
+    /// drifts fails here, and says which word to use.
+    ///
+    /// Matched in each message's text, never its id, case aside: by word
+    /// beginnings in Latin scripts, as text in Japanese or a phrase.
+    #[test]
+    fn each_language_keeps_its_words() {
+        const DRIFT: &[(&str, &[(&str, &str)])] = &[
+            ("en", &[("entity", "character"), ("entities", "characters")]),
+            (
+                "ro",
+                &[
+                    ("entitate", "personaj"),
+                    ("entităț", "personaje"),
+                    ("overlay", "suprapunere"),
+                ],
+            ),
+            ("de", &[("entität", "Figur")]),
+            (
+                "fr",
+                &[
+                    ("entité", "personnage"),
+                    ("superposition", "overlay"),
+                    ("barre système", "zone de notification"),
+                ],
+            ),
+            (
+                "es",
+                &[("entidad", "personaje"), ("superposición", "overlay")],
+            ),
+            (
+                "it",
+                &[
+                    ("entità", "personaggio"),
+                    ("sovrapposizion", "overlay"),
+                    ("tray", "area di notifica"),
+                    ("vassoio", "area di notifica"),
+                ],
+            ),
+            (
+                "pt-BR",
+                &[("entidade", "personagem"), ("sobreposição", "overlay")],
+            ),
+            ("nl", &[("entiteit", "figuur"), ("tray", "systeemvak")]),
+            ("ja", &[("エンティティ", "キャラクター")]),
+        ];
+        let mut hits = Vec::new();
+        for (code, drift) in DRIFT {
+            for (n, line) in load_source(code).lines().enumerate() {
+                if line.trim_start().starts_with('#') {
+                    continue;
+                }
+                // The text only: an id like `action-hide-overlay` is not
+                // a word the user reads.
+                let text = line
+                    .split_once(" = ")
+                    .map_or(line, |(_, v)| v)
+                    .to_lowercase();
+                let words: Vec<&str> = text.split(|c: char| !c.is_alphabetic()).collect();
+                for (avoid, instead) in *drift {
+                    let latin_word = avoid
+                        .chars()
+                        .all(|c| c.is_alphabetic() && c.len_utf8() <= 2);
+                    let found = if latin_word {
+                        words.iter().any(|w| w.starts_with(avoid))
+                    } else {
+                        text.contains(avoid)
+                    };
+                    if found {
+                        hits.push(format!(
+                            "{code}.ftl:{}: {avoid:?} — say {instead:?}: {line}",
+                            n + 1
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(hits.is_empty(), "{hits:#?}");
+    }
+
     /// No toast may be built from untranslated text.
     ///
     /// Toasts are the one UI surface assembled in plain Rust rather than a

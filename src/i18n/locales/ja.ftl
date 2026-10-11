@@ -5,9 +5,9 @@ app-name = animaEngine
 settings-tab-inspector = インスペクター
 settings-tab-scene = シーン
 settings-tab-appearance = 外観
-entity-count-zero = エンティティなし
-entity-count-singular = { $n } 個のエンティティ
-entity-count-plural = { $n } 個のエンティティ
+entity-count-zero = キャラクターなし
+entity-count-singular = { $n } 体のキャラクター
+entity-count-plural = { $n } 体のキャラクター
 
 inspector-section-position = 位置
 inspector-section-appearance = 外観
@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = 何も選択されていません
-inspector-nothing-selected-hint = シーンタブでエンティティをクリックするか、Tab キーで順に切り替えてください。
+inspector-nothing-selected-hint = シーンタブでキャラクターをクリックするか、Tab キーで順に切り替えてください。
 
 behavior-idle = 待機
 behavior-walk = 歩き回る
@@ -105,7 +105,7 @@ sound-failed-toast = 音声 { $sound } を再生できませんでした: { $err
 
 scene-empty-headline = シーンは空です
 scene-empty-hint = PNG / GIF / WebP / MP4 をオーバーレイにドロップ — もしくは下のプリセットをお試しください。
-scene-drop-hint = PNG / GIF / WebP をオーバーレイにドロップしてエンティティを追加できます。
+scene-drop-hint = PNG / GIF / WebP をオーバーレイにドロップしてキャラクターを追加できます。
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = ファイルを追加…
 scene-add-file-tooltip = キャラクターとして追加する画像や動画を選びます。
@@ -142,8 +142,8 @@ scene-window-awareness-tooltip = 物理が有効なキャラクターは、開�
 scene-window-awareness-unavailable = ネイティブ Wayland では利用できません — ウィンドウ位置を公開するプロトコルがありません。
 monitor-pin-label = モニターに固定
 monitor-pin-auto = 自動 (位置に従う)
-monitor-pinned-toast = エンティティを { $name } に固定しました
-monitor-pin-cleared-toast = エンティティは位置に従います
+monitor-pinned-toast = キャラクターを { $name } に固定しました
+monitor-pin-cleared-toast = キャラクターは位置に従います
 monitor-no-monitors-detected = モニターが検出されません
 
 appearance-theme-header = テーマ

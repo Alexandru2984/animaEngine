@@ -5,9 +5,9 @@ app-name = animaEngine
 settings-tab-inspector = Inspector
 settings-tab-scene = Scenă
 settings-tab-appearance = Aspect
-entity-count-zero = Nicio entitate
-entity-count-singular = { $n } entitate
-entity-count-plural = { $n } entități
+entity-count-zero = Niciun personaj
+entity-count-singular = { $n } personaj
+entity-count-plural = { $n } personaje
 
 inspector-section-position = Poziție
 inspector-section-appearance = Aspect
@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = Nimic selectat
-inspector-nothing-selected-hint = Apasă pe o entitate din tab-ul Scenă, sau apasă Tab pentru a parcurge entitățile.
+inspector-nothing-selected-hint = Apasă pe un personaj din tab-ul Scenă, sau apasă Tab pentru a parcurge personajele.
 
 behavior-idle = Pe loc
 behavior-walk = Plimbare
@@ -104,8 +104,8 @@ script-failed-toast = Scriptul de comportament { $script } a eșuat: { $error }
 sound-failed-toast = Sunetul { $sound } nu a putut fi redat: { $error }
 
 scene-empty-headline = Scenă goală
-scene-empty-hint = Trage un fișier PNG / GIF / WebP / MP4 peste overlay — sau încearcă un preset mai jos.
-scene-drop-hint = Trage un fișier PNG / GIF / WebP peste overlay pentru a adăuga o entitate.
+scene-empty-hint = Trage un fișier PNG / GIF / WebP / MP4 peste suprapunere — sau încearcă un preset mai jos.
+scene-drop-hint = Trage un fișier PNG / GIF / WebP peste suprapunere pentru a adăuga un personaj.
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Adaugă fișier…
 scene-add-file-tooltip = Alege imagini sau clipuri de adăugat ca personaje.
@@ -142,8 +142,8 @@ scene-window-awareness-tooltip = Personajele cu fizică activă aterizează și 
 scene-window-awareness-unavailable = Indisponibil pe Wayland nativ — niciun protocol nu expune pozițiile ferestrelor.
 monitor-pin-label = Pinează pe monitor
 monitor-pin-auto = Auto (urmează poziția)
-monitor-pinned-toast = Entitate pinată pe { $name }
-monitor-pin-cleared-toast = Entitatea urmează acum poziția
+monitor-pinned-toast = Personaj fixat pe { $name }
+monitor-pin-cleared-toast = Personajul urmează acum poziția
 monitor-no-monitors-detected = Niciun monitor detectat
 
 appearance-theme-header = Temă
@@ -160,7 +160,7 @@ onboarding-quick-toggles = Sfat: V comută vizibilitatea, G comută gravitația 
 onboarding-theme = Temele se aplică instant — niciun restart necesar.
 onboarding-coach-step1 = Bun venit! Personajele trăiesc pe desktop. Apasă butonul cu rotiță din colțul din dreapta-sus ca să intri în modul de editare.
 onboarding-coach-step2 = Trage un PNG, GIF, WebP sau MP4 oriunde pe ecran ca să-l adaugi ca personaj. Panoul lateral editează tot ce selectezi.
-onboarding-coach-step3 = Ctrl+K deschide paleta de comenzi. Ctrl+Shift+A comută modul de editare de oriunde, Ctrl+Shift+H ascunde overlay-ul.
+onboarding-coach-step3 = Ctrl+K deschide paleta de comenzi. Ctrl+Shift+A comută modul de editare de oriunde, Ctrl+Shift+H ascunde suprapunerea.
 onboarding-coach-next = Înainte
 onboarding-coach-skip = Sari peste tur
 onboarding-coach-done = Am înțeles
@@ -271,8 +271,8 @@ greet-hi = Salut!
 greet-hello = Bună!
 greet-hey = Hei!
 
-action-cycle-entity = Treci la următoarea entitate
-action-delete-selected = Șterge entitatea selectată
+action-cycle-entity = Treci la următorul personaj
+action-delete-selected = Șterge personajul selectat
 action-nudge-up = Mută selecția în sus
 action-nudge-down = Mută selecția în jos
 action-nudge-left = Mută selecția la stânga
@@ -292,8 +292,8 @@ action-fps-up = Crește FPS-ul
 action-fps-down = Scade FPS-ul
 action-opacity-up = Crește opacitatea
 action-opacity-down = Scade opacitatea
-action-cycle-monitor = Schimbă monitorul entității
-action-show-entity-info = Arată detaliile entității
+action-cycle-monitor = Schimbă monitorul personajului
+action-show-entity-info = Arată detaliile personajului
 action-show-help = Arată ajutor pentru taste
 
 # ── Secțiune accesibilitate în tab-ul Aspect (D.3) ────────────────────
@@ -368,7 +368,7 @@ scene-scene-load-tooltip = Treci la scena asta — Anulează te întoarce
 scene-scene-save-over = Salvează ce e pe ecran ca { $name }
 scene-scene-share = Partajează { $name } ca un singur fișier, cu tot cu imagini
 scene-import = Importă…
-scene-import-tooltip = Deschide o scenă pe care ți-a trimis-o cineva (un fișier .animascene). Merge și să tragi fișierul pe overlay.
+scene-import-tooltip = Deschide o scenă pe care ți-a trimis-o cineva (un fișier .animascene). Merge și să tragi fișierul pe suprapunere.
 scene-scene-delete = Șterge scena
 scene-scene-delete-confirm = Ștergi?
 scene-scene-delete-cancel = Păstreaz-o
@@ -469,7 +469,7 @@ whats-new-files = Scenele primesc nume, imagini și un program; partajează o sc
 
 # ── Hint-uri onboarding noi (D.7) ─────────────────────────────────────
 onboarding-keybindings = Apasă × pe o combinație ca s-o elimini; apasă o combinație nouă ca s-o înregistrezi.
-onboarding-perf-overlay = Apasă Ctrl+Shift+` ca să deschizi overlay-ul live de performanță.
+onboarding-perf-overlay = Apasă Ctrl+Shift+` ca să deschizi suprapunerea de performanță.
 appearance-reset-onboarding = Resetează hint-urile de bun venit
 
 # ── Acțiuni stări goale (D.8) ─────────────────────────────────────────
@@ -489,12 +489,12 @@ keybindings-backend-tooltip = Mecanismul care livrează cele trei scurtături gl
 keybindings-portal-restart-hint = Schimbările de combinații se aplică la următoarea pornire (desktop-ul ține minte aprobarea).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitorul { $name } a fost deconectat — { $n } entități fixate își urmează acum poziția.
+monitor-unplugged-toast = Monitorul { $name } a fost deconectat — { $n } personaje fixate își urmează acum poziția.
 monitor-plugged-toast = Monitorul { $name } a fost conectat.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Importă pachet Shimeji
-library-import-shimeji-hint = Trage un folder de pachet peste overlay sau lipește calea aici. Sprite-urile se copiază în bibliotecă.
+library-import-shimeji-hint = Trage un folder de pachet peste suprapunere sau lipește calea aici. Sprite-urile se copiază în bibliotecă.
 library-import-shimeji-button = Importă
 shimeji-imported-toast = Importat { $name } ({ $n } părți sărite — vezi log-ul)
 shimeji-import-failed-toast = Import eșuat: { $reason }

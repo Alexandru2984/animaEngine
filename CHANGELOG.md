@@ -375,6 +375,12 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 - The pulse on the selected row in the Scene tab ignored **Reduce
   motion**. It holds still now, and otherwise runs at ten frames a
   second instead of every frame.
+- **One thing, two names.** The engine's word "entity" stood in eleven
+  messages beside "character" in fifty — "Click an entity in the Scene
+  tab", "5 entities" — in every language, and some translations said it
+  where the English did not; Romanian, French, Spanish, Italian and
+  Portuguese named the overlay two ways, French, Italian and Dutch the
+  tray. Each language uses one word for each now, and a test keeps it.
 - **A screen reader found some controls without a name**: the
   Inspector's "Speaks up" and "Sound on a tap", the reminders' sound,
   and the number boxes beside the scale, opacity and text-size sliders.

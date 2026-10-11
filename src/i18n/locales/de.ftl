@@ -5,9 +5,9 @@ app-name = animaEngine
 settings-tab-inspector = Inspektor
 settings-tab-scene = Szene
 settings-tab-appearance = Darstellung
-entity-count-zero = Keine Entitäten
-entity-count-singular = { $n } Entität
-entity-count-plural = { $n } Entitäten
+entity-count-zero = Keine Figuren
+entity-count-singular = { $n } Figur
+entity-count-plural = { $n } Figuren
 
 inspector-section-position = Position
 inspector-section-appearance = Darstellung
@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-Index
 inspector-nothing-selected-headline = Nichts ausgewählt
-inspector-nothing-selected-hint = Klicken Sie eine Entität im Tab „Szene“ an oder drücken Sie Tab, um sie durchzugehen.
+inspector-nothing-selected-hint = Klicken Sie eine Figur im Tab „Szene“ an oder drücken Sie Tab, um sie durchzugehen.
 
 behavior-idle = Untätig
 behavior-walk = Umherlaufen
@@ -105,7 +105,7 @@ sound-failed-toast = Der Klang { $sound } konnte nicht abgespielt werden: { $err
 
 scene-empty-headline = Leere Szene
 scene-empty-hint = Ziehen Sie eine PNG- / GIF- / WebP- / MP4-Datei auf das Overlay — oder probieren Sie unten ein Preset.
-scene-drop-hint = Ziehen Sie eine PNG- / GIF- / WebP-Datei auf das Overlay, um eine Entität hinzuzufügen.
+scene-drop-hint = Ziehen Sie eine PNG- / GIF- / WebP-Datei auf das Overlay, um eine Figur hinzuzufügen.
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Datei hinzufügen …
 scene-add-file-tooltip = Bilder oder Videos auswählen, die als Figuren hinzugefügt werden.
@@ -142,8 +142,8 @@ scene-window-awareness-tooltip = Figuren mit aktiver Physik landen auf den Oberk
 scene-window-awareness-unavailable = Auf nativem Wayland nicht verfügbar — kein Protokoll gibt Fensterpositionen preis.
 monitor-pin-label = An Monitor binden
 monitor-pin-auto = Auto (folgt der Position)
-monitor-pinned-toast = Entität an { $name } gebunden
-monitor-pin-cleared-toast = Entität folgt jetzt ihrer Position
+monitor-pinned-toast = Figur an { $name } gebunden
+monitor-pin-cleared-toast = Figur folgt jetzt ihrer Position
 monitor-no-monitors-detected = Keine Monitore erkannt
 
 appearance-theme-header = Design

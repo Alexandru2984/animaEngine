@@ -5,9 +5,9 @@ app-name = animaEngine
 settings-tab-inspector = Ispettore
 settings-tab-scene = Scena
 settings-tab-appearance = Aspetto
-entity-count-zero = Nessuna entità
-entity-count-singular = { $n } entità
-entity-count-plural = { $n } entità
+entity-count-zero = Nessun personaggio
+entity-count-singular = { $n } personaggio
+entity-count-plural = { $n } personaggi
 
 inspector-section-position = Posizione
 inspector-section-appearance = Aspetto
@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = Nessuna selezione
-inspector-nothing-selected-hint = Clicca un'entità nella scheda Scena, o premi Tab per scorrerle.
+inspector-nothing-selected-hint = Clicca un personaggio nella scheda Scena, o premi Tab per scorrerli.
 
 behavior-idle = In riposo
 behavior-walk = Cammina
@@ -105,7 +105,7 @@ sound-failed-toast = Impossibile riprodurre il suono { $sound }: { $error }
 
 scene-empty-headline = Scena vuota
 scene-empty-hint = Trascina un PNG / GIF / WebP / MP4 sull'overlay — o prova un preset qui sotto.
-scene-drop-hint = Trascina un PNG / GIF / WebP sull'overlay per aggiungere un'entità.
+scene-drop-hint = Trascina un PNG / GIF / WebP sull'overlay per aggiungere un personaggio.
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Aggiungi file…
 scene-add-file-tooltip = Scegli immagini o video da aggiungere come personaggi.
@@ -135,15 +135,15 @@ monitor-section-header = Monitor
 monitor-mode-label = Distribuzione
 monitor-mode-per-monitor = Per monitor
 monitor-mode-span = Estendi su tutti i monitor
-monitor-mode-span-unsupported = Su questo backend una sola sovrapposizione non può coprire più monitor: usa «per monitor».
+monitor-mode-span-unsupported = Su questo backend un solo overlay non può coprire più monitor: usa «per monitor».
 monitor-mode-single = Monitor singolo
 scene-window-awareness = Atterra sulle finestre (X11)
 scene-window-awareness-tooltip = I personaggi con fisica attiva atterrano e camminano sul bordo superiore delle finestre aperte. Solo sessioni X11 — Wayland non espone le posizioni delle finestre, quindi lì non ha effetto.
 scene-window-awareness-unavailable = Non disponibile su Wayland nativo: nessun protocollo espone la posizione delle finestre.
 monitor-pin-label = Fissa al monitor
 monitor-pin-auto = Auto (segue la posizione)
-monitor-pinned-toast = Entità fissata a { $name }
-monitor-pin-cleared-toast = L'entità segue ora la sua posizione
+monitor-pinned-toast = Personaggio fissato a { $name }
+monitor-pin-cleared-toast = Il personaggio segue ora la sua posizione
 monitor-no-monitors-detected = Nessun monitor rilevato
 
 appearance-theme-header = Tema
@@ -368,7 +368,7 @@ scene-scene-load-tooltip = Passa a questa scena: Annulla torna indietro
 scene-scene-save-over = Salva ciò che è sullo schermo come { $name }
 scene-scene-share = Condividi { $name } come un solo file, immagini comprese
 scene-import = Importa…
-scene-import-tooltip = Apri una scena che qualcuno ti ha condiviso (un file .animascene). Funziona anche trascinare il file sulla sovrapposizione.
+scene-import-tooltip = Apri una scena che qualcuno ti ha condiviso (un file .animascene). Funziona anche trascinare il file sull’overlay.
 scene-scene-delete = Elimina scena
 scene-scene-delete-confirm = Eliminare?
 scene-scene-delete-cancel = Tienila
@@ -453,7 +453,7 @@ scene-schedule-add = Aggiungi
 scene-schedule-delete = Elimina regola
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
-warning-global-hotkeys-unavailable = Impossibile registrare le scorciatoie globali (tipico di una sessione Wayland nativa). Il menu nella tray e il pulsante ⚙ continuano a funzionare.
+warning-global-hotkeys-unavailable = Impossibile registrare le scorciatoie globali (tipico di una sessione Wayland nativa). Il menu nell’area di notifica e il pulsante ⚙ continuano a funzionare.
 warning-hot-reload-disconnected = Il processo di ricarica a caldo si è fermato inaspettatamente; le modifiche alla configurazione in corso si applicheranno solo dopo un riavvio.
 # Machine-translated, pending native review.
 warning-config-unreadable = Non è stato possibile leggere il file di configurazione, quindi è stata caricata la scena predefinita. L'originale è conservato accanto come config.toml.bak-corrupt.
@@ -477,7 +477,7 @@ appearance-reset-onboarding-hint = Ripristina i suggerimenti chiusi e il pannell
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Permesso per le scorciatoie negato — verranno usate le scorciatoie X11. Riprova dalla scheda Scorciatoie.
-portal-denied-native-toast = Permesso per le scorciatoie negato — il menu nella tray e le scorciatoie del compositor continuano a funzionare.
+portal-denied-native-toast = Permesso per le scorciatoie negato — il menu nell’area di notifica e le scorciatoie del compositor continuano a funzionare.
 
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Scorciatoie globali tramite:

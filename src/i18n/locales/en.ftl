@@ -23,9 +23,9 @@ library-asset-added-toast = Added { $name } to the scene
 library-asset-add-failed-toast = Couldn't add { $name }
 library-count = { $n } assets indexed
 
-entity-count-zero = No entities
-entity-count-singular = { $n } entity
-entity-count-plural = { $n } entities
+entity-count-zero = No characters
+entity-count-singular = { $n } character
+entity-count-plural = { $n } characters
 
 # ── Inspector tab ─────────────────────────────────────────────────────
 inspector-section-position = Position
@@ -99,7 +99,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = Nothing selected
-inspector-nothing-selected-hint = Click an entity in the Scene tab, or press Tab to cycle through them.
+inspector-nothing-selected-hint = Click a character in the Scene tab, or press Tab to cycle through them.
 
 # ── Behaviors ─────────────────────────────────────────────────────────
 behavior-idle = Idle
@@ -163,8 +163,8 @@ scene-window-awareness-tooltip = Physics-enabled characters land on and walk alo
 scene-window-awareness-unavailable = Unavailable on native Wayland — no protocol exposes window positions.
 monitor-pin-label = Pin to monitor
 monitor-pin-auto = Auto (follow position)
-monitor-pinned-toast = Entity pinned to { $name }
-monitor-pin-cleared-toast = Entity now follows its position
+monitor-pinned-toast = Character pinned to { $name }
+monitor-pin-cleared-toast = Character now follows its position
 monitor-no-monitors-detected = No monitors detected
 
 # ── Appearance tab ────────────────────────────────────────────────────
@@ -281,8 +281,8 @@ greet-hi = Hi!
 greet-hello = Hello!
 greet-hey = Hey there!
 
-action-cycle-entity = Cycle to next entity
-action-delete-selected = Delete selected entity
+action-cycle-entity = Cycle to next character
+action-delete-selected = Delete selected character
 action-nudge-up = Nudge selection up
 action-nudge-down = Nudge selection down
 action-nudge-left = Nudge selection left
@@ -302,8 +302,8 @@ action-fps-up = Increase FPS
 action-fps-down = Decrease FPS
 action-opacity-up = Increase opacity
 action-opacity-down = Decrease opacity
-action-cycle-monitor = Cycle entity monitor pin
-action-show-entity-info = Show entity info
+action-cycle-monitor = Cycle character monitor pin
+action-show-entity-info = Show character info
 action-show-help = Show keyboard help
 
 # ── Accessibility section in Appearance tab (D.3) ─────────────────────
@@ -494,7 +494,7 @@ keybindings-backend-tooltip = Which mechanism delivers the three global chords (
 keybindings-portal-restart-hint = Trigger changes apply at the next launch (the desktop remembers your approval).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitor { $name } disconnected — { $n } pinned entities now follow their position.
+monitor-unplugged-toast = Monitor { $name } disconnected — { $n } pinned characters now follow their position.
 monitor-plugged-toast = Monitor { $name } connected.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────

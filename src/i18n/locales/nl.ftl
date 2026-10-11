@@ -5,9 +5,9 @@ app-name = animaEngine
 settings-tab-inspector = Inspector
 settings-tab-scene = Scène
 settings-tab-appearance = Weergave
-entity-count-zero = Geen entiteiten
-entity-count-singular = { $n } entiteit
-entity-count-plural = { $n } entiteiten
+entity-count-zero = Geen figuren
+entity-count-singular = { $n } figuur
+entity-count-plural = { $n } figuren
 
 inspector-section-position = Positie
 inspector-section-appearance = Weergave
@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = Niets geselecteerd
-inspector-nothing-selected-hint = Klik op een entiteit in het tabblad Scène, of druk op Tab om door te lopen.
+inspector-nothing-selected-hint = Klik op een figuur in het tabblad Scène, of druk op Tab om ze te doorlopen.
 
 behavior-idle = Inactief
 behavior-walk = Rondlopen
@@ -105,7 +105,7 @@ sound-failed-toast = Het geluid { $sound } kon niet worden afgespeeld: { $error 
 
 scene-empty-headline = Lege scène
 scene-empty-hint = Sleep een PNG / GIF / WebP / MP4 naar de overlay — of probeer hieronder een preset.
-scene-drop-hint = Sleep een PNG / GIF / WebP naar de overlay om een entiteit toe te voegen.
+scene-drop-hint = Sleep een PNG / GIF / WebP naar de overlay om een figuur toe te voegen.
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Bestand toevoegen…
 scene-add-file-tooltip = Kies afbeeldingen of video's om als figuren toe te voegen.
@@ -142,8 +142,8 @@ scene-window-awareness-tooltip = Personages met actieve fysica landen op en lope
 scene-window-awareness-unavailable = Niet beschikbaar op native Wayland — geen protocol geeft vensterposities prijs.
 monitor-pin-label = Vastpinnen aan monitor
 monitor-pin-auto = Auto (volgt positie)
-monitor-pinned-toast = Entiteit vastgepind aan { $name }
-monitor-pin-cleared-toast = Entiteit volgt nu zijn positie
+monitor-pinned-toast = Figuur vastgepind aan { $name }
+monitor-pin-cleared-toast = Figuur volgt nu zijn positie
 monitor-no-monitors-detected = Geen monitors gedetecteerd
 
 appearance-theme-header = Thema
@@ -453,7 +453,7 @@ scene-schedule-add = Toevoegen
 scene-schedule-delete = Regel verwijderen
 
 # ── Warning banners (D.5) — placeholder pending native-speaker audit
-warning-global-hotkeys-unavailable = Globale sneltoetsen konden niet worden geregistreerd (gebruikelijk in een native Wayland-sessie). Het traymenu en de ⚙-knop blijven werken.
+warning-global-hotkeys-unavailable = Globale sneltoetsen konden niet worden geregistreerd (gebruikelijk in een native Wayland-sessie). Het menu in het systeemvak en de ⚙-knop blijven werken.
 warning-hot-reload-disconnected = De hot-reload-worker is onverwacht gestopt; lopende configuratiewijzigingen gelden pas na een herstart.
 # Machine-translated, pending native review.
 warning-config-unreadable = Uw configuratiebestand kon niet worden gelezen, dus de standaardscène is geladen. Het origineel staat ernaast als config.toml.bak-corrupt.
@@ -477,7 +477,7 @@ appearance-reset-onboarding-hint = Haalt de weggeklikte tips en het ‘Wat is ni
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Toestemming voor sneltoetsen geweigerd — er worden X11-sneltoetsen gebruikt. Probeer opnieuw via het tabblad Sneltoetsen.
-portal-denied-native-toast = Toestemming voor sneltoetsen geweigerd — het traymenu en compositor-bindingen blijven werken.
+portal-denied-native-toast = Toestemming voor sneltoetsen geweigerd — het menu in het systeemvak en compositor-bindingen blijven werken.
 
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Globale sneltoetsen via:
