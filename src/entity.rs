@@ -402,8 +402,17 @@ impl Entity {
                 }
                 if !out.sounds.is_empty() {
                     let centre = self.x + ctx.sprite_width * 0.5;
+                    let volume = self.talk.volume.unwrap_or(1.0);
                     for sound in &out.sounds {
-                        audio.play(root, sound, &id, centre, ctx.bounds.min_x, ctx.bounds.max_x);
+                        audio.play(
+                            root,
+                            sound,
+                            &id,
+                            centre,
+                            ctx.bounds.min_x,
+                            ctx.bounds.max_x,
+                            volume,
+                        );
                     }
                 }
                 true
@@ -958,6 +967,7 @@ mod tests {
             sound: "cats/meow.ogg".into(),
             bubble: Some("#ffcc00".into()),
             text_size: Some(18.0),
+            volume: Some(0.5),
         };
         let text = toml::to_string(&c).unwrap();
         assert!(text.contains("[talk]"), "{text}");

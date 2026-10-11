@@ -190,7 +190,8 @@ mod tests {
         scene.entities[1].poke(0.0, bounds);
         let sounds = scene.take_sounds();
         assert_eq!(sounds.len(), 1);
-        let (id, sound, x) = &sounds[0];
+        let (id, sound, x, volume) = &sounds[0];
+        assert_eq!(*volume, 1.0, "full as it comes");
         assert_eq!(
             (id.as_str(), sound.as_str()),
             (scene.entities[1].id.as_str(), "cats/purr.wav")

@@ -1591,8 +1591,8 @@ pub fn run_native(
                     renderer.primary.window_height as f32,
                 ),
             );
-            for (id, sound, x) in sounds {
-                audio_host.play(root, &sound, &id, x, bounds.min_x, bounds.max_x);
+            for (id, sound, x, volume) in sounds {
+                audio_host.play(root, &sound, &id, x, bounds.min_x, bounds.max_x, volume);
             }
         }
 

@@ -506,7 +506,8 @@ impl AudioHost {
     }
 
     /// Play `rel` for `entity_id`, panned for a character whose centre sits
-    /// at `centre_x` within `[min_x, max_x]`.
+    /// at `centre_x` within `[min_x, max_x]`, at that character's `volume`
+    /// (0 to 1, applied as [`gain_for`] under the global level).
     ///
     /// Silently does nothing when there is no device, when the same entity
     /// played the same sound within the cooldown, or when this tick's voice
@@ -520,13 +521,14 @@ impl AudioHost {
         centre_x: f32,
         min_x: f32,
         max_x: f32,
+        volume: f32,
     ) {
         #[cfg(not(feature = "audio"))]
         {
-            let _ = (root, rel, entity_id, centre_x, min_x, max_x);
+            let _ = (root, rel, entity_id, centre_x, min_x, max_x, volume);
         }
         #[cfg(feature = "audio")]
-        self.play_inner(root, rel, entity_id, centre_x, min_x, max_x);
+        self.play_inner(root, rel, entity_id, centre_x, min_x, max_x, volume);
     }
 
     #[cfg(feature = "audio")]
@@ -539,6 +541,7 @@ impl AudioHost {
         centre_x: f32,
         min_x: f32,
         max_x: f32,
+        volume: f32,
     ) {
         let now = Instant::now();
         // Muted: nothing is decoded and no device is opened for it.
@@ -606,6 +609,9 @@ impl AudioHost {
         };
 
         let (left, right) = pan_gains(centre_x, min_x, max_x);
+        // The character's own volume, under the global one (`gain`).
+        let own = gain_for(volume);
+        let (left, right) = (left * own, right * own);
         tracing::debug!(
             "sound {rel}: x {centre_x:.0} in [{min_x:.0}, {max_x:.0}], gains L {left:.2} R {right:.2}"
         );
@@ -1095,6 +1101,7 @@ mod host_tests {
             0.0,
             0.0,
             1920.0,
+            1.0,
         );
         assert!(host.take_new_failures().is_empty());
         assert!(!host.is_open(), "an empty path must not open the device");

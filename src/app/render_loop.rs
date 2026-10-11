@@ -208,9 +208,9 @@ impl App {
             // windows cover.
             let sounds = self.scene.take_sounds();
             if let Some(root) = self.library_root.as_deref() {
-                for (id, sound, x) in sounds {
+                for (id, sound, x, volume) in sounds {
                     self.audio_host
-                        .play(root, &sound, &id, x, bounds.min_x, bounds.max_x);
+                        .play(root, &sound, &id, x, bounds.min_x, bounds.max_x, volume);
                 }
             }
 

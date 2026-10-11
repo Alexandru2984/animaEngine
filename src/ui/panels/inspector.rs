@@ -603,6 +603,28 @@ fn sound_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
             .wrap(),
         );
     }
+    // How loud this one is, under the global volume (`Talk::volume`):
+    // its tap, what it says for the reminders and the focus timer, its
+    // script's sounds.
+    let caption = ui.label(t("appearance-sounds-volume"));
+    let mut volume = entity.talk.volume.unwrap_or(1.0);
+    if labelled_slider(ui, caption.id, &mut volume, 0.0..=1.0, |field| {
+        field
+            .speed(0.01)
+            .custom_formatter(|v, _| format!("{:.0}%", v * 100.0))
+            .custom_parser(|s| {
+                s.trim_end_matches('%')
+                    .trim()
+                    .parse::<f64>()
+                    .ok()
+                    .map(|p| p / 100.0)
+            })
+    })
+    .changed()
+    {
+        entity.talk.volume = (volume < 0.995).then_some(volume);
+        changed = true;
+    }
     changed
 }
 

@@ -285,12 +285,16 @@ sound = "sounds/meow.ogg"   # played on a tap: .ogg, .wav, .flac or
                             # .mp3, relative to the asset library
 bubble = "#3b82f6"          # its bubbles' colour; white when omitted
 text_size = 18.0            # their text, 10..=28 points; 14 when omitted
+volume = 0.5                # how loud its sounds are, 0..=1, under the
+                            # global sound_volume — its tap, what it says
+                            # for reminders and the focus timer, its
+                            # script's; full when omitted
 ```
 
 `large_bubbles = true` in `[global]` makes every bubble's text larger
 (×1.4), for reading.
 
-The Inspector's "Says" section writes all three. A shared scene keeps
+The Inspector's "Says" section writes all of them. A shared scene keeps
 the lines and leaves the sound behind. In a line — and in a reminder's
 `text` — `{time}`, `{day}`, `{date}` and `{name}` are filled in when it
 is said (`{time}` as HH:MM, the day and date in the app's language,

@@ -358,6 +358,11 @@ pub struct Talk {
     /// it comes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text_size: Option<f32>,
+    /// How loud its sounds are, 0 to 1, under the global volume — its tap,
+    /// the reminders and focus turns it says, its script's (`crate::audio`).
+    /// Full as it comes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volume: Option<f32>,
 }
 
 impl Talk {
@@ -367,6 +372,7 @@ impl Talk {
             && self.sound.is_empty()
             && self.bubble.is_none()
             && self.text_size.is_none()
+            && self.volume.is_none()
     }
 }
 

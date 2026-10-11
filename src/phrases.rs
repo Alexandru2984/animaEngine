@@ -46,6 +46,12 @@ pub fn tidy(talk: &mut crate::config::Talk) {
         .text_size
         .filter(|s| s.is_finite())
         .map(|s| s.clamp(crate::speech::TEXT_SIZE_MIN, crate::speech::TEXT_SIZE_MAX));
+    // Full is as it comes, and not written down.
+    talk.volume = talk
+        .volume
+        .filter(|v| v.is_finite())
+        .map(|v| v.clamp(0.0, 1.0))
+        .filter(|v| *v < 1.0);
 }
 
 /// Which line to say: any of `count` but `last`, the one said before,
@@ -96,8 +102,10 @@ mod tests {
             sound: " cats/meow.ogg\n".into(),
             bubble: Some("not a colour".into()),
             text_size: Some(99.0),
+            volume: Some(7.0),
         };
         tidy(&mut talk);
+        assert_eq!(talk.volume, None, "past full is full, left out");
         assert_eq!(talk.bubble, None, "a colour that does not read");
         assert_eq!(talk.text_size, Some(crate::speech::TEXT_SIZE_MAX));
         assert_eq!(talk.sound, "cats/meow.ogg");
@@ -112,6 +120,18 @@ mod tests {
         };
         tidy(&mut many);
         assert_eq!(many.phrases.len(), MAX_PHRASES);
+        for (given, kept) in [
+            (Some(0.4), Some(0.4)),
+            (Some(-1.0), Some(0.0)),
+            (Some(f32::NAN), None),
+        ] {
+            let mut t = Talk {
+                volume: given,
+                ..Default::default()
+            };
+            tidy(&mut t);
+            assert_eq!(t.volume, kept, "{given:?}");
+        }
     }
 
     #[test]

@@ -288,14 +288,20 @@ impl Scene {
     }
 
     /// The sounds asked for since last asked (`crate::sounds`) — by a tap,
-    /// the Inspector's Play, a reminder: whose, which file, and where the
-    /// middle of the character is across, for the panning.
-    pub fn take_sounds(&mut self) -> Vec<(String, String, f32)> {
+    /// the Inspector's Play, a reminder: whose, which file, where the
+    /// middle of the character is across, for the panning, and how loud
+    /// it plays its sounds (`Talk::volume`).
+    pub fn take_sounds(&mut self) -> Vec<(String, String, f32, f32)> {
         self.entities
             .iter_mut()
             .filter_map(|e| {
                 let sound = e.sound_wanted.take()?;
-                Some((e.id.clone(), sound, e.x + e.scaled_width() / 2.0))
+                Some((
+                    e.id.clone(),
+                    sound,
+                    e.x + e.scaled_width() / 2.0,
+                    e.talk.volume.unwrap_or(1.0),
+                ))
             })
             .collect()
     }

@@ -175,7 +175,9 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   reminders, the focus timer, scripts — that a sound already playing
   follows at once, "Mute sounds", which plays nothing and leaves the
   sound device closed, and "Quiet at bedtime". The tray and the command
-  palette mute and unmute too, and Keybindings has an unbound shortcut
+  palette mute and unmute too, the Inspector's "Says" section gives each
+  character a volume of its own under that one — a loud cat, a quiet
+  ghost — and Keybindings has an unbound shortcut
   for it that works from anywhere once given a key; D-Bus has
   `SetMuted(b)` and `ToggleMute`, for a compositor binding. A mute from
   the tray, a shortcut or D-Bus is saved at once.
