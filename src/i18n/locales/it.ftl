@@ -361,7 +361,7 @@ appearance-autostart-reason = Per avviare animaEngine all’accesso.
 appearance-autostart-failed = Impossibile cambiarlo: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = Scene
-scene-scenes-hint = Salva ciò che è sullo schermo con un nome e tornaci qui, dalla palette dei comandi o con «Next scene» nell’area di notifica.
+scene-scenes-hint = Salva ciò che è sullo schermo con un nome e tornaci qui, dalla palette dei comandi o con «Scena successiva» nell’area di notifica.
 scene-scene-name-hint = Nome della scena
 scene-scene-save-new = Salva come scena
 scene-scene-load-tooltip = Passa a questa scena: Annulla torna indietro
@@ -407,7 +407,7 @@ palette-unmute = Riattiva i suoni
 scene-reminders-header = Promemoria
 scene-reminders-hint = Un personaggio lo dice ogni tanto, in un fumetto. Il tempo lontano dal computer conta come pausa e lo fa ripartire.
 scene-focus-header = Timer di concentrazione
-scene-focus-hint = Lavora per un po’, poi un personaggio ti dice che è ora di fare una pausa — e quando riprendere. Nel frattempo i promemoria aspettano. Anche dalla palette dei comandi o con «Start focus» nell’area di notifica.
+scene-focus-hint = Lavora per un po’, poi un personaggio ti dice che è ora di fare una pausa — e quando riprendere. Nel frattempo i promemoria aspettano. Anche dalla palette dei comandi o con «Avvia il timer di concentrazione» nell’area di notifica.
 scene-focus-work = Lavoro
 scene-focus-break = Pausa
 scene-focus-start = Avvia

@@ -361,7 +361,7 @@ appearance-autostart-reason = Om animaEngine te starten bij het aanmelden.
 appearance-autostart-failed = Kon het niet wijzigen: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = Scènes
-scene-scenes-hint = Sla op wat op het scherm staat onder een naam, en ga er hier naar terug, via het opdrachtenpalet of met ‘Next scene’ in het systeemvak.
+scene-scenes-hint = Sla op wat op het scherm staat onder een naam, en ga er hier naar terug, via het opdrachtenpalet of met ‘Volgende scène’ in het systeemvak.
 scene-scene-name-hint = Naam van de scène
 scene-scene-save-new = Opslaan als scène
 scene-scene-load-tooltip = Naar deze scène wisselen — Ongedaan maken wisselt terug
@@ -407,7 +407,7 @@ palette-unmute = Geluiden weer aanzetten
 scene-reminders-header = Herinneringen
 scene-reminders-hint = Een figuur zegt het af en toe, in een tekstballon. Tijd weg van de computer telt als pauze en begint opnieuw.
 scene-focus-header = Focustimer
-scene-focus-hint = Een tijdje werken, dan zegt een figuur dat het tijd is voor een pauze — en wanneer het weer verder gaat. Herinneringen wachten zolang. Ook via het opdrachtenpalet of met ‘Start focus’ in het systeemvak.
+scene-focus-hint = Een tijdje werken, dan zegt een figuur dat het tijd is voor een pauze — en wanneer het weer verder gaat. Herinneringen wachten zolang. Ook via het opdrachtenpalet of met ‘Focustimer starten’ in het systeemvak.
 scene-focus-work = Werk
 scene-focus-break = Pauze
 scene-focus-start = Starten

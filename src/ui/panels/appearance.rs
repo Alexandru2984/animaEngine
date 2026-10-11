@@ -164,7 +164,9 @@ pub(super) fn appearance_tab(
     // ── Back up and restore (`scene_file::backup`) ───────────────────
     // Through the desktop's chooser, so Unix only, as Import… is.
     if cfg!(unix) {
-        ui.horizontal(|ui| {
+        // Wrapped, not one row: in longer languages a row wider than the
+        // panel made the panel grow to fit it.
+        ui.horizontal_wrapped(|ui| {
             if ui
                 .button(format!("{}  {}", icons::SHARE, t("appearance-backup")))
                 .on_hover_text(t("appearance-backup-hint"))
@@ -446,13 +448,13 @@ fn sound_controls(ui: &mut egui::Ui, sounds: super::SoundControls<'_>) -> bool {
         ui.horizontal(|ui| {
             let label = ui.label(t("appearance-sounds-volume"));
             let mut percent = (*sounds.volume * 100.0).round();
+            // No number box beside it: one more stop for Tab, and a
+            // field a screen reader found with no name. The slider says
+            // its value itself.
             let slider = ui
-                .add(
-                    egui::Slider::new(&mut percent, 0.0..=100.0)
-                        .suffix("%")
-                        .fixed_decimals(0),
-                )
+                .add(egui::Slider::new(&mut percent, 0.0..=100.0).show_value(false))
                 .labelled_by(label.id);
+            ui.label(format!("{percent:.0}%"));
             if slider.changed() {
                 *sounds.volume = percent / 100.0;
                 changed = true;
@@ -529,8 +531,10 @@ fn away_controls(ui: &mut egui::Ui, away: super::AwayControls<'_>) -> bool {
     };
     let can_tell = away.idle_available != Some(false);
     ui.add_enabled_ui(can_tell, |ui| {
-        ui.horizontal(|ui| {
-            ui.label(t("appearance-away-label"));
+        // The label over the choice: side by side they were wider than the
+        // panel in longer languages, and the panel grew to fit them.
+        ui.label(t("appearance-away-label"));
+        {
             let combo_value = label(*away.idle_minutes);
             let combo = egui::ComboBox::from_id_salt("anima.pause_when_idle")
                 .selected_text(combo_value.clone())
@@ -552,7 +556,7 @@ fn away_controls(ui: &mut egui::Ui, away: super::AwayControls<'_>) -> bool {
                 &combo_value,
             );
             combo.response.on_hover_text(t("appearance-away-hint"));
-        });
+        }
     });
     if !can_tell {
         ui.add(
@@ -586,8 +590,10 @@ fn away_controls(ui: &mut egui::Ui, away: super::AwayControls<'_>) -> bool {
 fn fullscreen_picker(ui: &mut egui::Ui, setting: &mut crate::fullscreen::OnFullscreen) -> bool {
     use crate::fullscreen::OnFullscreen;
     let mut changed = false;
-    ui.horizontal(|ui| {
-        ui.label(t("appearance-fullscreen-label"));
+    // The label over the choice: side by side they were wider than the
+    // panel in longer languages, and the panel grew to fit them.
+    ui.label(t("appearance-fullscreen-label"));
+    {
         let combo_value = t(setting.i18n_key());
         let combo = egui::ComboBox::from_id_salt("anima.on_fullscreen")
             .selected_text(combo_value.clone())
@@ -611,6 +617,6 @@ fn fullscreen_picker(ui: &mut egui::Ui, setting: &mut crate::fullscreen::OnFulls
         combo
             .response
             .on_hover_text(t("appearance-fullscreen-hint"));
-    });
+    }
     changed
 }

@@ -363,6 +363,19 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 - The pulse on the selected row in the Scene tab ignored **Reduce
   motion**. It holds still now, and otherwise runs at ten frames a
   second instead of every frame.
+- **A screen reader found some controls without a name**: the
+  Inspector's "Speaks up" and "Sound on a tap", the reminders' sound,
+  and the number boxes beside the scale, opacity and text-size sliders.
+  Every control in the four tabs has one now, on both backends — checked
+  with an AT-SPI reader, which also found Tab reaching every control
+  that is enabled.
+- **The settings panel grew wider in some languages**, and jumped wider
+  when a section opened: a label beside its choice or its slider made a
+  row wider than the panel, which grows to fit its widest row — up to
+  90 pixels in French. The label sits above now, and rows of buttons
+  wrap; with every section open, the panel keeps its width on every tab
+  in all ten languages. Two hints still quoted the tray's items in
+  English.
 - **The tray menu was in English, whatever the language.** Every item
   is in the app's language now, and follows it when it changes. The
   menu also kept showing "Start focus" while the focus timer ran: it

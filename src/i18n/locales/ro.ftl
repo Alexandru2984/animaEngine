@@ -361,7 +361,7 @@ appearance-autostart-reason = Ca să pornească animaEngine când intri în sesi
 appearance-autostart-failed = Nu s-a putut schimba: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = Scene
-scene-scenes-hint = Salvează ce e pe ecran sub un nume și revino la el aici, din paleta de comenzi sau cu „Next scene” din tray.
+scene-scenes-hint = Salvează ce e pe ecran sub un nume și revino la el aici, din paleta de comenzi sau cu „Scena următoare” din tray.
 scene-scene-name-hint = Numele scenei
 scene-scene-save-new = Salvează ca scenă
 scene-scene-load-tooltip = Treci la scena asta — Anulează te întoarce
@@ -407,7 +407,7 @@ palette-unmute = Activează sunetele
 scene-reminders-header = Mementouri
 scene-reminders-hint = Un personaj îl spune din când în când, într-un balon. Timpul petrecut departe de calculator contează ca pauză și o ia de la capăt.
 scene-focus-header = Cronometru de concentrare
-scene-focus-hint = Lucrezi o vreme, apoi un personaj îți spune că e timpul pentru o pauză — și când să revii. Între timp, mementourile așteaptă. Și din paleta de comenzi sau cu „Start focus” din tray.
+scene-focus-hint = Lucrezi o vreme, apoi un personaj îți spune că e timpul pentru o pauză — și când să revii. Între timp, mementourile așteaptă. Și din paleta de comenzi sau cu „Pornește cronometrul de concentrare” din tray.
 scene-focus-work = Lucru
 scene-focus-break = Pauză
 scene-focus-start = Pornește

@@ -361,7 +361,7 @@ appearance-autostart-reason = Aby uruchamiać animaEngine po zalogowaniu.
 appearance-autostart-failed = Nie udało się zmienić: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = Sceny
-scene-scenes-hint = Zapisz to, co jest na ekranie, pod nazwą i wracaj do tego tutaj, z palety poleceń lub przez „Next scene” w zasobniku.
+scene-scenes-hint = Zapisz to, co jest na ekranie, pod nazwą i wracaj do tego tutaj, z palety poleceń lub przez „Następna scena” w zasobniku.
 scene-scene-name-hint = Nazwa sceny
 scene-scene-save-new = Zapisz jako scenę
 scene-scene-load-tooltip = Przełącz na tę scenę — Cofnij przełącza z powrotem
@@ -407,7 +407,7 @@ palette-unmute = Włącz dźwięki
 scene-reminders-header = Przypomnienia
 scene-reminders-hint = Postać mówi to co jakiś czas, w dymku. Czas z dala od komputera liczy się jako przerwa i zaczyna odliczanie od nowa.
 scene-focus-header = Minutnik skupienia
-scene-focus-hint = Pracuj przez chwilę, a potem postać powie, że czas na przerwę — i kiedy wrócić. W tym czasie przypomnienia czekają. Także z palety poleceń lub przez „Start focus” w zasobniku.
+scene-focus-hint = Pracuj przez chwilę, a potem postać powie, że czas na przerwę — i kiedy wrócić. W tym czasie przypomnienia czekają. Także z palety poleceń lub przez „Uruchom minutnik skupienia” w zasobniku.
 scene-focus-work = Praca
 scene-focus-break = Przerwa
 scene-focus-start = Uruchom

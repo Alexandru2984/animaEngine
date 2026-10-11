@@ -361,7 +361,7 @@ appearance-autostart-reason = ログイン時に animaEngine を起動するた�
 appearance-autostart-failed = 変更できませんでした: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = シーン
-scene-scenes-hint = 画面の内容に名前を付けて保存し、ここやコマンドパレット、トレイの「Next scene」から戻れます。
+scene-scenes-hint = 画面の内容に名前を付けて保存し、ここやコマンドパレット、トレイの「次のシーン」から戻れます。
 scene-scene-name-hint = シーン名
 scene-scene-save-new = シーンとして保存
 scene-scene-load-tooltip = このシーンに切り替え(元に戻すで戻れます)
@@ -407,7 +407,7 @@ palette-unmute = ミュートを解除
 scene-reminders-header = リマインダー
 scene-reminders-hint = キャラクターが時々吹き出しで知らせます。コンピューターから離れていた時間は休憩として数え、最初からやり直します。
 scene-focus-header = 集中タイマー
-scene-focus-hint = しばらく作業すると、キャラクターが休憩の時間と再開の時間を知らせます。その間、リマインダーは待機します。コマンドパレットやトレイの「Start focus」からも使えます。
+scene-focus-hint = しばらく作業すると、キャラクターが休憩の時間と再開の時間を知らせます。その間、リマインダーは待機します。コマンドパレットやトレイの「集中タイマーを開始」からも使えます。
 scene-focus-work = 作業
 scene-focus-break = 休憩
 scene-focus-start = 開始

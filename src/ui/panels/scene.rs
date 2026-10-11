@@ -353,8 +353,10 @@ fn reminder_sound_row(
         ReminderSound::Speaker => t("reminder-sound-speaker"),
         ReminderSound::File(file) => file.clone(),
     };
-    ui.horizontal(|ui| {
-        let caption = ui.label(t("reminder-sound-label"));
+    // The label over the choice: side by side they were wider than the
+    // panel, which then grew to fit them.
+    ui.label(t("reminder-sound-label"));
+    {
         let combo = egui::ComboBox::from_id_salt("anima.reminder-sound")
             .selected_text(label(sound))
             .show_ui(ui, |ui| {
@@ -376,8 +378,13 @@ fn reminder_sound_row(
                     }
                 }
             });
-        combo.response.labelled_by(caption.id);
-    });
+        // Named for a screen reader: `labelled_by` does not reach AT-SPI.
+        crate::ui::accessible::name_combo(
+            &combo.response,
+            &t("reminder-sound-label"),
+            &label(sound),
+        );
+    }
     changed
 }
 
@@ -607,8 +614,10 @@ fn reminders_section(
             });
         }
     }
-    ui.horizontal(|ui| {
-        if !draft.timed {
+    // How often, then who, on lines of their own: on one, a longer
+    // language's "any character" made the row wider than the panel.
+    if !draft.timed {
+        ui.horizontal(|ui| {
             let label = ui.label(t("scene-reminder-minutes"));
             ui.add(
                 egui::DragValue::new(&mut draft.minutes)
@@ -616,7 +625,9 @@ fn reminders_section(
                     .speed(1.0),
             )
             .labelled_by(label.id);
-        }
+        });
+    }
+    {
         let chosen = who(&draft.character);
         let combo = egui::ComboBox::from_id_salt("anima.reminder-character")
             .selected_text(chosen.clone())
@@ -640,7 +651,7 @@ fn reminders_section(
                 }
             });
         crate::ui::accessible::name_combo(&combo.response, &t("scene-reminder-who"), &chosen);
-    });
+    }
     add |= ui
         .add_enabled(
             !draft.text.trim().is_empty(),
@@ -921,14 +932,19 @@ fn scenes_section(
 
     ui.add_space(SPACE_S);
     let mut name: String = ui.data(|d| d.get_temp(name_key)).unwrap_or_default();
-    ui.horizontal(|ui| {
-        let field = ui.add(
-            egui::TextEdit::singleline(&mut name)
-                .hint_text(t("scene-scene-name-hint"))
-                .desired_width(150.0),
-        );
-        crate::ui::accessible::name_text_field(&field, &t("scene-scene-name-hint"));
-        let entered = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+    // The name over the button, the field as wide as the panel: side by
+    // side, a fixed-width field pushed the row past the panel where the
+    // button's words are long, and a side panel widens to fit its widest
+    // row — and a field sized from what the button left grew the panel
+    // without end, a pixel of misjudged button at a time.
+    let field = ui.add(
+        egui::TextEdit::singleline(&mut name)
+            .hint_text(t("scene-scene-name-hint"))
+            .desired_width(f32::INFINITY),
+    );
+    crate::ui::accessible::name_text_field(&field, &t("scene-scene-name-hint"));
+    let entered = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+    ui.horizontal_wrapped(|ui| {
         let clicked = ui
             .add_enabled(
                 !name.trim().is_empty(),
@@ -938,17 +954,17 @@ fn scenes_section(
         if (entered || clicked) && !name.trim().is_empty() {
             action = Some(SceneAction::SaveNew(name.trim().to_string()));
         }
+        // A scene someone shared — through the desktop's chooser, so Unix
+        // only, like "Add file…"; dropping the file works everywhere.
+        if cfg!(unix)
+            && ui
+                .button(format!("{}  {}", icons::IMPORT, t("scene-import")))
+                .on_hover_text(t("scene-import-tooltip"))
+                .clicked()
+        {
+            *request = Some(super::SceneRequest::Import);
+        }
     });
-    // A scene someone shared — through the desktop's chooser, so Unix
-    // only, like "Add file…"; dropping the file works everywhere.
-    if cfg!(unix)
-        && ui
-            .button(format!("{}  {}", icons::IMPORT, t("scene-import")))
-            .on_hover_text(t("scene-import-tooltip"))
-            .clicked()
-    {
-        *request = Some(super::SceneRequest::Import);
-    }
     if let Some(error) = ui.data(|d| d.get_temp::<String>(error_key)) {
         ui.add(
             egui::Label::new(

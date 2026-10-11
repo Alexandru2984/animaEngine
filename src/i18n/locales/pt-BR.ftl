@@ -361,7 +361,7 @@ appearance-autostart-reason = Para iniciar o animaEngine ao entrar na sessão.
 appearance-autostart-failed = Não foi possível mudar: { $error }
 # Named scenes (1.5): machine-translated, pending native review.
 scene-scenes-header = Cenas
-scene-scenes-hint = Salve o que está na tela com um nome e volte a ele aqui, pela paleta de comandos ou com “Next scene” na bandeja.
+scene-scenes-hint = Salve o que está na tela com um nome e volte a ele aqui, pela paleta de comandos ou com “Próxima cena” na bandeja.
 scene-scene-name-hint = Nome da cena
 scene-scene-save-new = Salvar como cena
 scene-scene-load-tooltip = Mudar para esta cena — Desfazer volta
@@ -407,7 +407,7 @@ palette-unmute = Reativar os sons
 scene-reminders-header = Lembretes
 scene-reminders-hint = Um personagem diz isso de vez em quando, num balão. O tempo longe do computador conta como pausa e recomeça a contagem.
 scene-focus-header = Timer de foco
-scene-focus-hint = Trabalhe um pouco, e um personagem avisa quando é hora de uma pausa — e quando voltar. Enquanto isso, os lembretes esperam. Também pela paleta de comandos ou com “Start focus” na bandeja.
+scene-focus-hint = Trabalhe um pouco, e um personagem avisa quando é hora de uma pausa — e quando voltar. Enquanto isso, os lembretes esperam. Também pela paleta de comandos ou com “Iniciar o timer de foco” na bandeja.
 scene-focus-work = Trabalho
 scene-focus-break = Pausa
 scene-focus-start = Iniciar

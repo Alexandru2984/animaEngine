@@ -119,8 +119,11 @@ pub(super) fn entity_monitor_picker(
         None => t("monitor-pin-auto"),
         Some(name) => name.clone(),
     };
-    ui.horizontal(|ui| {
-        ui.label(t("monitor-pin-label"));
+    // The label over the choice: side by side they were wider than the
+    // panel in longer languages, and the panel grew to fit them — a combo
+    // box does not wrap onto the next line in a wrapped row.
+    ui.label(t("monitor-pin-label"));
+    {
         let combo_value = active_label.clone();
         let combo = egui::ComboBox::from_id_salt("anima.entity.monitor")
             .selected_text(active_label)
@@ -142,7 +145,7 @@ pub(super) fn entity_monitor_picker(
                 }
             });
         crate::ui::accessible::name_combo(&combo.response, &t("monitor-pin-label"), &combo_value);
-    });
+    }
     changed
 }
 

@@ -266,12 +266,12 @@ fn entity_inspector(
         &mut collapse_state.inspector_appearance,
         config_dirty,
         |ui| {
-            let scale_resp = ui
-                .add(
-                    egui::Slider::new(&mut entity.scale, 0.1..=5.0)
-                        .text(t("inspector-scale"))
-                        .suffix("\u{d7}"),
-                )
+            // Each label over its slider and value box (`labelled_slider`).
+            let caption = ui.label(t("inspector-scale"));
+            let scale_resp =
+                labelled_slider(ui, caption.id, &mut entity.scale, 0.1..=5.0, |field| {
+                    field.speed(0.01).suffix("\u{d7}")
+                })
                 .on_hover_text(t("inspector-double-click-reset-hint"));
             if scale_resp.double_clicked() {
                 entity.scale = 1.0;
@@ -280,10 +280,11 @@ fn entity_inspector(
                 change.any_field = true;
             }
             // Opacity reads as a percentage; storage stays 0..1.
-            let opacity_resp = ui
-                .add(
-                    egui::Slider::new(&mut entity.opacity, 0.0..=1.0)
-                        .text(t("inspector-opacity"))
+            let caption = ui.label(t("inspector-opacity"));
+            let opacity_resp =
+                labelled_slider(ui, caption.id, &mut entity.opacity, 0.0..=1.0, |field| {
+                    field
+                        .speed(0.01)
                         .custom_formatter(|v, _| format!("{:.0}%", v * 100.0))
                         .custom_parser(|s| {
                             s.trim_end_matches('%')
@@ -291,8 +292,8 @@ fn entity_inspector(
                                 .parse::<f64>()
                                 .ok()
                                 .map(|p| p / 100.0)
-                        }),
-                )
+                        })
+                })
                 .on_hover_text(t("inspector-double-click-reset-hint"));
             if opacity_resp.double_clicked() {
                 entity.opacity = 1.0;
@@ -434,19 +435,31 @@ fn talk_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool 
         }
     };
     ui.horizontal(|ui| {
-        ui.label(t("inspector-talk-pace"));
-        egui::ComboBox::from_id_salt(("anima.inspector.talk-every", entity.id.as_str()))
-            .selected_text(label(entity.talk.every_minutes))
-            .show_ui(ui, |ui| {
-                for minutes in crate::phrases::EVERY_CHOICES {
-                    if ui
-                        .selectable_value(&mut entity.talk.every_minutes, minutes, label(minutes))
-                        .changed()
-                    {
-                        changed = true;
+        let caption = t("inspector-talk-pace");
+        ui.label(&caption);
+        let combo =
+            egui::ComboBox::from_id_salt(("anima.inspector.talk-every", entity.id.as_str()))
+                .selected_text(label(entity.talk.every_minutes))
+                .show_ui(ui, |ui| {
+                    for minutes in crate::phrases::EVERY_CHOICES {
+                        if ui
+                            .selectable_value(
+                                &mut entity.talk.every_minutes,
+                                minutes,
+                                label(minutes),
+                            )
+                            .changed()
+                        {
+                            changed = true;
+                        }
                     }
-                }
-            });
+                });
+        // Named for a screen reader: `labelled_by` does not reach AT-SPI.
+        crate::ui::accessible::name_combo(
+            &combo.response,
+            &caption,
+            &label(entity.talk.every_minutes),
+        );
     });
     if ui
         .add_enabled(
@@ -503,14 +516,18 @@ fn bubble_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> boo
             changed = true;
         }
     });
+    // The label over the slider: to its right, in longer languages, it
+    // made the row wider than the panel, which then grew to fit it.
+    let caption = ui.label(t("inspector-bubble-size"));
     let mut size = entity.talk.text_size.unwrap_or(TEXT_SIZE);
-    if ui
-        .add(
-            egui::Slider::new(&mut size, TEXT_SIZE_MIN..=TEXT_SIZE_MAX)
-                .text(t("inspector-bubble-size"))
-                .suffix(" pt"),
-        )
-        .changed()
+    if labelled_slider(
+        ui,
+        caption.id,
+        &mut size,
+        TEXT_SIZE_MIN..=TEXT_SIZE_MAX,
+        |v| v.speed(0.1).suffix(" pt"),
+    )
+    .changed()
     {
         entity.talk.text_size = ((size - TEXT_SIZE).abs() > 0.01).then_some(size);
         changed = true;
@@ -525,15 +542,18 @@ fn sound_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
     let mut changed = false;
     let choices = crate::sounds::choices();
     let none = t("inspector-sound-none");
-    ui.horizontal(|ui| {
-        ui.label(t("inspector-sound-label"));
+    // Wrapped, not one row: in longer languages a row wider than the
+    // panel made the panel grow to fit it.
+    ui.horizontal_wrapped(|ui| {
+        let caption = t("inspector-sound-label");
+        ui.label(&caption);
         let current = if entity.talk.sound.is_empty() {
             none.clone()
         } else {
             entity.talk.sound.clone()
         };
-        egui::ComboBox::from_id_salt(("anima.inspector.sound", entity.id.as_str()))
-            .selected_text(current)
+        let combo = egui::ComboBox::from_id_salt(("anima.inspector.sound", entity.id.as_str()))
+            .selected_text(current.clone())
             .show_ui(ui, |ui| {
                 if ui
                     .selectable_label(entity.talk.sound.is_empty(), none.as_str())
@@ -555,6 +575,7 @@ fn sound_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
                     }
                 }
             });
+        crate::ui::accessible::name_combo(&combo.response, &caption, &current);
         if ui
             .add_enabled(
                 !entity.talk.sound.is_empty(),
@@ -607,6 +628,32 @@ fn hours_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
         });
     }
     changed
+}
+
+/// A slider and its value box on one line, both named after the label
+/// `caption` set over them, as one response.
+///
+/// A slider's own text beside it made the row wider than the panel in
+/// longer languages, and the panel grew to fit; moved over it, the value
+/// box egui draws had no name a screen reader could read. So the box is
+/// drawn here, named like the slider.
+fn labelled_slider(
+    ui: &mut egui::Ui,
+    caption: egui::Id,
+    value: &mut f32,
+    range: std::ops::RangeInclusive<f32>,
+    value_box: impl FnOnce(egui::DragValue<'_>) -> egui::DragValue<'_>,
+) -> egui::Response {
+    ui.horizontal(|ui| {
+        let slider = ui
+            .add(egui::Slider::new(value, range.clone()).show_value(false))
+            .labelled_by(caption);
+        let number = ui
+            .add(value_box(egui::DragValue::new(value).range(range)))
+            .labelled_by(caption);
+        slider | number
+    })
+    .inner
 }
 
 /// Easing-curve dropdown for `Animation::easing`. `None` represents
