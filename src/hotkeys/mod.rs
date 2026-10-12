@@ -1,8 +1,8 @@
 //! Global hotkeys — toggle the overlay from any focused window.
 //!
-//! Backed by the `global-hotkey` crate. On X11 (and XWayland) it uses
-//! `XGrabKey`, which works regardless of which window currently has
-//! focus. On a native Wayland session XGrabKey is not exposed, so the
+//! On X11 (and XWayland) they are grabbed with `XGrabKey`
+//! ([`x11_grab`]), which works regardless of which window currently has
+//! focus; on Windows the `global-hotkey` crate registers them. On a native Wayland session XGrabKey is not exposed, so the
 //! hotkeys silently no-op — the tray menu and `⚙` button still work.
 //!
 //! `probe` (T.0) detects whether the session offers the
@@ -23,24 +23,31 @@
 #[cfg(unix)]
 pub mod portal;
 pub mod probe;
+#[cfg(unix)]
+pub mod x11_grab;
 
 use crate::event::AnimaEvent;
-use crate::keybindings::{
-    Action, KeyBindings, KeyChord, KeyCode, ModifierMask, NamedKey, SymbolKey,
-};
+use crate::keybindings::{Action, KeyBindings, KeyChord, ModifierMask};
+#[cfg(windows)]
+use crate::keybindings::{KeyCode, NamedKey, SymbolKey};
+#[cfg(windows)]
 use global_hotkey::{
     hotkey::{Code, HotKey, Modifiers},
     GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
 };
+#[cfg(windows)]
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(windows)]
 use std::sync::Arc;
+#[cfg(windows)]
 use winit::event_loop::EventLoopProxy;
 
-/// Owns the manager + the registered hotkeys. Dropping it un-registers
-/// every binding, so callers must hold this alive for the lifetime of
-/// the app.
+/// Owns the manager + the registered hotkeys (Windows). Dropping it
+/// un-registers every binding, so callers must hold this alive for the
+/// lifetime of the app.
 pub struct HotkeyController {
+    #[cfg(windows)]
     _manager: GlobalHotKeyManager,
 }
 
@@ -93,9 +100,26 @@ pub fn action_to_event(action: Action, visible: &AtomicBool) -> Option<AnimaEven
     })
 }
 
-/// Try to register the user's globally-bound chords. Returns `None`
+/// The chords to register globally: those bound to `GLOBAL_ACTIONS`
+/// with a modifier. Bare-letter chords are deliberately skipped — a grab
+/// would steal the key from every other focused app.
+pub fn global_chords(bindings: &KeyBindings) -> Vec<(KeyChord, Action)> {
+    GLOBAL_ACTIONS
+        .iter()
+        .flat_map(|&action| {
+            bindings
+                .chords_for(action)
+                .into_iter()
+                .filter(|chord| chord.mods != ModifierMask::NONE)
+                .map(move |chord| (chord, action))
+        })
+        .collect()
+}
+
+/// Try to register the user's globally-bound chords (Windows). Returns `None`
 /// when no chord could be registered — callers treat that as a soft
 /// failure: the app remains fully usable through tray + ⚙ button.
+#[cfg(windows)]
 pub fn register(
     proxy: EventLoopProxy<AnimaEvent>,
     bindings: &KeyBindings,
@@ -115,38 +139,31 @@ pub fn register(
     let mut id_to_action: HashMap<u32, Action> = HashMap::new();
     let mut registered_any = false;
 
-    for &action in GLOBAL_ACTIONS {
-        for chord in bindings.chords_for(action) {
-            // Bare-letter chords are deliberately skipped — XGrabKey
-            // would steal the key from every other focused app.
-            if chord.mods == ModifierMask::NONE {
-                continue;
-            }
-            let Some(hk) = chord_to_global_hotkey(chord) else {
-                tracing::debug!(
-                    "Chord {} bound to {:?} has no global-hotkey equivalent, skipping",
+    for (chord, action) in global_chords(bindings) {
+        let Some(hk) = chord_to_global_hotkey(chord) else {
+            tracing::debug!(
+                "Chord {} bound to {:?} has no global-hotkey equivalent, skipping",
+                chord.canonical_str(),
+                action,
+            );
+            continue;
+        };
+        match manager.register(hk) {
+            Ok(()) => {
+                tracing::info!(
+                    "Registered global hotkey {} → {:?}",
                     chord.canonical_str(),
                     action,
                 );
-                continue;
-            };
-            match manager.register(hk) {
-                Ok(()) => {
-                    tracing::info!(
-                        "Registered global hotkey {} → {:?}",
-                        chord.canonical_str(),
-                        action,
-                    );
-                    id_to_action.insert(hk.id(), action);
-                    registered_any = true;
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to register {} → {:?}: {e}",
-                        chord.canonical_str(),
-                        action,
-                    );
-                }
+                id_to_action.insert(hk.id(), action);
+                registered_any = true;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to register {} → {:?}: {e}",
+                    chord.canonical_str(),
+                    action,
+                );
             }
         }
     }
@@ -177,12 +194,14 @@ pub fn register(
 /// `(Modifiers, Code)` pair. Returns `None` for keys that aren't
 /// representable in the global-hotkey vocabulary (numeric digits, IME,
 /// etc.) — the registration path skips those.
+#[cfg(windows)]
 fn chord_to_global_hotkey(chord: KeyChord) -> Option<HotKey> {
     let mods = mods_to_global(chord.mods);
     let code = keycode_to_global_code(chord.key)?;
     Some(HotKey::new(Some(mods), code))
 }
 
+#[cfg(windows)]
 fn mods_to_global(mask: ModifierMask) -> Modifiers {
     let mut m = Modifiers::empty();
     if mask.ctrl() {
@@ -200,6 +219,7 @@ fn mods_to_global(mask: ModifierMask) -> Modifiers {
     m
 }
 
+#[cfg(windows)]
 fn keycode_to_global_code(key: KeyCode) -> Option<Code> {
     Some(match key {
         KeyCode::Letter(c) => match c {

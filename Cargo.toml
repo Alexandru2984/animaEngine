@@ -100,10 +100,6 @@ async-io = "2"
 # to a direct dependency for the GlobalShortcuts portal client.
 futures-lite = "2"
 
-# Global hotkeys (XGrabKey on X11; XWayland inherits) — toggle edit mode
-# and visibility without focusing the overlay.
-global-hotkey = "0.8"
-
 # NOTE: x11rb, ksni, zbus, wayland-client and smithay-client-toolkit are
 # Linux/BSD-only and now live in the `[target.'cfg(unix)'.dependencies]`
 # section below (cross-platform port, C2).
@@ -181,7 +177,8 @@ rodio = { version = "0.22.2", optional = true, default-features = false, feature
 # cfg(unix) also matches macOS, where X11/Wayland don't apply; macOS
 # (parked) will need a narrower any(linux, *bsd) gate or its own backend.
 [target.'cfg(unix)'.dependencies]
-x11rb = { version = "0.13", features = ["shape", "screensaver"] }
+# `xkb`: a held global shortcut fires once (`hotkeys::x11_grab`).
+x11rb = { version = "0.13", features = ["shape", "screensaver", "xkb"] }
 ksni = { version = "0.3", default-features = false, features = ["async-io"] }
 zbus = { version = "5", default-features = false, features = ["async-io"] }
 wayland-client = "0.31"
@@ -211,6 +208,9 @@ accesskit_unix = "0.13"
 # and so `HWND` is the same `isize` on both sides of the raw-window-handle
 # boundary.
 [target.'cfg(windows)'.dependencies]
+# Global hotkeys on Windows (`RegisterHotKey`). On unix they are grabbed
+# on X11 by `hotkeys::x11_grab`, which waits where this crate polled.
+global-hotkey = "0.8"
 windows-sys = { version = "0.52", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",

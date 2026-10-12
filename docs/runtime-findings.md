@@ -2300,6 +2300,11 @@ switches) per thread over 30 s, in each still state, on the rig.
 
 The rig renders in software: most of what is left are llvmpipe's 32
 threads waking for the heartbeat's frame, which a GPU takes instead.
-Moving, nothing changed: 24–26% in the rig on both. Left: the X11
-global shortcuts' library polls the X server every 50 ms, 20 wake-ups a
-second on two threads; doing better means grabbing the keys ourselves.
+Moving, nothing changed: 24–26% in the rig on both. Left then: the
+X11 global shortcuts' library polled the X server every 50 ms, 20
+wake-ups a second. **Since grabbed by the app itself**
+(`hotkeys::x11_grab`): its thread sleeps in the X server's socket until
+a shortcut is pressed or the layout changes, and no longer shows among
+those that wake; a held chord fires once (XKB detectable auto-repeat),
+and a new layout grabs the same chords on their new keys. The crate stays
+for Windows.

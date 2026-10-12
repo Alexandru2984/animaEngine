@@ -26,7 +26,7 @@ are all cross-platform crates and build on Windows unchanged.
 | Global cursor (FollowCursor in pass-through) | `XQueryPointer` | not possible (protocol) | `GetCursorPos` |
 | Tray icon | `ksni` (StatusNotifierItem) | same | `Shell_NotifyIconW` (`src/win_tray.rs`) |
 | Single instance | D-Bus name (`src/single_instance.rs`) | same | named mutex + a named event the second launch signals to raise the first (`src/win_instance.rs`) |
-| Global hotkeys | `XGrabKey` via `global-hotkey` | GlobalShortcuts portal | `global-hotkey` (`RegisterHotKey`) |
+| Global hotkeys | `XGrabKey` (`src/hotkeys/x11_grab.rs`) | GlobalShortcuts portal | `global-hotkey` (`RegisterHotKey`) |
 
 Both trays render one menu, `src/tray_menu.rs`. The overlay operations go
 through the `OverlayPlatform` trait (`src/window/overlay.rs`); Windows

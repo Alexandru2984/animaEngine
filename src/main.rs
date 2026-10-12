@@ -378,25 +378,31 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
             }
         }
         hotkeys::probe::HotkeyStrategy::X11Grab => {
-            // Register the user's globally-bound chords (ToggleEditMode,
+            // Grab the user's globally-bound chords (ToggleEditMode,
             // HideOverlay, PauseAll — anything else with a modifier) off
-            // the way to the first frame: global-hotkey's thread looks for
-            // requests every 50 ms and each registration waits its turn,
-            // a tenth of a second before the window for the defaults. The
-            // thread then parks to keep them, as the portal's fallback
-            // does; none registered, the banner says so.
+            // the way to the first frame, on a thread that then sleeps in
+            // the X server's socket until one is pressed
+            // (`hotkeys::x11_grab`). None grabbed, the banner says so.
             #[cfg(unix)]
             {
                 let proxy = event_loop.create_proxy();
                 let bindings = config.keybindings.clone();
                 let spawned = std::thread::Builder::new()
                     .name("anima-hotkeys".into())
-                    .spawn(move || match hotkeys::register(proxy.clone(), &bindings) {
-                        Some(_ctrl) => loop {
-                            std::thread::park();
-                        },
-                        None => {
-                            let _ = proxy.send_event(AnimaEvent::HotkeysUnavailable);
+                    .spawn(move || {
+                        match hotkeys::x11_grab::Grabber::new(hotkeys::global_chords(&bindings)) {
+                            Some(grabber) => {
+                                let visible = std::sync::atomic::AtomicBool::new(true);
+                                grabber.serve(|action| {
+                                    if let Some(event) = hotkeys::action_to_event(action, &visible)
+                                    {
+                                        let _ = proxy.send_event(event);
+                                    }
+                                });
+                            }
+                            None => {
+                                let _ = proxy.send_event(AnimaEvent::HotkeysUnavailable);
+                            }
                         }
                     });
                 (None, spawned.is_ok())
@@ -548,15 +554,17 @@ fn portal_bridge(
         _ => {
             // Failed or sender already dropped → deferred fallback.
             tracing::warn!("Portal unavailable; falling back to XGrabKey");
-            match hotkeys::register(proxy.clone(), bindings) {
-                Some(_ctrl) => {
+            match hotkeys::x11_grab::Grabber::new(hotkeys::global_chords(bindings)) {
+                Some(grabber) => {
                     tracing::info!("XGrabKey fallback active");
                     let _ = proxy.send_event(AnimaEvent::PortalShortcutsDenied);
-                    // The controller un-registers on drop — park this
-                    // thread for the process lifetime to keep it alive.
-                    loop {
-                        std::thread::park();
-                    }
+                    // This thread waits for the shortcuts from now on.
+                    let visible = AtomicBool::new(true);
+                    grabber.serve(|action| {
+                        if let Some(ev) = hotkeys::action_to_event(action, &visible) {
+                            let _ = proxy.send_event(ev);
+                        }
+                    });
                 }
                 None => {
                     let _ = proxy.send_event(AnimaEvent::HotkeysUnavailable);
