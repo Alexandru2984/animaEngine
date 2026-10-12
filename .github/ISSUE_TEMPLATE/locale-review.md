@@ -27,9 +27,9 @@ labels: i18n
 
 ## Reference material
 
-- Pipeline + workflow: [`docs/i18n-pipeline.md`](../docs/i18n-pipeline.md)
+- Pipeline + workflow: [`docs/i18n-pipeline.md`](https://github.com/Alexandru2984/animaEngine/blob/main/docs/i18n-pipeline.md)
 - Current audit doc: `docs/locale-audit/<lang>.md`
-- Canonical English: [`src/i18n/locales/en.ftl`](../src/i18n/locales/en.ftl)
+- Canonical English: [`src/i18n/locales/en.ftl`](https://github.com/Alexandru2984/animaEngine/blob/main/src/i18n/locales/en.ftl)
 - Source file: `src/i18n/locales/<lang>.ftl`
 
 ## Specific keys / sections

@@ -38,7 +38,7 @@ From the audit — small and well-isolated:
 |---|------|-------------|-------|----------------|--------------|
 | 1 | **Overlay window + input** (click-through, always-on-top, input shape, multi-output) | X11 XShape/EWMH (`X11InputManager`) + wlr-layer-shell | `window/`, `wayland/layer_window/` | `WS_EX_LAYERED\|WS_EX_TRANSPARENT`, `HWND_TOPMOST`, region/hit-test | `NSWindow` borderless + level + `ignoresMouseEvents` |
 | 2 | Tray | ksni / StatusNotifierItem (D-Bus) | `tray.rs` | `Shell_NotifyIcon` | `NSStatusItem` |
-| 3 | Global hotkeys | XGrabKey (`global-hotkey`) + Wayland portal | `hotkeys/` | `RegisterHotKey` | `RegisterEventHotKey` / `CGEventTap` |
+| 3 | Global hotkeys | XGrabKey (`hotkeys::x11_grab`, 1.5) + Wayland portal | `hotkeys/` | `RegisterHotKey` | `RegisterEventHotKey` / `CGEventTap` |
 | 4 | Single-instance | D-Bus bus name | `single_instance.rs` | named mutex + `WM_COPYDATA`/pipe | lock file + distributed notification |
 | 5 | Private-dir perms | unix `0600`/`0700` | `util.rs` | ACL (or no-op + note) | unix perms (same as Linux) |
 
