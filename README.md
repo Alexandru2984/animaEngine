@@ -10,9 +10,7 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 + **winit** + **egui** — no Electron, no Chromium, minimal RAM use, and
 next to no CPU while nothing moves.
 
-<!-- TODO (X.3, against the RC build): demo GIF, top-fold. Record a
-     pass-through → edit-mode → drop-an-asset loop and drop it in:
-     ![animaEngine in action](docs/media/demo.gif) -->
+![A tapped character says hello; edit mode opens, a character is selected, a pasted picture becomes a new one](docs/media/demo.gif)
 
 > Status: 1.4.0 — stable. Production-ready packaging
 > (`.deb` / AppImage / Flatpak), stable X11/XWayland backend, opt-in
