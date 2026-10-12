@@ -574,8 +574,12 @@ jobs:
 
   fuzz:
     name: fuzz smoke (nightly)
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Every push and pull request, briefly — a parser that panics on what
+    # a file or a hand edit can hold is caught the day it lands — and a
+    # minute a target on the weekly canary and on demand.
     runs-on: ubuntu-24.04
+    env:
+      FUZZ_SECONDS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '60' || '15' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -593,25 +597,17 @@ jobs:
         with:
           workspaces: fuzz
       - run: cargo install --locked cargo-fuzz
-      # Seed each corpus from the committed seeds so the fuzzer starts
-      # from valid inputs instead of empty.
-      - name: Seed corpora
-        run: |
-          for t in cache_deserialize avcc_nalu_walk shimeji_xml \
-                   keychord_parse uri_list_parse asset_type_detect \
-                   scene_file_read thumbnail_decode small_parsers; do
-            mkdir -p "fuzz/corpus/$t"
-            if [ -d "fuzz/seeds/$t" ]; then cp fuzz/seeds/$t/* "fuzz/corpus/$t/"; fi
-          done
-      # 60 s per target; a panic or sanitizer hit fails the job and the
-      # reproducer is uploaded below.
+      # Every target fuzz/Cargo.toml names — a new one is fuzzed without
+      # being added here — each corpus seeded from the committed seeds so
+      # the fuzzer starts from valid inputs instead of empty ones. A panic
+      # or a sanitizer hit fails the job; the reproducer is uploaded below.
       - name: Fuzz each target
         run: |
-          for t in cache_deserialize avcc_nalu_walk shimeji_xml \
-                   keychord_parse uri_list_parse asset_type_detect \
-                   scene_file_read thumbnail_decode small_parsers; do
-            echo "::group::fuzz $t"
-            cargo +nightly fuzz run "$t" -- -max_total_time=60
+          for t in $(cargo +nightly fuzz list); do
+            mkdir -p "fuzz/corpus/$t"
+            if [ -d "fuzz/seeds/$t" ]; then cp fuzz/seeds/"$t"/* "fuzz/corpus/$t/"; fi
+            echo "::group::fuzz $t (${FUZZ_SECONDS} s)"
+            cargo +nightly fuzz run "$t" -- -max_total_time="$FUZZ_SECONDS"
             echo "::endgroup::"
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

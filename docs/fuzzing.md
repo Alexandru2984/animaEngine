@@ -61,11 +61,14 @@ build` runs — it lives in its own `fuzz/Cargo.toml`. Adding a CI job
 that runs a short timeboxed fuzz batch on every push catches
 regressions early without bloating the main build matrix:
 
-A schedule-only `fuzz` job in `.github/workflows/ci.yml` (nightly +
-cargo-fuzz) seeds each corpus from `fuzz/seeds/` and runs every target
-for 60 s. It never blocks a push — it surfaces a regression as a red
-weekly run and uploads any reproducer to the `fuzz-artifacts` artifact.
-Trigger it on demand with **Run workflow** (`workflow_dispatch`).
+The `fuzz` job in `.github/workflows/ci.yml` (nightly + cargo-fuzz)
+fuzzes every target `cargo fuzz list` names — a new one without being
+added to the workflow — each corpus seeded from `fuzz/seeds/`: 15 s a
+target on every push and pull request, so a parser that panics is caught
+the day it lands, and 60 s on the weekly canary and on demand
+(**Run workflow**, `workflow_dispatch`). A panic or a sanitizer hit
+fails the run, and the reproducer is uploaded as the `fuzz-artifacts`
+artifact.
 
 ## Adding a new target
 
