@@ -556,8 +556,8 @@ pub fn load_scene(
     ctx: &mut OutcomeCtx<'_>,
     active: &mut Option<String>,
 ) -> bool {
-    match crate::scenes::load(path) {
-        Ok(saved) => {
+    match crate::scenes::load_counting(path) {
+        Ok((saved, left_out)) => {
             ctx.scene.apply_saved(&saved);
             // Indices into the scene that was just replaced.
             ctx.selection.deselect();
@@ -567,6 +567,9 @@ pub fn load_scene(
             args.set("name", saved.name.clone());
             ctx.toasts
                 .info(crate::i18n::t_args("toast-scene-loaded", &args));
+            if left_out > 0 {
+                ctx.toasts.warn(crate::i18n::t("toast-scene-partly-read"));
+            }
             *active = Some(saved.name);
             true
         }
@@ -1414,6 +1417,10 @@ pub fn apply_imported(
     active: &mut Option<String>,
     bounds: crate::monitor::DesktopBounds,
 ) -> bool {
+    // Some of it was a newer version's, or mistyped: the rest comes in.
+    if imported.left_out > 0 {
+        ctx.toasts.warn(crate::i18n::t("toast-scene-partly-read"));
+    }
     if imported.character {
         return add_shared_characters(imported, ctx, bounds);
     }
@@ -2037,6 +2044,7 @@ mod tests {
             thumbnail: None,
             character: true,
             at: Some((500.0, 400.0)),
+            left_out: 0,
         };
         let mut active = Some("Work".to_string());
         let bounds = crate::monitor::DesktopBounds::from_size(1600.0, 1000.0);

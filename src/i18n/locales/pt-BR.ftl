@@ -376,6 +376,7 @@ scene-scene-delete-confirm = Excluir?
 scene-scene-delete-cancel = Manter
 scene-scene-save-failed = Não salva: { $error }
 toast-scene-loaded = Cena: { $name }
+toast-scene-partly-read = Alguns personagens não puderam ser lidos — de uma versão mais nova ou com erros de digitação — e ficaram de fora.
 toast-scene-failed = Cena não carregada: { $error }
 toast-scene-shared = Cena pronta para compartilhar: { $path }
 toast-scene-shared-scripts = Scripts de comportamento não são compartilhados; personagens parados no arquivo: { $count }

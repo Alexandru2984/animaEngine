@@ -383,6 +383,7 @@ scene-scene-delete-confirm = Delete?
 scene-scene-delete-cancel = Keep it
 scene-scene-save-failed = Not saved: { $error }
 toast-scene-loaded = Scene: { $name }
+toast-scene-partly-read = Some characters in it could not be read — made by a newer version, or mistyped — and were left out.
 toast-scene-failed = Scene not loaded: { $error }
 toast-scene-shared = Scene ready to share: { $path }
 toast-scene-shared-scripts = Behavior scripts are not shared; characters standing still in the file: { $count }

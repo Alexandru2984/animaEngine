@@ -18,7 +18,7 @@ use crate::constants::MAX_CONFIG_BYTES;
 use crate::error::{AnimaError, Result};
 use crate::i18n::Msg;
 use crate::scenes::SavedScene;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 /// A backup's extension.
@@ -33,12 +33,71 @@ const FORMAT: u32 = 1;
 /// The manifest holds every scene: it may be several configs' worth.
 const MAX_MANIFEST_BYTES: u64 = 4 * MAX_CONFIG_BYTES;
 
-#[derive(Serialize, Deserialize)]
-struct Manifest {
+/// `backup.toml` as written: the config as its own file says it, what
+/// it set aside included (`AppConfig::to_toml_string`).
+#[derive(Serialize)]
+struct Manifest<'a> {
     format: u32,
-    config: AppConfig,
-    #[serde(default)]
-    scenes: Vec<SavedScene>,
+    config: toml::Table,
+    scenes: &'a [SavedScene],
+}
+
+/// The text of `backup.toml` for `config` and `scenes`.
+fn manifest_text(config: &AppConfig, scenes: &[SavedScene]) -> Result<String> {
+    let config: toml::Table = config
+        .to_toml_string()?
+        .parse()
+        .map_err(|e| AnimaError::other(format!("{e}")))?;
+    Ok(toml::to_string_pretty(&Manifest {
+        format: FORMAT,
+        config,
+        scenes,
+    })?)
+}
+
+/// `backup.toml` as this version reads it: the format first, so a newer
+/// one says so before anything in it fails to read; the config as
+/// `config.toml` is read, what does not read set aside and kept
+/// (`AppConfig::decode_config_table`); each scene as a scene file is,
+/// a character or group that does not read left out
+/// (`scenes::from_table`). One of them used to fail the whole restore.
+fn read_manifest(text: &str) -> Result<(AppConfig, Vec<SavedScene>)> {
+    let mut manifest: toml::Table = text
+        .parse()
+        .map_err(|e| super::damaged(format!("backup.toml: {e}")))?;
+    let format = manifest
+        .get("format")
+        .and_then(toml::Value::as_integer)
+        .and_then(|f| u32::try_from(f).ok())
+        .ok_or_else(|| super::damaged("backup.toml: no format"))?;
+    if format > FORMAT {
+        return Err(AnimaError::said_as(Msg::new("error-file-newer")));
+    }
+    let Some(toml::Value::Table(config)) = manifest.remove("config") else {
+        return Err(super::damaged("backup.toml: no config"));
+    };
+    let (config, _) = AppConfig::decode_config_table(config)
+        .map_err(|e| super::damaged(format!("backup.toml: {e}")))?;
+    let scenes = match manifest.remove("scenes") {
+        None => Vec::new(),
+        Some(toml::Value::Array(items)) => {
+            let mut scenes = Vec::new();
+            for item in items {
+                let toml::Value::Table(table) = item else {
+                    return Err(super::damaged("backup.toml: a scene is not a table"));
+                };
+                let (scene, left_out) = crate::scenes::from_table(table)
+                    .map_err(|e| super::damaged(format!("backup.toml: {e}")))?;
+                if left_out > 0 {
+                    tracing::warn!("Backup scene {}: {left_out} left out, not read", scene.name);
+                }
+                scenes.push(scene);
+            }
+            scenes
+        }
+        Some(_) => return Err(super::damaged("backup.toml: scenes are not a list")),
+    };
+    Ok((config, scenes))
 }
 
 /// Whether `path` names a backup.
@@ -93,11 +152,7 @@ pub fn back_up(
             thumbs.push((format!("thumbs/{i}.png"), png.clone()));
         }
     }
-    let manifest = toml::to_string_pretty(&Manifest {
-        format: FORMAT,
-        config,
-        scenes: saved,
-    })?;
+    let manifest = manifest_text(&config, &saved)?;
     let written = write(to, manifest.as_bytes(), &thumbs, &packer.files);
     if written.is_err() {
         let _ = std::fs::remove_file(to);
@@ -152,11 +207,7 @@ pub struct Restored {
 /// it tidied, as a restore would.
 #[doc(hidden)]
 pub fn fuzz_manifest(text: &str) {
-    if let Ok(Manifest {
-        mut config, scenes, ..
-    }) = toml::from_str::<Manifest>(text)
-    {
-        config.sanitize();
+    if let Ok((_config, scenes)) = read_manifest(text) {
         for mut scene in scenes {
             super::tidy(&mut scene);
         }
@@ -199,14 +250,7 @@ pub fn read(file: &Path, into: &Path) -> Result<Restored> {
     }
     let text = std::str::from_utf8(manifest.data)
         .map_err(|_| super::damaged("its backup.toml is not text"))?;
-    let Manifest {
-        format,
-        mut config,
-        scenes,
-    } = toml::from_str(text).map_err(|e| super::damaged(format!("backup.toml: {e}")))?;
-    if format > FORMAT {
-        return Err(AnimaError::said_as(Msg::new("error-file-newer")));
-    }
+    let (mut config, scenes) = read_manifest(text)?;
 
     let mut assets = Vec::new();
     let mut thumbs: Vec<(usize, image::RgbaImage)> = Vec::new();
@@ -373,17 +417,49 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// What the config set aside — a newer version's character, its new
+    /// setting — goes into a backup and comes back out of it, set aside
+    /// again. A backup used to write the config without it, and a restore
+    /// failed whole on it.
+    #[test]
+    fn what_the_config_set_aside_travels_in_a_backup() {
+        let dir = tmp("set_aside");
+        let text = r#"
+            version = 2
+            [global]
+            future_glow = 3
+            theme = "sepia"
+            [[characters]]
+            id = "holo"
+            name = "Holo"
+            asset_type = "hologram"
+            asset_path = "h.holo"
+            x = 0.0
+            y = 0.0
+        "#;
+        let (config, _) = AppConfig::decode_config_table(text.parse().unwrap()).unwrap();
+        assert!(config.set_aside.unread());
+        let file = dir.join("b.animabackup");
+        back_up(&config, &[], &file).unwrap();
+        let restored = read(&file, &dir.join("in")).unwrap();
+        assert!(restored.config.set_aside.unread(), "set aside again");
+        let back: toml::Table = restored.config.to_toml_string().unwrap().parse().unwrap();
+        assert_eq!(back["global"]["future_glow"].as_integer(), Some(3));
+        assert_eq!(back["global"]["theme"].as_str(), Some("sepia"));
+        assert_eq!(back["characters"][0]["id"].as_str(), Some("holo"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn something_unexpected_inside_fails_the_restore() {
         let dir = tmp("odd");
-        let manifest = toml::to_string_pretty(&Manifest {
-            format: FORMAT,
-            config: AppConfig {
+        let manifest = manifest_text(
+            &AppConfig {
                 characters: Vec::new(),
                 ..AppConfig::default()
             },
-            scenes: Vec::new(),
-        })
+            &[],
+        )
         .unwrap();
         let mut w = zip::Writer::new(Vec::new());
         w.add(MANIFEST, manifest.as_bytes()).unwrap();

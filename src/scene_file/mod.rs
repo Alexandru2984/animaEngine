@@ -75,6 +75,9 @@ pub struct Imported {
     pub character: bool,
     /// …there, where it was dropped; set by the caller.
     pub at: Option<(f32, f32)>,
+    /// Characters and groups left out: they did not read here — a newer
+    /// version's, or mistyped.
+    pub left_out: usize,
 }
 
 /// What an export wrote.
@@ -328,14 +331,29 @@ pub fn import(file: &Path, into: &Path) -> Result<Imported> {
     }
     let text =
         std::str::from_utf8(manifest.data).map_err(|_| damaged("its scene.toml is not text"))?;
-    let Manifest {
-        format,
-        character,
-        mut scene,
-    } = toml::from_str(text).map_err(|e| damaged(format!("scene.toml: {e}")))?;
+    // Read as a table first: a newer format says so before anything in
+    // it fails to read, and a character or group that does not read is
+    // left out, not the whole file (`scenes::from_table`).
+    let mut manifest: toml::Table = text
+        .parse()
+        .map_err(|e| damaged(format!("scene.toml: {e}")))?;
+    let format = manifest
+        .get("format")
+        .and_then(toml::Value::as_integer)
+        .and_then(|f| u32::try_from(f).ok())
+        .ok_or_else(|| damaged("scene.toml: no format"))?;
     if format > FORMAT {
         return Err(AnimaError::said_as(Msg::new("error-file-newer")));
     }
+    let character = manifest
+        .get("character")
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(false);
+    let Some(toml::Value::Table(scene)) = manifest.remove("scene") else {
+        return Err(damaged("scene.toml: no scene"));
+    };
+    let (mut scene, left_out) =
+        crate::scenes::from_table(scene).map_err(|e| damaged(format!("scene.toml: {e}")))?;
 
     let mut assets = Vec::new();
     let mut thumbnail = None;
@@ -386,6 +404,7 @@ pub fn import(file: &Path, into: &Path) -> Result<Imported> {
         thumbnail,
         character,
         at: None,
+        left_out,
     })
 }
 
@@ -409,8 +428,13 @@ pub fn fuzz_read(data: &[u8]) {
             continue;
         };
         if entry.name == MANIFEST {
-            if let Ok(Manifest { mut scene, .. }) = toml::from_str::<Manifest>(text) {
-                tidy(&mut scene);
+            // As `import` reads it: a table, then its scene leniently.
+            if let Ok(mut manifest) = text.parse::<toml::Table>() {
+                if let Some(toml::Value::Table(scene)) = manifest.remove("scene") {
+                    if let Ok((mut scene, _)) = crate::scenes::from_table(scene) {
+                        tidy(&mut scene);
+                    }
+                }
             }
         } else {
             backup::fuzz_manifest(text);
@@ -877,6 +901,35 @@ mod tests {
                 .unwrap()
                 .character
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A shared scene with a character a newer version made in it comes
+    /// in without that one, and says so; it used to fail whole.
+    #[test]
+    fn a_newer_versions_character_is_left_out_of_an_import() {
+        let dir = tmp("newer_char");
+        let file = dir.join("s.animascene");
+        export(&demo(), None, &file).unwrap();
+        let bytes = std::fs::read(&file).unwrap();
+        let entries = zip::read(&bytes, MAX_ENTRIES).unwrap();
+        let mut w = zip::Writer::new(Vec::new());
+        for entry in &entries {
+            if entry.name == MANIFEST {
+                let text = std::str::from_utf8(entry.data).unwrap();
+                let text = format!(
+                    "{text}\n[[scene.characters]]\nid = \"holo\"\nname = \"Holo\"\n\
+                     asset_type = \"hologram\"\nasset_path = \"h.holo\"\nx = 0.0\ny = 0.0\n"
+                );
+                w.add(entry.name, text.as_bytes()).unwrap();
+            } else {
+                w.add(entry.name, entry.data).unwrap();
+            }
+        }
+        std::fs::write(&file, w.finish().unwrap()).unwrap();
+        let imported = import(&file, &dir.join("in")).unwrap();
+        assert_eq!(imported.left_out, 1);
+        assert_eq!(imported.scene.characters.len(), demo().characters.len());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -146,14 +146,45 @@ pub fn free_name(entries: &[SceneEntry], name: &str) -> String {
 
 /// Read the scene in `path`, under the same limits as the config.
 pub fn load(path: &Path) -> Result<SavedScene> {
+    load_counting(path).map(|(saved, _)| saved)
+}
+
+/// [`load`], and how many characters and groups it left out: those that
+/// do not read — a newer version's, or mistyped — as the config's are
+/// (`config::SetAside`). The file keeps them until the scene is saved
+/// over; one of them used to make the whole scene fail to load.
+pub fn load_counting(path: &Path) -> Result<(SavedScene, usize)> {
     let text = crate::util::read_to_string_capped(path, MAX_CONFIG_BYTES)?;
-    let mut saved: SavedScene =
-        toml::from_str(&text).map_err(|e| AnimaError::other(format!("{e}")))?;
+    let table: toml::Table = text
+        .parse()
+        .map_err(|e| AnimaError::other(format!("{e}")))?;
+    let (mut saved, left_out) = from_table(table)?;
+    if left_out > 0 {
+        tracing::warn!("Scene {}: {left_out} left out, not read", saved.name);
+    }
     saved.characters.truncate(MAX_ENTITIES);
     for c in &mut saved.characters {
         c.sanitize();
     }
-    Ok(saved)
+    Ok((saved, left_out))
+}
+
+/// A scene from its TOML table, as far as this version reads it, and how
+/// many characters and groups were left out.
+pub(crate) fn from_table(mut table: toml::Table) -> Result<(SavedScene, usize)> {
+    match toml::Value::Table(table.clone()).try_into::<SavedScene>() {
+        Ok(saved) => Ok((saved, 0)),
+        Err(first) => {
+            let left_out = crate::config::sift_scene_lists(&mut table);
+            if left_out == 0 {
+                return Err(AnimaError::other(format!("{first}")));
+            }
+            let saved = toml::Value::Table(table)
+                .try_into::<SavedScene>()
+                .map_err(|_| AnimaError::other(format!("{first}")))?;
+            Ok((saved, left_out))
+        }
+    }
 }
 
 /// Delete the scene in `path`, and its picture.
@@ -247,6 +278,40 @@ mod tests {
             .collect();
         scene.restore_configs(&configs);
         scene
+    }
+
+    /// A scene with a character a newer version made: the rest loads, and
+    /// it is counted as left out. It used to fail the whole scene.
+    #[test]
+    fn a_newer_versions_character_is_left_out_of_the_scene() {
+        let text = r#"
+            name = "Mixed"
+            [[characters]]
+            id = "cat"
+            name = "Cat"
+            asset_type = "png_static"
+            asset_path = "c.png"
+            x = 1.0
+            y = 2.0
+            [[characters]]
+            id = "holo"
+            name = "Holo"
+            asset_type = "hologram"
+            asset_path = "h.holo"
+            x = 0.0
+            y = 0.0
+        "#;
+        let (scene, left_out) = from_table(text.parse().unwrap()).unwrap();
+        assert_eq!(left_out, 1);
+        assert_eq!(scene.name, "Mixed");
+        assert_eq!(scene.characters.len(), 1);
+        assert_eq!(scene.characters[0].id, "cat");
+        // Nothing to leave out, nothing left out; nothing readable, an error.
+        assert_eq!(
+            from_table("name = \"Empty\"".parse().unwrap()).unwrap().1,
+            0
+        );
+        assert!(from_table("name = 5".parse().unwrap()).is_err());
     }
 
     #[test]

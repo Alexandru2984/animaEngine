@@ -376,6 +376,7 @@ scene-scene-delete-confirm = 削除しますか?
 scene-scene-delete-cancel = 残す
 scene-scene-save-failed = 保存できませんでした: { $error }
 toast-scene-loaded = シーン: { $name }
+toast-scene-partly-read = 一部のキャラクターを読み込めなかったため（新しいバージョンのものか、入力ミスがあります）、除外しました。
 toast-scene-failed = シーンを読み込めませんでした: { $error }
 toast-scene-shared = 共有用のシーンを保存しました: { $path }
 toast-scene-shared-scripts = 動作スクリプトは共有されません。ファイル内で止まっているキャラクター: { $count }

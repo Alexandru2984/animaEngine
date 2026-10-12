@@ -376,6 +376,7 @@ scene-scene-delete-confirm = Verwijderen?
 scene-scene-delete-cancel = Behouden
 scene-scene-save-failed = Niet opgeslagen: { $error }
 toast-scene-loaded = Scène: { $name }
+toast-scene-partly-read = Sommige figuren konden niet worden gelezen — van een nieuwere versie of met typefouten — en zijn weggelaten.
 toast-scene-failed = Scène niet geladen: { $error }
 toast-scene-shared = Scène klaar om te delen: { $path }
 toast-scene-shared-scripts = Gedragsscripts worden niet gedeeld; figuren die in het bestand stilstaan: { $count }

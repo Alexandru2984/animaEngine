@@ -376,6 +376,7 @@ scene-scene-delete-confirm = Usunąć?
 scene-scene-delete-cancel = Zostaw
 scene-scene-save-failed = Nie zapisano: { $error }
 toast-scene-loaded = Scena: { $name }
+toast-scene-partly-read = Niektórych postaci nie udało się odczytać — pochodzą z nowszej wersji albo zawierają literówki — więc je pominięto.
 toast-scene-failed = Nie wczytano sceny: { $error }
 toast-scene-shared = Scena gotowa do udostępnienia: { $path }
 toast-scene-shared-scripts = Skrypty zachowań nie są udostępniane; postacie stojące w miejscu w pliku: { $count }

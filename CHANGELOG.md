@@ -349,7 +349,10 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   of these used to make the whole file unreadable, and the app started
   with the default scene. Keys a newer version added inside a table
   this one knows — a setting, a character's option — are kept too, and
-  were dropped at the first save.
+  were dropped at the first save. Named scenes, shared scene and
+  character files and backups read the same way: a character that does
+  not read is left out, with a toast, rather than failing the whole
+  file, and a backup carries what the config set aside.
 - **The overlay appears sooner.** On X11 the global shortcuts were
   registered one after another before the window was made — 50 ms each
   in the library that does it, a tenth of a second for the defaults —

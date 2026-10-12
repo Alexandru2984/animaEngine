@@ -980,14 +980,17 @@ fn scenes_section(
     let acted = action.is_some();
     let mut error: Option<String> = None;
     match action {
-        Some(SceneAction::Load(path)) => match crate::scenes::load(&path) {
-            Ok(saved) => {
+        Some(SceneAction::Load(path)) => match crate::scenes::load_counting(&path) {
+            Ok((saved, left_out)) => {
                 tracing::info!("Scene loaded: {}", saved.name);
                 scene.apply_saved(&saved);
                 // Indices into the scene that was just replaced.
                 selection.deselect();
                 *active = Some(saved.name);
                 *config_dirty = true;
+                if left_out > 0 {
+                    error = Some(crate::i18n::t("toast-scene-partly-read"));
+                }
             }
             Err(e) => {
                 let mut args = fluent::FluentArgs::new();

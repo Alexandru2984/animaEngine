@@ -48,8 +48,11 @@ A banner in the settings panel says when this happened, and the log
 names each part. Keys a newer version added *inside* a table this build
 knows — a new setting in `[global]`, a new option on a character, its
 `[characters.talk]`, a group — are kept and written back where they
-were, with no banner: nothing is missing for them. Versions before 1.5
-do none of this: they cannot read a
+were, with no banner: nothing is missing for them. Named scenes, shared
+scene and character files and backups read the same way: a character or
+group that does not read is left out, a toast says so, and the rest
+loads; a backup carries what the config set aside, and restores it set
+aside again. Versions before 1.5 do none of this: they cannot read a
 1.5 config, and start with the default scene, keeping your file as
 `config.toml.bak-corrupt`.
 

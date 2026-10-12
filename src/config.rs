@@ -888,6 +888,12 @@ enum SetAsideList {
 /// not read.
 const SET_ASIDE_LISTS: [&str; 4] = ["characters", "groups", "reminders", "scene_schedule"];
 
+/// Take the characters and groups that do not read out of a scene's
+/// `table` (`crate::scenes`), as a config's are: how many went.
+pub(crate) fn sift_scene_lists(table: &mut toml::Table) -> usize {
+    SetAside::take_unreadable(table).entries.len()
+}
+
 /// Whether one entry of `list` reads, and if not, why.
 fn entry_reads(list: &str, entry: &toml::Value) -> std::result::Result<(), String> {
     let entry = entry.clone();
@@ -1260,9 +1266,17 @@ impl AppConfig {
     /// which is what lets both the startup `load` and the read-only
     /// `try_reload` share this without one leaking writes into the other.
     fn decode_config_str(contents: &str) -> std::result::Result<(Self, u32), String> {
-        let mut table = contents
+        let table = contents
             .parse::<toml::Table>()
             .map_err(|e| format!("parse error: {e}"))?;
+        Self::decode_config_table(table)
+    }
+
+    /// [`Self::decode_config_str`] for a table already read — a backup's
+    /// config (`scene_file::backup`).
+    pub(crate) fn decode_config_table(
+        mut table: toml::Table,
+    ) -> std::result::Result<(Self, u32), String> {
         let from = detect_schema_version(&table);
         migrate_table(&mut table);
         // Deserialise from the migrated Value, not a re-serialised

@@ -376,6 +376,7 @@ scene-scene-delete-confirm = Ștergi?
 scene-scene-delete-cancel = Păstreaz-o
 scene-scene-save-failed = Nesalvată: { $error }
 toast-scene-loaded = Scenă: { $name }
+toast-scene-partly-read = Unele personaje din ea nu au putut fi citite — de la o versiune mai nouă sau cu greșeli de scriere — și au fost lăsate deoparte.
 toast-scene-failed = Scena nu s-a încărcat: { $error }
 toast-scene-shared = Scenă gata de partajat: { $path }
 toast-scene-shared-scripts = Scripturile de comportament nu se partajează; personaje care stau pe loc în fișier: { $count }
