@@ -108,6 +108,20 @@ mod tests {
         assert_eq!(a, big_a);
     }
 
+    /// Cycle character as it came, Tab, moves to N: the panel takes Tab
+    /// for its focus. One set by hand stays as it is.
+    #[test]
+    fn cycle_character_leaves_tab_unless_it_was_chosen() {
+        let n: KeyChord = "N".parse().unwrap();
+        let tab: KeyChord = "Tab".parse().unwrap();
+        let as_it_came: KeyBindings = toml::from_str("[map]\ncycle_entity = [\"Tab\"]").unwrap();
+        assert_eq!(as_it_came.chords_for(Action::CycleEntity), vec![n]);
+        let chosen: KeyBindings =
+            toml::from_str("[map]\ncycle_entity = [\"Tab\", \"Ctrl+Z\"]").unwrap();
+        assert!(chosen.chords_for(Action::CycleEntity).contains(&tab));
+        assert_eq!(KeyBindings::default().lookup(n), Some(Action::CycleEntity));
+    }
+
     /// The F-keys read and write back (1.5): one bound by hand used to
     /// make the whole config unreadable.
     #[test]

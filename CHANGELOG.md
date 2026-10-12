@@ -325,6 +325,10 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 
 ### Changed
 
+- **Cycle character is on `N`.** Its `Tab` belonged to the settings
+  panel's focus: on X11 it never cycled, on native Wayland only once.
+  A config that still had `Tab` there as it came moves to `N`; one set
+  by hand stays. `Tab` is never a shortcut now, on either backend.
 - **Less work while nothing moves.** Native Wayland's loop woke every
   16 ms to look for messages; it now sleeps until it has something to
   do, and D-Bus, the tray, shortcuts and screen readers wake it — 2 to 3

@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = 何も選択されていません
-inspector-nothing-selected-hint = シーンタブでキャラクターをクリックするか、Tab キーで順に切り替えてください。
+inspector-nothing-selected-hint = シーンタブでキャラクターをクリックするか、N キーで順に切り替えてください。
 
 behavior-idle = 待機
 behavior-walk = 歩き回る

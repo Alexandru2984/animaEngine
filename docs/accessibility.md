@@ -146,17 +146,19 @@ on both backends):
   panel, `Enter` or `Space` presses what has the focus, and `Esc` gives
   the keyboard back to the scene, still in edit mode.
 - A character is picked in the Scene tab's list: `Tab` to its name and
-  `Enter`; `Shift+Enter` adds it to the selection, or removes it.
-  `Ctrl+A` selects them all.
+  `Enter`; `Shift+Enter` adds it to the selection, or removes it. With
+  the keyboard back on the scene, `N` steps through them and `Ctrl+A`
+  selects them all.
 - `Shift+F10` opens the right-click menu for the selection, its first
   item focused: `Tab` moves through it, `Enter` picks, `Esc` closes it.
   Save as GIF, Share, Arrange and Group are there.
 - `Ctrl+K` runs any action by name.
 
-`Tab` is the panel's while it is open, so Cycle character, bound to
-`Tab` as it comes, does not step through the characters there: on X11
-the toolkit takes every `Tab`, and on native Wayland only the first,
-before anything has the focus, cycles. Bind it to another key to use it.
+`Tab` is the panel's, never a shortcut's. Cycle character was bound to
+it until 1.5 and never cycled while the panel was open — on X11 the
+toolkit took every `Tab`, on native Wayland only the first did — so it
+moved to `N`; a config that still had it on `Tab` as it came moves with
+it.
 
 #### Global vs in-app chords
 

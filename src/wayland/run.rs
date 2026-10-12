@@ -2436,6 +2436,13 @@ fn binding_chord(event: &egui::Event, egui_owns_keyboard: bool) -> Option<KeyCho
         return None;
     }
     match event {
+        // Tab is the panel's, for its focus, as on X11 where the toolkit
+        // takes every one: here the first Tab, before anything had the
+        // focus, both moved it and fired a shortcut.
+        egui::Event::Key {
+            key: egui::Key::Tab,
+            ..
+        } => None,
         egui::Event::Key {
             key,
             physical_key,
@@ -2899,6 +2906,8 @@ mod tests {
     #[test]
     fn releases_and_other_events_are_never_chords() {
         assert!(binding_chord(&key_event(egui::Key::V, false), false).is_none());
+        // Tab is the panel's, never a shortcut's.
+        assert!(binding_chord(&key_event(egui::Key::Tab, true), false).is_none());
         assert!(binding_chord(&egui::Event::Text("v".into()), false).is_none());
         assert!(binding_chord(&egui::Event::PointerGone, false).is_none());
     }

@@ -543,11 +543,11 @@ nudge_up = ["Up", "K"]
 ```
 
 Chord syntax is `Modifier+Modifier+Key` (`Ctrl`, `Shift`, `Alt`,
-`Super`). A key is a letter, a digit, `F1` to `F12`, `Space`, `Tab`,
-`Enter`, `Esc`, `Backspace`, `Delete`, `Home`, `End`, `PageUp`,
+`Super`). A key is a letter, a digit, `F1` to `F12`, `Space`, `Enter`, `Esc`, `Backspace`, `Delete`, `Home`, `End`, `PageUp`,
 `PageDown`, an arrow (`Up`, `Down`, `Left`, `Right`), or one of
 `+ - = [ ]` and `` ` ``. Before 1.5 the F-keys were not among them, and a
-chord naming one made the whole file unreadable. The Settings → Keybindings UI is the easiest way to discover
+chord naming one made the whole file unreadable. `Tab` still reads, but
+it is the settings panel's, for its focus, and never a shortcut. The Settings → Keybindings UI is the easiest way to discover
 action names and rebind without typos; it also flags conflicts. A
 chord bound to two actions is reported there rather than silently
 shadowed.

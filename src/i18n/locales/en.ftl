@@ -99,7 +99,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = Nothing selected
-inspector-nothing-selected-hint = Click a character in the Scene tab, or press Tab to cycle through them.
+inspector-nothing-selected-hint = Click a character in the Scene tab, or press N to cycle through them.
 
 # ── Behaviors ─────────────────────────────────────────────────────────
 behavior-idle = Idle

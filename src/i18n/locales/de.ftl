@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-Index
 inspector-nothing-selected-headline = Nichts ausgewählt
-inspector-nothing-selected-hint = Klicken Sie eine Figur im Tab „Szene“ an oder drücken Sie Tab, um sie durchzugehen.
+inspector-nothing-selected-hint = Klicken Sie eine Figur im N „Szene“ an oder drücken Sie Tab, um sie durchzugehen.
 
 behavior-idle = Untätig
 behavior-walk = Umherlaufen

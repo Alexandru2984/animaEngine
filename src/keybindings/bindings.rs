@@ -77,6 +77,20 @@ impl<'de> Deserialize<'de> for KeyBindings {
                 .collect();
             map.insert(action, chords);
         }
+        // Cycle character as it came before 1.5 — Tab, which the panel
+        // takes for its focus — moves to the key that works. A Tab set by
+        // hand among others stays.
+        let tab = KeyChord::new(
+            super::keys::ModifierMask::NONE,
+            super::keys::KeyCode::Named(super::keys::NamedKey::Tab),
+        );
+        if map.get(&Action::CycleEntity) == Some(&vec![tab]) {
+            tracing::info!("keybindings: Cycle character moves from Tab to its new default");
+            map.insert(
+                Action::CycleEntity,
+                Action::CycleEntity.default_chords().to_vec(),
+            );
+        }
         Ok(Self { map, unknown })
     }
 }

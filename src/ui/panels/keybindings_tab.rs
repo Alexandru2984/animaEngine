@@ -62,6 +62,11 @@ pub(super) fn keybindings_tab(
                     ..
                 } = e
                 {
+                    // Tab is the panel's, never a shortcut's: it moves on,
+                    // as it does everywhere else.
+                    if *key == egui::Key::Tab {
+                        return None;
+                    }
                     Some((*key, *physical_key, mods))
                 } else {
                     None

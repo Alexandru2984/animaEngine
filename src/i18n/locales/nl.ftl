@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = Niets geselecteerd
-inspector-nothing-selected-hint = Klik op een figuur in het tabblad Scène, of druk op Tab om ze te doorlopen.
+inspector-nothing-selected-hint = Klik op een figuur in het tabblad Scène, of druk op N om ze te doorlopen.
 
 behavior-idle = Inactief
 behavior-walk = Rondlopen

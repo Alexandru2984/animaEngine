@@ -2049,6 +2049,26 @@ mod upgrade_tests {
         }
     }
 
+    /// The changes made on purpose, each with its reason: `path` going
+    /// from `was` to `now`. Nothing else may change.
+    fn meant(path: &str, was: &toml::Value, now: Option<&toml::Value>) -> bool {
+        let strings = |v: &toml::Value| -> Option<Vec<String>> {
+            v.as_array()?
+                .iter()
+                .map(|s| s.as_str().map(str::to_string))
+                .collect()
+        };
+        match path {
+            // Cycle character left Tab, the panel's, for N (1.5) — only
+            // as it came; a Tab set by hand among others stays.
+            "keybindings.map.cycle_entity" => {
+                strings(was) == Some(vec!["Tab".into()])
+                    && now.and_then(strings) == Some(vec!["N".into()])
+            }
+            _ => false,
+        }
+    }
+
     #[test]
     fn configs_from_earlier_versions_keep_every_value() {
         for (by, text) in WRITTEN_BY {
@@ -2069,6 +2089,7 @@ mod upgrade_tests {
             let changed: Vec<String> = before
                 .iter()
                 .filter(|(path, value)| after.get(*path) != Some(value))
+                .filter(|(path, value)| !meant(path, value, after.get(*path)))
                 .map(|(path, value)| format!("{path}: {value} → {:?}", after.get(path)))
                 .collect();
             assert!(changed.is_empty(), "{by}: {changed:#?}");

@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = Nada selecionado
-inspector-nothing-selected-hint = Clique num personagem na aba Cena, ou pressione Tab para alternar entre eles.
+inspector-nothing-selected-hint = Clique num personagem na aba Cena, ou pressione N para alternar entre eles.
 
 behavior-idle = Parado
 behavior-walk = Andar

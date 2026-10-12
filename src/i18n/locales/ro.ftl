@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = Nimic selectat
-inspector-nothing-selected-hint = Apasă pe un personaj din tab-ul Scenă, sau apasă Tab pentru a parcurge personajele.
+inspector-nothing-selected-hint = Apasă pe un personaj din tab-ul Scenă, sau apasă N pentru a parcurge personajele.
 
 behavior-idle = Pe loc
 behavior-walk = Plimbare

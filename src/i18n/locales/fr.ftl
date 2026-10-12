@@ -80,7 +80,7 @@ inspector-x = X
 inspector-y = Y
 inspector-z-index = z-index
 inspector-nothing-selected-headline = Rien de sélectionné
-inspector-nothing-selected-hint = Cliquez sur un personnage dans l'onglet Scène, ou appuyez sur Tab pour les parcourir.
+inspector-nothing-selected-hint = Cliquez sur un personnage dans l'onglet Scène, ou appuyez sur N pour les parcourir.
 
 behavior-idle = Au repos
 behavior-walk = Se promener

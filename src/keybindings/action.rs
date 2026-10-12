@@ -347,10 +347,11 @@ impl Action {
         KeyChord::new(ModifierMask(0b0011), KeyCode::Letter('Z')),
         KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('Y')),
     ];
-    const C_CYCLE_ENTITY: &'static [KeyChord] = &[KeyChord::new(
-        ModifierMask::NONE,
-        KeyCode::Named(NamedKey::Tab),
-    )];
+    /// N for next (1.5). It was Tab, which the settings panel needs for
+    /// its own focus: on X11 the toolkit took every Tab, so it never
+    /// cycled, and on native Wayland only the first did.
+    const C_CYCLE_ENTITY: &'static [KeyChord] =
+        &[KeyChord::new(ModifierMask::NONE, KeyCode::Letter('N'))];
     const C_SELECT_ALL: &'static [KeyChord] =
         &[KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('A'))];
     const C_OPEN_CONTEXT_MENU: &'static [KeyChord] = &[KeyChord::new(
