@@ -1,0 +1,53 @@
+version = 2
+[global]
+theme = "sepia"
+hover_startle = true
+future_glow = 3
+[global.focus]
+future_chime = "bell"
+
+[[characters]]
+id = "cat"
+name = "Cat"
+asset_type = "png_static"
+asset_path = "c.png"
+x = 1.0
+y = 2.0
+future_wings = true
+[characters.talk]
+phrases = ["Hi"]
+future_accent = "posh"
+[characters.behavior]
+type = "breakdance"
+
+[[characters]]
+id = "holo"
+name = "Holo"
+asset_type = "hologram"
+asset_path = "h.holo"
+x = 0.0
+y = 0.0
+
+[[windows]]
+id = "side"
+name = "Side"
+[[windows.characters]]
+id = "w"
+name = "W"
+asset_type = "hologram"
+asset_path = "w.holo"
+x = 0.0
+y = 0.0
+
+[[groups]]
+id = "g"
+name = "G"
+member_ids = ["cat"]
+future_colour = "teal"
+
+[keybindings.map]
+dance_party = ["Ctrl+D"]
+toggle_edit_mode = ["Ctrl+Alt+E", "Hyper+Banana"]
+
+[future_section]
+anything = 1

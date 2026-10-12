@@ -192,9 +192,12 @@ impl KeyBindings {
     }
 
     /// Reset every action to its defaults; the footer "Reset all"
-    /// button in the rebind UI.
+    /// button in the rebind UI. Actions this build does not have are not
+    /// its to reset: a newer version's bindings stay.
     pub fn reset_all(&mut self) {
+        let unknown = std::mem::take(&mut self.unknown);
         *self = Self::default();
+        self.unknown = unknown;
     }
 
     /// Add a chord to `action`. No-op if the chord is already bound to

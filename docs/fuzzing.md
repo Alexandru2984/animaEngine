@@ -14,9 +14,11 @@ that sit closest to untrusted input:
 | `scene_file_read` | `scene_file::fuzz_read` | `.animascene`, `.animachar` and `.animabackup` files (1.5): the strict zip reader, entry names, the manifests (`scene.toml`, `backup.toml`) parsed and tidied, the thumbnails decoded |
 | `thumbnail_decode` | `scene_thumb::decode` | a scene's thumbnail PNG, inside a shared or restored file |
 | `small_parsers` | `speech::fuzz_small_parsers` | 1.5's hand-written text parsers fed from `config.toml`: bubble colours, `HH:MM` times, `MM-DD` dates and when a reminder is due, sound names, own hours, `{placeholders}` |
+| `config_round_trip` | `config::fuzz_config_round_trip` | `config.toml` itself, as a newer version or a hand edit leaves it: whatever reads, written and read again, must read and write the same — what is set aside and the keys this build does not know included (1.5) |
 
 The invariant for every target is "**never panic**, return a typed
-error or sensible default on adversarial input." The asset decoders
+error or sensible default on adversarial input." `config_round_trip`
+asks more: a second round of writing and reading changes nothing. The asset decoders
 themselves (PNG / GIF / WebP / MP4) aren't fuzzed here because they
 delegate to `image` and `mp4parse` upstream, both of which have their
 own fuzz suites — but the **hand-written** parsers around them (our
@@ -45,6 +47,7 @@ cargo +nightly fuzz run keychord_parse        # ^C when you've had enough
 cargo +nightly fuzz run uri_list_parse
 cargo +nightly fuzz run asset_type_detect
 cargo +nightly fuzz run scene_file_read
+cargo +nightly fuzz run config_round_trip
 ```
 
 Corpora live under `fuzz/corpus/<target>/`; libfuzzer seeds itself

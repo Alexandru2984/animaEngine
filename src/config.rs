@@ -1121,6 +1121,22 @@ impl SetAside {
     }
 }
 
+/// For `fuzz/fuzz_targets/config_round_trip.rs`: a config read from
+/// `text`, whatever it holds, then written and read again reads the same
+/// and writes the same — what was set aside or unknown comes back where
+/// it was, every round, and nothing grows.
+#[doc(hidden)]
+pub fn fuzz_config_round_trip(text: &str) {
+    let Ok((first, _)) = AppConfig::decode_config_str(text) else {
+        return;
+    };
+    let once = first.to_toml_string().expect("a config read is written");
+    let (second, _) = AppConfig::decode_config_str(&once)
+        .unwrap_or_else(|e| panic!("what was written does not read: {e}\n{once}"));
+    let twice = second.to_toml_string().expect("and written again");
+    assert_eq!(once, twice, "a second round changed it");
+}
+
 /// Read the `version` key from a parsed config table.
 ///
 /// - absent → `1` (every config written before 0.9 is schema v1);
@@ -2045,6 +2061,24 @@ mod migration_tests {
         let out: toml::Table = changed.to_toml_string().unwrap().parse().unwrap();
         assert_eq!(out["global"]["theme"].as_str(), Some("light"));
         assert_eq!(out["global"]["on_fullscreen"].as_str(), Some("dim"));
+    }
+
+    /// An alias is a key the struct reads too: were it not listed, a
+    /// config naming a field by it would have the key kept as unknown and
+    /// written back beside the field — two of one, which does not read.
+    #[test]
+    fn an_alias_counts_as_a_key_read() {
+        #[derive(serde::Deserialize)]
+        #[allow(dead_code)]
+        struct WithAlias {
+            #[serde(alias = "colour")]
+            color: String,
+        }
+        let fields = fields_of::<WithAlias>().unwrap();
+        assert!(
+            fields.contains(&"color") && fields.contains(&"colour"),
+            "{fields:?}"
+        );
     }
 
     /// A struct's keys, read off its `Deserialize`.

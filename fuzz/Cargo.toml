@@ -66,3 +66,9 @@ name = "small_parsers"
 path = "fuzz_targets/small_parsers.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "config_round_trip"
+path = "fuzz_targets/config_round_trip.rs"
+test = false
+doc = false

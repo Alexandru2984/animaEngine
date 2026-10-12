@@ -291,6 +291,14 @@ mod tests {
         let back: KeyBindings = toml::from_str(&out).unwrap();
         assert_eq!(back.unknown, bindings.unknown);
         assert_eq!(back.map, bindings.map);
+        // "Reset all" resets this version's actions, not a newer one's.
+        let mut reset = bindings.clone();
+        reset.reset_all();
+        assert_eq!(reset.unknown, bindings.unknown);
+        assert_eq!(
+            reset.chords_for(Action::SaveNow),
+            Action::SaveNow.default_chords()
+        );
     }
 
     #[test]

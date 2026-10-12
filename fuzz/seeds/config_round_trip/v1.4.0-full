@@ -1,0 +1,263 @@
+version = 2
+
+[global]
+always_on_top = false
+transparent = true
+playback_enabled = false
+window_width = 1920
+window_height = 1080
+theme = "light_high_contrast"
+locale = "ro"
+reduced_motion = true
+hover_startle = true
+window_awareness = true
+accesskit_enabled = false
+hotkey_backend = "portal"
+last_seen_whats_new = "1.4.0"
+
+[global.onboarding]
+tabs = true
+theme = true
+quick_toggles = true
+keybindings_tab = true
+perf_overlay = true
+coach_marks = true
+
+[global.monitor_mode]
+kind = "single"
+name = "DP-1"
+
+[[characters]]
+id = "cat"
+name = "Pisica"
+asset_type = "png_sequence"
+asset_path = "/home/someone/Pictures/cat"
+x = 120.5
+y = -40.0
+scale = 1.75
+opacity = 0.5
+fps = 24.0
+visible = false
+playing = false
+z_index = -3
+physics_enabled = true
+monitor = "HDMI-A-1"
+easing = "ease_in_out_quad"
+
+[characters.behavior]
+type = "walk_around"
+speed = 90.0
+
+[characters.animations.walk]
+asset_type = "png_sequence"
+asset_path = "/home/someone/Pictures/cat-walk"
+fps = 16.0
+
+[characters.animations.fall]
+asset_type = "spritesheet"
+asset_path = "/home/someone/Pictures/cat-fall.png"
+spritesheet_columns = 4
+spritesheet_rows = 2
+
+[[characters]]
+id = "dog"
+name = "Dog"
+asset_type = "spritesheet"
+asset_path = "/home/someone/Pictures/dog.png"
+x = 800.0
+y = 600.0
+scale = 0.5
+opacity = 1.0
+fps = 8.0
+visible = true
+playing = true
+z_index = 5
+physics_enabled = false
+spritesheet_columns = 6
+spritesheet_rows = 3
+easing = "sine"
+
+[characters.behavior]
+type = "follow_cursor"
+speed = 220.0
+comfort_distance = 64.0
+
+[[characters]]
+id = "fish"
+name = "Fish"
+asset_type = "gif"
+asset_path = "/home/someone/fish.gif"
+x = 10.0
+y = 10.0
+scale = 1.0
+opacity = 1.0
+fps = 12.0
+visible = true
+playing = true
+z_index = 0
+physics_enabled = false
+
+[characters.behavior]
+type = "bounded_wander"
+x_min = 0.0
+x_max = 640.0
+y_min = 100.0
+y_max = 300.0
+speed = 40.0
+
+[[characters]]
+id = "ball"
+name = "Ball"
+asset_type = "webp_animated"
+asset_path = "/home/someone/ball.webp"
+x = 300.0
+y = 300.0
+scale = 1.0
+opacity = 1.0
+fps = 30.0
+visible = true
+playing = true
+z_index = 1
+physics_enabled = false
+
+[characters.behavior]
+type = "bounce"
+amplitude_px = 48.0
+period_sec = 1.5
+axis = "both"
+
+[[characters]]
+id = "bot"
+name = "Bot"
+asset_type = "video"
+asset_path = "/home/someone/bot.mp4"
+x = 50.0
+y = 900.0
+scale = 1.0
+opacity = 1.0
+fps = 25.0
+visible = true
+playing = true
+z_index = 2
+physics_enabled = false
+
+[characters.behavior]
+type = "script"
+path = "scripts/patrol.rhai"
+
+[characters.behavior.params]
+pause = 10.0
+speed = 2.5
+
+[[characters]]
+id = "sun"
+name = "Sun"
+asset_type = "png_static"
+asset_path = "/home/someone/sun.png"
+x = 1500.0
+y = 50.0
+scale = 1.0
+opacity = 1.0
+fps = 12.0
+visible = true
+playing = true
+z_index = 0
+physics_enabled = false
+
+[[characters]]
+id = "leaf"
+name = "Leaf"
+asset_type = "webp_static"
+asset_path = "/home/someone/leaf.webp"
+x = 1400.0
+y = 50.0
+scale = 1.0
+opacity = 1.0
+fps = 12.0
+visible = true
+playing = true
+z_index = 0
+physics_enabled = false
+
+[[windows]]
+id = "second"
+name = "Second window"
+
+[windows.monitor_mode]
+kind = "span"
+
+[[windows.characters]]
+id = "moth"
+name = "Moth"
+asset_type = "png_sequence"
+asset_path = "/home/someone/moth"
+x = 5.0
+y = 6.0
+scale = 1.0
+opacity = 1.0
+fps = 12.0
+visible = true
+playing = true
+z_index = 0
+physics_enabled = false
+
+[[groups]]
+id = "pets"
+name = "Pets"
+member_ids = [
+    "cat",
+    "dog",
+]
+offset_x = 12.0
+offset_y = -8.0
+scale = 1.25
+visible = false
+
+[keybindings.map]
+toggle_edit_mode = ["Ctrl+Alt+E"]
+hide_overlay = []
+pause_all = [
+    "Ctrl+Shift+P",
+    "Space",
+]
+quit_with_save = ["Q"]
+save_now = ["Ctrl+S"]
+open_command_palette = ["Ctrl+K"]
+cycle_entity = [
+    "Tab",
+    "Ctrl+Z",
+]
+delete_selected = ["Delete"]
+nudge_up = ["ArrowUp"]
+nudge_down = ["ArrowDown"]
+nudge_left = ["ArrowLeft"]
+nudge_right = ["ArrowRight"]
+center_on_screen = ["Home"]
+toggle_visible = ["V"]
+toggle_gravity = ["Ctrl+G"]
+toggle_playback = ["P"]
+duplicate_selected = [
+    "D",
+    "Ctrl+V",
+]
+reset_transform = ["R"]
+bring_forward = ["PageUp"]
+send_backward = ["PageDown"]
+fps_up = ["]"]
+fps_down = ["["]
+opacity_up = [
+    "+",
+    "=",
+]
+opacity_down = ["-"]
+cycle_monitor = ["Ctrl+M"]
+show_entity_info = ["I"]
+show_help = ["Ctrl+H"]
+toggle_perf_overlay = ["Ctrl+Shift+`"]
+
+[collapse_state]
+inspector_position = false
+inspector_appearance = false
+inspector_animation = false
+inspector_behavior = true
+scene_presets = false
