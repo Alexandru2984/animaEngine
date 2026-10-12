@@ -34,6 +34,12 @@ edit mode from anywhere.
       `ps -o nlwp= -p $(pidof anima_engine)` says about 15–25 threads
       (1.4 had about 60 on this machine: 32 decoder threads that never
       went away, and GL set up for nothing).
+- [ ] **Your 1.4 config, upgraded.** The first start reads your own
+      `config.toml` from 1.4: your characters, groups and settings are
+      all there, no banner says something did not read, and a shortcut
+      you had changed in 1.4 still does what it did. *Cycle character*
+      is on `N` now (its `Tab` was the panel's); one you had set by hand
+      is kept.
 
 ## 2. Characters
 
@@ -109,6 +115,20 @@ edit mode from anywhere.
       key works, and GNOME's own settings list them for the app (where
       depends on the GNOME version).
 
+- [ ] **Which mechanism.** The log says `Hotkey strategy: …`. With
+      `X11 XGrabKey`: `Ctrl+Shift+A` from an X11 app in front (`xterm`)
+      opens edit mode; switch the keyboard layout (`Super+Space`) and it
+      still does; held down, it toggles once.
+- [ ] **Their names, in your language.** With the app in Romanian,
+      GNOME's list of the app's shortcuts (where item 1 of this section
+      found it) names them in Romanian, after a restart of the app.
+- [ ] **Without a mouse.** `Ctrl+Shift+A`; `Tab` to a character's name
+      in the Scene tab, `Enter`; `Esc` (still in edit mode);
+      `Shift+F10` opens the right-click menu with its first item
+      focused — `Tab` to *Save as GIF…*, `Enter`: GNOME's save dialog.
+      `Ctrl+A`, `Shift+F10`, *Align top edges*: they line up. With Orca
+      on, each menu item is read as the focus reaches it.
+
 ## 6. Files, through GNOME's own dialogs
 
 - [ ] **Save as GIF.** Right-click a character → *Save as GIF…*: GNOME's
@@ -129,6 +149,28 @@ edit mode from anywhere.
       `Ctrl+V` in edit mode: it becomes a character where the pointer
       is.
 
+- [ ] **A config from a newer version.** With the app running, add to
+      `~/.config/animaengine/config.toml` a character a later version
+      might write, and a setting it does not know:
+
+      ```toml
+      [[characters]]
+      id = "holo"
+      name = "Holo"
+      asset_type = "hologram"
+      asset_path = "h.holo"
+      x = 0.0
+      y = 0.0
+      ```
+
+      and `future_glow = 1` under `[global]`. Saved, the edit applies:
+      the other characters stay, edit mode shows a banner that part of
+      the file could not be read. Press `S`: both are still in the file.
+      Take them out again.
+- [ ] **In another language.** Appearance → Romanian: the presets in
+      the Scene tab, the tray icon's tooltip, and the toast for a `.txt`
+      dragged onto the overlay all read in Romanian.
+
 ## 7. The tray, login, Orca
 
 - [ ] **The tray** (Ubuntu's AppIndicator extension): *Snooze 15
@@ -148,6 +190,18 @@ edit mode from anywhere.
 
 ## 8. A working day
 
+- [ ] **Still, it rests.** Hide the overlay (`Ctrl+Shift+H`), then count
+      its wake-ups over ten seconds:
+
+      ```bash
+      pid=$(pidof anima_engine); n() { cat /proc/$pid/task/*/status | awk '/ctxt_switches/ {s+=$2} END {print s}'; }
+      a=$(n); sleep 10; echo $(( ($(n) - a) / 10 )) wake-ups a second
+      ```
+
+      Low — a few dozen at most, most of them the GPU driver's — and
+      `top -p $pid` near 0%. Show it again: the characters carry on.
+      In the test rig a hidden overlay drew as often as a shown one
+      before 1.5 (R58 in docs/runtime-findings.md).
 - [ ] Leave it running for a day with your own scene. In the evening:
       `ps -o rss=,nlwp= -p $(pidof anima_engine)` — about what it was
       after the first hour. The rig's soak (docs/soak-testing.md) was
