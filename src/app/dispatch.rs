@@ -58,6 +58,7 @@ impl App {
             // edit mode — we leave the handling to the original sites
             // rather than duplicate it here.
             Action::HideOverlay | Action::OpenCommandPalette => {}
+            Action::OpenContextMenu => self.open_menu_from_keyboard(),
             // As the global shortcuts do: the event each stands for now.
             Action::ToggleFocus | Action::ToggleSnooze | Action::ToggleMute => {
                 let visible = std::sync::atomic::AtomicBool::new(!self.overlay_hidden);

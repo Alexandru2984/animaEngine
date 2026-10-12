@@ -272,6 +272,8 @@ greet-hello = ¡Buenas!
 greet-hey = ¡Eh, hola!
 
 action-cycle-entity = Pasar al siguiente personaje
+action-select-all = Seleccionar todos los personajes
+action-open-context-menu = Abrir el menú de la selección
 action-delete-selected = Eliminar el personaje seleccionado
 action-nudge-up = Empujar la selección hacia arriba
 action-nudge-down = Empujar la selección hacia abajo

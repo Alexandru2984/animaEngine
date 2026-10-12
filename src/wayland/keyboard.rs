@@ -76,6 +76,18 @@ pub fn keysym_to_egui_key(keysym: Keysym) -> Option<egui::Key> {
         Keysym::Down => E::ArrowDown,
         Keysym::Left => E::ArrowLeft,
         Keysym::Right => E::ArrowRight,
+        Keysym::F1 => E::F1,
+        Keysym::F2 => E::F2,
+        Keysym::F3 => E::F3,
+        Keysym::F4 => E::F4,
+        Keysym::F5 => E::F5,
+        Keysym::F6 => E::F6,
+        Keysym::F7 => E::F7,
+        Keysym::F8 => E::F8,
+        Keysym::F9 => E::F9,
+        Keysym::F10 => E::F10,
+        Keysym::F11 => E::F11,
+        Keysym::F12 => E::F12,
         // ── Punctuation bound by animaEngine actions
         //
         // Unshifted forms only. The shifted keysyms (`asciitilde`,
@@ -269,8 +281,10 @@ mod tests {
     }
     #[test]
     fn unmapped_keysym_returns_none() {
-        // F1 isn't in our bind table — silent drop.
-        assert_eq!(keysym_to_egui_key(Keysym::F1), None);
+        // F13 isn't in our bind table — silent drop. F1 to F12 are (1.5):
+        // Shift+F10 opens the menu.
+        assert_eq!(keysym_to_egui_key(Keysym::F13), None);
+        assert_eq!(keysym_to_egui_key(Keysym::F10), Some(egui::Key::F10));
     }
 
     #[test]

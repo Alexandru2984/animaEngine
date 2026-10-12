@@ -63,7 +63,7 @@ mod tests {
         let set: HashSet<&Action> = Action::ALL.iter().collect();
         assert_eq!(set.len(), Action::ALL.len(), "ALL contains duplicates");
         // Bumped manually when a variant is added.
-        assert_eq!(Action::ALL.len(), 38);
+        assert_eq!(Action::ALL.len(), 40);
     }
 
     #[test]
@@ -106,6 +106,20 @@ mod tests {
         let a: KeyChord = "a".parse().unwrap();
         let big_a: KeyChord = "A".parse().unwrap();
         assert_eq!(a, big_a);
+    }
+
+    /// The F-keys read and write back (1.5): one bound by hand used to
+    /// make the whole config unreadable.
+    #[test]
+    fn f_keys_parse_and_round_trip() {
+        let chord: KeyChord = "Shift+F10".parse().unwrap();
+        assert_eq!(chord.key, KeyCode::Named(NamedKey::F(10)));
+        assert_eq!(chord.to_string(), "Shift+F10");
+        assert_eq!("f1".parse::<KeyChord>().unwrap().to_string(), "F1");
+        assert!("F13".parse::<KeyChord>().is_err());
+        assert!("F0".parse::<KeyChord>().is_err());
+        let bindings = KeyBindings::default();
+        assert_eq!(bindings.lookup(chord), Some(Action::OpenContextMenu));
     }
 
     #[test]

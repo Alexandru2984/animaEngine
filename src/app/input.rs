@@ -148,6 +148,60 @@ impl App {
         }
     }
 
+    /// Where the right-click menu goes for the global point `(x, y)` on
+    /// `surface` — another monitor's overlay, or the panel's: in that
+    /// window's points, its origin taken off and its scale divided out.
+    fn menu_anchor(&self, surface: Option<&str>, x: f32, y: f32) -> egui::Pos2 {
+        let (origin, ppp) = match surface {
+            Some(name) => self
+                .extra_windows
+                .values()
+                .find(|s| s.monitor.name == name)
+                .map(|s| {
+                    (
+                        (s.monitor.x as f32, s.monitor.y as f32),
+                        s.window.scale_factor() as f32,
+                    )
+                })
+                .unwrap_or(((0.0, 0.0), 1.0)),
+            None => (
+                self.primary_origin(),
+                self.window
+                    .as_ref()
+                    .map_or(1.0, |w| w.scale_factor() as f32),
+            ),
+        };
+        egui::pos2((x - origin.0) / ppp, (y - origin.1) / ppp)
+    }
+
+    /// The right-click menu for the selection, from the keyboard
+    /// (`Action::OpenContextMenu`): at the middle of the character
+    /// selected, on the monitor it is on, its first item focused.
+    pub(super) fn open_menu_from_keyboard(&mut self) {
+        let Some(entity_idx) = self.selection.selected_index() else {
+            return;
+        };
+        let Some(e) = self.scene.entities.get(entity_idx) else {
+            return;
+        };
+        let (x, y) = (e.x + e.scaled_width() / 2.0, e.y + e.scaled_height() / 2.0);
+        crate::input::multi::select_for_menu(&self.scene, &mut self.selection, entity_idx);
+        let surface = self
+            .extra_windows
+            .values()
+            .find(|s| s.monitor.contains(x, y))
+            .map(|s| s.monitor.name.clone());
+        let pos = self.menu_anchor(surface.as_deref(), x, y);
+        self.ui_state.context_menu = Some(ContextMenuState {
+            entity_idx,
+            pos,
+            surface,
+            armed: false,
+            keyboard: true,
+        });
+        self.request_redraw_all();
+    }
+
     pub(super) fn handle_mouse_input(&mut self, state: ElementState, button: MouseButton) {
         tracing::debug!(
             "MouseInput: {:?} {:?} at ({:.0}, {:.0}) edit_mode={}",
@@ -205,38 +259,16 @@ impl App {
                 // on the whole selection; otherwise it takes the character
                 // with its group.
                 crate::input::multi::select_for_menu(&self.scene, &mut self.selection, entity_idx);
-                // On the monitor clicked: its overlay's own egui draws it,
-                // in that window's points — global `mouse_x/y` less its
-                // origin, over its scale.
+                // On the monitor clicked: its overlay's own egui draws it.
                 let surface = self.pointer_monitor.clone();
-                let (origin, ppp) = match &surface {
-                    Some(name) => self
-                        .extra_windows
-                        .values()
-                        .find(|s| &s.monitor.name == name)
-                        .map(|s| {
-                            (
-                                (s.monitor.x as f32, s.monitor.y as f32),
-                                s.window.scale_factor() as f32,
-                            )
-                        })
-                        .unwrap_or(((0.0, 0.0), 1.0)),
-                    None => (
-                        self.primary_origin(),
-                        self.window
-                            .as_ref()
-                            .map_or(1.0, |w| w.scale_factor() as f32),
-                    ),
-                };
+                let pos = self.menu_anchor(surface.as_deref(), self.mouse_x, self.mouse_y);
                 self.ui_state.context_menu = Some(ContextMenuState {
                     entity_idx,
-                    pos: egui::pos2(
-                        (self.mouse_x - origin.0) / ppp,
-                        (self.mouse_y - origin.1) / ppp,
-                    ),
+                    pos,
                     surface,
                     // Armed after the first showing — see ContextMenuState.
                     armed: false,
+                    keyboard: false,
                 });
             }
             return;

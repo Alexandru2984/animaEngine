@@ -272,6 +272,8 @@ greet-hello = Hallo!
 greet-hey = Hé daar!
 
 action-cycle-entity = Naar het volgende personage
+action-select-all = Alle figuren selecteren
+action-open-context-menu = Menu van de selectie openen
 action-delete-selected = Geselecteerd personage verwijderen
 action-nudge-up = Selectie omhoog duwen
 action-nudge-down = Selectie omlaag duwen

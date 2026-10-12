@@ -282,6 +282,8 @@ greet-hello = Hello!
 greet-hey = Hey there!
 
 action-cycle-entity = Cycle to next character
+action-select-all = Select every character
+action-open-context-menu = Open the menu for the selection
 action-delete-selected = Delete selected character
 action-nudge-up = Nudge selection up
 action-nudge-down = Nudge selection down

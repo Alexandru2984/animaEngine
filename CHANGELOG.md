@@ -86,6 +86,11 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   slides to a stop. It works with physics off too; the character then
   stays where it landed. Grab it mid-air to catch it. Undo puts it back
   where you picked it up. Off with Reduce motion.
+- **The right-click menu from the keyboard.** `Shift+F10` opens it for
+  the selection — Save as GIF, Share and Arrange were the mouse's alone
+  — and `Ctrl+A` selects every character, so a keyboard can group and
+  arrange them too; both are rebindable. The F-keys can be bound, F1 to
+  F12: one bound by hand used to make the whole config unreadable.
 
 #### Scenes and files
 

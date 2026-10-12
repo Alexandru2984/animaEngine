@@ -49,6 +49,12 @@ pub enum Action {
 
     // ── Selection / navigation ──
     CycleEntity,
+    /// Select every character on screen (1.5) — what a keyboard has
+    /// for several at once, to group or arrange them.
+    SelectAll,
+    /// Open the right-click menu for the selection, at it (1.5): Shift+F10,
+    /// as everywhere — Save as GIF, Share, Arrange were the menu's alone.
+    OpenContextMenu,
     DeleteSelected,
     NudgeUp,
     NudgeDown,
@@ -116,6 +122,8 @@ impl Action {
         Self::Undo,
         Self::Redo,
         Self::CycleEntity,
+        Self::SelectAll,
+        Self::OpenContextMenu,
         Self::DeleteSelected,
         Self::NudgeUp,
         Self::NudgeDown,
@@ -152,6 +160,7 @@ impl Action {
         matches!(
             self,
             Self::DeleteSelected
+                | Self::OpenContextMenu
                 | Self::NudgeUp
                 | Self::NudgeDown
                 | Self::NudgeLeft
@@ -229,6 +238,8 @@ impl Action {
             Self::Undo => "Undo",
             Self::Redo => "Redo",
             Self::CycleEntity => "Cycle to next character",
+            Self::SelectAll => "Select every character",
+            Self::OpenContextMenu => "Open the menu for the selection",
             Self::DeleteSelected => "Delete selected character",
             Self::NudgeUp => "Nudge selection up",
             Self::NudgeDown => "Nudge selection down",
@@ -276,6 +287,10 @@ impl Action {
             Self::Undo => "Take back the last change to the scene.",
             Self::Redo => "Put back the last change you undid.",
             Self::CycleEntity => "Step through every character in z-order.",
+            Self::SelectAll => "Select every character on screen, to group or arrange them.",
+            Self::OpenContextMenu => {
+                "The right-click menu, from the keyboard: Save as GIF, Share, Arrange and the rest."
+            }
             Self::DeleteSelected => "Remove the selected character from the scene.",
             Self::NudgeUp => "Move the selection 10 px up (1 px with Shift).",
             Self::NudgeDown => "Move the selection 10 px down (1 px with Shift).",
@@ -335,6 +350,12 @@ impl Action {
     const C_CYCLE_ENTITY: &'static [KeyChord] = &[KeyChord::new(
         ModifierMask::NONE,
         KeyCode::Named(NamedKey::Tab),
+    )];
+    const C_SELECT_ALL: &'static [KeyChord] =
+        &[KeyChord::new(ModifierMask::CTRL, KeyCode::Letter('A'))];
+    const C_OPEN_CONTEXT_MENU: &'static [KeyChord] = &[KeyChord::new(
+        ModifierMask::SHIFT,
+        KeyCode::Named(NamedKey::F(10)),
     )];
     const C_DELETE_SELECTED: &'static [KeyChord] = &[
         KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::Delete)),
@@ -425,6 +446,8 @@ impl Action {
             Self::Undo => Self::C_UNDO,
             Self::Redo => Self::C_REDO,
             Self::CycleEntity => Self::C_CYCLE_ENTITY,
+            Self::SelectAll => Self::C_SELECT_ALL,
+            Self::OpenContextMenu => Self::C_OPEN_CONTEXT_MENU,
             Self::DeleteSelected => Self::C_DELETE_SELECTED,
             Self::NudgeUp => Self::C_NUDGE_UP,
             Self::NudgeDown => Self::C_NUDGE_DOWN,
@@ -474,6 +497,8 @@ impl Action {
             Self::Undo => "action-undo",
             Self::Redo => "action-redo",
             Self::CycleEntity => "action-cycle-entity",
+            Self::SelectAll => "action-select-all",
+            Self::OpenContextMenu => "action-open-context-menu",
             Self::DeleteSelected => "action-delete-selected",
             Self::NudgeUp => "action-nudge-up",
             Self::NudgeDown => "action-nudge-down",

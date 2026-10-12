@@ -137,6 +137,27 @@ Bindings introduced after a config was first written fall back to
 their defaults at lookup time, so users upgrading from 0.3 don't
 silently lose actions added in 0.4.
 
+#### Without a mouse
+
+Everything in edit mode can be reached from the keyboard (1.5, checked
+on both backends):
+
+- `Ctrl+Shift+A` opens edit mode. `Tab` moves through the settings
+  panel, `Enter` or `Space` presses what has the focus, and `Esc` gives
+  the keyboard back to the scene, still in edit mode.
+- A character is picked in the Scene tab's list: `Tab` to its name and
+  `Enter`; `Shift+Enter` adds it to the selection, or removes it.
+  `Ctrl+A` selects them all.
+- `Shift+F10` opens the right-click menu for the selection, its first
+  item focused: `Tab` moves through it, `Enter` picks, `Esc` closes it.
+  Save as GIF, Share, Arrange and Group are there.
+- `Ctrl+K` runs any action by name.
+
+`Tab` is the panel's while it is open, so Cycle character, bound to
+`Tab` as it comes, does not step through the characters there: on X11
+the toolkit takes every `Tab`, and on native Wayland only the first,
+before anything has the focus, cycles. Bind it to another key to use it.
+
 #### Global vs in-app chords
 
 Global hotkeys are restricted to chords with at least one modifier

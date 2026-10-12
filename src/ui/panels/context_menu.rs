@@ -30,14 +30,17 @@ pub(crate) fn context_menu(
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.set_min_width(160.0);
 
-                if ui
-                    .button(format!(
-                        "{}  {}",
-                        icons::COPY,
-                        crate::i18n::t("menu-duplicate")
-                    ))
-                    .clicked()
-                {
+                let first = ui.button(format!(
+                    "{}  {}",
+                    icons::COPY,
+                    crate::i18n::t("menu-duplicate")
+                ));
+                // Opened from the keyboard: the focus starts here, until
+                // the menu is armed — after its first showing.
+                if state.keyboard && !state.armed {
+                    first.request_focus();
+                }
+                if first.clicked() {
                     picked = Some(MenuAction::Duplicate(idx));
                 }
                 if ui

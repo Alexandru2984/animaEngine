@@ -142,6 +142,8 @@ pub fn chord_to_xdg_trigger(chord: KeyChord) -> Option<String> {
             NamedKey::ArrowDown => "Down".into(),
             NamedKey::ArrowLeft => "Left".into(),
             NamedKey::ArrowRight => "Right".into(),
+            // The keysym names: F1 to F12.
+            f @ NamedKey::F(_) => KeyCode::Named(f).canonical_str(),
         },
         KeyCode::Symbol(s) => match s {
             SymbolKey::Plus => "plus".into(),

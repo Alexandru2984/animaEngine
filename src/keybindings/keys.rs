@@ -113,7 +113,13 @@ pub enum NamedKey {
     ArrowDown,
     ArrowLeft,
     ArrowRight,
+    /// F1 to F12 (1.5): F-keys bound by hand used to make the whole
+    /// config unreadable; Shift+F10 opens the menu.
+    F(u8),
 }
+
+/// The F-keys there are, in order: `F(1)` is the first.
+pub(crate) const F_KEYS: u8 = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum SymbolKey {
@@ -209,6 +215,18 @@ impl KeyCode {
             E::ArrowDown => Self::Named(NamedKey::ArrowDown),
             E::ArrowLeft => Self::Named(NamedKey::ArrowLeft),
             E::ArrowRight => Self::Named(NamedKey::ArrowRight),
+            E::F1 => Self::Named(NamedKey::F(1)),
+            E::F2 => Self::Named(NamedKey::F(2)),
+            E::F3 => Self::Named(NamedKey::F(3)),
+            E::F4 => Self::Named(NamedKey::F(4)),
+            E::F5 => Self::Named(NamedKey::F(5)),
+            E::F6 => Self::Named(NamedKey::F(6)),
+            E::F7 => Self::Named(NamedKey::F(7)),
+            E::F8 => Self::Named(NamedKey::F(8)),
+            E::F9 => Self::Named(NamedKey::F(9)),
+            E::F10 => Self::Named(NamedKey::F(10)),
+            E::F11 => Self::Named(NamedKey::F(11)),
+            E::F12 => Self::Named(NamedKey::F(12)),
             E::Plus => Self::Symbol(SymbolKey::Plus),
             E::Minus => Self::Symbol(SymbolKey::Minus),
             E::Equals => Self::Symbol(SymbolKey::Equal),
@@ -356,6 +374,18 @@ impl KeyCode {
             Key::Named(WK::ArrowDown) => Self::Named(NamedKey::ArrowDown),
             Key::Named(WK::ArrowLeft) => Self::Named(NamedKey::ArrowLeft),
             Key::Named(WK::ArrowRight) => Self::Named(NamedKey::ArrowRight),
+            Key::Named(WK::F1) => Self::Named(NamedKey::F(1)),
+            Key::Named(WK::F2) => Self::Named(NamedKey::F(2)),
+            Key::Named(WK::F3) => Self::Named(NamedKey::F(3)),
+            Key::Named(WK::F4) => Self::Named(NamedKey::F(4)),
+            Key::Named(WK::F5) => Self::Named(NamedKey::F(5)),
+            Key::Named(WK::F6) => Self::Named(NamedKey::F(6)),
+            Key::Named(WK::F7) => Self::Named(NamedKey::F(7)),
+            Key::Named(WK::F8) => Self::Named(NamedKey::F(8)),
+            Key::Named(WK::F9) => Self::Named(NamedKey::F(9)),
+            Key::Named(WK::F10) => Self::Named(NamedKey::F(10)),
+            Key::Named(WK::F11) => Self::Named(NamedKey::F(11)),
+            Key::Named(WK::F12) => Self::Named(NamedKey::F(12)),
             _ => return None,
         })
     }
@@ -363,7 +393,14 @@ impl KeyCode {
 
 impl NamedKey {
     pub(super) fn canonical_str(self) -> &'static str {
+        const F: [&str; F_KEYS as usize] = [
+            "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+        ];
         match self {
+            Self::F(n) => F
+                .get(usize::from(n).wrapping_sub(1))
+                .copied()
+                .unwrap_or("F1"),
             Self::Escape => "Escape",
             Self::Space => "Space",
             Self::Tab => "Tab",
@@ -397,7 +434,13 @@ impl NamedKey {
             "ArrowDown" | "Down" => Self::ArrowDown,
             "ArrowLeft" | "Left" => Self::ArrowLeft,
             "ArrowRight" | "Right" => Self::ArrowRight,
-            _ => return None,
+            f => {
+                let n: u8 = f.strip_prefix(['F', 'f'])?.parse().ok()?;
+                if !(1..=F_KEYS).contains(&n) {
+                    return None;
+                }
+                Self::F(n)
+            }
         })
     }
 }
@@ -490,7 +533,9 @@ mod tests {
             NamedKey::ArrowDown,
             NamedKey::ArrowLeft,
             NamedKey::ArrowRight,
-        ];
+        ]
+        .into_iter()
+        .chain((1..=F_KEYS).map(NamedKey::F));
         let symbols = [
             SymbolKey::Plus,
             SymbolKey::Minus,
@@ -514,7 +559,11 @@ mod tests {
     #[test]
     fn every_keycode_round_trips_through_its_canonical_string() {
         let all = all_keycodes();
-        assert_eq!(all.len(), 26 + 10 + 14 + 6, "table drifted from the enums");
+        assert_eq!(
+            all.len(),
+            26 + 10 + 14 + F_KEYS as usize + 6,
+            "table drifted from the enums"
+        );
         for key in all {
             let s = key.canonical_str();
             let parsed: KeyCode = s

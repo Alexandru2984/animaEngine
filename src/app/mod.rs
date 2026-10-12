@@ -317,6 +317,10 @@ pub(crate) struct ContextMenuState {
     /// the primary, far from the pointer, and the late release closed it
     /// before it could be used.
     pub armed: bool,
+    /// Opened from the keyboard (`Action::OpenContextMenu`): its first
+    /// item takes the focus, so Tab and the arrows move through it and
+    /// Enter picks.
+    pub keyboard: bool,
 }
 
 impl App {

@@ -272,6 +272,8 @@ greet-hello = Hej!
 greet-hey = Dzień dobry!
 
 action-cycle-entity = Przejdź do następnej postaci
+action-select-all = Zaznacz wszystkie postacie
+action-open-context-menu = Otwórz menu zaznaczenia
 action-delete-selected = Usuń zaznaczoną postać
 action-nudge-up = Przesuń zaznaczenie w górę
 action-nudge-down = Przesuń zaznaczenie w dół

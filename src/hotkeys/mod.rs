@@ -249,6 +249,21 @@ fn keycode_to_global_code(key: KeyCode) -> Option<Code> {
             NamedKey::ArrowDown => Code::ArrowDown,
             NamedKey::ArrowLeft => Code::ArrowLeft,
             NamedKey::ArrowRight => Code::ArrowRight,
+            NamedKey::F(n) => *[
+                Code::F1,
+                Code::F2,
+                Code::F3,
+                Code::F4,
+                Code::F5,
+                Code::F6,
+                Code::F7,
+                Code::F8,
+                Code::F9,
+                Code::F10,
+                Code::F11,
+                Code::F12,
+            ]
+            .get(usize::from(n).checked_sub(1)?)?,
         },
         KeyCode::Symbol(s) => match s {
             SymbolKey::Plus => return None, // No matching keyboard-types Code

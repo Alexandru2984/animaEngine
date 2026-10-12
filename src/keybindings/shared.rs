@@ -243,6 +243,13 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                 scene.entities[next].id
             );
         }
+        // Every character a rectangle could select: the visible ones.
+        Action::SelectAll => {
+            let shown: Vec<usize> = (0..scene.entities.len())
+                .filter(|&i| scene.effective_visible(i))
+                .collect();
+            selection.select_all_of(&shown);
+        }
         Action::BringForward => {
             for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
@@ -633,6 +640,18 @@ mod tests {
         assert_eq!(scene.entities[0].x, 111.0, "shift nudge should be 1 px");
     }
 
+    /// Ctrl+A selects what a rectangle could: every visible character,
+    /// so a keyboard can group and arrange them too.
+    #[test]
+    fn select_all_takes_every_visible_character() {
+        let mut scene = scene_with(3);
+        scene.entities[1].visible = false;
+        scene.mark_visible_dirty();
+        let mut sel = SelectionState::default();
+        assert!(run(Action::SelectAll, &mut scene, &mut sel, false));
+        assert_eq!(sel.selected_indices(), vec![0, 2]);
+    }
+
     /// Every selection-driven action has to survive being pressed with
     /// nothing selected — a keypress is the wrong place to panic.
     #[test]
@@ -645,7 +664,10 @@ mod tests {
             a.acts_on_selection()
                 && !matches!(
                     a,
-                    Action::DeleteSelected | Action::DuplicateSelected | Action::CutSelected
+                    Action::DeleteSelected
+                        | Action::DuplicateSelected
+                        | Action::CutSelected
+                        | Action::OpenContextMenu
                 )
         }) {
             assert!(run(action, &mut scene, &mut sel, false), "{action:?}");

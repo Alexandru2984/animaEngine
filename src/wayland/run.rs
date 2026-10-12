@@ -1093,6 +1093,34 @@ pub fn run_native(
                     config.global.sounds_muted = !config.global.sounds_muted;
                     config_dirty = true;
                 }
+                // The right-click menu, from the keyboard: at the middle of
+                // the character selected, on the monitor it is on, its first
+                // item focused (`ContextMenuState::keyboard`).
+                Action::OpenContextMenu => {
+                    if let Some(idx) = selection.selected_index() {
+                        if let Some(e) = scene.entities.get(idx) {
+                            let at = egui::pos2(
+                                e.x + e.scaled_width() / 2.0,
+                                e.y + e.scaled_height() / 2.0,
+                            );
+                            crate::input::multi::select_for_menu(&scene, &mut selection, idx);
+                            let elsewhere = monitors_now.iter().find(|m| {
+                                extra_surfaces.contains_key(&m.name) && m.contains(at.x, at.y)
+                            });
+                            context_menu_state = Some(crate::app::ContextMenuState {
+                                entity_idx: idx,
+                                pos: match elsewhere {
+                                    Some(m) => at - egui::vec2(m.x as f32, m.y as f32),
+                                    None => at - egui::vec2(primary_origin.0, primary_origin.1),
+                                },
+                                surface: elsewhere.map(|m| m.name.clone()),
+                                armed: false,
+                                keyboard: true,
+                            });
+                            activity = true;
+                        }
+                    }
+                }
                 Action::ToggleFocus | Action::ToggleSnooze => {
                     if timer_shortcut(action, config.global.focus) && layer.state.edit_mode {
                         flip_edit_mode(
@@ -1389,6 +1417,7 @@ pub fn run_native(
                                 surface: elsewhere.map(|m| m.name.clone()),
                                 // Armed after the first showing — see ContextMenuState.
                                 armed: false,
+                                keyboard: false,
                             });
                         }
                     }

@@ -272,6 +272,8 @@ greet-hello = Hi!
 greet-hey = Hey!
 
 action-cycle-entity = Zur nächsten Figur wechseln
+action-select-all = Alle Figuren auswählen
+action-open-context-menu = Menü der Auswahl öffnen
 action-delete-selected = Ausgewählte Figur löschen
 action-nudge-up = Auswahl nach oben schieben
 action-nudge-down = Auswahl nach unten schieben
