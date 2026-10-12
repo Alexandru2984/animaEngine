@@ -58,19 +58,21 @@ impl Grabber {
         // A key held down repeats as presses alone, not press and release
         // pairs, so a held chord fires once. Without XKB it fires as the
         // key repeats; nothing else is lost.
-        detectable_auto_repeat(&conn);
+        use_xkb(&conn);
         let mut grabber = Self {
             conn,
             root,
             chords,
             grabs: Vec::new(),
         };
-        grabber.grab_all();
+        grabber.grab_all(true);
         (!grabber.grabs.is_empty()).then_some(grabber)
     }
 
-    /// Grab every chord on the keys the keyboard has now.
-    fn grab_all(&mut self) {
+    /// Grab every chord on the keys the keyboard has now — `first`, at
+    /// start, said in the log; again for a new layout, which XKB tells
+    /// several times over, only when debugging.
+    fn grab_all(&mut self, first: bool) {
         let map = KeyMap::read(&self.conn);
         for &(chord, action) in &self.chords {
             let (Some(keysym), Some(map)) = (keysym(chord.key), map.as_ref()) else {
@@ -84,7 +86,11 @@ impl Grabber {
             let mods = x11_mods(chord.mods);
             match self.grab(keycode, mods) {
                 Ok(()) => {
-                    tracing::info!("Registered global hotkey {chord} → {action:?}");
+                    if first {
+                        tracing::info!("Registered global hotkey {chord} → {action:?}");
+                    } else {
+                        tracing::debug!("Grabbed {chord} → {action:?} again, on key {keycode}");
+                    }
                     self.grabs.push(Grab {
                         keycode,
                         mods,
@@ -134,6 +140,16 @@ impl Grabber {
         }
     }
 
+    /// Let go of every grab and grab the chords again, on the keys the
+    /// keyboard has now.
+    fn regrab(&mut self) {
+        for grab in std::mem::take(&mut self.grabs) {
+            self.ungrab(grab.keycode, grab.mods);
+        }
+        self.grab_all(false);
+        let _ = self.conn.flush();
+    }
+
     /// Wait for the shortcuts, and hand each press of one to `pressed`.
     /// Returns when the X server goes away.
     pub fn serve(mut self, mut pressed: impl FnMut(Action)) {
@@ -161,21 +177,21 @@ impl Grabber {
                     }
                 }
                 // Another layout: the same chords may be other keys now.
-                Event::MappingNotify(e) if e.request == Mapping::KEYBOARD => {
-                    for grab in std::mem::take(&mut self.grabs) {
-                        self.ungrab(grab.keycode, grab.mods);
-                    }
-                    self.grab_all();
-                    let _ = self.conn.flush();
-                }
+                // XKB says so to a client that uses it; the core protocol
+                // to one that does not.
+                Event::XkbMapNotify(_) | Event::XkbNewKeyboardNotify(_) => self.regrab(),
+                Event::MappingNotify(e) if e.request == Mapping::KEYBOARD => self.regrab(),
                 _ => {}
             }
         }
     }
 }
 
-/// Ask XKB to report a held key's repeats as presses only.
-fn detectable_auto_repeat(conn: &RustConnection) {
+/// Ask XKB to report a held key's repeats as presses only, and to say
+/// when the keyboard's layout changes: a client that uses XKB no longer
+/// gets the core protocol's `MappingNotify` for that — the first try
+/// kept its grabs on the old keys after `setxkbmap fr`.
+fn use_xkb(conn: &RustConnection) {
     use x11rb::protocol::xkb::{self, ConnectionExt as _};
     let ok = conn
         .extension_information(xkb::X11_EXTENSION_NAME)
@@ -201,6 +217,21 @@ fn detectable_auto_repeat(conn: &RustConnection) {
             .is_some();
     if !ok {
         tracing::debug!("Global shortcuts: no XKB, a held chord repeats");
+        return;
+    }
+    let layouts = xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::MAP_NOTIFY;
+    let selected = conn
+        .xkb_select_events(
+            xkb::ID::USE_CORE_KBD.into(),
+            xkb::EventType::from(0u16),
+            layouts,
+            xkb::MapPart::from(0u16),
+            xkb::MapPart::from(0u16),
+            &xkb::SelectEventsAux::default(),
+        )
+        .map(|cookie| cookie.check());
+    if !matches!(selected, Ok(Ok(()))) {
+        tracing::debug!("Global shortcuts: layout changes go unseen");
     }
 }
 
