@@ -223,6 +223,37 @@ What 1.5 keeps in memory, and what bounds it:
 | Yawns | one per character, for that night (`moods.rs`) |
 | Scene pictures | one texture per saved scene, replaced when its file changes |
 
+### 1.5 again, after the loops learned to sleep (rig, 2026-10-12)
+
+Late in 1.5 both loops changed how they wait: native Wayland sleeps
+until its next deadline and is woken through a socket (R58), X11 waits
+out 16 ms between frames, the X11 global shortcuts are grabbed by the
+app, and reminders and the focus timer wake the loops on time. So the
+everything-on run went again, 30 minutes on each backend: ten
+characters — two pairs playing tag, one following another, walking,
+wandering, bouncing, one keeping hours that began and ended in the run —
+greetings, bumping and moods on, a tap every ten seconds, reminders
+every one and two minutes, the focus timer at 1 + 1 for the first eight
+minutes, bedtime from the 12th to the 17th, five minutes with no input
+from the 20th (dozing, then the welcome back), the overlay hidden and
+shown every ten minutes, a one-minute snooze, and every two minutes a
+D-Bus `SetMuted` timed until it was saved. A row every 30 s from `/proc`.
+
+| | Native Wayland, 30 min | X11, 30 min |
+|---|---|---|
+| Resident memory | 235.5 → 235.8 MB; second half flat | 193.4 → 194.1 MB; second half flat |
+| Threads, file descriptors | 75, 41–42 | 77, 22 |
+| D-Bus `SetMuted` saved after | 31–76 ms, every time | 9–77 ms, every time |
+| Main thread, still (hidden, snoozed, asleep) | 2 wake-ups a second | 6 |
+| Reminders said | 16 | 23 |
+| Log | 41 KB | 36 KB, 12 greetings among it |
+
+Nothing grew, nothing stopped answering. Wayland dozed and woke twice,
+for bedtime and for the quiet stretch; X11 has no idle source in the
+rig, so it dozed only for bedtime, which it does not log. The few
+`ERROR` lines on Wayland are wgpu probing Vulkan on the rig's headless
+outputs before it settles on GL, at start only.
+
 ## 7-day desktop protocol (manual, pre-1.0)
 
 The automated soak runs headless on synthetic load; the real-session
