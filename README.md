@@ -7,7 +7,8 @@
 Linux-first animated desktop overlay engine. Render multiple animated
 characters or sprites on top of your desktop using transparent,
 always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
-+ **winit** + **egui** — no Electron, no Chromium, minimal RAM use.
++ **winit** + **egui** — no Electron, no Chromium, minimal RAM use, and
+next to no CPU while nothing moves.
 
 <!-- TODO (X.3, against the RC build): demo GIF, top-fold. Record a
      pass-through → edit-mode → drop-an-asset loop and drop it in:
@@ -74,6 +75,9 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
 - **Around your day**: a focus timer, bedtime, snoozing, dozing while
   you are away and a welcome back when you return; reminders and the
   timer can also go to the desktop's notifications, with a sound.
+- **Sounds at the volume you want**: one volume for every sound and one
+  of its own for each character, quiet at bedtime if you like, and mute
+  from Appearance, the tray, the command palette, a shortcut or D-Bus.
 - **Named scenes**: save what is on screen under a name and switch
   between your scenes from the Scene tab, the command palette or the
   tray — or at set times of day; each shows a picture of itself. Share
@@ -101,13 +105,21 @@ always-on-top windows with GPU acceleration. Built in Rust with **wgpu**
   Italiano, Português (BR), Polski, Nederlands, 日本語 — auto-detected
   from `LANG`, switchable in Appearance.
 - **Rebindable shortcuts** that work on any keyboard layout — AZERTY,
-  QWERTZ, Cyrillic — and are shown the way your keyboard labels them.
+  QWERTZ, Cyrillic — and are shown the way your keyboard labels them;
+  the F-keys can be bound too.
+- **Without a mouse**: `Shift+F10` opens a character's right-click
+  menu, `Ctrl+A` selects every character, `N` steps through them, and
+  `Tab` moves through the settings panel.
 - **System integration**: tray icon (StatusNotifierItem),
   `Ctrl+Shift+A/H/P` global hotkeys, single-instance D-Bus handshake,
   and "Start at login" (an autostart entry, or the portal in the
   Flatpak).
 - **Hot-reload**: edit `~/.config/animaengine/config.toml` while the app
   runs; changes are decoded off the UI thread and applied seamlessly.
+- **Configs from other versions**: a config written by any 1.x opens
+  with every value kept, and one, a scene or a backup from a newer
+  version opens as far as this one can read it — the rest is kept in
+  the file and written back, not lost.
 - **Accessibility**: screen readers (Orca and others, over AT-SPI) on
   both backends, visible focus rings, full keyboard reference table. See
   [docs/accessibility.md](docs/accessibility.md).

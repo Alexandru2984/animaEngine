@@ -475,6 +475,8 @@ whats-new-alive = Characters come alive: tap them, and let them greet each other
 whats-new-your-day = Reminders at a set time, a focus timer, bedtime and snooze — and a welcome when you come back.
 whats-new-editing = Undo with Ctrl+Z, select several characters at once, group them and line them up.
 whats-new-files = Scenes get names, pictures and a schedule; share a scene or one character, or back up everything in one file.
+whats-new-sound = Sounds at the volume you want, with one of its own for each character, quiet at bedtime, and mute from the tray or a shortcut.
+whats-new-keyboard = All of it from the keyboard too: Shift+F10 opens a character's menu, Ctrl+A selects them all, N steps through them.
 
 # ── New onboarding hints (D.7) ────────────────────────────────────────
 onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.

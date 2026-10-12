@@ -470,6 +470,8 @@ whats-new-alive = Personajele prind viață: atinge-le și lasă-le să se salut
 whats-new-your-day = Mementouri la o oră anume, un cronometru de concentrare, ora de culcare și ațipirea — și un salut când revii.
 whats-new-editing = Anulează cu Ctrl+Z, selectează mai multe personaje deodată, grupează-le și aliniază-le.
 whats-new-files = Scenele primesc nume, imagini și un program; partajează o scenă sau un singur personaj ori fă o copie de rezervă a tuturor într-un singur fișier.
+whats-new-sound = Sunete la volumul dorit, cu un volum propriu pentru fiecare personaj, liniște la culcare și mute din tray sau dintr-o scurtătură.
+whats-new-keyboard = Totul și din tastatură: Shift+F10 deschide meniul unui personaj, Ctrl+A le selectează pe toate, N trece de la unul la altul.
 
 # ── Hint-uri onboarding noi (D.7) ─────────────────────────────────────
 onboarding-keybindings = Apasă × pe o combinație ca s-o elimini; apasă o combinație nouă ca s-o înregistrezi.

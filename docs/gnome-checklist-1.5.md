@@ -26,8 +26,8 @@ edit mode from anywhere.
 ## 1. Start
 
 - [ ] **What's new, once.** Edit mode shows "What's new in 1.5" at the
-      top of the panel: four rows (characters, your day, editing,
-      scenes). Dismiss it with ✕, quit, start again: it does not come
+      top of the panel: six rows (characters, your day, editing,
+      scenes, sounds, the keyboard). Dismiss it with ✕, quit, start again: it does not come
       back.
 - [ ] **The GPU, Vulkan only.** The log has `GPU adapter: … (RADV …)`
       and `Backend: Vulkan`, and no `trying GL as well`.

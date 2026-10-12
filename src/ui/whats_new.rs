@@ -51,6 +51,16 @@ const HIGHLIGHTS: &[Highlight] = &[
         body_key: "whats-new-files",
         here: true,
     },
+    Highlight {
+        icon: icons::SOUND,
+        body_key: "whats-new-sound",
+        here: true,
+    },
+    Highlight {
+        icon: icons::KEYBOARD,
+        body_key: "whats-new-keyboard",
+        here: true,
+    },
 ];
 
 /// Decide whether to render the panel: only when the user hasn't
