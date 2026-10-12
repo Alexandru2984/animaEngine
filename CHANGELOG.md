@@ -347,7 +347,9 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   default meanwhile unless you change it here, and a shortcut for an
   action it does not have. A banner in the settings panel says so. Each
   of these used to make the whole file unreadable, and the app started
-  with the default scene.
+  with the default scene. Keys a newer version added inside a table
+  this one knows — a setting, a character's option — are kept too, and
+  were dropped at the first save.
 - **The overlay appears sooner.** On X11 the global shortcuts were
   registered one after another before the window was made — 50 ms each
   in the library that does it, a tenth of a second for the defaults —

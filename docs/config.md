@@ -46,8 +46,10 @@ a typo:
 
 A banner in the settings panel says when this happened, and the log
 names each part. Keys a newer version added *inside* a table this build
-knows — a new option on a character, for instance — are still dropped
-when it saves. Versions before 1.5 do none of this: they cannot read a
+knows — a new setting in `[global]`, a new option on a character, its
+`[characters.talk]`, a group — are kept and written back where they
+were, with no banner: nothing is missing for them. Versions before 1.5
+do none of this: they cannot read a
 1.5 config, and start with the default scene, keeping your file as
 `config.toml.bak-corrupt`.
 

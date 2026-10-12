@@ -756,6 +756,123 @@ pub struct SetAside {
     global: Vec<(String, toml::Value, Option<toml::Value>)>,
     /// List entries that did not read: which list, and the entry.
     entries: Vec<(SetAsideList, toml::Value)>,
+    /// Keys this build does not know inside tables it does — a newer
+    /// version's settings, a character's — by where they were. Not an
+    /// error: nothing goes missing for them.
+    unknown: Vec<(Vec<Seg>, toml::Value)>,
+}
+
+/// One step to a key set aside: a table's key, or the entry of a list
+/// whose `id` is this.
+#[derive(Debug, Clone, PartialEq)]
+enum Seg {
+    Key(String),
+    Id(String),
+}
+
+/// The keys a struct reads, as serde names them — asked of its
+/// `Deserialize` by a deserializer that only listens for them. `None`
+/// for a type that does not read as a plain struct.
+fn fields_of<T: serde::de::DeserializeOwned>() -> Option<&'static [&'static str]> {
+    use serde::de::{Error, Visitor};
+    struct Listen<'a>(&'a mut Option<&'static [&'static str]>);
+    impl<'de> serde::Deserializer<'de> for Listen<'_> {
+        type Error = serde::de::value::Error;
+        fn deserialize_any<V: Visitor<'de>>(
+            self,
+            _: V,
+        ) -> std::result::Result<V::Value, Self::Error> {
+            Err(Self::Error::custom("only listening"))
+        }
+        fn deserialize_struct<V: Visitor<'de>>(
+            self,
+            _: &'static str,
+            fields: &'static [&'static str],
+            _: V,
+        ) -> std::result::Result<V::Value, Self::Error> {
+            *self.0 = Some(fields);
+            Err(Self::Error::custom("only listening"))
+        }
+        serde::forward_to_deserialize_any! {
+            bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+            bytes byte_buf option unit unit_struct newtype_struct seq tuple
+            tuple_struct map enum identifier ignored_any
+        }
+    }
+    let mut fields = None;
+    let _ = T::deserialize(Listen(&mut fields));
+    fields
+}
+
+/// The table at `path` under `root`: a key steps into a table — made
+/// empty when this version left it out, as it does a table of defaults —
+/// and a key followed by an id into the entry of that list whose `id` it
+/// is, which is never made: `None` when it is gone.
+fn table_at<'a>(root: &'a mut toml::Table, path: &[Seg]) -> Option<&'a mut toml::Table> {
+    let mut table = root;
+    let mut steps = path.iter().peekable();
+    while let Some(seg) = steps.next() {
+        let Seg::Key(key) = seg else { return None };
+        table = match steps.peek() {
+            Some(Seg::Id(id)) => {
+                steps.next();
+                table
+                    .get_mut(key)?
+                    .as_array_mut()?
+                    .iter_mut()
+                    .filter_map(toml::Value::as_table_mut)
+                    .find(|entry| entry.get("id").and_then(toml::Value::as_str) == Some(id))?
+            }
+            _ => table
+                .entry(key.clone())
+                .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+                .as_table_mut()?,
+        };
+    }
+    Some(table)
+}
+
+/// Where a table's unknown keys are looked for: the keys `T` reads.
+type Known = fn() -> Option<&'static [&'static str]>;
+
+/// Note the keys of `table`, at `at`, that `known` does not list.
+fn note_unknown(
+    table: &toml::Table,
+    at: &[Seg],
+    known: Known,
+    out: &mut Vec<(Vec<Seg>, toml::Value)>,
+) {
+    let Some(fields) = known() else { return };
+    for (key, value) in table {
+        if !fields.contains(&key.as_str()) {
+            let mut path = at.to_vec();
+            path.push(Seg::Key(key.clone()));
+            out.push((path, value.clone()));
+        }
+    }
+}
+
+/// A character's own unknown keys, and those of its nested tables.
+fn note_character(entry: &toml::Value, at: &[Seg], out: &mut Vec<(Vec<Seg>, toml::Value)>) {
+    let (Some(table), Some(id)) = (
+        entry.as_table(),
+        entry.get("id").and_then(toml::Value::as_str),
+    ) else {
+        return;
+    };
+    let mut here = at.to_vec();
+    here.push(Seg::Id(id.to_string()));
+    note_unknown(table, &here, fields_of::<CharacterConfig>, out);
+    for (key, known) in [
+        ("talk", fields_of::<Talk> as Known),
+        ("hours", fields_of::<crate::hours::Hours>),
+    ] {
+        if let Some(nested) = table.get(key).and_then(toml::Value::as_table) {
+            let mut deeper = here.clone();
+            deeper.push(Seg::Key(key.to_string()));
+            note_unknown(nested, &deeper, known, out);
+        }
+    }
 }
 
 /// Where a [`SetAside`] entry came from.
@@ -795,9 +912,88 @@ fn entry_label(entry: &toml::Value) -> String {
 }
 
 impl SetAside {
-    /// Whether anything was set aside.
+    /// Whether anything was set aside — to write back, at least.
     pub fn is_empty(&self) -> bool {
-        self.global.is_empty() && self.entries.is_empty()
+        self.global.is_empty() && self.entries.is_empty() && self.unknown.is_empty()
+    }
+
+    /// Whether something did not read, and is left out until a version
+    /// that reads it: what the banner says. Unknown keys are not: kept,
+    /// they cost nothing.
+    pub fn unread(&self) -> bool {
+        !self.global.is_empty() || !self.entries.is_empty()
+    }
+
+    /// Note the keys a newer version wrote inside the tables this one
+    /// knows, to be written back where they were.
+    fn note_unknown_keys(&mut self, table: &toml::Table) {
+        let out = &mut self.unknown;
+        let key = |k: &str| vec![Seg::Key(k.to_string())];
+        if let Some(global) = table.get("global").and_then(toml::Value::as_table) {
+            note_unknown(global, &key("global"), fields_of::<GlobalConfig>, out);
+            for (nested, known) in [
+                (
+                    "onboarding",
+                    fields_of::<crate::ui::onboarding::OnboardingProgress> as Known,
+                ),
+                ("bedtime", fields_of::<crate::bedtime::Bedtime>),
+                ("focus", fields_of::<crate::focus::FocusConfig>),
+            ] {
+                if let Some(t) = global.get(nested).and_then(toml::Value::as_table) {
+                    let at = vec![Seg::Key("global".into()), Seg::Key(nested.into())];
+                    note_unknown(t, &at, known, out);
+                }
+            }
+        }
+        if let Some(t) = table.get("collapse_state").and_then(toml::Value::as_table) {
+            note_unknown(t, &key("collapse_state"), fields_of::<CollapseState>, out);
+        }
+        for entry in table
+            .get("characters")
+            .and_then(toml::Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            note_character(entry, &key("characters"), out);
+        }
+        for entry in table
+            .get("groups")
+            .and_then(toml::Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            if let (Some(t), Some(id)) = (
+                entry.as_table(),
+                entry.get("id").and_then(toml::Value::as_str),
+            ) {
+                let at = vec![Seg::Key("groups".into()), Seg::Id(id.into())];
+                note_unknown(t, &at, fields_of::<crate::group::GroupConfig>, out);
+            }
+        }
+        for window in table
+            .get("windows")
+            .and_then(toml::Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            if let (Some(t), Some(id)) = (
+                window.as_table(),
+                window.get("id").and_then(toml::Value::as_str),
+            ) {
+                let at = vec![Seg::Key("windows".into()), Seg::Id(id.into())];
+                note_unknown(t, &at, fields_of::<WindowConfig>, out);
+                let mut chars = at.clone();
+                chars.push(Seg::Key("characters".into()));
+                for entry in t
+                    .get("characters")
+                    .and_then(toml::Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    note_character(entry, &chars, out);
+                }
+            }
+        }
     }
 
     /// Take out of `table` what does not read: list entries one by one,
@@ -903,6 +1099,17 @@ impl SetAside {
                 if global.get(key) == at_load.as_ref() {
                     global.insert(key.clone(), written.clone());
                 }
+            }
+        }
+        // Unknown keys back where they were — if that table is still
+        // there (a character deleted here takes its own with it), and
+        // the key is not there already.
+        for (path, value) in &self.unknown {
+            let Some((Seg::Key(last), parents)) = path.split_last() else {
+                continue;
+            };
+            if let Some(at) = table_at(table, parents) {
+                at.entry(last.clone()).or_insert_with(|| value.clone());
             }
         }
     }
@@ -1062,6 +1269,8 @@ impl AppConfig {
         // string: a top-level scalar (`version`) sorted among the section
         // keys would trip TOML's "value after table" rule on the way back
         // out. `try_into` doesn't care about order.
+        let mut unknown = SetAside::default();
+        unknown.note_unknown_keys(&table);
         let mut config: Self = match toml::Value::Table(table.clone()).try_into() {
             Ok(config) => config,
             // Set aside what does not read (`SetAside`), and try again
@@ -1090,6 +1299,7 @@ impl AppConfig {
         // Coerce NaN/inf/out-of-range scalars before anything reaches the
         // renderer or physics.
         config.sanitize();
+        config.set_aside.unknown = unknown.unknown;
         let global = config.global.clone();
         config.set_aside.note_settings(&global);
         Ok((config, from))
@@ -1821,6 +2031,83 @@ mod migration_tests {
         let out: toml::Table = changed.to_toml_string().unwrap().parse().unwrap();
         assert_eq!(out["global"]["theme"].as_str(), Some("light"));
         assert_eq!(out["global"]["on_fullscreen"].as_str(), Some("dim"));
+    }
+
+    /// A struct's keys, read off its `Deserialize`.
+    #[test]
+    fn a_struct_says_which_keys_it_reads() {
+        let global = fields_of::<GlobalConfig>().expect("a plain struct");
+        assert!(global.contains(&"always_on_top") && global.contains(&"sounds_muted"));
+        let character = fields_of::<CharacterConfig>().unwrap();
+        assert!(character.contains(&"id") && character.contains(&"talk"));
+        assert!(!character.contains(&"future_wings"));
+    }
+
+    /// Keys a newer version added inside tables this one knows — a
+    /// setting, a character's option, its talk's — are written back where
+    /// they were. They used to be dropped at the first save, so a config
+    /// went back to the newer version poorer.
+    #[test]
+    fn keys_a_newer_version_added_are_kept_where_they_were() {
+        let newer = r#"
+            version = 2
+            [global]
+            hover_startle = true
+            future_glow = 3
+            [global.focus]
+            future_chime = "bell"
+
+            [[characters]]
+            id = "cat"
+            name = "Cat"
+            asset_type = "png_static"
+            asset_path = "c.png"
+            x = 1.0
+            y = 2.0
+            future_wings = true
+            [characters.talk]
+            phrases = ["Hi"]
+            future_accent = "posh"
+
+            [[characters]]
+            id = "dog"
+            name = "Dog"
+            asset_type = "png_static"
+            asset_path = "d.png"
+            x = 3.0
+            y = 4.0
+            future_tail = 2
+
+            [[groups]]
+            id = "g"
+            name = "G"
+            member_ids = ["cat"]
+            future_colour = "teal"
+        "#;
+        let (mut cfg, _) = AppConfig::decode_config_str(newer).unwrap();
+        assert!(!cfg.set_aside.unread(), "nothing unread: no banner");
+        assert!(!cfg.set_aside.is_empty(), "but kept to write back");
+        let back: toml::Table = cfg.to_toml_string().unwrap().parse().unwrap();
+        assert_eq!(back["global"]["future_glow"].as_integer(), Some(3));
+        assert_eq!(
+            back["global"]["focus"]["future_chime"].as_str(),
+            Some("bell")
+        );
+        let cat = &back["characters"][0];
+        assert_eq!(cat["id"].as_str(), Some("cat"));
+        assert_eq!(cat["future_wings"].as_bool(), Some(true));
+        assert_eq!(cat["talk"]["future_accent"].as_str(), Some("posh"));
+        assert_eq!(back["characters"][1]["future_tail"].as_integer(), Some(2));
+        assert_eq!(back["groups"][0]["future_colour"].as_str(), Some("teal"));
+        // Read again, the same keys are kept again.
+        let (again, _) = AppConfig::decode_config_str(&cfg.to_toml_string().unwrap()).unwrap();
+        assert_eq!(again.set_aside, cfg.set_aside);
+
+        // A character deleted here takes its keys with it.
+        cfg.characters.retain(|c| c.id != "dog");
+        let back: toml::Table = cfg.to_toml_string().unwrap().parse().unwrap();
+        assert_eq!(back["characters"].as_array().unwrap().len(), 1);
+        assert!(back["characters"][0].get("future_tail").is_none());
     }
 
     /// What does not read anywhere a list or a setting can be set aside is

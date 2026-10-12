@@ -171,10 +171,10 @@ pub fn handle(
         Poll::Ready(result) => {
             install(*result, ctx, config);
             // An edit can set something aside, or put right what was.
-            if config.set_aside.is_empty() {
-                warnings.remove(&Warning::ConfigPartlyUnread);
-            } else {
+            if config.set_aside.unread() {
                 warnings.insert(Warning::ConfigPartlyUnread);
+            } else {
+                warnings.remove(&Warning::ConfigPartlyUnread);
             }
             // A worker answered, so whatever made the last one vanish has
             // passed; the banner says it goes away when that happens.

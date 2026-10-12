@@ -24,8 +24,9 @@ change to any of them is a breaking change and waits for 2.0 (see
   1.x keeps what it cannot read of a newer config: unknown `[section]`
   tables, list entries (characters, groups, reminders, schedule rules),
   `[global]` settings and shortcuts that do not read are set aside and
-  written back on save. Unknown keys inside a known table are still
-  dropped when an older version saves. 1.4 and earlier cannot read a
+  written back on save, and so are unknown keys inside the tables it
+  knows (`[global]`, a character, its talk and hours, a group, a
+  window). 1.4 and earlier cannot read a
   1.5 config at all; see [config.md](config.md#schema-version).
 - **D-Bus surface.** The bus name `com.animaengine.Anima`, object path
   `/com/animaengine/Anima`, and interface `org.animaengine.Anima` are
