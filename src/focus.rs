@@ -173,6 +173,16 @@ pub fn phase() -> Option<Phase> {
     .flatten()
 }
 
+/// When the running part ends, if it is still to come — for a loop that
+/// sleeps until it has something to do, so the turn's line is said on
+/// time (`crate::pacing`).
+pub fn next_turn() -> Option<std::time::Instant> {
+    let until = with(|s| s.timer.map(|t| t.until)).flatten()?;
+    let ends = std::time::UNIX_EPOCH + std::time::Duration::from_secs(until);
+    let left = ends.duration_since(std::time::SystemTime::now()).ok()?;
+    Some(std::time::Instant::now() + left)
+}
+
 /// What to say now, if anything — taken only when `shown`, so news that
 /// comes while the overlay is out of sight waits. The loops ask every
 /// frame.
@@ -346,5 +356,25 @@ mod tests {
         stop();
         assert_eq!(phase(), None);
         assert_eq!(until_label(), None);
+    }
+
+    /// A sleeping loop wakes for the turn: when it is to come, not after.
+    #[test]
+    fn the_next_turn_is_when_the_part_ends() {
+        let _turn = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        stop();
+        assert_eq!(next_turn(), None, "no timer, no turn");
+        start(FocusConfig {
+            minutes: 25,
+            break_minutes: 5,
+        });
+        let left = next_turn().expect("a turn to come") - std::time::Instant::now();
+        assert!(
+            left > std::time::Duration::from_secs(24 * 60)
+                && left <= std::time::Duration::from_secs(25 * 60),
+            "{left:?}"
+        );
+        stop();
+        assert_eq!(next_turn(), None);
     }
 }

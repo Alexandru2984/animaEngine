@@ -1709,8 +1709,11 @@ pub fn run_native(
                     || pending_text_paste.is_some()
                     || library_scan.is_some()
                     || config_watch.waiting();
+                // And a reminder or the focus timer's turn on time, not at
+                // the next heartbeat.
+                let at = crate::pacing::soonest(egui_at, reminder_timers.next_due(now));
                 crate::pacing::next_wait(
-                    crate::pacing::sooner(scene_pacing(&scene), egui_at, now),
+                    crate::pacing::sooner(scene_pacing(&scene), at, now),
                     frame_gate.last_draw,
                     awaiting,
                     now,

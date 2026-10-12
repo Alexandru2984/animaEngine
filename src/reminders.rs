@@ -150,6 +150,18 @@ pub struct Timers {
 }
 
 impl Timers {
+    /// The soonest reminder still to come after `now`, for a loop that
+    /// sleeps until it has something to do. One already due and waiting —
+    /// for the focus timer's work to end, the overlay to show — is not:
+    /// what it waits for wakes the loop itself.
+    pub fn next_due(&self, now: Instant) -> Option<Instant> {
+        self.due
+            .iter()
+            .map(|(_, at)| *at)
+            .filter(|at| *at > now)
+            .min()
+    }
+
     /// The reminders due at `now`, each rescheduled. With `away` every
     /// timer starts over and none is due; without `can_say` they wait.
     pub fn poll(
@@ -352,6 +364,23 @@ mod tests {
     }
 
     const MIN: Duration = Duration::from_secs(60);
+
+    /// A sleeping loop wakes for the next reminder to come — and not for
+    /// one already due and waiting, which would wake it at once, forever.
+    #[test]
+    fn the_next_due_is_still_to_come() {
+        let now = Instant::now();
+        let mut timers = Timers::default();
+        assert_eq!(timers.next_due(now), None);
+        timers.due = vec![
+            (every("soon", 1), now + MIN),
+            (every("later", 5), now + 5 * MIN),
+            (every("waiting", 1), now - MIN),
+        ];
+        assert_eq!(timers.next_due(now), Some(now + MIN));
+        assert_eq!(timers.next_due(now + 2 * MIN), Some(now + 5 * MIN));
+        assert_eq!(timers.next_due(now + 6 * MIN), None);
+    }
 
     #[test]
     fn a_reminder_comes_due_every_so_often() {

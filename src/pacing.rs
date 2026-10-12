@@ -70,6 +70,16 @@ pub fn redraw_pacing(scene: &Scene, ui_animating: bool) -> RedrawPacing {
     }
 }
 
+/// The soonest of the times the scene's clocks come due — a reminder, the
+/// focus timer's turn — and `at`, egui's: what a loop that sleeps should
+/// wake for besides frames.
+pub fn soonest(at: Option<Instant>, reminders: Option<Instant>) -> Option<Instant> {
+    [at, reminders, crate::focus::next_turn()]
+        .into_iter()
+        .flatten()
+        .min()
+}
+
 /// How often a loop that sleeps until woken looks at a result it waits
 /// for that wakes nothing — a file chooser, a clipboard read, a reload.
 pub const AWAIT_POLL: Duration = Duration::from_millis(100);

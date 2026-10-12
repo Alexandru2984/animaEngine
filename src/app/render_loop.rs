@@ -974,6 +974,9 @@ impl App {
             let poll = now + std::time::Duration::from_millis(100);
             at = Some(at.map_or(poll, |a| a.min(poll)));
         }
+        // A reminder or the focus timer's turn on time, not at the next
+        // heartbeat.
+        let at = crate::pacing::soonest(at, self.reminder_timers.next_due(now));
         crate::pacing::sooner(scene, at, now)
     }
 }
