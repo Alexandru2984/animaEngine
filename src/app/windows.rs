@@ -120,6 +120,16 @@ pub(crate) fn needs_frame(
     }
 }
 
+/// The primary window's key: its sprites' (`SurfaceState::frame_key`),
+/// and the latest line a character said, wherever it stands — its egui
+/// tells a screen reader (`ui::speech::announce`).
+pub(crate) fn primary_key(sprites: u64) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (sprites, crate::announce::latest().map(|(n, _)| n)).hash(&mut h);
+    h.finish()
+}
+
 /// What a window's egui paints over its characters this frame: the speech
 /// bubbles and the effects on its monitor, and whether egui asked for the
 /// frame (the one that clears a bubble).

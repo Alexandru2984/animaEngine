@@ -98,6 +98,11 @@ impl EguiRenderer {
         self.repaint_at
     }
 
+    /// Whether input has come for egui since its last frame.
+    pub fn has_pending_input(&self) -> bool {
+        !self.state.egui_input().events.is_empty()
+    }
+
     /// Whether an input is under way that an edit is still coming from:
     /// a pointer button held, a text field focused, a list or the palette
     /// open. Holds an undo step open (`crate::undo`).

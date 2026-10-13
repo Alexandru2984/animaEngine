@@ -351,9 +351,17 @@ bubbles, effects or a menu, every frame and the one after; and once a
 heartbeat whatever happens. Until 1.5 anything moving on any monitor
 kept every window drawing: in the rig, two outputs with the characters
 walking on one, X11 went from 54% to 33% of a core and native Wayland
-from 44% to 31%. The primary still draws whenever the loop runs a
-frame — its panel follows the scene. On X11 a window's own redraw
-(an expose, `render_one_extra`) always draws. The idle heartbeat stays
+from 44% to 31%. The primary is paced the same way outside edit mode,
+its key also holding the latest line said (which its egui announces),
+and it counts as busy — drawn every frame — while egui has input, asks
+for a frame or paints bubbles, effects or a moving toast, and while a
+screen reader asks or a library scan is due; in edit mode it draws
+every frame, its panel following the scene. With the characters
+walking on another monitor only, the primary no longer redraws: X11
+41% → 25%, native Wayland 35% → 25% in the rig. On X11 a window's own
+redraw (an expose, `render_one_extra`) always draws, and the primary
+draws after a focus or occlusion change, being shown again, or a lost
+surface. The idle heartbeat stays
 a single timer (hot-reload is window-independent). The decision
 itself is `crate::pacing`, shared with the native Wayland loop, which
 sleeps until the next thing it has to do (`pacing::next_wait`) — other

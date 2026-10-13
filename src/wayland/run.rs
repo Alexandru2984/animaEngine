@@ -256,6 +256,8 @@ pub fn run_native(
     // Each extra surface's last frame: one that would look the same is not
     // drawn (`app::windows::needs_frame`).
     let mut extra_frames: HashMap<String, crate::app::windows::LastFrame> = HashMap::new();
+    // And the primary's, outside edit mode.
+    let mut primary_frame: Option<crate::app::windows::LastFrame> = None;
     let mut last_monitor_mode = config.global.monitor_mode.clone();
     {
         let initial_monitors = layer.monitors();
@@ -1839,16 +1841,47 @@ pub fn run_native(
         // holding it across the arm keeps `perf_sampler` mutably borrowed
         // to the end of the frame.
         let submit_start = Instant::now();
-        match renderer.render(
+        // Outside edit mode the primary draws only when it has something
+        // new to show (`app::windows::needs_frame`): a walker on another
+        // monitor used to redraw it every frame. Busy — drawn every frame,
+        // and once after — while its egui paints, has input or is asked
+        // for anything. The other monitors and the outcomes below go on
+        // either way.
+        let primary_busy = layer.state.edit_mode
+            || perf_overlay_visible
+            || !bubbles.is_empty()
+            || !effects.is_empty()
+            || !events.is_empty()
+            || toasts_at!(now).is_some_and(|at| at <= now)
+            || egui_renderer.repaint_due(now)
+            || egui_renderer.has_screen_reader_requests();
+        let primary_key = crate::app::windows::primary_key(renderer.primary.frame_key(
+            &renderer.shared,
             &drawn,
             &scene.groups,
             layer.state.edit_mode,
             marks,
             primary_origin,
-        ) {
+        ));
+        let primary =
+            if crate::app::windows::needs_frame(primary_frame, primary_key, primary_busy, now) {
+                renderer
+                    .render(
+                        &drawn,
+                        &scene.groups,
+                        layer.state.edit_mode,
+                        marks,
+                        primary_origin,
+                    )
+                    .map(Some)
+            } else {
+                Ok(None)
+            };
+        match primary {
             Ok(output) => {
-                perf_sampler.add(crate::perf::Category::WgpuSubmit, submit_start.elapsed());
-                let view = output.create_view();
+                if output.is_some() {
+                    perf_sampler.add(crate::perf::Category::WgpuSubmit, submit_start.elapsed());
+                }
                 let size = [
                     renderer.primary.window_width,
                     renderer.primary.window_height,
@@ -1942,171 +1975,186 @@ pub fn run_native(
                 let perf_sampler_ref = &perf_sampler;
                 let perf_export_ref = &mut perf_export_request;
                 let perf_visible_snapshot = perf_overlay_visible;
-                let egui_start = Instant::now();
-                egui_renderer.set_accesskit_allowed(accesskit_snapshot);
-                egui_renderer.set_window_state(layer.has_keyboard_focus(), primary_origin, size);
-                egui_renderer.render(
-                    &renderer.shared.device,
-                    &renderer.shared.queue,
-                    &view,
-                    pixel_size,
-                    pixels_per_point,
-                    events,
-                    modifiers,
-                    |ctx| {
-                        crate::ui::motion::set_reduced(ctx, *reduced_motion_mut);
-                        if hidden_snapshot {
-                            // Hidden means hidden: no sprites (the draw
-                            // list is empty above) and no UI either, so
-                            // the ⚙ button doesn't linger over a
-                            // supposedly hidden overlay. Restore comes
-                            // through the same D-Bus/keybinding channel
-                            // that hid it, exactly as on the winit path.
-                            return;
-                        }
-                        if panels::toggle_button(ctx, edit_mode_snapshot) {
-                            *toggle_requested_ref = true;
-                        }
-                        // Positions here are already in points: pointer
-                        // events map to them one to one.
-                        crate::ui::effects::paint(ctx, &effects, 1.0);
-                        crate::ui::speech::paint(ctx, &bubbles, 1.0);
-                        // And to a screen reader (`crate::announce`), with
-                        // the toasts.
-                        crate::ui::speech::announce(ctx);
-                        crate::ui::toasts::announce(ctx, toasts_ref);
-                        if crate::ui::onboarding::coach_marks(
-                            ctx,
-                            onboarding_mut,
-                            edit_mode_snapshot,
-                        ) {
-                            *config_dirty_mut = true;
-                        }
-                        {
-                            panels::settings(
+                if let Some(output) = output {
+                    let view = output.create_view();
+                    let egui_start = Instant::now();
+                    egui_renderer.set_accesskit_allowed(accesskit_snapshot);
+                    egui_renderer.set_window_state(
+                        layer.has_keyboard_focus(),
+                        primary_origin,
+                        size,
+                    );
+                    egui_renderer.render(
+                        &renderer.shared.device,
+                        &renderer.shared.queue,
+                        &view,
+                        pixel_size,
+                        pixels_per_point,
+                        events,
+                        modifiers,
+                        |ctx| {
+                            crate::ui::motion::set_reduced(ctx, *reduced_motion_mut);
+                            if hidden_snapshot {
+                                // Hidden means hidden: no sprites (the draw
+                                // list is empty above) and no UI either, so
+                                // the ⚙ button doesn't linger over a
+                                // supposedly hidden overlay. Restore comes
+                                // through the same D-Bus/keybinding channel
+                                // that hid it, exactly as on the winit path.
+                                return;
+                            }
+                            if panels::toggle_button(ctx, edit_mode_snapshot) {
+                                *toggle_requested_ref = true;
+                            }
+                            // Positions here are already in points: pointer
+                            // events map to them one to one.
+                            crate::ui::effects::paint(ctx, &effects, 1.0);
+                            crate::ui::speech::paint(ctx, &bubbles, 1.0);
+                            // And to a screen reader (`crate::announce`), with
+                            // the toasts.
+                            crate::ui::speech::announce(ctx);
+                            crate::ui::toasts::announce(ctx, toasts_ref);
+                            if crate::ui::onboarding::coach_marks(
                                 ctx,
-                                edit_mode_snapshot,
-                                scene_mut,
-                                selection_mut,
-                                config_dirty_mut,
-                                theme_mut,
-                                locale_mut,
                                 onboarding_mut,
-                                monitor_mode_mut,
-                                window_awareness_mut,
-                                // Native Wayland exposes no window positions.
-                                false,
-                                snap_mut,
-                                bump_mut,
-                                greet_mut,
-                                active_scene_mut,
-                                reminders_mut,
-                                scene_schedule_mut,
-                                focus_mut,
-                                reminder_sound_mut,
-                                notify_mut,
-                                // A layer surface belongs to one output, so no single
-                                // surface can span the desktop here.
-                                false,
-                                reduced_motion_mut,
-                                large_bubbles_mut,
-                                hover_startle_mut,
-                                on_fullscreen_mut,
-                                step_aside_apps_mut,
-                                always_on_top_mut,
-                                tap_characters_mut,
-                                little_effects_mut,
-                                bedtime_mut,
-                                moods_mut,
-                                panels::AwayControls {
-                                    idle_minutes: &mut *idle_minutes_mut,
-                                    on_battery: &mut *on_battery_mut,
-                                    welcome_back: &mut *welcome_back_mut,
-                                    idle_available,
-                                },
-                                panels::SoundControls {
-                                    volume: &mut *sound_volume_mut,
-                                    muted: &mut *sounds_muted_mut,
-                                    quiet_at_bedtime: &mut *quiet_at_bedtime_mut,
-                                },
-                                start_at_login_mut,
-                                monitors_ref,
-                                library.as_ref(),
-                                library_ref,
-                                keybindings_mut,
-                                collapse_state_mut,
-                                accesskit_mut,
-                                // `crate::a11y` carries the AT-SPI bridge.
-                                true,
-                                warnings_ref,
-                                last_seen_whats_new_mut,
-                                hotkey_backend_ref,
-                                shimeji_import_ref,
-                                scene_request_ref,
-                            );
-                            if edit_mode_snapshot {
-                                if let Some(state) = &menu_state {
-                                    *menu_outcome_ref =
-                                        Some(panels::context_menu(ctx, state, menu_offers));
-                                }
-                                *palette_ref = panels::command_palette(
-                                    ctx,
-                                    keybindings_mut,
-                                    selection_mut.selected_index().is_some(),
-                                );
+                                edit_mode_snapshot,
+                            ) {
+                                *config_dirty_mut = true;
                             }
-                            // In both modes, as on the winit path.
-                            panels::toasts(ctx, toasts_ref);
-                            // Above every panel, so someone chasing a
-                            // stutter doesn't have to hunt for it behind
-                            // one — same placement as the winit path.
-                            if perf_visible_snapshot
-                                && crate::ui::perf_overlay::show(
-                                    ctx,
-                                    perf_sampler_ref,
-                                    crate::perf::read_rss_kib(),
-                                    gpu_stats,
-                                )
-                                .is_some()
                             {
-                                *perf_export_ref = true;
+                                panels::settings(
+                                    ctx,
+                                    edit_mode_snapshot,
+                                    scene_mut,
+                                    selection_mut,
+                                    config_dirty_mut,
+                                    theme_mut,
+                                    locale_mut,
+                                    onboarding_mut,
+                                    monitor_mode_mut,
+                                    window_awareness_mut,
+                                    // Native Wayland exposes no window positions.
+                                    false,
+                                    snap_mut,
+                                    bump_mut,
+                                    greet_mut,
+                                    active_scene_mut,
+                                    reminders_mut,
+                                    scene_schedule_mut,
+                                    focus_mut,
+                                    reminder_sound_mut,
+                                    notify_mut,
+                                    // A layer surface belongs to one output, so no single
+                                    // surface can span the desktop here.
+                                    false,
+                                    reduced_motion_mut,
+                                    large_bubbles_mut,
+                                    hover_startle_mut,
+                                    on_fullscreen_mut,
+                                    step_aside_apps_mut,
+                                    always_on_top_mut,
+                                    tap_characters_mut,
+                                    little_effects_mut,
+                                    bedtime_mut,
+                                    moods_mut,
+                                    panels::AwayControls {
+                                        idle_minutes: &mut *idle_minutes_mut,
+                                        on_battery: &mut *on_battery_mut,
+                                        welcome_back: &mut *welcome_back_mut,
+                                        idle_available,
+                                    },
+                                    panels::SoundControls {
+                                        volume: &mut *sound_volume_mut,
+                                        muted: &mut *sounds_muted_mut,
+                                        quiet_at_bedtime: &mut *quiet_at_bedtime_mut,
+                                    },
+                                    start_at_login_mut,
+                                    monitors_ref,
+                                    library.as_ref(),
+                                    library_ref,
+                                    keybindings_mut,
+                                    collapse_state_mut,
+                                    accesskit_mut,
+                                    // `crate::a11y` carries the AT-SPI bridge.
+                                    true,
+                                    warnings_ref,
+                                    last_seen_whats_new_mut,
+                                    hotkey_backend_ref,
+                                    shimeji_import_ref,
+                                    scene_request_ref,
+                                );
+                                if edit_mode_snapshot {
+                                    if let Some(state) = &menu_state {
+                                        *menu_outcome_ref =
+                                            Some(panels::context_menu(ctx, state, menu_offers));
+                                    }
+                                    *palette_ref = panels::command_palette(
+                                        ctx,
+                                        keybindings_mut,
+                                        selection_mut.selected_index().is_some(),
+                                    );
+                                }
+                                // In both modes, as on the winit path.
+                                panels::toasts(ctx, toasts_ref);
+                                // Above every panel, so someone chasing a
+                                // stutter doesn't have to hunt for it behind
+                                // one — same placement as the winit path.
+                                if perf_visible_snapshot
+                                    && crate::ui::perf_overlay::show(
+                                        ctx,
+                                        perf_sampler_ref,
+                                        crate::perf::read_rss_kib(),
+                                        gpu_stats,
+                                    )
+                                    .is_some()
+                                {
+                                    *perf_export_ref = true;
+                                }
                             }
-                        }
-                    },
-                );
-                perf_sampler.add(crate::perf::Category::EguiPaint, egui_start.elapsed());
-                // A focused text field turns the input method on, at its
-                // caret; losing it turns it off.
-                layer.sync_ime(egui_renderer.ime_caret());
-                // Copied from a text field: onto the desktop's clipboard, as
-                // plain text.
-                if let Some(text) = egui_renderer.take_copied_text() {
-                    layer.claim_clipboard(text, false);
-                }
-                if perf_export_request {
-                    match crate::perf::export_snapshot(&perf_sampler) {
-                        Ok(path) => {
-                            // Toast shows the full path — the user asked
-                            // for the export and wants to find the file.
-                            // The log redacts, so journald doesn't carry
-                            // their home directory.
-                            tracing::info!("Perf snapshot written: {}", redact_path(&path));
-                            tracing::debug!("Perf snapshot full path: {}", path.display());
-                            let mut args = fluent::FluentArgs::new();
-                            args.set("path", path.display().to_string());
-                            toasts.success(crate::i18n::t_args("toast-perf-snapshot", &args));
-                        }
-                        Err(e) => {
-                            tracing::error!("Perf snapshot failed: {e}");
-                            let mut args = fluent::FluentArgs::new();
-                            args.set("error", e.to_string());
-                            toasts.error(crate::i18n::t_args("toast-perf-snapshot-failed", &args));
+                        },
+                    );
+                    perf_sampler.add(crate::perf::Category::EguiPaint, egui_start.elapsed());
+                    // A focused text field turns the input method on, at its
+                    // caret; losing it turns it off.
+                    layer.sync_ime(egui_renderer.ime_caret());
+                    // Copied from a text field: onto the desktop's clipboard, as
+                    // plain text.
+                    if let Some(text) = egui_renderer.take_copied_text() {
+                        layer.claim_clipboard(text, false);
+                    }
+                    if perf_export_request {
+                        match crate::perf::export_snapshot(&perf_sampler) {
+                            Ok(path) => {
+                                // Toast shows the full path — the user asked
+                                // for the export and wants to find the file.
+                                // The log redacts, so journald doesn't carry
+                                // their home directory.
+                                tracing::info!("Perf snapshot written: {}", redact_path(&path));
+                                tracing::debug!("Perf snapshot full path: {}", path.display());
+                                let mut args = fluent::FluentArgs::new();
+                                args.set("path", path.display().to_string());
+                                toasts.success(crate::i18n::t_args("toast-perf-snapshot", &args));
+                            }
+                            Err(e) => {
+                                tracing::error!("Perf snapshot failed: {e}");
+                                let mut args = fluent::FluentArgs::new();
+                                args.set("error", e.to_string());
+                                toasts.error(crate::i18n::t_args(
+                                    "toast-perf-snapshot-failed",
+                                    &args,
+                                ));
+                            }
                         }
                     }
-                }
-                {
-                    let _s = perf_sampler.scope(crate::perf::Category::Present);
-                    renderer.present(output);
+                    {
+                        let _s = perf_sampler.scope(crate::perf::Category::Present);
+                        renderer.present(output);
+                    }
+                    primary_frame = Some(crate::app::windows::LastFrame {
+                        key: primary_key,
+                        overlay: primary_busy,
+                        at: now,
+                    });
                 }
                 // Extras: the entities pinned (or resolved by position) to
                 // that monitor, translated by its own origin, and the speech
@@ -2391,6 +2439,7 @@ pub fn run_native(
                     renderer.primary.window_width,
                     renderer.primary.window_height,
                 );
+                primary_frame = None;
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 return Err(AnimaError::other("GPU out of memory"));

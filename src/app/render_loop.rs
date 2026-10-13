@@ -367,6 +367,28 @@ impl App {
             _ => Vec::new(),
         };
 
+        // Outside edit mode the primary draws only when it has something
+        // new to show (`windows::needs_frame`): a walker on another
+        // monitor used to redraw it every frame. Busy — drawn every frame,
+        // and once after — while its egui paints or is asked for anything,
+        // and while a result it collects in its pass is on its way.
+        let now = Instant::now();
+        let primary_busy = self.edit_mode
+            || self.perf_overlay_visible
+            || !bubbles.is_empty()
+            || !effects.is_empty()
+            || self
+                .toasts
+                .next_change(now, self.config.global.reduced_motion)
+                .is_some_and(|at| at <= now)
+            || self.ui.as_ref().is_some_and(|ui| {
+                ui.repaint_at().is_some_and(|at| at <= now)
+                    || ui.has_pending_input()
+                    || ui.has_screen_reader_requests()
+            })
+            || self.library_scan.is_some();
+        let last_primary = self.primary_frame;
+
         // Surface-recovery bookkeeping for this frame. Resolved after
         // the renderer borrow below is released (we can't reassign
         // `self.renderer` while it's borrowed).
@@ -418,17 +440,37 @@ impl App {
                         .collect(),
                     None => visible,
                 };
-                renderer.render(
+                let key = super::windows::primary_key(renderer.primary.frame_key(
+                    &renderer.shared,
                     &drawn,
                     &self.scene.groups,
                     self.edit_mode,
                     marks,
                     primary_origin,
-                )
+                ));
+                super::windows::needs_frame(last_primary, key, primary_busy, now).then(|| {
+                    (
+                        key,
+                        renderer.render(
+                            &drawn,
+                            &self.scene.groups,
+                            self.edit_mode,
+                            marks,
+                            primary_origin,
+                        ),
+                    )
+                })
             };
             match render_result {
-                Ok(output) => {
+                // Nothing new to show: the frame it shows stays.
+                None => {}
+                Some((key, Ok(output))) => {
                     rendered_ok = true;
+                    self.primary_frame = Some(super::windows::LastFrame {
+                        key,
+                        overlay: primary_busy,
+                        at: now,
+                    });
                     // egui runs in BOTH modes. In pass-through it
                     // paints the toggle ⚙ button, bubbles and toasts; in
                     // edit mode it adds the settings panel, context menu
@@ -785,14 +827,15 @@ impl App {
                 // (resize race, occlusion, or the surface coming back
                 // after suspend). Reconfigure and flag for the streak
                 // tracker — persistent loss escalates to a full rebuild.
-                Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                Some((_, Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated))) => {
                     renderer.resize(
                         renderer.primary.window_width,
                         renderer.primary.window_height,
                     );
                     surface_lost = true;
+                    self.primary_frame = None;
                 }
-                Err(wgpu::SurfaceError::OutOfMemory) => {
+                Some((_, Err(wgpu::SurfaceError::OutOfMemory))) => {
                     tracing::error!("GPU out of memory!");
                     // Deferred past the `self.renderer` borrow, same as
                     // `surface_lost` below — shutting down needs `&mut
@@ -801,10 +844,10 @@ impl App {
                 }
                 // Timeout: the swapchain image wasn't ready in time —
                 // transient, just drop this frame and try the next.
-                Err(wgpu::SurfaceError::Timeout) => {
+                Some((_, Err(wgpu::SurfaceError::Timeout))) => {
                     tracing::debug!("surface acquire timed out; skipping frame");
                 }
-                Err(e) => {
+                Some((_, Err(e))) => {
                     tracing::warn!("Render error: {:?}", e);
                 }
             }
@@ -915,6 +958,7 @@ impl App {
                     self.config.global.theme,
                 ));
                 self.renderer = Some(renderer);
+                self.primary_frame = None;
                 // The rebuilt device has an empty texture cache; force
                 // every entity to re-upload on the next frame.
                 for e in &mut self.scene.entities {

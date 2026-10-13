@@ -127,6 +127,9 @@ pub struct App {
     /// panel, context menu, palette) is gated to edit mode inside the build
     /// closure.
     ui: Option<EguiRenderer>,
+    /// The primary window's last frame, for its pacing outside edit mode
+    /// (`windows::needs_frame`); `None` draws the next.
+    primary_frame: Option<windows::LastFrame>,
     /// Ephemeral UI state (currently just the context menu) kept separate
     /// from the egui renderer so it survives across resumed/suspended cycles.
     ui_state: UiState,
@@ -353,6 +356,7 @@ impl App {
             pending_paste: None,
             pending_text_paste: None,
             ui: None,
+            primary_frame: None,
             ui_state: UiState::default(),
             toasts: ToastQueue::default(),
             history: crate::undo::UndoHistory::default(),
@@ -544,9 +548,10 @@ impl App {
         if let Some(window) = &self.window {
             window.set_visible(visible);
         }
+        // Mapped again, a window has no contents until it draws.
+        self.primary_frame = None;
         for slot in self.extra_windows.values_mut() {
             slot.window.set_visible(visible);
-            // Mapped again, a window has no contents until it draws.
             slot.last_frame = None;
         }
         if visible {
@@ -1195,6 +1200,9 @@ impl ApplicationHandler<AnimaEvent> for App {
             WindowEvent::Focused(_) | WindowEvent::Occluded(_) => {
                 self.reassert_always_on_top();
                 self.reapply_input_shape();
+                // Drawn whatever it shows: the compositor may have let go
+                // of its contents.
+                self.primary_frame = None;
                 self.request_redraw();
             }
 
