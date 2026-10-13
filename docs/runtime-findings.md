@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R60 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R61 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2395,3 +2395,26 @@ root's scale comes off on this backend (`in_surface_units`): (736, 0),
 character is the overlay's and one beside it reaches the window below,
 a file dropped at (300, 200) lands there, and the scale changed from 1
 to 2 and back while the overlay ran is followed.
+
+### R61 · The keyboard's right-click menu on another monitor could not be used — `FIXED`
+
+Found checking 1.5's keyboard and screen-reader work with two monitors,
+a case the earlier checks had not covered: every character selected
+then stood on the primary. With the character on the second monitor,
+`Shift+F10` or the Menu key opened its menu there, by the character,
+its first item drawn focused. But that monitor's overlay is drawn by an
+egui of its own, which hears no keys but Escape and has no tree for a
+screen reader: `Tab` and `Enter` went to the panel's egui, which had no
+menu, and Orca found nothing — read back over AT-SPI, no item at all.
+A mouse user was never affected: a right-click is the overlay's own
+input.
+
+**Fixed:** a menu opened from the keyboard opens on the panel's surface,
+nearest the character — at its edge when the character is beyond it
+(`input::multi::keyboard_menu_at`); a right-click still opens it by the
+character. **Checked:** native Wayland on the rig's two outputs, and X11
+on a real X server with two monitors (Xorg's dummy driver — under sway,
+XWayland put the second window over the first, which took the keys):
+the ghost on the second monitor selected with `N`, the Menu key, the
+menu at the panel's edge with Duplicate focused, read over AT-SPI on
+Wayland, and `Enter` duplicated it on both.

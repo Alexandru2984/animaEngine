@@ -175,8 +175,9 @@ impl App {
     }
 
     /// The right-click menu for the selection, from the keyboard
-    /// (`Action::OpenContextMenu`): at the middle of the character
-    /// selected, on the monitor it is on, its first item focused.
+    /// (`Action::OpenContextMenu`): on the panel's window, where the keys
+    /// and a screen reader are, nearest the character selected, its first
+    /// item focused (`input::multi::keyboard_menu_at`).
     pub(super) fn open_menu_from_keyboard(&mut self) {
         let Some(entity_idx) = self.selection.selected_index() else {
             return;
@@ -186,16 +187,15 @@ impl App {
         };
         let (x, y) = (e.x + e.scaled_width() / 2.0, e.y + e.scaled_height() / 2.0);
         crate::input::multi::select_for_menu(&self.scene, &mut self.selection, entity_idx);
-        let surface = self
-            .extra_windows
-            .values()
-            .find(|s| s.monitor.contains(x, y))
-            .map(|s| s.monitor.name.clone());
-        let pos = self.menu_anchor(surface.as_deref(), x, y);
+        let size = self.window.as_ref().map_or(egui::Vec2::ZERO, |w| {
+            let px = w.inner_size();
+            egui::vec2(px.width as f32, px.height as f32) / w.scale_factor() as f32
+        });
+        let pos = crate::input::multi::keyboard_menu_at(self.menu_anchor(None, x, y), size);
         self.ui_state.context_menu = Some(ContextMenuState {
             entity_idx,
             pos,
-            surface,
+            surface: None,
             armed: false,
             keyboard: true,
         });

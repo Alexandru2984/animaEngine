@@ -90,7 +90,9 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   the selection, as does the Menu key — Save as GIF, Share and Arrange
   were the mouse's alone — and `Ctrl+A` selects every character, so a
   keyboard can group and arrange them too; both chords are rebindable
-  (the Menu key is not: egui has no name for it). The F-keys can be bound, F1 to
+  (the Menu key is not: egui has no name for it). Opened from the
+  keyboard, the menu shows on the monitor with the settings panel,
+  nearest the character, wherever the character is. The F-keys can be bound, F1 to
   F12: one bound by hand used to make the whole config unreadable.
 
 #### Scenes and files

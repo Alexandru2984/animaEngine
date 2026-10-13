@@ -176,6 +176,24 @@ pub fn select_with_its_group(scene: &Scene, selection: &mut SelectionState, idx:
     selection.select_all_of(&picked);
 }
 
+/// Where a right-click menu opened from the keyboard goes: on the panel's
+/// surface, `size` in its points, at `at` — the middle of the character, in
+/// those points — brought inside it. The character may stand on another
+/// monitor, whose overlay hears no keys but Escape and tells no screen
+/// reader: its menu showed there with its first item focused, and neither
+/// Tab, Enter nor Orca could reach it. A menu opened with the mouse still
+/// opens by the character. egui keeps the whole menu on screen.
+pub fn keyboard_menu_at(at: egui::Pos2, size: egui::Vec2) -> egui::Pos2 {
+    let inside = |v: f32, max: f32| {
+        if v.is_finite() {
+            v.clamp(0.0, max.max(0.0))
+        } else {
+            0.0
+        }
+    };
+    egui::pos2(inside(at.x, size.x), inside(at.y, size.y))
+}
+
 /// A right-click on the character at `idx`: one of several selected keeps
 /// them all, so the menu acts on every one; otherwise it is selected with
 /// its group.
@@ -287,6 +305,23 @@ pub fn touched(scene: &Scene, (l, t, r, b): (f32, f32, f32, f32)) -> Vec<usize> 
             x < r && x + w > l && y < b && y + h > t
         })
         .collect()
+}
+
+#[cfg(test)]
+mod keyboard_menu_tests {
+    use super::keyboard_menu_at;
+
+    #[test]
+    fn a_keyboard_menu_stays_on_the_panels_surface() {
+        let size = egui::vec2(1600.0, 1000.0);
+        let on = |x, y| keyboard_menu_at(egui::pos2(x, y), size);
+        assert_eq!(on(300.0, 400.0), egui::pos2(300.0, 400.0));
+        // A character on the monitor to the right: at the edge, its height.
+        assert_eq!(on(2200.0, 400.0), egui::pos2(1600.0, 400.0));
+        // To the left and above.
+        assert_eq!(on(-500.0, -20.0), egui::pos2(0.0, 0.0));
+        assert_eq!(on(f32::NAN, 10.0), egui::pos2(0.0, 10.0));
+    }
 }
 
 #[cfg(test)]

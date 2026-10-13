@@ -1126,9 +1126,10 @@ pub fn run_native(
                     config.global.sounds_muted = !config.global.sounds_muted;
                     config_dirty = true;
                 }
-                // The right-click menu, from the keyboard: at the middle of
-                // the character selected, on the monitor it is on, its first
-                // item focused (`ContextMenuState::keyboard`).
+                // The right-click menu, from the keyboard: on the panel's
+                // surface, where the keys and a screen reader are, nearest
+                // the character selected, its first item focused
+                // (`input::multi::keyboard_menu_at`).
                 Action::OpenContextMenu => {
                     if let Some(idx) = selection.selected_index() {
                         if let Some(e) = scene.entities.get(idx) {
@@ -1137,16 +1138,16 @@ pub fn run_native(
                                 e.y + e.scaled_height() / 2.0,
                             );
                             crate::input::multi::select_for_menu(&scene, &mut selection, idx);
-                            let elsewhere = monitors_now.iter().find(|m| {
-                                extra_surfaces.contains_key(&m.name) && m.contains(at.x, at.y)
-                            });
                             context_menu_state = Some(crate::app::ContextMenuState {
                                 entity_idx: idx,
-                                pos: match elsewhere {
-                                    Some(m) => at - egui::vec2(m.x as f32, m.y as f32),
-                                    None => at - egui::vec2(primary_origin.0, primary_origin.1),
-                                },
-                                surface: elsewhere.map(|m| m.name.clone()),
+                                pos: crate::input::multi::keyboard_menu_at(
+                                    at - egui::vec2(primary_origin.0, primary_origin.1),
+                                    egui::vec2(
+                                        renderer.primary.window_width as f32,
+                                        renderer.primary.window_height as f32,
+                                    ),
+                                ),
+                                surface: None,
                                 armed: false,
                                 keyboard: true,
                             });
