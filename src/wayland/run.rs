@@ -253,6 +253,9 @@ pub fn run_native(
     // Each other monitor's egui, for the speech bubbles of the characters
     // there (`ui::surface_egui`), made the first time one is needed.
     let mut extra_eguis: HashMap<String, crate::ui::surface_egui::SurfaceEgui> = HashMap::new();
+    // Each extra surface's last frame: one that would look the same is not
+    // drawn (`app::windows::needs_frame`).
+    let mut extra_frames: HashMap<String, crate::app::windows::LastFrame> = HashMap::new();
     let mut last_monitor_mode = config.global.monitor_mode.clone();
     {
         let initial_monitors = layer.monitors();
@@ -443,6 +446,8 @@ pub fn run_native(
             extra_surfaces.keys().map(|s| s.as_str()).collect();
         if config.global.monitor_mode != last_monitor_mode || plan_names != current_names {
             rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
+            // New surfaces, with nothing on them yet.
+            extra_frames.clear();
             last_monitor_mode = config.global.monitor_mode.clone();
         }
         for (name, new_w, new_h) in layer.drain_extra_resizes() {
@@ -2128,6 +2133,53 @@ pub fn run_native(
                             })
                             .collect();
                         let origin = (mon.x as f32, mon.y as f32);
+                        // Its own egui, run while there are bubbles here —
+                        // and once more when one asked for the frame that
+                        // clears it.
+                        let bubbles = if overlay_hidden || aside.hidden {
+                            Vec::new()
+                        } else {
+                            crate::speech::shown(&scene, origin, |e| {
+                                crate::app::windows::entity_on_monitor(&monitors_now, e, name)
+                            })
+                        };
+                        let effects = if overlay_hidden || aside.hidden {
+                            Vec::new()
+                        } else {
+                            scene.effects_shown(
+                                origin,
+                                (surface.window_width as f32, surface.window_height as f32),
+                                now,
+                            )
+                        };
+                        let asked = extra_eguis.get(name).is_some_and(|e| e.repaint_due(now));
+                        // Hidden means hidden, as on the panel's surface.
+                        let menu_here = extra_menu.as_ref().filter(|m| {
+                            m.surface.as_ref() == Some(name) && !(overlay_hidden || aside.hidden)
+                        });
+                        let painted = !bubbles.is_empty()
+                            || !effects.is_empty()
+                            || asked
+                            || menu_here.is_some();
+                        // Not drawn when it would show what it shows
+                        // already, as on X11 (`app::windows::needs_frame`):
+                        // one monitor's walker no longer redraws the rest.
+                        let key = surface.frame_key(
+                            &renderer.shared,
+                            &drawn,
+                            &scene.groups,
+                            layer.state.edit_mode,
+                            marks,
+                            origin,
+                        );
+                        if !crate::app::windows::needs_frame(
+                            extra_frames.get(name).copied(),
+                            key,
+                            painted,
+                            now,
+                        ) {
+                            continue;
+                        }
                         match surface.render(
                             &renderer.shared,
                             &drawn,
@@ -2137,41 +2189,7 @@ pub fn run_native(
                             origin,
                         ) {
                             Ok(extra_output) => {
-                                // Its own egui, run while there are bubbles
-                                // here — and once more when one asked for
-                                // the frame that clears it.
-                                let bubbles = if overlay_hidden || aside.hidden {
-                                    Vec::new()
-                                } else {
-                                    crate::speech::shown(&scene, origin, |e| {
-                                        crate::app::windows::entity_on_monitor(
-                                            &monitors_now,
-                                            e,
-                                            name,
-                                        )
-                                    })
-                                };
-                                let effects = if overlay_hidden || aside.hidden {
-                                    Vec::new()
-                                } else {
-                                    scene.effects_shown(
-                                        origin,
-                                        (surface.window_width as f32, surface.window_height as f32),
-                                        now,
-                                    )
-                                };
-                                let asked =
-                                    extra_eguis.get(name).is_some_and(|e| e.repaint_due(now));
-                                // Hidden means hidden, as on the panel's surface.
-                                let menu_here = extra_menu.as_ref().filter(|m| {
-                                    m.surface.as_ref() == Some(name)
-                                        && !(overlay_hidden || aside.hidden)
-                                });
-                                if !bubbles.is_empty()
-                                    || !effects.is_empty()
-                                    || asked
-                                    || menu_here.is_some()
-                                {
+                                if painted {
                                     let egui =
                                         extra_eguis.entry(name.clone()).or_insert_with(|| {
                                             crate::ui::surface_egui::SurfaceEgui::new(
@@ -2209,10 +2227,19 @@ pub fn run_native(
                                     );
                                 }
                                 surface.present(&renderer.shared, extra_output);
+                                extra_frames.insert(
+                                    name.clone(),
+                                    crate::app::windows::LastFrame {
+                                        key,
+                                        overlay: painted,
+                                        at: now,
+                                    },
+                                );
                             }
                             Err(wgpu::SurfaceError::Lost) => {
                                 let (w, h) = (surface.window_width, surface.window_height);
                                 surface.resize(&renderer.shared, w, h);
+                                extra_frames.remove(name);
                             }
                             Err(e) => {
                                 tracing::warn!("Render error on extra surface {name}: {e:?}");
@@ -2220,8 +2247,9 @@ pub fn run_native(
                         }
                     }
                 }
-                // Monitors gone, and their eguis with them.
+                // Monitors gone, and their eguis and frames with them.
                 extra_eguis.retain(|name, _| extra_surfaces.contains_key(name));
+                extra_frames.retain(|name, _| extra_surfaces.contains_key(name));
                 if toggle_requested {
                     flip_edit_mode(
                         &mut layer,

@@ -341,12 +341,19 @@ surface's space at the edge (`WaylandState::surface_offset`), and one
 per-frame sync keeps their input regions in step with the primary's
 (`LayerWindow::sync_extra_layers`).
 
-**Pacing:** one `RedrawPacing` for every window: the extra monitors'
-windows render inside the primary's redraw cycle
-(`App::render_extra_windows`), so anything moving on any monitor keeps
-them all drawing. Per-window pacing — only the characters on a
-window's monitor holding it awake — is a follow-up, not built (this
-paragraph used to describe it as if it were). The idle heartbeat stays
+**Pacing:** one `RedrawPacing` decides when the loop runs a frame —
+the scene's clock is one — and each other monitor's window then draws
+only if its frame would differ from the one it shows
+(`app::windows::needs_frame`, on both backends): its sprites, edit
+marks and size summed up by `SurfaceState::frame_key`, each picture by
+its upload (`GpuTexture::generation`); while its own egui paints
+bubbles, effects or a menu, every frame and the one after; and once a
+heartbeat whatever happens. Until 1.5 anything moving on any monitor
+kept every window drawing: in the rig, two outputs with the characters
+walking on one, X11 went from 54% to 33% of a core and native Wayland
+from 44% to 31%. The primary still draws whenever the loop runs a
+frame — its panel follows the scene. On X11 a window's own redraw
+(an expose, `render_one_extra`) always draws. The idle heartbeat stays
 a single timer (hot-reload is window-independent). The decision
 itself is `crate::pacing`, shared with the native Wayland loop, which
 sleeps until the next thing it has to do (`pacing::next_wait`) — other

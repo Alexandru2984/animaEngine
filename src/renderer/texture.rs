@@ -9,6 +9,10 @@ pub struct GpuTexture {
     pub bind_group: wgpu::BindGroup,
     pub width: u32,
     pub height: u32,
+    /// Which upload put the picture there (`GpuShared::ensure_texture`):
+    /// a new number whenever it changes, so a window can tell a frame
+    /// that would show a new picture from one that would repeat the last.
+    pub generation: u64,
 }
 
 impl GpuTexture {
@@ -88,6 +92,7 @@ impl GpuTexture {
             bind_group,
             width: frame.width,
             height: frame.height,
+            generation: 0,
         }
     }
 

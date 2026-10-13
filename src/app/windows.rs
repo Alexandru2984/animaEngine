@@ -80,6 +80,78 @@ pub(super) struct WindowSlot {
     /// The characters' rectangles on it while they take taps
     /// (`crate::tap`); empty otherwise.
     pub tap_rects: Vec<crate::tap::SurfaceRect>,
+    /// Its last frame: `None` draws the next whatever it shows.
+    pub last_frame: Option<LastFrame>,
+}
+
+/// What a window's last frame showed, for per-window pacing: in the
+/// primary's frame cycle, a window whose next frame would look the same
+/// is not drawn (`needs_frame`). Every monitor's window used to draw
+/// whenever anything moved on any of them.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct LastFrame {
+    /// Its sprites, edit marks and size (`SurfaceState::frame_key`).
+    pub key: u64,
+    /// Whether its egui painted over them: bubbles, effects, a menu.
+    pub overlay: bool,
+    pub at: std::time::Instant,
+}
+
+/// Whether a window whose last frame was `last` needs one to show `key`,
+/// with its egui painting over it (`overlay`) or not. While egui paints —
+/// a bubble fading, hearts rising — every frame, and the one after, which
+/// clears what it painted; otherwise only for a change, or once a
+/// heartbeat, which bounds whatever this cannot see (a compositor that
+/// lost the window's contents) to a couple of seconds.
+pub(crate) fn needs_frame(
+    last: Option<LastFrame>,
+    key: u64,
+    overlay: bool,
+    now: std::time::Instant,
+) -> bool {
+    match last {
+        None => true,
+        Some(last) => {
+            overlay
+                || last.overlay
+                || last.key != key
+                || now.saturating_duration_since(last.at) >= crate::pacing::IDLE_HEARTBEAT
+        }
+    }
+}
+
+/// What a window's egui paints over its characters this frame: the speech
+/// bubbles and the effects on its monitor, and whether egui asked for the
+/// frame (the one that clears a bubble).
+struct Overlay {
+    bubbles: Vec<crate::speech::Shown>,
+    effects: Vec<crate::effects::Drawn>,
+    asked: bool,
+}
+
+impl Overlay {
+    fn of(slot: &WindowSlot, scene: &crate::scene::Scene, monitors: &[MonitorInfo]) -> Self {
+        let now = std::time::Instant::now();
+        let origin = (slot.monitor.x as f32, slot.monitor.y as f32);
+        let name = &slot.monitor.name;
+        Self {
+            bubbles: crate::speech::shown(scene, origin, |e| entity_on_monitor(monitors, e, name)),
+            effects: scene.effects_shown(
+                origin,
+                (
+                    slot.surface.window_width as f32,
+                    slot.surface.window_height as f32,
+                ),
+                now,
+            ),
+            asked: slot.egui.as_ref().is_some_and(|e| e.repaint_due(now)),
+        }
+    }
+
+    /// Whether there is anything to paint, with `menu` open here or not.
+    fn wanted(&self, menu: bool) -> bool {
+        !self.bubbles.is_empty() || !self.effects.is_empty() || menu || self.asked
+    }
 }
 
 /// Draw what `slot`'s monitor shows over the characters with its own egui
@@ -90,31 +162,18 @@ pub(super) struct WindowSlot {
 fn paint_overlay(
     slot: &mut WindowSlot,
     shared: &crate::renderer::wgpu_renderer::GpuShared,
-    scene: &crate::scene::Scene,
-    monitors: &[MonitorInfo],
+    overlay: Overlay,
     theme: crate::ui::Theme,
     output: &crate::renderer::wgpu_renderer::AcquiredFrame,
     menu: Option<(&super::ContextMenuState, crate::ui::panels::MenuOffers)>,
 ) -> Option<crate::ui::panels::ContextMenuOutcome> {
-    let origin = (slot.monitor.x as f32, slot.monitor.y as f32);
-    let name = slot.monitor.name.clone();
-    let bubbles = crate::speech::shown(scene, origin, |e| entity_on_monitor(monitors, e, &name));
-    let effects = scene.effects_shown(
-        origin,
-        (
-            slot.surface.window_width as f32,
-            slot.surface.window_height as f32,
-        ),
-        std::time::Instant::now(),
-    );
-    let asked = slot
-        .egui
-        .as_ref()
-        .is_some_and(|e| e.repaint_due(std::time::Instant::now()));
-    if bubbles.is_empty() && effects.is_empty() && menu.is_none() && !asked {
+    if !overlay.wanted(menu.is_some()) {
         slot.pending_events.clear();
         return None;
     }
+    let Overlay {
+        bubbles, effects, ..
+    } = overlay;
     // Window pixels to egui points, as on the primary.
     let pixels_per_point = slot.window.scale_factor() as f32;
     let size = [slot.surface.window_width, slot.surface.window_height];
@@ -318,6 +377,7 @@ impl App {
                     pending_events: Vec::new(),
                     pointer: None,
                     tap_rects: Vec::new(),
+                    last_frame: None,
                 },
             );
             // The new window gets the keyboard hint on the next frame.
@@ -391,9 +451,9 @@ impl App {
         }
     }
 
-    /// Render sprites to every extra window. Runs inside the primary
-    /// redraw cycle (one pacing domain for T.6 — per-window pacing is
-    /// noted as a follow-up in the architecture record).
+    /// Render sprites to every extra window whose frame would differ from
+    /// its last (`needs_frame`). Runs inside the primary's redraw cycle,
+    /// which ticks the scene.
     pub(super) fn render_extra_windows(&mut self) {
         if self.extra_windows.is_empty() {
             return;
@@ -422,6 +482,7 @@ impl App {
         let mut outcome = None;
 
         let visible = self.scene.drawn_entities();
+        let now = std::time::Instant::now();
         for slot in self.extra_windows.values_mut() {
             let drawn: Vec<&Entity> = visible
                 .iter()
@@ -429,6 +490,25 @@ impl App {
                 .filter(|e| entity_on_monitor(&self.monitors, e, &slot.monitor.name))
                 .collect();
             let origin = (slot.monitor.x as f32, slot.monitor.y as f32);
+            let here = menu
+                .as_ref()
+                .filter(|m| m.surface.as_deref() == Some(slot.monitor.name.as_str()))
+                .map(|m| (m, offers));
+            // Not drawn when it would show what it shows already: one
+            // monitor's walker no longer redraws every other monitor.
+            let key = slot.surface.frame_key(
+                &renderer.shared,
+                &drawn,
+                &self.scene.groups,
+                self.edit_mode,
+                marks,
+                origin,
+            );
+            let overlay = Overlay::of(slot, &self.scene, &self.monitors);
+            let painted = overlay.wanted(here.is_some());
+            if !needs_frame(slot.last_frame, key, painted, now) {
+                continue;
+            }
             match slot.surface.render(
                 &renderer.shared,
                 &drawn,
@@ -438,25 +518,27 @@ impl App {
                 origin,
             ) {
                 Ok(output) => {
-                    let here = menu
-                        .as_ref()
-                        .filter(|m| m.surface.as_deref() == Some(slot.monitor.name.as_str()))
-                        .map(|m| (m, offers));
                     let decided = paint_overlay(
                         slot,
                         &renderer.shared,
-                        &self.scene,
-                        &self.monitors,
+                        overlay,
                         self.config.global.theme,
                         &output,
                         here,
                     );
                     outcome = outcome.or(decided);
                     slot.surface.present(&renderer.shared, output);
+                    slot.last_frame = Some(LastFrame {
+                        key,
+                        overlay: painted,
+                        at: now,
+                    });
                 }
                 Err(wgpu::SurfaceError::Lost) => {
                     let (w, h) = (slot.surface.window_width, slot.surface.window_height);
                     slot.surface.resize(&renderer.shared, w, h);
+                    // Its contents went with it.
+                    slot.last_frame = None;
                 }
                 Err(e) => {
                     tracing::warn!("Render error on {}: {e:?}", slot.monitor.name);
@@ -500,6 +582,17 @@ impl App {
             .filter(|e| entity_on_monitor(&self.monitors, e, &slot.monitor.name))
             .collect();
         let origin = (slot.monitor.x as f32, slot.monitor.y as f32);
+        // Always drawn: asked for by the window itself, which may be an
+        // expose after its contents were lost. Noted, so the primary's
+        // cycle does not draw the same again.
+        let key = slot.surface.frame_key(
+            &renderer.shared,
+            &drawn,
+            &self.scene.groups,
+            self.edit_mode,
+            marks,
+            origin,
+        );
         if let Ok(output) = slot.surface.render(
             &renderer.shared,
             &drawn,
@@ -512,16 +605,22 @@ impl App {
                 .as_ref()
                 .filter(|m| m.surface.as_deref() == Some(slot.monitor.name.as_str()))
                 .map(|m| (m, offers));
+            let overlay = Overlay::of(slot, &self.scene, &self.monitors);
+            let painted = overlay.wanted(here.is_some());
             let decided = paint_overlay(
                 slot,
                 &renderer.shared,
-                &self.scene,
-                &self.monitors,
+                overlay,
                 self.config.global.theme,
                 &output,
                 here,
             );
             slot.surface.present(&renderer.shared, output);
+            slot.last_frame = Some(LastFrame {
+                key,
+                overlay: painted,
+                at: std::time::Instant::now(),
+            });
             if let Some(outcome) = decided {
                 self.handle_menu_outcome(outcome);
             }
@@ -606,6 +705,42 @@ impl App {
                 self.window_platforms_active = true;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod pacing_tests {
+    use super::{needs_frame, LastFrame};
+    use std::time::{Duration, Instant};
+
+    /// A window draws for a change, while its egui paints and once after,
+    /// and once a heartbeat — not for a walker on another monitor.
+    #[test]
+    fn a_window_draws_only_for_what_it_shows() {
+        let now = Instant::now();
+        let last = |key, overlay| {
+            Some(LastFrame {
+                key,
+                overlay,
+                at: now,
+            })
+        };
+        assert!(needs_frame(None, 1, false, now));
+        assert!(!needs_frame(last(1, false), 1, false, now));
+        assert!(needs_frame(last(1, false), 2, false, now));
+        assert!(needs_frame(last(1, false), 1, true, now));
+        assert!(
+            needs_frame(last(1, true), 1, false, now),
+            "the frame that clears it"
+        );
+        let later = now + crate::pacing::IDLE_HEARTBEAT;
+        assert!(needs_frame(last(1, false), 1, false, later));
+        assert!(!needs_frame(
+            last(1, false),
+            1,
+            false,
+            now + Duration::from_millis(500)
+        ));
     }
 }
 

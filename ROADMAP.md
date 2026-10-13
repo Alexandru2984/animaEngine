@@ -44,10 +44,10 @@ Not commitments — what is known to be missing, with where it came from.
   The 7-day desktop soak (docs/soak-testing.md) has a protocol, not yet
   results. A native speaker's pass over the nine machine-translated
   languages, which carry most of 1.5's new text.
-- **Per-window pacing on X11.** Extra monitors' windows render in the
-  primary's frame cycle (`App::render_extra_windows`), so something
-  moving on one monitor keeps every window drawing
-  ([architecture.md](docs/architecture.md), *Pacing*).
+- **The primary window's frames.** Since 1.5 another monitor's window
+  draws only when what it shows changes; the primary's still draws
+  whenever anything moves on any monitor, its panel following the
+  scene ([architecture.md](docs/architecture.md), *Pacing*).
 - **Deferred hardening** (from the post-1.0 audits): the OpenH264
   decoder out of process (the `video` feature's opt-out is the interim
   answer), and a reproducible-build check in a digest-pinned container.

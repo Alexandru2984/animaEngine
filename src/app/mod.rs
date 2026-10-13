@@ -544,8 +544,10 @@ impl App {
         if let Some(window) = &self.window {
             window.set_visible(visible);
         }
-        for slot in self.extra_windows.values() {
+        for slot in self.extra_windows.values_mut() {
             slot.window.set_visible(visible);
+            // Mapped again, a window has no contents until it draws.
+            slot.last_frame = None;
         }
         if visible {
             self.reapply_input_shape();

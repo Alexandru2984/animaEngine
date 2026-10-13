@@ -349,7 +349,11 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   for seconds, the full-screen watch
   asked the X server a dozen times a second instead of waiting to be
   told, and the global shortcuts' library looked for a press twenty
-  times a second — the app grabs them itself now, and waits.
+  times a second — the app grabs them itself now, and waits. With
+  several monitors, each other monitor's overlay draws only when what
+  it shows changes: anything moving on one used to redraw them all
+  (two outputs in the rig, the characters walking on one: X11 from 54%
+  to 33% of a core, native Wayland from 44% to 31%).
 - **A config written by a newer version no longer costs the whole
   file.** A character, group, reminder or schedule rule this version
   cannot read — a behavior or asset type from a later release, or a

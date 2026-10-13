@@ -828,9 +828,8 @@ impl App {
             self.surface_loss_streak = 0;
         }
 
-        // Render the PerMonitor extras inside the same cycle (one
-        // pacing domain for T.6 — per-window pacing is a recorded
-        // follow-up in the architecture notes).
+        // The PerMonitor extras, in the same cycle: each only when what
+        // it shows has changed (`windows::needs_frame`).
         self.render_extra_windows();
 
         // Schedule the next frame. Pre-0.5.5 this was an unconditional

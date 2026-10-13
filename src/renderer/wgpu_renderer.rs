@@ -66,6 +66,8 @@ pub struct GpuShared {
     /// via `take_frame_gpu_counters`.
     uploads_this_frame: std::cell::Cell<u32>,
     draws_this_frame: std::cell::Cell<u32>,
+    /// Pictures uploaded since start: each texture's `generation`.
+    uploads: u64,
 }
 
 impl GpuShared {
@@ -639,6 +641,7 @@ impl GpuShared {
             guide_tex,
             uploads_this_frame: std::cell::Cell::new(0),
             draws_this_frame: std::cell::Cell::new(0),
+            uploads: 0,
         })
     }
 
@@ -648,32 +651,38 @@ impl GpuShared {
 
         if needs_create {
             if let Some(frame) = entity.animation().current_frame_data() {
-                let gpu_tex = GpuTexture::from_frame(
+                let mut gpu_tex = GpuTexture::from_frame(
                     &self.device,
                     &self.queue,
                     frame,
                     &self.texture_bind_group_layout,
                     &entity.id,
                 );
+                self.uploads += 1;
+                gpu_tex.generation = self.uploads;
                 self.textures.insert(entity.id.clone(), gpu_tex);
                 self.note_upload();
             }
         } else if entity.texture_dirty {
             if let Some(frame) = entity.animation().current_frame_data() {
-                if let Some(gpu_tex) = self.textures.get(&entity.id) {
+                let generation = self.uploads + 1;
+                if let Some(gpu_tex) = self.textures.get_mut(&entity.id) {
+                    self.uploads = generation;
                     // If same size, update in place
                     if gpu_tex.width == frame.width && gpu_tex.height == frame.height {
                         gpu_tex.update_from_frame(&self.queue, frame);
+                        gpu_tex.generation = generation;
                         self.note_upload();
                     } else {
                         // Different size: recreate texture
-                        let new_tex = GpuTexture::from_frame(
+                        let mut new_tex = GpuTexture::from_frame(
                             &self.device,
                             &self.queue,
                             frame,
                             &self.texture_bind_group_layout,
                             &entity.id,
                         );
+                        new_tex.generation = generation;
                         self.textures.insert(entity.id.clone(), new_tex);
                         self.note_upload();
                     }
@@ -850,6 +859,66 @@ impl SurfaceState {
                 }
             }
         }
+    }
+
+    /// A summary of what [`render`](Self::render) would draw with these
+    /// arguments: the same number for two frames that would look the
+    /// same, so a window can skip one that would only repeat its last
+    /// (`App::render_extra_windows`). Every quad's place, size, opacity,
+    /// facing and picture go in — the picture by its upload — and the
+    /// window's size; a rare collision costs one frame left undrawn
+    /// until something else on it changes.
+    pub fn frame_key(
+        &self,
+        shared: &GpuShared,
+        entities: &[&Entity],
+        groups: &[crate::group::GroupConfig],
+        edit_mode: bool,
+        marks: EditMarks<'_>,
+        origin: (f32, f32),
+    ) -> u64 {
+        use crate::input::arrange::Guide;
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let bits = |v: f32, h: &mut std::collections::hash_map::DefaultHasher| v.to_bits().hash(h);
+        (self.window_width, self.window_height, edit_mode).hash(&mut h);
+        for v in [self.pixel_scale, origin.0, origin.1] {
+            bits(v, &mut h);
+        }
+        for entity in entities {
+            let Some(tex) = shared.textures.get(&entity.id) else {
+                continue;
+            };
+            let (gx, gy, gscale) = crate::group::transform_for_member(groups, &entity.id);
+            (entity.id.as_str(), tex.generation, entity.facing_left).hash(&mut h);
+            for v in [
+                entity.x + gx,
+                entity.y + gy,
+                entity.scale * gscale,
+                entity.opacity * entity.fade.clamp(0.0, 1.0),
+            ] {
+                bits(v, &mut h);
+            }
+            (edit_mode && marks.selected.contains(&entity.id.as_str())).hash(&mut h);
+        }
+        if edit_mode {
+            if let Some((l, t, r, b)) = marks.marquee {
+                for v in [l, t, r, b] {
+                    bits(v, &mut h);
+                }
+            }
+            for guide in marks.guides {
+                let (kind, a, from, to) = match *guide {
+                    Guide::Vertical { x, from, to } => (0u8, x, from, to),
+                    Guide::Horizontal { y, from, to } => (1u8, y, from, to),
+                };
+                kind.hash(&mut h);
+                for v in [a, from, to] {
+                    bits(v, &mut h);
+                }
+            }
+        }
+        h.finish()
     }
 
     /// Pixels a unit, in its swapchain.
