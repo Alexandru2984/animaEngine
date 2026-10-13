@@ -576,8 +576,10 @@ impl App {
                                 // Bubbles and effects are in window pixels.
                                 crate::ui::effects::paint(ctx, &effects, ctx.pixels_per_point());
                                 crate::ui::speech::paint(ctx, &bubbles, ctx.pixels_per_point());
-                                // And to a screen reader (`crate::announce`).
+                                // And to a screen reader (`crate::announce`),
+                                // with the toasts.
                                 crate::ui::speech::announce(ctx);
+                                crate::ui::toasts::announce(ctx, toasts_ref);
                                 // First-run tour (V.2): floats on the
                                 // overlay in both modes; advances to
                                 // its interactive steps in edit mode.

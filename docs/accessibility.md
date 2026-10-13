@@ -86,6 +86,14 @@ the moment it appears ([src/announce.rs](../src/announce.rs),
 again is read again. The Zzz… of a sleeping scene is not announced. With
 the setting off, or no reader listening, nothing is built.
 
+Toasts are announced the same way (`ui::toasts::announce`): each one a
+live node of its own while it lasts — polite for news ("Scene:
+Evening"), assertive for a warning or an error ("Rejected: …") — in
+both modes, so one raised in pass-through, where only the panel would
+draw it, is heard all the same. A banner's text is live too, read out
+when the panel opens on it. Checked on both backends with an AT-SPI
+listener for `object:announcement`.
+
 **Larger bubbles (1.5).** Appearance → "Large text in bubbles"
 (`large_bubbles`) makes every bubble's text 1.4 times larger, wrapping
 wider to match; a character's own text size (the Inspector's "Says")

@@ -163,7 +163,10 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   reminders, the focus timer, greetings and a welcome back are announced
   over AT-SPI as they are said, so Orca reads them out — politely, after
   what it is saying. Only with a screen reader listening and the
-  accessibility tree switched on in Appearance.
+  accessibility tree switched on in Appearance. Toasts are announced
+  the same way — a warning or an error at once — in pass-through too,
+  where only the panel would show them, and a banner when the panel
+  opens on it.
 
 #### What they do
 

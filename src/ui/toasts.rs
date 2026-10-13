@@ -26,6 +26,9 @@ pub struct Toast {
     pub created_at: Instant,
     /// Total time the toast remains visible before `prune` removes it.
     pub lifetime: Duration,
+    /// Its number in the queue's life: a screen reader is told of a
+    /// toast by a node it has not seen before (`announce`).
+    pub serial: u64,
 }
 
 impl Toast {
@@ -54,6 +57,8 @@ const MAX_TOASTS: usize = 8;
 #[derive(Default)]
 pub struct ToastQueue {
     toasts: Vec<Toast>,
+    /// The next toast's `serial`.
+    next_serial: u64,
 }
 
 impl ToastQueue {
@@ -71,11 +76,13 @@ impl ToastQueue {
     }
 
     fn push(&mut self, kind: ToastKind, msg: impl Into<String>, lifetime: Duration) {
+        self.next_serial += 1;
         self.toasts.push(Toast {
             kind,
             message: msg.into(),
             created_at: Instant::now(),
             lifetime,
+            serial: self.next_serial,
         });
         if self.toasts.len() > MAX_TOASTS {
             // Drop the oldest — newer messages are usually more relevant.
@@ -99,6 +106,24 @@ impl ToastQueue {
     }
 }
 
+/// Tell a screen reader each toast, once: a live node of its own while it
+/// lasts, as a character's line is (`crate::ui::speech::announce`) —
+/// politely for news, at once for a warning or an error. In both modes:
+/// a toast raised in pass-through, which only the panel draws, is heard
+/// all the same. Nothing with the bridge off.
+pub fn announce(ctx: &egui::Context, queue: &ToastQueue) {
+    for toast in queue.iter() {
+        ctx.accesskit_node_builder(egui::Id::new(("anima.toast", toast.serial)), |node| {
+            node.set_role(egui::accesskit::Role::Label);
+            node.set_value(toast.message.clone());
+            node.set_live(match toast.kind {
+                ToastKind::Warn | ToastKind::Error => egui::accesskit::Live::Assertive,
+                ToastKind::Info | ToastKind::Success => egui::accesskit::Live::Polite,
+            });
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,6 +141,18 @@ mod tests {
         assert!(messages.contains(&"msg 3"));
     }
 
+    /// Each toast is a node of its own to a screen reader, even when the
+    /// words are the same as the last one's.
+    #[test]
+    fn each_toast_has_a_number_of_its_own() {
+        let mut q = ToastQueue::default();
+        q.warn("Paste failed");
+        q.warn("Paste failed");
+        let serials: Vec<u64> = q.iter().map(|t| t.serial).collect();
+        assert_eq!(serials.len(), 2);
+        assert_ne!(serials[0], serials[1]);
+    }
+
     #[test]
     fn prune_removes_expired() {
         let mut q = ToastQueue::default();
@@ -125,6 +162,7 @@ mod tests {
             message: "old".into(),
             created_at: Instant::now() - Duration::from_secs(10),
             lifetime: Duration::from_secs(1),
+            serial: 0,
         });
         q.info("fresh");
         q.prune();

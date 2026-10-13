@@ -290,7 +290,13 @@ pub(super) fn warning_banner(ui: &mut egui::Ui, warning: Warning) {
         .show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label(egui::RichText::new(icons::WARN).color(accent));
-                ui.label(egui::RichText::new(t(warning.i18n_key())).text_style(theme::caption()));
+                let text = ui
+                    .label(egui::RichText::new(t(warning.i18n_key())).text_style(theme::caption()));
+                // Read out when it first shows — as the panel opens — and
+                // not only when the focus finds it.
+                ui.ctx().accesskit_node_builder(text.id, |node| {
+                    node.set_live(egui::accesskit::Live::Polite);
+                });
             });
         });
     ui.add_space(SPACE_XS);

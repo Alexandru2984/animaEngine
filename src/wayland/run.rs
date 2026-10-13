@@ -1928,8 +1928,10 @@ pub fn run_native(
                         // events map to them one to one.
                         crate::ui::effects::paint(ctx, &effects, 1.0);
                         crate::ui::speech::paint(ctx, &bubbles, 1.0);
-                        // And to a screen reader (`crate::announce`).
+                        // And to a screen reader (`crate::announce`), with
+                        // the toasts.
                         crate::ui::speech::announce(ctx);
+                        crate::ui::toasts::announce(ctx, toasts_ref);
                         if crate::ui::onboarding::coach_marks(
                             ctx,
                             onboarding_mut,
