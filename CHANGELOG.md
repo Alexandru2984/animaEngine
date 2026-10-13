@@ -396,8 +396,11 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   a buffer of one pixel a unit. Each surface is now drawn at its own
   output's scale, fractional ones too (125 %, 150 %, through
   `wp_fractional_scale_v1` and `wp_viewporter`), so two monitors at
-  different scales each get theirs. Checked in the test rig at 1, 1.5
-  and 2, and on two outputs at 1 and 2 with the panel on either.
+  different scales each get theirs, and a screen reader is told where
+  each control is in the same units. Checked in the test rig at 1, 1.5
+  and 2, on two outputs at 1 and 2 with the panel on either, and with
+  the scale changed while it ran: clicks, taps, file drops and the
+  screen reader's positions all where the controls are drawn.
 - **Some text stayed English in every language**: the presets in the
   Scene tab and the command palette — their names, what they say they
   are, the characters they add — the tray icon's tooltip, the shortcuts'

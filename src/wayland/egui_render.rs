@@ -200,10 +200,11 @@ impl WaylandEguiRenderer {
             modifiers,
             build_ui,
         );
-        self.screen_reader.publish(
-            self.accesskit_allowed,
-            platform_output.accesskit_update.take(),
-        );
+        let mut update = platform_output.accesskit_update.take();
+        if let Some(update) = update.as_mut() {
+            in_surface_units(update);
+        }
+        self.screen_reader.publish(self.accesskit_allowed, update);
         for command in &platform_output.commands {
             if let egui::OutputCommand::CopyText(text) = command {
                 if !text.is_empty() {
@@ -220,6 +221,21 @@ impl WaylandEguiRenderer {
                 r.height().round().max(1.0) as i32,
             )
         });
+    }
+}
+
+/// egui scales its screen-reader tree by its pixels per point, for a
+/// screen in pixels, as winit's is. A Wayland surface's coordinates are
+/// its units — egui's points here (`layer_window::scale`), and the window
+/// bounds given with `set_window_state` — so the root's scale comes off:
+/// at scale 2 every control was reported at twice its place and size.
+fn in_surface_units(update: &mut egui::accesskit::TreeUpdate) {
+    if let Some(root) = update.tree.as_ref().map(|t| t.root) {
+        for (id, node) in &mut update.nodes {
+            if *id == root {
+                node.clear_transform();
+            }
+        }
     }
 }
 
@@ -249,6 +265,28 @@ fn effective_modifiers(events: &[egui::Event], live: egui::Modifiers) -> egui::M
 #[cfg(test)]
 mod tests {
     use super::effective_modifiers;
+
+    /// The root's scale comes off, and only the root's.
+    #[test]
+    fn the_tree_is_in_surface_units() {
+        use egui::accesskit::{Affine, Node, NodeId, Role, Tree, TreeUpdate};
+        let (root, child) = (NodeId(1), NodeId(2));
+        let mut window = Node::new(Role::Window);
+        window.set_transform(Affine::scale(2.0));
+        let mut button = Node::new(Role::Button);
+        button.set_transform(Affine::translate((5.0, 0.0)));
+        let mut update = TreeUpdate {
+            nodes: vec![(root, window), (child, button)],
+            tree: Some(Tree::new(root)),
+            focus: root,
+        };
+        super::in_surface_units(&mut update);
+        assert_eq!(update.nodes[0].1.transform(), None);
+        assert_eq!(
+            update.nodes[1].1.transform(),
+            Some(&Affine::translate((5.0, 0.0)))
+        );
+    }
 
     fn key(k: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
         egui::Event::Key {

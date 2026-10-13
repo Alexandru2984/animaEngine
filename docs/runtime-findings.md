@@ -2359,3 +2359,14 @@ output at 2 and at 1.5 — the panel at its size, sharp, the ⚙ button
 clicked out of edit mode; two outputs side by side at 1 and 2, with the
 panel on each in turn — a character on either clicked and selected, the
 edit bar drawn on both.
+
+**Found in the review after:** the screen reader's positions doubled.
+egui scales its AccessKit tree's root by pixels per point, for a screen
+in pixels as winit's is; with the points now surface units, at scale 2
+the ⚙ button was reported at (1472, 0) and 128 × 128 on a surface 800
+units wide. Before the fix above the two errors had cancelled out. The
+root's scale comes off on this backend (`in_surface_units`): (736, 0),
+64 × 64, read back over AT-SPI. Also checked at scale 2: a tap on a
+character is the overlay's and one beside it reaches the window below,
+a file dropped at (300, 200) lands there, and the scale changed from 1
+to 2 and back while the overlay ran is followed.
