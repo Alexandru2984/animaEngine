@@ -55,7 +55,7 @@ set the env var.
 | Settings panel + presets + Keybindings tab | ✓ | ✓ |
 | Perf overlay (`Ctrl+Shift+\``) | ✓ | ✓ |
 | Multi-monitor info | XRandR | `wl_output` enumeration |
-| Hi-DPI | the X server's pixels | each surface at its output's scale, fractional ones too: `wp_fractional_scale_v1` + `wp_viewporter` (since 1.5) |
+| Hi-DPI | the panel at the X screen's scale factor; characters at their pictures' pixels | each surface at its output's scale, fractional ones too: `wp_fractional_scale_v1` + `wp_viewporter` (since 1.5) |
 | Stepping aside for full-screen apps | EWMH `_NET_ACTIVE_WINDOW` / `_NET_WM_STATE` | `wlr-foreign-toplevel-management` (sway, Hyprland; not GNOME/KDE) |
 | Holding still when away | MIT-SCREEN-SAVER on a real X server; Mutter's IdleMonitor (D-Bus) under XWayland on GNOME | `ext-idle-notify-v1` (sway, Hyprland, KDE) |
 | `MonitorMode::PerMonitor` distribution | extra `winit::Window` per monitor | extra layer-shell surface per `wl_output` (headless sway, 2–3 outputs — see below) |
@@ -87,6 +87,15 @@ since 1.5 draws each surface at its own output's scale: a buffer of
 `wp_viewport`, the scale from `wp_fractional_scale_v1` (125 %, 150 %)
 or the output's whole number without it. A compositor without
 `wp_viewporter` gets scale 1 — sharp at 100 %, stretched above.
+
+Checked in the rig for 1.5, the X11 path at a uniform scale: with an X
+scale factor of 2 (`WINIT_X11_SCALE_FACTOR=2`, as `Xft.dpi: 192` or a
+desktop's scaling gives), and under XWayland on an output at scale 2.
+In both the ⚙ corner is clickable where it is drawn, in and out of edit
+mode, and a screen reader is told the controls' places in the X
+server's coordinates. Under XWayland the compositor scales the whole
+overlay, so it is as sharp as XWayland makes it; with a scale factor
+the panel is sharp and the characters keep their pictures' pixels.
 
 ## Global shortcuts on Wayland — the portal path (preferred)
 

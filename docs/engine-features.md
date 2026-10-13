@@ -69,7 +69,10 @@ Implication: an entity dragged across a monitor boundary updates its
   drawn at its own output's scale, fractional ones included
   (`wayland::layer_window::scale`, 1.5); positions and sizes are in
   the compositor's logical units, so a character is the same size on
-  every monitor. On X11 they are the X server's pixels.
+  every monitor. On X11 they are the X server's pixels: the panel
+  follows the screen's scale factor (`Xft.dpi`, or a desktop's), and a
+  character is drawn at its picture's own pixels — at a factor of 2,
+  half the size native Wayland draws it at 200 %.
 - **Wayland multi-output**: `wlr-layer-shell-unstable-v1` allows
   binding to a specific `wl_output`. The native backend
   (`ANIMA_USE_WAYLAND_NATIVE=1`) iterates outputs and creates one

@@ -44,6 +44,11 @@ Not commitments — what is known to be missing, with where it came from.
   The 7-day desktop soak (docs/soak-testing.md) has a protocol, not yet
   results. A native speaker's pass over the nine machine-translated
   languages, which carry most of 1.5's new text.
+- **Characters at the screen's scale on X11.** With an X scale factor
+  of 2 the panel doubles, but a character keeps its picture's pixels —
+  half the size native Wayland draws it at 200 %
+  ([wayland.md](docs/wayland.md)). Positions there are the X server's
+  pixels, so it means scaling every size the scene measures.
 - **Deferred hardening** (from the post-1.0 audits): the OpenH264
   decoder out of process (the `video` feature's opt-out is the interim
   answer), and a reproducible-build check in a digest-pinned container.
