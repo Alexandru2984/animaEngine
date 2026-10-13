@@ -226,9 +226,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::CycleEntity => {
-            // Empty scene: nothing to cycle through, silently
-            // no-op so the user's `Tab` doesn't grab focus from
-            // the egui panel (which Tab would otherwise navigate).
+            // Empty scene: nothing to cycle through, a silent no-op.
             if scene.entities.is_empty() {
                 return true;
             }

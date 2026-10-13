@@ -1,25 +1,22 @@
 //! Global hotkeys — toggle the overlay from any focused window.
 //!
 //! On X11 (and XWayland) they are grabbed with `XGrabKey`
-//! ([`x11_grab`]), which works regardless of which window currently has
-//! focus; on Windows the `global-hotkey` crate registers them. On a native Wayland session XGrabKey is not exposed, so the
-//! hotkeys silently no-op — the tray menu and `⚙` button still work.
-//!
-//! `probe` (T.0) detects whether the session offers the
-//! `GlobalShortcuts` desktop portal — the mechanism that will replace
-//! XGrabKey as the preferred backend on GNOME/KDE Wayland (T.1/T.2).
+//! (`x11_grab`), which works regardless of which window currently has
+//! focus; on Windows the `global-hotkey` crate registers them. On a
+//! native Wayland session there is no XGrabKey: the `GlobalShortcuts`
+//! portal, where the desktop has one (`portal`, chosen by `probe`),
+//! or else the compositor's own bindings calling the D-Bus methods.
 //!
 //! The set of globally-registered chords is derived from
-//! [`KeyBindings`] at startup:
-//! whichever chord the user has bound to `ToggleEditMode`,
-//! `HideOverlay`, or `PauseAll` *and* that carries at least one
-//! modifier (Ctrl / Alt / Super) gets registered. Bare-letter chords
+//! [`KeyBindings`] at startup (`global_chords`): whichever chord the
+//! user has bound to one of the global actions — edit mode, hiding,
+//! pausing, the focus timer, snoozing, muting — *and* that carries at
+//! least one modifier (Ctrl / Alt / Super) gets registered. Bare-letter chords
 //! are skipped on purpose — `XGrabKey`-ing a plain `Q` would steal
 //! the key from every focused app.
 
-// The GlobalShortcuts portal is a D-Bus (zbus) client — unix-only. The
-// `global-hotkey` path below stays portable: it is XGrabKey on X11 and
-// `RegisterHotKey` on Windows.
+// The GlobalShortcuts portal is a D-Bus (zbus) client and the grab an
+// X11 one — both unix-only; Windows registers through `global-hotkey`.
 #[cfg(unix)]
 pub mod portal;
 pub mod probe;

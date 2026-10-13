@@ -2505,7 +2505,9 @@ fn extras_take_input(hidden: bool, edit_mode: bool, drag_widened: bool) -> bool 
     !hidden && (edit_mode || drag_widened)
 }
 
-/// Dispatch Wayland events, waiting at most `timeout` for the socket.
+/// Dispatch Wayland events, waiting at most `timeout` for the socket —
+/// or for another thread's wake-up (`wayland::waker`), which ends the
+/// wait the moment it comes.
 ///
 /// This replaces `EventQueue::blocking_dispatch`, which waits for a
 /// *compositor* event with no upper bound. On a quiet desktop — pointer
@@ -2518,9 +2520,9 @@ fn extras_take_input(hidden: bool, edit_mode: bool, drag_widened: bool) -> bool 
 /// top.
 ///
 /// Mirrors `blocking_dispatch`'s own steps (dispatch what's buffered,
-/// flush, read, dispatch again) but polls the connection fd with a
-/// deadline, so the loop still sleeps in the kernel when idle and never
-/// waits longer than `timeout`.
+/// flush, read, dispatch again) but polls the connection fd, and the
+/// waker's beside it, with a deadline, so the loop sleeps in the kernel
+/// when idle and never waits longer than `timeout`.
 fn dispatch_with_timeout(
     queue: &mut EventQueue<WaylandState>,
     state: &mut WaylandState,
