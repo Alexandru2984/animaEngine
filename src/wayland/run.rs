@@ -61,7 +61,7 @@ use crate::error::{AnimaError, Result};
 use crate::event::AnimaEvent;
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyChord};
-use crate::monitor::{self, MonitorInfo, WindowPlan};
+use crate::monitor::{self, MonitorInfo, MonitorMode, WindowPlan};
 use crate::outcomes::{self, OutcomeCtx, ShimejiImport};
 use crate::pacing::FRAME_INTERVAL;
 use crate::renderer::wgpu_renderer::{SurfaceState, WgpuRenderer};
@@ -259,10 +259,19 @@ pub fn run_native(
     // And the primary's, outside edit mode.
     let mut primary_frame: Option<crate::app::windows::LastFrame> = None;
     let mut last_monitor_mode = config.global.monitor_mode.clone();
+    // Not on a guess of which monitor the primary is on: the loop makes
+    // them once the compositor says (`awaiting_primary_output`).
     {
         let initial_monitors = layer.monitors();
-        let plan = monitor::plan_windows(&config.global.monitor_mode, &initial_monitors);
-        rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
+        if !awaiting_primary_output(
+            &config.global.monitor_mode,
+            initial_monitors.len(),
+            layer.state.primary_output_name.is_some(),
+            std::time::Duration::ZERO,
+        ) {
+            let plan = monitor::plan_windows(&config.global.monitor_mode, &initial_monitors);
+            rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
+        }
     }
 
     // Upload textures once for the initial scene.
@@ -281,6 +290,7 @@ pub fn run_native(
     // `dispatch_with_timeout`.
     let waker = crate::wayland::waker::Waker::install();
     let mut wait = FRAME_INTERVAL;
+    let loop_started = Instant::now();
     loop {
         let frame_start = Instant::now();
         // Opens the perf frame before the blocking dispatch, so the wait
@@ -446,7 +456,21 @@ pub fn run_native(
             plan.extras.iter().map(|m| m.name.as_str()).collect();
         let current_names: std::collections::HashSet<&str> =
             extra_surfaces.keys().map(|s| s.as_str()).collect();
-        if config.global.monitor_mode != last_monitor_mode || plan_names != current_names {
+        // Which monitor the primary landed on is known once the compositor
+        // says it entered one — after its first frame. Until then, for a
+        // moment at most, no other monitor gets its overlay and nothing is
+        // drawn: the plan guessed the first monitor listed, made an
+        // overlay for the primary's own monitor when the guess was wrong,
+        // and closed it again some 40 ms later.
+        let awaiting_primary = awaiting_primary_output(
+            &config.global.monitor_mode,
+            monitors_now.len(),
+            layer.state.primary_output_name.is_some(),
+            loop_started.elapsed(),
+        );
+        if !awaiting_primary
+            && (config.global.monitor_mode != last_monitor_mode || plan_names != current_names)
+        {
             rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
             // New surfaces, with nothing on them yet.
             extra_frames.clear();
@@ -1753,7 +1777,8 @@ pub fn run_native(
                     || pending_paste.is_some()
                     || pending_text_paste.is_some()
                     || library_scan.is_some()
-                    || config_watch.waiting();
+                    || config_watch.waiting()
+                    || awaiting_primary;
                 // And a reminder or the focus timer's turn on time, not at
                 // the next heartbeat.
                 let at = crate::pacing::soonest(egui_at, reminder_timers.next_due(now));
@@ -1821,7 +1846,7 @@ pub fn run_native(
                 now,
             )
         };
-        let drawn: Vec<&Entity> = if overlay_hidden || aside.hidden {
+        let drawn: Vec<&Entity> = if overlay_hidden || aside.hidden || awaiting_primary {
             // Hidden: present a cleared (fully transparent) surface. The
             // layer surface stays mapped — that is what a layer shell
             // gives us — but nothing is painted into it, which is the
@@ -2507,6 +2532,26 @@ impl FrameGate {
     }
 }
 
+/// The longest the loop waits, at start, to learn which monitor the
+/// primary surface landed on before making the other monitors' overlays
+/// on a guess (`awaiting_primary_output`).
+const PRIMARY_OUTPUT_WAIT: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Whether the loop is still waiting to learn the primary's monitor: with
+/// several monitors, each with an overlay of its own, until the compositor
+/// names it or [`PRIMARY_OUTPUT_WAIT`] has gone by.
+fn awaiting_primary_output(
+    mode: &MonitorMode,
+    monitors: usize,
+    primary_known: bool,
+    since_start: std::time::Duration,
+) -> bool {
+    matches!(mode, MonitorMode::PerMonitor)
+        && monitors > 1
+        && !primary_known
+        && since_start < PRIMARY_OUTPUT_WAIT
+}
+
 /// The chord a drained egui event should be looked up as, if any.
 ///
 /// `egui_owns_keyboard` is `Context::wants_keyboard_input()`: a focused
@@ -2779,8 +2824,9 @@ fn rebuild_extra_surfaces(
         // primary surface vs. `WgpuRenderer`.
         extra_surfaces.remove(&name);
         layer.destroy_extra_layer(&name);
-        // Its monitor gone, or the primary's now — at start, until the
-        // compositor says which output the primary landed on.
+        // Its monitor gone, a monitor mode without it, or the primary's
+        // own: a compositor slower than `PRIMARY_OUTPUT_WAIT` to say where
+        // the primary landed.
         tracing::info!("Closed the extra surface on {name}");
     }
 
@@ -2995,6 +3041,25 @@ mod tests {
         assert!(binding_chord(&key_event(egui::Key::Tab, true), false).is_none());
         assert!(binding_chord(&egui::Event::Text("v".into()), false).is_none());
         assert!(binding_chord(&egui::Event::PointerGone, false).is_none());
+    }
+
+    /// Several monitors, each with an overlay: wait to learn the primary's,
+    /// for a moment at most; otherwise there is nothing to wait for.
+    #[test]
+    fn the_other_overlays_wait_for_the_primarys_monitor() {
+        use std::time::Duration;
+        let per = MonitorMode::PerMonitor;
+        let soon = Duration::from_millis(30);
+        assert!(awaiting_primary_output(&per, 2, false, soon));
+        assert!(!awaiting_primary_output(&per, 2, true, soon));
+        assert!(!awaiting_primary_output(&per, 1, false, soon));
+        assert!(!awaiting_primary_output(&MonitorMode::Span, 2, false, soon));
+        assert!(!awaiting_primary_output(
+            &per,
+            2,
+            false,
+            PRIMARY_OUTPUT_WAIT
+        ));
     }
 
     /// The resize path used to re-apply the pass-through corner
