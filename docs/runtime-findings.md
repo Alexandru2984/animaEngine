@@ -2333,3 +2333,29 @@ else moving: main-thread wake-ups in quarter-seconds from the pause
 
 — the slide in and the fade out, each a fraction of a second — and a
 click on the toast reached a window under the overlay on both.
+
+### R60 · On a hi-DPI output the native backend's panel was twice its size, and clicks missed — `FIXED`
+
+Found taking up the hi-DPI item 1.5's roadmap had left for later, by
+setting the rig's output to scale 2 before anything was changed. The
+layer surfaces kept a buffer of one pixel a surface unit, which the
+compositor stretched to the output's scale, blurring sprites and text.
+egui was told to lay out at the largest output's scale in those same
+units: at scale 2 the panel took 640 of the screen's 800 units and the
+first-run tip ran off its edge. The pointer, meanwhile, reached egui in
+surface units unconverted, so a click reached whatever was drawn at
+twice its distance from the top-left corner — past the middle of the
+screen, nothing: no control in the panel could be clicked where it was
+drawn. Never released at scale 1, which every check had used.
+
+**Fixed:** each surface — the primary and each monitor's — has a
+`wp_viewport` and, where the compositor has it, a
+`wp_fractional_scale_v1`; its buffer is `size × scale` pixels, shown at
+its size, and egui draws at that scale in surface units, the ones the
+pointer, the input region and the scene use (`layer_window::scale`).
+Without the fractional protocol the output's whole-number scale is
+used; without a viewporter, scale 1. **Checked on the rig**: one
+output at 2 and at 1.5 — the panel at its size, sharp, the ⚙ button
+clicked out of edit mode; two outputs side by side at 1 and 2, with the
+panel on each in turn — a character on either clicked and selected, the
+edit bar drawn on both.

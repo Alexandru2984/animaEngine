@@ -239,7 +239,7 @@ pub fn run_native(
     // as the X11 path.
     layer.set_input_region(Some(InputRect::toggle_button_corner(
         width,
-        toggle_button_units(&layer.monitors()),
+        TOGGLE_BUTTON_SIZE,
     )))?;
 
     // Sprite-only extra surfaces for `MonitorMode::PerMonitor`, one
@@ -317,13 +317,12 @@ pub fn run_native(
                 // in edit mode silently reverted the surface to
                 // click-through, and a resize while hidden made it
                 // clickable again.
-                let button = toggle_button_units(&layer.monitors());
                 let region = region_for_state(
                     overlay_hidden || aside.hidden,
                     layer.state.edit_mode || drag_widened,
                     new_w,
                     new_h,
-                    button,
+                    TOGGLE_BUTTON_SIZE,
                 );
                 layer.set_input_region(region)?;
                 tracing::info!("Layer surface resized to {new_w}×{new_h}");
@@ -449,6 +448,24 @@ pub fn run_native(
         for (name, new_w, new_h) in layer.drain_extra_resizes() {
             if let Some(surface) = extra_surfaces.get_mut(&name) {
                 surface.resize(&renderer.shared, new_w, new_h);
+            }
+        }
+        // Each surface at its output's scale (`layer_window::scale`),
+        // as the compositor last said: its buffer made again at it.
+        let primary_scale = layer.state.primary_scale.scale();
+        if renderer.primary.pixel_scale() != primary_scale {
+            renderer
+                .primary
+                .set_pixel_scale(&renderer.shared, primary_scale);
+            tracing::info!("Overlay drawn at scale {primary_scale}");
+            activity = true;
+        }
+        for (name, surface) in &mut extra_surfaces {
+            let scale = layer.extra_scale(name);
+            if surface.pixel_scale() != scale {
+                surface.set_pixel_scale(&renderer.shared, scale);
+                tracing::info!("Overlay on {name} drawn at scale {scale}");
+                activity = true;
             }
         }
 
@@ -665,7 +682,7 @@ pub fn run_native(
                 layer.state.edit_mode || drag_widened,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
-                toggle_button_units(&monitors_now),
+                TOGGLE_BUTTON_SIZE,
             );
             if let Err(e) = layer.set_input_region(region) {
                 tracing::warn!("stepping aside: {e}");
@@ -686,7 +703,7 @@ pub fn run_native(
                 layer.state.edit_mode || widen,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
-                toggle_button_units(&monitors_now),
+                TOGGLE_BUTTON_SIZE,
             );
             if let Err(e) = layer.set_input_region(region) {
                 tracing::warn!("drag region: {e}");
@@ -716,7 +733,7 @@ pub fn run_native(
                 false,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
-                toggle_button_units(&monitors_now),
+                TOGGLE_BUTTON_SIZE,
             );
             let rects = crate::tap::rects(
                 &scene,
@@ -734,7 +751,7 @@ pub fn run_native(
                 layer.state.edit_mode || widen,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
-                toggle_button_units(&monitors_now),
+                TOGGLE_BUTTON_SIZE,
             );
             if let Err(e) = layer.set_input_region(region) {
                 tracing::warn!("tap region: {e}");
@@ -812,7 +829,6 @@ pub fn run_native(
             if added && !layer.state.edit_mode {
                 flip_edit_mode(
                     &mut layer,
-                    &monitors_now,
                     &mut config,
                     &scene,
                     &mut config_dirty,
@@ -957,7 +973,6 @@ pub fn run_native(
                 // shortcut skipped the save — R30 on a third entry point.
                 flip_edit_mode(
                     &mut layer,
-                    &monitors_now,
                     &mut config,
                     &scene,
                     &mut config_dirty,
@@ -1002,7 +1017,7 @@ pub fn run_native(
                     layer.state.edit_mode || drag_widened,
                     renderer.primary.window_width,
                     renderer.primary.window_height,
-                    toggle_button_units(&monitors_now),
+                    TOGGLE_BUTTON_SIZE,
                 );
                 if let Err(e) = layer.set_input_region(region) {
                     tracing::warn!("visibility change: {e}");
@@ -1092,7 +1107,6 @@ pub fn run_native(
                 Action::ToggleEditMode => {
                     flip_edit_mode(
                         &mut layer,
-                        &monitors_now,
                         &mut config,
                         &scene,
                         &mut config_dirty,
@@ -1137,7 +1151,6 @@ pub fn run_native(
                     if timer_shortcut(action, config.global.focus) && layer.state.edit_mode {
                         flip_edit_mode(
                             &mut layer,
-                            &monitors_now,
                             &mut config,
                             &scene,
                             &mut config_dirty,
@@ -1835,14 +1848,11 @@ pub fn run_native(
                     renderer.primary.window_width,
                     renderer.primary.window_height,
                 ];
-                // Pick up the largest scale among all outputs the
-                // surface might be on — undershooting blurs text on
-                // HiDPI; overshooting just makes glyphs bigger than
-                // necessary on standard DPI, which is the kinder
-                // failure mode.
-                // Same scale the input region is sized with, so the
-                // drawn button and its clickable area agree.
-                let pixels_per_point = ui_pixels_per_point(monitors);
+                // egui's points are the surface's units, the pointer's
+                // and the input region's; its pixels are the buffer's, at
+                // the surface's scale (`layer_window::scale`).
+                let pixel_size = renderer.primary.pixel_size();
+                let pixels_per_point = renderer.primary.pixel_scale();
                 let edit_mode_snapshot = layer.state.edit_mode;
                 let hidden_snapshot = overlay_hidden || aside.hidden;
                 // Snapshot the AccessKit flag BEFORE taking its mutable
@@ -1934,7 +1944,7 @@ pub fn run_native(
                     &renderer.shared.device,
                     &renderer.shared.queue,
                     &view,
-                    size,
+                    pixel_size,
                     pixels_per_point,
                     events,
                     modifiers,
@@ -2176,8 +2186,8 @@ pub fn run_native(
                                         &renderer.shared.device,
                                         &renderer.shared.queue,
                                         &view,
-                                        [surface.window_width, surface.window_height],
-                                        ui_pixels_per_point(&monitors_now),
+                                        surface.pixel_size(),
+                                        surface.pixel_scale(),
                                         if menu_here.is_some() {
                                             std::mem::take(&mut extra_menu_events)
                                         } else {
@@ -2215,7 +2225,6 @@ pub fn run_native(
                 if toggle_requested {
                     flip_edit_mode(
                         &mut layer,
-                        &monitors_now,
                         &mut config,
                         &scene,
                         &mut config_dirty,
@@ -2320,7 +2329,6 @@ pub fn run_native(
                         if layer.state.edit_mode {
                             flip_edit_mode(
                                 &mut layer,
-                                &monitors_now,
                                 &mut config,
                                 &scene,
                                 &mut config_dirty,
@@ -2419,38 +2427,6 @@ impl FrameGate {
         }
         draw
     }
-}
-
-/// egui's points-per-buffer-pixel for the native surface.
-///
-/// The layer surface leaves `wl_surface.set_buffer_scale` at 1, so buffer
-/// pixels and surface-local units are the same thing. Taking the largest
-/// scale among the outputs the surface may sit on keeps text crisp —
-/// undershooting blurs it, overshooting only makes glyphs bigger than
-/// necessary. True per-surface buffer scaling is the deferred hi-DPI work
-/// noted in `CompositorHandler::scale_factor_changed`.
-fn ui_pixels_per_point(monitors: &[MonitorInfo]) -> f32 {
-    monitors
-        .iter()
-        .map(|m| m.scale_factor as f32)
-        .fold(1.0_f32, f32::max)
-}
-
-/// The ⚙ toggle button's size in the surface-local units the input
-/// region is specified in.
-///
-/// egui lays the button out in *points* and paints it at
-/// [`ui_pixels_per_point`], so it covers `size × scale` buffer pixels —
-/// which, at buffer scale 1, are surface-local units. Passing the raw
-/// constant to `set_input_region` therefore left the clickable corner a
-/// fraction of the drawn button on any HiDPI output: exactly the
-/// points-vs-pixels mismatch the X11 path had.
-fn toggle_button_units(monitors: &[MonitorInfo]) -> u32 {
-    let px = TOGGLE_BUTTON_SIZE as f32 * ui_pixels_per_point(monitors);
-    if !px.is_finite() {
-        return TOGGLE_BUTTON_SIZE;
-    }
-    px.round().clamp(1.0, u32::MAX as f32) as u32
 }
 
 /// The chord a drained egui event should be looked up as, if any.
@@ -2800,7 +2776,6 @@ fn rebuild_extra_surfaces(
 #[allow(clippy::too_many_arguments)]
 fn flip_edit_mode(
     layer: &mut LayerWindow,
-    monitors: &[MonitorInfo],
     config: &mut AppConfig,
     scene: &Scene,
     config_dirty: &mut bool,
@@ -2808,7 +2783,7 @@ fn flip_edit_mode(
     via: &str,
 ) {
     let new_mode = !layer.state.edit_mode;
-    if let Err(e) = layer.set_edit_mode(new_mode, toggle_button_units(monitors)) {
+    if let Err(e) = layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
         tracing::warn!("Failed to flip input region on edit toggle: {e}");
         return;
     }
@@ -2878,13 +2853,6 @@ mod tests {
         }
     }
 
-    fn scaled(name: &str, scale: f64) -> MonitorInfo {
-        MonitorInfo {
-            scale_factor: scale,
-            ..monitor(name, 0, 0)
-        }
-    }
-
     // ── edit-mode persistence (R30) ──────────────────────────────────
 
     #[test]
@@ -2946,38 +2914,6 @@ mod tests {
         assert!(binding_chord(&key_event(egui::Key::Tab, true), false).is_none());
         assert!(binding_chord(&egui::Event::Text("v".into()), false).is_none());
         assert!(binding_chord(&egui::Event::PointerGone, false).is_none());
-    }
-
-    /// egui paints the button at `points × pixels_per_point`, and at
-    /// buffer scale 1 those are the same units the input region uses —
-    /// so the region has to be scaled too, or the clickable corner is a
-    /// fraction of the drawn button on HiDPI.
-    #[test]
-    fn toggle_button_units_track_the_ui_scale() {
-        assert_eq!(toggle_button_units(&[scaled("a", 1.0)]), TOGGLE_BUTTON_SIZE);
-        assert_eq!(
-            toggle_button_units(&[scaled("a", 2.0)]),
-            TOGGLE_BUTTON_SIZE * 2
-        );
-        // Mixed outputs: the largest scale wins, matching what egui is
-        // told to paint at.
-        assert_eq!(
-            toggle_button_units(&[scaled("a", 1.0), scaled("b", 2.0)]),
-            TOGGLE_BUTTON_SIZE * 2
-        );
-        // Fractional scaling rounds to whole units.
-        assert_eq!(toggle_button_units(&[scaled("a", 1.5)]), 96);
-        // No outputs yet → the unscaled constant, never zero.
-        assert_eq!(toggle_button_units(&[]), TOGGLE_BUTTON_SIZE);
-    }
-
-    #[test]
-    fn toggle_button_units_survive_a_nonsense_scale() {
-        assert_eq!(
-            toggle_button_units(&[scaled("a", f64::NAN)]),
-            TOGGLE_BUTTON_SIZE
-        );
-        assert!(toggle_button_units(&[scaled("a", 0.0)]) >= 1);
     }
 
     /// The resize path used to re-apply the pass-through corner

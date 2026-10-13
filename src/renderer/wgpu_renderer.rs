@@ -175,8 +175,14 @@ const UI_QUADS: usize = 5 + MAX_GUIDES + 1;
 /// Per-window render state.
 pub struct SurfaceState {
     target: Target,
+    /// Its size in the units everything is placed in: the projection's,
+    /// and the scene's. Pixels, unless `pixel_scale` says otherwise.
     pub window_width: u32,
     pub window_height: u32,
+    /// Pixels a unit, in its swapchain: 1 but on native Wayland's hi-DPI
+    /// outputs (`wayland::layer_window::scale`), where a surface of
+    /// `w × h` units has a buffer of `w × h × scale²` pixels.
+    pixel_scale: f32,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     /// Pre-allocated vertex buffer for dynamic quad drawing.
@@ -822,6 +828,7 @@ impl SurfaceState {
             target,
             window_width,
             window_height,
+            pixel_scale: 1.0,
             uniform_buffer,
             uniform_bind_group,
             dynamic_vertex_buffer,
@@ -845,6 +852,32 @@ impl SurfaceState {
         }
     }
 
+    /// Pixels a unit, in its swapchain.
+    pub fn pixel_scale(&self) -> f32 {
+        self.pixel_scale
+    }
+
+    /// The swapchain's size in pixels: its size in units, times
+    /// [`pixel_scale`](Self::pixel_scale).
+    pub fn pixel_size(&self) -> [u32; 2] {
+        [
+            scaled_pixels(self.window_width, self.pixel_scale),
+            scaled_pixels(self.window_height, self.pixel_scale),
+        ]
+    }
+
+    /// Draw at `scale` pixels a unit from now on: the swapchain is made
+    /// again at the size that gives, and everything placed in units stays
+    /// where it was. Nothing when it is already so.
+    pub fn set_pixel_scale(&mut self, shared: &GpuShared, scale: f32) {
+        if scale == self.pixel_scale || !scale.is_finite() || scale <= 0.0 {
+            return;
+        }
+        self.pixel_scale = scale;
+        let (w, h) = (self.window_width, self.window_height);
+        self.resize(shared, w, h);
+    }
+
     /// Handle window resize.
     pub fn resize(&mut self, shared: &GpuShared, new_width: u32, new_height: u32) {
         if new_width == 0 || new_height == 0 {
@@ -853,10 +886,11 @@ impl SurfaceState {
 
         self.window_width = new_width;
         self.window_height = new_height;
+        let [pixel_width, pixel_height] = self.pixel_size();
         match &mut self.target {
             Target::Swapchain { surface, config } => {
-                config.width = new_width;
-                config.height = new_height;
+                config.width = pixel_width;
+                config.height = pixel_height;
                 surface.configure(&shared.device, config);
             }
             #[cfg(windows)]
@@ -1317,6 +1351,34 @@ mod alpha_mode_tests {
     fn opaque_only_is_refused_on_every_platform() {
         let err = pick_alpha_mode(&[Opaque]).unwrap_err().to_string();
         assert!(err.contains("black"), "error should say why: {err}");
+    }
+}
+
+/// The pixels a side of `units` takes at `scale` pixels a unit, as the
+/// fractional-scale protocol has a buffer sized: rounded, at least one.
+fn scaled_pixels(units: u32, scale: f32) -> u32 {
+    if scale == 1.0 {
+        return units;
+    }
+    let px = (units as f32 * scale).round();
+    if px.is_finite() && px >= 1.0 {
+        px.min(u32::MAX as f32) as u32
+    } else {
+        1
+    }
+}
+
+#[cfg(test)]
+mod scale_tests {
+    use super::scaled_pixels;
+
+    #[test]
+    fn a_buffer_is_its_size_times_the_scale_rounded() {
+        assert_eq!(scaled_pixels(1600, 1.0), 1600);
+        assert_eq!(scaled_pixels(800, 2.0), 1600);
+        assert_eq!(scaled_pixels(1067, 1.5), 1601);
+        assert_eq!(scaled_pixels(1, 0.5), 1);
+        assert_eq!(scaled_pixels(10, f32::NAN), 1);
     }
 }
 

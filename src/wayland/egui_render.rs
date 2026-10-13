@@ -16,9 +16,9 @@
 //!    output, paints over the wgpu surface with `LoadOp::Load` so the
 //!    sprites underneath survive.
 //!
-//! HiDPI is intentionally pegged at 1× for now (compositor scale
-//! plumbing is part of E.7's multi-monitor work; E.9 picks up the
-//! polish).
+//! On a hi-DPI output the surface's buffer has more pixels than the
+//! surface has units (`layer_window::scale`): egui's points are the
+//! units, and `pixels_per_point` the surface's scale.
 
 use crate::ui::theme;
 
@@ -161,10 +161,10 @@ impl WaylandEguiRenderer {
     ///
     /// `events` is consumed in place — every drained event from the
     /// layer-window's translator goes in unchanged. `size_in_pixels`
-    /// must match the surface's current dimensions; `pixels_per_point`
-    /// is the compositor's reported scale (1.0 on single-DPI displays,
-    /// 2.0 on most "Retina"-grade panels, etc.). Egui's layout snaps
-    /// to this scale so glyphs stay crisp.
+    /// must match the surface's buffer; `pixels_per_point` is the
+    /// surface's scale (1.0 on single-DPI displays, 1.5 or 2.0 on hi-DPI
+    /// ones), and the events are in its units — points. Egui's layout
+    /// snaps to this scale so glyphs stay crisp.
     #[allow(clippy::too_many_arguments)]
     pub fn render<F>(
         &mut self,

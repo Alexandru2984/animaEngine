@@ -44,9 +44,6 @@ Not commitments — what is known to be missing, with where it came from.
   The 7-day desktop soak (docs/soak-testing.md) has a protocol, not yet
   results. A native speaker's pass over the nine machine-translated
   languages, which carry most of 1.5's new text.
-- **Hi-DPI on native Wayland.** Surfaces keep a buffer scale of 1 and
-  egui takes the largest output scale (`ui_pixels_per_point`); true
-  per-surface scaling is noted as deferred in `wayland/run.rs`.
 - **Per-window pacing on X11.** Extra monitors' windows render in the
   primary's frame cycle (`App::render_extra_windows`), so something
   moving on one monitor keeps every window drawing

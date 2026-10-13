@@ -65,11 +65,14 @@ impl LayerShellHandler for WaylandState {
         // every PerMonitor extra) — `layer` tells us which. Compare
         // against the primary first since it's the hot path (every
         // session has one; extras are opt-in PerMonitor only).
+        // Its buffer is shown at this size, whatever its scale (`scale`).
         if *layer == self.layer {
+            self.primary_scale.set_size(w, h);
             self.pending_size = Some((w, h));
             return;
         }
         if let Some(extra) = self.extra_layers.iter_mut().find(|e| &e.layer == layer) {
+            extra.scale.set_size(w, h);
             extra.pending_size = Some((w, h));
         }
     }
@@ -80,10 +83,14 @@ impl CompositorHandler for WaylandState {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _new_factor: i32,
+        surface: &wl_surface::WlSurface,
+        new_factor: i32,
     ) {
-        // Hi-DPI handling lands in a later sub-phase.
+        // The output's whole-number scale; a fractional one, where the
+        // compositor has it, comes instead (`scale`).
+        if let Some(scale) = self.scale_of(surface) {
+            scale.offer_integer(new_factor);
+        }
     }
 
     fn transform_changed(

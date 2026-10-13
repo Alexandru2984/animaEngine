@@ -44,6 +44,11 @@ pub struct WaylandState {
     pub seat_state: SeatState,
     pub compositor: CompositorState,
     pub(super) _layer_shell: LayerShell,
+    /// The compositor's means to draw a surface at its output's scale
+    /// (`scale`), and the primary's scale — before `layer`, so its
+    /// objects go before the surface does.
+    pub(super) scale_globals: super::scale::ScaleGlobals,
+    pub primary_scale: super::scale::SurfaceScale,
     pub layer: LayerSurface,
     /// Active pointer once a seat advertises the capability. We keep one
     /// reference even on multi-seat setups (overlays don't usually need
@@ -160,6 +165,20 @@ pub struct WaylandState {
 }
 
 impl WaylandState {
+    /// The scale of `surface`: the primary's or an extra layer's.
+    pub(super) fn scale_of(
+        &mut self,
+        surface: &wl_surface::WlSurface,
+    ) -> Option<&mut super::scale::SurfaceScale> {
+        if surface == self.layer.wl_surface() {
+            return Some(&mut self.primary_scale);
+        }
+        self.extra_layers
+            .iter_mut()
+            .find(|e| e.layer.wl_surface() == surface)
+            .map(|e| &mut e.scale)
+    }
+
     /// Offset that turns a point local to `surface` into the primary
     /// surface's local space: zero for the primary itself, and the
     /// extra's position relative to the primary for an extra layer.
@@ -179,6 +198,8 @@ impl WaylandState {
 /// Protocol-side half of one extra (non-primary) layer surface. See
 /// [`WaylandState::extra_layers`].
 pub struct ExtraLayer {
+    /// Its scale (`super::scale`); before `layer`, to go first.
+    pub scale: super::scale::SurfaceScale,
     pub layer: LayerSurface,
     pub output_name: String,
     /// Where this layer's origin sits in the primary surface's local

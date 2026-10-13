@@ -65,9 +65,11 @@ Implication: an entity dragged across a monitor boundary updates its
 - **No monitors detected**: fall back to a single 1280×720 logical
   surface. Already what 0.2 does when winit returns an empty list;
   no change.
-- **Monitor scaling** (HiDPI): each monitor's `scale_factor` is
-  read from winit and applied per-surface. Entity sizes specified
-  in logical pixels stay constant across monitors.
+- **Monitor scaling** (HiDPI): on native Wayland each surface is
+  drawn at its own output's scale, fractional ones included
+  (`wayland::layer_window::scale`, 1.5); positions and sizes are in
+  the compositor's logical units, so a character is the same size on
+  every monitor. On X11 they are the X server's pixels.
 - **Wayland multi-output**: `wlr-layer-shell-unstable-v1` allows
   binding to a specific `wl_output`. The native backend
   (`ANIMA_USE_WAYLAND_NATIVE=1`) iterates outputs and creates one

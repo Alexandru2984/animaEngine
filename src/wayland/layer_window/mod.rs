@@ -35,6 +35,7 @@ mod handlers;
 mod idle;
 mod keyboard_handler;
 mod pointer_handler;
+mod scale;
 mod state;
 mod text_input;
 mod toplevels;
@@ -141,6 +142,8 @@ impl LayerWindow {
         // Optional as well: without it pausing when away is unavailable
         // (`crate::away`).
         let idle_notifier = globals.bind(&qh, 1..=1, ()).ok();
+        // Optional: without them every surface is drawn at scale 1.
+        let scale_globals = scale::ScaleGlobals::bind(&globals, &qh);
 
         // Create the wl_surface that the layer is built on.
         let wl_surface = compositor.create_surface(&qh);
@@ -175,6 +178,9 @@ impl LayerWindow {
             seat_state,
             compositor,
             _layer_shell: layer_shell,
+            scale_globals,
+            // Made below, for the surface that stays.
+            primary_scale: scale::SurfaceScale::none(),
             layer,
             pointer: None,
             keyboard: None,
@@ -242,6 +248,9 @@ impl LayerWindow {
                 );
             }
         }
+
+        state.primary_scale =
+            scale::SurfaceScale::new(&state.scale_globals, state.layer.wl_surface(), &qh);
 
         // Round-trip so the compositor sends us its first `configure`
         // event and we learn the size. This also surfaces protocol errors
@@ -498,6 +507,7 @@ impl LayerWindow {
         region.destroy();
 
         self.state.extra_layers.push(state::ExtraLayer {
+            scale: scale::SurfaceScale::new(&self.state.scale_globals, &wl_surface, &qh),
             layer,
             output_name: monitor_name.to_string(),
             offset: (0.0, 0.0),
@@ -640,6 +650,16 @@ impl LayerWindow {
         self.state
             .extra_layers
             .retain(|e| e.output_name != monitor_name);
+    }
+
+    /// The scale the extra layer on `name` is drawn at (`scale`); 1 for
+    /// one not known.
+    pub fn extra_scale(&self, name: &str) -> f32 {
+        self.state
+            .extra_layers
+            .iter()
+            .find(|e| e.output_name == name)
+            .map_or(1.0, |e| e.scale.scale())
     }
 
     /// Drain `(monitor_name, width, height)` for every extra layer
