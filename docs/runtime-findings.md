@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R54 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R60 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -79,6 +79,31 @@ Input works through the same virtual devices, since XWayland forwards the
 seat. One difference: the window must be **clicked once** before it takes
 keyboard focus — sway does not focus it on map, so a keystroke sent first
 goes nowhere and looks exactly like a dead shortcut.
+
+### Several monitors on a real X server
+
+Sway places XWayland's windows itself: a second monitor's overlay window
+asked for at (1600, 0) can land on the first output, over the primary.
+Xvfb cannot stand in either — it has one RandR CRTC, and winit lists
+monitors by CRTC. **Xorg's `dummy` driver** (`xserver-xorg-video-dummy`
+0.4) has several outputs, runs without root, and needs no GPU:
+
+```sh
+# xorg.conf: Driver "dummy", VideoRam 256000, a 1600x1000 modeline,
+# Virtual 3200 1000. Log and config in the harness's own directory.
+/usr/lib/xorg/Xorg :95 -noreset -novtswitch -sharevts -nolisten tcp \
+    +extension RANDR -logfile <dir>/xorg.log -config <dir>/xorg.conf \
+    -configdir <dir>/conf.d &
+DISPLAY=:95 xrandr --addmode DUMMY1 1600x1000
+DISPLAY=:95 xrandr --output DUMMY1 --mode 1600x1000 --right-of DUMMY0
+```
+
+Then openbox and the app as above, on a private bus. Per-window pacing
+was checked there (1.5): the second overlay window at (1600, 0); the
+characters walking on either monitor drawn moving there and nowhere
+else; a core's share, against the build before it, from 59% to 42%
+with them walking on the panel's monitor and from 51% to 29% on the
+other.
 
 ---
 
