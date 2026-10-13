@@ -17,6 +17,52 @@ parallel feature tracks.
 | 0.5.0   | Platform reach | native Wayland parity (wlroots), `cargo-fuzz` harness |
 | 0.5.1 – 0.5.4 | Hardening | audit follow-ups: per-asset caps, redaction sweep, path canonicalisation, refactor split, MAX_ENTITIES enforcement, AT-SPI disclosure |
 
+## Next: 1.5.0 — built, not yet released
+
+The characters come to life, and the overlay finds a place in your day:
+tapping them, their own lines and sounds, tag, following, greetings,
+moods, hours of their own; reminders, a focus timer, bedtime, snooze,
+dozing while you are away; undo, several characters at once, groups and
+alignment; named scenes with pictures and a schedule, shared as files,
+and backups. Alongside: sound volumes, the whole of it from the
+keyboard, next to no CPU while nothing moves, and configs, scenes and
+backups from a newer version read as far as this one can. Additive for
+upgraders; 1.4 cannot read a 1.5 config.
+
+Every piece has run in the headless test rig on both backends, with a
+30-minute everything-on soak flat on each. Before the tag: the
+[GNOME checklist](docs/gnome-checklist-1.5.md) on a real session, then
+the release commit. Notes: [docs/release-notes/v1.5.0.md](docs/release-notes/v1.5.0.md).
+
+## Candidates for 1.6
+
+Not commitments — what is known to be missing, with where it came from.
+
+- **Verification debt.** Run the Windows build on real Windows (it
+  compiles in CI and its unit tests pass under Wine). Publish the
+  Flatpak on Flathub from the in-repo manifest, and the AUR package.
+  The 7-day desktop soak (docs/soak-testing.md) has a protocol, not yet
+  results. A native speaker's pass over the nine machine-translated
+  languages, which carry most of 1.5's new text.
+- **Hi-DPI on native Wayland.** Surfaces keep a buffer scale of 1 and
+  egui takes the largest output scale (`ui_pixels_per_point`); true
+  per-surface scaling is noted as deferred in `wayland/run.rs`.
+- **Per-window pacing on X11.** Extra monitors' windows render in the
+  primary's frame cycle (`App::render_extra_windows`), so something
+  moving on one monitor keeps every window drawing
+  ([architecture.md](docs/architecture.md), *Pacing*).
+- **Messages outside edit mode.** Toasts show only in the settings
+  panel, so one raised in pass-through — a refused paste, a reload — is
+  gone before anyone opens it.
+- **The Menu key.** `Shift+F10` opens a character's menu; the Menu key
+  cannot yet, egui having no key for it.
+- **What a newer version wrote, inside a named scene.** A scene file
+  keeps a character it cannot read until the scene is saved over, which
+  drops it; the config, by contrast, writes such parts back.
+- **Deferred hardening** (from the post-1.0 audits): the OpenH264
+  decoder out of process (the `video` feature's opt-out is the interim
+  answer), and a reproducible-build check in a digest-pinned container.
+
 ## Released
 
 **1.4.0 (current)** — screen readers, a file chooser, and a command
@@ -90,9 +136,10 @@ memory.
 - **Network features** — telemetry, asset CDN, auto-update, remote
   control. animaEngine makes zero network calls and intends to keep
   it that way; see [docs/threat-model.md](docs/threat-model.md).
-- **Bundled assets** — the project ships a single demo slime sequence
-  for smoke-testing. Curated asset packs are out of scope; users
-  point `ANIMA_ASSETS_DIR` at their own collection.
+- **Bundled assets** — the project ships five small demo characters
+  (ghost, slime, heart, star, cat) for the first run and the presets.
+  Curated asset packs are out of scope; users point `ANIMA_ASSETS_DIR`
+  at their own collection.
 
 ## How releases are cut
 

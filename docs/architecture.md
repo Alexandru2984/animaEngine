@@ -341,10 +341,13 @@ surface's space at the edge (`WaylandState::surface_offset`), and one
 per-frame sync keeps their input regions in step with the primary's
 (`LayerWindow::sync_extra_layers`).
 
-**Pacing:** `RedrawPacing` is computed per window — only entities
-resolved to that window's monitor hold it awake; `request_redraw`
-fans out only to windows whose content changed. The idle heartbeat
-stays a single timer (hot-reload is window-independent). The decision
+**Pacing:** one `RedrawPacing` for every window: the extra monitors'
+windows render inside the primary's redraw cycle
+(`App::render_extra_windows`), so anything moving on any monitor keeps
+them all drawing. Per-window pacing — only the characters on a
+window's monitor holding it awake — is a follow-up, not built (this
+paragraph used to describe it as if it were). The idle heartbeat stays
+a single timer (hot-reload is window-independent). The decision
 itself is `crate::pacing`, shared with the native Wayland loop, which
 sleeps until the next thing it has to do (`pacing::next_wait`) — other
 threads wake it through a socket polled beside Wayland's
