@@ -25,8 +25,9 @@ moods, hours of their own; reminders, a focus timer, bedtime, snooze,
 dozing while you are away; undo, several characters at once, groups and
 alignment; named scenes with pictures and a schedule, shared as files,
 and backups. Alongside: sound volumes, the whole of it from the
-keyboard, next to no CPU while nothing moves, and configs, scenes and
-backups from a newer version read as far as this one can. Additive for
+keyboard, next to no CPU while nothing moves, each monitor drawn sharp
+at its own scale on native Wayland, and configs, scenes and backups
+from a newer version read as far as this one can. Additive for
 upgraders; 1.4 cannot read a 1.5 config.
 
 Every piece has run in the headless test rig on both backends, with a

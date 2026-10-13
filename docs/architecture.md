@@ -308,9 +308,13 @@ x11_input }`).
   must not re-upload its frames.
 - One device = one device-loss domain; recovery handles every
   window the same way.
-- The egui renderer binds to a single device, and egui runs only on
-  the **primary** window (settings panel, palette, toasts). Other
-  windows render sprites + the ⚙ toggle button sprite only.
+- The egui renderers bind to the one device. The **primary** window's
+  egui has the ⚙ button, the settings panel, the palette, the toasts
+  and the screen reader's tree. Another monitor's window gets an egui
+  of its own the first time it needs one (`ui::surface_egui`), for the
+  speech bubbles and effects there and a menu opened there with the
+  mouse; it hears no keys but Escape and has no tree, which is why a
+  menu opened from the keyboard opens on the primary (R61).
 - `prune_stale_textures` stays a single sweep over the shared cache.
 
 **Mode mapping** (`MonitorMode`, unchanged in config; the default

@@ -53,7 +53,8 @@ next to no CPU while nothing moves.
 - **Multi-monitor distribution**: `PerMonitor` (default) / `Span` /
   `Single { name }`, plus a per-entity pin and `Ctrl+M` to cycle the
   selected entity through monitors. Characters on every monitor can be
-  selected and dragged, across monitors too.
+  selected and dragged, across monitors too, and each monitor's overlay
+  draws only when what it shows changes.
 - **Asset library**: scans `~/.local/share/animaengine/assets/` (or
   `$ANIMA_ASSETS_DIR`) and surfaces a search-filtered grid; "Add to
   scene" routes through the same drag-drop validation path so asset
@@ -261,6 +262,7 @@ flag needed there.
 | Input methods (CJK) | stable (winit) | stable (text-input-v3) |
 | egui settings panel | stable | stable |
 | Multi-monitor distribution | stable | stable |
+| Hi-DPI | the panel at the screen's scale factor | each monitor at its own scale, 125 % / 150 % too |
 | Perf overlay | stable | stable |
 | Global hotkeys | stable (XGrabKey) | via D-Bus + compositor binding |
 | Hot-reload | stable | stable |

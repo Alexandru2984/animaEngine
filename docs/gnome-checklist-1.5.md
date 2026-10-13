@@ -188,6 +188,10 @@ edit mode from anywhere.
 - [ ] **Orca hears them.** `Super+Alt+S` starts Orca. A tap, a
       reminder, a greeting, the focus timer: each line is read out,
       after what Orca was saying.
+- [ ] **Messages outside edit mode.** Not in edit mode, tray → *Pause*:
+      "Playback paused" shows in the bottom-right corner for a few
+      seconds and goes; a click on it reaches the window beneath. With
+      Orca on, it is read out.
 
 ## 8. A working day
 
@@ -207,6 +211,20 @@ edit mode from anywhere.
       `ps -o rss=,nlwp= -p $(pidof anima_engine)` — about what it was
       after the first hour. The rig's soak (docs/soak-testing.md) was
       flat; this is the real desktop's turn.
+
+- [ ] **At 200 %.** Settings → Displays → Scale 200 %, then start the
+      app again: the panel at its usual size, the ⚙ corner clickable
+      where it is drawn, in and out of edit mode. Under XWayland the
+      characters keep their pictures' pixels if GNOME gives X11 apps
+      the scale (docs/wayland.md). With fractional scaling on, at
+      150 %: the log warns about XWayland and fractional scaling at
+      start — that caveat is known (docs/wayland.md); note what the ⚙
+      corner does.
+- [ ] **Two monitors** (if you have a second): characters on both, each
+      drawn and moving on its own. Select one on the second monitor
+      with `N` and press `Shift+F10`: the menu opens on the panel's
+      monitor, at its edge, with *Duplicate* focused; `Enter` duplicates
+      the character. With Orca on, the item is read.
 
 When you are done: `cp -a ~/animaengine-config-before-1.5/. ~/.config/animaengine/`
 puts your settings back, if the tests left them somewhere you don't
