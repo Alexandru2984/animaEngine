@@ -54,6 +54,21 @@ Corpora live under `fuzz/corpus/<target>/`; libfuzzer seeds itself
 from anything it finds there and writes back useful inputs as it
 makes progress. Crash reproducers land in `fuzz/artifacts/<target>/`.
 
+### Long runs
+
+Before 1.5 every target ran for half an hour or more, five at a time,
+from its seeds (2026-10): no crash, leak, timeout or out-of-memory in
+any. Runs per target: `keychord_parse` 1.1 billion, `asset_type_detect`
+754 million, `avcc_nalu_walk` 594 million, `cache_deserialize` 578
+million, `uri_list_parse` 245 million, `small_parsers` 169 million,
+`shimeji_xml` 67 million, `scene_file_read` 50 million,
+`thumbnail_decode` 36 million, `config_round_trip` 4.4 million (it
+writes the config out and reads it back, each run). To repeat one:
+
+```bash
+cargo +nightly fuzz run scene_file_read -- -max_total_time=1800 -rss_limit_mb=2048
+```
+
 ## CI integration
 
 The fuzz package is not built by default `cargo test` or `cargo
