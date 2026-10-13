@@ -87,9 +87,10 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   stays where it landed. Grab it mid-air to catch it. Undo puts it back
   where you picked it up. Off with Reduce motion.
 - **The right-click menu from the keyboard.** `Shift+F10` opens it for
-  the selection — Save as GIF, Share and Arrange were the mouse's alone
-  — and `Ctrl+A` selects every character, so a keyboard can group and
-  arrange them too; both are rebindable. The F-keys can be bound, F1 to
+  the selection, as does the Menu key — Save as GIF, Share and Arrange
+  were the mouse's alone — and `Ctrl+A` selects every character, so a
+  keyboard can group and arrange them too; both chords are rebindable
+  (the Menu key is not: egui has no name for it). The F-keys can be bound, F1 to
   F12: one bound by hand used to make the whole config unreadable.
 
 #### Scenes and files
@@ -355,7 +356,8 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   were dropped at the first save. Named scenes, shared scene and
   character files and backups read the same way: a character that does
   not read is left out, with a toast, rather than failing the whole
-  file, and a backup carries what the config set aside.
+  file; a named scene saved over keeps it, as the config does, and a
+  backup carries what the config set aside.
 - **The overlay appears sooner.** On X11 the global shortcuts were
   registered one after another before the window was made — 50 ms each
   in the library that does it, a tenth of a second for the defaults —

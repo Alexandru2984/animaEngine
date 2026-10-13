@@ -151,6 +151,10 @@ pub struct WaylandState {
     /// Ctrl+V was pressed: if a text field has the keyboard, the loop
     /// pastes the desktop clipboard's text into it.
     pub text_paste_requested: bool,
+    /// The Menu key was pressed: the loop opens the selection's menu, as
+    /// `Shift+F10` does. egui has no key for it, so it cannot arrive as
+    /// an `egui::Event::Key` the bindings would see.
+    pub menu_key_pressed: bool,
     /// Whether the user is away (`crate::away`). See `idle`.
     pub idle: super::idle::Idle,
 }

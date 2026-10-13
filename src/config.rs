@@ -888,12 +888,6 @@ enum SetAsideList {
 /// not read.
 const SET_ASIDE_LISTS: [&str; 4] = ["characters", "groups", "reminders", "scene_schedule"];
 
-/// Take the characters and groups that do not read out of a scene's
-/// `table` (`crate::scenes`), as a config's are: how many went.
-pub(crate) fn sift_scene_lists(table: &mut toml::Table) -> usize {
-    SetAside::take_unreadable(table).entries.len()
-}
-
 /// Whether one entry of `list` reads, and if not, why.
 fn entry_reads(list: &str, entry: &toml::Value) -> std::result::Result<(), String> {
     let entry = entry.clone();
@@ -928,6 +922,29 @@ impl SetAside {
     /// they cost nothing.
     pub fn unread(&self) -> bool {
         !self.global.is_empty() || !self.entries.is_empty()
+    }
+
+    /// What a scene file (`crate::scenes`) holds that this version does
+    /// not read: its characters and groups that do not read, taken out of
+    /// `table`, and the keys it does not know — the scene's own, its
+    /// characters' and groups' — to be written back when it is saved
+    /// over, as a config's are.
+    pub(crate) fn of_scene(table: &mut toml::Table) -> Self {
+        let mut aside = Self::default();
+        note_unknown(
+            table,
+            &[],
+            fields_of::<crate::scenes::SavedScene>,
+            &mut aside.unknown,
+        );
+        aside.note_unknown_keys(table);
+        aside.entries = Self::take_unreadable(table).entries;
+        aside
+    }
+
+    /// How many characters, groups and other list entries did not read.
+    pub(crate) fn left_out(&self) -> usize {
+        self.entries.len()
     }
 
     /// Note the keys a newer version wrote inside the tables this one
@@ -1070,10 +1087,11 @@ impl SetAside {
         }
     }
 
-    /// Put back into `table`, a config as about to be saved, what was set
-    /// aside: entries at the end of their lists — a window's only if that
-    /// window is still there — and settings unless changed here since.
-    fn write_back(&self, table: &mut toml::Table) {
+    /// Put back into `table`, a config or a scene as about to be saved,
+    /// what was set aside: entries at the end of their lists — a window's
+    /// only if that window is still there — and settings unless changed
+    /// here since.
+    pub(crate) fn write_back(&self, table: &mut toml::Table) {
         for (list, entry) in &self.entries {
             let items = match list {
                 SetAsideList::Top(name) => Some(

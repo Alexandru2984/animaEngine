@@ -157,8 +157,8 @@ on both backends):
   `Enter`; `Shift+Enter` adds it to the selection, or removes it. With
   the keyboard back on the scene, `N` steps through them and `Ctrl+A`
   selects them all.
-- `Shift+F10` opens the right-click menu for the selection, its first
-  item focused: `Tab` moves through it, `Enter` picks, `Esc` closes it.
+- `Shift+F10`, or the Menu key, opens the right-click menu for the
+  selection, its first item focused: `Tab` moves through it, `Enter` picks, `Esc` closes it.
   Save as GIF, Share, Arrange and Group are there.
 - `Ctrl+K` runs any action by name.
 

@@ -11,7 +11,7 @@
 //! showing the same asset keep their textures, and an undo brings back
 //! what was there before.
 
-use crate::config::{AppConfig, CharacterConfig};
+use crate::config::{AppConfig, CharacterConfig, SetAside};
 use crate::constants::{MAX_CONFIG_BYTES, MAX_ENTITIES};
 use crate::error::{AnimaError, Result};
 use crate::group::GroupConfig;
@@ -119,17 +119,34 @@ pub fn save_in(dir: &Path, name: &str, scene: &Scene) -> Result<PathBuf> {
 }
 
 /// Save `saved` in `dir` under its own name — over the scene of that name
-/// if there is one. Returns its file.
+/// if there is one, keeping what that file held and this version does
+/// not read: a newer version's characters, and its settings for the ones
+/// this version does (`config::SetAside`). Returns its file.
 pub fn write_in(dir: &Path, saved: &SavedScene) -> Result<PathBuf> {
     let existing = list_in(dir).into_iter().find(|e| e.name == saved.name);
-    let path = match existing {
-        Some(entry) => entry.path,
-        None => free_path(dir, &slug(&saved.name)),
+    let (path, kept) = match existing {
+        Some(entry) => {
+            let kept = kept_in(&entry.path);
+            (entry.path, kept)
+        }
+        None => (free_path(dir, &slug(&saved.name)), SetAside::default()),
     };
+    let mut table = toml::Table::try_from(saved)?;
+    kept.write_back(&mut table);
     std::fs::create_dir_all(dir)?;
-    crate::util::atomic_write_bytes(&path, toml::to_string_pretty(saved)?.as_bytes())?;
+    crate::util::atomic_write_bytes(&path, toml::to_string_pretty(&table)?.as_bytes())?;
     shelf_changed();
     Ok(path)
+}
+
+/// What the scene file at `path` holds that this version does not read —
+/// nothing, if the file does not read as TOML at all.
+fn kept_in(path: &Path) -> SetAside {
+    crate::util::read_to_string_capped(path, MAX_CONFIG_BYTES)
+        .ok()
+        .and_then(|text| text.parse::<toml::Table>().ok())
+        .map(|mut table| SetAside::of_scene(&mut table))
+        .unwrap_or_default()
 }
 
 /// `name`, or "name (2)" and upward while `entries` has a scene so named.
@@ -151,8 +168,8 @@ pub fn load(path: &Path) -> Result<SavedScene> {
 
 /// [`load`], and how many characters and groups it left out: those that
 /// do not read — a newer version's, or mistyped — as the config's are
-/// (`config::SetAside`). The file keeps them until the scene is saved
-/// over; one of them used to make the whole scene fail to load.
+/// (`config::SetAside`). The file keeps them, saved over too
+/// ([`write_in`]); one of them used to make the whole scene fail to load.
 pub fn load_counting(path: &Path) -> Result<(SavedScene, usize)> {
     let text = crate::util::read_to_string_capped(path, MAX_CONFIG_BYTES)?;
     let table: toml::Table = text
@@ -172,19 +189,11 @@ pub fn load_counting(path: &Path) -> Result<(SavedScene, usize)> {
 /// A scene from its TOML table, as far as this version reads it, and how
 /// many characters and groups were left out.
 pub(crate) fn from_table(mut table: toml::Table) -> Result<(SavedScene, usize)> {
-    match toml::Value::Table(table.clone()).try_into::<SavedScene>() {
-        Ok(saved) => Ok((saved, 0)),
-        Err(first) => {
-            let left_out = crate::config::sift_scene_lists(&mut table);
-            if left_out == 0 {
-                return Err(AnimaError::other(format!("{first}")));
-            }
-            let saved = toml::Value::Table(table)
-                .try_into::<SavedScene>()
-                .map_err(|_| AnimaError::other(format!("{first}")))?;
-            Ok((saved, left_out))
-        }
-    }
+    let left_out = SetAside::of_scene(&mut table).left_out();
+    let saved = toml::Value::Table(table)
+        .try_into::<SavedScene>()
+        .map_err(|e| AnimaError::other(format!("{e}")))?;
+    Ok((saved, left_out))
 }
 
 /// Delete the scene in `path`, and its picture.
@@ -312,6 +321,59 @@ mod tests {
             0
         );
         assert!(from_table("name = 5".parse().unwrap()).is_err());
+    }
+
+    /// Saved over, a scene keeps what a newer version wrote in it: the
+    /// character this version cannot read, a key it does not know on one
+    /// it can, and one of the scene's own. Saving dropped them all.
+    #[test]
+    fn saving_over_a_scene_keeps_what_a_newer_version_wrote() {
+        let dir = tmp("keeps-newer");
+        std::fs::create_dir_all(&dir).unwrap();
+        let text = r#"
+            name = "Mixed"
+            backdrop = "dusk"
+            [[characters]]
+            id = "cat"
+            name = "Cat"
+            asset_type = "png_static"
+            asset_path = "c.png"
+            x = 1.0
+            y = 2.0
+            sparkle = true
+            [[characters]]
+            id = "holo"
+            name = "Holo"
+            asset_type = "hologram"
+            asset_path = "h.holo"
+            x = 0.0
+            y = 0.0
+        "#;
+        let file = dir.join("mixed.toml");
+        std::fs::write(&file, text).unwrap();
+        let (mut saved, left_out) = load_counting(&file).unwrap();
+        assert_eq!((saved.characters.len(), left_out), (1, 1));
+
+        saved.characters[0].x = 40.0;
+        assert_eq!(write_in(&dir, &saved).unwrap(), file);
+        let table: toml::Table = std::fs::read_to_string(&file).unwrap().parse().unwrap();
+        assert_eq!(table["backdrop"].as_str(), Some("dusk"));
+        let characters = table["characters"].as_array().unwrap();
+        assert_eq!(characters.len(), 2);
+        assert_eq!(characters[0]["x"].as_float(), Some(40.0));
+        assert_eq!(characters[0]["sparkle"].as_bool(), Some(true));
+        assert_eq!(characters[1]["asset_type"].as_str(), Some("hologram"));
+        // And it reads as it did, the change kept.
+        let (again, left_out) = load_counting(&file).unwrap();
+        assert_eq!((again.characters[0].x, left_out), (40.0, 1));
+
+        // A scene saved under a new name has nothing to keep.
+        saved.name = "Fresh".into();
+        let fresh = write_in(&dir, &saved).unwrap();
+        let table: toml::Table = std::fs::read_to_string(&fresh).unwrap().parse().unwrap();
+        assert!(table.get("backdrop").is_none());
+        assert_eq!(table["characters"].as_array().unwrap().len(), 1);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

@@ -54,11 +54,6 @@ Not commitments — what is known to be missing, with where it came from.
 - **Messages outside edit mode.** Toasts show only in the settings
   panel, so one raised in pass-through — a refused paste, a reload — is
   gone before anyone opens it.
-- **The Menu key.** `Shift+F10` opens a character's menu; the Menu key
-  cannot yet, egui having no key for it.
-- **What a newer version wrote, inside a named scene.** A scene file
-  keeps a character it cannot read until the scene is saved over, which
-  drops it; the config, by contrast, writes such parts back.
 - **Deferred hardening** (from the post-1.0 audits): the OpenH264
   decoder out of process (the `video` feature's opt-out is the interim
   answer), and a reproducible-build check in a digest-pinned container.

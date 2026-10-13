@@ -51,8 +51,9 @@ knows — a new setting in `[global]`, a new option on a character, its
 were, with no banner: nothing is missing for them. Named scenes, shared
 scene and character files and backups read the same way: a character or
 group that does not read is left out, a toast says so, and the rest
-loads; a backup carries what the config set aside, and restores it set
-aside again. Versions before 1.5 do none of this: they cannot read a
+loads. A named scene saved over keeps them in its file, with the keys
+it did not know; a backup carries what the config set aside, and
+restores it set aside again. Versions before 1.5 do none of this: they cannot read a
 1.5 config, and start with the default scene, keeping your file as
 `config.toml.bak-corrupt`.
 

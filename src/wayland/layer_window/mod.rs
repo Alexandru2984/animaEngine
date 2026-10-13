@@ -201,6 +201,7 @@ impl LayerWindow {
             last_serial: 0,
             on_top: true,
             text_paste_requested: false,
+            menu_key_pressed: false,
             tap_applied: None,
             keyboard_on_demand: true,
         };

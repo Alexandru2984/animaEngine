@@ -105,9 +105,9 @@ next to no CPU while nothing moves.
 - **Rebindable shortcuts** that work on any keyboard layout — AZERTY,
   QWERTZ, Cyrillic — and are shown the way your keyboard labels them;
   the F-keys can be bound too.
-- **Without a mouse**: `Shift+F10` opens a character's right-click
-  menu, `Ctrl+A` selects every character, `N` steps through them, and
-  `Tab` moves through the settings panel.
+- **Without a mouse**: `Shift+F10` or the Menu key opens a character's
+  right-click menu, `Ctrl+A` selects every character, `N` steps through
+  them, and `Tab` moves through the settings panel.
 - **System integration**: tray icon (StatusNotifierItem),
   `Ctrl+Shift+A/H/P` global hotkeys, single-instance D-Bus handshake,
   and "Start at login" (an autostart entry, or the portal in the

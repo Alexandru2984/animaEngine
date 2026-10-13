@@ -111,6 +111,9 @@ impl KeyboardHandler for WaylandState {
     ) {
         self.last_serial = serial;
         self.push_key_event(&event, true);
+        if event.keysym == Keysym::Menu {
+            self.menu_key_pressed = true;
+        }
         // A text field's clipboard keys, as egui-winit makes them on the
         // other backend: Copy and Cut for egui to answer with the text,
         // and a paste the loop fills from the desktop's clipboard.

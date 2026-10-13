@@ -1067,6 +1067,11 @@ pub fn run_native(
                 .filter_map(|event| binding_chord(event, egui_owns_keyboard))
                 .filter_map(|chord| config.keybindings.lookup(chord)),
         );
+        // The Menu key, the keyboard's own key for the right-click menu:
+        // not a binding, egui having no name for it to record or match.
+        if std::mem::take(&mut layer.state.menu_key_pressed) && !egui_owns_keyboard {
+            actions.push(Action::OpenContextMenu);
+        }
         for action in actions {
             if action.interrupts_drag() {
                 config_dirty |= crate::input::multi::cancel(

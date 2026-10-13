@@ -127,7 +127,8 @@ edit mode from anywhere.
       `Shift+F10` opens the right-click menu with its first item
       focused — `Tab` to *Save as GIF…*, `Enter`: GNOME's save dialog.
       `Ctrl+A`, `Shift+F10`, *Align top edges*: they line up. With Orca
-      on, each menu item is read as the focus reaches it.
+      on, each menu item is read as the focus reaches it. The Menu key
+      (on a keyboard that has one) opens the same menu.
 
 ## 6. Files, through GNOME's own dialogs
 

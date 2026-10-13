@@ -475,6 +475,15 @@ impl App {
             winit::keyboard::PhysicalKey::Code(code) => KeyCode::from_physical_winit(code),
             winit::keyboard::PhysicalKey::Unidentified(_) => None,
         };
+        // The Menu key, the keyboard's own key for the right-click menu,
+        // does what `Shift+F10` does: not a binding, egui having no name
+        // for it to record in the Keybindings tab.
+        if logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::ContextMenu)
+            && self.ui_state.context_menu.is_none()
+        {
+            self.dispatch_action(crate::keybindings::Action::OpenContextMenu, event_loop);
+            return;
+        }
         let Some(keycode) = KeyCode::resolve(KeyCode::from_winit(logical_key), physical) else {
             return;
         };
