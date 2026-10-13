@@ -254,6 +254,34 @@ rig, so it dozed only for bedtime, which it does not log. The few
 `ERROR` lines on Wayland are wgpu probing Vulkan on the rig's headless
 outputs before it settles on GL, at start only.
 
+### 1.5, two monitors at different scales (rig, 2026-10-13)
+
+After native Wayland learned to draw each surface at its output's scale,
+toasts to show outside edit mode, and each overlay to draw only when
+what it shows changes, the same everything-on run went once more, on
+two outputs side by side — one at scale 1, one at scale 2 — with two
+more characters on the second (one wandering, one talking every
+minute), and the scene paused and resumed from D-Bus every five
+minutes, a toast each time, outside edit mode.
+
+| | Native Wayland, 30 min | X11, 30 min |
+|---|---|---|
+| Resident memory | 266.7 → 267.3 MB; second half 267.2–267.3 | 196.2 → 195.6 MB; flat |
+| Threads, file descriptors | 75, 45–46 | 79, 23 |
+| D-Bus `SetMuted` saved after | 31–76 ms, all 14 times | 9–78 ms, all 15 times |
+| Quiet stretch (no input, dozing) | 1–2% of a core, 3–4 main-thread wake-ups a second | no idle source in the rig |
+| Reminders said, pauses | 17, 6 | 23, 5 |
+| Log | 45 KB | 39 KB |
+
+Memory a few tens of MB above the one-output run, for the second
+output's surface and its buffer at twice the pixels; nothing grew.
+Moving, the scene took a median 150% (Wayland) and 119% (X11) of a core
+in the rig's software renderer across both outputs. X11's nine warnings
+are all at start (no XSETTINGS, no portal or tray on the private bus,
+XRandR's 0 mm screens, no validation layer, egui's note on the sRGB
+framebuffer); Wayland's eight were not kept — its log was overwritten
+by the X11 run — but no panic was counted on either.
+
 ## 7-day desktop protocol (manual, pre-1.0)
 
 The automated soak runs headless on synthetic load; the real-session

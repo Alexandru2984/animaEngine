@@ -2778,6 +2778,9 @@ fn rebuild_extra_surfaces(
         // primary surface vs. `WgpuRenderer`.
         extra_surfaces.remove(&name);
         layer.destroy_extra_layer(&name);
+        // Its monitor gone, or the primary's now — at start, until the
+        // compositor says which output the primary landed on.
+        tracing::info!("Closed the extra surface on {name}");
     }
 
     for mon in new {
