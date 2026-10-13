@@ -430,8 +430,9 @@ impl App {
                 Ok(output) => {
                     rendered_ok = true;
                     // egui runs in BOTH modes. In pass-through it
-                    // paints just the toggle ⚙ button; in edit mode it
-                    // adds the settings panel, context menu, toasts.
+                    // paints the toggle ⚙ button, bubbles and toasts; in
+                    // edit mode it adds the settings panel, context menu
+                    // and palette.
                     self.toasts.prune();
 
                     // GPU stats for the perf HUD (W.3). Built here while
@@ -567,9 +568,9 @@ impl App {
                             size,
                             |ctx| {
                                 crate::ui::motion::set_reduced(ctx, *reduced_motion_mut);
-                                // Toggle button is the only UI in
-                                // pass-through; in edit mode it sits
-                                // on top of everything else.
+                                // The toggle button: the one control
+                                // in pass-through; in edit mode it
+                                // sits on top of everything else.
                                 if panels::toggle_button(ctx, edit_mode) {
                                     *toggle_requested_ref = true;
                                 }
@@ -672,8 +673,11 @@ impl App {
                                         keybindings_mut,
                                         selection_mut.selected_index().is_some(),
                                     );
-                                    panels::toasts(ctx, toasts_ref);
                                 }
+                                // In both modes: one raised outside edit
+                                // mode — a reload, a paused scene — used
+                                // to be gone before the panel opened.
+                                panels::toasts(ctx, toasts_ref);
                                 // Perf overlay sits on top of every
                                 // other surface so a user investigating
                                 // a stutter doesn't have to chase it
@@ -935,10 +939,9 @@ impl App {
 
     /// Decide how soon the next frame is needed, from the live state.
     ///
-    /// Continuous wins whenever per-tick motion exists: edit mode
-    /// (egui interactions, drags), visible toasts (slide/fade), the
-    /// perf overlay (live graph), autonomous behaviors or physics on a
-    /// visible entity. Otherwise the soonest animation deadline across
+    /// Continuous wins whenever per-tick motion exists: egui asking
+    /// for frames (a drag, a toast sliding in), the perf overlay (live
+    /// graph), autonomous behaviors or physics on a visible entity. Otherwise the soonest animation deadline across
     /// visible playing sprites; otherwise idle. Hidden entities don't
     /// hold the loop awake — their behaviors freeze while invisible
     /// (the 0.1 s dt clamp in `Scene::tick` absorbs the gap when they
@@ -975,6 +978,16 @@ impl App {
         {
             let poll = now + std::time::Duration::from_millis(100);
             at = Some(at.map_or(poll, |a| a.min(poll)));
+        }
+        // The toasts' frames, in either mode while the overlay shows: one
+        // raised after this frame's egui pass has asked egui for none.
+        if !(self.overlay_hidden || self.stepped_aside.hidden) {
+            if let Some(t) = self
+                .toasts
+                .next_change(now, self.config.global.reduced_motion)
+            {
+                at = Some(at.map_or(t, |a| a.min(t)));
+            }
         }
         // A reminder or the focus timer's turn on time, not at the next
         // heartbeat.

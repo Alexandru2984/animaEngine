@@ -122,9 +122,10 @@ pub struct App {
     )>,
     /// Text a text field asked for with Ctrl+V, on its way.
     pending_text_paste: Option<std::sync::mpsc::Receiver<crate::system_clipboard::Content>>,
-    /// egui integration. Paints in BOTH modes — the ⚙ toggle button is an
-    /// egui widget that lives in pass-through too. Other UI (settings panel,
-    /// context menu, toasts) is gated to edit mode inside the build closure.
+    /// egui integration. Paints in BOTH modes — the ⚙ toggle button, the
+    /// bubbles and the toasts live in pass-through too. The rest (settings
+    /// panel, context menu, palette) is gated to edit mode inside the build
+    /// closure.
     ui: Option<EguiRenderer>,
     /// Ephemeral UI state (currently just the context menu) kept separate
     /// from the egui renderer so it survives across resumed/suspended cycles.

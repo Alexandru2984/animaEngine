@@ -968,6 +968,13 @@ pub fn run_native(
             if toggle_playback_xor {
                 scene.toggle_global_playback();
                 config_dirty = true;
+                // Said, as on the winit path: from the tray, a shortcut or
+                // D-Bus there is nothing else to show it happened.
+                toasts.info(crate::i18n::t(if scene.global_playing {
+                    "toast-playback-resumed"
+                } else {
+                    "toast-playback-paused"
+                }));
             }
             if let Some(vis) = last_visibility {
                 // `overlay_hidden` is the single source of truth and it
@@ -1696,6 +1703,17 @@ pub fn run_native(
             crate::pacing::RedrawPacing::Continuous
         );
         let extras_repaint = extra_eguis.values().any(|e| e.repaint_due(now));
+        // The toasts' frames, in either mode while the overlay shows: one
+        // raised after the last egui pass has asked egui for none. A macro
+        // for `next_wait!`'s sake: a closure would hold the queue and the
+        // config through the frame that changes them.
+        macro_rules! toasts_at {
+            ($now:expr) => {
+                shown
+                    .then(|| toasts.next_change($now, config.global.reduced_motion))
+                    .flatten()
+            };
+        }
         // How long the next dispatch may sleep, from the state as it is
         // when asked — after this iteration's work.
         macro_rules! next_wait {
@@ -1703,6 +1721,7 @@ pub fn run_native(
                 let now = Instant::now();
                 let egui_at = std::iter::once(egui_renderer.repaint_at())
                     .chain(extra_eguis.values().map(|e| e.repaint_at()))
+                    .chain(std::iter::once(toasts_at!(now)))
                     .flatten()
                     .min();
                 // Results the loop looks for, which wake nothing when
@@ -1727,7 +1746,11 @@ pub fn run_native(
         }
         if !frame_gate.should_draw(
             now,
-            activity || moving || egui_renderer.repaint_due(now) || extras_repaint,
+            activity
+                || moving
+                || egui_renderer.repaint_due(now)
+                || extras_repaint
+                || toasts_at!(now).is_some_and(|at| at <= now),
         ) {
             perf_sampler.end_frame();
             wait = next_wait!();
@@ -2016,8 +2039,9 @@ pub fn run_native(
                                     keybindings_mut,
                                     selection_mut.selected_index().is_some(),
                                 );
-                                panels::toasts(ctx, toasts_ref);
                             }
+                            // In both modes, as on the winit path.
+                            panels::toasts(ctx, toasts_ref);
                             // Above every panel, so someone chasing a
                             // stutter doesn't have to hunt for it behind
                             // one — same placement as the winit path.

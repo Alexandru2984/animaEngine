@@ -89,8 +89,7 @@ the setting off, or no reader listening, nothing is built.
 Toasts are announced the same way (`ui::toasts::announce`): each one a
 live node of its own while it lasts — polite for news ("Scene:
 Evening"), assertive for a warning or an error ("Rejected: …") — in
-both modes, so one raised in pass-through, where only the panel would
-draw it, is heard all the same. A banner's text is live too, read out
+both modes, as they are shown in both. A banner's text is live too, read out
 when the panel opens on it. Checked on both backends with an AT-SPI
 listener for `object:announcement`.
 
@@ -226,7 +225,8 @@ need to suppress sprite visuals entirely can:
 
 ### Per-user audio cues
 
-animaEngine renders no audio. Notifications appear as visual toasts;
+animaEngine renders no audio. Notifications appear as visual toasts,
+in the bottom-right corner in either mode;
 the user's desktop notification daemon (e.g. `dunst`, GNOME Shell
 notification stack) handles any system-level sounds for tray
 activity.

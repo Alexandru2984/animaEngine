@@ -51,9 +51,6 @@ Not commitments — what is known to be missing, with where it came from.
   primary's frame cycle (`App::render_extra_windows`), so something
   moving on one monitor keeps every window drawing
   ([architecture.md](docs/architecture.md), *Pacing*).
-- **Messages outside edit mode.** Toasts show only in the settings
-  panel, so one raised in pass-through — a refused paste, a reload — is
-  gone before anyone opens it.
 - **Deferred hardening** (from the post-1.0 audits): the OpenH264
   decoder out of process (the `video` feature's opt-out is the interim
   answer), and a reproducible-build check in a digest-pinned container.

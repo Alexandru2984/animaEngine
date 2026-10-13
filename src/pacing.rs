@@ -35,10 +35,10 @@ pub const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 pub const IDLE_HEARTBEAT: Duration = Duration::from_secs(2);
 
 /// What `scene` needs next. `ui_animating` is true while something outside
-/// the scene moves every frame: the perf overlay. A toast is not — it
-/// shows only in edit mode, and asks egui for its frames there — and edit
-/// mode is not
-/// one of them: egui asks for the frames the panel needs ([`sooner`]).
+/// the scene moves every frame: the perf overlay. A toast is not — the
+/// loops ask it when it next changes (`ToastQueue::next_change`) — and
+/// edit mode is not one of them: egui asks for the frames the panel
+/// needs ([`sooner`]).
 pub fn redraw_pacing(scene: &Scene, ui_animating: bool) -> RedrawPacing {
     if ui_animating {
         return RedrawPacing::Continuous;

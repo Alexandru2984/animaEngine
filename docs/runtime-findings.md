@@ -2277,8 +2277,7 @@ switches) per thread over 30 s, in each still state, on the rig.
   for the display — 23% of a core in the rig, as much as shown. Out of
   sight, hidden or stepping aside, the scene asks for no frames.
 - **A toast kept both loops drawing every frame** for its few seconds,
-  though toasts show only in edit mode, where egui asks for their frames
-  itself; and X11 asked for each next frame at once, 160 a second in the
+  in edit mode, where egui asks for their frames itself; and X11 asked for each next frame at once, 160 a second in the
   rig, where `Fifo` does not hold it to the display. Pacing no longer
   counts toasts, and X11 waits out the rest of 16 ms between frames
   (`pacing::FRAME_INTERVAL`, shared now).
@@ -2308,3 +2307,29 @@ a shortcut is pressed or the layout changes, and no longer shows among
 those that wake; a held chord fires once (XKB detectable auto-repeat),
 and a new layout grabs the same chords on their new keys. The crate stays
 for Windows.
+
+### R59 · A message raised outside edit mode was never seen — `FIXED`
+
+Found in the review that closed 1.5. Toasts were drawn by the panel's
+egui pass only in edit mode, so one raised in pass-through — a reload of
+the config, a refused file, a pause from the tray — was over in three to
+six seconds, before anyone opened the panel, and a screen reader was the
+only one told. On native Wayland, pausing from the tray, a shortcut or
+D-Bus raised none at all; X11 said "Playback paused".
+
+**Fixed:** the stack is drawn in both modes, in the bottom-right corner,
+outside the pass-through input region — clicks on it reach the window
+beneath. The loops wake for its frames from the queue itself
+(`ToastQueue::next_change`): while one slides in or fades out, and when
+the next starts to fade, rather than egui being asked for a frame every
+frame while one showed. Native Wayland says a pause as X11 does.
+**Checked on the rig**, both backends, paused from D-Bus with nothing
+else moving: main-thread wake-ups in quarter-seconds from the pause
+
+| Backend | 0–0.25 s | then to 2.5 s | 2.5–3.25 s | after |
+|---|---|---|---|---|
+| Native Wayland | 60 | 5 (the heartbeat) | 93 | 0 |
+| X11 | 131 | 11 | 206 | 0 |
+
+— the slide in and the fade out, each a fraction of a second — and a
+click on the toast reached a window under the overlay on both.

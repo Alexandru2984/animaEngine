@@ -3,7 +3,9 @@
 //! Toasts are short-lived messages (3-6 s) used to confirm user actions
 //! (saved config, duplicated entity) or surface non-fatal failures
 //! (asset too large, decode error). They're rendered as a stack in the
-//! bottom-right corner above the settings panel.
+//! bottom-right corner, over the settings panel in edit mode and over
+//! the desktop outside it — where they take no clicks: the overlay's
+//! input region there is the ⚙ corner and the characters.
 
 use std::time::{Duration, Instant};
 
@@ -53,6 +55,11 @@ impl Toast {
 
 /// Hard cap so a tight loop emitting toasts can't pin them all visible.
 const MAX_TOASTS: usize = 8;
+
+/// How long a toast takes to slide in (`panels::toasts`).
+pub const SLIDE_IN: Duration = Duration::from_millis(200);
+/// How long a toast takes to fade out, at the end of its lifetime.
+pub const FADE_OUT: Duration = Duration::from_millis(300);
 
 #[derive(Default)]
 pub struct ToastQueue {
@@ -104,13 +111,36 @@ impl ToastQueue {
     pub fn iter(&self) -> impl Iterator<Item = &Toast> {
         self.toasts.iter()
     }
+
+    /// When the stack next looks different: at once while a toast slides
+    /// in or fades out, else when the next one starts to fade — with
+    /// `reduced` motion, when the next one goes. `None` with none to
+    /// show. Both loops wake for it, in either mode; the stack asked egui
+    /// for a frame every frame while it showed, sixty a second for the
+    /// three to six seconds of a toast.
+    pub fn next_change(&self, now: Instant, reduced: bool) -> Option<Instant> {
+        self.toasts
+            .iter()
+            .map(|t| {
+                let ends = t.expires_at();
+                if reduced {
+                    return ends;
+                }
+                let fades = ends.checked_sub(FADE_OUT).unwrap_or(ends);
+                if now < t.created_at + SLIDE_IN || now >= fades {
+                    now
+                } else {
+                    fades
+                }
+            })
+            .min()
+    }
 }
 
 /// Tell a screen reader each toast, once: a live node of its own while it
 /// lasts, as a character's line is (`crate::ui::speech::announce`) —
-/// politely for news, at once for a warning or an error. In both modes:
-/// a toast raised in pass-through, which only the panel draws, is heard
-/// all the same. Nothing with the bridge off.
+/// politely for news, at once for a warning or an error — in both modes,
+/// as the toasts are drawn in both. Nothing with the bridge off.
 pub fn announce(ctx: &egui::Context, queue: &ToastQueue) {
     for toast in queue.iter() {
         ctx.accesskit_node_builder(egui::Id::new(("anima.toast", toast.serial)), |node| {
@@ -151,6 +181,23 @@ mod tests {
         let serials: Vec<u64> = q.iter().map(|t| t.serial).collect();
         assert_eq!(serials.len(), 2);
         assert_ne!(serials[0], serials[1]);
+    }
+
+    /// Frames while a toast moves, none while it sits still: it slides
+    /// in, waits, and fades out; with reduced motion it only goes.
+    #[test]
+    fn a_toast_wants_frames_only_while_it_moves() {
+        let mut q = ToastQueue::default();
+        let now = Instant::now();
+        assert_eq!(q.next_change(now, false), None);
+        q.info("Saved");
+        let t = q.iter().next().unwrap().clone();
+        let fades = t.expires_at() - FADE_OUT;
+        assert_eq!(q.next_change(t.created_at, false), Some(t.created_at));
+        let still = t.created_at + SLIDE_IN + Duration::from_millis(1);
+        assert_eq!(q.next_change(still, false), Some(fades));
+        assert_eq!(q.next_change(fades, false), Some(fades));
+        assert_eq!(q.next_change(t.created_at, true), Some(t.expires_at()));
     }
 
     #[test]

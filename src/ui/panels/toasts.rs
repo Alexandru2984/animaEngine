@@ -2,9 +2,9 @@
 //! main panels module stops carrying its 70-line render path.
 //!
 //! `toasts()` is the entry point — it owns the egui Area and asks
-//! egui to keep repainting while the queue is non-empty so cards
-//! disappear at the exact moment they expire instead of waiting
-//! for the next input event.
+//! egui for the frames the cards need: while one slides in or fades
+//! out, and when the next one starts to fade
+//! (`ToastQueue::next_change`).
 
 use crate::anim;
 use crate::ui::icons;
@@ -16,10 +16,12 @@ pub fn toasts(ctx: &egui::Context, queue: &ToastQueue) {
         return;
     }
 
-    // While there are visible toasts, drive continuous repaints so they
-    // disappear at the moment they expire (without waiting for the next
-    // input event).
-    ctx.request_repaint();
+    // Frames while a card moves, and one when the next starts to fade —
+    // without waiting for the next input event.
+    let now = std::time::Instant::now();
+    if let Some(at) = queue.next_change(now, crate::ui::motion::reduced(ctx)) {
+        ctx.request_repaint_after(at.saturating_duration_since(now));
+    }
 
     egui::Area::new(egui::Id::new("anima_toasts"))
         .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-SPACE_L, -SPACE_L))
@@ -38,17 +40,17 @@ fn toast_card(ui: &mut egui::Ui, toast: &Toast) {
     // ── Per design-system §6 micro-animation timings ─────────────────
     // - Slide-in fade:  200 ms, ease-out-quad
     // - Fade-out:       300 ms, ease-in-quad (trailing window before expiry)
-    const SLIDE_IN: f32 = 0.200;
-    const FADE_OUT: f32 = 0.300;
+    let slide_in = crate::ui::toasts::SLIDE_IN.as_secs_f32();
+    let fade_out = crate::ui::toasts::FADE_OUT.as_secs_f32();
     /// Vertical travel during slide-in — enough to read as motion,
     /// small enough to never overlap the card above.
     const SLIDE_PX: f32 = 8.0;
     let reduced = crate::ui::motion::reduced(ui.ctx());
     let age = toast.age().as_secs_f32();
     let remaining = toast.remaining().as_secs_f32();
-    let in_alpha = anim::ease_out_quad((age / SLIDE_IN).min(1.0));
-    let out_alpha = if remaining < FADE_OUT {
-        1.0 - anim::ease_in_quad(((FADE_OUT - remaining) / FADE_OUT).clamp(0.0, 1.0))
+    let in_alpha = anim::ease_out_quad((age / slide_in).min(1.0));
+    let out_alpha = if remaining < fade_out {
+        1.0 - anim::ease_in_quad(((fade_out - remaining) / fade_out).clamp(0.0, 1.0))
     } else {
         1.0
     };

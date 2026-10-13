@@ -165,9 +165,8 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   over AT-SPI as they are said, so Orca reads them out — politely, after
   what it is saying. Only with a screen reader listening and the
   accessibility tree switched on in Appearance. Toasts are announced
-  the same way — a warning or an error at once — in pass-through too,
-  where only the panel would show them, and a banner when the panel
-  opens on it.
+  the same way — a warning or an error at once — in either mode, and a
+  banner when the panel opens on it.
 
 #### What they do
 
@@ -329,6 +328,14 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 
 ### Changed
 
+- **Messages show outside edit mode too.** A toast raised in
+  pass-through — a reload, a refused file, pausing from the tray —
+  showed only in the settings panel, so it was gone before anyone opened
+  it. It shows in the corner now, and clicks go through it to the window
+  beneath. Its frames are paced: it draws while it slides in and fades
+  out, about thirty frames for a toast, where it drew sixty a second for
+  as long as it showed. Pausing from the tray, a shortcut or D-Bus says
+  so on native Wayland too, as it did on X11.
 - **Cycle character is on `N`.** Its `Tab` belonged to the settings
   panel's focus: on X11 it never cycled, on native Wayland only once.
   A config that still had `Tab` there as it came moves to `N`; one set
@@ -338,8 +345,8 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   do, and D-Bus, the tray, shortcuts and screen readers wake it — 2 to 3
   times a second, hidden, snoozed, paused or asleep, where it was 70.
   On X11 a hidden overlay drew as often as a shown one (23% of a core in
-  the test rig, 1% now), a toast — which shows only in edit mode — kept
-  both backends drawing every frame for seconds, the full-screen watch
+  the test rig, 1% now), a toast kept both backends drawing every frame
+  for seconds, the full-screen watch
   asked the X server a dozen times a second instead of waiting to be
   told, and the global shortcuts' library looked for a press twenty
   times a second — the app grabs them itself now, and waits.
