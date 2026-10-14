@@ -47,7 +47,9 @@ Not commitments — what is known to be missing, with where it came from.
   languages, which carry most of 1.5's new text.
 - **Deferred hardening** (from the post-1.0 audits): the OpenH264
   decoder out of process (the `video` feature's opt-out is the interim
-  answer), and a reproducible-build check in a digest-pinned container.
+  answer), and a reproducible-build check in CI in a digest-pinned
+  container — the release binary itself was shown reproducible locally
+  in 1.5 ([threat-model.md](docs/threat-model.md)).
 
 ## Released
 

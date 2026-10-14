@@ -25,6 +25,8 @@ set -euo pipefail
 # Resolve repo root regardless of where the script is invoked from.
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
+# shellcheck source=scripts/reproducible-env.sh
+source scripts/reproducible-env.sh
 
 VERSION="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
 ARCH="x86_64"

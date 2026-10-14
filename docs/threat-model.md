@@ -678,10 +678,21 @@ for wlroots users who want to skip XWayland.
 
 ## Build reproducibility
 
-The `.deb` is reproducible: `cargo-deb` consumes the committed
-`Cargo.lock` and a deterministic set of metadata fields, so two
-maintainers building the same git tag on the same Rust toolchain
-produce byte-identical packages.
+The release binary is reproducible since 1.5: built from the committed
+`Cargo.lock` with the same Rust toolchain, one commit gives the same
+bytes wherever it is checked out. Before, it was not — a release build
+carried some 800 paths under the builder's home directory (the sources
+of every dependency, named in panic locations), so two maintainers'
+builds differed, and a locally built package carried its builder's user
+name. `scripts/build-deb.sh` and `scripts/build-appimage.sh` now source
+`scripts/reproducible-env.sh`, which writes the checkout and cargo's and
+rustup's homes into the binary as `/build`, `/cargo` and `/rustup` and
+sets `SOURCE_DATE_EPOCH` to the commit's time. Checked (2026-10-14): two
+`cargo build --release --locked` of one commit from two directories,
+in parallel, came out with the same SHA-256, and no path of the build
+machine left in them. The `.deb` around it is made by `cargo-deb` from
+the committed metadata, with `SOURCE_DATE_EPOCH` for its timestamps;
+the package itself was not compared byte for byte.
 
 The **AppImage** is *not* byte-reproducible by default — whatever
 linuxdeploy bundles comes from the build host, and that differs across
