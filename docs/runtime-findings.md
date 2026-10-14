@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R61 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R62 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2419,3 +2419,21 @@ XWayland put the second window over the first, which took the keys):
 the ghost on the second monitor selected with `N`, the Menu key, the
 menu at the panel's edge with Duplicate focused, read over AT-SPI on
 Wayland, and `Enter` duplicated it on both.
+
+### R62 · On Wayland a second start did nothing when the characters were hidden — `FIXED`
+
+Found checking 1.5's second start and the tray's Quit on both backends.
+A second start hands over to the running instance over D-Bus and leaves,
+which it did on both. The X11 backend answers by showing its windows
+again and asking for focus; the native Wayland backend dropped the
+request. A layer surface has no focus to take, but with the characters
+hidden from the tray or snoozed, starting the app from the menu showed
+nothing, and looked broken.
+
+**Fixed:** the native backend takes a second start as the tray's Show:
+the characters come back and a snooze ends, as on X11. **Checked:**
+native Wayland in the rig, hidden from the tray (no pixel of the overlay
+on screen), then a second start: it exits at once and the characters
+are drawn again. Also on both backends: the tray's Quit, sent through
+the rig's tray host, saves an edit not yet saved, and a start right
+after has it.

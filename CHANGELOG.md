@@ -410,6 +410,13 @@ read-only D-Bus names, for the idle time
   saving first; a second ends it at once. Checked in the test rig on
   both backends, an edit made in edit mode on disk a quarter of a second
   after the signal.
+- **On Wayland, starting the app again did nothing when it was hidden.**
+  A second start hands over to the one running and leaves; on X11 that
+  one comes back into sight, but the native Wayland backend ignored the
+  request, so with the characters hidden from the tray or snoozed,
+  starting it from the menu looked broken. It now shows them, as on
+  X11. Checked in the test rig, along with a second start, the tray's
+  Quit saving an unsaved edit and a start right after, on both backends.
 - **An installed app made an `assets` folder wherever it was started.**
   The demo characters' pictures were generated into `assets/demo/` under
   the current directory, which for a `.deb` or an AppImage started from

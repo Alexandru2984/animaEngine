@@ -897,8 +897,18 @@ pub fn run_native(
                         AnimaEvent::ToggleGlobalPlayback => toggle_playback_xor ^= true,
                         AnimaEvent::HideOverlay => last_visibility = Some(AnimaEvent::HideOverlay),
                         AnimaEvent::ShowOverlay => last_visibility = Some(AnimaEvent::ShowOverlay),
-                        AnimaEvent::Quit => quit = true,
-                        AnimaEvent::RaiseWindow => {}
+                        AnimaEvent::Quit => {
+                            quit = true;
+                            tracing::info!("Quit requested (tray, or a signal)");
+                        }
+                        // A second start from the menu: a layer surface has
+                        // no focus to take, but one hidden from the tray (or
+                        // snoozed) comes back, as on X11 — before, nothing
+                        // happened and the start looked broken.
+                        AnimaEvent::RaiseWindow => {
+                            last_visibility = Some(AnimaEvent::ShowOverlay);
+                            tracing::info!("Raised by second-instance handshake");
+                        }
                         // Hotkey resolution events are winit-path UI; the
                         // native path logs the outcome where it resolves.
                         AnimaEvent::HotkeysUnavailable | AnimaEvent::PortalShortcutsDenied => {}
