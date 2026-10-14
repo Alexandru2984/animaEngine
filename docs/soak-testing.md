@@ -282,6 +282,34 @@ XRandR's 0 mm screens, no validation layer, egui's note on the sRGB
 framebuffer); Wayland's eight were not kept — its log was overwritten
 by the X11 run — but no panic was counted on either.
 
+### 1.5, two hours, and quitting at the end (rig, 2026-10-14)
+
+The same two-output run on native Wayland for two hours, after the
+loops' last changes and with the session's signals handled: at the end
+the scene was paused from D-Bus — a change the app saves on quitting,
+not at once — and SIGTERM followed, as at a logout.
+
+| | Native Wayland, 2 h |
+|---|---|
+| Resident memory | 262.8 → 264.2 MB; the second half 264.2, flat |
+| Threads, file descriptors | 76, 45–46 |
+| D-Bus `SetMuted` saved after | median 32 ms, at most 79, all 59 times |
+| Quiet stretch (no input, dozing) | 1–5% of a core once dozing |
+| Reminders said, pauses | 152, 24 |
+| Warnings, errors, panics | 7, 6, 0 — all at start (the rig's adapter probes, no portal or tray on its bus) |
+| Log | 168 KB |
+| SIGTERM | the pause on disk 9 ms after the signal; the process gone after 2.8 s |
+
+Those 2.8 s are not the app's: the machine is a laptop with an NVIDIA
+GPU beside its integrated one, and the Vulkan loader loads every
+driver installed, NVIDIA's among them, whose device files wake that GPU
+from its sleep at start and again when the process closes them — 2 s
+of the GPU powering up, read from its `runtime_status`. Exiting at once
+after the save, with no GPU teardown, took as long: the wait is in the
+kernel, closing the files. With the rig's X11 run, which loads only
+lavapipe, the app is gone 107 ms after the signal. Nothing is lost
+either way, the save coming first.
+
 ### Where the memory goes (rig, 2026-10-14)
 
 The rig's resident memory — 225 MB on native Wayland, 184 MB on X11,
