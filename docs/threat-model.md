@@ -533,12 +533,12 @@ already have the user's privileges.
 
 `AppConfig.resolve_asset_path` accepts absolute paths, `~`-expansion,
 and paths relative to the executable or `cwd` — and, for
-`assets/demo/<name>`, the demo pictures made in the app's data
-directory (`crate::demo`; until 1.5 they were written under `cwd`). A malicious hand-edited
-`config.toml` can therefore make us try to open arbitrary paths the
-user can read. This is **deliberate** — users routinely want to point
-at assets under `~/Pictures/`, network mounts, etc. We don't currently
-chroot or restrict to an asset directory.
+`assets/demo/<name>`, the demo pictures made in the app's data directory
+(`crate::demo`; until 1.5 they were written under `cwd`). A malicious
+hand-edited `config.toml` can therefore make us try to open arbitrary
+paths the user can read. This is **deliberate** — users routinely want
+to point at assets under `~/Pictures/`, network mounts, etc. We don't
+currently chroot or restrict to an asset directory.
 
 **Mitigation that's planned:** an "asset library" model where config
 loads from a registered asset dir by default and absolute paths

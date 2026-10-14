@@ -25,8 +25,9 @@ start, and each has its switch: the characters step aside for
 full-screen apps, doze after ten minutes away and greet you back, little
 effects play, and a drag snaps. New D-Bus methods (`StartFocus`,
 `StopFocus`, `Snooze`, `Wake`, `NextScene`, `SetMuted`, `ToggleMute`)
-join the old ones, which are unchanged. The Flatpak asks for two more read-only D-Bus names, for the
-idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
+join the old ones, which are unchanged. The Flatpak asks for two more
+read-only D-Bus names, for the idle time
+(`org.gnome.Mutter.IdleMonitor`) and the battery
 (`org.freedesktop.UPower`).
 
 ### Added
@@ -92,8 +93,9 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   keyboard can group and arrange them too; both chords are rebindable
   (the Menu key is not: egui has no name for it). Opened from the
   keyboard, the menu shows on the monitor with the settings panel,
-  nearest the character, wherever the character is. The F-keys can be bound, F1 to
-  F12: one bound by hand used to make the whole config unreadable.
+  nearest the character, wherever the character is. The F-keys can be
+  bound, F1 to F12: one bound by hand used to make the whole config
+  unreadable.
 
 #### Scenes and files
 
@@ -191,10 +193,10 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   sound device closed, and "Quiet at bedtime". The tray and the command
   palette mute and unmute too, the Inspector's "Says" section gives each
   character a volume of its own under that one — a loud cat, a quiet
-  ghost — and Keybindings has an unbound shortcut
-  for it that works from anywhere once given a key; D-Bus has
-  `SetMuted(b)` and `ToggleMute`, for a compositor binding. A mute from
-  the tray, a shortcut or D-Bus is saved at once.
+  ghost — and Keybindings has an unbound shortcut for it that works from
+  anywhere once given a key; D-Bus has `SetMuted(b)` and `ToggleMute`,
+  for a compositor binding. A mute from the tray, a shortcut or D-Bus is
+  saved at once.
 - **Little effects.** A few hearts rise from a character you tap, a
   puff of dust goes up where one lands hard, and z's float up as they
   fall asleep. A switch in Appearance turns them off, and Reduce motion
@@ -348,21 +350,20 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   A config that still had `Tab` there as it came moves to `N`; one set
   by hand stays. `Tab` is never a shortcut now, on either backend.
 - **Less work while nothing moves.** Native Wayland's loop woke every
-  16 ms to look for messages; it now sleeps until it has something to
-  do, and D-Bus, the tray, shortcuts and screen readers wake it — 2 to 3
-  times a second, hidden, snoozed, paused or asleep, where it was 70.
-  On X11 a hidden overlay drew as often as a shown one (23% of a core in
+  16 ms to look for messages; it now sleeps until it has something to do,
+  and D-Bus, the tray, shortcuts and screen readers wake it — 2 to 3
+  times a second, hidden, snoozed, paused or asleep, where it was 70. On
+  X11 a hidden overlay drew as often as a shown one (23% of a core in
   the test rig, 1% now), a toast kept both backends drawing every frame
-  for seconds, the full-screen watch
-  asked the X server a dozen times a second instead of waiting to be
-  told, and the global shortcuts' library looked for a press twenty
-  times a second — the app grabs them itself now, and waits. With
-  several monitors, each overlay draws only when what it shows changes
-  — the one with the settings panel too, outside edit mode: anything
-  moving on one used to redraw them all (two outputs in the rig, the
-  characters walking on the panel's: X11 from 54% to 33% of a core,
-  native Wayland from 44% to 31%; walking on the other: 41% to 25% and
-  35% to 25%).
+  for seconds, the full-screen watch asked the X server a dozen times a
+  second instead of waiting to be told, and the global shortcuts'
+  library looked for a press twenty times a second — the app grabs them
+  itself now, and waits. With several monitors, each overlay draws only
+  when what it shows changes — the one with the settings panel too,
+  outside edit mode: anything moving on one used to redraw them all (two
+  outputs in the rig, the characters walking on the panel's: X11 from
+  54% to 33% of a core, native Wayland from 44% to 31%; walking on the
+  other: 41% to 25% and 35% to 25%).
 - **A config written by a newer version no longer costs the whole
   file.** A character, group, reminder or schedule rule this version
   cannot read — a behavior or asset type from a later release, or a
@@ -406,19 +407,19 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   config's `assets/demo/…` finds them there. An `~/assets/demo` folder
   left by an earlier version can be deleted. Found running the packaged
   binary in the test rig from another directory.
-- **Native Wayland on a hi-DPI output**: at a scale above 1 the
-  settings panel came out at twice its size, larger than a small
-  screen, a click reached whatever was drawn at twice its distance from
-  the top-left corner — nothing, past the middle of the screen — and
-  sprites and text were blurred — the compositor stretched
-  a buffer of one pixel a unit. Each surface is now drawn at its own
-  output's scale, fractional ones too (125 %, 150 %, through
-  `wp_fractional_scale_v1` and `wp_viewporter`), so two monitors at
-  different scales each get theirs, and a screen reader is told where
-  each control is in the same units. Checked in the test rig at 1, 1.5
-  and 2, on two outputs at 1 and 2 with the panel on either, and with
-  the scale changed while it ran: clicks, taps, file drops and the
-  screen reader's positions all where the controls are drawn.
+- **Native Wayland on a hi-DPI output**: at a scale above 1 the settings
+  panel came out at twice its size, larger than a small screen, a click
+  reached whatever was drawn at twice its distance from the top-left
+  corner (nothing, past the middle of the screen), and sprites and text
+  were blurred: the compositor stretched a buffer of one pixel a unit.
+  Each surface is now drawn at its own output's scale, fractional ones
+  too (125 %, 150 %, through `wp_fractional_scale_v1` and
+  `wp_viewporter`), so two monitors at different scales each get theirs,
+  and a screen reader is told where each control is in the same units.
+  Checked in the test rig at 1, 1.5 and 2, on two outputs at 1 and 2
+  with the panel on either, and with the scale changed while it ran:
+  clicks, taps, file drops and the screen reader's positions all where
+  the controls are drawn.
 - **Some text stayed English in every language**: the presets in the
   Scene tab and the command palette — their names, what they say they
   are, the characters they add — the tray icon's tooltip, the shortcuts'
@@ -459,8 +460,10 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   it now.
 - **The right-click menu of a character on another monitor** opened on
   the monitor with the panel, pushed to its edge, far from the
-  character. It opens where you clicked now, on both backends, and a
-  click on any other monitor or Escape closes it.
+  character. A right-click opens it where you clicked now, on both
+  backends, and a click on any other monitor or Escape closes it. Opened
+  from the keyboard it goes to the panel's monitor on purpose: that
+  overlay is where the keys and a screen reader are.
 - **Hiding the overlay on native Wayland with several monitors** cleared
   only the main one: characters on the other monitors stayed on screen,
   frozen. They hide with the rest now, and so does stepping aside for a
@@ -526,7 +529,11 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
   build working out the minutes; a release build refused it, as both do
   now. Found by three new fuzz targets, over the readers of the files
   1.5 opens (scenes, characters, backups, thumbnails) and its small
-  parsers (colours, times, dates, sound names, placeholders).
+  parsers (colours, times, dates, sound names, placeholders). Two more
+  hold that a config, and a named scene saved over its file, are written
+  back as they were read, what this version cannot read included
+  (`config_round_trip`, `scene_save_over`); the second found a scene
+  rewriting a list it does not read, before release.
 
 ## [1.4.0] — 2026-09-28
 

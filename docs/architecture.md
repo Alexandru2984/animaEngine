@@ -345,38 +345,36 @@ surface's space at the edge (`WaylandState::surface_offset`), and one
 per-frame sync keeps their input regions in step with the primary's
 (`LayerWindow::sync_extra_layers`).
 
-**Pacing:** one `RedrawPacing` decides when the loop runs a frame —
-the scene's clock is one — and each other monitor's window then draws
-only if its frame would differ from the one it shows
-(`app::windows::needs_frame`, on both backends): its sprites, edit
-marks and size summed up by `SurfaceState::frame_key`, each picture by
-its upload (`GpuTexture::generation`); while its own egui paints
-bubbles, effects or a menu, every frame and the one after; and once a
-heartbeat whatever happens. Until 1.5 anything moving on any monitor
-kept every window drawing: in the rig, two outputs with the characters
-walking on one, X11 went from 54% to 33% of a core and native Wayland
-from 44% to 31%. The primary is paced the same way outside edit mode,
-its key also holding the latest line said (which its egui announces),
-and it counts as busy — drawn every frame — while egui has input, asks
-for a frame or paints bubbles, effects or a moving toast, and while a
-screen reader asks or a library scan is due; in edit mode it draws
-every frame, its panel following the scene. With the characters
-walking on another monitor only, the primary no longer redraws: X11
-41% → 25%, native Wayland 35% → 25% in the rig. On a real X server with two
-outputs (Xorg's dummy driver, [runtime-findings.md](runtime-findings.md))
-the two cases went from 59% to 42% and from 51% to 29%. On X11 a window's own
-redraw (an expose, `render_one_extra`) always draws, and the primary
+**Pacing:** one `RedrawPacing` decides when the loop runs a frame — the
+scene's clock is one — and each other monitor's window then draws only
+if its frame would differ from the one it shows
+(`app::windows::needs_frame`, on both backends): its sprites, edit marks
+and size summed up by `SurfaceState::frame_key`, each picture by its
+upload (`GpuTexture::generation`); while its own egui paints bubbles,
+effects or a menu, every frame and the one after; and once a heartbeat
+whatever happens. Until 1.5 anything moving on any monitor kept every
+window drawing: in the rig, two outputs with the characters walking on
+one, X11 went from 54% to 33% of a core and native Wayland from 44% to
+31%. The primary is paced the same way outside edit mode, its key also
+holding the latest line said (which its egui announces), and it counts
+as busy — drawn every frame — while egui has input, asks for a frame or
+paints bubbles, effects or a moving toast, and while a screen reader
+asks or a library scan is due; in edit mode it draws every frame, its
+panel following the scene. With the characters walking on another
+monitor only, the primary no longer redraws: X11 41% → 25%, native
+Wayland 35% → 25% in the rig. On a real X server with two outputs
+(Xorg's dummy driver, [runtime-findings.md](runtime-findings.md)) the
+two cases went from 59% to 42% and from 51% to 29%. On X11 a window's
+own redraw (an expose, `render_one_extra`) always draws, and the primary
 draws after a focus or occlusion change, being shown again, or a lost
-surface. The idle heartbeat stays
-a single timer (hot-reload is window-independent). The decision
-itself is `crate::pacing`, shared with the native Wayland loop, which
-sleeps until the next thing it has to do (`pacing::next_wait`) — other
-threads wake it through a socket polled beside Wayland's
-(`wayland::waker`) — and draws only when there is a reason to
-(`FrameGate` in `wayland/run.rs`):
-input or another compositor event, a message from a channel, a sprite's
-next animation frame, a repaint egui asked for, something moving every
-frame — or the heartbeat.
+surface. The idle heartbeat stays a single timer (hot-reload is
+window-independent). The decision itself is `crate::pacing`, shared with
+the native Wayland loop, which sleeps until the next thing it has to do
+(`pacing::next_wait`) — other threads wake it through a socket polled
+beside Wayland's (`wayland::waker`) — and draws only when there is a
+reason to (`FrameGate` in `wayland/run.rs`): input or another compositor
+event, a message from a channel, a sprite's next animation frame, a
+repaint egui asked for, something moving every frame — or the heartbeat.
 
 **Hotplug (T.9):** monitor-set changes diff the registry — spawn
 windows for new monitors, despawn for vanished ones, re-resolve
@@ -410,11 +408,12 @@ epoch, 0 for none) that the tray, D-Bus and the palette set through
 `AnimaEvent::Snooze` and the loops read every frame: while it holds,
 `StepAside::or_snoozing` makes them step aside hidden and still, as for
 a full-screen app set to hide, so nothing else needs to know. Snoozing
-leaves edit mode; entering edit mode, or Show overlay, wakes. The X11 heartbeat runs `update_step_aside` too, or a
-snooze ending with every window unmapped would wait for a frame that
-never comes. The tray menu is `tray_menu::entries`, built on each
-showing; ksni's thread looks at the deadline every few seconds and
-asks for the menu again when it changed.
+leaves edit mode; entering edit mode, or Show overlay, wakes. The X11
+heartbeat runs `update_step_aside` too, or a snooze ending with every
+window unmapped would wait for a frame that never comes. The tray menu
+is `tray_menu::entries`, built on each showing; ksni's thread looks at
+the deadline every few seconds and asks for the menu again when it
+changed.
 
 ### The focus timer (`src/focus.rs`)
 
@@ -553,21 +552,21 @@ that egui hears the pointer only while the menu is there and only over
 its monitor, so a press on any other monitor closes the menu in the
 loop, as does Escape, which reaches the panel's egui. A press on the
 menu is kept from the scene, as the panel's egui keeps its own
-(`SurfaceEgui::owns_pointer`). The native Wayland
-panel is that same core plus a screen reader and an input method
-(`wayland::egui_render`). Reminders are timers
-keyed by the reminder itself, so editing the list leaves the others'
-alone; the loops call `reminders::deliver` each frame — on Wayland before
-the frame gate — and it restarts every timer while the user is away.
-Reminders at a set time (`ReminderConfig::at`, `reminders::At`) are
-`Timers::poll_timed`'s: once a day each, on its days or its date, from
-its time to `LATE_BY_MINUTES` after (a date's to midnight), against a
-local clock read every ten seconds; away (no input — not bedtime: a
-time was asked for) or unable to be said, they wait within that time
-rather than start over (`reminders::Away`). Several due in one frame
-go to several characters, front to back. Idle is watched for them even with pausing off
-(`away::idle_watch_minutes`: the pause's time, or five minutes); only the
-pause setting decides whether the scene holds still.
+(`SurfaceEgui::owns_pointer`). The native Wayland panel is that same
+core plus a screen reader and an input method (`wayland::egui_render`).
+Reminders are timers keyed by the reminder itself, so editing the list
+leaves the others' alone; the loops call `reminders::deliver` each frame
+— on Wayland before the frame gate — and it restarts every timer while
+the user is away. Reminders at a set time (`ReminderConfig::at`,
+`reminders::At`) are `Timers::poll_timed`'s: once a day each, on its
+days or its date, from its time to `LATE_BY_MINUTES` after (a date's to
+midnight), against a local clock read every ten seconds; away (no input
+— not bedtime: a time was asked for) or unable to be said, they wait
+within that time rather than start over (`reminders::Away`). Several due
+in one frame go to several characters, front to back. Idle is watched
+for them even with pausing off (`away::idle_watch_minutes`: the pause's
+time, or five minutes); only the pause setting decides whether the scene
+holds still.
 
 A character's own lines are config (`CharacterConfig::talk`,
 `[characters.talk]`, tidied by `phrases::tidy` on every load): a poke
@@ -586,12 +585,13 @@ names and `placeholder-date` pattern.
 A tap sound (`talk.sound`, `src/sounds.rs`) is a path into the asset
 library, tidied with the lines. A poke sets the entity's `sound_wanted`
 to it, as the Inspector's Play does — and a reminder or a focus turn to
-`reminder_sound`'s choice (`ReminderSound::play_by`) — and the loops drain them right after the
-tick (`Scene::take_sounds`) into `AudioHost::play` — the path a script's
-`play` takes, so the same containment, caps, cooldown and lazily opened
-device. The Inspector's list comes from `sounds::choices`: a bounded walk
-of the library that passes links by, cached for a few seconds; the loops
-hand it the root (`sounds::set_root`).
+`reminder_sound`'s choice (`ReminderSound::play_by`) — and the loops
+drain them right after the tick (`Scene::take_sounds`) into
+`AudioHost::play` — the path a script's `play` takes, so the same
+containment, caps, cooldown and lazily opened device. The Inspector's
+list comes from `sounds::choices`: a bounded walk of the library that
+passes links by, cached for a few seconds; the loops hand it the root
+(`sounds::set_root`).
 
 ### Little effects (`src/effects.rs`)
 
@@ -652,25 +652,25 @@ input, and on battery if asked (`away::stillness`). Away, it dozes off
 back by `Scene::tick` when another bubble ends, taken away on waking),
 and `tick` runs gravity alone (`Entity::fall`) — no behaviors, scripts
 or animation — until everyone has landed or `doze::SETTLE_LIMIT` has
-passed; then each takes its idle pose (`Entity::rest`) and
-`is_running` turns false, which stops the frames as a pause does.
-Bedtime (`src/bedtime.rs`, `[global.bedtime]`) dozes the same way by
-the clock — read at most every ten seconds (`bedtime::Watch`), across
-midnight, not in edit mode — through `Stillness::with_bedtime`, and is
-handed to the reminders as time away, so the night is their break.
-Characters arriving while it sleeps — a scheduled scene, a reload —
-settle the same way (`Scene::settle_again`). With a full-screen app in
-front, no input is someone watching (`Stillness::watching`): no Zzz…,
-only the pause. On battery with someone there it is a plain
-`Scene::set_suspended`, alongside stepping aside. Native Wayland is told by the compositor (`ext-idle-notify-v1`,
-`layer_window::idle`, the notification remade when the time changes).
-Elsewhere a thread polls once a second: the MIT-SCREEN-SAVER extension
-on a real X server, or Mutter's IdleMonitor under a Wayland session —
-never XWayland's own counter, which misses input to native apps — and
-UPower's `OnBattery` every ten seconds, at once when the setting turns
-on. The loops hand it the settings through `away::configure`, and it
-sends `AnimaEvent::Away` / `OnBattery` / `IdleSource` on change,
-retrying a full channel rather than giving up.
+passed; then each takes its idle pose (`Entity::rest`) and `is_running`
+turns false, which stops the frames as a pause does. Bedtime
+(`src/bedtime.rs`, `[global.bedtime]`) dozes the same way by the clock —
+read at most every ten seconds (`bedtime::Watch`), across midnight, not
+in edit mode — through `Stillness::with_bedtime`, and is handed to the
+reminders as time away, so the night is their break. Characters arriving
+while it sleeps — a scheduled scene, a reload — settle the same way
+(`Scene::settle_again`). With a full-screen app in front, no input is
+someone watching (`Stillness::watching`): no Zzz…, only the pause. On
+battery with someone there it is a plain `Scene::set_suspended`,
+alongside stepping aside. Native Wayland is told by the compositor
+(`ext-idle-notify-v1`, `layer_window::idle`, the notification remade
+when the time changes). Elsewhere a thread polls once a second: the
+MIT-SCREEN-SAVER extension on a real X server, or Mutter's IdleMonitor
+under a Wayland session — never XWayland's own counter, which misses
+input to native apps — and UPower's `OnBattery` every ten seconds, at
+once when the setting turns on. The loops hand it the settings through
+`away::configure`, and it sends `AnimaEvent::Away` / `OnBattery` /
+`IdleSource` on change, retrying a full channel rather than giving up.
 
 
 Coming back is greeted (`src/welcome.rs`): the loops hand
@@ -733,8 +733,8 @@ within `SNAP_DISTANCE` on each axis. The guides it returns live on the
 
 ### Groups (`src/group.rs`)
 
-A group is data first (C.8): an id, a name, member ids, and an offset,
-a scale and a visibility composed onto its members at draw time and in
+A group is data first (C.8): an id, a name, member ids, and an offset, a
+scale and a visibility composed onto its members at draw time and in
 hit-testing. Since 1.5 the app makes and edits them. `GroupSelected`
 (Ctrl+G) and `UngroupSelected` (Ctrl+Shift+G) are shared actions, also
 on the right-click menu (`outcomes::menu_group_offers` decides what it
@@ -744,11 +744,12 @@ takes the group's transform into its own (`leave_group`). An entity is
 in at most one group — regrouping moves it, and a group emptied that way
 goes, as does one emptied by deleting its members (a stub written empty
 by hand stays). Duplicating exactly a group (`Scene::exact_group`)
-groups the copies with the same transform. On the canvas a group acts as one: a press on a member selects the
-whole group (`multi::select_with_its_group`, the right-click too), and a
-second press on a member of the selection narrows it to that one on a
-tap (`DragController::narrow_on_tap`). Undo covers it all through the
-groups in its snapshots.
+groups the copies with the same transform. On the canvas a group acts as
+one: a press on a member selects the whole group
+(`multi::select_with_its_group`, the right-click too), and a second
+press on a member of the selection narrows it to that one on a tap
+(`DragController::narrow_on_tap`). Undo covers it all through the groups
+in its snapshots.
 
 ### Sharing a scene (`src/scene_file/`)
 
@@ -764,11 +765,11 @@ the characters there, and tidies the scene as a file from someone else
 name (`scenes::free_name`) and puts it on screen, with an undo step the
 loops open first — fitted into the area the overlay covers when it was
 laid out for other screens (`scene_file::fit_onto`: per axis, kept,
-moved as a block, or squeezed), and saved again so. Both directions run on a worker behind the portal's
-chooser — `SaveFile` to share, falling back to Downloads where there is
-no portal, and `OpenFile` or a drop to import — as one pending
-`outcomes::SceneTransfer` each loop polls. Imported pictures stay when
-their scene is deleted, like the library's.
+moved as a block, or squeezed), and saved again so. Both directions run
+on a worker behind the portal's chooser — `SaveFile` to share, falling
+back to Downloads where there is no portal, and `OpenFile` or a drop to
+import — as one pending `outcomes::SceneTransfer` each loop polls.
+Imported pictures stay when their scene is deleted, like the library's.
 
 One character goes out the same way (`scene_file::export_character`,
 `.animachar`): a scene of one, `character = true` in `scene.toml`.

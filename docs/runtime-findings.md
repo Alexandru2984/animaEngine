@@ -2302,9 +2302,10 @@ switches) per thread over 30 s, in each still state, on the rig.
   for the display — 23% of a core in the rig, as much as shown. Out of
   sight, hidden or stepping aside, the scene asks for no frames.
 - **A toast kept both loops drawing every frame** for its few seconds,
-  in edit mode, where egui asks for their frames itself; and X11 asked for each next frame at once, 160 a second in the
-  rig, where `Fifo` does not hold it to the display. Pacing no longer
-  counts toasts, and X11 waits out the rest of 16 ms between frames
+  in edit mode, where egui asks for their frames itself; and X11 asked
+  for each next frame at once, 160 a second in the rig, where `Fifo`
+  does not hold it to the display. Pacing no longer counts toasts, and
+  X11 waits out the rest of 16 ms between frames
   (`pacing::FRAME_INTERVAL`, shared now).
 - **The X11 full-screen watch asked the X server twice a second**, a
   dozen round-trips a second; it waits for the property changes that
