@@ -943,7 +943,7 @@ impl ApplicationHandler<AnimaEvent> for App {
             }
             AnimaEvent::StopFocus => crate::focus::stop(),
             AnimaEvent::Quit => {
-                tracing::info!("Quit requested from tray");
+                tracing::info!("Quit requested (tray, or a signal)");
                 self.save_and_exit(event_loop);
                 return;
             }

@@ -33,6 +33,10 @@ use anima_engine::{win_instance, win_tray};
 use winit::platform::x11::EventLoopBuilderExtX11;
 
 fn main() {
+    // Before any thread is made, so every one inherits the blocked
+    // signals (`quit_signal`).
+    #[cfg(unix)]
+    anima_engine::quit_signal::start();
     init_tracing();
 
     // CLI: `anima-engine --recover` restores a crash-recovery snapshot
@@ -206,6 +210,9 @@ fn main() {
                 anima_engine::event::EventSink::Channel(event_tx.clone()),
                 false,
             );
+            anima_engine::quit_signal::connect(anima_engine::event::EventSink::Channel(
+                event_tx.clone(),
+            ));
             let _tray_thread = tray::spawn(anima_engine::event::EventSink::Channel(event_tx));
             let command_rx = Some(event_rx);
             // T.2: the portal is the only global-hotkey mechanism that
@@ -309,6 +316,9 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     // the process.
     #[cfg(unix)]
     {
+        anima_engine::quit_signal::connect(anima_engine::event::EventSink::Winit(
+            event_loop.create_proxy(),
+        ));
         let _tray_thread = tray::spawn(anima_engine::event::EventSink::Winit(
             event_loop.create_proxy(),
         ));

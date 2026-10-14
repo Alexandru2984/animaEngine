@@ -398,6 +398,15 @@ read-only D-Bus names, for the idle time
 
 ### Fixed
 
+- **Logging out, shutting down or Ctrl+C lost what was not yet saved.**
+  The app saved on the tray's Quit, but a logout or a shutdown (SIGTERM),
+  a terminal's Ctrl+C (SIGINT) or a closed terminal (SIGHUP) ended it
+  where it stood: edits still in edit mode, the tour just finished,
+  where the walkers had got to and a pause from the tray were gone at
+  the next start. The first such signal now quits as the tray does,
+  saving first; a second ends it at once. Checked in the test rig on
+  both backends, an edit made in edit mode on disk a quarter of a second
+  after the signal.
 - **An installed app made an `assets` folder wherever it was started.**
   The demo characters' pictures were generated into `assets/demo/` under
   the current directory, which for a `.deb` or an AppImage started from

@@ -2497,8 +2497,9 @@ pub fn run_native(
     // while the wl_surface it points into is still alive. `extra_surfaces`
     // holds the same kind of raw-handle surface the primary one does
     // (E.7), so it needs the identical ordering, not just `renderer`.
-    // Persist any unsaved edits on clean shutdown so a Ctrl+C / window
-    // close doesn't lose the last toggle.
+    // Persist any unsaved edits on a clean shutdown — Quit from the tray,
+    // or a logout, Ctrl+C or closed terminal, which `quit_signal` turns
+    // into that Quit — so the last toggle is not lost.
     if config_dirty {
         if let Err(e) = sync_and_save(&mut config, &scene) {
             tracing::warn!("Final config save failed: {e}");

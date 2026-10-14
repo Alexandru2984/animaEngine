@@ -48,6 +48,9 @@ pub mod platforms;
 #[cfg(unix)]
 pub mod portal;
 pub mod presets;
+// Logout, Ctrl+C and a closed terminal quit as the tray's Quit does.
+#[cfg(unix)]
+pub mod quit_signal;
 pub mod reminders;
 pub mod renderer;
 pub mod scene;
