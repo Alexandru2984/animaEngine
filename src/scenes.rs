@@ -449,6 +449,27 @@ mod tests {
         fuzz_scene_save_over(text);
     }
 
+    /// Found by `scene_save_over`: two `[[windows]]` — a list a scene does
+    /// not read — with one `id`. Their keys were noted by `id`, as a
+    /// config's are, and the second's written into the first.
+    #[test]
+    fn a_list_a_scene_does_not_read_is_not_looked_into() {
+        let text = r#"
+            name = "Two"
+            [[windows]]
+            id = "w"
+            a = 1
+            [[windows]]
+            id = "w"
+            b = 2
+        "#;
+        let (saved, _) = from_table(text.parse().unwrap()).unwrap();
+        let out: toml::Table = scene_text(&saved, Some(text)).unwrap().parse().unwrap();
+        let original: toml::Table = text.parse().unwrap();
+        assert_eq!(out["windows"], original["windows"]);
+        fuzz_scene_save_over(text);
+    }
+
     #[test]
     fn an_imported_name_steps_aside_for_one_on_the_shelf() {
         let entry = |name: &str| SceneEntry {

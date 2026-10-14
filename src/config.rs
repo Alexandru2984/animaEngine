@@ -937,7 +937,11 @@ impl SetAside {
             fields_of::<crate::scenes::SavedScene>,
             &mut aside.unknown,
         );
-        aside.note_unknown_keys(table);
+        // Inside the lists a scene reads; any other key — `windows`,
+        // `global` — is kept whole, noted above. Its entries noted by `id`
+        // as a config's are, two windows with one `id` had the second's
+        // keys written into the first.
+        aside.note_unknown_in_lists(table);
         // Only the lists a scene reads have entries set aside one by one.
         // Any other — `reminders`, `windows`, from a version whose scenes
         // hold them — is an unknown key and goes back whole: set aside as
@@ -980,28 +984,8 @@ impl SetAside {
         if let Some(t) = table.get("collapse_state").and_then(toml::Value::as_table) {
             note_unknown(t, &key("collapse_state"), fields_of::<CollapseState>, out);
         }
-        for entry in table
-            .get("characters")
-            .and_then(toml::Value::as_array)
-            .into_iter()
-            .flatten()
-        {
-            note_character(entry, &key("characters"), out);
-        }
-        for entry in table
-            .get("groups")
-            .and_then(toml::Value::as_array)
-            .into_iter()
-            .flatten()
-        {
-            if let (Some(t), Some(id)) = (
-                entry.as_table(),
-                entry.get("id").and_then(toml::Value::as_str),
-            ) {
-                let at = vec![Seg::Key("groups".into()), Seg::Id(id.into())];
-                note_unknown(t, &at, fields_of::<crate::group::GroupConfig>, out);
-            }
-        }
+        self.note_unknown_in_lists(table);
+        let out = &mut self.unknown;
         for window in table
             .get("windows")
             .and_then(toml::Value::as_array)
@@ -1024,6 +1008,35 @@ impl SetAside {
                 {
                     note_character(entry, &chars, out);
                 }
+            }
+        }
+    }
+
+    /// The unknown keys of the entries of the lists a scene has too —
+    /// its characters and groups.
+    fn note_unknown_in_lists(&mut self, table: &toml::Table) {
+        let out = &mut self.unknown;
+        let key = |k: &str| vec![Seg::Key(k.to_string())];
+        for entry in table
+            .get("characters")
+            .and_then(toml::Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            note_character(entry, &key("characters"), out);
+        }
+        for entry in table
+            .get("groups")
+            .and_then(toml::Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            if let (Some(t), Some(id)) = (
+                entry.as_table(),
+                entry.get("id").and_then(toml::Value::as_str),
+            ) {
+                let at = vec![Seg::Key("groups".into()), Seg::Id(id.into())];
+                note_unknown(t, &at, fields_of::<crate::group::GroupConfig>, out);
             }
         }
     }
