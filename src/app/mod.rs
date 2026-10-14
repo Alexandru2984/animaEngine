@@ -1177,6 +1177,13 @@ impl ApplicationHandler<AnimaEvent> for App {
                 self.save_and_exit(event_loop);
             }
 
+            // The screen's scale changed (`Xft.dpi` reloaded): the
+            // characters follow it, as the panel does.
+            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                crate::entity::set_display_scale(scale_factor as f32);
+                self.request_redraw_all();
+            }
+
             WindowEvent::Resized(physical_size) => {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize(physical_size.width, physical_size.height);

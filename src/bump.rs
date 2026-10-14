@@ -49,7 +49,7 @@ pub fn platforms_for(
     };
     let (gx, gy, _) = crate::group::transform_for_member(&scene.groups, &me_entity.id);
     // Physics works in the entity's own scale, without its group's.
-    let under_feet = margins(me_entity).1 * me_entity.scale;
+    let under_feet = margins(me_entity).1 * me_entity.draw_scale();
     let mut out = windows.to_vec();
     for (i, rect) in solids.iter().enumerate() {
         let (true, Some((l, t, r, b))) = (i != me, rect) else {
@@ -57,7 +57,7 @@ pub fn platforms_for(
         };
         let other = &scene.entities[i];
         let (_, _, gscale) = crate::group::transform_for_member(&scene.groups, &other.id);
-        let above_head = margins(other).0 * other.scale * gscale;
+        let above_head = margins(other).0 * other.draw_scale() * gscale;
         let inset = (r - l) * SIDE_INSET;
         out.push(PlatformRect {
             x: l + inset - gx,

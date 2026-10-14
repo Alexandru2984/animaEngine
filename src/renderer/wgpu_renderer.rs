@@ -894,7 +894,7 @@ impl SurfaceState {
             for v in [
                 entity.x + gx,
                 entity.y + gy,
-                entity.scale * gscale,
+                entity.draw_scale() * gscale,
                 entity.opacity * entity.fade.clamp(0.0, 1.0),
             ] {
                 bits(v, &mut h);
@@ -1080,7 +1080,7 @@ impl SurfaceState {
                 // C.9: fold the owning group's offset + scale into the
                 // drawn quad. Identity for ungrouped entities.
                 let (gx, gy, gscale) = crate::group::transform_for_member(groups, &entity.id);
-                let scale = entity.scale * gscale;
+                let scale = entity.draw_scale() * gscale;
                 let width = gpu_tex.width as f32 * scale;
                 let height = gpu_tex.height as f32 * scale;
                 let local_x = entity.x + gx - origin.0;

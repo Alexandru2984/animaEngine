@@ -2,7 +2,29 @@ use crate::animation::{Animation, AnimationSet, StateId};
 use crate::behavior::{Behavior, BehaviorState, TickContext};
 use crate::config::CharacterConfig;
 use crate::physics::PhysicsState;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
+
+/// Screen pixels a picture's pixel takes at scale 1 (`f32` bits): the
+/// screen's scale factor on the winit path, where positions are the X
+/// server's pixels — so a character is as large, next to the panel, as on
+/// native Wayland, whose units are already the compositor's logical ones
+/// and which leaves this at 1. Every size the scene measures goes through
+/// it (`Entity::draw_scale`).
+static DISPLAY_SCALE: AtomicU32 = AtomicU32::new(1.0f32.to_bits());
+
+/// Set the screen's scale factor (`DISPLAY_SCALE`); nothing for one that
+/// is not a positive number.
+pub fn set_display_scale(scale: f32) {
+    if scale.is_finite() && scale > 0.0 {
+        DISPLAY_SCALE.store(scale.to_bits(), Ordering::Relaxed);
+    }
+}
+
+/// The screen's scale factor (`DISPLAY_SCALE`).
+pub fn display_scale() -> f32 {
+    f32::from_bits(DISPLAY_SCALE.load(Ordering::Relaxed))
+}
 
 /// Below this horizontal speed (px per tick) an entity counts as
 /// standing still — keeps float jitter from flapping Walk/Idle.
@@ -612,19 +634,25 @@ impl Entity {
         }
     }
 
+    /// Screen pixels per picture pixel: its own scale, times the
+    /// screen's ([`display_scale`]). `scale` is what the user set.
+    pub fn draw_scale(&self) -> f32 {
+        self.scale * display_scale()
+    }
+
     /// Get the current frame dimensions (scaled)
     pub fn scaled_width(&self) -> f32 {
         self.animation()
             .current_frame_data()
-            .map(|f| f.width as f32 * self.scale)
-            .unwrap_or(64.0)
+            .map_or(64.0, |f| f.width as f32)
+            * self.draw_scale()
     }
 
     pub fn scaled_height(&self) -> f32 {
         self.animation()
             .current_frame_data()
-            .map(|f| f.height as f32 * self.scale)
-            .unwrap_or(64.0)
+            .map_or(64.0, |f| f.height as f32)
+            * self.draw_scale()
     }
 
     /// Check if a point (in screen coords) hits this entity.
@@ -659,7 +687,7 @@ impl Entity {
         }
         let eff_x = self.x + offset.0;
         let eff_y = self.y + offset.1;
-        let eff_scale = self.scale * scale_mul;
+        let eff_scale = self.draw_scale() * scale_mul;
         let w = self.scaled_width() * scale_mul;
         let h = self.scaled_height() * scale_mul;
 

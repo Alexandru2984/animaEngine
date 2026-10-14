@@ -330,6 +330,11 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 
 ### Changed
 
+- **Characters at the screen's scale on X11.** With a scale factor
+  above 1 (`Xft.dpi: 192`, or a desktop's scaling) the panel grew, but
+  the characters kept their pictures' pixels — half the size native
+  Wayland draws them at 200 %. They are drawn, hit, tapped and moved at
+  the factor now; positions in the config are unchanged.
 - **Messages show outside edit mode too.** A toast raised in
   pass-through — a reload, a refused file, pausing from the tray —
   showed only in the settings panel, so it was gone before anyone opened

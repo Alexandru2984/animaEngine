@@ -153,6 +153,9 @@ impl App {
         match event_loop.create_window(window_attrs) {
             Ok(window) => {
                 let window = Arc::new(window);
+                // The characters at the screen's scale, as the panel is
+                // (`entity::display_scale`).
+                crate::entity::set_display_scale(window.scale_factor() as f32);
                 tracing::info!(
                     "Window created: {:?} ({}x{})",
                     window.id(),

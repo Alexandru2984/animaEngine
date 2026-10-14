@@ -262,7 +262,7 @@ flag needed there.
 | Input methods (CJK) | stable (winit) | stable (text-input-v3) |
 | egui settings panel | stable | stable |
 | Multi-monitor distribution | stable | stable |
-| Hi-DPI | the panel at the screen's scale factor | each monitor at its own scale, 125 % / 150 % too |
+| Hi-DPI | the panel and the characters at the screen's scale factor | each monitor at its own scale, 125 % / 150 % too |
 | Perf overlay | stable | stable |
 | Global hotkeys | stable (XGrabKey) | via D-Bus + compositor binding |
 | Hot-reload | stable | stable |

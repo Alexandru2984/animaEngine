@@ -343,7 +343,7 @@ impl Scene {
         let e = &self.entities[idx];
         let (_, _, gscale) = crate::group::transform_for_member(&self.groups, &e.id);
         let (above, under) = e.animation().steady_margins();
-        let scale = e.scale * gscale;
+        let scale = e.draw_scale() * gscale;
         Some((
             l,
             t + above * scale,

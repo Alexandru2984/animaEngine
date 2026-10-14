@@ -214,9 +214,10 @@ edit mode from anywhere.
 
 - [ ] **At 200 %.** Settings → Displays → Scale 200 %, then start the
       app again: the panel at its usual size, the ⚙ corner clickable
-      where it is drawn, in and out of edit mode. Under XWayland the
-      characters keep their pictures' pixels if GNOME gives X11 apps
-      the scale (docs/wayland.md). With fractional scaling on, at
+      where it is drawn, in and out of edit mode, and the characters in
+      proportion to the panel — not twice its size, which would mean
+      the scale counted twice (docs/wayland.md). With fractional
+      scaling on, at
       150 %: the log warns about XWayland and fractional scaling at
       start — that caveat is known (docs/wayland.md); note what the ⚙
       corner does.
