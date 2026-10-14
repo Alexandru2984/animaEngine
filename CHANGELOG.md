@@ -504,6 +504,24 @@ read-only D-Bus names, for the idle time
   where the English did not; Romanian, French, Spanish, Italian and
   Portuguese named the overlay two ways, French, Italian and Dutch the
   tray. Each language uses one word for each now, and a test keeps it.
+- **The Shortcuts tab said what delivers the shortcuts in English**, in
+  every language — "none (compositor bindings + D-Bus)", the log's words
+  — and "X11 XGrabKey" on Windows, which has no X11. It says it in the
+  user's language now: the desktop, the app itself, or none, and what to
+  use instead. It stood beside its label on a row that does not wrap, so
+  the panel grew on that tab to fit it; it wraps under its label now,
+  and the panel keeps its width on every tab in every language.
+- **Counts are said as each language says that number.** Each language
+  had one plural for every number past one: "1 assets indexed" in
+  English, "Ațipește 60 minute" in the Romanian tray for "60 de minute",
+  "2 elementów" in Polish for "2 postacie". The counted messages now
+  choose by the number, and say only "Monitor … disconnected" when no
+  character was pinned to it, and "Imported …" when no part was skipped.
+  Dutch called a character "personage" in seven places — among them the
+  tour's first two steps — beside "figuur" in sixty, and Polish
+  "element" in six beside "postać"; each says it one way now. Spanish
+  addressed the user as "usted" in four places. Found reading every
+  language on screen, on both backends.
 - **A screen reader found some controls without a name**: the
   Inspector's "Speaks up" and "Sound on a tap", the reminders' sound,
   and the number boxes beside the scale, opacity and text-size sliders.

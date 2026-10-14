@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R62 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R63 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2437,3 +2437,28 @@ on screen), then a second start: it exits at once and the characters
 are drawn again. Also on both backends: the tray's Quit, sent through
 the rig's tray host, saves an edit not yet saved, and a start right
 after has it.
+
+### R63 · Read in every language, the Shortcuts tab was wider and partly English — `FIXED`
+
+Found reading all ten languages on screen, on both backends: the panel,
+the tour, What's new, each tab, the tray's menu and a toast, read back
+over AT-SPI and compared with English. On every other tab the panel kept
+its width; on the Shortcuts tab it grew — by 120 pixels in English and
+350 in French on native Wayland — to fit the row naming what delivers
+the global shortcuts, which stood beside its label and does not wrap.
+That answer was also the log's English in every language ("none
+(compositor bindings + D-Bus)"), and "X11 XGrabKey" on Windows.
+
+The same reading found counts with one plural for every number —
+"Ațipește 60 minute" in the Romanian tray, "1 assets indexed" in
+English, "5 elementów" in the Polish footer — Dutch naming a character
+two ways and Spanish addressing the user formally in four places.
+
+**Fixed:** the answer is an enum said in the user's language, under its
+label, so it wraps; the counted messages choose their form by the
+number (Fluent's plural rules, `[0]` for none); the words are unified
+and the terminology and register tests extended. **Checked:** the panel
+keeps its width on the Shortcuts tab in all ten languages; the Romanian
+tray says "60 de minute", the Polish footer "5 postaci". Nothing else on
+screen was English but words the languages borrow — Presets, Volume,
+Inspector — and no message was missing.

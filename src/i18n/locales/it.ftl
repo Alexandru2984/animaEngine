@@ -200,7 +200,10 @@ library-kind-animated = Animato
 library-kind-video = Video
 library-asset-added-toast = { $name } aggiunto alla scena
 library-asset-add-failed-toast = Impossibile aggiungere { $name }
-library-count = { $n } asset indicizzati
+library-count = { $n ->
+        [one] { $n } asset indicizzato
+       *[other] { $n } asset indicizzati
+    }
 
 # ── Keybindings tab (D.1) — placeholder pending D.4 native-speaker audit
 settings-tab-keybindings = Scorciatoie
@@ -488,17 +491,31 @@ portal-denied-native-toast = Permesso per le scorciatoie negato — il menu nell
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Scorciatoie globali tramite:
 keybindings-backend-tooltip = Quale meccanismo consegna le tre scorciatoie globali (modifica, nascondi, pausa) mentre altre app hanno il focus. Determinato all’avvio; le scorciatoie interne non sono interessate.
+keybindings-backend-portal-waiting = Il desktop (in attesa della tua approvazione)
+keybindings-backend-portal = Il desktop
+keybindings-backend-grab = L’app stessa
+keybindings-backend-grab-declined = L’app stessa (permesso per le scorciatoie negato)
+keybindings-backend-compositor = Nessuno — assegna i tasti nel compositor, o usa il menu nell’area di notifica
+keybindings-backend-tray = Nessuno — usa il menu nell’area di notifica
 keybindings-portal-restart-hint = Le modifiche ai trigger valgono dal prossimo avvio (il desktop ricorda la tua approvazione).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitor { $name } scollegato — { $n } personaggi agganciati ora seguono la loro posizione.
+monitor-unplugged-toast = { $n ->
+        [0] Monitor { $name } scollegato.
+        [one] Monitor { $name } scollegato — { $n } personaggio agganciato ora segue la sua posizione.
+       *[other] Monitor { $name } scollegato — { $n } personaggi agganciati ora seguono la loro posizione.
+    }
 monitor-plugged-toast = Monitor { $name } collegato.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Importa pacchetto Shimeji
 library-import-shimeji-hint = Trascina la cartella del pacchetto sull’overlay o incolla qui il suo percorso. Gli sprite vengono copiati nella libreria.
 library-import-shimeji-button = Importa
-shimeji-imported-toast = { $name } importato ({ $n } parti saltate — vedi il log)
+shimeji-imported-toast = { $n ->
+        [0] { $name } importato
+        [one] { $name } importato ({ $n } parte saltata — vedi il log)
+       *[other] { $name } importato ({ $n } parti saltate — vedi il log)
+    }
 shimeji-import-failed-toast = Importazione non riuscita: { $reason }
 shimeji-no-library-toast = Nessuna cartella libreria — crea prima { $path }.
 crash-report-found-toast = La sessione precedente si è chiusa in modo imprevisto. Un rapporto è stato salvato in { $path } — allegalo a un issue su GitHub.

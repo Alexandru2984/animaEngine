@@ -59,6 +59,7 @@ use crate::drop_validate::redact_path;
 use crate::entity::Entity;
 use crate::error::{AnimaError, Result};
 use crate::event::AnimaEvent;
+use crate::hotkeys::probe::HotkeyStatus;
 use crate::input::selection::SelectionState;
 use crate::keybindings::{Action, KeyChord};
 use crate::monitor::{self, MonitorInfo, MonitorMode, WindowPlan};
@@ -92,10 +93,10 @@ pub fn run_native(
     // delivers one *action*, the Hide/Show intent derives from state.
     let mut overlay_hidden = false;
     // Keybindings-tab backend status (T.4), updated by PortalMsg.
-    let mut hotkey_backend_status: String = if portal_rx.is_some() {
-        "portal (awaiting approval)".into()
+    let mut hotkey_backend_status = if portal_rx.is_some() {
+        HotkeyStatus::PortalAwaiting
     } else {
-        "none (compositor bindings + D-Bus)".into()
+        HotkeyStatus::CompositorBindings
     };
     // `Single` names the monitor the overlay belongs on; the other modes
     // let the compositor choose.
@@ -958,7 +959,7 @@ pub fn run_native(
                     match msg {
                         PortalMsg::Ready => {
                             tracing::info!("Portal shortcuts active (native path)");
-                            hotkey_backend_status = "portal (GlobalShortcuts)".into();
+                            hotkey_backend_status = HotkeyStatus::Portal;
                         }
                         PortalMsg::Failed => {
                             tracing::warn!(
@@ -966,7 +967,7 @@ pub fn run_native(
                                  bindings via D-Bus remain the fallback"
                             );
                             toasts.warn(crate::i18n::t("portal-denied-native-toast"));
-                            hotkey_backend_status = "none (compositor bindings + D-Bus)".into();
+                            hotkey_backend_status = HotkeyStatus::CompositorBindings;
                         }
                         PortalMsg::Activated(action) => match action {
                             KbAction::ToggleFocus | KbAction::ToggleSnooze => {
@@ -1999,7 +2000,7 @@ pub fn run_native(
                 let collapse_state_mut = &mut config.collapse_state;
                 let last_seen_whats_new_mut = &mut config.global.last_seen_whats_new;
                 let warnings_ref = &warnings;
-                let hotkey_backend_ref = hotkey_backend_status.as_str();
+                let hotkey_backend_ref = hotkey_backend_status;
                 let shimeji_import_ref = &mut shimeji_import;
                 let scene_request_ref = &mut scene_request;
                 let monitors_ref = monitors.as_slice();

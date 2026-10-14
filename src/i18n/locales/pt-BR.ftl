@@ -200,7 +200,10 @@ library-kind-animated = Animado
 library-kind-video = Vídeo
 library-asset-added-toast = { $name } adicionado à cena
 library-asset-add-failed-toast = Não foi possível adicionar { $name }
-library-count = { $n } assets indexados
+library-count = { $n ->
+        [one] { $n } asset indexado
+       *[other] { $n } assets indexados
+    }
 
 # ── Keybindings tab (D.1) — placeholder pending D.4 native-speaker audit
 settings-tab-keybindings = Atalhos
@@ -488,17 +491,31 @@ portal-denied-native-toast = A permissão de atalhos foi negada — o menu da ba
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Atalhos globais via:
 keybindings-backend-tooltip = Qual mecanismo entrega os três atalhos globais (editar, ocultar, pausar) enquanto outros apps têm o foco. Resolvido na inicialização; atalhos internos não são afetados.
+keybindings-backend-portal-waiting = O desktop (aguardando sua aprovação)
+keybindings-backend-portal = O desktop
+keybindings-backend-grab = O próprio app
+keybindings-backend-grab-declined = O próprio app (a permissão de atalhos foi negada)
+keybindings-backend-compositor = Nenhum — atribua teclas no seu compositor ou use o menu da bandeja
+keybindings-backend-tray = Nenhum — use o menu da bandeja
 keybindings-portal-restart-hint = Mudanças de atalho valem a partir da próxima inicialização (o desktop lembra sua aprovação).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitor { $name } desconectado — { $n } personagens fixados agora seguem sua posição.
+monitor-unplugged-toast = { $n ->
+        [0] Monitor { $name } desconectado.
+        [one] Monitor { $name } desconectado — { $n } personagem fixado agora segue sua posição.
+       *[other] Monitor { $name } desconectado — { $n } personagens fixados agora seguem sua posição.
+    }
 monitor-plugged-toast = Monitor { $name } conectado.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Importar pacote Shimeji
 library-import-shimeji-hint = Arraste a pasta do pacote para o overlay ou cole o caminho aqui. Os sprites são copiados para a biblioteca.
 library-import-shimeji-button = Importar
-shimeji-imported-toast = { $name } importado ({ $n } partes ignoradas — veja o log)
+shimeji-imported-toast = { $n ->
+        [0] { $name } importado
+        [one] { $name } importado ({ $n } parte ignorada — veja o log)
+       *[other] { $name } importado ({ $n } partes ignoradas — veja o log)
+    }
 shimeji-import-failed-toast = Falha na importação: { $reason }
 shimeji-no-library-toast = Sem pasta de biblioteca — crie primeiro { $path }.
 crash-report-found-toast = A sessão anterior travou. Um relatório foi salvo em { $path } — anexe-o a um issue no GitHub.

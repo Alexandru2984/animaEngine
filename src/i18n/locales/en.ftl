@@ -21,7 +21,10 @@ library-kind-animated = Animated
 library-kind-video = Video
 library-asset-added-toast = Added { $name } to the scene
 library-asset-add-failed-toast = Couldn't add { $name }
-library-count = { $n } assets indexed
+library-count = { $n ->
+        [one] { $n } asset indexed
+       *[other] { $n } assets indexed
+    }
 
 entity-count-zero = No characters
 entity-count-singular = { $n } character
@@ -497,17 +500,31 @@ portal-denied-native-toast = Shortcut permission was declined — the tray menu 
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Global shortcuts via:
 keybindings-backend-tooltip = Which mechanism delivers the three global chords (toggle edit, hide, pause) while other apps have focus. Resolved at startup; in-app shortcuts are unaffected.
+keybindings-backend-portal-waiting = The desktop (waiting for your approval)
+keybindings-backend-portal = The desktop
+keybindings-backend-grab = The app itself
+keybindings-backend-grab-declined = The app itself (shortcut permission was declined)
+keybindings-backend-compositor = None — bind keys in your compositor, or use the tray menu
+keybindings-backend-tray = None — use the tray menu
 keybindings-portal-restart-hint = Trigger changes apply at the next launch (the desktop remembers your approval).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitor { $name } disconnected — { $n } pinned characters now follow their position.
+monitor-unplugged-toast = { $n ->
+        [0] Monitor { $name } disconnected.
+        [one] Monitor { $name } disconnected — { $n } pinned character now follows its position.
+       *[other] Monitor { $name } disconnected — { $n } pinned characters now follow their position.
+    }
 monitor-plugged-toast = Monitor { $name } connected.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Import Shimeji pack
 library-import-shimeji-hint = Drop a pack folder onto the overlay, or paste its path here. Sprites are copied into the library.
 library-import-shimeji-button = Import
-shimeji-imported-toast = Imported { $name } ({ $n } parts skipped — see log)
+shimeji-imported-toast = { $n ->
+        [0] Imported { $name }
+        [one] Imported { $name } ({ $n } part skipped — see log)
+       *[other] Imported { $name } ({ $n } parts skipped — see log)
+    }
 shimeji-import-failed-toast = Import failed: { $reason }
 shimeji-no-library-toast = No asset library root — create { $path } first.
 crash-report-found-toast = The previous session crashed. A report was saved at { $path } — please attach it to a GitHub issue.

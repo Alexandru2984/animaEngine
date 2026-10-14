@@ -248,10 +248,10 @@ pub fn move_to_pinned_monitor(
     entity.behavior_state.bounce_invalidate();
 }
 
-/// Localised footer label like "5 entities". Falls back to English
-/// plural rules because we have no `{$n} ->` switches in the FTL files
-/// yet — that's a future enhancement once we know which locales need
-/// non-trivial plural tables.
+/// Localised footer label like "5 characters". Zero and one have
+/// messages of their own; past one, a language whose plural depends on
+/// the number — "3 postacie" but "5 postaci" — chooses in its `.ftl`
+/// (`{ $n -> … }`).
 pub(super) fn entity_count_label(count: usize) -> String {
     use fluent::FluentArgs;
     let mut args = FluentArgs::new();

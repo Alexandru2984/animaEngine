@@ -18,23 +18,24 @@ pub(super) fn keybindings_tab(
     ui: &mut egui::Ui,
     bindings: &mut KeyBindings,
     config_dirty: &mut bool,
-    hotkey_backend: &str,
+    hotkey_backend: crate::hotkeys::probe::HotkeyStatus,
 ) {
     // ── Global-shortcut backend status (T.4) ──────────────────────────
     // Which mechanism delivers the *global* chords this session —
     // resolved at startup, updated live if the deferred portal
     // fallback fires. In-app (edit-mode) chords are unaffected.
+    // One under the other, so a long answer wraps: side by side, a row
+    // does not wrap and the panel grew to fit it — in French to twice
+    // its width, on this tab only.
     ui.add_space(SPACE_XS);
-    ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(t("keybindings-backend-label"))
-                .small()
-                .weak(),
-        );
-        ui.label(egui::RichText::new(hotkey_backend).small().strong())
-            .on_hover_text(t("keybindings-backend-tooltip"));
-    });
-    if hotkey_backend.contains("portal") {
+    ui.label(
+        egui::RichText::new(t("keybindings-backend-label"))
+            .small()
+            .weak(),
+    );
+    ui.label(egui::RichText::new(hotkey_backend.label()).small().strong())
+        .on_hover_text(t("keybindings-backend-tooltip"));
+    if hotkey_backend.is_portal() {
         ui.label(
             egui::RichText::new(t("keybindings-portal-restart-hint"))
                 .small()

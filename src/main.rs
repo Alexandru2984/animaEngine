@@ -454,7 +454,7 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     if partly_unread {
         app.push_warning(anima_engine::ui::Warning::ConfigPartlyUnread);
     }
-    app.set_hotkey_backend_status(strategy.describe());
+    app.set_hotkey_backend_status(strategy.status());
     if !hotkeys_available {
         // hotkeys::register returned None — typically a native Wayland
         // session without XGrabKey. The tray + ⚙ button still work;

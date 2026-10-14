@@ -200,7 +200,10 @@ library-kind-animated = Animiert
 library-kind-video = Video
 library-asset-added-toast = { $name } zur Szene hinzugefügt
 library-asset-add-failed-toast = Konnte { $name } nicht hinzufügen
-library-count = { $n } Assets indexiert
+library-count = { $n ->
+        [one] { $n } Asset indexiert
+       *[other] { $n } Assets indexiert
+    }
 
 # ── Keybindings tab (D.1) — placeholder pending D.4 native-speaker audit
 settings-tab-keybindings = Kurzbefehle
@@ -488,17 +491,31 @@ portal-denied-native-toast = Berechtigung für Kurzbefehle abgelehnt — Tray-Me
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Globale Kurzbefehle über:
 keybindings-backend-tooltip = Welcher Mechanismus die drei globalen Kürzel (Bearbeiten, Ausblenden, Pause) liefert, während andere Apps den Fokus haben. Wird beim Start ermittelt; In-App-Kürzel sind nicht betroffen.
+keybindings-backend-portal-waiting = Der Desktop (wartet auf Ihre Freigabe)
+keybindings-backend-portal = Der Desktop
+keybindings-backend-grab = Die App selbst
+keybindings-backend-grab-declined = Die App selbst (Berechtigung für Kurzbefehle abgelehnt)
+keybindings-backend-compositor = Keine — belegen Sie Tasten im Compositor oder nutzen Sie das Tray-Menü
+keybindings-backend-tray = Keine — nutzen Sie das Tray-Menü
 keybindings-portal-restart-hint = Trigger-Änderungen gelten ab dem nächsten Start (der Desktop merkt sich Ihre Freigabe).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitor { $name } getrennt — { $n } angeheftete Figuren folgen jetzt ihrer Position.
+monitor-unplugged-toast = { $n ->
+        [0] Monitor { $name } getrennt.
+        [one] Monitor { $name } getrennt — { $n } angeheftete Figur folgt jetzt ihrer Position.
+       *[other] Monitor { $name } getrennt — { $n } angeheftete Figuren folgen jetzt ihrer Position.
+    }
 monitor-plugged-toast = Monitor { $name } verbunden.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Shimeji-Paket importieren
 library-import-shimeji-hint = Paketordner aufs Overlay ziehen oder den Pfad hier einfügen. Sprites werden in die Bibliothek kopiert.
 library-import-shimeji-button = Importieren
-shimeji-imported-toast = { $name } importiert ({ $n } Teile übersprungen — siehe Log)
+shimeji-imported-toast = { $n ->
+        [0] { $name } importiert
+        [one] { $name } importiert ({ $n } Teil übersprungen — siehe Log)
+       *[other] { $name } importiert ({ $n } Teile übersprungen — siehe Log)
+    }
 shimeji-import-failed-toast = Import fehlgeschlagen: { $reason }
 shimeji-no-library-toast = Kein Bibliotheksverzeichnis — legen Sie zuerst { $path } an.
 crash-report-found-toast = Die letzte Sitzung ist abgestürzt. Ein Bericht wurde unter { $path } gespeichert — bitte an ein GitHub-Issue anhängen.

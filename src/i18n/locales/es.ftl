@@ -138,7 +138,7 @@ monitor-mode-span = Extender en todos los monitores
 monitor-mode-span-unsupported = En este backend un solo overlay no puede cubrir varios monitores; usa «por monitor».
 monitor-mode-single = Un solo monitor
 scene-window-awareness = Aterrizar en ventanas (X11)
-scene-window-awareness-tooltip = Los personajes con física activa aterrizan y caminan por el borde superior de sus ventanas abiertas. Solo sesiones X11 — Wayland no expone posiciones de ventanas, así que ahí no hace nada.
+scene-window-awareness-tooltip = Los personajes con física activa aterrizan y caminan por el borde superior de tus ventanas abiertas. Solo sesiones X11 — Wayland no expone posiciones de ventanas, así que ahí no hace nada.
 scene-window-awareness-unavailable = No disponible en Wayland nativo: ningún protocolo expone las posiciones de las ventanas.
 monitor-pin-label = Fijar al monitor
 monitor-pin-auto = Auto (sigue la posición)
@@ -200,7 +200,10 @@ library-kind-animated = Animado
 library-kind-video = Vídeo
 library-asset-added-toast = { $name } añadido a la escena
 library-asset-add-failed-toast = No se pudo añadir { $name }
-library-count = { $n } activos indexados
+library-count = { $n ->
+        [one] { $n } activo indexado
+       *[other] { $n } activos indexados
+    }
 
 # ── Keybindings tab (D.1) — placeholder pending D.4 native-speaker audit
 settings-tab-keybindings = Atajos
@@ -482,23 +485,37 @@ library-empty-action-copy-path = Copiar la ruta al portapapeles
 appearance-reset-onboarding-hint = Recupera las pistas descartadas y el panel «Novedades».
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
-portal-denied-x11-fallback-toast = Se denegó el permiso de atajos — se usarán atajos X11. Reintente desde la pestaña Atajos.
+portal-denied-x11-fallback-toast = Se denegó el permiso de atajos — se usarán atajos X11. Reinténtalo desde la pestaña Atajos.
 portal-denied-native-toast = Se denegó el permiso de atajos — el menú de bandeja y los atajos del compositor siguen funcionando.
 
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Atajos globales mediante:
 keybindings-backend-tooltip = Qué mecanismo entrega los tres atajos globales (editar, ocultar, pausar) mientras otras apps tienen el foco. Se resuelve al arrancar; los atajos internos no se ven afectados.
-keybindings-portal-restart-hint = Los cambios de atajos se aplican en el próximo arranque (el escritorio recuerda su aprobación).
+keybindings-backend-portal-waiting = El escritorio (esperando tu aprobación)
+keybindings-backend-portal = El escritorio
+keybindings-backend-grab = La propia app
+keybindings-backend-grab-declined = La propia app (se denegó el permiso de atajos)
+keybindings-backend-compositor = Ninguno — asigna teclas en tu compositor o usa el menú de bandeja
+keybindings-backend-tray = Ninguno — usa el menú de bandeja
+keybindings-portal-restart-hint = Los cambios de atajos se aplican en el próximo arranque (el escritorio recuerda tu aprobación).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitor { $name } desconectado — { $n } personajes anclados ahora siguen su posición.
+monitor-unplugged-toast = { $n ->
+        [0] Monitor { $name } desconectado.
+        [one] Monitor { $name } desconectado — { $n } personaje anclado ahora sigue su posición.
+       *[other] Monitor { $name } desconectado — { $n } personajes anclados ahora siguen su posición.
+    }
 monitor-plugged-toast = Monitor { $name } conectado.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Importar paquete Shimeji
 library-import-shimeji-hint = Arrastra la carpeta del paquete al overlay o pega su ruta aquí. Los sprites se copian a la biblioteca.
 library-import-shimeji-button = Importar
-shimeji-imported-toast = { $name } importado ({ $n } partes omitidas — vea el log)
+shimeji-imported-toast = { $n ->
+        [0] { $name } importado
+        [one] { $name } importado ({ $n } parte omitida — consulta el log)
+       *[other] { $name } importado ({ $n } partes omitidas — consulta el log)
+    }
 shimeji-import-failed-toast = Importación fallida: { $reason }
 shimeji-no-library-toast = No hay carpeta de biblioteca — cree primero { $path }.
 crash-report-found-toast = La sesión anterior se cerró inesperadamente. Se guardó un informe en { $path } — adjúntelo a un issue de GitHub.

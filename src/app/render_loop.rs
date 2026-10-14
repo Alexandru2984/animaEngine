@@ -567,7 +567,7 @@ impl App {
                         let collapse_state_mut = &mut self.config.collapse_state;
                         let accesskit_mut = &mut self.config.global.accesskit_enabled;
                         let warnings_ref = &self.warnings;
-                        let hotkey_backend_ref = self.hotkey_backend_status.as_str();
+                        let hotkey_backend_ref = self.hotkey_backend_status;
                         let last_seen_whats_new_mut = &mut self.config.global.last_seen_whats_new;
                         let perf_sampler_ref = &self.perf_sampler;
                         let perf_overlay_visible = self.perf_overlay_visible;

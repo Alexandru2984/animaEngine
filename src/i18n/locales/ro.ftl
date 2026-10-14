@@ -7,7 +7,10 @@ settings-tab-scene = Scenă
 settings-tab-appearance = Aspect
 entity-count-zero = Niciun personaj
 entity-count-singular = { $n } personaj
-entity-count-plural = { $n } personaje
+entity-count-plural = { $n ->
+        [few] { $n } personaje
+       *[other] { $n } de personaje
+    }
 
 inspector-section-position = Poziție
 inspector-section-appearance = Aspect
@@ -200,7 +203,11 @@ library-kind-animated = Animat
 library-kind-video = Video
 library-asset-added-toast = { $name } adăugat în scenă
 library-asset-add-failed-toast = Nu am putut adăuga { $name }
-library-count = { $n } assets indexate
+library-count = { $n ->
+        [one] { $n } asset indexat
+        [few] { $n } assets indexate
+       *[other] { $n } de assets indexate
+    }
 
 # ── Tab Scurtături (D.1) ───────────────────────────────────────────
 settings-tab-keybindings = Scurtături
@@ -394,7 +401,11 @@ toast-scene-imported = Scenă importată: { $name }
 toast-scene-import-failed = Importul a eșuat: { $error }
 toast-no-scenes = Încă nu ai scene salvate — salvează una în tabul Scenă.
 palette-load-scene = Treci la scena: { $name }
-palette-snooze-minutes = Ațipește { $minutes } minute
+palette-snooze-minutes = { $minutes ->
+        [one] Ațipește { $minutes } minut
+        [few] Ațipește { $minutes } minute
+       *[other] Ațipește { $minutes } de minute
+    }
 palette-focus-start = Pornește cronometrul de concentrare
 palette-focus-stop = Oprește cronometrul de concentrare
 palette-snooze-morning = Ațipește până dimineață
@@ -492,17 +503,33 @@ portal-denied-native-toast = Permisiunea pentru scurtături a fost refuzată —
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Scurtături globale prin:
 keybindings-backend-tooltip = Mecanismul care livrează cele trei scurtături globale (edit, ascundere, pauză) cât timp alte aplicații au focus. Stabilit la pornire; scurtăturile din aplicație nu sunt afectate.
+keybindings-backend-portal-waiting = Desktop-ul (așteaptă aprobarea ta)
+keybindings-backend-portal = Desktop-ul
+keybindings-backend-grab = Aplicația însăși
+keybindings-backend-grab-declined = Aplicația însăși (permisiunea pentru scurtături a fost refuzată)
+keybindings-backend-compositor = Niciunul — atribuie taste în compositor sau folosește meniul din tray
+keybindings-backend-tray = Niciunul — folosește meniul din tray
 keybindings-portal-restart-hint = Schimbările de combinații se aplică la următoarea pornire (desktop-ul ține minte aprobarea).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitorul { $name } a fost deconectat — { $n } personaje fixate își urmează acum poziția.
+monitor-unplugged-toast = { $n ->
+        [0] Monitorul { $name } a fost deconectat.
+        [one] Monitorul { $name } a fost deconectat — { $n } personaj fixat își urmează acum poziția.
+        [few] Monitorul { $name } a fost deconectat — { $n } personaje fixate își urmează acum poziția.
+       *[other] Monitorul { $name } a fost deconectat — { $n } de personaje fixate își urmează acum poziția.
+    }
 monitor-plugged-toast = Monitorul { $name } a fost conectat.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Importă pachet Shimeji
 library-import-shimeji-hint = Trage un folder de pachet peste suprapunere sau lipește calea aici. Sprite-urile se copiază în bibliotecă.
 library-import-shimeji-button = Importă
-shimeji-imported-toast = Importat { $name } ({ $n } părți sărite — vezi log-ul)
+shimeji-imported-toast = { $n ->
+        [0] Importat { $name }
+        [one] Importat { $name } ({ $n } parte sărită — vezi log-ul)
+        [few] Importat { $name } ({ $n } părți sărite — vezi log-ul)
+       *[other] Importat { $name } ({ $n } de părți sărite — vezi log-ul)
+    }
 shimeji-import-failed-toast = Import eșuat: { $reason }
 shimeji-no-library-toast = Nu există rădăcină de bibliotecă — creează întâi { $path }.
 crash-report-found-toast = Sesiunea anterioară s-a închis neașteptat. Raportul a fost salvat la { $path } — atașează-l unui issue pe GitHub.

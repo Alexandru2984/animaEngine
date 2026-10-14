@@ -259,11 +259,10 @@ pub struct App {
     /// Sound playback for scripts. Opens a device once at startup and
     /// falls back to silence when there isn't one.
     audio_host: crate::audio::AudioHost,
-    /// Human-readable description of the live global-hotkey backend,
-    /// shown in the Keybindings tab (T.4). Set from `main` after
-    /// strategy resolution; updated when the deferred portal fallback
-    /// fires.
-    hotkey_backend_status: String,
+    /// The live global-hotkey backend, shown in the Keybindings tab
+    /// (T.4). Set from `main` after strategy resolution; updated when
+    /// the deferred portal fallback fires.
+    hotkey_backend_status: crate::hotkeys::probe::HotkeyStatus,
     /// Extra overlay windows for `MonitorMode::PerMonitor` (T.6) —
     /// one per non-primary monitor, sprite-only (egui stays on the
     /// primary). Keyed by `WindowId` for event routing.
@@ -401,7 +400,7 @@ impl App {
             library_scan: None,
             script_host: crate::scripting::ScriptHost::new(),
             audio_host: crate::audio::AudioHost::new(),
-            hotkey_backend_status: String::new(),
+            hotkey_backend_status: crate::hotkeys::probe::HotkeyStatus::TrayOnly,
             extra_windows: std::collections::HashMap::new(),
             overlay_hidden: false,
             last_monitor_mode,
@@ -412,7 +411,7 @@ impl App {
 
     /// Record which global-hotkey backend won resolution — purely
     /// informational, rendered in the Keybindings tab.
-    pub fn set_hotkey_backend_status(&mut self, status: String) {
+    pub fn set_hotkey_backend_status(&mut self, status: crate::hotkeys::probe::HotkeyStatus) {
         self.hotkey_backend_status = status;
     }
 
@@ -952,7 +951,7 @@ impl ApplicationHandler<AnimaEvent> for App {
                 // fallbacks on a background thread) ended with no
                 // working backend.
                 self.push_warning(Warning::GlobalHotkeysUnavailable);
-                self.hotkey_backend_status = "none (tray + D-Bus methods only)".into();
+                self.hotkey_backend_status = crate::hotkeys::probe::HotkeyStatus::TrayOnly;
             }
             AnimaEvent::FullscreenInFront(in_front) => {
                 self.fullscreen_in_front = in_front;
@@ -996,7 +995,8 @@ impl ApplicationHandler<AnimaEvent> for App {
             AnimaEvent::PortalShortcutsDenied => {
                 self.toasts
                     .warn(crate::i18n::t("portal-denied-x11-fallback-toast"));
-                self.hotkey_backend_status = "X11 XGrabKey (portal declined)".into();
+                self.hotkey_backend_status =
+                    crate::hotkeys::probe::HotkeyStatus::GrabPortalDeclined;
             }
         }
         // Every non-quit tray/hotkey action mutates visible state

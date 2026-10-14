@@ -138,7 +138,7 @@ monitor-mode-span = Uitstrekken over alle monitors
 monitor-mode-span-unsupported = Op deze backend kan één overlay niet meerdere monitoren bedekken — gebruik in plaats daarvan per monitor.
 monitor-mode-single = Enkele monitor
 scene-window-awareness = Op vensters landen (X11)
-scene-window-awareness-tooltip = Personages met actieve fysica landen op en lopen langs de bovenrand van uw open vensters. Alleen X11-sessies — Wayland geeft geen vensterposities, dus daar doet dit niets.
+scene-window-awareness-tooltip = Figuren met actieve fysica landen op en lopen langs de bovenrand van uw open vensters. Alleen X11-sessies — Wayland geeft geen vensterposities, dus daar doet dit niets.
 scene-window-awareness-unavailable = Niet beschikbaar op native Wayland — geen protocol geeft vensterposities prijs.
 monitor-pin-label = Vastpinnen aan monitor
 monitor-pin-auto = Auto (volgt positie)
@@ -158,8 +158,8 @@ theme-light-hc = Licht · Hoog contrast
 onboarding-tabs = Instellingen staan in vijf tabbladen — Inspector, Scène, Bibliotheek, Weergave, Sneltoetsen.
 onboarding-quick-toggles = Tip: V wisselt zichtbaarheid, G wisselt zwaartekracht — zonder dit paneel te openen.
 onboarding-theme = Thema's worden direct toegepast — geen herstart nodig.
-onboarding-coach-step1 = Welkom! Uw personages leven op het bureaublad. Klik op het tandwiel rechtsboven om de bewerkmodus te openen.
-onboarding-coach-step2 = Sleep een PNG, GIF, WebP of MP4 ergens op het scherm om het als personage toe te voegen. Het zijpaneel bewerkt alles wat u selecteert.
+onboarding-coach-step1 = Welkom! Uw figuren leven op het bureaublad. Klik op het tandwiel rechtsboven om de bewerkmodus te openen.
+onboarding-coach-step2 = Sleep een PNG, GIF, WebP of MP4 ergens op het scherm om het als figuur toe te voegen. Het zijpaneel bewerkt alles wat u selecteert.
 onboarding-coach-step3 = Ctrl+K opent het opdrachtenpalet. Ctrl+Shift+A schakelt de bewerkmodus overal om, Ctrl+Shift+H verbergt de overlay.
 onboarding-coach-next = Volgende
 onboarding-coach-skip = Rondleiding overslaan
@@ -200,7 +200,10 @@ library-kind-animated = Animatie
 library-kind-video = Video
 library-asset-added-toast = { $name } toegevoegd aan de scène
 library-asset-add-failed-toast = Kon { $name } niet toevoegen
-library-count = { $n } assets geïndexeerd
+library-count = { $n ->
+        [one] { $n } asset geïndexeerd
+       *[other] { $n } assets geïndexeerd
+    }
 
 # ── Keybindings tab (D.1) — placeholder pending D.4 native-speaker audit
 settings-tab-keybindings = Sneltoetsen
@@ -271,10 +274,10 @@ greet-hi = Hoi!
 greet-hello = Hallo!
 greet-hey = Hé daar!
 
-action-cycle-entity = Naar het volgende personage
+action-cycle-entity = Naar de volgende figuur
 action-select-all = Alle figuren selecteren
 action-open-context-menu = Menu van de selectie openen
-action-delete-selected = Geselecteerd personage verwijderen
+action-delete-selected = Geselecteerde figuur verwijderen
 action-nudge-up = Selectie omhoog duwen
 action-nudge-down = Selectie omlaag duwen
 action-nudge-left = Selectie naar links duwen
@@ -295,7 +298,7 @@ action-fps-down = FPS verlagen
 action-opacity-up = Dekking verhogen
 action-opacity-down = Dekking verlagen
 action-cycle-monitor = Monitorkoppeling doorschakelen
-action-show-entity-info = Personage-info tonen
+action-show-entity-info = Figuurinfo tonen
 action-show-help = Toetsenbordhulp tonen
 
 # ── Accessibility section (D.3) — placeholder pending D.4 native-speaker audit
@@ -488,17 +491,31 @@ portal-denied-native-toast = Toestemming voor sneltoetsen geweigerd — het menu
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Globale sneltoetsen via:
 keybindings-backend-tooltip = Welk mechanisme de drie globale sneltoetsen (bewerken, verbergen, pauzeren) levert terwijl andere apps de focus hebben. Bepaald bij het opstarten; in-app-sneltoetsen blijven ongemoeid.
+keybindings-backend-portal-waiting = De desktop (wacht op uw goedkeuring)
+keybindings-backend-portal = De desktop
+keybindings-backend-grab = De app zelf
+keybindings-backend-grab-declined = De app zelf (toestemming voor sneltoetsen geweigerd)
+keybindings-backend-compositor = Geen — wijs toetsen toe in uw compositor, of gebruik het menu in het systeemvak
+keybindings-backend-tray = Geen — gebruik het menu in het systeemvak
 keybindings-portal-restart-hint = Triggerwijzigingen gelden vanaf de volgende start (de desktop onthoudt uw goedkeuring).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitor { $name } losgekoppeld — { $n } vastgezette personages volgen nu hun positie.
+monitor-unplugged-toast = { $n ->
+        [0] Monitor { $name } losgekoppeld.
+        [one] Monitor { $name } losgekoppeld — { $n } vastgezette figuur volgt nu zijn positie.
+       *[other] Monitor { $name } losgekoppeld — { $n } vastgezette figuren volgen nu hun positie.
+    }
 monitor-plugged-toast = Monitor { $name } aangesloten.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Shimeji-pakket importeren
 library-import-shimeji-hint = Sleep de pakketmap op de overlay of plak het pad hier. Sprites worden naar de bibliotheek gekopieerd.
 library-import-shimeji-button = Importeren
-shimeji-imported-toast = { $name } geïmporteerd ({ $n } onderdelen overgeslagen — zie log)
+shimeji-imported-toast = { $n ->
+        [0] { $name } geïmporteerd
+        [one] { $name } geïmporteerd ({ $n } onderdeel overgeslagen — zie log)
+       *[other] { $name } geïmporteerd ({ $n } onderdelen overgeslagen — zie log)
+    }
 shimeji-import-failed-toast = Import mislukt: { $reason }
 shimeji-no-library-toast = Geen bibliotheekmap — maak eerst { $path } aan.
 crash-report-found-toast = De vorige sessie is gecrasht. Een rapport is opgeslagen in { $path } — voeg het toe aan een GitHub-issue.

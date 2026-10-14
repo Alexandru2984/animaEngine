@@ -323,7 +323,7 @@ pub fn settings(
     accesskit_supported: bool,
     warnings: &std::collections::BTreeSet<Warning>,
     last_seen_whats_new: &mut Option<String>,
-    hotkey_backend: &str,
+    hotkey_backend: crate::hotkeys::probe::HotkeyStatus,
     shimeji_import: &mut Option<String>,
     // Set when "Add file…" or "Paste" is clicked; the caller acts on it.
     scene_request: &mut Option<SceneRequest>,

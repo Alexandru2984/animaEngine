@@ -33,6 +33,60 @@ impl HotkeyStrategy {
     }
 }
 
+impl HotkeyStrategy {
+    /// What the Shortcuts tab says delivers the shortcuts, once this
+    /// strategy is started.
+    pub fn status(self) -> HotkeyStatus {
+        match self {
+            Self::Portal { .. } => HotkeyStatus::Portal,
+            Self::X11Grab => HotkeyStatus::Grab,
+            Self::DbusOnly => HotkeyStatus::TrayOnly,
+        }
+    }
+}
+
+/// What delivers the global shortcuts this session, as the Shortcuts tab
+/// names it. Until 1.5 the tab showed the log's English — "none
+/// (compositor bindings + D-Bus)" in every language, and "X11 XGrabKey"
+/// on Windows, which has no X11.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HotkeyStatus {
+    /// The portal is asked; the user has not answered yet.
+    PortalAwaiting,
+    /// The desktop's portal.
+    Portal,
+    /// Keys the app takes itself: XGrabKey on X11, RegisterHotKey on
+    /// Windows.
+    Grab,
+    /// The same, after the portal's permission was declined.
+    GrabPortalDeclined,
+    /// None: the compositor's own bindings, which call the D-Bus methods
+    /// (native Wayland).
+    CompositorBindings,
+    /// None: the tray menu and the D-Bus methods.
+    TrayOnly,
+}
+
+impl HotkeyStatus {
+    /// In the user's language.
+    pub fn label(self) -> String {
+        crate::i18n::t(match self {
+            Self::PortalAwaiting => "keybindings-backend-portal-waiting",
+            Self::Portal => "keybindings-backend-portal",
+            Self::Grab => "keybindings-backend-grab",
+            Self::GrabPortalDeclined => "keybindings-backend-grab-declined",
+            Self::CompositorBindings => "keybindings-backend-compositor",
+            Self::TrayOnly => "keybindings-backend-tray",
+        })
+    }
+
+    /// Whether the desktop's portal holds the shortcuts: a change to one
+    /// reaches it at the next start.
+    pub fn is_portal(self) -> bool {
+        matches!(self, Self::PortalAwaiting | Self::Portal)
+    }
+}
+
 /// Pick the strategy from probe results. Pure so the truth table is
 /// unit-testable: the portal wins whenever present (it's the only
 /// mechanism that works on GNOME/KDE Wayland *and* it survives
@@ -190,5 +244,24 @@ mod tests {
             "portal (GlobalShortcuts v2)"
         );
         assert!(choose(None, false).describe().contains("tray"));
+    }
+
+    #[test]
+    fn every_status_is_said_in_the_users_language() {
+        crate::i18n::init(Some("en"));
+        for status in [
+            HotkeyStatus::PortalAwaiting,
+            HotkeyStatus::Portal,
+            HotkeyStatus::Grab,
+            HotkeyStatus::GrabPortalDeclined,
+            HotkeyStatus::CompositorBindings,
+            HotkeyStatus::TrayOnly,
+        ] {
+            let label = status.label();
+            assert!(!label.contains("keybindings-"), "{status:?}: {label}");
+        }
+        assert_eq!(choose(Some(1), false).status(), HotkeyStatus::Portal);
+        assert_eq!(choose(None, true).status(), HotkeyStatus::Grab);
+        assert_eq!(choose(None, false).status(), HotkeyStatus::TrayOnly);
     }
 }

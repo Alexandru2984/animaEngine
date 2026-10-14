@@ -200,7 +200,10 @@ library-kind-animated = Animé
 library-kind-video = Vidéo
 library-asset-added-toast = { $name } ajouté à la scène
 library-asset-add-failed-toast = Impossible d'ajouter { $name }
-library-count = { $n } assets indexés
+library-count = { $n ->
+        [one] { $n } asset indexé
+       *[other] { $n } assets indexés
+    }
 
 # ── Keybindings tab (D.1) — placeholder pending D.4 native-speaker audit
 settings-tab-keybindings = Raccourcis
@@ -488,17 +491,31 @@ portal-denied-native-toast = Permission de raccourcis refusée — le menu de la
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Raccourcis globaux via :
 keybindings-backend-tooltip = Quel mécanisme délivre les trois raccourcis globaux (édition, masquage, pause) quand d’autres applications ont le focus. Résolu au démarrage ; les raccourcis internes ne sont pas concernés.
+keybindings-backend-portal-waiting = Le bureau (en attente de votre accord)
+keybindings-backend-portal = Le bureau
+keybindings-backend-grab = L’app elle-même
+keybindings-backend-grab-declined = L’app elle-même (permission de raccourcis refusée)
+keybindings-backend-compositor = Aucun — associez des touches dans votre compositeur, ou utilisez le menu de la zone de notification
+keybindings-backend-tray = Aucun — utilisez le menu de la zone de notification
 keybindings-portal-restart-hint = Les changements de déclencheurs s’appliquent au prochain lancement (le bureau retient votre accord).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Écran { $name } déconnecté — { $n } personnages épinglés suivent désormais leur position.
+monitor-unplugged-toast = { $n ->
+        [0] Écran { $name } déconnecté.
+        [one] Écran { $name } déconnecté — { $n } personnage épinglé suit désormais sa position.
+       *[other] Écran { $name } déconnecté — { $n } personnages épinglés suivent désormais leur position.
+    }
 monitor-plugged-toast = Écran { $name } connecté.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Importer un pack Shimeji
 library-import-shimeji-hint = Déposez le dossier du pack sur l’overlay ou collez son chemin ici. Les sprites sont copiés dans la bibliothèque.
 library-import-shimeji-button = Importer
-shimeji-imported-toast = { $name } importé ({ $n } éléments ignorés — voir le journal)
+shimeji-imported-toast = { $n ->
+        [0] { $name } importé
+        [one] { $name } importé ({ $n } élément ignoré — voir le journal)
+       *[other] { $name } importé ({ $n } éléments ignorés — voir le journal)
+    }
 shimeji-import-failed-toast = Échec de l’import : { $reason }
 shimeji-no-library-toast = Aucun dossier de bibliothèque — créez d’abord { $path }.
 crash-report-found-toast = La session précédente a planté. Un rapport a été enregistré dans { $path } — joignez-le à un ticket GitHub.

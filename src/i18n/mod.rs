@@ -13,8 +13,8 @@
 //!
 //! ## Why Fluent
 //!
-//! - Plural rules built in (we don't use them yet — see `entity-count`
-//!   below — but they're there for free when we add `{$n} ->` switches)
+//! - Plural rules built in: a count is said as its number needs —
+//!   `{ $n -> [one] … [few] … *[many] … }` in Polish, `[0]` for none
 //! - Message references (e.g. `welcome = Hi { $user }. -> { app-name }`)
 //!   make the strings stay coherent when a localizer iterates
 //! - The runtime overhead vs raw HashMap lookups is negligible at our
@@ -791,6 +791,8 @@ mod tests {
                     "arrastre",
                     "seleccione",
                     "pegue",
+                    "reintente",
+                    "vea",
                     "elija",
                 ],
             ),
@@ -866,7 +868,15 @@ mod tests {
                 "pt-BR",
                 &[("entidade", "personagem"), ("sobreposição", "overlay")],
             ),
-            ("nl", &[("entiteit", "figuur"), ("tray", "systeemvak")]),
+            (
+                "nl",
+                &[
+                    ("entiteit", "figuur"),
+                    ("personage", "figuur"),
+                    ("tray", "systeemvak"),
+                ],
+            ),
+            ("pl", &[("element", "postać")]),
             ("ja", &[("エンティティ", "キャラクター")]),
         ];
         let mut hits = Vec::new();
@@ -1003,9 +1013,12 @@ mod tests {
             }
             cur = None;
         }
-        // Sort each bucket so the comparison is order-independent.
+        // Which arguments, not how often: a message said one way for one
+        // and another for many (`{ $n -> … }`) names `n` in each variant,
+        // and Polish has three variants where English has two.
         for v in out.values_mut() {
             v.sort();
+            v.dedup();
         }
         out
     }
@@ -1063,6 +1076,68 @@ mod tests {
     /// Smoke test the full lookup pipeline. Initialising twice in
     /// tests is fine because [`init`] is a no-op once `STATE` is set,
     /// but we route through `set_locale` to switch.
+    /// A count is said as the language says that number: "1 asset" in
+    /// English, "2 postacie" but "5 postaci" in Polish, "20 de personaje"
+    /// in Romanian, and nothing about pins when there were none. Until
+    /// 1.5 each language had one plural for every number past one —
+    /// "Ațipește 60 minute" in the Romanian tray, "1 assets indexed".
+    #[test]
+    fn a_count_takes_the_form_its_number_needs() {
+        fn say(code: &str, key: &str, var: &str, n: i64) -> String {
+            let bundle = build_bundle(code);
+            let message = bundle.get_message(key).expect(key);
+            let mut args = FluentArgs::new();
+            args.set(var, n);
+            args.set("name", "HDMI-1");
+            let mut errors = Vec::new();
+            let said = bundle.format_pattern(message.value().expect(key), Some(&args), &mut errors);
+            assert!(errors.is_empty(), "{code} {key}: {errors:?}");
+            said.into_owned()
+        }
+        assert_eq!(say("en", "library-count", "n", 1), "1 asset indexed");
+        assert_eq!(say("en", "library-count", "n", 7), "7 assets indexed");
+        assert_eq!(
+            say("en", "monitor-unplugged-toast", "n", 0),
+            "Monitor HDMI-1 disconnected."
+        );
+        assert_eq!(say("pl", "entity-count-plural", "n", 3), "3 postacie");
+        assert_eq!(say("pl", "entity-count-plural", "n", 5), "5 postaci");
+        assert_eq!(say("pl", "entity-count-plural", "n", 22), "22 postacie");
+        assert_eq!(
+            say("pl", "palette-snooze-minutes", "minutes", 15),
+            "Drzemka na 15 minut"
+        );
+        assert_eq!(say("ro", "entity-count-plural", "n", 19), "19 personaje");
+        assert_eq!(say("ro", "entity-count-plural", "n", 20), "20 de personaje");
+        assert_eq!(
+            say("ro", "palette-snooze-minutes", "minutes", 15),
+            "Ațipește 15 minute"
+        );
+        assert_eq!(
+            say("ro", "palette-snooze-minutes", "minutes", 60),
+            "Ațipește 60 de minute"
+        );
+        assert_eq!(
+            say("ja", "shimeji-imported-toast", "n", 0),
+            "HDMI-1 をインポートしました"
+        );
+        // Every language says the counted messages for every number.
+        for (code, _) in SUPPORTED {
+            for n in [0, 1, 2, 5, 12, 21, 22, 60, 101] {
+                for (key, var) in [
+                    ("entity-count-plural", "n"),
+                    ("library-count", "n"),
+                    ("monitor-unplugged-toast", "n"),
+                    ("shimeji-imported-toast", "n"),
+                    ("palette-snooze-minutes", "minutes"),
+                ] {
+                    let said = say(code, key, var, n);
+                    assert!(!said.contains('{'), "{code} {key} {n}: {said}");
+                }
+            }
+        }
+    }
+
     #[test]
     fn t_round_trips_through_english() {
         init(Some("en"));

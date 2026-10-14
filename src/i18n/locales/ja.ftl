@@ -488,17 +488,29 @@ portal-denied-native-toast = ショートカットの許可が拒否されまし
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = グローバルショートカットの方式:
 keybindings-backend-tooltip = 他のアプリにフォーカスがあるとき、3 つのグローバルショートカット（編集・非表示・一時停止）をどの仕組みで届けるか。起動時に決定されます。アプリ内ショートカットには影響しません。
+keybindings-backend-portal-waiting = デスクトップ（承認待ち）
+keybindings-backend-portal = デスクトップ
+keybindings-backend-grab = アプリ自身
+keybindings-backend-grab-declined = アプリ自身（ショートカットの許可が拒否されました）
+keybindings-backend-compositor = なし — コンポジターでキーを割り当てるか、トレイメニューを使ってください
+keybindings-backend-tray = なし — トレイメニューを使ってください
 keybindings-portal-restart-hint = トリガーの変更は次回起動時に反映されます（デスクトップが承認を記憶します）。
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = モニター { $name } が切断されました — 固定中の { $n } 体は位置に従います。
+monitor-unplugged-toast = { $n ->
+        [0] モニター { $name } が切断されました。
+       *[other] モニター { $name } が切断されました — 固定中の { $n } 体は位置に従います。
+    }
 monitor-plugged-toast = モニター { $name } が接続されました。
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Shimeji パックをインポート
 library-import-shimeji-hint = パックのフォルダーをオーバーレイにドロップするか、パスをここに貼り付けてください。スプライトはライブラリにコピーされます。
 library-import-shimeji-button = インポート
-shimeji-imported-toast = { $name } をインポートしました（{ $n } 個の要素をスキップ — ログ参照）
+shimeji-imported-toast = { $n ->
+        [0] { $name } をインポートしました
+       *[other] { $name } をインポートしました（{ $n } 個の要素をスキップ — ログ参照）
+    }
 shimeji-import-failed-toast = インポートに失敗しました: { $reason }
 shimeji-no-library-toast = ライブラリのフォルダーがありません — まず { $path } を作成してください。
 crash-report-found-toast = 前回のセッションがクラッシュしました。レポートを { $path } に保存しました — GitHub の issue に添付してください。

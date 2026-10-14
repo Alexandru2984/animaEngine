@@ -45,14 +45,22 @@ REGISTER = {
 
 
 def parse(text):
-    """Message id -> value, in file order. Values are single-line."""
+    """Message id -> value, in file order. A value on several lines (a
+    count's `{ $n -> ... }`) is joined into one, so a change in any of
+    its variants shows."""
     out = {}
+    key = None
     for line in text.splitlines():
-        if not line or line.startswith("#") or line[0].isspace():
+        if line and line[0].isspace() and key is not None:
+            out[key] += " " + line.strip()
             continue
-        key, sep, value = line.partition(" = ")
+        key = None
+        if not line or line.startswith("#"):
+            continue
+        k, sep, value = line.partition(" = ")
         if sep:
-            out[key.strip()] = value.strip()
+            key = k.strip()
+            out[key] = value.strip()
     return out
 
 

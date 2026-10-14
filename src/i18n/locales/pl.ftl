@@ -5,9 +5,12 @@ app-name = animaEngine
 settings-tab-inspector = Inspektor
 settings-tab-scene = Scena
 settings-tab-appearance = Wygląd
-entity-count-zero = Brak elementów
-entity-count-singular = { $n } element
-entity-count-plural = { $n } elementów
+entity-count-zero = Brak postaci
+entity-count-singular = { $n } postać
+entity-count-plural = { $n ->
+        [few] { $n } postacie
+       *[many] { $n } postaci
+    }
 
 inspector-section-position = Pozycja
 inspector-section-appearance = Wygląd
@@ -105,7 +108,7 @@ sound-failed-toast = Nie udało się odtworzyć dźwięku { $sound }: { $error }
 
 scene-empty-headline = Pusta scena
 scene-empty-hint = Przeciągnij plik PNG / GIF / WebP / MP4 na nakładkę — lub wypróbuj preset poniżej.
-scene-drop-hint = Przeciągnij plik PNG / GIF / WebP na nakładkę, aby dodać element.
+scene-drop-hint = Przeciągnij plik PNG / GIF / WebP na nakładkę, aby dodać postać.
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Dodaj plik…
 scene-add-file-tooltip = Wybierz obrazy lub filmy do dodania jako postacie.
@@ -142,8 +145,8 @@ scene-window-awareness-tooltip = Postacie z włączoną fizyką lądują na gór
 scene-window-awareness-unavailable = Niedostępne w natywnym Waylandzie — żaden protokół nie udostępnia pozycji okien.
 monitor-pin-label = Przypnij do monitora
 monitor-pin-auto = Auto (śledź pozycję)
-monitor-pinned-toast = Element przypięty do { $name }
-monitor-pin-cleared-toast = Element teraz śledzi swoją pozycję
+monitor-pinned-toast = Postać przypięta do { $name }
+monitor-pin-cleared-toast = Postać teraz śledzi swoją pozycję
 monitor-no-monitors-detected = Nie wykryto żadnych monitorów
 
 appearance-theme-header = Motyw
@@ -200,7 +203,11 @@ library-kind-animated = Animowane
 library-kind-video = Wideo
 library-asset-added-toast = Dodano { $name } do sceny
 library-asset-add-failed-toast = Nie udało się dodać { $name }
-library-count = Zindeksowano { $n } zasobów
+library-count = { $n ->
+        [one] Zindeksowano { $n } zasób
+        [few] Zindeksowano { $n } zasoby
+       *[many] Zindeksowano { $n } zasobów
+    }
 
 # ── Keybindings tab (D.1) — placeholder pending D.4 native-speaker audit
 settings-tab-keybindings = Skróty
@@ -394,7 +401,11 @@ toast-scene-imported = Zaimportowano scenę: { $name }
 toast-scene-import-failed = Import nie powiódł się: { $error }
 toast-no-scenes = Brak zapisanych scen — zapisz jedną w karcie Scena.
 palette-load-scene = Przełącz na scenę: { $name }
-palette-snooze-minutes = Drzemka na { $minutes } minut
+palette-snooze-minutes = { $minutes ->
+        [one] Drzemka na { $minutes } minutę
+        [few] Drzemka na { $minutes } minuty
+       *[many] Drzemka na { $minutes } minut
+    }
 palette-focus-start = Uruchom minutnik skupienia
 palette-focus-stop = Zatrzymaj minutnik skupienia
 palette-snooze-morning = Drzemka do rana
@@ -488,17 +499,32 @@ portal-denied-native-toast = Odmówiono uprawnień do skrótów — menu w zasob
 # ── Keybindings backend status (T.4) ─────────────────────────────────
 keybindings-backend-label = Skróty globalne przez:
 keybindings-backend-tooltip = Który mechanizm dostarcza trzy globalne skróty (edycja, ukrycie, pauza), gdy fokus mają inne aplikacje. Ustalane przy starcie; skróty wewnątrz aplikacji pozostają bez zmian.
+keybindings-backend-portal-waiting = Pulpit (czeka na twoją zgodę)
+keybindings-backend-portal = Pulpit
+keybindings-backend-grab = Sama aplikacja
+keybindings-backend-grab-declined = Sama aplikacja (odmówiono uprawnień do skrótów)
+keybindings-backend-compositor = Brak — przypisz klawisze w kompozytorze albo użyj menu w zasobniku
+keybindings-backend-tray = Brak — użyj menu w zasobniku
 keybindings-portal-restart-hint = Zmiany skrótów zadziałają od następnego uruchomienia (pulpit pamięta twoją zgodę).
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
-monitor-unplugged-toast = Monitor { $name } odłączony — { $n } przypiętych postaci podąża teraz za swoją pozycją.
+monitor-unplugged-toast = { $n ->
+        [0] Monitor { $name } odłączony.
+        [one] Monitor { $name } odłączony — { $n } przypięta postać podąża teraz za swoją pozycją.
+        [few] Monitor { $name } odłączony — { $n } przypięte postacie podążają teraz za swoimi pozycjami.
+       *[many] Monitor { $name } odłączony — { $n } przypiętych postaci podąża teraz za swoimi pozycjami.
+    }
 monitor-plugged-toast = Monitor { $name } podłączony.
 
 # ── Shimeji import (U.4) ──────────────────────────────────────────────
 library-import-shimeji-header = Importuj paczkę Shimeji
 library-import-shimeji-hint = Przeciągnij folder paczki na nakładkę albo wklej tu jego ścieżkę. Sprite’y zostaną skopiowane do biblioteki.
 library-import-shimeji-button = Importuj
-shimeji-imported-toast = Zaimportowano { $name } (pominięto { $n } części — zobacz log)
+shimeji-imported-toast = { $n ->
+        [0] Zaimportowano { $name }
+        [one] Zaimportowano { $name } (pominięto { $n } część — zobacz log)
+       *[many] Zaimportowano { $name } (pominięto { $n } części — zobacz log)
+    }
 shimeji-import-failed-toast = Import nie powiódł się: { $reason }
 shimeji-no-library-toast = Brak folderu biblioteki — najpierw utwórz { $path }.
 crash-report-found-toast = Poprzednia sesja zakończyła się awarią. Raport zapisano w { $path } — dołącz go do zgłoszenia na GitHubie.
