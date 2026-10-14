@@ -98,6 +98,17 @@ overlay, so it is as sharp as XWayland makes it; with a scale factor
 the panel is sharp, and the characters are drawn at the factor too —
 since 1.5, as large next to the panel as on native Wayland.
 
+On GNOME the factor is never counted twice. gnome-settings-daemon
+writes `Xft.dpi` as 96 × the text scale × the X11 UI scaling factor
+mutter reports (`org.gnome.Mutter.X11`), and mutter reports exactly
+the scale X11's own coordinates are drawn at: with whole-number
+scaling, the configured scale, X11 seeing the screen's real pixels;
+with fractional scaling and Xwayland native scaling (the default since
+GNOME 50), the scale rounded up, X11 seeing that many times the logical
+size and mutter shrinking it to fit. Either way 200 % gives a factor of
+2 over pixels twice as dense — before 1.5 the characters came out half
+the size of everything else there.
+
 ## Global shortcuts on Wayland — the portal path (preferred)
 
 Wayland has no `XGrabKey` equivalent. The sanctioned mechanism is the
