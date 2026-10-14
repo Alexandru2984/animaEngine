@@ -241,7 +241,7 @@ pub(super) fn keybindings_tab(
 /// "Ctrl+ / Shift / +H" with the add button's own label as "+ / Ad / d".
 /// `Extend` stops the intra-item break so `horizontal_wrapped` wraps
 /// between chips instead.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn chord_cell(
     ui: &mut egui::Ui,
     ctx: &egui::Context,

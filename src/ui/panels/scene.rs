@@ -18,7 +18,7 @@ use crate::ui::theme::{self, SPACE_M, SPACE_S};
 
 // UI plumbing fans out one settings struct into per-tab params — same
 // allow as `panels::settings` itself.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(super) fn scene_tab(
     ui: &mut egui::Ui,
     scene: &mut Scene,

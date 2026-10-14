@@ -2900,7 +2900,6 @@ fn rebuild_extra_surfaces(
 ///
 /// `via` only colours the log line, and it earns its place: the two
 /// spellings are what made the asymmetry visible in the first place.
-#[allow(clippy::too_many_arguments)]
 fn flip_edit_mode(
     layer: &mut LayerWindow,
     config: &mut AppConfig,

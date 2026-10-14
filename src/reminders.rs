@@ -261,7 +261,7 @@ pub struct Away {
 /// Have the due reminders said, by characters `on_surface` accepts (the
 /// ones whose bubble shows). `shown` is whether the overlay is on screen at
 /// all. Returns whether anything was said.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub fn deliver(
     timers: &mut Timers,
     reminders: &[ReminderConfig],

@@ -12,7 +12,7 @@ use crate::ui::icons;
 use crate::ui::onboarding::{self, OnboardingProgress};
 use crate::ui::theme::{self, h2, Theme, SPACE_2XL, SPACE_M, SPACE_S, SPACE_XS};
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(super) fn appearance_tab(
     ui: &mut egui::Ui,
     theme: &mut Theme,

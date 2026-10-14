@@ -273,7 +273,7 @@ fn hairline(ui: &mut egui::Ui) {
 /// a sticky header and a scrollable body. Mutations flow directly through
 /// the supplied mutable references; `config_dirty` is set when anything
 /// changes so the save-on-exit-edit-mode path picks them up.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub fn settings(
     ctx: &egui::Context,
     open: bool,

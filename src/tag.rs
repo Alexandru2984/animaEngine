@@ -44,7 +44,7 @@ pub struct Move {
 impl Move {
     /// Move a `w`×`h` character at (`x`, `y`) for `dt` seconds within
     /// `bounds`; across only when physics holds it to the ground.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn apply(
         &self,
         x: &mut f32,

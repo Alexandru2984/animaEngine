@@ -72,7 +72,7 @@ impl SurfaceEgui {
     /// size is `size_in_pixels`. Returns egui's platform output — the
     /// screen reader's tree, the input method's caret — for an owner that
     /// wants it.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn render<F>(
         &mut self,
         device: &wgpu::Device,

@@ -459,7 +459,7 @@ impl Entity {
     // screen dims, cursor, physics platforms) plus the global interaction
     // toggles; grouping them into a struct would only move the argument
     // list around without making a call site clearer.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn tick(
         &mut self,
         dt: f32,

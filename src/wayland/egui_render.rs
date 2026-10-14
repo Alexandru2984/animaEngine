@@ -165,7 +165,7 @@ impl WaylandEguiRenderer {
     /// surface's scale (1.0 on single-DPI displays, 1.5 or 2.0 on hi-DPI
     /// ones), and the events are in its units — points. Egui's layout
     /// snaps to this scale so glyphs stay crisp.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn render<F>(
         &mut self,
         device: &wgpu::Device,

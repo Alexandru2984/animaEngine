@@ -517,7 +517,7 @@ impl AudioHost {
     /// Silently does nothing when there is no device, when the same entity
     /// played the same sound within the cooldown, or when this tick's voice
     /// budget is spent. Load failures are reported once.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn play(
         &mut self,
         root: &std::path::Path,
@@ -537,7 +537,7 @@ impl AudioHost {
     }
 
     #[cfg(feature = "audio")]
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     fn play_inner(
         &mut self,
         root: &std::path::Path,
