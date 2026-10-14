@@ -3,16 +3,21 @@
 
 use std::path::Path;
 
-const DIR: &str = "assets/demo/slime";
+const NAME: &str = "slime";
 const SIZE: u32 = 128;
 const TOTAL_FRAMES: u32 = 6;
 
-pub fn generate() {
-    let path = Path::new(DIR);
+pub fn generate(base: &Path) {
+    let dir = base.join(NAME);
+    let path = dir.as_path();
 
     if path.exists() {
         if super::assets_already_at_size(path, SIZE) {
-            tracing::debug!("Demo slime assets already exist at {}px: {}", SIZE, DIR);
+            tracing::debug!(
+                "Demo slime assets already exist at {}px: {}",
+                SIZE,
+                path.display()
+            );
             return;
         }
         tracing::info!("Regenerating slime demo assets at {SIZE}×{SIZE}…");
@@ -21,7 +26,7 @@ pub fn generate() {
 
     tracing::info!("Generating slime demo assets ({SIZE}×{SIZE}, {TOTAL_FRAMES} frames)…");
     if let Err(e) = std::fs::create_dir_all(path) {
-        tracing::warn!("Failed to create demo directory {DIR}: {e}");
+        tracing::warn!("Failed to create demo directory {}: {e}", path.display());
         return;
     }
 

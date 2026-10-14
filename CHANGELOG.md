@@ -397,6 +397,15 @@ idle time (`org.gnome.Mutter.IdleMonitor`) and the battery
 
 ### Fixed
 
+- **An installed app made an `assets` folder wherever it was started.**
+  The demo characters' pictures were generated into `assets/demo/` under
+  the current directory, which for a `.deb` or an AppImage started from
+  the desktop's menu is the home directory — and where it was not
+  writable, the first characters had no pictures. They are made in the
+  app's data directory now (`~/.local/share/animaengine/demo`), and a
+  config's `assets/demo/…` finds them there. An `~/assets/demo` folder
+  left by an earlier version can be deleted. Found running the packaged
+  binary in the test rig from another directory.
 - **Native Wayland on a hi-DPI output**: at a scale above 1 the
   settings panel came out at twice its size, larger than a small
   screen, a click reached whatever was drawn at twice its distance from

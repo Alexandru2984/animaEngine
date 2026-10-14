@@ -1577,6 +1577,16 @@ impl AppConfig {
             return cwd_path;
         }
 
+        // A demo character's pictures, made at the first start in the
+        // data directory (`crate::demo`): an installed app has no `assets/`
+        // beside it, and the current directory is the launcher's.
+        if let Some(rest) = asset_path.strip_prefix("assets/demo/") {
+            let generated = crate::demo::dir().join(rest);
+            if generated.exists() {
+                return generated;
+            }
+        }
+
         // Return as-is, let caller handle missing path
         PathBuf::from(&asset_path)
     }

@@ -532,7 +532,9 @@ already have the user's privileges.
 ### Path traversal in config
 
 `AppConfig.resolve_asset_path` accepts absolute paths, `~`-expansion,
-and paths relative to the executable or `cwd`. A malicious hand-edited
+and paths relative to the executable or `cwd` — and, for
+`assets/demo/<name>`, the demo pictures made in the app's data
+directory (`crate::demo`; until 1.5 they were written under `cwd`). A malicious hand-edited
 `config.toml` can therefore make us try to open arbitrary paths the
 user can read. This is **deliberate** — users routinely want to point
 at assets under `~/Pictures/`, network mounts, etc. We don't currently
@@ -691,8 +693,10 @@ sets `SOURCE_DATE_EPOCH` to the commit's time. Checked (2026-10-14): two
 `cargo build --release --locked` of one commit from two directories,
 in parallel, came out with the same SHA-256, and no path of the build
 machine left in them. The `.deb` around it is made by `cargo-deb` from
-the committed metadata, with `SOURCE_DATE_EPOCH` for its timestamps;
-the package itself was not compared byte for byte.
+the committed metadata, with `SOURCE_DATE_EPOCH` for its timestamps:
+`scripts/build-deb.sh` run in two checkouts of one commit, side by side,
+with `cargo-auditable` 0.7.5 and `cargo-deb` 3.7.0 as the release job
+uses, gave two packages with the same SHA-256.
 
 The **AppImage** is *not* byte-reproducible by default — whatever
 linuxdeploy bundles comes from the build host, and that differs across
