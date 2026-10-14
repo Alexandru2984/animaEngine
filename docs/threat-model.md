@@ -190,6 +190,22 @@ picked, or a new name in Downloads where there is no chooser.
 `cache::try_save`. A crash or power loss mid-write leaves the old
 file intact — never a half-written `config.toml` or cache.
 
+### Where it writes (1.5.0)
+
+The app writes in its own directories and nowhere else on its own: the
+config directory (`config.toml`, `scenes/`, the backups of an unreadable
+or replaced config), the data directory (the asset library, the demo
+characters' pictures, pasted images, imported scenes), the cache
+directory (frame and thumbnail caches, crash reports and the crash
+snapshot, perf exports) and `~/.config/autostart` when asked to start at
+login; a shared scene, a backup or a GIF goes where the file chooser
+says, or to Downloads without one. Every call that creates, writes,
+renames or removes a file was read for where its path comes from, and a
+session — first start, edit mode, copy and paste, pause, mute, quit —
+ran under `strace` on both backends from an unrelated working directory:
+nothing outside those directories (2026-10-14). Until 1.5 the demo
+pictures were the exception, written under the current directory.
+
 ### Fail-closed dimension probe
 
 `validate_single_file` fails closed when the extension is a known
