@@ -1,0 +1,14 @@
+name = "Work"
+
+[[characters]]
+id = "cat"
+name = "Cat"
+asset_type = "png_sequence"
+asset_path = "assets/demo/cat"
+x = 300.0
+y = 200.0
+
+[[groups]]
+id = "g"
+name = "Pair"
+member_ids = ["cat"]

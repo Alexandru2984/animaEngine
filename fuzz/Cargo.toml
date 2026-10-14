@@ -72,3 +72,9 @@ name = "config_round_trip"
 path = "fuzz_targets/config_round_trip.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "scene_save_over"
+path = "fuzz_targets/scene_save_over.rs"
+test = false
+doc = false

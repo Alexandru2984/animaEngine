@@ -15,10 +15,12 @@ that sit closest to untrusted input:
 | `thumbnail_decode` | `scene_thumb::decode` | a scene's thumbnail PNG, inside a shared or restored file |
 | `small_parsers` | `speech::fuzz_small_parsers` | 1.5's hand-written text parsers fed from `config.toml`: bubble colours, `HH:MM` times, `MM-DD` dates and when a reminder is due, sound names, own hours, `{placeholders}` |
 | `config_round_trip` | `config::fuzz_config_round_trip` | `config.toml` itself, as a newer version or a hand edit leaves it: whatever reads, written and read again, must read and write the same — what is set aside and the keys this build does not know included (1.5) |
+| `scene_save_over` | `scenes::fuzz_scene_save_over` | a named scene's file saved over itself (1.5): whatever reads must read the same after, leave the same out, keep every key a scene does not read as it was, and not change when saved again |
 
 The invariant for every target is "**never panic**, return a typed
 error or sensible default on adversarial input." `config_round_trip`
-asks more: a second round of writing and reading changes nothing. The asset decoders
+and `scene_save_over` ask more: a second round of writing and reading
+changes nothing. The asset decoders
 themselves (PNG / GIF / WebP / MP4) aren't fuzzed here because they
 delegate to `image` and `mp4parse` upstream, both of which have their
 own fuzz suites — but the **hand-written** parsers around them (our

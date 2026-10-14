@@ -938,7 +938,16 @@ impl SetAside {
             &mut aside.unknown,
         );
         aside.note_unknown_keys(table);
-        aside.entries = Self::take_unreadable(table).entries;
+        // Only the lists a scene reads have entries set aside one by one.
+        // Any other — `reminders`, `windows`, from a version whose scenes
+        // hold them — is an unknown key and goes back whole: set aside as
+        // well, its unreadable entries made the list anew on save, and the
+        // whole one was not put back over it.
+        aside.entries = Self::take_unreadable(table)
+            .entries
+            .into_iter()
+            .filter(|(list, _)| matches!(list, SetAsideList::Top("characters" | "groups")))
+            .collect();
         aside
     }
 

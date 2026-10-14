@@ -124,29 +124,73 @@ pub fn save_in(dir: &Path, name: &str, scene: &Scene) -> Result<PathBuf> {
 /// this version does (`config::SetAside`). Returns its file.
 pub fn write_in(dir: &Path, saved: &SavedScene) -> Result<PathBuf> {
     let existing = list_in(dir).into_iter().find(|e| e.name == saved.name);
-    let (path, kept) = match existing {
+    let (path, over) = match existing {
         Some(entry) => {
-            let kept = kept_in(&entry.path);
-            (entry.path, kept)
+            let over = crate::util::read_to_string_capped(&entry.path, MAX_CONFIG_BYTES).ok();
+            (entry.path, over)
         }
-        None => (free_path(dir, &slug(&saved.name)), SetAside::default()),
+        None => (free_path(dir, &slug(&saved.name)), None),
     };
-    let mut table = toml::Table::try_from(saved)?;
-    kept.write_back(&mut table);
+    let text = scene_text(saved, over.as_deref())?;
     std::fs::create_dir_all(dir)?;
-    crate::util::atomic_write_bytes(&path, toml::to_string_pretty(&table)?.as_bytes())?;
+    crate::util::atomic_write_bytes(&path, text.as_bytes())?;
     shelf_changed();
     Ok(path)
 }
 
-/// What the scene file at `path` holds that this version does not read —
-/// nothing, if the file does not read as TOML at all.
-fn kept_in(path: &Path) -> SetAside {
-    crate::util::read_to_string_capped(path, MAX_CONFIG_BYTES)
-        .ok()
+/// A scene file's text for `saved`, saved over the file whose text is
+/// `over`, if any: with what that one held and this version does not
+/// read written back (`config::SetAside`) — nothing kept from a file that
+/// does not read as TOML at all.
+pub(crate) fn scene_text(saved: &SavedScene, over: Option<&str>) -> Result<String> {
+    let kept = over
         .and_then(|text| text.parse::<toml::Table>().ok())
         .map(|mut table| SetAside::of_scene(&mut table))
-        .unwrap_or_default()
+        .unwrap_or_default();
+    let mut table = toml::Table::try_from(saved)?;
+    kept.write_back(&mut table);
+    Ok(toml::to_string_pretty(&table)?)
+}
+
+/// For `fuzz/fuzz_targets/scene_save_over.rs`: a scene read from `text`,
+/// whatever it holds, then saved over that text, reads the same, leaves
+/// the same out, keeps every key a scene does not read as it was, and
+/// saved over again is not changed.
+#[doc(hidden)]
+pub fn fuzz_scene_save_over(text: &str) {
+    let Ok(table) = text.parse::<toml::Table>() else {
+        return;
+    };
+    let original = table.clone();
+    let Ok((saved, left_out)) = from_table(table) else {
+        return;
+    };
+    let once = scene_text(&saved, Some(text)).expect("a scene read is written");
+    let written: toml::Table = once
+        .parse()
+        .unwrap_or_else(|e| panic!("what was written does not parse: {e}\n{once}"));
+    // Each key a scene does not read, as it was — compared as text, so a
+    // `nan` equals itself.
+    for (key, value) in &original {
+        if !["name", "characters", "groups"].contains(&key.as_str()) {
+            assert_eq!(
+                written.get(key).map(toml::Value::to_string),
+                Some(value.to_string()),
+                "`{key}` was not kept\n{once}"
+            );
+        }
+    }
+    let (again, left_again) = from_table(written)
+        .unwrap_or_else(|e| panic!("what was written does not read: {e}\n{once}"));
+    let as_text = |s: &SavedScene| toml::to_string(s).expect("a scene is written");
+    assert_eq!(
+        as_text(&again),
+        as_text(&saved),
+        "the scene changed\n{once}"
+    );
+    assert_eq!(left_again, left_out, "what was left out changed\n{once}");
+    let twice = scene_text(&again, Some(&once)).expect("written again");
+    assert_eq!(once, twice, "a second save over it changed it");
 }
 
 /// `name`, or "name (2)" and upward while `entries` has a scene so named.
@@ -374,6 +418,35 @@ mod tests {
         assert!(table.get("backdrop").is_none());
         assert_eq!(table["characters"].as_array().unwrap().len(), 1);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A list a scene does not read — a newer version's reminders in it —
+    /// goes back whole when the scene is saved over: its readable entries
+    /// were lost, the list made anew from the ones that did not read.
+    #[test]
+    fn a_list_a_scene_does_not_read_is_kept_whole() {
+        let text = r#"
+            name = "Day"
+            [[characters]]
+            id = "cat"
+            name = "Cat"
+            asset_type = "png_static"
+            asset_path = "c.png"
+            x = 1.0
+            y = 2.0
+            [[reminders]]
+            text = "Water"
+            every_minutes = 30
+            [[reminders]]
+            text = "Glow"
+            every_minutes = "often"
+        "#;
+        let (saved, _) = from_table(text.parse().unwrap()).unwrap();
+        let out: toml::Table = scene_text(&saved, Some(text)).unwrap().parse().unwrap();
+        let reminders = out["reminders"].as_array().unwrap();
+        assert_eq!(reminders.len(), 2, "{out}");
+        assert_eq!(reminders[0]["text"].as_str(), Some("Water"));
+        fuzz_scene_save_over(text);
     }
 
     #[test]

@@ -1,0 +1,31 @@
+name = "Mixed"
+backdrop = "dusk"
+
+[[characters]]
+id = "cat"
+name = "Cat"
+asset_type = "png_static"
+asset_path = "c.png"
+x = 1.0
+y = 2.0
+sparkle = true
+
+[characters.talk]
+phrases = ["Hi"]
+whisper = true
+
+[[characters]]
+id = "holo"
+name = "Holo"
+asset_type = "hologram"
+asset_path = "h.holo"
+x = 0.0
+y = 0.0
+
+[[reminders]]
+text = "Water"
+every_minutes = 30
+
+[[reminders]]
+text = "Glow"
+every_minutes = "often"
