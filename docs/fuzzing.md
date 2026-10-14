@@ -71,7 +71,11 @@ readers it touches ran again on that code: `scene_file_read` 117
 million runs in half an hour, its coverage up from 4381 to 4493 edges,
 `config_round_trip` 6.8 million — nothing found. A `slow-unit` left by
 the first run was the machine's suspend counted against one input: it
-runs in 10 ms. To repeat one:
+runs in 10 ms. `scene_save_over`, added then, found within its first
+half hour that a scene saved over its file rewrote a list it does not
+read: two `[[windows]]` with one `id` had the second's keys written into
+the first. Fixed (`SetAside::note_unknown_in_lists`), it ran another
+half hour: 12 million runs, nothing. To repeat one:
 
 ```bash
 cargo +nightly fuzz run scene_file_read -- -max_total_time=1800 -rss_limit_mb=2048
