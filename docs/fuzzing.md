@@ -63,7 +63,13 @@ any. Runs per target: `keychord_parse` 1.1 billion, `asset_type_detect`
 million, `uri_list_parse` 245 million, `small_parsers` 169 million,
 `shimeji_xml` 67 million, `scene_file_read` 50 million,
 `thumbnail_decode` 36 million, `config_round_trip` 4.4 million (it
-writes the config out and reads it back, each run). To repeat one:
+writes the config out and reads it back, each run). After a scene file
+began to keep what it cannot read (`SetAside::of_scene`), the two
+readers it touches ran again on that code: `scene_file_read` 117
+million runs in half an hour, its coverage up from 4381 to 4493 edges,
+`config_round_trip` 6.8 million — nothing found. A `slow-unit` left by
+the first run was the machine's suspend counted against one input: it
+runs in 10 ms. To repeat one:
 
 ```bash
 cargo +nightly fuzz run scene_file_read -- -max_total_time=1800 -rss_limit_mb=2048
