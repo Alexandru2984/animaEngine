@@ -88,10 +88,13 @@ uninstall:
 		rm -f $(ICONROOT)/$${size}x$${size}/apps/anima-engine.png; \
 	done
 	rm -f $(METAINFODIR)/$(APPID).metainfo.xml
-	@if command -v update-desktop-database >/dev/null 2>&1; then \
+	# The caches only for a real install, as `install` does: run under a
+	# DESTDIR they wrote a mimeinfo.cache into the staging tree, the one
+	# file an uninstall left behind.
+	@if [ -z "$(DESTDIR)" ] && command -v update-desktop-database >/dev/null 2>&1; then \
 		update-desktop-database -q $(APPDIR) || true; \
 	fi
-	@if command -v gtk-update-icon-cache >/dev/null 2>&1; then \
+	@if [ -z "$(DESTDIR)" ] && command -v gtk-update-icon-cache >/dev/null 2>&1; then \
 		gtk-update-icon-cache -q -t -f $(ICONROOT) 2>/dev/null || true; \
 	fi
 
