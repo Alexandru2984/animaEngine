@@ -282,6 +282,32 @@ XRandR's 0 mm screens, no validation layer, egui's note on the sRGB
 framebuffer); Wayland's eight were not kept — its log was overwritten
 by the X11 run — but no panic was counted on either.
 
+### Where the memory goes (rig, 2026-10-14)
+
+The rig's resident memory — 225 MB on native Wayland, 184 MB on X11,
+one output, the five demo characters — is mostly not the app's. Read
+from `/proc/<pid>/smaps` and a heap profile (heaptrack, 25 s each):
+
+| | Native Wayland | X11 |
+|---|---|---|
+| Resident, of it anonymous | 225 MB, 56 MB | 184 MB, 39 MB |
+| `libLLVM` (the software renderer's compiler) | 52 MB | 52 MB |
+| Other drivers' libraries (NVIDIA's, loaded by the Vulkan loader on a machine that has them) | 37 MB | 27 MB |
+| Mesa's `libgallium`, lavapipe | 15 MB | 15 MB |
+| The software GPU's memory (`memfd`) | 24 MB | 21 MB |
+| The app's own code | 24 MB | 25 MB |
+| Heap at its peak, Mesa's allocations first | 57 MB from one Mesa site | 35 MB from one Mesa site |
+| The characters' decoded frames | ~5 MB | ~5 MB |
+
+Everything in the rig is drawn in software, so its compiler, its
+driver and its "GPU memory" are in the process; on a real GPU those are
+the driver's and the card's. The GL driver is loaded at all only
+because the rig has no hardware Vulkan: `choose_gpu` tries GL only when
+Vulkan offers nothing better than software. What is the app's — its
+code, the decoded frames, egui's state — is some 10–15 MB of heap and
+its binary. Nothing found worth trimming; on a desktop with a GPU, the
+seven-day protocol below is the measure that counts.
+
 ## 7-day desktop protocol (manual, pre-1.0)
 
 The automated soak runs headless on synthetic load; the real-session
