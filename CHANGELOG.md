@@ -17,9 +17,12 @@ everything in one backup.
 
 Every new setting is optional, so a 1.4 config loads unchanged — tests
 now hold configs written by 1.0 and 1.4 themselves to that. Going back
-is rougher: 1.4 and earlier cannot read a 1.5 config, and start with the
-default scene, keeping the file beside it as `config.toml.bak-corrupt`;
-1.5 is the first to read a newer version's config as far as it can. Most
+is rougher: 1.4 and earlier read a 1.5 config only while it holds
+nothing they do not know — a character with one of 1.5's behaviors,
+following another or playing tag, makes the whole file unreadable to
+them, and they start with the default scene, keeping it beside as
+`config.toml.bak-corrupt`; 1.5 is the first to read a newer version's
+config as far as it can. Most
 of what is new is off until you turn it on; five things are on from the
 start, and each has its switch: the characters step aside for
 full-screen apps, doze after ten minutes away and greet you back, little

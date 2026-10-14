@@ -26,8 +26,9 @@ change to any of them is a breaking change and waits for 2.0 (see
   `[global]` settings and shortcuts that do not read are set aside and
   written back on save, and so are unknown keys inside the tables it
   knows (`[global]`, a character, its talk and hours, a group, a
-  window). 1.4 and earlier cannot read a
-  1.5 config at all; see [config.md](config.md#schema-version).
+  window). 1.4 and earlier read a 1.5 config only while it holds
+  nothing they do not know, and otherwise not at all; see
+  [config.md](config.md#schema-version).
 - **D-Bus surface.** The bus name `com.animaengine.Anima`, object path
   `/com/animaengine/Anima`, and interface `org.animaengine.Anima` are
   fixed. (The bus name and the interface are deliberately different

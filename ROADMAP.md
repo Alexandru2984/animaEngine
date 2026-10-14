@@ -28,7 +28,8 @@ and backups. Alongside: sound volumes, the whole of it from the
 keyboard, next to no CPU while nothing moves, each monitor drawn sharp
 at its own scale on native Wayland, and configs, scenes and backups
 from a newer version read as far as this one can. Additive for
-upgraders; 1.4 cannot read a 1.5 config.
+upgraders; 1.4 reads a 1.5 config only while it holds nothing new to
+1.4, such as a character playing tag.
 
 Every piece has run in the headless test rig on both backends, with a
 30-minute everything-on soak flat on each. Before the tag: the
