@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R63 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R64 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2464,3 +2464,28 @@ keeps its width on the Shortcuts tab in all ten languages; the Romanian
 tray says "60 de minute", the Polish footer "5 postaci". Nothing else on
 screen was English but words the languages borrow — Presets, Volume,
 Inspector — and no message was missing.
+
+### R64 · On a hybrid laptop, starting and quitting woke the NVIDIA GPU — `FIXED`
+
+Found in the two-hour soak: after SIGTERM the config was on disk in
+9 ms, but the process took 2.8 s more to go. The main thread was in
+`vkDestroyInstance`, inside NVIDIA's driver (`libnvidia-glcore`): the
+rig's machine is a laptop with an RTX 5060 beside its integrated AMD
+GPU, and the Vulkan loader loads every installed driver, NVIDIA's among
+them. Its device files woke the sleeping GPU at start — `vulkaninfo`
+took 2.9 s with it, 0.09 s without — and again when the process closed
+them; read from the GPU's `runtime_status`, it resumed for 2 s and
+stayed awake some 20 s each time. Exiting with no GPU teardown at all
+took as long: the wait is the kernel's, closing the files. The app had
+asked for the low-power GPU and drew on the integrated one throughout.
+
+**Fixed:** `renderer::hybrid`, first in `main` while no other thread
+exists, sets `VK_LOADER_DRIVERS_DISABLE=*nvidia*` when an AMD or Intel
+GPU is present and the NVIDIA one is asleep, unless the user chose a
+GPU (`prime-run`, `DRI_PRIME`, the loader's own variables). An awake
+NVIDIA GPU is in use — a session drawn on it — and keeps its driver.
+**Checked** in the rig on the real hardware: native Wayland ready 0.10 s
+after start instead of 2.75, gone 0.11 s after SIGTERM instead of 2.67,
+the NVIDIA GPU asleep throughout; X11 ready in 0.07 s and gone in
+0.06 s, likewise; with the GPU woken just before, or with
+`__NV_PRIME_RENDER_OFFLOAD=1`, every driver loaded as before.

@@ -1,3 +1,7 @@
+// The Vulkan driver of a laptop's NVIDIA GPU, left unloaded where an
+// integrated GPU draws: Linux's DRM devices tell which there are.
+#[cfg(target_os = "linux")]
+pub mod hybrid;
 pub mod sprite;
 pub mod texture;
 pub mod wgpu_renderer;

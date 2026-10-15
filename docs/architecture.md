@@ -47,8 +47,13 @@ driver through glvnd and, on Wayland, makes a second context for the
 window — even when Vulkan is used: on an AMD laptop that was 14.5 MB
 and 11 threads for nothing. The Vulkan loader still loads every
 installed ICD (lavapipe brings LLVM, NVIDIA's its GL libraries): about
-85 MB of resident, shared, clean file pages on that laptop, which only
-`VK_LOADER_DRIVERS_DISABLE` set before the loader starts could avoid.
+85 MB of resident, shared, clean file pages on that laptop. Worse, on a
+laptop with an NVIDIA GPU beside the integrated one, loading NVIDIA's
+woke that GPU from its sleep, at start and again at quit, some 3 s
+each. So `renderer::hybrid`, first thing in `main` while no other thread
+exists, sets `VK_LOADER_DRIVERS_DISABLE=*nvidia*` when an AMD or Intel
+GPU is there and the NVIDIA one sleeps — unless the user chose a GPU
+(`prime-run`, `DRI_PRIME`, the loader's own variables).
 Windows asks for DX12, Vulkan and GL at once and draws through
 `win_layered`.
 

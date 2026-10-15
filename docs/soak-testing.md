@@ -300,15 +300,17 @@ not at once — and SIGTERM followed, as at a logout.
 | Log | 168 KB |
 | SIGTERM | the pause on disk 9 ms after the signal; the process gone after 2.8 s |
 
-Those 2.8 s are not the app's: the machine is a laptop with an NVIDIA
-GPU beside its integrated one, and the Vulkan loader loads every
-driver installed, NVIDIA's among them, whose device files wake that GPU
-from its sleep at start and again when the process closes them — 2 s
-of the GPU powering up, read from its `runtime_status`. Exiting at once
-after the save, with no GPU teardown, took as long: the wait is in the
-kernel, closing the files. With the rig's X11 run, which loads only
-lavapipe, the app is gone 107 ms after the signal. Nothing is lost
-either way, the save coming first.
+Those 2.8 s were the machine's NVIDIA GPU: a laptop with one beside
+its integrated GPU, and the Vulkan loader loaded every driver
+installed, NVIDIA's among them, whose device files woke that GPU from
+its sleep at start and again when the process closed them — 2 s of the
+GPU powering up, read from its `runtime_status`. Exiting at once after
+the save, with no GPU teardown, took as long: the wait is in the
+kernel, closing the files. Nothing was lost, the save coming first.
+Since, the app leaves NVIDIA's Vulkan driver unloaded there while that
+GPU sleeps (`renderer::hybrid`): the renderer is ready 0.1 s after
+start instead of 2.75, the process gone 0.11 s after SIGTERM instead of
+2.7, and the NVIDIA GPU never wakes.
 
 ### Where the memory goes (rig, 2026-10-14)
 

@@ -568,6 +568,16 @@ shadowed.
 | `ANIMA_USE_WAYLAND_NATIVE=1` | Try the native wlr-layer-shell path |
 | `ANIMA_ASSETS_DIR=<path>` | Override the asset-library root (default `~/.local/share/animaengine/assets/`) |
 | `ANIMA_MEMORY_BUDGET_MB=<int>` | Raise the aggregate decoded-RGBA budget (default 1024) for high-RAM machines |
+| `__NV_PRIME_RENDER_OFFLOAD=1` | Draw on a laptop's NVIDIA GPU (as `prime-run` does); see below |
+
+On a laptop with an NVIDIA GPU beside an integrated AMD or Intel one, the
+app draws on the integrated GPU, and when the NVIDIA one is asleep as it
+starts, it does not load NVIDIA's Vulkan driver at all — loading it woke
+that GPU, which made starting and quitting each take some 3 s longer.
+Started with `prime-run`, a desktop's "Launch using Discrete Graphics
+Card", `DRI_PRIME`, or any of the Vulkan loader's own variables
+(`VK_LOADER_DRIVERS_SELECT`, `VK_DRIVER_FILES`, …), it leaves the choice
+to them; the log says which it did.
 
 Two more are read only by the soak-test harness (`scripts/soak.sh`),
 not in normal use: `ANIMA_SOAK_METRICS=<path>` enables one CSV metrics

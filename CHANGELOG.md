@@ -335,6 +335,16 @@ read-only D-Bus names, for the idle time
 
 ### Changed
 
+- **A laptop's NVIDIA GPU is left asleep.** With one beside an
+  integrated AMD or Intel GPU, the app draws on the integrated one, but
+  the Vulkan loader loaded NVIDIA's driver too, and that woke the NVIDIA
+  GPU at start and again at quit: on an RTX 5060 laptop the renderer was
+  ready 2.75 s after start instead of 0.1, and the process went 2.7 s
+  after quitting instead of 0.1, the GPU awake some 20 s each time. When
+  the NVIDIA GPU sleeps as the app starts, its Vulkan driver is not
+  loaded now. `prime-run`, a desktop's "Launch using Discrete Graphics
+  Card", `DRI_PRIME` or the loader's own variables still choose; the
+  log says which it did.
 - **Characters at the screen's scale on X11.** With a scale factor
   above 1 (`Xft.dpi: 192`, or a desktop's scaling) the panel grew, but
   the characters kept their pictures' pixels — half the size native

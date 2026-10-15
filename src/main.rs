@@ -33,11 +33,17 @@ use anima_engine::{win_instance, win_tray};
 use winit::platform::x11::EventLoopBuilderExtX11;
 
 fn main() {
+    // Before any thread is made: the environment is only safe to change
+    // while nothing else can read it (`renderer::hybrid`).
+    #[cfg(target_os = "linux")]
+    let hybrid = anima_engine::renderer::hybrid::spare_discrete_gpu();
     // Before any thread is made, so every one inherits the blocked
     // signals (`quit_signal`).
     #[cfg(unix)]
     anima_engine::quit_signal::start();
     init_tracing();
+    #[cfg(target_os = "linux")]
+    hybrid.log();
 
     // CLI: `anima-engine --recover` restores a crash-recovery snapshot
     // and exits. Anything else runs the app. We deliberately keep the
@@ -510,6 +516,8 @@ ENVIRONMENT:
     RUST_LOG=anima_engine=debug    Verbose logs
     ANIMA_NO_CACHE=1               Bypass the on-disk RGBA cache
     ANIMA_USE_WAYLAND_NATIVE=1     Try native wlr-layer-shell
+    __NV_PRIME_RENDER_OFFLOAD=1    Draw on a laptop's NVIDIA GPU (or use
+                                   prime-run); otherwise it is left asleep
 
 See README.md for more.",
         env!("CARGO_PKG_VERSION")
