@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R65 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R66 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2534,3 +2534,22 @@ was written with the right `Exec` on both backends and for an AppImage
 under a path with a space, passed `desktop-file-validate`, went when
 switched off, and the switch followed the file when another program
 wrote or removed it.
+
+### R66 · The tray's menu lagged a click by up to three seconds — `FIXED`
+
+Found clicking every item of the tray's menu in the rig, through its
+tray host, on both backends, in English and Romanian. Each did what it
+says — edit mode both ways, pause and resume, *Next scene* through two
+saved scenes and round again (never clicked before; its D-Bus method
+was), hide and show, the focus timer started and stopped, each of the
+three snoozes hiding the overlay and *Wake up now* bringing it back,
+mute saved at once, *Quit* saving — but the menu read as before the
+click for up to three seconds. ksni builds the menu again right after a
+click, while the click's effect lands in the app's loop a frame later;
+the tray thread looked at the labels every three seconds. Snoozed from
+the tray and opened again at once, the menu still offered to snooze.
+
+**Fixed:** a click raises a flag the tray thread waits on beside its
+three-second timer, and it looks again every 0.1 s, up to 1.5 s, until
+the labels change (`tray::Clicked`). **Checked:** 10 of 10 items on both
+backends, the menu read back a second after each click.

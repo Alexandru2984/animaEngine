@@ -420,6 +420,13 @@ read-only D-Bus names, for the idle time
   saving first; a second ends it at once. Checked in the test rig on
   both backends, an edit made in edit mode on disk a quarter of a second
   after the signal.
+- **The tray's menu read as before a click for up to three seconds.**
+  Snoozed from the tray, it still offered to snooze rather than to wake;
+  the focus timer stopped, it still offered to stop it. The menu is
+  drawn again right after a click, but the click takes effect in the
+  app's loop a moment later, and the menu caught up only at its next
+  look, every three seconds. A click now has it look again until the
+  change shows.
 - **`H` and `I` did nothing you could see.** The Keybindings tab lists
   them as *Show keyboard help* and *Show character info*, and the README
   said to press `H` for the full keyboard reference, but both only wrote

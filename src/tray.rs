@@ -13,7 +13,52 @@
 
 use crate::event::{AnimaEvent, EventSink};
 use ksni::TrayMethods;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use std::task::{Poll, Waker};
 use std::thread;
+
+/// Raised by a click in the menu, for the tray thread's loop below.
+/// ksni shows the menu again right after a click, but the click's effect
+/// lands in the app's loop a moment later, so that menu read as before
+/// it: snoozed from the tray, it still offered to snooze, for up to the
+/// loop's three seconds. Raised, the loop looks again at once.
+struct Clicked {
+    raised: AtomicBool,
+    waker: Mutex<Option<Waker>>,
+}
+
+static CLICKED: Clicked = Clicked {
+    raised: AtomicBool::new(false),
+    waker: Mutex::new(None),
+};
+
+impl Clicked {
+    fn raise(&self) {
+        self.raised.store(true, Ordering::Release);
+        if let Some(waker) = self.waker.lock().ok().and_then(|mut w| w.take()) {
+            waker.wake();
+        }
+    }
+
+    async fn wait(&self) {
+        futures_lite::future::poll_fn(|cx| {
+            if self.raised.swap(false, Ordering::AcqRel) {
+                return Poll::Ready(());
+            }
+            if let Ok(mut waker) = self.waker.lock() {
+                *waker = Some(cx.waker().clone());
+            }
+            // Raised between the look and the waker being stored.
+            if self.raised.swap(false, Ordering::AcqRel) {
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
+        })
+        .await
+    }
+}
 
 /// Tray + menu — owned and updated only on the tray thread.
 struct AnimaTray {
@@ -66,6 +111,7 @@ impl ksni::Tray for AnimaTray {
                     activate: Box::new(move |this: &mut Self| {
                         if let Some(event) = event {
                             this.sink.send(event);
+                            CLICKED.raise();
                         }
                     }),
                     ..Default::default()
@@ -107,7 +153,27 @@ pub fn spawn(sink: EventSink) -> thread::JoinHandle<()> {
                         // and stop never reached the menu.
                         let mut shown = crate::tray_menu::labels();
                         loop {
-                            async_io::Timer::after(std::time::Duration::from_secs(3)).await;
+                            let clicked = futures_lite::future::or(
+                                async {
+                                    async_io::Timer::after(std::time::Duration::from_secs(3)).await;
+                                    false
+                                },
+                                async {
+                                    CLICKED.wait().await;
+                                    true
+                                },
+                            )
+                            .await;
+                            if clicked {
+                                // The click's effect, a frame or so away.
+                                for _ in 0..15 {
+                                    async_io::Timer::after(std::time::Duration::from_millis(100))
+                                        .await;
+                                    if crate::tray_menu::labels() != shown {
+                                        break;
+                                    }
+                                }
+                            }
                             let now = crate::tray_menu::labels();
                             if now != shown {
                                 shown = now;
