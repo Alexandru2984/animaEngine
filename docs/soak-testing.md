@@ -324,11 +324,25 @@ end after a pause not yet saved.
 | Resident memory | 205.6 → 201.1 MB; by quarter 201.0, 201.1, 201.1, 201.1 |
 | Threads, file descriptors | 80, 23 |
 | D-Bus `SetMuted` saved after | median 33 ms, at most 77, all 59 times |
-| Quiet stretch | no idle source in the rig on X11, so no dozing: ~120% of a core, as moving |
+| Quiet stretch | no idle source in the rig on X11, so no dozing: ~120% of a core, as moving (see below) |
 | Reminders said, pauses | 158, 24 |
 | Warnings, errors, panics | 9, 0, 0 — all at start |
 | Log | 123 KB |
 | SIGTERM | the pause on disk, the process gone 261 ms after the signal |
+
+### Idle on the X11 path (rig and Xorg's dummy driver, 2026-10-15)
+
+The soaks above have no idle source on X11, so the X11 path's own two
+were checked apart. On a real X server — Xorg with the dummy driver —
+the idle time came from MIT-SCREEN-SAVER: with no input for a minute
+the app was away after 61 s and the scene held still, dozing, at 12% of
+a core where it had moved at 100%; a mouse move had it back within a
+second, and the frontmost character said "Welcome back!". Under a
+Wayland session the X11 path reads GNOME's `org.gnome.Mutter.IdleMonitor`
+instead: with the rig's stand-in for it, away when it said so, dozing
+at 3.4% of a core against 29% moving. The difference between the two
+is what a frame costs on each server, not the app: dozing draws the
+same few frames on both.
 
 ### Where the memory goes (rig, 2026-10-14)
 
