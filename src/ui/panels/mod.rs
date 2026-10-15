@@ -176,6 +176,34 @@ enum SettingsTab {
     Keybindings,
 }
 
+/// Scroll the panel to a control that has just got the keyboard's focus.
+/// egui moves the focus with Tab but does not scroll to it, so tabbing
+/// down a long tab went on past the panel's edge, the focused control out
+/// of sight — in the Inspector, the rows for speaking, sounds and bubbles.
+/// Called at the end of the scrolled content, where this pass has laid out
+/// the control it may name; a control outside that content (the tab bar,
+/// a popup) or already in view is left alone.
+fn keep_focus_in_view(ui: &mut egui::Ui) {
+    let seen_id = egui::Id::new("anima.settings.focus-seen");
+    let focused = ui.memory(|m| m.focused());
+    let seen = ui
+        .data(|d| d.get_temp::<Option<egui::Id>>(seen_id))
+        .flatten();
+    if focused == seen {
+        return;
+    }
+    ui.data_mut(|d| d.insert_temp(seen_id, focused));
+    let Some(rect) = focused
+        .and_then(|id| ui.ctx().read_response(id))
+        .map(|response| response.rect)
+    else {
+        return;
+    };
+    if ui.min_rect().contains_rect(rect) && !ui.clip_rect().contains_rect(rect) {
+        ui.scroll_to_rect(rect, None);
+    }
+}
+
 /// A tab a shortcut asked for, shown at the panel's next frame: 0 for
 /// none, else one more than its place in [`SettingsTab::ALL`].
 static ASKED_TAB: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
@@ -563,6 +591,7 @@ pub fn settings(
                             );
                         }
                     }
+                    keep_focus_in_view(ui);
                 });
 
             // ── Sticky footer with entity count ───────────────────────

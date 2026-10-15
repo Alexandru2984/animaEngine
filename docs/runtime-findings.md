@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R67 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R68 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2573,3 +2573,29 @@ languages), and the theme rows answer to "theme" in every language,
 as the snooze, focus and mute rows answer to their English words.
 **Checked** in the rig: "atip" and "pana dim" in Romanian, "theme" in
 French on X11, "fruh" in German.
+
+### R68 · Tab went past the panel's edge, out of sight — `FIXED`
+
+Found working every control of the Inspector and Appearance tabs over
+AT-SPI and the keyboard, on both backends: each check box, slider,
+number box and list changed what it says in the saved config and was
+taken back — but tabbing to the Inspector's *Speaks up* took 39 presses
+and left it at y 1116 in a panel 1000 high. egui 0.31 moves the focus
+with Tab and arrows without scrolling to it; nothing in the panel asked
+it to, so on a long tab the focused control went on below the edge,
+where neither a keyboard user nor a sighted screen-reader user could
+see it.
+
+**Fixed:** at the end of the scrolled content the panel notes which
+control has the focus, and when it is a new one, inside the content and
+out of view, scrolls to it (`panels::keep_focus_in_view`). **Checked:**
+tabbing on, the focused control stays at the panel's bottom edge,
+each Tab scrolling one row.
+
+The same sweep found the rest as it should be: a focused slider or
+number box takes the arrows, and while one has the keys the one-letter
+shortcuts wait (Escape lets go of it without leaving edit mode); a list
+opens with Space, Tab walks into its choices and Enter picks one; the
+current choice and the active tab are read as *pressed*. Lists that
+have nothing to offer in the rig — sounds, open apps, an idle source on
+X11 — say so and stay closed.

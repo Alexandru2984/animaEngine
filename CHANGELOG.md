@@ -420,6 +420,12 @@ read-only D-Bus names, for the idle time
   saving first; a second ends it at once. Checked in the test rig on
   both backends, an edit made in edit mode on disk a quarter of a second
   after the signal.
+- **Tabbing down the settings panel went out of sight.** egui moves the
+  keyboard's focus with Tab but does not scroll to it, so on a long tab —
+  the Inspector, Appearance — the focused control went on below the
+  panel's edge: a keyboard or screen-reader user could not see where
+  they were, the Inspector's rows for speaking, sounds and bubbles among
+  them. The panel scrolls to the control that gets the focus now.
 - **The command palette's search wanted the letters' marks.** Typed
   without them, as most do on a keyboard with no key for them, a query
   found nothing: "atip" not Romanian *Ațipește*, "theme" not French
