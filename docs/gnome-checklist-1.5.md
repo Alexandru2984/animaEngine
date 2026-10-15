@@ -207,6 +207,21 @@ edit mode from anywhere.
       `top -p $pid` near 0%. Show it again: the characters carry on.
       In the test rig a hidden overlay drew as often as a shown one
       before 1.5 (R58 in docs/runtime-findings.md).
+- [ ] **The NVIDIA GPU sleeps through it** (a laptop with one beside the
+      integrated GPU). Quit the app, wait half a minute, then watch the
+      NVIDIA GPU while you start it and quit it from the tray:
+
+      ```bash
+      gpu=$(grep -l 0x10de /sys/bus/pci/devices/*/vendor | head -1 | xargs dirname)
+      while sleep 0.5; do cat $gpu/power/runtime_status; done | uniq
+      ```
+
+      It stays `suspended`; the log's first line says the NVIDIA GPU's
+      Vulkan driver is not loaded, and the app is gone at once after
+      *Quit*. In the test rig, before 1.5, each start and quit woke it
+      for some 3 s (R64 in docs/runtime-findings.md). The dock's
+      *Launch using Discrete Graphics Card*, or
+      `__NV_PRIME_RENDER_OFFLOAD=1 anima-engine`, draws on it instead.
 - [ ] Leave it running for a day with your own scene. In the evening:
       `ps -o rss=,nlwp= -p $(pidof anima_engine)` — about what it was
       after the first hour. The rig's soak (docs/soak-testing.md) was
