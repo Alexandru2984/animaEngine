@@ -25,8 +25,8 @@ pub(super) fn keybindings_tab(
     // resolved at startup, updated live if the deferred portal
     // fallback fires. In-app (edit-mode) chords are unaffected.
     // One under the other, so a long answer wraps: side by side, a row
-    // does not wrap and the panel grew to fit it — in French to twice
-    // its width, on this tab only.
+    // does not wrap and the panel grew to fit it, on this tab only — a
+    // translated answer took it to twice its width in French.
     ui.add_space(SPACE_XS);
     ui.label(
         egui::RichText::new(t("keybindings-backend-label"))

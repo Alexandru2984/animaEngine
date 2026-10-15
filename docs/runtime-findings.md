@@ -2443,11 +2443,13 @@ after has it.
 Found reading all ten languages on screen, on both backends: the panel,
 the tour, What's new, each tab, the tray's menu and a toast, read back
 over AT-SPI and compared with English. On every other tab the panel kept
-its width; on the Shortcuts tab it grew — by 120 pixels in English and
-350 in French on native Wayland — to fit the row naming what delivers
-the global shortcuts, which stood beside its label and does not wrap.
-That answer was also the log's English in every language ("none
-(compositor bindings + D-Bus)"), and "X11 XGrabKey" on Windows.
+its width; on the Shortcuts tab it grew to fit the row naming what
+delivers the global shortcuts, which stood beside its label and does
+not wrap — by 78 pixels in Japanese on native Wayland, and translated,
+longer answers took it to 120 in English and 350 in French before they
+were moved under the label. That answer was also the log's English in
+every language ("none (compositor bindings + D-Bus)"), and "X11
+XGrabKey" on Windows.
 
 The same reading found counts with one plural for every number —
 "Ațipește 60 minute" in the Romanian tray, "1 assets indexed" in

@@ -454,11 +454,14 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     if partly_unread {
         app.push_warning(anima_engine::ui::Warning::ConfigPartlyUnread);
     }
-    app.set_hotkey_backend_status(strategy.status());
-    if !hotkeys_available {
+    if hotkeys_available {
+        app.set_hotkey_backend_status(strategy.status());
+    } else {
         // hotkeys::register returned None — typically a native Wayland
         // session without XGrabKey. The tray + ⚙ button still work;
-        // the banner makes the loss discoverable.
+        // the banner makes the loss discoverable, and the Shortcuts tab
+        // says the same instead of naming a backend that did not start.
+        app.set_hotkey_backend_status(hotkeys::probe::HotkeyStatus::TrayOnly);
         app.push_warning(anima_engine::ui::Warning::GlobalHotkeysUnavailable);
     }
 

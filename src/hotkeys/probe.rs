@@ -31,9 +31,7 @@ impl HotkeyStrategy {
             Self::DbusOnly => "none (tray + D-Bus methods only)".to_string(),
         }
     }
-}
 
-impl HotkeyStrategy {
     /// What the Shortcuts tab says delivers the shortcuts, once this
     /// strategy is started.
     pub fn status(self) -> HotkeyStatus {
