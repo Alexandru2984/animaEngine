@@ -2438,14 +2438,14 @@ are drawn again. Also on both backends: the tray's Quit, sent through
 the rig's tray host, saves an edit not yet saved, and a start right
 after has it.
 
-### R63 · Read in every language, the Shortcuts tab was wider and partly English — `FIXED`
+### R63 · Read in every language, the Keybindings tab was wider and partly English — `FIXED`
 
 Found reading all ten languages on screen, on both backends: the panel,
 the tour, What's new, each tab, the tray's menu and a toast, read back
 over AT-SPI and compared with English. On every other tab the panel kept
-its width; on the Shortcuts tab it grew to fit the row naming what
-delivers the global shortcuts, which stood beside its label and does
-not wrap — by 78 pixels in Japanese on native Wayland, and translated,
+its width; on the Keybindings tab it grew to fit the row naming what
+delivers the global shortcuts, which stood beside its label and does not
+wrap — by 78 pixels in Japanese on native Wayland, and translated,
 longer answers took it to 120 in English and 350 in French before they
 were moved under the label. That answer was also the log's English in
 every language ("none (compositor bindings + D-Bus)"), and "X11
@@ -2457,11 +2457,11 @@ English, "5 elementów" in the Polish footer — Dutch naming a character
 two ways and Spanish addressing the user formally in four places.
 
 **Fixed:** the answer is an enum said in the user's language, under its
-label, so it wraps; the counted messages choose their form by the
-number (Fluent's plural rules, `[0]` for none); the words are unified
-and the terminology and register tests extended. **Checked:** the panel
-keeps its width on the Shortcuts tab in all ten languages; the Romanian
-tray says "60 de minute", the Polish footer "5 postaci". Nothing else on
+label, so it wraps; the counted messages choose their form by the number
+(Fluent's plural rules, `[0]` for none); the words are unified and the
+terminology and register tests extended. **Checked:** the panel keeps
+its width on the Keybindings tab in all ten languages; the Romanian tray
+says "60 de minute", the Polish footer "5 postaci". Nothing else on
 screen was English but words the languages borrow — Presets, Volume,
 Inspector — and no message was missing.
 
@@ -2514,7 +2514,7 @@ config saved after it, the tree a screen reader reads, a screenshot.
   across the top of an overlay hidden in edit mode, however hidden.
 
 **Fixed:** `H` opens the Keybindings tab and `I` the Inspector
-(`ui::panels::show_shortcuts`, `show_inspector`); a Shift-typed symbol
+(`ui::panels::show_keybindings`, `show_inspector`); a Shift-typed symbol
 whose chord is unbound runs the bare symbol's action
 (`KeyBindings::action_for_press`), a chord bound with Shift still
 winning; the native loop hides on the chord, and the bar goes with the

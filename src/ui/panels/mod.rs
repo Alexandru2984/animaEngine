@@ -185,9 +185,9 @@ pub fn show_inspector() {
     ask_for_tab(SettingsTab::Inspector);
 }
 
-/// Show the Shortcuts tab, every shortcut as it is bound
+/// Show the Keybindings tab, every shortcut as it is bound
 /// (`Action::ShowHelp`).
-pub fn show_shortcuts() {
+pub fn show_keybindings() {
     ask_for_tab(SettingsTab::Keybindings);
 }
 
@@ -588,7 +588,7 @@ mod tests {
 
     #[test]
     fn a_tab_asked_for_is_shown_once() {
-        show_shortcuts();
+        show_keybindings();
         assert_eq!(take_asked_tab(), Some(SettingsTab::Keybindings));
         assert_eq!(take_asked_tab(), None, "taken once");
         show_inspector();

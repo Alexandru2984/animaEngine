@@ -32,7 +32,7 @@ impl HotkeyStrategy {
         }
     }
 
-    /// What the Shortcuts tab says delivers the shortcuts, once this
+    /// What the Keybindings tab says delivers the shortcuts, once this
     /// strategy is started.
     pub fn status(self) -> HotkeyStatus {
         match self {
@@ -43,7 +43,7 @@ impl HotkeyStrategy {
     }
 }
 
-/// What delivers the global shortcuts this session, as the Shortcuts tab
+/// What delivers the global shortcuts this session, as the Keybindings tab
 /// names it. Until 1.5 the tab showed the log's English — "none
 /// (compositor bindings + D-Bus)" in every language, and "X11 XGrabKey"
 /// on Windows, which has no X11.

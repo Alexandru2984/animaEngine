@@ -315,7 +315,7 @@ impl Action {
             Self::OpacityDown => "Make the selected character 10 % more transparent.",
             Self::CycleMonitor => "Pin the selected character to the next monitor.",
             Self::ShowEntityInfo => "Show the selection in the Inspector tab.",
-            Self::ShowHelp => "Open the Shortcuts tab: every shortcut, as it is bound.",
+            Self::ShowHelp => "Open the Keybindings tab: every shortcut, as it is bound.",
             Self::TogglePerfOverlay => "Show or hide the live FPS / frame-time overlay.",
         }
     }

@@ -292,7 +292,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
         // log only, where no one looks — the help in English and out of
         // date, still cycling characters with Tab.
         Action::ShowEntityInfo => crate::ui::panels::show_inspector(),
-        Action::ShowHelp => crate::ui::panels::show_shortcuts(),
+        Action::ShowHelp => crate::ui::panels::show_keybindings(),
         // Copying only reads the scene. Cutting and pasting take
         // characters out and put them in, textures and all, so the
         // backends run those, as they do Delete and Duplicate.
