@@ -571,6 +571,14 @@ read-only D-Bus names, for the idle time
   back as they were read, what this version cannot read included
   (`config_round_trip`, `scene_save_over`); the second found a scene
   rewriting a list it does not read, before release.
+- **`cargo test` wrote into the developer's own cache.** The library's
+  tests load pictures from temporary directories named per run, and the
+  decoded frames went to the real `~/.cache/animaengine/textures` under
+  new keys each time, never read again — a dozen files a run, most of
+  the 486 MB there on the maintainer's machine. Five thumbnail tests
+  also left a directory each in `/tmp` every run. The tests touch
+  neither now; a whole run, both feature sets, leaves nothing behind
+  outside the checkout.
 
 ## [1.4.0] — 2026-09-28
 

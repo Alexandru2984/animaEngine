@@ -986,8 +986,6 @@ mod tests {
         let before = ids.len();
         ids.dedup();
         assert_eq!(before, ids.len(), "duplicate library ids in one scan");
-
-        fs::remove_dir_all(&root).ok();
     }
 
     #[test]
@@ -999,7 +997,6 @@ mod tests {
         assert!(!thumbnail_is_fresh(&src, &cache));
         fs::write(&src, b"x").unwrap();
         assert!(!thumbnail_is_fresh(&src, &cache));
-        fs::remove_dir_all(&root).ok();
     }
 
     #[test]
@@ -1145,7 +1142,25 @@ mod tests {
         assert!(!thumbs.join("big000000000.png").exists());
     }
 
-    fn tempdir(name: &str) -> PathBuf {
+    /// A directory of the test's own in the system's temporary one,
+    /// removed when the test ends, passed or failed. Five of these tests
+    /// left theirs behind — five more directories each run, 485 by 1.5.
+    struct TempDir(PathBuf);
+
+    impl std::ops::Deref for TempDir {
+        type Target = std::path::Path;
+        fn deref(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn tempdir(name: &str) -> TempDir {
         let dir = std::env::temp_dir().join(format!(
             "anima_library_test_{}_{}",
             name,
@@ -1153,6 +1168,6 @@ mod tests {
         ));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        dir
+        TempDir(dir)
     }
 }

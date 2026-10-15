@@ -61,6 +61,13 @@ fn cache_disabled() -> bool {
 }
 
 fn cache_root() -> Option<PathBuf> {
+    // The library's own tests load pictures too, from temporary
+    // directories named per run, so each run added a dozen files under
+    // new keys to the developer's real cache, never read again — most of
+    // 486 MB there by 1.5. They never touch it now.
+    if cfg!(test) {
+        return None;
+    }
     let dirs = directories::ProjectDirs::from("", "", "animaEngine")?;
     Some(dirs.cache_dir().join("textures"))
 }
