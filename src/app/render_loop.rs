@@ -466,6 +466,7 @@ impl App {
                 None => {}
                 Some((key, Ok(output))) => {
                     rendered_ok = true;
+                    self.render_errors.drew();
                     self.primary_frame = Some(super::windows::LastFrame {
                         key,
                         overlay: primary_busy,
@@ -847,9 +848,7 @@ impl App {
                 Some((_, Err(wgpu::SurfaceError::Timeout))) => {
                     tracing::debug!("surface acquire timed out; skipping frame");
                 }
-                Some((_, Err(e))) => {
-                    tracing::warn!("Render error: {:?}", e);
-                }
+                Some((_, Err(e))) => self.render_errors.failed("the overlay", &e),
             }
         }
 

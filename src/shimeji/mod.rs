@@ -848,6 +848,7 @@ mod tests {
         let fifo = base.join("evil.xml");
         let c = CString::new(fifo.to_str().unwrap()).unwrap();
         assert_eq!(
+            // SAFETY: `c` is a NUL-terminated path that outlives the call.
             unsafe { libc::mkfifo(c.as_ptr(), 0o644) },
             0,
             "mkfifo failed"

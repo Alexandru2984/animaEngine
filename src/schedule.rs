@@ -105,6 +105,7 @@ pub fn local_now() -> Option<LocalTime> {
         // SAFETY: `localtime_r` writes only into the `tm` it is given and
         // reads only `now`; both live for the call.
         let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+        // SAFETY: as above — `now` and `tm` are live for the call.
         let ok = unsafe { !libc::localtime_r(&now, &mut tm).is_null() };
         ok.then(|| LocalTime {
             weekday: tm.tm_wday.clamp(0, 6) as u8,
@@ -118,6 +119,7 @@ pub fn local_now() -> Option<LocalTime> {
         use windows_sys::Win32::System::SystemInformation::GetLocalTime;
         // SAFETY: `GetLocalTime` fills the SYSTEMTIME it is given.
         let mut st = unsafe { std::mem::zeroed() };
+        // SAFETY: as above — `st` is live for the call.
         unsafe { GetLocalTime(&mut st) };
         Some(LocalTime {
             weekday: (st.wDayOfWeek % 7) as u8,

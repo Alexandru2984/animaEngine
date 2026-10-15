@@ -57,6 +57,11 @@ const MAX_SCRIPT_BYTES: u64 = 64 * 1024;
 /// a large vector every frame before anything looks at it.
 const MAX_SOUNDS_PER_RUN: usize = 4;
 
+/// Lines a run's `print` and `debug` may put in the debug log, and how
+/// long each may be.
+const MAX_PRINTS_PER_RUN: u32 = 8;
+const MAX_PRINT_CHARS: usize = 200;
+
 /// Complain once per script about there being no asset library.
 ///
 /// Deliberately a process-wide latch rather than state on the host: when
@@ -199,6 +204,8 @@ pub struct ScriptHost {
     /// `say` of the run wins (`crate::speech`). Shared with the
     /// registered function, like `pending_sounds`.
     pending_speech: std::rc::Rc<std::cell::RefCell<Option<(String, f32)>>>,
+    /// Lines `print` and `debug` have logged this run.
+    printed: std::rc::Rc<std::cell::Cell<u32>>,
 }
 
 struct Failed {
@@ -221,6 +228,17 @@ impl std::fmt::Debug for ScriptHost {
             .field("scopes", &self.scopes.len())
             .finish()
     }
+}
+
+/// A script's `print` or `debug` line, to the debug log while the run has
+/// lines left (`MAX_PRINTS_PER_RUN`).
+fn log_printed(count: &std::cell::Cell<u32>, text: &str) {
+    if count.get() >= MAX_PRINTS_PER_RUN {
+        return;
+    }
+    count.set(count.get() + 1);
+    let short: String = text.chars().take(MAX_PRINT_CHARS).collect();
+    tracing::debug!("script: {short}");
 }
 
 impl Default for ScriptHost {
@@ -280,6 +298,17 @@ impl ScriptHost {
             *said.borrow_mut() = Some((text.to_string(), seconds as f32));
         });
 
+        // `print` and `debug` wrote to stdout, Rhai's default, unbounded:
+        // a script printing in a loop — 10 000 operations a tick, sixty
+        // ticks a second — could write hundreds of MB a second into
+        // whatever keeps the app's output, the journal for an app started
+        // at login. They go to the debug log, shortened, a few a run.
+        let printed = std::rc::Rc::new(std::cell::Cell::new(0));
+        let count = std::rc::Rc::clone(&printed);
+        engine.on_print(move |text| log_printed(&count, text));
+        let count = std::rc::Rc::clone(&printed);
+        engine.on_debug(move |text, _source, _position| log_printed(&count, text));
+
         Self {
             engine,
             compiled: BTreeMap::new(),
@@ -289,6 +318,7 @@ impl ScriptHost {
             load: crate::sysload::SystemLoad::new(),
             pending_sounds,
             pending_speech,
+            printed,
         }
     }
 
@@ -526,6 +556,7 @@ impl ScriptHost {
         // queued sounds, and those belong to the failed run, not the next.
         self.pending_sounds.borrow_mut().clear();
         self.pending_speech.borrow_mut().take();
+        self.printed.set(0);
         let outcome = self
             .engine
             .run_ast_with_scope(scope, &compiled.ast)
@@ -699,6 +730,23 @@ mod tests {
         later.elapsed = 5.0;
         let second = host.run("t", &mut scope, &later, &BTreeMap::new()).unwrap();
         assert!(second.sounds.is_empty(), "a stale sound replayed");
+    }
+
+    /// `print` in a loop no longer reaches stdout: a few lines a run go to
+    /// the debug log, and the count starts over with the next run.
+    #[test]
+    fn a_print_loop_goes_to_the_log_a_few_lines_a_run() {
+        let mut host = ScriptHost::new();
+        host.compile("t", r#"for i in 0..100 { print("x"); debug("y"); }"#)
+            .unwrap();
+        let mut scope = rhai::Scope::new();
+        host.run("t", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        assert_eq!(host.printed.get(), MAX_PRINTS_PER_RUN);
+        host.compile("t", r#"print("once");"#).unwrap();
+        host.run("t", &mut scope, &inputs(), &BTreeMap::new())
+            .unwrap();
+        assert_eq!(host.printed.get(), 1, "counted afresh each run");
     }
 
     /// A script calling `play` in a loop is the obvious mistake; the cap

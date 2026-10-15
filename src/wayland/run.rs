@@ -257,6 +257,11 @@ pub fn run_native(
     // Each extra surface's last frame: one that would look the same is not
     // drawn (`app::windows::needs_frame`).
     let mut extra_frames: HashMap<String, crate::app::windows::LastFrame> = HashMap::new();
+    // Render errors said once each (`renderer::ErrorOnce`), the primary's
+    // and each other monitor's apart, so two failing in turn don't take
+    // turns at the log.
+    let mut render_errors = crate::renderer::ErrorOnce::default();
+    let mut extra_render_errors: HashMap<String, crate::renderer::ErrorOnce> = HashMap::new();
     // And the primary's, outside edit mode.
     let mut primary_frame: Option<crate::app::windows::LastFrame> = None;
     let mut last_monitor_mode = config.global.monitor_mode.clone();
@@ -1933,6 +1938,7 @@ pub fn run_native(
             Ok(output) => {
                 if output.is_some() {
                     perf_sampler.add(crate::perf::Category::WgpuSubmit, submit_start.elapsed());
+                    render_errors.drew();
                 }
                 let size = [
                     renderer.primary.window_width,
@@ -2289,6 +2295,9 @@ pub fn run_native(
                             origin,
                         ) {
                             Ok(extra_output) => {
+                                if let Some(errors) = extra_render_errors.get_mut(name) {
+                                    errors.drew();
+                                }
                                 if painted {
                                     let egui =
                                         extra_eguis.entry(name.clone()).or_insert_with(|| {
@@ -2336,14 +2345,16 @@ pub fn run_native(
                                     },
                                 );
                             }
-                            Err(wgpu::SurfaceError::Lost) => {
+                            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                                 let (w, h) = (surface.window_width, surface.window_height);
                                 surface.resize(&renderer.shared, w, h);
                                 extra_frames.remove(name);
                             }
-                            Err(e) => {
-                                tracing::warn!("Render error on extra surface {name}: {e:?}");
-                            }
+                            Err(wgpu::SurfaceError::Timeout) => {}
+                            Err(e) => extra_render_errors
+                                .entry(name.clone())
+                                .or_default()
+                                .failed(name, &e),
                         }
                     }
                 }
@@ -2486,7 +2497,9 @@ pub fn run_native(
                     );
                 }
             }
-            Err(wgpu::SurfaceError::Lost) => {
+            // Reconfigured, as on X11: an outdated surface was left as it
+            // was, and failed again every frame.
+            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                 renderer.resize(
                     renderer.primary.window_width,
                     renderer.primary.window_height,
@@ -2496,9 +2509,11 @@ pub fn run_native(
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 return Err(AnimaError::other("GPU out of memory"));
             }
-            Err(e) => {
-                tracing::warn!("Render error on Wayland path: {e:?}");
+            // Transient, as on X11: this frame is dropped, the next tries.
+            Err(wgpu::SurfaceError::Timeout) => {
+                tracing::debug!("surface acquire timed out; skipping frame");
             }
+            Err(e) => render_errors.failed("the overlay", &e),
         }
 
         // Closed before the pacing sleep, so the overlay reports the work

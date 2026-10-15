@@ -25,6 +25,22 @@ pub fn send(title: &str, body: &str) {
     let _ = (title, body);
 }
 
+/// `text` escaped for a notification body, which a server may read as
+/// markup (the Desktop Notifications spec): `&`, `<` and `>` as entities.
+#[cfg(any(unix, test))]
+fn plain_as_markup(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 /// What tests sent.
 #[cfg(test)]
 pub(crate) static SENT: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
@@ -90,6 +106,12 @@ mod unix {
                     .await
                     .map(|_| ())
                 } else {
+                    // The body is markup to a server that says it takes
+                    // markup, and these are plain words: a reminder from a
+                    // restored backup, a character's name from a shared
+                    // scene, carried `<a href=…>` or `<img src=…>` through
+                    // as markup, and an `&` broke it.
+                    let body = super::plain_as_markup(&body);
                     let mut hints: HashMap<&str, Value<'_>> = HashMap::new();
                     hints.insert("desktop-entry", Value::from("com.animaengine.Anima"));
                     conn.call_method(
@@ -119,5 +141,17 @@ mod unix {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn plain_words_stay_plain_words_in_a_notification() {
+        assert_eq!(
+            super::plain_as_markup("Tom & Jerry <a href='x'>here</a>"),
+            "Tom &amp; Jerry &lt;a href='x'&gt;here&lt;/a&gt;"
+        );
+        assert_eq!(super::plain_as_markup("Stretch, Ghost!"), "Stretch, Ghost!");
     }
 }

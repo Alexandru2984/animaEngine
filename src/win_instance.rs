@@ -67,7 +67,8 @@ pub struct Instance {
     ack: HANDLE,
 }
 
-// Kernel object handles are process-wide, not thread-affine.
+// SAFETY: kernel object handles are process-wide, not thread-affine; the
+// struct only carries them, and closes them once, on drop.
 unsafe impl Send for Instance {}
 
 /// Claim the single instance, or hand off to the one already running.

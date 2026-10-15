@@ -24,6 +24,19 @@ use x11rb::wrapper::ConnectionExt as _;
 /// How long a clipboard owner gets to answer, each step of the way.
 const ANSWER_WITHIN: Duration = Duration::from_secs(2);
 
+/// How long an answer in pieces (`INCR`) may take, all of them.
+const INCR_WITHIN: Duration = Duration::from_secs(10);
+
+/// What the clipboard's owner answered.
+enum Answer {
+    /// What it sent, at most the image cap.
+    Bytes(Vec<u8>),
+    /// More than the image cap; none of it kept.
+    TooBig,
+    /// Refused, or not in time.
+    Nothing,
+}
+
 enum Cmd {
     Claim(String, bool),
     Read(sc::Want, mpsc::Sender<Content>),
@@ -326,8 +339,8 @@ impl Selections {
                 _ => Content::Nothing,
             });
         }
-        // Which types it offers.
-        let Some(types) = self.convert(self.atoms.targets)? else {
+        // Which types it offers — a list too long to be one is no answer.
+        let Answer::Bytes(types) = self.convert(self.atoms.targets)? else {
             return Ok(Content::Nothing);
         };
         let atoms: Vec<Atom> = types
@@ -357,22 +370,21 @@ impl Selections {
         let Some(&(target, _)) = named.iter().find(|(_, n)| *n == wanted) else {
             return Ok(Content::Nothing);
         };
+        let too_big = || Content::Failed(format!("over {} MB", sc::cap_for(&pick) / (1024 * 1024)));
         match self.convert(target)? {
-            Some(bytes) if bytes.len() as u64 > sc::cap_for(&pick) => Ok(Content::Failed(format!(
-                "over {} MB",
-                sc::cap_for(&pick) / (1024 * 1024)
-            ))),
-            Some(bytes) => Ok(Content::from_bytes(&pick, bytes)),
-            None => Ok(Content::Failed(
+            Answer::TooBig => Ok(too_big()),
+            Answer::Bytes(bytes) if bytes.len() as u64 > sc::cap_for(&pick) => Ok(too_big()),
+            Answer::Bytes(bytes) => Ok(Content::from_bytes(&pick, bytes)),
+            Answer::Nothing => Ok(Content::Failed(
                 "the clipboard's owner did not answer".into(),
             )),
         }
     }
 
     /// Ask CLIPBOARD's owner for `target` and read the answer off our
-    /// window, in pieces if it comes that way; `None` if refused or not
-    /// answered in time. Capped at the image cap.
-    fn convert(&mut self, target: Atom) -> Result<Option<Vec<u8>>, Failure> {
+    /// window, in pieces if it comes that way. Capped at the image cap,
+    /// and all of it within [`INCR_WITHIN`].
+    fn convert(&mut self, target: Atom) -> Result<Answer, Failure> {
         self.conn.convert_selection(
             self.window,
             self.atoms.clipboard,
@@ -387,10 +399,10 @@ impl Selections {
             matches!(e, Event::SelectionNotify(n) if n.requestor == window && n.target == target)
         })?;
         let Some(Event::SelectionNotify(n)) = notified else {
-            return Ok(None);
+            return Ok(Answer::Nothing);
         };
         if n.property == x11rb::NONE {
-            return Ok(None);
+            return Ok(Answer::Nothing);
         }
         let cap = sc::MAX_IMAGE_BYTES;
         let words = u32::try_from(cap / 4 + 1).unwrap_or(u32::MAX);
@@ -406,23 +418,29 @@ impl Selections {
             )?
             .reply()?;
         if first.type_ != self.atoms.incr {
+            // More than the cap waits behind what was read: nothing is
+            // kept. (It used to stand for that with a buffer of the cap's
+            // size, 64 MB of zeros, made only to be measured.)
             if first.bytes_after > 0 {
-                return Ok(Some(vec![0; cap as usize + 1]));
+                return Ok(Answer::TooBig);
             }
-            return Ok(Some(first.value));
+            return Ok(Answer::Bytes(first.value));
         }
         // INCR: the owner writes piece after piece, each once we have
-        // deleted the last, and an empty piece at the end.
+        // deleted the last, and an empty piece at the end — all of them
+        // within INCR_WITHIN: an owner dripping small pieces, each in
+        // time, kept this thread reading for as long as it liked.
         self.conn.flush()?;
         let mut bytes = Vec::new();
+        let all_by = Instant::now() + INCR_WITHIN;
         loop {
-            let deadline = Instant::now() + ANSWER_WITHIN;
+            let deadline = (Instant::now() + ANSWER_WITHIN).min(all_by);
             let landing = self.atoms.landing;
             let piece = self.wait_for(deadline, |e| {
                 matches!(e, Event::PropertyNotify(p) if p.atom == landing && p.state == Property::NEW_VALUE)
             })?;
             if piece.is_none() {
-                return Ok(None);
+                return Ok(Answer::Nothing);
             }
             let reply = self
                 .conn
@@ -430,12 +448,12 @@ impl Selections {
                 .reply()?;
             self.conn.flush()?;
             if reply.value.is_empty() {
-                return Ok(Some(bytes));
+                return Ok(Answer::Bytes(bytes));
+            }
+            if (bytes.len() + reply.value.len()) as u64 > cap {
+                return Ok(Answer::TooBig);
             }
             bytes.extend_from_slice(&reply.value);
-            if bytes.len() as u64 > cap {
-                return Ok(Some(bytes));
-            }
         }
     }
 

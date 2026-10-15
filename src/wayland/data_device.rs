@@ -60,7 +60,9 @@ fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
         None => path_with_host,
     };
     let decoded = percent_decode_to_string(path)?;
-    Some(PathBuf::from(decoded))
+    // Absolute, as every file manager writes them: `file://cat.png` made a
+    // path relative to wherever the app was started.
+    decoded.starts_with('/').then(|| PathBuf::from(decoded))
 }
 
 /// Decode `%XX` escapes back into the underlying byte sequence and
@@ -108,6 +110,12 @@ mod tests {
 
     #[test]
     fn single_file_uri_decodes() {
+        let relative = b"file://cat.png\r\nfile:///tmp/cat.png\r\n";
+        assert_eq!(
+            parse_uri_list(relative),
+            vec![PathBuf::from("/tmp/cat.png")],
+            "a URI with no absolute path is skipped"
+        );
         let payload = b"file:///tmp/cat.png\r\n";
         let paths = parse_uri_list(payload);
         assert_eq!(paths, vec![PathBuf::from("/tmp/cat.png")]);

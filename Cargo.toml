@@ -92,7 +92,7 @@ bytemuck = { version = "1", features = ["derive"] }
 # Immediate-mode UI (settings panel, context menus)
 egui = "0.31"
 egui-wgpu = "0.31"
-egui-winit = { version = "0.31", default-features = false, features = ["wayland", "x11", "links", "accesskit"] }
+egui-winit = { version = "0.31", default-features = false, features = ["wayland", "x11", "accesskit"] }
 
 async-io = "2"
 # Stream combinators for zbus signal streams (portal Activated /

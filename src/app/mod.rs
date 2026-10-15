@@ -147,6 +147,8 @@ pub struct App {
     /// Whether the windows were last put above the others (`true`) or
     /// under them; `None` before the first time (`apply_stacking`).
     stacked_on_top: Option<bool>,
+    /// The primary's render errors, said once each (`renderer::ErrorOnce`).
+    render_errors: crate::renderer::ErrorOnce,
     /// Bedtime against the clock (`crate::bedtime`), and whether it is.
     bedtime_watch: crate::bedtime::Watch,
     /// The clock for characters' own hours (`crate::hours`).
@@ -362,6 +364,7 @@ impl App {
             fullscreen_in_front: false,
             stepped_aside: crate::fullscreen::StepAside::default(),
             stacked_on_top: None,
+            render_errors: crate::renderer::ErrorOnce::default(),
             bedtime_watch: Default::default(),
             hours_clock: Default::default(),
             welcome: Default::default(),

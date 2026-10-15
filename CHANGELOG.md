@@ -420,6 +420,30 @@ read-only D-Bus names, for the idle time
   saving first; a second ends it at once. Checked in the test rig on
   both backends, an edit made in edit mode on disk a quarter of a second
   after the signal.
+- **A security audit of the whole code (October 2026)** found no way in
+  from outside, and seven things to tighten:
+  - a behavior script's `print` and `debug` wrote to the app's output,
+    unbounded — a loop could put hundreds of MB a second into the
+    journal of an app started at login; they go to the debug log now,
+    shortened, a few lines a run;
+  - a surface that kept failing logged a warning every frame, sixty a
+    second; each error is said once now, its repeats counted. On native
+    Wayland an outdated surface was not reconfigured at all, and a
+    timeout was a warning rather than a skipped frame;
+  - an X11 clipboard answer over the 64 MB cap was signalled with a
+    64 MB buffer of zeros, and one in pieces (`INCR`) had no overall
+    deadline; neither now;
+  - notification bodies were read as markup by servers that take it, so
+    a reminder from a restored backup or a character's name from a
+    shared scene could carry links or images; they are escaped;
+  - a `file://` URI without an absolute path became a path relative to
+    wherever the app was started; it is skipped;
+  - egui-winit's `links` feature was on though the app opens no link: it
+    is off, and 23 crates — URL, IDNA and ICU parsing, `webbrowser` —
+    are out of the build;
+  - the fuzz targets' lockfile still held `crossbeam-epoch`,
+    `event-listener`, `memmap2` and `anyhow` versions with advisories
+    the app's own lockfile had left behind.
 - **Three kinds of drop were refused that should not be.** A folder of
   PNG frames — how the demo characters are kept, and how an editor
   exports an animation — was "not a file", though the engine always
