@@ -178,7 +178,8 @@ cargo build --release
 | Pause animations | `Space` (edit mode), `Ctrl+Shift+P` (global), or tray |
 | Save & quit | `Q` (edit mode), tray → Quit, or close the window |
 
-Full keyboard reference: press `H` in edit mode.
+Full keyboard reference: press `H` in edit mode — the Keybindings tab,
+every shortcut as it is bound, which is also where to change one.
 
 ## Configuration
 

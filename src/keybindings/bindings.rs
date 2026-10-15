@@ -171,6 +171,22 @@ impl KeyBindings {
             .find(|&action| self.effective(action).contains(&chord))
     }
 
+    /// The action a key press runs: its chord's, or — for a symbol typed
+    /// with Shift alone that has none — the bare symbol's. A symbol keeps
+    /// its label whatever the layout, so `+` is opacity-up everywhere; but
+    /// on a US keyboard `+` is Shift+=, and the press came as Shift++,
+    /// bound to nothing, while German types `+` unshifted and the binding
+    /// has to say `+` for it. A chord bound with Shift still wins.
+    pub fn action_for_press(&self, chord: KeyChord) -> Option<Action> {
+        self.lookup(chord).or_else(|| {
+            let shifted_symbol = chord.mods == super::ModifierMask::SHIFT
+                && matches!(chord.key, super::KeyCode::Symbol(_));
+            shifted_symbol
+                .then(|| self.lookup(KeyChord::new(super::ModifierMask::NONE, chord.key)))
+                .flatten()
+        })
+    }
+
     /// All chord collisions in the current binding table: pairs of
     /// `(chord, actions)` where `actions.len() > 1`. The UI uses this
     /// to render a yellow warning next to conflicting rows.

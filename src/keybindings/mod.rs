@@ -388,6 +388,27 @@ mod tests {
         assert_eq!(bindings.lookup(plus), Some(Action::OpacityUp));
     }
 
+    /// On a US keyboard `+` is typed with Shift, and still is opacity-up;
+    /// a chord bound with Shift wins, and Ctrl+Shift is not let off.
+    #[test]
+    fn a_symbol_typed_with_shift_finds_its_binding() {
+        use winit::keyboard::KeyCode as P;
+        let mut bindings = KeyBindings::default();
+        let plus = winit_press("+", P::Equal).unwrap();
+        assert_eq!(
+            bindings.action_for_press(KeyChord::new(ModifierMask::SHIFT, plus)),
+            Some(Action::OpacityUp)
+        );
+        let ctrl_shift = ModifierMask(ModifierMask::CTRL.0 | ModifierMask::SHIFT.0);
+        assert_eq!(
+            bindings.action_for_press(KeyChord::new(ctrl_shift, plus)),
+            None
+        );
+        let shift_plus = KeyChord::new(ModifierMask::SHIFT, plus);
+        bindings.map.insert(Action::FpsUp, vec![shift_plus]);
+        assert_eq!(bindings.action_for_press(shift_plus), Some(Action::FpsUp));
+    }
+
     /// Letters follow the label: on AZERTY Ctrl+A is the key with A on
     /// it, which sits where US has Q.
     #[test]

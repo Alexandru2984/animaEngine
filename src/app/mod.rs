@@ -506,7 +506,7 @@ impl App {
             return;
         }
         let chord = KeyChord::new(self.modifier_mask(), keycode);
-        let Some(action) = self.config.keybindings.lookup(chord) else {
+        let Some(action) = self.config.keybindings.action_for_press(chord) else {
             return;
         };
         self.dispatch_action(action, event_loop);

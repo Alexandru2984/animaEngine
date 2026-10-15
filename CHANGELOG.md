@@ -420,6 +420,22 @@ read-only D-Bus names, for the idle time
   saving first; a second ends it at once. Checked in the test rig on
   both backends, an edit made in edit mode on disk a quarter of a second
   after the signal.
+- **`H` and `I` did nothing you could see.** The Keybindings tab lists
+  them as *Show keyboard help* and *Show character info*, and the README
+  said to press `H` for the full keyboard reference, but both only wrote
+  to the log — the help in English and out of date, still cycling
+  characters with Tab. `H` opens the Keybindings tab now, every shortcut
+  as it is bound, and `I` the Inspector with the selection.
+- **`+` did not raise a character's opacity on a US keyboard.** `+` is
+  bound by its label, which German types unshifted; on a US keyboard it
+  takes Shift, and Shift++ was bound to nothing. A symbol typed with
+  Shift alone now finds the bare symbol's binding when its own chord has
+  none.
+- **On native Wayland, `Ctrl+Shift+H` in edit mode did nothing**, the
+  keys being the overlay's there rather than the portal's; it hides the
+  overlay now, as on X11. And an overlay hidden in edit mode — from the
+  tray too — left the edit-mode bar, a green line, across the top of
+  the screen.
 - **On Wayland, starting the app again did nothing when it was hidden.**
   A second start hands over to the one running and leaves; on X11 that
   one comes back into sight, but the native Wayland backend ignored the

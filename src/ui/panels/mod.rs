@@ -176,6 +176,33 @@ enum SettingsTab {
     Keybindings,
 }
 
+/// A tab a shortcut asked for, shown at the panel's next frame: 0 for
+/// none, else one more than its place in [`SettingsTab::ALL`].
+static ASKED_TAB: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+/// Show the Inspector, with what is selected (`Action::ShowEntityInfo`).
+pub fn show_inspector() {
+    ask_for_tab(SettingsTab::Inspector);
+}
+
+/// Show the Shortcuts tab, every shortcut as it is bound
+/// (`Action::ShowHelp`).
+pub fn show_shortcuts() {
+    ask_for_tab(SettingsTab::Keybindings);
+}
+
+fn ask_for_tab(tab: SettingsTab) {
+    let place = SettingsTab::ALL.iter().position(|t| *t == tab).unwrap_or(0);
+    ASKED_TAB.store(place as u8 + 1, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn take_asked_tab() -> Option<SettingsTab> {
+    match ASKED_TAB.swap(0, std::sync::atomic::Ordering::Relaxed) {
+        0 => None,
+        n => SettingsTab::ALL.get(usize::from(n) - 1).copied(),
+    }
+}
+
 impl SettingsTab {
     const ALL: &'static [Self] = &[
         Self::Inspector,
@@ -380,6 +407,9 @@ pub fn settings(
                     .get_temp::<SettingsTab>(egui::Id::new("anima.settings.tab"))
                     .unwrap_or_default()
             });
+            if let Some(asked) = take_asked_tab() {
+                active_tab = asked;
+            }
             active_tab = settings_tab_bar(ui, active_tab);
             ui.memory_mut(|m| {
                 m.data
@@ -550,4 +580,18 @@ pub fn settings(
                 });
             });
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_tab_asked_for_is_shown_once() {
+        show_shortcuts();
+        assert_eq!(take_asked_tab(), Some(SettingsTab::Keybindings));
+        assert_eq!(take_asked_tab(), None, "taken once");
+        show_inspector();
+        assert_eq!(take_asked_tab(), Some(SettingsTab::Inspector));
+    }
 }

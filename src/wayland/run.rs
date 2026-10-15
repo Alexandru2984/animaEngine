@@ -1129,7 +1129,7 @@ pub fn run_native(
             events
                 .iter()
                 .filter_map(|event| binding_chord(event, egui_owns_keyboard))
-                .filter_map(|chord| config.keybindings.lookup(chord)),
+                .filter_map(|chord| config.keybindings.action_for_press(chord)),
         );
         // The Menu key, the keyboard's own key for the right-click menu:
         // not a binding, egui having no name for it to record or match.
@@ -1155,6 +1155,24 @@ pub fn run_native(
                         &mut config_watch,
                         "Wayland",
                     );
+                }
+                // In edit mode the keys are the overlay's, so the global
+                // chord comes as a key press rather than through the portal
+                // or a compositor binding — and was dropped here, while on
+                // X11 the grab took it in edit mode too. Hidden as from the
+                // tray: nothing drawn, no input taken.
+                Action::HideOverlay => {
+                    overlay_hidden = true;
+                    let region = region_for_state(
+                        true,
+                        layer.state.edit_mode || drag_widened,
+                        renderer.primary.window_width,
+                        renderer.primary.window_height,
+                        TOGGLE_BUTTON_SIZE,
+                    );
+                    if let Err(e) = layer.set_input_region(region) {
+                        tracing::warn!("hide: {e}");
+                    }
                 }
                 // As the global shortcuts do; snoozing leaves edit mode.
                 Action::ToggleMute => {
@@ -1884,6 +1902,9 @@ pub fn run_native(
         // and once after — while its egui paints, has input or is asked
         // for anything. The other monitors and the outcomes below go on
         // either way.
+        // The edit-mode bar is the overlay's too: hidden, it goes with the
+        // rest — it stayed, a green line across the top of a hidden one.
+        let edit_bar = layer.state.edit_mode && !(overlay_hidden || aside.hidden);
         let primary_busy = layer.state.edit_mode
             || perf_overlay_visible
             || !bubbles.is_empty()
@@ -1896,20 +1917,14 @@ pub fn run_native(
             &renderer.shared,
             &drawn,
             &scene.groups,
-            layer.state.edit_mode,
+            edit_bar,
             marks,
             primary_origin,
         ));
         let primary =
             if crate::app::windows::needs_frame(primary_frame, primary_key, primary_busy, now) {
                 renderer
-                    .render(
-                        &drawn,
-                        &scene.groups,
-                        layer.state.edit_mode,
-                        marks,
-                        primary_origin,
-                    )
+                    .render(&drawn, &scene.groups, edit_bar, marks, primary_origin)
                     .map(Some)
             } else {
                 Ok(None)
@@ -2253,7 +2268,7 @@ pub fn run_native(
                             &renderer.shared,
                             &drawn,
                             &scene.groups,
-                            layer.state.edit_mode,
+                            edit_bar,
                             marks,
                             origin,
                         );
@@ -2269,7 +2284,7 @@ pub fn run_native(
                             &renderer.shared,
                             &drawn,
                             &scene.groups,
-                            layer.state.edit_mode,
+                            edit_bar,
                             marks,
                             origin,
                         ) {

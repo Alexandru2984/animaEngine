@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R64 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R65 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2494,3 +2494,43 @@ libraries still come in through EGL there, which the rig tries because
 its only Vulkan is software — where Vulkan finds the integrated GPU, GL
 is not tried and none of them load. A GPU on nouveau is left as it was:
 its Vulkan driver, Mesa's NVK, is not one the variable names.
+
+### R65 · Three shortcuts did nothing, a fourth only on X11 — `FIXED`
+
+Found pressing every action in the Keybindings tab in the rig, on both
+backends, with three of the actions that have no default given one and
+Duplicate moved from `D` to `Ctrl+D` — each checked by what it did: the
+config saved after it, the tree a screen reader reads, a screenshot.
+
+- `H` (*Show keyboard help*) and `I` (*Show character info*) wrote to
+  the log and nowhere else; the help there was English and out of date
+  (Tab cycled characters in it), and the README promised it on screen.
+- `+` (opacity up) is bound by its label, so German, which types it
+  unshifted, reaches it; on a US keyboard it takes Shift, and the press
+  came as Shift++, bound to nothing.
+- On native Wayland `Ctrl+Shift+H` in edit mode arrives as a key press,
+  not through the portal or a compositor binding, and the loop dropped
+  it; X11's grab took it. Checking it found the edit-mode bar drawn
+  across the top of an overlay hidden in edit mode, however hidden.
+
+**Fixed:** `H` opens the Keybindings tab and `I` the Inspector
+(`ui::panels::show_shortcuts`, `show_inspector`); a Shift-typed symbol
+whose chord is unbound runs the bare symbol's action
+(`KeyBindings::action_for_press`), a chord bound with Shift still
+winning; the native loop hides on the chord, and the bar goes with the
+rest. **Checked:** 38 of 38 on both backends — selection, nudges, undo
+and redo, each per-character toggle and value and its way back, copy,
+cut, paste, duplicate, delete, group, the menu from `Shift+F10` and the
+Menu key, the palette, the perf overlay, pause, the moved chords for
+mute, focus and snooze, `D` no longer duplicating once moved, edit mode
+both ways, hiding, and `Q` saving as it quits.
+
+The same round checked the desktop notifications and "Start at login"
+and found nothing wrong: through a notification server on the rig's
+bus, a reminder went out under the name of the character saying it,
+with `{name}` filled, at once when the overlay was hidden, and the focus
+timer's in the user's language (Romanian on X11); the autostart entry
+was written with the right `Exec` on both backends and for an AppImage
+under a path with a space, passed `desktop-file-validate`, went when
+switched off, and the switch followed the file when another program
+wrote or removed it.

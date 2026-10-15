@@ -288,62 +288,11 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
                 }
             }
         }
-        Action::ShowEntityInfo => {
-            for e in selection
-                .selected_indices()
-                .into_iter()
-                .filter_map(|idx| scene.entities.get(idx))
-            {
-                tracing::info!(
-                    "━━━ Entity Info ━━━\n  Name: {}\n  ID: {}\n  Position: ({:.0}, {:.0})\n  Scale: {:.2}\n  Opacity: {:.0}%\n  FPS: {:.0}\n  Frames: {}\n  z-index: {}\n  Visible: {}\n  Playing: {}\n  Asset: {}",
-                    e.name, e.id, e.x, e.y, e.scale,
-                    e.opacity * 100.0, e.animation().fps,
-                    e.animation().frame_count(), e.z_index,
-                    e.visible, e.animation().playing, e.asset_path
-                );
-            }
-        }
-        Action::ShowHelp => {
-            tracing::info!(
-                "━━━ KEYBOARD SHORTCUTS ━━━\n\
-                \n  Navigation:\n\
-                \n    Tab        — Cycle through entities\n\
-                \n    Click      — Select entity (a grouped one: its group; again: just it)\n\
-                \n    Shift+Click — Add to / remove from the selection\n\
-                \n    Drag on empty space — Select what the rectangle touches\n\
-                \n    Escape     — Exit edit mode (auto-saves)\n\
-                \n\n  Position:\n\
-                \n    Drag       — Move entity (every selected one), snapping\n\
-                \n    Alt+Drag   — Move without snapping\n\
-                \n    Arrows     — Nudge 10px\n\
-                \n    Shift+Arrows — Fine nudge 1px\n\
-                \n    Home       — Center on screen\n\
-                \n\n  Appearance:\n\
-                \n    Scroll     — Resize\n\
-                \n    +/-        — Opacity\n\
-                \n    R          — Reset scale/opacity\n\
-                \n    V          — Toggle visibility\n\
-                \n    PgUp/PgDn  — Z-order\n\
-                \n\n  Animation:\n\
-                \n    P          — Play/pause entity\n\
-                \n    Space      — Global play/pause\n\
-                \n    [/]        — Adjust FPS\n\
-                \n\n  Physics:\n\
-                \n    G          — Toggle gravity (off by default)\n\
-                \n\n  Actions:\n\
-                \n    Ctrl+Z     — Undo\n\
-                \n    Ctrl+Shift+Z — Redo\n\
-                \n    D          — Duplicate\n\
-                \n    Ctrl+C/X/V — Copy, cut, paste (into any scene)\n\
-                \n    Ctrl+G     — Group the selection\n\
-                \n    Ctrl+Shift+G — Ungroup\n\
-                \n    Del/Bksp   — Delete\n\
-                \n    I          — Show entity info\n\
-                \n    S          — Save config\n\
-                \n    Q          — Save and exit\n\
-                \n    H          — This help"
-            );
-        }
+        // On screen, in the user's language. Until 1.5 both went to the
+        // log only, where no one looks — the help in English and out of
+        // date, still cycling characters with Tab.
+        Action::ShowEntityInfo => crate::ui::panels::show_inspector(),
+        Action::ShowHelp => crate::ui::panels::show_shortcuts(),
         // Copying only reads the scene. Cutting and pasting take
         // characters out and put them in, textures and all, so the
         // backends run those, as they do Delete and Duplicate.
