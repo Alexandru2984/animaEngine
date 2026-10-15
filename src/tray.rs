@@ -192,3 +192,29 @@ pub fn spawn(sink: EventSink) -> thread::JoinHandle<()> {
         })
         .expect("failed to spawn tray thread")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A click before the loop waits is not lost, and one while it waits
+    /// wakes it — the window between looking and storing the waker
+    /// included.
+    #[test]
+    fn a_click_wakes_the_loop_before_or_while_it_waits() {
+        let clicked = Clicked {
+            raised: AtomicBool::new(false),
+            waker: Mutex::new(None),
+        };
+        clicked.raise();
+        futures_lite::future::block_on(clicked.wait());
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                clicked.raise();
+            });
+            futures_lite::future::block_on(clicked.wait());
+        });
+        assert!(!clicked.raised.load(Ordering::Acquire), "taken by the wait");
+    }
+}
