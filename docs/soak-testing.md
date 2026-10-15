@@ -314,6 +314,22 @@ NVIDIA GPU never wakes. Resident memory, one output: 210.8 MB instead of
 232.5 — NVIDIA's libraries still come in through EGL here, which the rig
 tries since its Vulkan is software only.
 
+### 1.5, two hours on X11 (rig, 2026-10-15)
+
+The same run on the X11 path, two outputs, two hours, SIGTERM at the
+end after a pause not yet saved.
+
+| | X11, 2 h |
+|---|---|
+| Resident memory | 205.6 → 201.1 MB; by quarter 201.0, 201.1, 201.1, 201.1 |
+| Threads, file descriptors | 80, 23 |
+| D-Bus `SetMuted` saved after | median 33 ms, at most 77, all 59 times |
+| Quiet stretch | no idle source in the rig on X11, so no dozing: ~120% of a core, as moving |
+| Reminders said, pauses | 158, 24 |
+| Warnings, errors, panics | 9, 0, 0 — all at start |
+| Log | 123 KB |
+| SIGTERM | the pause on disk, the process gone 261 ms after the signal |
+
 ### Where the memory goes (rig, 2026-10-14)
 
 The rig's resident memory — 225 MB on native Wayland, 184 MB on X11,
