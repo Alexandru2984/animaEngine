@@ -2488,4 +2488,9 @@ NVIDIA GPU is in use — a session drawn on it — and keeps its driver.
 after start instead of 2.75, gone 0.11 s after SIGTERM instead of 2.67,
 the NVIDIA GPU asleep throughout; X11 ready in 0.07 s and gone in
 0.06 s, likewise; with the GPU woken just before, or with
-`__NV_PRIME_RENDER_OFFLOAD=1`, every driver loaded as before.
+`__NV_PRIME_RENDER_OFFLOAD=1`, every driver loaded as before. Resident
+memory in the rig fell from 232.5 to 210.8 MB; 30 MB of NVIDIA's
+libraries still come in through EGL there, which the rig tries because
+its only Vulkan is software — where Vulkan finds the integrated GPU, GL
+is not tried and none of them load. A GPU on nouveau is left as it was:
+its Vulkan driver, Mesa's NVK, is not one the variable names.

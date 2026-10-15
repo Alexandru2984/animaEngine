@@ -10,12 +10,15 @@
 //! the integrated one regardless, so on such a laptop NVIDIA's Vulkan
 //! driver is not loaded at all: `VK_LOADER_DRIVERS_DISABLE=*nvidia*`, set
 //! before any thread exists — the environment is only safe to change
-//! while nothing else can be reading it.
+//! while nothing else can be reading it. A process the app started would
+//! inherit it; the app starts none.
 //!
 //! Not when the user chose: the loader's own variables, or a PRIME
 //! offload (`prime-run`, a desktop's "Launch using Discrete Graphics
 //! Card", `DRI_PRIME`), which asks for the discrete GPU. Not when no other
-//! GPU is AMD's or Intel's, where NVIDIA's may be the only one. And not
+//! GPU is AMD's or Intel's, where NVIDIA's may be the only one. Not when
+//! the NVIDIA GPU runs on nouveau: its Vulkan driver, Mesa's NVK, is not
+//! one the variable names, and was never measured waking it. And not
 //! when the NVIDIA GPU is awake as the app starts: then something uses it
 //! — a session drawn on it (`prime-select nvidia`), where the integrated
 //! GPU's driver may not reach the windows and NVIDIA's is the one to draw
@@ -96,6 +99,8 @@ pub fn spare_discrete_gpu() -> Outcome {
 struct Gpu {
     /// Its PCI vendor.
     vendor: u16,
+    /// Driven by NVIDIA's own kernel driver, not nouveau.
+    nvidia_driver: bool,
     /// Put to sleep by runtime power management: nothing uses it.
     asleep: bool,
 }
@@ -108,7 +113,12 @@ fn decide(is_set: impl Fn(&str) -> bool, gpus: &[Gpu]) -> Outcome {
     let other = gpus
         .iter()
         .any(|gpu| gpu.vendor == AMD || gpu.vendor == INTEL);
-    if nvidia.peek().is_none() || !other {
+    if nvidia.peek().is_none()
+        || !other
+        || gpus
+            .iter()
+            .any(|gpu| gpu.vendor == NVIDIA && !gpu.nvidia_driver)
+    {
         Outcome::NotHybrid
     } else if nvidia.all(|gpu| gpu.asleep) {
         Outcome::Spared
@@ -136,9 +146,15 @@ fn gpus(drm: &Path) -> Vec<Gpu> {
             let device = entry.path().join("device");
             let vendor = std::fs::read_to_string(device.join("vendor")).ok()?;
             let vendor = u16::from_str_radix(vendor.trim().trim_start_matches("0x"), 16).ok()?;
+            let nvidia_driver = std::fs::read_link(device.join("driver"))
+                .is_ok_and(|driver| driver.file_name().is_some_and(|name| name == "nvidia"));
             let asleep = std::fs::read_to_string(device.join("power/runtime_status"))
                 .is_ok_and(|status| status.trim() == "suspended");
-            Some(Gpu { vendor, asleep })
+            Some(Gpu {
+                vendor,
+                nvidia_driver,
+                asleep,
+            })
         })
         .collect()
 }
@@ -154,6 +170,7 @@ mod tests {
     const fn awake(vendor: u16) -> Gpu {
         Gpu {
             vendor,
+            nvidia_driver: vendor == NVIDIA,
             asleep: false,
         }
     }
@@ -161,6 +178,7 @@ mod tests {
     const fn asleep(vendor: u16) -> Gpu {
         Gpu {
             vendor,
+            nvidia_driver: vendor == NVIDIA,
             asleep: true,
         }
     }
@@ -186,6 +204,18 @@ mod tests {
         assert_eq!(
             decide(nothing_set, &[awake(AMD), asleep(NVIDIA), awake(NVIDIA)]),
             Outcome::Awake
+        );
+    }
+
+    #[test]
+    fn an_nvidia_gpu_on_nouveau_is_left_as_it_was() {
+        let on_nouveau = Gpu {
+            nvidia_driver: false,
+            ..asleep(NVIDIA)
+        };
+        assert_eq!(
+            decide(nothing_set, &[awake(AMD), on_nouveau]),
+            Outcome::NotHybrid
         );
     }
 
@@ -234,6 +264,14 @@ mod tests {
             if let Some(status) = status {
                 std::fs::write(device.join("power/runtime_status"), status).unwrap();
             }
+            let driver = if vendor == Some("0x10de\n") {
+                "nvidia"
+            } else {
+                "amdgpu"
+            };
+            let target = dir.join("drivers").join(driver);
+            std::fs::create_dir_all(&target).unwrap();
+            std::os::unix::fs::symlink(&target, device.join("driver")).unwrap();
         }
         let mut found = gpus(&dir);
         found.sort_by_key(|gpu| gpu.vendor);

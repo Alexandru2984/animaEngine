@@ -42,8 +42,6 @@ fn main() {
     #[cfg(unix)]
     anima_engine::quit_signal::start();
     init_tracing();
-    #[cfg(target_os = "linux")]
-    hybrid.log();
 
     // CLI: `anima-engine --recover` restores a crash-recovery snapshot
     // and exits. Anything else runs the app. We deliberately keep the
@@ -101,6 +99,10 @@ fn main() {
     tracing::info!("  Linux-first animated desktop overlay engine");
     tracing::info!("  Supported formats: PNG, GIF, WebP (animated), Spritesheets");
     tracing::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    // Only now: logged where `--version` and `--help` answer, it came
+    // before their answer on stdout.
+    #[cfg(target_os = "linux")]
+    hybrid.log();
 
     // Single-instance handshake — must happen before any work, otherwise
     // a redundant launch would do all the setup just to hand off.
