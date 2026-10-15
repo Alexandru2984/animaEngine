@@ -583,6 +583,8 @@ toast-perf-snapshot-failed = Snapshot-ul a eșuat: { $error }
 # Why a file was not taken, presets, the tray's tooltip, demo names (1.5)
 error-file-unreadable = Fișierul nu a putut fi citit: { $error }
 error-not-a-file = Acesta nu este un fișier.
+error-image-unreadable = { $name } nu poate fi citit ca imagine: fișierul poate fi deteriorat sau nu e de tipul pe care îl spune numele.
+error-folder-no-frames = { $name } nu conține cadre PNG. Un folder se adaugă ca o singură animație, cu fișierele PNG în ordinea numelor.
 error-file-too-big = Fișierul are { $size } MB; se pot adăuga cel mult { $max } MB.
 error-file-type = Fișierele .{ $ext } nu pot fi afișate; PNG, JPEG, GIF, WebP și MP4 pot.
 error-file-no-extension = Numele fișierului nu are o extensie care să spună ce este; pot fi afișate PNG, JPEG, GIF, WebP și MP4.

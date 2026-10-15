@@ -182,7 +182,7 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
 
 /// Load a single static PNG file
 pub fn load_single_png(path: &Path) -> Result<Frame> {
-    let img = image::open(path)?.to_rgba8();
+    let img = super::loader::open_image(path)?.to_rgba8();
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
     Ok(Frame::new(rgba, width, height))

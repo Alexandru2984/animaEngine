@@ -86,6 +86,16 @@ pub const DROP_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "mp4
 pub fn pre_validate_dropped_file(path: &Path) -> Result<(), Msg> {
     let meta =
         std::fs::metadata(path).map_err(|e| Msg::new("error-file-unreadable").arg("error", e))?;
+    // A folder is one animation, its PNG files in order — how the demo
+    // characters are kept and how frames come out of an editor. The
+    // engine always loaded one; a drop refused it as "not a file".
+    if meta.is_dir() {
+        return if holds_png_frames(path) {
+            Ok(())
+        } else {
+            Err(Msg::new("error-folder-no-frames").arg("name", redact_path(path)))
+        };
+    }
     if !meta.is_file() {
         return Err(Msg::new("error-not-a-file"));
     }
@@ -104,6 +114,24 @@ pub fn pre_validate_dropped_file(path: &Path) -> Result<(), Msg> {
         Some(e) => Err(Msg::new("error-file-type").arg("ext", e)),
         None => Err(Msg::new("error-file-no-extension")),
     }
+}
+
+/// Whether `dir` holds a `.png` file among its first entries — enough to
+/// try it as a sequence; the loader applies its own limits after.
+fn holds_png_frames(dir: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    entries
+        .flatten()
+        .take(crate::constants::MAX_SEQUENCE_FILES)
+        .any(|entry| {
+            let path = entry.path();
+            path.extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| e.eq_ignore_ascii_case("png"))
+                && crate::util::resolves_to_regular_file(&path)
+        })
 }
 
 /// Resolve a library-relative asset path against its root and verify
@@ -200,11 +228,18 @@ mod tests {
         assert!(pre_validate_dropped_file(&path).is_ok());
     }
 
+    /// A folder of PNG frames is one animation (the demo characters are
+    /// kept so); a folder without any says what it should hold.
     #[test]
-    fn drop_rejects_directory() {
+    fn a_folder_is_taken_when_it_holds_png_frames() {
         let dir = workspace_tmp("is_dir");
         let err = pre_validate_dropped_file(&dir).unwrap_err();
-        assert_eq!(err, Msg::new("error-not-a-file"));
+        assert_eq!(
+            err,
+            Msg::new("error-folder-no-frames").arg("name", "is_dir")
+        );
+        std::fs::write(dir.join("frame_001.png"), b"x").unwrap();
+        assert!(pre_validate_dropped_file(&dir).is_ok());
     }
 
     #[test]

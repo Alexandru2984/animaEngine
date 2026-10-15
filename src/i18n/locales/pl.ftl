@@ -578,6 +578,8 @@ toast-perf-snapshot-failed = Migawka nie powiodła się: { $error }
 # Why a file was not taken, presets, the tray's tooltip, demo names (1.5)
 error-file-unreadable = Nie udało się odczytać pliku: { $error }
 error-not-a-file = To nie jest plik.
+error-image-unreadable = Nie można odczytać { $name } jako obrazu: plik może być uszkodzony albo nie jest tym, na co wskazuje nazwa.
+error-folder-no-frames = { $name } nie zawiera klatek PNG. Folder jest dodawany jako jedna animacja, z plikami PNG w kolejności nazw.
 error-file-too-big = Plik ma { $size } MB; można dodać najwyżej { $max } MB.
 error-file-type = Plików .{ $ext } nie można wyświetlić; PNG, JPEG, GIF, WebP i MP4 można.
 error-file-no-extension = Nazwa pliku nie ma rozszerzenia, które mówi, czym jest; można wyświetlić PNG, JPEG, GIF, WebP i MP4.

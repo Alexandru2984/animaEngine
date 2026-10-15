@@ -23,7 +23,7 @@ pub fn load_webp(path: &Path) -> Result<Vec<Frame>> {
 
 /// Load a static (non-animated) WebP as a single frame.
 pub fn load_static_webp(path: &Path) -> Result<Vec<Frame>> {
-    let img = image::open(path)?.to_rgba8();
+    let img = super::loader::open_image(path)?.to_rgba8();
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
     tracing::info!(

@@ -569,6 +569,8 @@ toast-perf-snapshot-failed = Snapshot mislukt: { $error }
 # Why a file was not taken, presets, the tray's tooltip, demo names (1.5)
 error-file-unreadable = Het bestand kon niet worden gelezen: { $error }
 error-not-a-file = Dat is geen bestand.
+error-image-unreadable = { $name } kan niet als afbeelding worden gelezen: het bestand is misschien beschadigd, of niet het soort dat de naam zegt.
+error-folder-no-frames = { $name } bevat geen PNG-beelden. Een map wordt toegevoegd als één animatie, met de PNG-bestanden op naamvolgorde.
 error-file-too-big = Het bestand is { $size } MB; er kan hoogstens { $max } MB worden toegevoegd.
 error-file-type = Bestanden met .{ $ext } kunnen niet worden getoond; PNG, JPEG, GIF, WebP en MP4 wel.
 error-file-no-extension = De bestandsnaam heeft geen extensie die zegt wat het is; PNG, JPEG, GIF, WebP en MP4 kunnen worden getoond.

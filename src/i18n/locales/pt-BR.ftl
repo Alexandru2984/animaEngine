@@ -569,6 +569,8 @@ toast-perf-snapshot-failed = Falha no snapshot: { $error }
 # Why a file was not taken, presets, the tray's tooltip, demo names (1.5)
 error-file-unreadable = Não foi possível ler o arquivo: { $error }
 error-not-a-file = Isso não é um arquivo.
+error-image-unreadable = Não é possível ler { $name } como imagem: o arquivo pode estar danificado ou não ser do tipo que o nome diz.
+error-folder-no-frames = { $name } não tem quadros PNG. Uma pasta é adicionada como uma animação, com seus arquivos PNG em ordem de nome.
 error-file-too-big = O arquivo tem { $size } MB; é possível adicionar no máximo { $max } MB.
 error-file-type = Arquivos .{ $ext } não podem ser exibidos; PNG, JPEG, GIF, WebP e MP4 podem.
 error-file-no-extension = O nome do arquivo não tem uma extensão que diga o que ele é; podem ser exibidos PNG, JPEG, GIF, WebP e MP4.

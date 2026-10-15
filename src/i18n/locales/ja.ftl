@@ -564,6 +564,8 @@ toast-perf-snapshot-failed = スナップショットに失敗しました: { $e
 # Why a file was not taken, presets, the tray's tooltip, demo names (1.5)
 error-file-unreadable = ファイルを読み込めませんでした: { $error }
 error-not-a-file = ファイルではありません。
+error-image-unreadable = { $name } を画像として読み込めません。ファイルが壊れているか、名前の示す種類のファイルではない可能性があります。
+error-folder-no-frames = { $name } には PNG のコマがありません。フォルダーは、中の PNG ファイルを名前順に並べた 1 つのアニメーションとして追加されます。
 error-file-too-big = ファイルは { $size } MB あります。追加できるのは { $max } MB までです。
 error-file-type = .{ $ext } のファイルは表示できません。PNG、JPEG、GIF、WebP、MP4 は表示できます。
 error-file-no-extension = ファイル名に種類を示す拡張子がありません。PNG、JPEG、GIF、WebP、MP4 を表示できます。

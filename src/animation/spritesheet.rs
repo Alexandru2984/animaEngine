@@ -22,7 +22,7 @@ pub fn load_spritesheet(path: &Path, columns: u32, rows: u32) -> Result<Vec<Fram
         ));
     }
 
-    let img = image::open(path)?.to_rgba8();
+    let img = super::loader::open_image(path)?.to_rgba8();
     let (img_width, img_height) = img.dimensions();
 
     let cell_width = img_width / columns;

@@ -67,7 +67,13 @@ fn validate_single_file(path: &Path) -> Result<(u32, u32)> {
         .map(|e| IMAGE_PROBE_EXTENSIONS.contains(&e))
         .unwrap_or(false);
 
-    match image::image_dimensions(path) {
+    // By what the file holds: a picture saved under the wrong extension
+    // (`content_format`) is measured as the picture it is.
+    let dims = image::ImageReader::open(path)
+        .and_then(|reader| reader.with_guessed_format())
+        .map_err(image::ImageError::IoError)
+        .and_then(|reader| reader.into_dimensions());
+    match dims {
         Ok((w, h)) => {
             if w > MAX_IMAGE_DIM || h > MAX_IMAGE_DIM {
                 Err(AnimaError::ImageTooLarge {
@@ -82,11 +88,18 @@ fn validate_single_file(path: &Path) -> Result<(u32, u32)> {
         }
         Err(e) if is_image_ext => {
             // Known image extension but the header is unreadable —
-            // refuse instead of trusting the decoder to fail later.
-            Err(AnimaError::other(format!(
-                "Unreadable {ext:?} header at {}: {e}",
-                path.display()
-            )))
+            // refuse instead of trusting the decoder to fail later. The
+            // decoder's words are for the log: the user was shown them,
+            // in English, with the file's whole path and the decoder's
+            // own structures ("ChunkType { … }").
+            tracing::warn!(
+                "Unreadable picture {}: {e}",
+                crate::drop_validate::redact_path(path)
+            );
+            Err(AnimaError::said_as(
+                crate::i18n::Msg::new("error-image-unreadable")
+                    .arg("name", crate::drop_validate::redact_path(path)),
+            ))
         }
         Err(e) => {
             // Unknown extension (video, …) — defer to the format-specific
@@ -260,6 +273,25 @@ pub fn detect_asset_type(path: &Path) -> (AssetType, &'static str) {
         .unwrap_or("")
         .to_lowercase();
 
+    // What the file holds, where that and its name disagree. Only a
+    // regular file is opened: a `.png` FIFO would block here.
+    if crate::util::resolves_to_regular_file(path) {
+        use image::ImageFormat as F;
+        if let Some(format) = content_format(path) {
+            let named_so = matches!(
+                (format, ext.as_str()),
+                (F::Png, "png") | (F::Jpeg, "jpg" | "jpeg") | (F::Gif, "gif") | (F::WebP, "webp")
+            );
+            if !named_so {
+                return match format {
+                    F::Gif => (AssetType::Gif, "GIF animation (by its content)"),
+                    F::WebP => (AssetType::WebpAnimated, "WebP (by its content)"),
+                    _ => (AssetType::PngStatic, "Picture (by its content)"),
+                };
+            }
+        }
+    }
+
     match ext.as_str() {
         "gif" => (AssetType::Gif, "GIF animation"),
         "webp" => (
@@ -289,6 +321,38 @@ pub fn detect_asset_type(path: &Path) -> (AssetType, &'static str) {
             }
         }
     }
+}
+
+/// The picture format a file's first bytes say it is — PNG, JPEG, GIF or
+/// WebP, the ones this app decodes — whatever its name says. Pictures
+/// saved from a browser often carry the wrong extension, a WebP or a
+/// JPEG named `.png`, and the name alone sent them to the wrong decoder,
+/// which refused them.
+pub(crate) fn content_format(path: &Path) -> Option<image::ImageFormat> {
+    use std::io::Read;
+    let mut head = [0u8; 16];
+    let mut file = std::fs::File::open(path).ok()?;
+    let n = file.read(&mut head).ok()?;
+    let head = &head[..n];
+    if head.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some(image::ImageFormat::Png)
+    } else if head.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some(image::ImageFormat::Jpeg)
+    } else if head.starts_with(b"GIF87a") || head.starts_with(b"GIF89a") {
+        Some(image::ImageFormat::Gif)
+    } else if head.len() >= 12 && &head[..4] == b"RIFF" && &head[8..12] == b"WEBP" {
+        Some(image::ImageFormat::WebP)
+    } else {
+        None
+    }
+}
+
+/// Open a picture by what it holds, not by its name (`content_format`);
+/// only the formats this app is built to decode can come out.
+pub(crate) fn open_image(path: &Path) -> image::ImageResult<image::DynamicImage> {
+    image::ImageReader::open(path)?
+        .with_guessed_format()?
+        .decode()
 }
 
 /// Generate a fallback frame — a simple colored rectangle
@@ -332,6 +396,42 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// A picture under the wrong name — a JPEG called `.png`, as browsers
+    /// save them — is taken for what it holds, measured and loaded.
+    #[test]
+    fn a_picture_is_known_by_its_content_not_its_name() {
+        let dir = temp_dir("by_content");
+        let path = dir.join("saved-from-a-browser.png");
+        image::DynamicImage::ImageRgb8(image::RgbImage::new(12, 8))
+            .save_with_format(&path, image::ImageFormat::Jpeg)
+            .unwrap();
+        assert_eq!(content_format(&path), Some(image::ImageFormat::Jpeg));
+        assert_eq!(detect_asset_type(&path).0, AssetType::PngStatic);
+        assert_eq!(validate_single_file(&path).unwrap(), (12, 8));
+        let frame = png_sequence::load_single_png(&path).unwrap();
+        assert_eq!((frame.width, frame.height), (12, 8));
+        // Named rightly, nothing changes.
+        let named = dir.join("photo.jpg");
+        std::fs::copy(&path, &named).unwrap();
+        assert_eq!(detect_asset_type(&named).1, "JPEG image");
+    }
+
+    /// An unreadable picture is refused in the user's words, by its name —
+    /// not with the decoder's, nor the whole path.
+    #[test]
+    fn an_unreadable_picture_is_refused_by_name() {
+        let dir = temp_dir("unreadable");
+        let path = dir.join("broken.png");
+        std::fs::write(&path, b"\x89PNG\r\n\x1a\nnot really a picture").unwrap();
+        crate::i18n::init(Some("en"));
+        let said = validate_single_file(&path).unwrap_err().said();
+        assert!(
+            said.starts_with("broken.png cannot be read as a picture"),
+            "{said}"
+        );
+        assert!(!said.contains(&*dir.to_string_lossy()), "{said}");
     }
 
     fn write_png(path: &Path, w: u32, h: u32) {
@@ -399,8 +499,9 @@ mod tests {
         std::fs::write(&path, b"this is not a png").unwrap();
         let err = validate_image_dimensions(&path).unwrap_err();
         // We mostly care that it's NOT silently Ok((0, 0)) and NOT an
-        // "asset not found" — the path exists, it just isn't a PNG.
-        assert!(matches!(err, AnimaError::Other(_)));
+        // "asset not found" — the path exists, it just isn't a PNG — and
+        // that it is said in the user's words (1.5).
+        assert!(matches!(err, AnimaError::Said(_)));
     }
 
     #[cfg(unix)]

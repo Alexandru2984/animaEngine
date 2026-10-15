@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R68 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R69 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2599,3 +2599,36 @@ opens with Space, Tab walks into its choices and Enter picks one; the
 current choice and the active tab are read as *pressed*. Lists that
 have nothing to offer in the rig — sounds, open apps, an idle source on
 X11 — say so and stay closed.
+
+### R69 · Folders, misnamed pictures and an unreadable one, at the drop — `FIXED`
+
+Found dropping every kind of file on the overlay in edit mode, on both
+backends — through the rig's Wayland and XDND drag sources — and three
+the same way through the file chooser: back up, restore onto a fresh
+config, a scene shared as one file and imported again. Pictures, GIFs,
+WebPs, JPEGs and MP4s became characters, a Shimeji pack was imported, a
+shared scene came in, a backup and its restore kept every setting and
+scene (the old config beside as `config.toml.before-restore`), and a
+picture over 4096 pixels or a text file was refused with the reason.
+Three were not right:
+
+- a folder of PNG frames was refused as "not a file", though the engine
+  has always loaded such a folder as one animation (the demo characters
+  are kept so) — only the drop's own check refused directories;
+- a picture under the wrong extension — a JPEG or an animated WebP saved
+  as `.png`, as browsers save them — went to the decoder its name chose
+  and was refused;
+- a damaged picture's refusal read, on screen: `Unreadable Some("png")
+  header at /home/…/broken.png: Format error decoding Png: ChunkType {
+  type: … }` — English, the whole path, the decoder's structures.
+
+**Fixed:** a dropped folder holding PNG files is taken (`drop_validate`),
+one without says what it should hold; `loader::content_format` reads a
+file's first bytes for PNG, JPEG, GIF or WebP, and a picture whose name
+says otherwise is typed, measured and opened by its content
+(`open_image`, `with_guessed_format` — only the four formats the app is
+built with can come out); an unreadable picture is refused as
+`error-image-unreadable`, by its file name, the decoder's words kept for
+the log. **Checked:** every one of fourteen files dropped on both
+backends did what it should, the misnamed JPEG and WebP and the frame
+folder included.

@@ -420,6 +420,18 @@ read-only D-Bus names, for the idle time
   saving first; a second ends it at once. Checked in the test rig on
   both backends, an edit made in edit mode on disk a quarter of a second
   after the signal.
+- **Three kinds of drop were refused that should not be.** A folder of
+  PNG frames — how the demo characters are kept, and how an editor
+  exports an animation — was "not a file", though the engine always
+  loaded one; it is added as one animation now, and a folder without
+  PNG frames says what it should hold. A picture under the wrong
+  extension, as browsers save them — a WebP or a JPEG named `.png` — went
+  to the decoder its name chose and was refused; pictures are known by
+  their first bytes now, among the four formats the app decodes. And an
+  unreadable picture's refusal showed the decoder's own words, in
+  English, with the file's whole path and its internal structures; it
+  says, in the user's language and by the file's name, that it cannot be
+  read as a picture.
 - **Tabbing down the settings panel went out of sight.** egui moves the
   keyboard's focus with Tab but does not scroll to it, so on a long tab —
   the Inspector, Appearance — the focused control went on below the
