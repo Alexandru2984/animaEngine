@@ -258,13 +258,47 @@ struct Row {
     outcome: PaletteOutcome,
 }
 
+/// `s` lower-cased, its Latin letters without their marks, so that a
+/// query typed without them finds a label that has them: "atip" finds
+/// Romanian "Ațipește", "theme" French "thème" — on a keyboard with no
+/// key for them most people type them bare. Searching compared them as
+/// they were, and found nothing. The letters of the app's languages.
+fn folded(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.to_lowercase().chars() {
+        let bare = match c {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'ă' | 'ą' => "a",
+            'ç' | 'ć' => "c",
+            'è' | 'é' | 'ê' | 'ë' | 'ę' => "e",
+            'ì' | 'í' | 'î' | 'ï' => "i",
+            'ł' => "l",
+            'ñ' | 'ń' => "n",
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' => "o",
+            'ù' | 'ú' | 'û' | 'ü' => "u",
+            'ý' | 'ÿ' => "y",
+            'ś' | 'ș' | 'ş' => "s",
+            'ț' | 'ţ' => "t",
+            'ź' | 'ż' => "z",
+            'ß' => "ss",
+            'œ' => "oe",
+            'æ' => "ae",
+            _ => {
+                out.push(c);
+                continue;
+            }
+        };
+        out.push_str(bare);
+    }
+    out
+}
+
 /// The rows matching `query`, in order: "Add file…", every action with a
 /// shortcut, the themes, then per preset a Replace and an Append row — the
 /// old two-buttons-per-row layout had no keyboard path to the second
 /// button (F8).
 fn rows(query: &str, keybindings: &KeyBindings, has_selection: bool) -> Vec<Row> {
-    let q = query.to_lowercase();
-    let matches_filter = |s: &str| q.is_empty() || s.to_lowercase().contains(&q);
+    let q = folded(query);
+    let matches_filter = |s: &str| q.is_empty() || folded(s).contains(&q);
 
     let mut rows: Vec<Row> = Vec::new();
     // Unix only, as the Scene tab's button: it needs the XDG portal.
@@ -304,7 +338,7 @@ fn rows(query: &str, keybindings: &KeyBindings, has_selection: bool) -> Vec<Row>
         let mut args = fluent::FluentArgs::new();
         args.set("theme", theme.label());
         let label = crate::i18n::t_args("palette-switch-theme", &args);
-        if matches_filter(&label) {
+        if matches_filter(&label) || matches_filter("theme") {
             let icon = match theme {
                 Theme::Dark | Theme::DarkHighContrast => icons::DARK_MODE,
                 Theme::Light | Theme::LightHighContrast => icons::LIGHT_MODE,
@@ -462,6 +496,23 @@ mod tests {
                 assert_eq!(row.hint, first, "{action:?}");
             }
         }
+    }
+
+    #[test]
+    fn a_query_finds_a_label_with_or_without_its_marks() {
+        assert_eq!(folded("Ațipește până dimineață"), "atipeste pana dimineata");
+        assert_eq!(folded("Passer au thème Sombre"), "passer au theme sombre");
+        assert_eq!(folded("Bis morgen früh"), "bis morgen fruh");
+        assert_eq!(folded("Przełącz na motyw"), "przelacz na motyw");
+        assert_eq!(folded("テーマ"), "テーマ");
+        let themes = |q: &str| {
+            rows(q, &KeyBindings::default(), false)
+                .iter()
+                .filter(|r| matches!(r.outcome, PaletteOutcome::SwitchTheme(_)))
+                .count()
+        };
+        assert_eq!(themes("thème"), Theme::ALL.len());
+        assert_eq!(themes("theme"), Theme::ALL.len());
     }
 
     #[test]

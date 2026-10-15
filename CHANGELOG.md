@@ -420,6 +420,12 @@ read-only D-Bus names, for the idle time
   saving first; a second ends it at once. Checked in the test rig on
   both backends, an edit made in edit mode on disk a quarter of a second
   after the signal.
+- **The command palette's search wanted the letters' marks.** Typed
+  without them, as most do on a keyboard with no key for them, a query
+  found nothing: "atip" not Romanian *Ațipește*, "theme" not French
+  *thème*. Both sides are compared without their marks now, and the
+  themes answer to "theme" in every language, as snoozing does to
+  "snooze".
 - **The tray's menu read as before a click for up to three seconds.**
   Snoozed from the tray, it still offered to snooze rather than to wake;
   the focus timer stopped, it still offered to stop it. The menu is

@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R66 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R67 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2553,3 +2553,23 @@ the tray and opened again at once, the menu still offered to snooze.
 three-second timer, and it looks again every 0.1 s, up to 1.5 s, until
 the labels change (`tray::Clicked`). **Checked:** 10 of 10 items on both
 backends, the menu read back a second after each click.
+
+### R67 · The command palette's search needed the accents — `FIXED`
+
+Found picking every kind of row in the command palette over AT-SPI, on
+both backends. Every row was there with a selection — "Add file…", each
+action that belongs there (its name read with its shortcut, "Undo
+Ctrl+Z"), the four themes, a Replace and an Append row for each of the
+six presets, the snoozes, the focus timer, mute, each saved scene — and
+each did what it says. Searching did not, outside English: the query
+was compared with the labels as typed, so "atip" found nothing in
+Romanian (*Ațipește*), nor "theme" in French (*thème*), "fruh" in
+German (*früh*) — on a keyboard with no key for those letters, the way
+most people type them.
+
+**Fixed:** query and labels are compared lower-cased and without their
+marks (`command_palette::folded`, the Latin letters of the app's ten
+languages), and the theme rows answer to "theme" in every language,
+as the snooze, focus and mute rows answer to their English words.
+**Checked** in the rig: "atip" and "pana dim" in Romanian, "theme" in
+French on X11, "fruh" in German.
