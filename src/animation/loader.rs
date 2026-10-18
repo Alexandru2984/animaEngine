@@ -7,7 +7,7 @@ use super::spritesheet;
 use super::video_loader;
 use super::webp_loader;
 use crate::config::AssetType;
-use crate::constants::{MAX_IMAGE_DIM, MAX_SEQUENCE_FILES};
+use crate::constants::{MAX_DECODED_ASSET_BYTES, MAX_IMAGE_DIM, MAX_SEQUENCE_FILES};
 use crate::error::{AnimaError, Result};
 use std::fs;
 use std::path::Path;
@@ -470,12 +470,29 @@ pub(crate) fn content_format(path: &Path) -> Option<image::ImageFormat> {
     }
 }
 
+/// The limits every picture is decoded within: no frame over
+/// `MAX_IMAGE_DIM` on a side, no buffer over `MAX_DECODED_ASSET_BYTES`.
+/// The size in a file's header is checked first
+/// (`validate_image_dimensions`), but a GIF's frames carry sizes of their
+/// own: an 8×8 GIF whose one frame said 46003×46003 had 8.4 GB asked for
+/// at once (found by the `content_sniff` fuzz target). A decoder made
+/// with `new` has no limits, and `ImageReader`'s own allow 512 MiB at any
+/// size; `image` checks these before it allocates.
+pub(crate) fn decode_limits() -> image::Limits {
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_IMAGE_DIM);
+    limits.max_image_height = Some(MAX_IMAGE_DIM);
+    limits.max_alloc = Some(MAX_DECODED_ASSET_BYTES as u64);
+    limits
+}
+
 /// Open a picture by what it holds, not by its name (`content_format`);
-/// only the formats this app is built to decode can come out.
+/// only the formats this app is built to decode can come out, and within
+/// [`decode_limits`].
 pub(crate) fn open_image(path: &Path) -> image::ImageResult<image::DynamicImage> {
-    image::ImageReader::open(path)?
-        .with_guessed_format()?
-        .decode()
+    let mut reader = image::ImageReader::open(path)?.with_guessed_format()?;
+    reader.limits(decode_limits());
+    reader.decode()
 }
 
 /// Generate a fallback frame — a simple colored rectangle
@@ -625,6 +642,28 @@ mod tests {
         // "asset not found" — the path exists, it just isn't a PNG — and
         // that it is said in the user's words (1.5).
         assert!(matches!(err, AnimaError::Said(_)));
+    }
+
+    #[test]
+    fn a_frame_larger_than_its_picture_is_not_decoded() {
+        // A GIF saved as `.png`: 8×8 by its header, so the dimension
+        // check passes, and a frame of 11000×11000 — 484 MB, under the
+        // 512 MiB `ImageReader` allows on its own.
+        let dir = temp_dir("frame_larger");
+        let path = dir.join("small.png");
+        let mut gif = b"GIF89a\x08\x00\x08\x00\x80\x00\x00".to_vec();
+        gif.extend_from_slice(&[0, 0, 0, 255, 255, 255]);
+        gif.extend_from_slice(&[0x2C, 0, 0, 0, 0]);
+        gif.extend_from_slice(&11000u16.to_le_bytes());
+        gif.extend_from_slice(&11000u16.to_le_bytes());
+        gif.extend_from_slice(&[0, 2, 2, 0x4C, 0x01, 0, 0x3B]);
+        std::fs::write(&path, &gif).unwrap();
+        assert!(validate_image_dimensions(&path).is_ok());
+        let err = open_image(&path).unwrap_err();
+        assert!(
+            matches!(err, image::ImageError::Limits(_)),
+            "refused for its size, not decoded: {err:?}"
+        );
     }
 
     #[test]

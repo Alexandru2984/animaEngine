@@ -45,7 +45,7 @@ Caps in `src/constants.rs`:
 | `MAX_ANIMATION_FRAMES` | 600 | gif/webp/video/cache loaders |
 | `MAX_VIDEO_FRAMES` | 600 | video loader |
 | `MAX_SEQUENCE_FILES` | 1000 | png_sequence loader (enumeration) |
-| `MAX_DECODED_ASSET_BYTES` | 256 MiB | gif/webp/png_sequence/video/cache, and each GIF / WebP frame's allocation (`animated::limits`) |
+| `MAX_DECODED_ASSET_BYTES` | 256 MiB | gif/webp/png_sequence/video/cache, and every decoder's allocations (`loader::decode_limits`) |
 | `MAX_ASSET_FILE_BYTES` | 200 MB | drag-drop pre-validation |
 | `MAX_ENTITIES` | 64 | `AppConfig::load` truncation |
 | `MAX_DROP_SIZE` | 256 px | resize on drag-drop |
@@ -62,7 +62,8 @@ The size a GIF states in its header is checked before decoding, but each
 frame carries a size of its own: an 8×8 GIF with a 46003×46003 frame had
 8.4 GB allocated at once. The animated decoders run within `image`'s
 `Limits` now — the same 4096-pixel side and the decoded-bytes cap —
-which it checks before each frame's allocation (`animated::limits`).
+which it checks before each frame's allocation, and so does every other
+picture decode (`loader::decode_limits`).
 
 ### Drag-drop rejection at the boundary
 

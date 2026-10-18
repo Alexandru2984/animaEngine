@@ -79,7 +79,7 @@ pub const MAX_SEQUENCE_FILES: usize = 1_000;
 /// single asset (after resize / sequence): 256 MiB, what an integrated
 /// GPU hosts without thrashing; loaders that exceed it truncate and log a
 /// warning. The animated decoders allocate within it too
-/// (`animated::limits`).
+/// (`loader::decode_limits`).
 pub const MAX_DECODED_ASSET_BYTES: usize = 256 * 1024 * 1024;
 
 /// Cap on the on-disk size we'll accept for a single drag-dropped asset.

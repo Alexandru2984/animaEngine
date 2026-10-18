@@ -675,8 +675,9 @@ read-only D-Bus names, for the idle time
   it kept, and one with none is said to be unreadable; animated WebPs
   share the loop. And an 8×8 GIF whose frame claimed 46003×46003 pixels
   had 8.4 GB asked for at once — the header's size is checked, a frame's
-  was not: GIFs and WebPs are decoded within the app's limits now, 4096
-  pixels a side and 256 MiB. Found by a new fuzz target over
+  was not: every picture is decoded within the app's limits now, 4096
+  pixels a side and 256 MiB — the same GIF saved as `.png` reached the
+  still-picture decoder, which allowed 512 MiB at any size. Found by a new fuzz target over
   what a dropped file's bytes decide (`content_sniff`), beside one over
   dropped folders — named pipes, links to `/dev/zero`, thousands of
   frames (`folder_drop`).

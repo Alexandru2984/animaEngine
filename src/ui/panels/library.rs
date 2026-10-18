@@ -210,7 +210,17 @@ fn thumbnail_texture(ui: &egui::Ui, asset: &LibraryAsset) -> Option<egui::Textur
         return None;
     }
     let path = crate::asset_library::thumbnail_cache_dir().join(asset.thumbnail_filename());
-    let Ok(img) = image::open(&path) else {
+    // Ours are 64 px a side. Past 256 a file there is not one of them,
+    // and it is not decoded at whatever size it says.
+    let read = || -> image::ImageResult<image::DynamicImage> {
+        let mut reader = image::ImageReader::open(&path)?.with_guessed_format()?;
+        let mut limits = image::Limits::default();
+        limits.max_image_width = Some(256);
+        limits.max_image_height = Some(256);
+        reader.limits(limits);
+        reader.decode()
+    };
+    let Ok(img) = read() else {
         thumbs
             .missing
             .insert(asset.id.clone(), std::time::Instant::now());

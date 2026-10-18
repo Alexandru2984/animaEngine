@@ -8,25 +8,10 @@
 //! twice and could silently drift apart if only one copy were updated.
 
 use super::frame::Frame;
-use crate::constants::{MAX_ANIMATION_FRAMES, MAX_DECODED_ASSET_BYTES, MAX_IMAGE_DIM};
+use crate::constants::{MAX_ANIMATION_FRAMES, MAX_DECODED_ASSET_BYTES};
 use crate::drop_validate::redact_path;
 use crate::error::{AnimaError, Result};
 use std::path::Path;
-
-/// The limits a GIF or an animated WebP is decoded within: no frame over
-/// `MAX_IMAGE_DIM` on a side, no buffer over `MAX_DECODED_ASSET_BYTES`.
-/// The picture's size in its header is checked before
-/// (`validate_image_dimensions`), but a GIF's frames carry sizes of their
-/// own, and a decoder made with `new` has no limits: an 8×8 GIF whose one
-/// frame said 46003×46003 had 8.4 GB asked for at once (found by the
-/// `content_sniff` fuzz target). `image` checks these before it allocates.
-pub(super) fn limits() -> image::Limits {
-    let mut limits = image::Limits::default();
-    limits.max_image_width = Some(MAX_IMAGE_DIM);
-    limits.max_image_height = Some(MAX_IMAGE_DIM);
-    limits.max_alloc = Some(MAX_DECODED_ASSET_BYTES as u64);
-    limits
-}
 
 /// Drain `frames` into [`Frame`]s, enforcing the frame-count and
 /// decoded-byte caps, and report truncation against `format` (`"GIF"`,

@@ -13,7 +13,7 @@ pub fn load_webp(path: &Path) -> Result<Vec<Frame>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut decoder = WebPDecoder::new(reader)?;
-    decoder.set_limits(super::animated::limits())?;
+    decoder.set_limits(super::loader::decode_limits())?;
 
     if decoder.has_animation() {
         super::animated::collect_frames(decoder.into_frames(), "animated WebP", path)

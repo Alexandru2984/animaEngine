@@ -15,7 +15,7 @@ pub fn load_gif(path: &Path) -> Result<Vec<Frame>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut decoder = GifDecoder::new(reader)?;
-    decoder.set_limits(super::animated::limits())?;
+    decoder.set_limits(super::loader::decode_limits())?;
     super::animated::collect_frames(decoder.into_frames(), "GIF", path)
 }
 
