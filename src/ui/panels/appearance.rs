@@ -431,7 +431,7 @@ fn chosen_apps_controls(ui: &mut egui::Ui, apps: &mut Vec<String>) -> bool {
                 );
             }
             for app in &open {
-                if ui.selectable_label(false, app).clicked() {
+                if ui.selectable_label(false, app).picked() {
                     apps.push(app.clone());
                     changed = true;
                 }
@@ -498,20 +498,21 @@ pub(super) fn hhmm_field(ui: &mut egui::Ui, text: &mut String, label: &str) -> b
     let two_digits = |n: f64, _: std::ops::RangeInclusive<usize>| format!("{:02}", n as u32);
     let h = ui
         .add(
-            egui::DragValue::new(&mut hour)
+            crate::ui::accessible::whole(egui::DragValue::new(&mut hour))
                 .range(0..=23)
                 .custom_formatter(two_digits),
         )
         .labelled_by(caption.id);
     ui.label(":");
     let m = ui.add(
-        egui::DragValue::new(&mut min)
+        crate::ui::accessible::whole(egui::DragValue::new(&mut min))
             .range(0..=59)
             .custom_formatter(two_digits),
     );
-    crate::ui::accessible::name_text_field(
+    crate::ui::accessible::name_number_field(
         &m,
         &format!("{label} — {}", t("scene-schedule-minute")),
+        f64::from(min),
     );
     if h.changed() || m.changed() {
         *text = crate::schedule::format_hhmm(hour * 60 + min);

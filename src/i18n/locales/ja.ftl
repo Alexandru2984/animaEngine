@@ -106,6 +106,7 @@ sound-failed-toast = 音声 { $sound } を再生できませんでした: { $err
 scene-empty-headline = シーンは空です
 scene-empty-hint = PNG / GIF / WebP / MP4 をオーバーレイにドロップ — もしくは下のプリセットをお試しください。
 scene-drop-hint = PNG / GIF / WebP をオーバーレイにドロップしてキャラクターを追加できます。
+scene-character-hidden = { $name }（非表示）
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = ファイルを追加…
 scene-add-file-tooltip = キャラクターとして追加する画像や動画を選びます。
@@ -194,12 +195,12 @@ library-empty-headline = アセットが見つかりません
 library-empty-hint = { $path } にファイルを入れるか、ANIMA_ASSETS_DIR を設定してください。
 library-no-asset-root = アセットディレクトリが見つかりません。{ $path } に作成してください
 library-search-placeholder = アセットを検索…
+library-no-match = 検索に一致するものはありません
 library-add-to-scene = シーンに追加
 library-kind-image = 画像
 library-kind-animated = アニメーション
 library-kind-video = 動画
 library-asset-added-toast = { $name } をシーンに追加しました
-library-asset-add-failed-toast = { $name } を追加できませんでした
 library-count = { $n } 個のアセットがインデックス済み
 
 # ── Keybindings tab (D.1) — placeholder pending D.4 native-speaker audit
@@ -375,6 +376,7 @@ scene-scene-delete = シーンを削除
 scene-scene-delete-confirm = 削除しますか?
 scene-scene-delete-cancel = 残す
 scene-scene-save-failed = 保存できませんでした: { $error }
+scene-scene-delete-failed = 削除できませんでした: { $error }
 toast-scene-loaded = シーン: { $name }
 toast-scene-partly-read = 一部のキャラクターを読み込めなかったため（新しいバージョンのものか、入力ミスがあります）、除外しました。
 toast-scene-failed = シーンを読み込めませんでした: { $error }
@@ -565,6 +567,7 @@ toast-perf-snapshot-failed = スナップショットに失敗しました: { $e
 error-file-unreadable = ファイルを読み込めませんでした: { $error }
 error-not-a-file = ファイルではありません。
 error-image-unreadable = { $name } を画像として読み込めません。ファイルが壊れているか、名前の示す種類のファイルではない可能性があります。
+error-video-unreadable = { $name } を動画として再生できません。ファイルが壊れているか、H.264 の MP4 ではない可能性があります。
 error-folder-no-frames = { $name } には PNG のコマがありません。フォルダーは、中の PNG ファイルを名前順に並べた 1 つのアニメーションとして追加されます。
 error-file-too-big = ファイルは { $size } MB あります。追加できるのは { $max } MB までです。
 error-file-type = .{ $ext } のファイルは表示できません。PNG、JPEG、GIF、WebP、MP4 は表示できます。

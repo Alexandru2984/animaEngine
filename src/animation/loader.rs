@@ -181,70 +181,73 @@ pub fn load_asset(
         return Ok(frames);
     }
 
-    let frames = match asset_type {
-        AssetType::PngSequence => {
-            tracing::info!(
-                "Loading PNG sequence from: {}",
-                crate::drop_validate::redact_path(asset_path)
-            );
-            png_sequence::load_png_sequence(asset_path)?
-        }
-        AssetType::PngStatic => {
-            tracing::info!(
-                "Loading static image from: {}",
-                crate::drop_validate::redact_path(asset_path)
-            );
-            vec![png_sequence::load_single_png(asset_path)?]
-        }
-        AssetType::Gif => {
-            tracing::info!(
-                "Loading GIF from: {}",
-                crate::drop_validate::redact_path(asset_path)
-            );
-            gif_loader::load_gif(asset_path)?
-        }
-        AssetType::WebpAnimated => {
-            tracing::info!(
-                "Loading animated WebP from: {}",
-                crate::drop_validate::redact_path(asset_path)
-            );
-            webp_loader::load_webp(asset_path)?
-        }
-        AssetType::WebpStatic => {
-            tracing::info!(
-                "Loading static WebP from: {}",
-                crate::drop_validate::redact_path(asset_path)
-            );
-            webp_loader::load_static_webp(asset_path)?
-        }
-        AssetType::Spritesheet => {
-            let cols = spritesheet_columns.unwrap_or(4);
-            let rows = spritesheet_rows.unwrap_or(1);
-            tracing::info!(
-                "Loading spritesheet from: {} ({}x{} grid)",
-                crate::drop_validate::redact_path(asset_path),
-                cols,
-                rows
-            );
-            spritesheet::load_spritesheet(asset_path, cols, rows)?
-        }
-        AssetType::Video => {
-            #[cfg(feature = "video")]
-            {
+    let decoded = || -> Result<Vec<Frame>> {
+        Ok(match asset_type {
+            AssetType::PngSequence => {
                 tracing::info!(
-                    "Loading MP4 video from: {}",
+                    "Loading PNG sequence from: {}",
                     crate::drop_validate::redact_path(asset_path)
                 );
-                video_loader::load_video(asset_path)?
+                png_sequence::load_png_sequence(asset_path)?
             }
-            #[cfg(not(feature = "video"))]
-            {
-                return Err(crate::error::AnimaError::VideoDecode(
-                    "video support was not compiled into this build".into(),
-                ));
+            AssetType::PngStatic => {
+                tracing::info!(
+                    "Loading static image from: {}",
+                    crate::drop_validate::redact_path(asset_path)
+                );
+                vec![png_sequence::load_single_png(asset_path)?]
             }
-        }
+            AssetType::Gif => {
+                tracing::info!(
+                    "Loading GIF from: {}",
+                    crate::drop_validate::redact_path(asset_path)
+                );
+                gif_loader::load_gif(asset_path)?
+            }
+            AssetType::WebpAnimated => {
+                tracing::info!(
+                    "Loading animated WebP from: {}",
+                    crate::drop_validate::redact_path(asset_path)
+                );
+                webp_loader::load_webp(asset_path)?
+            }
+            AssetType::WebpStatic => {
+                tracing::info!(
+                    "Loading static WebP from: {}",
+                    crate::drop_validate::redact_path(asset_path)
+                );
+                webp_loader::load_static_webp(asset_path)?
+            }
+            AssetType::Spritesheet => {
+                let cols = spritesheet_columns.unwrap_or(4);
+                let rows = spritesheet_rows.unwrap_or(1);
+                tracing::info!(
+                    "Loading spritesheet from: {} ({}x{} grid)",
+                    crate::drop_validate::redact_path(asset_path),
+                    cols,
+                    rows
+                );
+                spritesheet::load_spritesheet(asset_path, cols, rows)?
+            }
+            AssetType::Video => {
+                #[cfg(feature = "video")]
+                {
+                    tracing::info!(
+                        "Loading MP4 video from: {}",
+                        crate::drop_validate::redact_path(asset_path)
+                    );
+                    video_loader::load_video(asset_path)?
+                }
+                #[cfg(not(feature = "video"))]
+                {
+                    return Err(crate::error::AnimaError::VideoDecode(
+                        "video support was not compiled into this build".into(),
+                    ));
+                }
+            }
+        })
     };
+    let frames = decoded().map_err(|e| unreadable(asset_path, e))?;
 
     // Best-effort cache write — never fails the load.
     if let Err(e) = cache::try_save(
@@ -262,6 +265,23 @@ pub fn load_asset(
     }
 
     Ok(frames)
+}
+
+/// A decoder's failure, as the user is told it: the picture or the video
+/// cannot be read. The decoder's own words are for the log; they reached
+/// the screen, in English — "image decode error: failed to fill whole
+/// buffer", "MP4 header: file contains a box with a larger size than it"
+/// — where a file passed the header check and failed further in.
+fn unreadable(path: &Path, error: AnimaError) -> AnimaError {
+    let key = match &error {
+        AnimaError::ImageDecode(_) => "error-image-unreadable",
+        // Without the feature, "not compiled into this build" says it.
+        AnimaError::VideoDecode(_) if cfg!(feature = "video") => "error-video-unreadable",
+        _ => return error,
+    };
+    let name = crate::drop_validate::redact_path(path);
+    tracing::warn!("Unreadable {name}: {error}");
+    AnimaError::said_as(crate::i18n::Msg::new(key).arg("name", name))
 }
 
 /// Detect the best AssetType from a file path's extension and properties.
@@ -502,6 +522,27 @@ mod tests {
         // "asset not found" — the path exists, it just isn't a PNG — and
         // that it is said in the user's words (1.5).
         assert!(matches!(err, AnimaError::Said(_)));
+    }
+
+    #[test]
+    fn a_picture_that_fails_past_its_header_is_said_unreadable() {
+        // Its header whole, so the dimension check passes, and the rest
+        // cut off: the decoder's own words were what the user read.
+        let dir = temp_dir("half_png");
+        let path = dir.join("half.png");
+        let mut bytes = Vec::new();
+        image::RgbaImage::from_fn(64, 64, |x, y| {
+            image::Rgba([x as u8 * 4, y as u8 * 4, 9, 255])
+        })
+        .write_to(
+            &mut std::io::Cursor::new(&mut bytes),
+            image::ImageFormat::Png,
+        )
+        .unwrap();
+        std::fs::write(&path, &bytes[..bytes.len() / 2]).unwrap();
+        assert!(validate_image_dimensions(&path).is_ok());
+        let err = load_asset(&AssetType::PngStatic, &path, None, None).unwrap_err();
+        assert!(matches!(err, AnimaError::Said(_)), "{err:?}");
     }
 
     #[cfg(unix)]

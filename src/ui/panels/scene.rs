@@ -10,7 +10,7 @@ use crate::i18n::t;
 use crate::input::selection::SelectionState;
 use crate::monitor::{MonitorInfo, MonitorMode};
 use crate::scene::Scene;
-use crate::ui::accessible::{AccessibleName, ComboOption};
+use crate::ui::accessible::{whole, AccessibleName, ComboOption};
 use crate::ui::collapse::CollapseState;
 use crate::ui::icons;
 use crate::ui::states;
@@ -290,7 +290,7 @@ fn focus_section(
         let work = ui.label(t("scene-focus-work"));
         let changed_work = ui
             .add(
-                egui::DragValue::new(&mut focus.minutes)
+                whole(egui::DragValue::new(&mut focus.minutes))
                     .range(1..=180)
                     .suffix(" min"),
             )
@@ -299,7 +299,7 @@ fn focus_section(
         let rest = ui.label(t("scene-focus-break"));
         let changed_rest = ui
             .add(
-                egui::DragValue::new(&mut focus.break_minutes)
+                whole(egui::DragValue::new(&mut focus.break_minutes))
                     .range(1..=60)
                     .suffix(" min"),
             )
@@ -366,7 +366,7 @@ fn reminder_sound_row(
                 for option in options {
                     if ui
                         .selectable_label(*sound == option, label(&option))
-                        .clicked()
+                        .picked()
                         && *sound != option
                     {
                         // Heard once, from whoever is in front.
@@ -592,7 +592,7 @@ fn reminders_section(
         if draft.on_date {
             ui.horizontal(|ui| {
                 let label = ui.label(t("scene-reminder-date"));
-                ui.add(egui::DragValue::new(&mut draft.day).range(1..=31))
+                ui.add(whole(egui::DragValue::new(&mut draft.day)).range(1..=31))
                     .labelled_by(label.id);
                 let month = crate::placeholders::month_name(draft.month);
                 let combo = egui::ComboBox::from_id_salt("anima.reminder-month")
@@ -603,7 +603,8 @@ fn reminders_section(
                                 &mut draft.month,
                                 m,
                                 crate::placeholders::month_name(m),
-                            );
+                            )
+                            .picked();
                         }
                     });
                 crate::ui::accessible::name_combo(
@@ -620,9 +621,7 @@ fn reminders_section(
         ui.horizontal(|ui| {
             let label = ui.label(t("scene-reminder-minutes"));
             ui.add(
-                egui::DragValue::new(&mut draft.minutes)
-                    .range(MIN_MINUTES..=MAX_MINUTES)
-                    .speed(1.0),
+                whole(egui::DragValue::new(&mut draft.minutes)).range(MIN_MINUTES..=MAX_MINUTES),
             )
             .labelled_by(label.id);
         });
@@ -770,11 +769,15 @@ fn schedule_section(
     let mut draft: RuleDraft = ui.data(|d| d.get_temp(draft_key)).unwrap_or_default();
     ui.horizontal(|ui| {
         let hour = ui.label(t("scene-schedule-at"));
-        ui.add(egui::DragValue::new(&mut draft.hour).range(0..=23))
+        ui.add(whole(egui::DragValue::new(&mut draft.hour)).range(0..=23))
             .labelled_by(hour.id);
         ui.label(":");
-        let minute = ui.add(egui::DragValue::new(&mut draft.minute).range(0..=59));
-        crate::ui::accessible::name_text_field(&minute, &t("scene-schedule-minute"));
+        let minute = ui.add(whole(egui::DragValue::new(&mut draft.minute)).range(0..=59));
+        crate::ui::accessible::name_number_field(
+            &minute,
+            &t("scene-schedule-minute"),
+            f64::from(draft.minute),
+        );
         let days = t(draft.days.i18n_key());
         let combo = egui::ComboBox::from_id_salt("anima.schedule-days")
             .selected_text(days.clone())
@@ -1010,7 +1013,9 @@ fn scenes_section(
         Some(SceneAction::Delete(path)) => {
             deleting = None;
             if let Err(e) = crate::scenes::delete(&path) {
-                error = Some(e.to_string());
+                let mut args = fluent::FluentArgs::new();
+                args.set("error", e.said());
+                error = Some(crate::i18n::t_args("scene-scene-delete-failed", &args));
             }
         }
         None => {}
@@ -1137,13 +1142,30 @@ fn groups_section(
                     crate::ui::accessible::name_text_field(&field, &t("scene-group-rename"));
                     if !r.focused {
                         field.request_focus();
+                        // The name selected, as a rename has it, so what is
+                        // typed replaces it. The field kept its cursor from
+                        // the last rename instead — at the start after one
+                        // emptied — and typing went in before the name.
+                        let mut state = egui::text_edit::TextEditState::load(ui.ctx(), field.id)
+                            .unwrap_or_default();
+                        state
+                            .cursor
+                            .set_char_range(Some(egui::text::CCursorRange::two(
+                                egui::text::CCursor::new(0),
+                                egui::text::CCursor::new(group.name.chars().count()),
+                            )));
+                        state.store(ui.ctx(), field.id);
                         r.focused = true;
                     }
                     if field.changed() {
                         *config_dirty = true;
                     }
                     if field.lost_focus() {
-                        if group.name.trim().is_empty() {
+                        // Escape takes the rename back; Enter, Tab or a click
+                        // elsewhere keeps it.
+                        if ui.input(|i| i.key_pressed(egui::Key::Escape))
+                            || group.name.trim().is_empty()
+                        {
                             group.name = r.original.clone();
                         }
                         renaming = None;
@@ -1272,12 +1294,29 @@ fn scene_list(
     for (idx, entity) in scene.entities.iter().enumerate() {
         let is_selected = selection.is_selected(idx);
         let row_response = ui.horizontal(|ui| {
-            let label = if entity.visible {
-                entity.name.clone()
+            // Hidden by its group too: hiding one left its rows as if
+            // nothing had changed, its characters gone from the screen.
+            // And said in words, as a reader leaves the icon out.
+            let row = if scene.visible_any_hour(idx) {
+                ui.selectable_label(is_selected, &entity.name)
             } else {
-                format!("{}  {}", icons::HIDDEN, entity.name)
+                let mut args = fluent::FluentArgs::new();
+                args.set("name", entity.name.clone());
+                let name = crate::i18n::t_args("scene-character-hidden", &args);
+                let row =
+                    ui.selectable_label(is_selected, format!("{}  {}", icons::HIDDEN, entity.name));
+                let enabled = row.enabled();
+                row.widget_info(|| {
+                    egui::WidgetInfo::selected(
+                        egui::WidgetType::SelectableLabel,
+                        enabled,
+                        is_selected,
+                        &name,
+                    )
+                });
+                row
             };
-            if ui.selectable_label(is_selected, label).clicked() {
+            if row.clicked() {
                 action = Some(ListAction::Select(idx));
             }
             if ui

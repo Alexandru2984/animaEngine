@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R69 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R71 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2632,3 +2632,94 @@ built with can come out); an unreadable picture is refused as
 the log. **Checked:** every one of fourteen files dropped on both
 backends did what it should, the misnamed JPEG and WebP and the frame
 folder included.
+
+### R70 · The Scene tab, worked from the keyboard and a screen reader — `FIXED`
+
+Found working every control of the Scene tab over AT-SPI and the keys,
+as a keyboard or screen-reader user would, on both backends, each
+checked in the saved config and taken back: the character rows and
+their deletes, a group made with Ctrl+G, selected, hidden, renamed and
+ungrouped, scenes saved, loaded, saved over and deleted, a schedule
+rule, reminders every so often and on a date, the focus timer, the
+switches under Together and Monitors, the presets. Most did what they
+say; these did not:
+
+- the hours and minutes of a schedule rule, a dated reminder's day, the
+  focus timer's minutes, and the bedtime and "only at certain hours"
+  times took no arrow keys, nor a screen reader's Increment — egui steps
+  a whole number by a quarter and rounds it back to where it was;
+- picked from the keyboard or by a screen reader, seven lists stayed
+  open over the panel, holding the keys: a dated reminder's month and
+  the reminders' sound here, the Inspector's "Speaks up", sound, follow
+  and tag partner, and Appearance's chosen apps;
+- a renamed group's field kept its cursor from the last rename — at the
+  start after one emptied — so typing went in before the old name, and
+  Escape kept what was typed;
+- hiding a group left its characters' rows as they were, and a hidden
+  character's row read as its bare name, the eye icon being one a
+  reader leaves out;
+- deleting a scene whose file was already gone said `I/O error: No such
+  file or directory (os error 2)`; any other failure to delete was as
+  raw;
+- a minute field was read as a text entry, the hour beside it as a spin
+  button.
+
+And from reading the code behind it: a character listed in two groups —
+the app never does it, a config written by hand or a shared scene can —
+logged a warning at every look-up, several a frame: 1631 lines in six
+seconds in the rig.
+
+**Fixed:** whole-number fields step by one (`accessible::whole`); every
+list's options close it however they are picked (`ComboOption::picked`);
+a rename selects the name and Escape takes it back; a row hidden by its
+group shows so, and a hidden row is named "… (hidden)"; a scene already
+gone is deleted without a word, and a failure is said in the user's
+language; the minutes are named as spin buttons
+(`accessible::name_number_field`); a character is kept in its first
+group when a config or a scene is read (`group::one_group_each`), and the
+look-up says nothing. **Checked:** 59 of 59 on each backend, and the
+Inspector's lists and the time fields again on both.
+
+Not ours to fix: AT-SPI reads every button as enabled, a greyed-out
+"Save as a scene" too — `accesskit_atspi_common` 0.10 maps a disabled
+node to *read-only*, which buttons do not have. Pressing one does
+nothing, as it should.
+
+### R71 · The Library tab with 300 pictures and some broken ones — `FIXED`
+
+Found with a library of 308 files in the rig — 300 pictures, a JPEG
+named `.png`, a text file, an empty GIF, a WebP cut in half, a random
+MP4, a PNG declaring 100000×100000 — beside a link to `/etc/passwd`, a
+FIFO, a folder named `dir.png` and a link looping back, which the scan
+left out as it should. Then searched, scrolled, each added, and a
+Shimeji pack imported through the tab's field.
+
+- **The tab would not open.** Its thumbnails were kept in egui's
+  memory one by one, and past 256 the whole memory was cleared — the
+  active tab with it, back to the Inspector — so with more than 256
+  pictures every frame loaded 256 thumbnails and threw them away;
+- a search finding nothing said "0 / 308 assets", in English everywhere;
+- every row's button was read as "Add to scene", no matter which;
+- the JPEG named `.png` had no thumbnail;
+- a picture that would not decode said only "Couldn't add notpng.png",
+  where a drop says why; a WebP cut in half and a broken MP4, at a drop
+  too, said `image decode error: failed to fill whole buffer` and `MP4
+  header: file contains a box with a larger size than it`;
+- a file deleted from the library folder stayed listed for good, and
+  adding it said `asset path unreachable: No such file or directory`;
+- a folder that was no pack, typed into the Shimeji field, was walked
+  eight levels down before anything looked for its `actions.xml` — `/etc`
+  answered `read_dir: Permission denied (os error 13)` — and one that did
+  not exist answered `pack root unreachable: …`.
+
+**Fixed:** the thumbnails are one map under one id, loaded only for rows
+on screen, and the one seen longest ago goes past the cap; a search
+finding nothing says so in the user's language; each Add is named for
+its picture; thumbnails are made by content; an add that fails says why,
+as a drop does, and a decoder's failure past the header is
+`error-image-unreadable` or `error-video-unreadable`; a file gone from a
+folder still there is forgotten at the next scan (one whose folder is
+gone too stays — its drive may be away), and adding one before then
+says "Not found"; a pack is looked for before it is walked, and the walk
+stops at the caps. **Checked:** 29 of 29 on each backend, and a pack
+imported with its walk, fall and drag.

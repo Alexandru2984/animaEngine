@@ -8,6 +8,7 @@
 
 use crate::asset_library::{LibraryAsset, LibraryIndex, LibraryKind};
 use crate::i18n::{t, t_args};
+use crate::ui::accessible::AccessibleName;
 use crate::ui::icons;
 use crate::ui::states;
 use crate::ui::theme::{self, SPACE_L, SPACE_M, SPACE_S, SPACE_XS};
@@ -133,21 +134,23 @@ pub(super) fn library_tab(
         })
         .collect();
 
+    // Footer count above the list (sticky-feel without nested ScrollArea).
+    let mut args = fluent::FluentArgs::new();
+    args.set("n", library.assets.len() as i64);
+    let count = crate::i18n::t_args("library-count", &args);
     if filtered.is_empty() {
+        // It said "0 / 308 assets", in English in every language.
         ui.add_space(SPACE_L);
+        ui.label(t("library-no-match"));
         ui.label(
-            egui::RichText::new(format!("0 / {} assets", library.assets.len()))
+            egui::RichText::new(count)
                 .text_style(theme::caption())
                 .weak(),
         );
         return;
     }
-
-    // Footer count above the list (sticky-feel without nested ScrollArea).
-    let mut args = fluent::FluentArgs::new();
-    args.set("n", library.assets.len() as i64);
     ui.label(
-        egui::RichText::new(crate::i18n::t_args("library-count", &args))
+        egui::RichText::new(count)
             .text_style(theme::caption())
             .weak(),
     );
@@ -159,44 +162,79 @@ pub(super) fn library_tab(
     }
 }
 
-/// Cap on cached thumbnail textures. On overflow the cache resets
-/// wholesale — a rare event (it takes a 256-asset scroll session) and
-/// strictly cheaper than tracking LRU order per frame.
+/// Thumbnail textures kept at once: the rows on screen and those seen
+/// most recently. Past it, the one seen longest ago goes.
 const THUMB_TEXTURE_CAP: usize = 256;
 
-/// Fetch (or lazily load) the thumbnail texture for an asset (U.6).
-/// Returns `None` while the background generator hasn't produced the
-/// file yet — callers fall back to the kind glyph, and the row picks
-/// the texture up on a later frame without any signalling.
+/// How long a thumbnail that is not there yet goes unasked: the
+/// generator writes them on its own thread, so a row looks again.
+const THUMB_RETRY: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// The Library tab's thumbnail textures, kept in egui's memory under one
+/// id. They used to be kept there one id each, beside everything else
+/// the panels keep there, and past the cap the whole memory was cleared:
+/// with more than 256 pictures in the library the tab could not be
+/// opened — the active tab went with the rest, back to the Inspector —
+/// and every frame decoded the thumbnails again (1.5).
+#[derive(Default)]
+struct Thumbs {
+    /// By asset id: the texture, and the pass it was last drawn in.
+    loaded: std::collections::HashMap<String, (egui::TextureHandle, u64)>,
+    /// By asset id: when its thumbnail was last looked for and missing.
+    missing: std::collections::HashMap<String, std::time::Instant>,
+}
+
+type SharedThumbs = std::sync::Arc<std::sync::Mutex<Thumbs>>;
+
+/// The thumbnail texture for an asset (U.6), loaded the first time its
+/// row is on screen. `None` while the background generator has not
+/// written it — or never will: a video, a picture that does not decode —
+/// and the row shows the kind's icon instead.
 fn thumbnail_texture(ui: &egui::Ui, asset: &LibraryAsset) -> Option<egui::TextureHandle> {
-    let tex_id = egui::Id::new(("anima.thumb", asset.id.as_str()));
-    if let Some(handle) = ui
-        .ctx()
-        .memory(|m| m.data.get_temp::<egui::TextureHandle>(tex_id))
+    let ctx = ui.ctx();
+    let pass = ctx.cumulative_pass_nr();
+    let thumbs: SharedThumbs = ctx.data_mut(|d| {
+        d.get_temp_mut_or_default::<SharedThumbs>(egui::Id::new("anima.thumbs"))
+            .clone()
+    });
+    let mut thumbs = thumbs.lock().ok()?;
+    if let Some((handle, seen)) = thumbs.loaded.get_mut(&asset.id) {
+        *seen = pass;
+        return Some(handle.clone());
+    }
+    if thumbs
+        .missing
+        .get(&asset.id)
+        .is_some_and(|at| at.elapsed() < THUMB_RETRY)
     {
-        return Some(handle);
+        return None;
     }
     let path = crate::asset_library::thumbnail_cache_dir().join(asset.thumbnail_filename());
-    // Cheap existence probe each frame until the generator catches up.
-    let img = image::open(&path).ok()?;
+    let Ok(img) = image::open(&path) else {
+        thumbs
+            .missing
+            .insert(asset.id.clone(), std::time::Instant::now());
+        return None;
+    };
+    thumbs.missing.remove(&asset.id);
     let rgba = img.to_rgba8();
     let size = [rgba.width() as usize, rgba.height() as usize];
     let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
-    let handle = ui
-        .ctx()
-        .load_texture(format!("thumb-{}", asset.id), color, Default::default());
-
-    let count_id = egui::Id::new("anima.thumb.count");
-    ui.ctx().memory_mut(|m| {
-        let count: usize = m.data.get_temp(count_id).unwrap_or(0);
-        if count >= THUMB_TEXTURE_CAP {
-            // Wholesale reset; handles drop, egui frees the textures.
-            m.data.clear();
+    let handle = ctx.load_texture(format!("thumb-{}", asset.id), color, Default::default());
+    if thumbs.loaded.len() >= THUMB_TEXTURE_CAP {
+        let oldest = thumbs
+            .loaded
+            .iter()
+            .min_by_key(|(_, (_, seen))| *seen)
+            .map(|(id, _)| id.clone());
+        if let Some(oldest) = oldest {
+            // Its handle dropped, egui frees the texture.
+            thumbs.loaded.remove(&oldest);
         }
-        m.data.insert_temp(tex_id, handle.clone());
-        let count: usize = m.data.get_temp(count_id).unwrap_or(0);
-        m.data.insert_temp(count_id, count + 1);
-    });
+    }
+    thumbs
+        .loaded
+        .insert(asset.id.clone(), (handle.clone(), pass));
     Some(handle)
 }
 
@@ -224,16 +262,25 @@ fn library_row(ui: &mut egui::Ui, asset: &LibraryAsset, outcome: &mut Option<Lib
         .inner_margin(egui::Margin::symmetric(SPACE_M as i8, SPACE_S as i8))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                match thumbnail_texture(ui, asset) {
-                    Some(tex) => {
-                        ui.add(
-                            egui::Image::new(&tex)
-                                .fit_to_exact_size(egui::vec2(32.0, 32.0))
-                                .corner_radius(theme::RADIUS_SM),
-                        );
-                    }
-                    None => {
-                        ui.label(egui::RichText::new(kind_icon).size(18.0).color(accent));
+                // Loaded only for a row on screen: every row of the
+                // library is laid out each frame, and a thousand of them
+                // would decode a thousand thumbnails.
+                let (rect, _) =
+                    ui.allocate_exact_size(egui::vec2(32.0, 32.0), egui::Sense::hover());
+                if ui.is_rect_visible(rect) {
+                    match thumbnail_texture(ui, asset) {
+                        Some(tex) => egui::Image::new(&tex)
+                            .corner_radius(theme::RADIUS_SM)
+                            .paint_at(ui, rect),
+                        None => {
+                            ui.painter().text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                kind_icon,
+                                egui::FontId::proportional(18.0),
+                                accent,
+                            );
+                        }
                     }
                 }
                 ui.add_space(SPACE_S);
@@ -249,8 +296,12 @@ fn library_row(ui: &mut egui::Ui, asset: &LibraryAsset, outcome: &mut Option<Lib
                     );
                 });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // One per row: say which picture it adds.
+                    let add = t("library-add-to-scene");
+                    let basename = asset.path.rsplit('/').next().unwrap_or(asset.path.as_str());
                     if ui
-                        .button(format!("{}  {}", icons::ADD, t("library-add-to-scene")))
+                        .button(format!("{}  {add}", icons::ADD))
+                        .named(format!("{add}: {basename}"))
                         .clicked()
                         && outcome.is_none()
                     {

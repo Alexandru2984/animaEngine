@@ -151,7 +151,7 @@ impl Scene {
             global_playing: config.global.playback_enabled,
             last_tick: Instant::now(),
             visible_cache: RefCell::default(),
-            groups: config.groups.clone(),
+            groups: groups_in_one_each(config.groups.clone()),
             window_platforms: Vec::new(),
             reduced_motion: false,
             hover_startle: false,
@@ -1161,6 +1161,22 @@ impl Scene {
         self.settle_again();
         Ok(())
     }
+}
+
+/// `groups` as a scene holds them: each character in one at most
+/// (`crate::group::one_group_each`), said once here when a config or a
+/// saved scene had one in two.
+pub(crate) fn groups_in_one_each(
+    mut groups: Vec<crate::group::GroupConfig>,
+) -> Vec<crate::group::GroupConfig> {
+    let dropped = crate::group::one_group_each(&mut groups);
+    if dropped > 0 {
+        tracing::warn!(
+            "A character listed in a second group stays in its first \
+             ({dropped} such listings left out)"
+        );
+    }
+    groups
 }
 
 /// Enforce the aggregate decoded-RGBA budget. Pure function so call

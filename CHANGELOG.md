@@ -667,6 +667,43 @@ read-only D-Bus names, for the idle time
   also left a directory each in `/tmp` every run. The tests touch
   neither now; a whole run, both feature sets, leaves nothing behind
   outside the checkout.
+- **The Library tab would not open with more than 256 pictures.** Its
+  thumbnails were kept one by one in the panel's shared memory, and past
+  256 that memory was cleared whole — the open tab with it, so the panel
+  went back to the Inspector — every frame. They are kept apart now,
+  loaded only for the rows on screen, the oldest let go past the cap. In
+  the same tab: a search finding nothing says so in your language
+  rather than "0 / 308 assets"; each "Add to scene" is read out with its
+  picture's name; a JPEG saved as `.png` gets its thumbnail; an add that
+  fails says why, as a drop does; a file deleted from the library folder
+  is no longer listed after the next start, nor said to be "unreachable"
+  before then; and a folder typed into the Shimeji field that is no pack
+  is told so at once, not walked eight levels down first.
+- **A damaged picture or video said so in the decoder's words** when it
+  failed past its header — "image decode error: failed to fill whole
+  buffer", "MP4 header: file contains a box with a larger size than it"
+  — at a drop or from the library. It says the file cannot be read as a
+  picture, or played as a video, in your language.
+- **Arrow keys did nothing in the time fields.** A schedule rule's hour
+  and minute, a dated reminder's day, the focus timer's minutes, bedtime
+  and a character's own hours ignored Up and Down, and a screen reader's
+  Increment: egui steps a whole number by a quarter and rounds it back.
+  They step by one. The minutes are read as spin buttons, as the hours
+  were, not text entries.
+- **Seven lists stayed open when a choice was made from the keyboard** or
+  by a screen reader, keeping the keys: a reminder's month and sound, a
+  character's "Speaks up", sound, follow target and tag partner, and the
+  chosen apps. Each closes as its choice is made.
+- **The Scene tab, from the keyboard:** renaming a group selects its
+  name, so typing replaces it — the field kept its old cursor, and typing
+  went in before the name — and Escape takes the rename back. A group
+  hidden marks its characters' rows hidden, and a hidden row is read as
+  "… (hidden)". A saved scene whose file was deleted meanwhile goes from
+  the list without an I/O error.
+- **A character in two groups filled the log**, a warning each time the
+  app looked it up — several times a frame, 1631 lines in six seconds.
+  The app never does this; a config written by hand or a shared scene
+  can. It stays in its first group when read, said once.
 
 ## [1.4.0] — 2026-09-28
 

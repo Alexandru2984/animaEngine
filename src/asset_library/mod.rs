@@ -204,7 +204,8 @@ impl LibraryIndex {
     ///   `last_used_at` (the scan can't know either)
     /// - assets present in `self.assets` but missing from `scanned`
     ///   are kept too — the file might be on a temporarily
-    ///   disconnected drive
+    ///   disconnected drive ([`Self::forget_gone`] lets go of the ones
+    ///   that are not)
     pub fn merge_scan(&mut self, scanned: Vec<LibraryAsset>) {
         // O(n) via a set of existing ids instead of a linear scan per
         // asset (the old `any()` made this O(n²) — painful once the
@@ -217,6 +218,20 @@ impl LibraryIndex {
             .collect();
         drop(existing);
         self.assets.extend(fresh);
+    }
+
+    /// Forget the assets whose file is gone from a folder that is still
+    /// in `root`: deleted or moved since they were found. Kept forever,
+    /// they stayed in the Library tab, and adding one said it was not
+    /// found. One whose folder is gone too stays: it may be on a drive
+    /// that is not connected now. Returns how many went.
+    pub fn forget_gone(&mut self, root: &Path) -> usize {
+        let before = self.assets.len();
+        self.assets.retain(|asset| {
+            let file = root.join(&asset.path);
+            file.exists() || !file.parent().is_some_and(Path::is_dir)
+        });
+        before - self.assets.len()
     }
 }
 
@@ -324,6 +339,12 @@ pub fn open(root: &Path) -> std::sync::mpsc::Receiver<LibraryIndex> {
             let scanned = scan(&root);
             let scanned_count = scanned.len();
             idx.merge_scan(scanned);
+            let forgotten = idx.forget_gone(&root);
+            if forgotten > 0 {
+                tracing::info!(
+                    "Asset library: forgot what is gone since the last scan ({forgotten})"
+                );
+            }
             if let Err(e) = idx.save(&index_path) {
                 tracing::warn!("Failed to persist library.toml: {e}");
             }
@@ -586,7 +607,14 @@ fn ensure_thumbnail_at(root: &Path, asset: &LibraryAsset, thumb_dir: &Path) -> O
     // dimensions) at the header stage — the same MAX_IMAGE_DIM gate the
     // scene loader applies. `image::open` would otherwise allocate the
     // full decoded buffer before any cap is checked, OOMing this thread.
-    match image::image_dimensions(&src) {
+    // Known by its first bytes, as a drop is (`loader::content_format`):
+    // a JPEG saved as `.png` had no thumbnail, its name choosing the
+    // decoder.
+    let dimensions = image::ImageReader::open(&src)
+        .and_then(|reader| reader.with_guessed_format())
+        .map_err(image::ImageError::IoError)
+        .and_then(|reader| reader.into_dimensions());
+    match dimensions {
         Ok((w, h)) if w <= MAX_IMAGE_DIM && h <= MAX_IMAGE_DIM => {}
         Ok((w, h)) => {
             tracing::debug!(
@@ -600,7 +628,7 @@ fn ensure_thumbnail_at(root: &Path, asset: &LibraryAsset, thumb_dir: &Path) -> O
         }
     }
 
-    let img = match image::open(&src) {
+    let img = match crate::animation::loader::open_image(&src) {
         Ok(i) => i,
         Err(e) => {
             tracing::debug!(
@@ -1020,6 +1048,61 @@ mod tests {
         assert_eq!(again, thumb);
         let m2 = fs::metadata(&thumb).unwrap().modified().unwrap();
         assert_eq!(m1, m2);
+    }
+
+    #[test]
+    fn a_file_gone_from_its_folder_is_forgotten_one_on_a_missing_drive_is_not() {
+        let dir = tempdir("forget_gone");
+        let root = dir.join("root");
+        fs::create_dir_all(root.join("sub")).unwrap();
+        fs::write(root.join("kept.png"), b"x").unwrap();
+        fs::write(root.join("sub/also.png"), b"x").unwrap();
+        let asset = |path: &str| LibraryAsset {
+            id: stable_id(path),
+            path: path.into(),
+            kind: LibraryKind::Image,
+            tags: vec![],
+            added_at: SystemTime::now(),
+            last_used_at: None,
+        };
+        let mut index = LibraryIndex {
+            assets: [
+                "kept.png",
+                "deleted.png",
+                "sub/also.png",
+                "sub/moved.png",
+                "drive/away.png",
+            ]
+            .into_iter()
+            .map(asset)
+            .collect(),
+            ..LibraryIndex::default()
+        };
+        assert_eq!(index.forget_gone(&root), 2);
+        let left: Vec<&str> = index.assets.iter().map(|a| a.path.as_str()).collect();
+        assert_eq!(left, ["kept.png", "sub/also.png", "drive/away.png"]);
+    }
+
+    #[test]
+    fn a_picture_under_another_extension_gets_its_thumbnail() {
+        let dir = tempdir("thumb_misnamed");
+        let root = dir.join("root");
+        let thumbs = dir.join("thumbs");
+        fs::create_dir_all(&root).unwrap();
+        // A JPEG named .png, as browsers save them.
+        let img = image::RgbImage::from_pixel(40, 40, image::Rgb([10, 200, 30]));
+        img.save_with_format(root.join("photo.png"), image::ImageFormat::Jpeg)
+            .unwrap();
+        let asset = LibraryAsset {
+            id: "0123456789ab".into(),
+            path: "photo.png".into(),
+            kind: LibraryKind::Image,
+            tags: vec![],
+            added_at: SystemTime::now(),
+            last_used_at: None,
+        };
+        let thumb = ensure_thumbnail_at(&root, &asset, &thumbs).expect("thumb");
+        assert_eq!(image::open(&thumb).unwrap().width(), THUMB_EDGE);
     }
 
     #[test]

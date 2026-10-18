@@ -431,14 +431,12 @@ fn talk_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool 
                 .selected_text(label(entity.talk.every_minutes))
                 .show_ui(ui, |ui| {
                     for minutes in crate::phrases::EVERY_CHOICES {
-                        if ui
-                            .selectable_value(
-                                &mut entity.talk.every_minutes,
-                                minutes,
-                                label(minutes),
-                            )
-                            .changed()
-                        {
+                        let option = ui.selectable_value(
+                            &mut entity.talk.every_minutes,
+                            minutes,
+                            label(minutes),
+                        );
+                        if option.picked() && option.changed() {
                             changed = true;
                         }
                     }
@@ -546,7 +544,7 @@ fn sound_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
             .show_ui(ui, |ui| {
                 if ui
                     .selectable_label(entity.talk.sound.is_empty(), none.as_str())
-                    .clicked()
+                    .picked()
                     && !entity.talk.sound.is_empty()
                 {
                     entity.talk.sound.clear();
@@ -555,7 +553,7 @@ fn sound_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
                 for sound in &choices {
                     if ui
                         .selectable_label(entity.talk.sound == *sound, sound.as_str())
-                        .clicked()
+                        .picked()
                         && entity.talk.sound != *sound
                     {
                         entity.talk.sound = sound.clone();
@@ -953,7 +951,7 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior, others: Others<'_
                             );
                         }
                         for (id, name) in leaders {
-                            if ui.selectable_label(target == id, name).clicked() && target != id {
+                            if ui.selectable_label(target == id, name).picked() && target != id {
                                 *target = id.clone();
                                 changed = true;
                             }
@@ -998,7 +996,7 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior, others: Others<'_
                     .selected_text(current.clone())
                     .show_ui(ui, |ui| {
                         for (id, name) in partners {
-                            if ui.selectable_label(partner == id, name).clicked() && partner != id {
+                            if ui.selectable_label(partner == id, name).picked() && partner != id {
                                 *partner = id.clone();
                                 changed = true;
                             }

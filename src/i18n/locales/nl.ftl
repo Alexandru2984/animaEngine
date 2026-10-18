@@ -106,6 +106,7 @@ sound-failed-toast = Het geluid { $sound } kon niet worden afgespeeld: { $error 
 scene-empty-headline = Lege scène
 scene-empty-hint = Sleep een PNG / GIF / WebP / MP4 naar de overlay — of probeer hieronder een preset.
 scene-drop-hint = Sleep een PNG / GIF / WebP naar de overlay om een figuur toe te voegen.
+scene-character-hidden = { $name } (verborgen)
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Bestand toevoegen…
 scene-add-file-tooltip = Kies afbeeldingen of video's om als figuren toe te voegen.
@@ -194,12 +195,12 @@ library-empty-headline = Geen assets geïndexeerd
 library-empty-hint = Sleep bestanden naar { $path } of stel ANIMA_ASSETS_DIR in.
 library-no-asset-root = Geen asset-map gevonden. Maak er een aan in { $path }
 library-search-placeholder = Assets zoeken…
+library-no-match = Niets komt overeen met de zoekopdracht
 library-add-to-scene = Toevoegen aan scène
 library-kind-image = Afbeelding
 library-kind-animated = Animatie
 library-kind-video = Video
 library-asset-added-toast = { $name } toegevoegd aan de scène
-library-asset-add-failed-toast = Kon { $name } niet toevoegen
 library-count = { $n ->
         [one] { $n } asset geïndexeerd
        *[other] { $n } assets geïndexeerd
@@ -378,6 +379,7 @@ scene-scene-delete = Scène verwijderen
 scene-scene-delete-confirm = Verwijderen?
 scene-scene-delete-cancel = Behouden
 scene-scene-save-failed = Niet opgeslagen: { $error }
+scene-scene-delete-failed = Niet verwijderd: { $error }
 toast-scene-loaded = Scène: { $name }
 toast-scene-partly-read = Sommige figuren konden niet worden gelezen — van een nieuwere versie of met typefouten — en zijn weggelaten.
 toast-scene-failed = Scène niet geladen: { $error }
@@ -570,6 +572,7 @@ toast-perf-snapshot-failed = Snapshot mislukt: { $error }
 error-file-unreadable = Het bestand kon niet worden gelezen: { $error }
 error-not-a-file = Dat is geen bestand.
 error-image-unreadable = { $name } kan niet als afbeelding worden gelezen: het bestand is misschien beschadigd, of niet het soort dat de naam zegt.
+error-video-unreadable = { $name } kan niet als video worden afgespeeld: het bestand is misschien beschadigd, of geen MP4 met H.264.
 error-folder-no-frames = { $name } bevat geen PNG-beelden. Een map wordt toegevoegd als één animatie, met de PNG-bestanden op naamvolgorde.
 error-file-too-big = Het bestand is { $size } MB; er kan hoogstens { $max } MB worden toegevoegd.
 error-file-type = Bestanden met .{ $ext } kunnen niet worden getoond; PNG, JPEG, GIF, WebP en MP4 wel.

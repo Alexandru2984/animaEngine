@@ -106,6 +106,7 @@ sound-failed-toast = Der Klang { $sound } konnte nicht abgespielt werden: { $err
 scene-empty-headline = Leere Szene
 scene-empty-hint = Ziehen Sie eine PNG- / GIF- / WebP- / MP4-Datei auf das Overlay — oder probieren Sie unten ein Preset.
 scene-drop-hint = Ziehen Sie eine PNG- / GIF- / WebP-Datei auf das Overlay, um eine Figur hinzuzufügen.
+scene-character-hidden = { $name } (ausgeblendet)
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Datei hinzufügen …
 scene-add-file-tooltip = Bilder oder Videos auswählen, die als Figuren hinzugefügt werden.
@@ -194,12 +195,12 @@ library-empty-headline = Keine Assets indexiert
 library-empty-hint = Legen Sie Dateien in { $path } ab oder setzen Sie ANIMA_ASSETS_DIR.
 library-no-asset-root = Kein Asset-Verzeichnis gefunden. Erstellen Sie eines unter { $path }
 library-search-placeholder = Assets suchen…
+library-no-match = Keine Treffer für diese Suche
 library-add-to-scene = Zur Szene hinzufügen
 library-kind-image = Bild
 library-kind-animated = Animiert
 library-kind-video = Video
 library-asset-added-toast = { $name } zur Szene hinzugefügt
-library-asset-add-failed-toast = Konnte { $name } nicht hinzufügen
 library-count = { $n ->
         [one] { $n } Asset indexiert
        *[other] { $n } Assets indexiert
@@ -378,6 +379,7 @@ scene-scene-delete = Szene löschen
 scene-scene-delete-confirm = Löschen?
 scene-scene-delete-cancel = Behalten
 scene-scene-save-failed = Nicht gespeichert: { $error }
+scene-scene-delete-failed = Nicht gelöscht: { $error }
 toast-scene-loaded = Szene: { $name }
 toast-scene-partly-read = Einige Figuren darin konnten nicht gelesen werden – von einer neueren Version oder mit Tippfehlern – und wurden ausgelassen.
 toast-scene-failed = Szene nicht geladen: { $error }
@@ -570,6 +572,7 @@ toast-perf-snapshot-failed = Snapshot fehlgeschlagen: { $error }
 error-file-unreadable = Die Datei konnte nicht gelesen werden: { $error }
 error-not-a-file = Das ist keine Datei.
 error-image-unreadable = { $name } lässt sich nicht als Bild lesen: Die Datei ist vielleicht beschädigt oder nicht das, was ihr Name sagt.
+error-video-unreadable = { $name } lässt sich nicht als Video abspielen: Die Datei ist vielleicht beschädigt oder kein MP4 mit H.264.
 error-folder-no-frames = { $name } enthält keine PNG-Einzelbilder. Ein Ordner wird als eine Animation hinzugefügt, seine PNG-Dateien in Namensreihenfolge.
 error-file-too-big = Die Datei ist { $size } MB groß; höchstens { $max } MB lassen sich hinzufügen.
 error-file-type = Dateien mit der Endung .{ $ext } lassen sich nicht anzeigen; PNG, JPEG, GIF, WebP und MP4 schon.

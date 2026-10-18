@@ -113,6 +113,12 @@ last tree does not stay readable and nothing typed in the panels
 reaches the bus. Applies from the next frame; persisted in `[global]`
 as `accesskit_enabled = true/false`.
 
+**Greyed-out buttons read as enabled.** `accesskit_atspi_common` 0.10
+maps a disabled node to AT-SPI's *read-only*, a state buttons do not
+have, so a greyed-out button — "Save as a scene" with no name typed — is
+announced as available. Pressed, it does nothing. Check boxes and
+fields are reported disabled correctly.
+
 **Screen coordinates.** On X11 the reader gets the window's position.
 On native Wayland a client is not told where its surfaces are; the
 bridge reports the primary output's position in the layout, which is
@@ -204,7 +210,16 @@ has the helpers:
   not a name to a screen reader.
 - `picked()` in place of `clicked()` on a combo box's options — it also
   closes the list. egui closes it on a pointer click only, so an option
-  chosen from the keyboard or by a screen reader left it open.
+  chosen from the keyboard or by a screen reader left it open. Every
+  list in the panels uses it since 1.5; seven did not, and stayed open
+  over the panel holding the keys (R70).
+- `name_number_field(response, name, value)` — a number field with no
+  label of its own, like the minutes after an hour's ":", read as the
+  spin button it is. Named with `name_text_field`, it was read as an
+  entry.
+- `whole(drag_value)` — a whole-number field the arrow keys, and a
+  reader's Increment, step by one. egui steps whole numbers by a quarter
+  and rounds back, so without it Up and Down did nothing.
 
 A field with a separate label before it — `ui.label(…)`, then a
 `DragValue` or `TextEdit` — has no name of its own either; tie the two

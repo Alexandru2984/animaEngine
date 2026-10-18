@@ -718,7 +718,18 @@ pub fn apply_library_outcome(
             // zero-width, BOM) that would flip journald lines visually.
             tracing::warn!("Library asset {} rejected: {reason}", redact_path(rel_path));
             tracing::debug!("Rejected library relative path: {}", outcome.relative_path);
-            reject(ctx.toasts, reason.into());
+            // Gone since the scan: said so, rather than "asset path
+            // unreachable: No such file or directory (os error 2)".
+            let gone = !root.join(rel_path).exists();
+            reject(
+                ctx.toasts,
+                if gone {
+                    crate::i18n::Msg::new("error-asset-not-found")
+                        .arg("path", redact_path(rel_path))
+                } else {
+                    reason.into()
+                },
+            );
             return;
         }
     };
@@ -753,10 +764,11 @@ pub fn apply_library_outcome(
         Err(e) => {
             tracing::warn!("Library add failed for {}: {e}", redact_path(rel_path));
             tracing::debug!("Failed relative path: {}", outcome.relative_path);
+            // Why, as a drop says it: "Couldn't add notpng.png" was all.
             let mut args = fluent::FluentArgs::new();
-            args.set("name", outcome.display_name);
+            args.set("error", e.said());
             ctx.toasts
-                .error(crate::i18n::t_args("library-asset-add-failed-toast", &args));
+                .error(crate::i18n::t_args("toast-load-failed", &args));
         }
     }
 }

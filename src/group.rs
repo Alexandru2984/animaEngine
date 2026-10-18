@@ -22,9 +22,9 @@
 //! - Removing an entity must scrub its id from every group's
 //!   `member_ids`. `cleanup_after_entity_removal` is the canonical
 //!   helper for that.
-//! - Adding the same entity to two groups is allowed by the data
-//!   layer but the runtime composition resolves only the first; a
-//!   warn-level log fires when a duplicate is observed.
+//! - An entity is in one group at most. A config written by hand, or a
+//!   scene someone shared, can list it in two: the scene keeps it in the
+//!   first (`one_group_each`), as every lookup here would read it.
 
 use serde::{Deserialize, Serialize};
 
@@ -92,26 +92,28 @@ impl Default for GroupConfig {
 ///
 /// Returns `false` when the entity's group has `visible = false`.
 ///
-/// If multiple groups claim the entity (data layer allows it; UI
-/// shouldn't), the first match wins and the duplicate is logged.
+/// Asked of every character several times a frame, so it says nothing
+/// itself: an entity listed in two groups logged a warning at each ask,
+/// hundreds a second (1.5). Where it is, the first group that lists it
+/// applies, as for [`transform_for_member`]; the scene takes the others
+/// out on load ([`one_group_each`]).
 pub fn visible_for_member(groups: &[GroupConfig], entity_id: &str, member_visible: bool) -> bool {
-    let mut owning: Option<&GroupConfig> = None;
-    for g in groups {
-        if g.member_ids.iter().any(|m| m == entity_id) {
-            if owning.is_some() {
-                tracing::warn!(
-                    "Entity {:?} belongs to multiple groups; resolving via first match",
-                    entity_id,
-                );
-                break;
-            }
-            owning = Some(g);
-        }
-    }
-    match owning {
-        Some(g) => member_visible && g.visible,
-        None => member_visible,
-    }
+    member_visible && owning_group(groups, entity_id).is_none_or(|g| g.visible)
+}
+
+/// Keep each entity in the first group that lists it, and listed there
+/// once — the rule [`owning_group`] reads by. A group this empties goes,
+/// as one emptied by a removal does. Returns how many listings went.
+pub fn one_group_each(groups: &mut Vec<GroupConfig>) -> usize {
+    let mut seen = std::collections::HashSet::new();
+    let mut dropped = 0;
+    groups.retain_mut(|g| {
+        let had = g.member_ids.len();
+        g.member_ids.retain(|m| seen.insert(m.clone()));
+        dropped += had - g.member_ids.len();
+        !(had > 0 && g.member_ids.is_empty())
+    });
+    dropped
 }
 
 /// Composed visual transform contributed by the entity's owning
@@ -486,9 +488,8 @@ mod tests {
         assert!(g.member_ids.is_empty());
     }
 
-    /// Data layer allows duplicate membership but `visible_for_member`
-    /// resolves the first owning group and logs the rest. This guards
-    /// the contract: no panic on data we don't fully validate yet.
+    /// A character listed in two groups is the first's, for whatever
+    /// reads it before the scene tidies it.
     #[test]
     fn duplicate_membership_resolves_via_first_match() {
         let groups = vec![
@@ -497,6 +498,39 @@ mod tests {
         ];
         // First match (visible=true) wins.
         assert!(visible_for_member(&groups, "ghost", true));
+        assert!(!visible_for_member(&groups, "ghost", false));
+        assert!(!visible_for_member(&groups[1..], "ghost", true));
+    }
+
+    #[test]
+    fn a_character_in_two_groups_stays_in_the_first() {
+        let mut groups = vec![
+            g("a", "A", &["ghost", "slime", "ghost"], true),
+            g("b", "B", &["slime", "cat"], true),
+            g("c", "C", &["cat"], true),
+            g("stub", "Stub", &[], true),
+        ];
+        assert_eq!(one_group_each(&mut groups), 3);
+        let left: Vec<(&str, Vec<&str>)> = groups
+            .iter()
+            .map(|g| {
+                (
+                    g.id.as_str(),
+                    g.member_ids.iter().map(String::as_str).collect(),
+                )
+            })
+            .collect();
+        // C held only what B already had, and goes; a stub written empty
+        // stays.
+        assert_eq!(
+            left,
+            vec![
+                ("a", vec!["ghost", "slime"]),
+                ("b", vec!["cat"]),
+                ("stub", vec![]),
+            ]
+        );
+        assert_eq!(one_group_each(&mut groups), 0);
     }
 
     /// Characters "a", "b", "c" (no asset: fallback circles) at x = 0,

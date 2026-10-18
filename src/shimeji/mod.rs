@@ -86,9 +86,14 @@ struct ParsedAction {
 /// it is something they can act on — no actions, no idle pose, an
 /// encoding, a size — and in the reader's own words otherwise.
 pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, Msg> {
-    let pack_root = pack_root
-        .canonicalize()
-        .map_err(|e| format!("pack root unreachable: {e}"))?;
+    let pack_root = pack_root.canonicalize().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            Msg::new("error-asset-not-found")
+                .arg("path", crate::drop_validate::redact_path(pack_root))
+        } else {
+            format!("pack root unreachable: {e}").into()
+        }
+    })?;
     let pack_name = pack_root
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -100,6 +105,12 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, M
         characters: Vec::new(),
         skipped: Vec::new(),
     };
+
+    // ── A pack at all: its actions.xml, before anything walks it ────
+    // The walk below came first, so a folder that was no pack — a home
+    // folder, `/etc` — was walked eight levels down before being told
+    // so, or failed on the first folder it could not read, in English.
+    let actions_xml = find_actions_xml(&pack_root)?;
 
     // ── Stat-based pack caps, before any decode ─────────────────────
     let (sprite_count, pack_bytes) = pack_stats(&pack_root)?;
@@ -114,8 +125,7 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, M
             .arg("max", MAX_PACK_BYTES / (1024 * 1024)));
     }
 
-    // ── Locate + parse actions.xml ──────────────────────────────────
-    let actions_xml = find_actions_xml(&pack_root)?;
+    // ── Parse actions.xml ───────────────────────────────────────────
     let xml_text = read_capped_utf8(&actions_xml)?;
     let actions = parse_actions(&xml_text)?;
 
@@ -276,6 +286,11 @@ fn pack_stats(root: &Path) -> Result<(usize, u64), String> {
         }
         let entries = std::fs::read_dir(dir).map_err(|e| format!("read_dir: {e}"))?;
         for entry in entries.flatten() {
+            // Over a cap is all the caller needs to know: walking on
+            // through a folder that big only costs time.
+            if *count > MAX_PACK_SPRITES || *bytes > MAX_PACK_BYTES {
+                return Ok(());
+            }
             // `DirEntry::file_type` does NOT traverse the symlink — unlike
             // `DirEntry::metadata`, which returns the *target's* type and
             // made the old `is_symlink()` check dead code (always false),
@@ -937,6 +952,35 @@ mod tests {
         std::fs::write(pack.join("conf").join("actions.xml"), no_stay).unwrap();
         let err = import_pack(&pack, &dest).unwrap_err();
         assert_eq!(err, Msg::new("shimeji-no-idle"));
+    }
+
+    #[test]
+    fn a_folder_that_is_no_pack_is_told_so_before_it_is_walked() {
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("shimeji_tests")
+            .join("no_pack");
+        let _ = std::fs::remove_dir_all(&base);
+        // Deeper than the walk goes: walked first, it said "nesting too
+        // deep", or "read_dir: Permission denied", not that it is no pack.
+        let mut deep = base.join("folder");
+        for i in 0..12 {
+            deep = deep.join(format!("d{i}"));
+        }
+        std::fs::create_dir_all(&deep).unwrap();
+        let err = import_pack(&base.join("folder"), &base.join("dest")).unwrap_err();
+        let _ = std::fs::remove_dir_all(&base);
+        assert_eq!(err, Msg::new("shimeji-no-actions"));
+    }
+
+    #[test]
+    fn a_missing_folder_is_not_found() {
+        let err = import_pack(
+            Path::new("/nonexistent/anima/pack"),
+            Path::new("/nonexistent"),
+        )
+        .unwrap_err();
+        assert_eq!(err, Msg::new("error-asset-not-found").arg("path", "pack"));
     }
 
     #[test]

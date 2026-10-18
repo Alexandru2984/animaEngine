@@ -240,9 +240,14 @@ pub(crate) fn from_table(mut table: toml::Table) -> Result<(SavedScene, usize)> 
     Ok((saved, left_out))
 }
 
-/// Delete the scene in `path`, and its picture.
+/// Delete the scene in `path`, and its picture. One already gone —
+/// deleted in a file manager while the list still showed it — is as
+/// deleted as it can be: the list lets it go, and nothing is said.
 pub fn delete(path: &Path) -> Result<()> {
-    std::fs::remove_file(path)?;
+    match std::fs::remove_file(path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+        _ => {}
+    }
     let _ = std::fs::remove_file(crate::scene_thumb::path_for(path));
     shelf_changed();
     Ok(())
@@ -294,7 +299,7 @@ impl Scene {
     /// show the same asset — and its groups.
     pub fn apply_saved(&mut self, saved: &SavedScene) {
         self.restore_configs(&saved.characters);
-        self.groups = saved.groups.clone();
+        self.groups = crate::scene::groups_in_one_each(saved.groups.clone());
         self.mark_visible_dirty();
         // Hearts go with a character by id, and another scene's may share
         // it.
@@ -512,6 +517,7 @@ mod tests {
         delete(&path).unwrap();
         assert_eq!(list_in(&dir).len(), 1);
         assert!(!picture.exists(), "and it goes with it");
+        delete(&path).expect("already gone is deleted");
         assert!(save_in(&dir, "  ", &scene).is_err(), "no name");
         let _ = std::fs::remove_dir_all(&dir);
     }

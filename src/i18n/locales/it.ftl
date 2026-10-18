@@ -106,6 +106,7 @@ sound-failed-toast = Impossibile riprodurre il suono { $sound }: { $error }
 scene-empty-headline = Scena vuota
 scene-empty-hint = Trascina un PNG / GIF / WebP / MP4 sull'overlay — o prova un preset qui sotto.
 scene-drop-hint = Trascina un PNG / GIF / WebP sull'overlay per aggiungere un personaggio.
+scene-character-hidden = { $name } (nascosto)
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Aggiungi file…
 scene-add-file-tooltip = Scegli immagini o video da aggiungere come personaggi.
@@ -194,12 +195,12 @@ library-empty-headline = Nessun asset indicizzato
 library-empty-hint = Trascina file in { $path } o imposta ANIMA_ASSETS_DIR.
 library-no-asset-root = Nessuna directory di asset trovata. Creane una in { $path }
 library-search-placeholder = Cerca asset…
+library-no-match = Nessun risultato per questa ricerca
 library-add-to-scene = Aggiungi alla scena
 library-kind-image = Immagine
 library-kind-animated = Animato
 library-kind-video = Video
 library-asset-added-toast = { $name } aggiunto alla scena
-library-asset-add-failed-toast = Impossibile aggiungere { $name }
 library-count = { $n ->
         [one] { $n } asset indicizzato
        *[other] { $n } asset indicizzati
@@ -378,6 +379,7 @@ scene-scene-delete = Elimina scena
 scene-scene-delete-confirm = Eliminare?
 scene-scene-delete-cancel = Tienila
 scene-scene-save-failed = Non salvata: { $error }
+scene-scene-delete-failed = Non eliminata: { $error }
 toast-scene-loaded = Scena: { $name }
 toast-scene-partly-read = Alcuni personaggi non si sono potuti leggere — di una versione più recente o con errori di battitura — e sono stati lasciati fuori.
 toast-scene-failed = Scena non caricata: { $error }
@@ -570,6 +572,7 @@ toast-perf-snapshot-failed = Istantanea non riuscita: { $error }
 error-file-unreadable = Impossibile leggere il file: { $error }
 error-not-a-file = Non è un file.
 error-image-unreadable = { $name } non si può leggere come immagine: il file potrebbe essere danneggiato, o non del tipo che dice il suo nome.
+error-video-unreadable = { $name } non si può riprodurre come video: il file potrebbe essere danneggiato, o non essere un MP4 con H.264.
 error-folder-no-frames = { $name } non contiene fotogrammi PNG. Una cartella viene aggiunta come un’animazione, con i suoi file PNG in ordine di nome.
 error-file-too-big = Il file è di { $size } MB; se ne possono aggiungere al massimo { $max } MB.
 error-file-type = I file .{ $ext } non si possono mostrare; PNG, JPEG, GIF, WebP e MP4 sì.

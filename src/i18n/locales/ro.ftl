@@ -109,6 +109,7 @@ sound-failed-toast = Sunetul { $sound } nu a putut fi redat: { $error }
 scene-empty-headline = Scenă goală
 scene-empty-hint = Trage un fișier PNG / GIF / WebP / MP4 peste suprapunere — sau încearcă un preset mai jos.
 scene-drop-hint = Trage un fișier PNG / GIF / WebP peste suprapunere pentru a adăuga un personaj.
+scene-character-hidden = { $name } (ascuns)
 # "Add file…" (1.4): machine-translated, pending native review.
 scene-add-file = Adaugă fișier…
 scene-add-file-tooltip = Alege imagini sau clipuri de adăugat ca personaje.
@@ -197,12 +198,12 @@ library-empty-headline = Niciun asset indexat
 library-empty-hint = Trage fișiere în { $path } sau setează ANIMA_ASSETS_DIR.
 library-no-asset-root = Niciun director de assets găsit. Creează unul la { $path }
 library-search-placeholder = Caută assets…
+library-no-match = Nimic nu se potrivește căutării
 library-add-to-scene = Adaugă în scenă
 library-kind-image = Imagine
 library-kind-animated = Animat
 library-kind-video = Video
 library-asset-added-toast = { $name } adăugat în scenă
-library-asset-add-failed-toast = Nu am putut adăuga { $name }
 library-count = { $n ->
         [one] { $n } asset indexat
         [few] { $n } assets indexate
@@ -382,6 +383,7 @@ scene-scene-delete = Șterge scena
 scene-scene-delete-confirm = Ștergi?
 scene-scene-delete-cancel = Păstreaz-o
 scene-scene-save-failed = Nesalvată: { $error }
+scene-scene-delete-failed = Neștearsă: { $error }
 toast-scene-loaded = Scenă: { $name }
 toast-scene-partly-read = Unele personaje din ea nu au putut fi citite — de la o versiune mai nouă sau cu greșeli de scriere — și au fost lăsate deoparte.
 toast-scene-failed = Scena nu s-a încărcat: { $error }
@@ -584,6 +586,7 @@ toast-perf-snapshot-failed = Snapshot-ul a eșuat: { $error }
 error-file-unreadable = Fișierul nu a putut fi citit: { $error }
 error-not-a-file = Acesta nu este un fișier.
 error-image-unreadable = { $name } nu poate fi citit ca imagine: fișierul poate fi deteriorat sau nu e de tipul pe care îl spune numele.
+error-video-unreadable = { $name } nu poate fi redat ca video: fișierul poate fi deteriorat sau nu e un MP4 cu H.264.
 error-folder-no-frames = { $name } nu conține cadre PNG. Un folder se adaugă ca o singură animație, cu fișierele PNG în ordinea numelor.
 error-file-too-big = Fișierul are { $size } MB; se pot adăuga cel mult { $max } MB.
 error-file-type = Fișierele .{ $ext } nu pot fi afișate; PNG, JPEG, GIF, WebP și MP4 pot.

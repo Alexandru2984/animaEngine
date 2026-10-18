@@ -58,6 +58,27 @@ pub fn name_text_field(response: &egui::Response, name: &str) {
     response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::TextEdit, enabled, name));
 }
 
+/// Name a number field that has no label of its own — the minutes after
+/// an hour's ":" — as the spin button it is. Named as a text field, it
+/// was read as an entry, the hour beside it as a spin button.
+pub fn name_number_field(response: &egui::Response, name: &str, value: f64) {
+    let enabled = response.enabled();
+    response.widget_info(|| {
+        let mut info = egui::WidgetInfo::drag_value(enabled, value);
+        info.label = Some(name.to_string());
+        info
+    });
+}
+
+/// A field for a whole number that the arrow keys — and a screen reader's
+/// Increment and Decrement — step by one. egui steps whole numbers by a
+/// quarter and rounds the result back to where it was, so Up and Down did
+/// nothing in the hours, minutes and days fields. A drag moves a unit a
+/// pixel, as the fields that already had it do.
+pub fn whole(field: egui::DragValue<'_>) -> egui::DragValue<'_> {
+    field.speed(1.0)
+}
+
 /// Name a combo box after its label, with its current choice as the
 /// value — what a screen reader says on reaching it.
 pub fn name_combo(response: &egui::Response, name: &str, value: &str) {
