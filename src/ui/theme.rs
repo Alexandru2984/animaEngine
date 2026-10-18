@@ -486,6 +486,7 @@ pub fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
 /// WCAG 2.1 relative luminance for an sRGB triple. Used by the contrast
 /// audit in tests below; will be reused in A.9's automated contrast
 /// regression test.
+#[cfg(test)]
 fn relative_luminance(c: Color32) -> f64 {
     let linear = |chan: u8| -> f64 {
         let v = chan as f64 / 255.0;
@@ -500,6 +501,7 @@ fn relative_luminance(c: Color32) -> f64 {
 
 /// WCAG 2.1 contrast ratio between two colours. Range `[1.0, 21.0]`.
 /// AA body text requires ≥ 4.5; large text or UI components ≥ 3.0.
+#[cfg(test)]
 pub fn contrast_ratio(a: Color32, b: Color32) -> f64 {
     let la = relative_luminance(a);
     let lb = relative_luminance(b);

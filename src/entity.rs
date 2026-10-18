@@ -655,7 +655,17 @@ impl Entity {
             * self.draw_scale()
     }
 
-    /// Check if a point (in screen coords) hits this entity.
+    /// [`Entity::contains_point_composed`] with no group transform — for
+    /// tests.
+    #[cfg(test)]
+    pub fn contains_point(&self, px: f32, py: f32) -> bool {
+        self.contains_point_composed(px, py, (0.0, 0.0), 1.0)
+    }
+
+    /// Check if a point (in screen coords) hits this entity, under a group
+    /// transform (C.9): the drawn quad sits at `pos + offset` with
+    /// `scale × scale_mul`, so the hit test must look where the renderer
+    /// actually painted.
     ///
     /// First does a fast AABB rejection, then samples the alpha of the
     /// underlying pixel in the current animation frame. Transparent pixels
@@ -664,13 +674,6 @@ impl Entity {
     ///
     /// Falls back to AABB when no frame data is available (e.g. immediately
     /// after construction before the first tick).
-    pub fn contains_point(&self, px: f32, py: f32) -> bool {
-        self.contains_point_composed(px, py, (0.0, 0.0), 1.0)
-    }
-
-    /// [`Entity::contains_point`] under a group transform (C.9): the
-    /// drawn quad sits at `pos + offset` with `scale × scale_mul`, so
-    /// the hit test must look where the renderer actually painted.
     pub fn contains_point_composed(
         &self,
         px: f32,

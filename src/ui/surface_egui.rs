@@ -128,46 +128,68 @@ impl SurfaceEgui {
             .get(&self.context.viewport_id())
             .and_then(|v| std::time::Instant::now().checked_add(v.repaint_delay));
 
-        let paint_jobs = self
-            .context
-            .tessellate(full_output.shapes, pixels_per_point);
-        let screen_descriptor = egui_wgpu::ScreenDescriptor {
+        let screen = egui_wgpu::ScreenDescriptor {
             size_in_pixels,
             pixels_per_point,
         };
-        for (id, image_delta) in &full_output.textures_delta.set {
-            self.renderer
-                .update_texture(device, queue, *id, image_delta);
-        }
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("egui encoder"),
-        });
-        self.renderer
-            .update_buffers(device, queue, &mut encoder, &paint_jobs, &screen_descriptor);
-        {
-            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("egui render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        // Load — the sprites underneath stay visible.
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            let mut static_pass = render_pass.forget_lifetime();
-            self.renderer
-                .render(&mut static_pass, &paint_jobs, &screen_descriptor);
-        }
-        queue.submit(std::iter::once(encoder.finish()));
-        for id in &full_output.textures_delta.free {
-            self.renderer.free_texture(id);
-        }
+        paint_over(
+            &mut self.renderer,
+            &self.context,
+            (device, queue),
+            view,
+            &screen,
+            full_output.shapes,
+            &full_output.textures_delta,
+        );
         full_output.platform_output
+    }
+}
+
+/// Paint egui's `shapes` over what `view` already holds — the pass loads,
+/// so the sprites underneath stay — with the textures' changes applied
+/// before and the freed ones dropped after. The one copy of it both egui
+/// renderers use, the X11 panel's (`ui::egui_renderer`) and every surface
+/// driven by hand here; they kept a copy each.
+pub(crate) fn paint_over(
+    renderer: &mut egui_wgpu::Renderer,
+    context: &egui::Context,
+    (device, queue): (&wgpu::Device, &wgpu::Queue),
+    view: &wgpu::TextureView,
+    screen: &egui_wgpu::ScreenDescriptor,
+    shapes: Vec<egui::epaint::ClippedShape>,
+    textures: &egui::TexturesDelta,
+) {
+    let paint_jobs = context.tessellate(shapes, screen.pixels_per_point);
+    for (id, image_delta) in &textures.set {
+        renderer.update_texture(device, queue, *id, image_delta);
+    }
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("egui encoder"),
+    });
+    renderer.update_buffers(device, queue, &mut encoder, &paint_jobs, screen);
+    {
+        let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("egui render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    // Load — the sprites underneath stay visible.
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        // egui-wgpu requires a 'static render pass — `forget_lifetime` is
+        // the documented escape hatch when we control the encoder.
+        let mut static_pass = render_pass.forget_lifetime();
+        renderer.render(&mut static_pass, &paint_jobs, screen);
+    }
+    queue.submit(std::iter::once(encoder.finish()));
+    for id in &textures.free {
+        renderer.free_texture(id);
     }
 }

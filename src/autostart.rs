@@ -115,26 +115,11 @@ fn ask_portal(on: bool) {
 /// app now starts with the session.
 #[cfg(unix)]
 async fn request_background(on: bool) -> std::result::Result<bool, crate::portal::PortalError> {
-    use crate::portal::{portal_request, sanitize_sender};
+    use crate::portal::{desktop_portal, portal_request};
     use std::collections::HashMap;
     use zbus::zvariant::Value;
 
-    let conn = zbus::Connection::session()
-        .await
-        .map_err(|e| format!("session bus: {e}"))?;
-    let sender = sanitize_sender(
-        conn.unique_name()
-            .ok_or_else(|| "connection has no unique name".to_string())?
-            .as_str(),
-    );
-    let proxy = zbus::Proxy::new(
-        &conn,
-        "org.freedesktop.portal.Desktop",
-        "/org/freedesktop/portal/desktop",
-        "org.freedesktop.portal.Background",
-    )
-    .await
-    .map_err(|e| format!("Background proxy: {e}"))?;
+    let (conn, sender, proxy) = desktop_portal("org.freedesktop.portal.Background").await?;
     let reason = crate::i18n::t("appearance-autostart-reason");
     // No timeout: the desktop may ask the user.
     let results = portal_request(&conn, &sender, &proxy, "RequestBackground", None, |token| {

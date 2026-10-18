@@ -100,13 +100,6 @@ fn read_manifest(text: &str) -> Result<(AppConfig, Vec<SavedScene>)> {
     Ok((config, scenes))
 }
 
-/// Whether `path` names a backup.
-pub fn is_backup(path: &Path) -> bool {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| e.eq_ignore_ascii_case(EXTENSION))
-}
-
 /// What a backup wrote.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackedUp {
@@ -398,7 +391,6 @@ mod tests {
         let file = dir.join("all.animabackup");
         let out = back_up(&config, &[(scene, Some(png))], &file).unwrap();
         assert_eq!(out.scenes, 1);
-        assert!(is_backup(&file));
 
         let into = dir.join("in");
         let back = read(&file, &into).unwrap();

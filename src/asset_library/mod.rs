@@ -39,13 +39,6 @@ const MAX_SYMLINK_DEPTH: usize = 4;
 const MAX_LIBRARY_ASSETS: usize = 10_000;
 const MAX_SCAN_ENTRIES: usize = 50_000;
 
-/// Whitelisted extensions, lowercase. Mirrors
-/// `crate::app::DROP_EXTENSIONS` exactly — divergence here would let
-/// the library index advertise asset paths that drag-drop refuses to
-/// load, which is a confusing UX failure mode. A test asserts the two
-/// stay in sync.
-pub const LIBRARY_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "mp4", "mov", "m4v"];
-
 /// One indexed asset. Persisted in `library.toml`; loaded back into
 /// the UI as a `Vec<LibraryAsset>` and rendered as a thumbnail grid
 /// in C.5.
@@ -357,7 +350,7 @@ pub fn open(root: &Path) -> std::sync::mpsc::Receiver<LibraryIndex> {
 }
 
 /// Walk `root` recursively and return a [`LibraryAsset`] for every
-/// file whose extension is in [`LIBRARY_EXTENSIONS`]. Symlinks are
+/// file whose extension has a [`LibraryKind`]. Symlinks are
 /// followed but capped at `MAX_SYMLINK_DEPTH` (4) to defuse loops.
 ///
 /// Paths in the returned assets are relative to `root` and use `/`
@@ -832,25 +825,23 @@ mod tests {
     use super::*;
     use std::fs;
 
-    /// The library scanner must whitelist exactly the extensions that
-    /// drag-drop allows, otherwise the UI could surface assets the
-    /// loader refuses. This test asserts the two lists stay aligned.
-    ///
-    /// `crate::app::DROP_EXTENSIONS` is private to that module; the
-    /// canonical source is the literal here. If `app::DROP_EXTENSIONS`
-    /// ever diverges, the audit invariant L2 is violated and this
-    /// test must fail loudly.
+    /// The library lists exactly what a drop takes: a file it showed
+    /// that a drop refused was a dead end, and one a drop takes that it
+    /// left out could not be found. The scan goes by
+    /// [`LibraryKind::from_extension`]; it used to be checked against a
+    /// constant of its own the scan never read.
     #[test]
-    fn library_extensions_match_drag_drop_whitelist() {
-        // Keep this list in sync with `app::DROP_EXTENSIONS`. If you
-        // see this test fail because you added a new format,
-        // update both.
-        let expected = ["png", "jpg", "jpeg", "gif", "webp", "mp4", "mov", "m4v"];
-        assert_eq!(LIBRARY_EXTENSIONS.len(), expected.len());
-        for ext in expected.iter() {
+    fn the_library_lists_exactly_what_a_drop_takes() {
+        for ext in crate::drop_validate::DROP_EXTENSIONS {
             assert!(
-                LIBRARY_EXTENSIONS.contains(ext),
-                "missing library ext: {ext}"
+                LibraryKind::from_extension(ext).is_some(),
+                "{ext}: a drop takes it, the library leaves it out"
+            );
+        }
+        for ext in ["txt", "svg", "bmp", "tiff", "mkv", "avif", ""] {
+            assert!(
+                LibraryKind::from_extension(ext).is_none(),
+                "{ext}: the library lists it, a drop refuses it"
             );
         }
     }

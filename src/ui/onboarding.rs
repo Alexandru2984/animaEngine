@@ -98,6 +98,7 @@ impl OnboardingProgress {
     /// Whether every hint has been dismissed — handy for callers
     /// that want to remove the onboarding ScrollArea once nothing
     /// is left to show.
+    #[cfg(test)]
     pub fn fully_dismissed(&self) -> bool {
         *self == Self::all_seen()
     }

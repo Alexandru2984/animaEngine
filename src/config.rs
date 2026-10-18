@@ -560,30 +560,6 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    /// Returns the full list of windows, including the implicit legacy
-    /// window backed by top-level `characters` when present.
-    ///
-    /// Lookup precedence:
-    /// 1. If `windows` is non-empty, return clones of those entries.
-    /// 2. Otherwise synthesise one window named "default" carrying the
-    ///    top-level `characters`. This is the 0.2 compat path.
-    ///
-    /// Used by the tray submenu, the settings UI window picker, and
-    /// the D-Bus `Activate()` cycle. The actual render path can still
-    /// flatten this into a single scene until full multi-window
-    /// dispatch lands.
-    pub fn windows_normalised(&self) -> Vec<WindowConfig> {
-        if !self.windows.is_empty() {
-            return self.windows.clone();
-        }
-        vec![WindowConfig {
-            id: "default".to_string(),
-            name: "Main".to_string(),
-            monitor_mode: None,
-            characters: self.characters.clone(),
-        }]
-    }
-
     /// Coerce every character's renderer-facing scalars into safe, finite
     /// ranges (see [`CharacterConfig::sanitize`]). Called once on load so
     /// a hand-edited or corrupt config can't feed `NaN`/`inf` to the GPU.
@@ -601,126 +577,51 @@ impl AppConfig {
     }
 }
 
+/// One of the demo characters a first run starts with: the picture
+/// sequence named after `id`, idle, at full size.
+fn demo_character(
+    id: &str,
+    name: &str,
+    (x, y): (f32, f32),
+    opacity: f32,
+    fps: f32,
+    z_index: i32,
+) -> CharacterConfig {
+    CharacterConfig {
+        id: id.to_string(),
+        name: name.to_string(),
+        asset_type: AssetType::PngSequence,
+        asset_path: format!("assets/demo/{id}"),
+        x,
+        y,
+        scale: 1.0,
+        opacity,
+        fps,
+        visible: true,
+        playing: true,
+        z_index,
+        physics_enabled: false,
+        behavior: Behavior::Idle,
+        spritesheet_columns: None,
+        spritesheet_rows: None,
+        monitor: None,
+        easing: None,
+        animations: std::collections::BTreeMap::new(),
+        talk: Default::default(),
+        hours: None,
+    }
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             global: GlobalConfig::default(),
             characters: vec![
-                CharacterConfig {
-                    id: "ghost".to_string(),
-                    name: "Ghost Demo".to_string(),
-                    asset_type: AssetType::PngSequence,
-                    asset_path: "assets/demo/ghost".to_string(),
-                    x: 200.0,
-                    y: 300.0,
-                    scale: 1.0,
-                    opacity: 0.9,
-                    fps: 10.0,
-                    visible: true,
-                    playing: true,
-                    z_index: 10,
-                    physics_enabled: false,
-                    behavior: Behavior::Idle,
-                    spritesheet_columns: None,
-                    spritesheet_rows: None,
-                    monitor: None,
-                    easing: None,
-                    animations: std::collections::BTreeMap::new(),
-                    talk: Default::default(),
-                    hours: None,
-                },
-                CharacterConfig {
-                    id: "slime".to_string(),
-                    name: "Slime Demo".to_string(),
-                    asset_type: AssetType::PngSequence,
-                    asset_path: "assets/demo/slime".to_string(),
-                    x: 600.0,
-                    y: 400.0,
-                    scale: 1.0,
-                    opacity: 1.0,
-                    fps: 8.0,
-                    visible: true,
-                    playing: true,
-                    z_index: 20,
-                    physics_enabled: false,
-                    behavior: Behavior::Idle,
-                    spritesheet_columns: None,
-                    spritesheet_rows: None,
-                    monitor: None,
-                    easing: None,
-                    animations: std::collections::BTreeMap::new(),
-                    talk: Default::default(),
-                    hours: None,
-                },
-                CharacterConfig {
-                    id: "heart".to_string(),
-                    name: "Heart Demo".to_string(),
-                    asset_type: AssetType::PngSequence,
-                    asset_path: "assets/demo/heart".to_string(),
-                    x: 1000.0,
-                    y: 200.0,
-                    scale: 1.0,
-                    opacity: 1.0,
-                    fps: 8.0,
-                    visible: true,
-                    playing: true,
-                    z_index: 30,
-                    physics_enabled: false,
-                    behavior: Behavior::Idle,
-                    spritesheet_columns: None,
-                    spritesheet_rows: None,
-                    monitor: None,
-                    easing: None,
-                    animations: std::collections::BTreeMap::new(),
-                    talk: Default::default(),
-                    hours: None,
-                },
-                CharacterConfig {
-                    id: "star".to_string(),
-                    name: "Star Demo".to_string(),
-                    asset_type: AssetType::PngSequence,
-                    asset_path: "assets/demo/star".to_string(),
-                    x: 1300.0,
-                    y: 450.0,
-                    scale: 1.0,
-                    opacity: 1.0,
-                    fps: 8.0,
-                    visible: true,
-                    playing: true,
-                    z_index: 40,
-                    physics_enabled: false,
-                    behavior: Behavior::Idle,
-                    spritesheet_columns: None,
-                    spritesheet_rows: None,
-                    monitor: None,
-                    easing: None,
-                    animations: std::collections::BTreeMap::new(),
-                    talk: Default::default(),
-                    hours: None,
-                },
-                CharacterConfig {
-                    id: "cat".to_string(),
-                    name: "Cat Demo".to_string(),
-                    asset_type: AssetType::PngSequence,
-                    asset_path: "assets/demo/cat".to_string(),
-                    x: 900.0,
-                    y: 600.0,
-                    scale: 1.0,
-                    opacity: 1.0,
-                    fps: 8.0,
-                    visible: true,
-                    playing: true,
-                    z_index: 50,
-                    physics_enabled: false,
-                    behavior: Behavior::Idle,
-                    spritesheet_columns: None,
-                    spritesheet_rows: None,
-                    monitor: None,
-                    easing: None,
-                    animations: std::collections::BTreeMap::new(),
-                    talk: Default::default(),
-                    hours: None,
-                },
+                demo_character("ghost", "Ghost Demo", (200.0, 300.0), 0.9, 10.0, 10),
+                demo_character("slime", "Slime Demo", (600.0, 400.0), 1.0, 8.0, 20),
+                demo_character("heart", "Heart Demo", (1000.0, 200.0), 1.0, 8.0, 30),
+                demo_character("star", "Star Demo", (1300.0, 450.0), 1.0, 8.0, 40),
+                demo_character("cat", "Cat Demo", (900.0, 600.0), 1.0, 8.0, 50),
             ],
             // 0.3 fresh installs use the legacy single-window shape;
             // multi-window is opt-in via UI / hand-edit (data layer ready
@@ -1744,88 +1645,6 @@ mod windows_tests {
     }
 
     #[test]
-    fn legacy_config_synthesises_default_window() {
-        let cfg = AppConfig {
-            global: GlobalConfig::default(),
-            characters: vec![empty_char("ghost")],
-            windows: vec![],
-            groups: vec![],
-            reminders: vec![],
-            scene_schedule: vec![],
-            keybindings: KeyBindings::default(),
-            collapse_state: CollapseState::default(),
-            schema_version: CURRENT_SCHEMA_VERSION,
-            set_aside: SetAside::default(),
-            extra: toml::Table::new(),
-        };
-        let ws = cfg.windows_normalised();
-        assert_eq!(ws.len(), 1);
-        assert_eq!(ws[0].id, "default");
-        assert_eq!(ws[0].name, "Main");
-        assert_eq!(ws[0].characters.len(), 1);
-        assert_eq!(ws[0].characters[0].id, "ghost");
-    }
-
-    #[test]
-    fn explicit_windows_short_circuit_legacy_path() {
-        let cfg = AppConfig {
-            global: GlobalConfig::default(),
-            characters: vec![empty_char("ghost")],
-            groups: vec![],
-            reminders: vec![],
-            scene_schedule: vec![],
-            windows: vec![
-                WindowConfig {
-                    id: "main".into(),
-                    name: "Main".into(),
-                    monitor_mode: None,
-                    characters: vec![empty_char("slime")],
-                },
-                WindowConfig {
-                    id: "side".into(),
-                    name: "Companion".into(),
-                    monitor_mode: None,
-                    characters: vec![],
-                },
-            ],
-            keybindings: KeyBindings::default(),
-            collapse_state: CollapseState::default(),
-            schema_version: CURRENT_SCHEMA_VERSION,
-            set_aside: SetAside::default(),
-            extra: toml::Table::new(),
-        };
-        let ws = cfg.windows_normalised();
-        assert_eq!(ws.len(), 2);
-        // Top-level `characters` ignored when explicit windows present
-        // (preserving the user's deliberate distribution).
-        assert!(ws
-            .iter()
-            .all(|w| w.characters.iter().all(|c| c.id != "ghost")));
-        assert_eq!(ws[0].id, "main");
-        assert_eq!(ws[1].id, "side");
-    }
-
-    #[test]
-    fn empty_legacy_synthesises_window_with_no_characters() {
-        let cfg = AppConfig {
-            global: GlobalConfig::default(),
-            characters: vec![],
-            windows: vec![],
-            groups: vec![],
-            reminders: vec![],
-            scene_schedule: vec![],
-            keybindings: KeyBindings::default(),
-            collapse_state: CollapseState::default(),
-            schema_version: CURRENT_SCHEMA_VERSION,
-            set_aside: SetAside::default(),
-            extra: toml::Table::new(),
-        };
-        let ws = cfg.windows_normalised();
-        assert_eq!(ws.len(), 1);
-        assert!(ws[0].characters.is_empty());
-    }
-
-    #[test]
     fn window_config_round_trips_through_toml() {
         let w = WindowConfig {
             id: "side".into(),
@@ -1846,8 +1665,8 @@ mod windows_tests {
     }
 
     /// A pre-0.3 TOML must decode cleanly into the new struct shape:
-    /// no `windows` table, the field defaults to `vec![]`, and
-    /// `windows_normalised` synthesises the legacy default.
+    /// no `windows` table, the field defaults to `vec![]`, the characters
+    /// where they were.
     #[test]
     fn pre_0_3_toml_without_windows_field_decodes() {
         let toml_str = r#"
@@ -1868,9 +1687,7 @@ mod windows_tests {
         "#;
         let cfg: AppConfig = toml::from_str(toml_str).expect("decode 0.2 config");
         assert!(cfg.windows.is_empty());
-        let ws = cfg.windows_normalised();
-        assert_eq!(ws.len(), 1);
-        assert_eq!(ws[0].characters.len(), 1);
+        assert_eq!(cfg.characters.len(), 1);
     }
 }
 

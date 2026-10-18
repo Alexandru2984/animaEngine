@@ -259,57 +259,19 @@ impl EguiRenderer {
         self.state
             .handle_platform_output(window, full_output.platform_output);
 
-        let pixels_per_point = full_output.pixels_per_point;
-        let paint_jobs = self
-            .context
-            .tessellate(full_output.shapes, pixels_per_point);
-        let screen_descriptor = egui_wgpu::ScreenDescriptor {
+        let screen = egui_wgpu::ScreenDescriptor {
             size_in_pixels,
-            pixels_per_point,
+            pixels_per_point: full_output.pixels_per_point,
         };
-
-        // Texture deltas — egui notifies us about font / image atlases.
-        for (id, image_delta) in &full_output.textures_delta.set {
-            self.renderer
-                .update_texture(device, queue, *id, image_delta);
-        }
-
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("egui encoder"),
-        });
-
-        self.renderer
-            .update_buffers(device, queue, &mut encoder, &paint_jobs, &screen_descriptor);
-
-        {
-            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("egui render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        // Load — don't wipe the sprites already drawn.
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            // egui-wgpu requires a 'static render pass — `forget_lifetime`
-            // is the documented escape hatch when we control the encoder.
-            let mut static_pass = render_pass.forget_lifetime();
-            self.renderer
-                .render(&mut static_pass, &paint_jobs, &screen_descriptor);
-        }
-
-        queue.submit(std::iter::once(encoder.finish()));
-
-        // Free textures egui no longer needs.
-        for id in &full_output.textures_delta.free {
-            self.renderer.free_texture(id);
-        }
+        crate::ui::surface_egui::paint_over(
+            &mut self.renderer,
+            &self.context,
+            (device, queue),
+            view,
+            &screen,
+            full_output.shapes,
+            &full_output.textures_delta,
+        );
     }
 }
 

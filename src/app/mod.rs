@@ -427,12 +427,6 @@ impl App {
         self.warnings.insert(w);
     }
 
-    /// Clear a warning — called when the underlying condition resolves
-    /// (a hot-reload succeeding after the worker had disconnected).
-    pub fn clear_warning(&mut self, w: Warning) {
-        self.warnings.remove(&w);
-    }
-
     /// Snapshot the current modifier-key state into the bitmask shape
     /// `KeyBindings::lookup` expects. Drains the four tracked booleans
     /// into one `ModifierMask` per call site so the chord build is

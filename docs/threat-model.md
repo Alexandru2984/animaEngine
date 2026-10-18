@@ -78,7 +78,9 @@ we choose, never one from the clipboard, and then goes through the drop
 path — `pre_validate_dropped_file`, the decoders, the memory budget — and
 is deleted if refused. A file list names files the user can already
 read, each checked like a dropped one. Going out, a copy puts only the
-characters' names on the clipboard.
+characters' names on the clipboard. On X11 an owner that sends its data
+in pieces (`INCR`) gets the same cap over all of them, and ten seconds
+for the lot, so one dripping small pieces cannot hold the read open.
 
 ### Taps outside edit mode (1.5.0)
 
@@ -157,7 +159,9 @@ bus, or the Notification portal in the Flatpak (no permission beyond
 the portal). That service may show them on a lock screen or keep a
 history; that is what the switch says. Calls go out from one thread
 through a queue of 16 that drops what does not fit, never blocking the
-loops, and nothing comes back but the call's result.
+loops, and nothing comes back but the call's result. A server may read
+a body as markup, so `&`, `<` and `>` are sent as entities: a name from
+a shared scene shows as written, never as a link or an image.
 
 ### Backups (1.5.0)
 
@@ -485,6 +489,9 @@ What contains it:
 - **No non-finite escape.** A script can only write `x` and `y`, and a
   non-finite result is discarded in favour of the previous position, so
   it cannot push `NaN` into GPU quad coordinates.
+- **Bounded output.** `print` and `debug` go to the debug log only, at
+  most 8 lines a run, each cut to 200 characters, so a script printing
+  in a loop cannot fill the disk through the log.
 
 Sound playback is **output only**. rodio's default features include
 `recording`, which compiles in its microphone module; that is disabled
@@ -527,7 +534,8 @@ operates strictly on local files. Crash reports
 read locally only — panic messages may contain asset paths, which is
 acceptable because the file never leaves the machine unless the user
 attaches it to an issue themselves. Pin this in your firewall if you
-care.
+care. Nor does it open links: egui-winit's `links` feature, its URL
+opener, is not compiled in.
 
 ## What it does NOT try to prevent
 

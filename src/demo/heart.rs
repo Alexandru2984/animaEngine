@@ -7,27 +7,10 @@ const SIZE: u32 = 128;
 const TOTAL_FRAMES: u32 = 6;
 
 pub fn generate(base: &Path) {
-    let dir = base.join(NAME);
-    let path = dir.as_path();
-
-    if path.exists() {
-        if super::assets_already_at_size(path, SIZE) {
-            tracing::debug!(
-                "Demo heart assets already exist at {}px: {}",
-                SIZE,
-                path.display()
-            );
-            return;
-        }
-        tracing::info!("Regenerating heart demo assets at {SIZE}×{SIZE}…");
-        let _ = std::fs::remove_dir_all(path);
-    }
-
-    tracing::info!("Generating heart demo assets ({SIZE}×{SIZE}, {TOTAL_FRAMES} frames)…");
-    if let Err(e) = std::fs::create_dir_all(path) {
-        tracing::warn!("Failed to create demo directory {}: {e}", path.display());
+    let Some(dir) = super::prepare(base, NAME, SIZE, TOTAL_FRAMES) else {
         return;
-    }
+    };
+    let path = dir.as_path();
 
     let cx = SIZE as f32 / 2.0;
     let cy = SIZE as f32 / 2.0 + 4.0;
@@ -116,10 +99,7 @@ pub fn generate(base: &Path) {
             }
         }
 
-        let frame_path = path.join(format!("frame_{frame_idx:03}.png"));
-        if let Err(e) = img.save(&frame_path) {
-            tracing::warn!("Failed to save demo frame {}: {e}", frame_path.display());
-        }
+        super::save_frame(path, frame_idx, &img);
     }
 
     tracing::info!("Generated {TOTAL_FRAMES} heart demo frames ({SIZE}×{SIZE})");

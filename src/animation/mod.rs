@@ -246,6 +246,7 @@ impl AnimationSet {
         self.states.insert(state, animation);
     }
 
+    #[cfg(test)]
     pub fn active_state(&self) -> StateId {
         self.active
     }

@@ -117,26 +117,11 @@ async fn choose(
     filter_name: &str,
     ask: &Ask,
 ) -> Result<Vec<PathBuf>, crate::portal::PortalError> {
-    use crate::portal::{portal_request, sanitize_sender};
+    use crate::portal::{desktop_portal, portal_request};
     use std::collections::HashMap;
     use zbus::zvariant::Value;
 
-    let conn = zbus::Connection::session()
-        .await
-        .map_err(|e| format!("session bus: {e}"))?;
-    let sender = sanitize_sender(
-        conn.unique_name()
-            .ok_or_else(|| "connection has no unique name".to_string())?
-            .as_str(),
-    );
-    let proxy = zbus::Proxy::new(
-        &conn,
-        "org.freedesktop.portal.Desktop",
-        "/org/freedesktop/portal/desktop",
-        "org.freedesktop.portal.FileChooser",
-    )
-    .await
-    .map_err(|e| format!("FileChooser proxy: {e}"))?;
+    let (conn, sender, proxy) = desktop_portal("org.freedesktop.portal.FileChooser").await?;
 
     let method = match ask {
         Ask::Open { .. } => "OpenFile",

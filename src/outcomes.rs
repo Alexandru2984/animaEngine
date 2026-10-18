@@ -183,6 +183,7 @@ pub fn ungroup_entities(targets: &[usize], scene: &mut Scene, toasts: &mut Toast
 /// The texture is dropped *before* the entity leaves the scene. Textures
 /// are keyed by entity id, so a missed removal leaves an orphan resident
 /// for the session — the leak `prune_stale_textures` exists to sweep up.
+#[cfg(test)]
 pub fn delete_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> bool {
     delete_entities(&[idx], ctx) == 1
 }
@@ -460,6 +461,7 @@ fn group_like(
 
 /// Copy entity `idx` 30 px down and right, keeping its scale and opacity,
 /// and select the copy. Returns the copy's index.
+#[cfg(test)]
 pub fn duplicate_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> Option<usize> {
     duplicate_entities(&[idx], ctx).first().copied()
 }

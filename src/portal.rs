@@ -51,6 +51,32 @@ pub fn next_handle_token() -> String {
     format!("anima_{}_{n}", std::process::id())
 }
 
+/// What every portal request starts from: the session bus, this
+/// connection's name as the portal's Request paths spell it
+/// ([`sanitize_sender`]), and a proxy for the portal's `interface`
+/// (`org.freedesktop.portal.FileChooser`, `…Background`).
+pub async fn desktop_portal(
+    interface: &'static str,
+) -> Result<(zbus::Connection, String, zbus::Proxy<'static>), PortalError> {
+    let conn = zbus::Connection::session()
+        .await
+        .map_err(|e| format!("session bus: {e}"))?;
+    let sender = sanitize_sender(
+        conn.unique_name()
+            .ok_or_else(|| "connection has no unique name".to_string())?
+            .as_str(),
+    );
+    let proxy = zbus::Proxy::new(
+        &conn,
+        "org.freedesktop.portal.Desktop",
+        "/org/freedesktop/portal/desktop",
+        interface,
+    )
+    .await
+    .map_err(|e| format!("{interface} proxy: {e}"))?;
+    Ok((conn, sender, proxy))
+}
+
 /// `:1.42` → `1_42`, per the portal Request-path convention.
 pub fn sanitize_sender(unique_name: &str) -> String {
     unique_name

@@ -48,6 +48,38 @@ pub fn generate_assets_in(base: &Path) {
     cat::generate(base);
 }
 
+/// The folder demo `name`'s frames go in, emptied and made ready — or
+/// `None` when they are already there at `size` or larger, or it cannot
+/// be made. The start every generator shares.
+fn prepare(base: &Path, name: &str, size: u32, frames: u32) -> Option<std::path::PathBuf> {
+    let dir = base.join(name);
+    if dir.exists() {
+        if assets_already_at_size(&dir, size) {
+            tracing::debug!(
+                "Demo {name} assets already exist at {size}px: {}",
+                dir.display()
+            );
+            return None;
+        }
+        tracing::info!("Regenerating {name} demo assets at {size}×{size}…");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+    tracing::info!("Generating {name} demo assets ({size}×{size}, {frames} frames)…");
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        tracing::warn!("Failed to create demo directory {}: {e}", dir.display());
+        return None;
+    }
+    Some(dir)
+}
+
+/// Save frame `index` (from 1) of a demo into `dir`.
+fn save_frame(dir: &Path, index: u32, image: &image::RgbaImage) {
+    let path = dir.join(format!("frame_{index:03}.png"));
+    if let Err(e) = image.save(&path) {
+        tracing::warn!("Failed to save demo frame {}: {e}", path.display());
+    }
+}
+
 /// Check whether a sprite directory already has frames at or above `min_size`.
 /// Used to skip regeneration when the user already has demo assets.
 fn assets_already_at_size(dir: &Path, min_size: u32) -> bool {

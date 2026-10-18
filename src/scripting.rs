@@ -481,14 +481,9 @@ impl ScriptHost {
     }
 
     /// Whether `key` has a compiled script ready to run.
+    #[cfg(test)]
     pub fn is_compiled(&self, key: &str) -> bool {
         self.compiled.contains_key(key)
-    }
-
-    /// Forget one script, so a failure can be made sticky until its file
-    /// changes rather than retried sixty times a second.
-    pub fn forget(&mut self, key: &str) {
-        self.compiled.remove(key);
     }
 
     /// Run one tick of the script under `key`.
@@ -1280,14 +1275,5 @@ mod tests {
                     .unwrap_or_else(|e| panic!("example {name} failed at frame {frame}: {e}"));
             }
         }
-    }
-
-    #[test]
-    fn forget_makes_a_script_unavailable_again() {
-        let mut host = ScriptHost::new();
-        host.compile("t", "x += 1.0;").unwrap();
-        assert!(host.is_compiled("t"));
-        host.forget("t");
-        assert!(!host.is_compiled("t"));
     }
 }

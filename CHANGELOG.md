@@ -408,6 +408,12 @@ read-only D-Bus names, for the idle time
   many each holds. The reminders' sound and notifications sit with the
   reminders. Grown over 1.5, the tab had become one long scroll that
   opened on monitor settings.
+- **Code nothing called is gone**, or kept for the tests alone: a helper
+  that read settings older than 0.3 as one window, three icons, and a
+  dozen others. Twelve copied blocks
+  are one each now — the panel's paint pass, the demo characters' frame
+  writing, the portal connection autostart and the file chooser share.
+  Nothing a user sees changes.
 
 ### Fixed
 

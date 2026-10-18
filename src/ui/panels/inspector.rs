@@ -282,19 +282,8 @@ fn entity_inspector(
             // Opacity reads as a percentage; storage stays 0..1.
             let caption = ui.label(t("inspector-opacity"));
             let opacity_resp =
-                labelled_slider(ui, caption.id, &mut entity.opacity, 0.0..=1.0, |field| {
-                    field
-                        .speed(0.01)
-                        .custom_formatter(|v, _| format!("{:.0}%", v * 100.0))
-                        .custom_parser(|s| {
-                            s.trim_end_matches('%')
-                                .trim()
-                                .parse::<f64>()
-                                .ok()
-                                .map(|p| p / 100.0)
-                        })
-                })
-                .on_hover_text(t("inspector-double-click-reset-hint"));
+                labelled_slider(ui, caption.id, &mut entity.opacity, 0.0..=1.0, percent)
+                    .on_hover_text(t("inspector-double-click-reset-hint"));
             if opacity_resp.double_clicked() {
                 entity.opacity = 1.0;
                 change.any_field = true;
@@ -608,20 +597,7 @@ fn sound_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
     // script's sounds.
     let caption = ui.label(t("appearance-sounds-volume"));
     let mut volume = entity.talk.volume.unwrap_or(1.0);
-    if labelled_slider(ui, caption.id, &mut volume, 0.0..=1.0, |field| {
-        field
-            .speed(0.01)
-            .custom_formatter(|v, _| format!("{:.0}%", v * 100.0))
-            .custom_parser(|s| {
-                s.trim_end_matches('%')
-                    .trim()
-                    .parse::<f64>()
-                    .ok()
-                    .map(|p| p / 100.0)
-            })
-    })
-    .changed()
-    {
+    if labelled_slider(ui, caption.id, &mut volume, 0.0..=1.0, percent).changed() {
         entity.talk.volume = (volume < 0.995).then_some(volume);
         changed = true;
     }
@@ -659,6 +635,20 @@ fn hours_controls(ui: &mut egui::Ui, entity: &mut crate::entity::Entity) -> bool
 /// longer languages, and the panel grew to fit; moved over it, the value
 /// box egui draws had no name a screen reader could read. So the box is
 /// drawn here, named like the slider.
+/// A 0..1 number box read and typed as a percentage: "90%", or "90".
+fn percent(field: egui::DragValue<'_>) -> egui::DragValue<'_> {
+    field
+        .speed(0.01)
+        .custom_formatter(|v, _| format!("{:.0}%", v * 100.0))
+        .custom_parser(|s| {
+            s.trim_end_matches('%')
+                .trim()
+                .parse::<f64>()
+                .ok()
+                .map(|p| p / 100.0)
+        })
+}
+
 fn labelled_slider(
     ui: &mut egui::Ui,
     caption: egui::Id,

@@ -460,7 +460,7 @@ pub fn settings(
             // the user notices them the moment the panel opens; they
             // never appear in pass-through mode (the whole panel is
             // hidden there). Auto-disappear when the underlying
-            // condition clears (see App::clear_warning).
+            // condition clears (`config_watch` takes them back).
             if !warnings.is_empty() {
                 for warning in warnings {
                     appearance::warning_banner(ui, *warning);

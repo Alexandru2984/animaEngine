@@ -98,20 +98,6 @@ impl MonitorInfo {
             && y >= self.y
             && y < self.y + self.height as i32
     }
-
-    /// Synthesise the entry used when winit returns no monitors at
-    /// all (smoke tests on a headless Xvfb, broken display setup).
-    pub fn fallback_single() -> Self {
-        Self {
-            name: "Display 0".to_string(),
-            x: 0,
-            y: 0,
-            width: 1280,
-            height: 720,
-            scale_factor: 1.0,
-            is_primary: true,
-        }
-    }
 }
 
 /// Resolve which monitor an entity should render on, given its
@@ -126,7 +112,7 @@ impl MonitorInfo {
 ///    the first available.
 ///
 /// Returns `None` only when `monitors` is empty — callers should
-/// substitute `MonitorInfo::fallback_single()` in that case.
+/// keep where they are then.
 pub fn resolve_monitor_for_position<'a>(
     monitors: &'a [MonitorInfo],
     centroid_x: f32,
@@ -729,13 +715,6 @@ pub(crate) mod tests {
         ] {
             assert!(!mode.label().is_empty());
         }
-    }
-
-    #[test]
-    fn fallback_single_is_marked_primary() {
-        let f = MonitorInfo::fallback_single();
-        assert!(f.is_primary);
-        assert!(f.width > 0 && f.height > 0);
     }
 
     // ── plan_windows (T.6) ───────────────────────────────────────────

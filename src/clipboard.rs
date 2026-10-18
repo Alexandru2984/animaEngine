@@ -78,14 +78,6 @@ impl Copied {
             })
             .collect()
     }
-
-    /// The name the toasts use: the character's, when there is one.
-    pub fn single_name(&self) -> Option<&str> {
-        match self.characters.as_slice() {
-            [one] => Some(&one.name),
-            _ => None,
-        }
-    }
 }
 
 static CLIPBOARD: Mutex<Option<Copied>> = Mutex::new(None);
@@ -211,6 +203,5 @@ mod tests {
         let elsewhere = scene_at(&[("z", 500.0, 500.0)]);
         let placed = copied.placed_in(&elsewhere);
         assert_eq!((placed[0].x, placed[0].y), (100.0, 200.0));
-        assert_eq!(copied.single_name(), Some("a"));
     }
 }
