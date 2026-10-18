@@ -25,11 +25,14 @@ pub use toasts::toasts;
 pub use toggle_button::toggle_button;
 
 /// Whether the panels hold the keyboard even with no text field focused:
-/// the command palette while it is open, and an open list (a combo box's).
-/// No key reaches a shortcut then. With a list open, Escape closed the
-/// list and also left edit mode.
+/// the command palette while it is open, an open list (a combo box's),
+/// and a shortcut being recorded (`keybindings_tab::recording`). No key
+/// reaches a shortcut then. With a list open, Escape closed the list and
+/// also left edit mode.
 pub fn keyboard_held(ctx: &egui::Context) -> bool {
-    command_palette_open(ctx) || ctx.memory(|m| m.any_popup_open())
+    command_palette_open(ctx)
+        || ctx.memory(|m| m.any_popup_open())
+        || keybindings_tab::recording(ctx)
 }
 
 use crate::asset_library::LibraryIndex;

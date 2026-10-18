@@ -13,6 +13,28 @@ use crate::ui::accessible::AccessibleName;
 use crate::ui::icons;
 use crate::ui::theme::{self, SPACE_M, SPACE_S, SPACE_XS};
 
+/// The action a shortcut is being recorded for, in egui's memory.
+const RECORDING: &str = "anima.kb.recording";
+/// The pass the tab was last drawn in.
+const SHOWN: &str = "anima.kb.shown";
+
+/// Whether a shortcut is being recorded: the keys are the recorder's
+/// then (`panels::keyboard_held`). They were everyone's: Escape cancelled
+/// and also left edit mode, and a chord bound elsewhere — `S`, `Delete` —
+/// was recorded and did what it was already bound to. Only while the tab
+/// is on screen: one left half-recorded would hold every key.
+pub(super) fn recording(ctx: &egui::Context) -> bool {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.memory(|m| {
+        m.data
+            .get_temp::<Action>(egui::Id::new(RECORDING))
+            .is_some()
+            && m.data
+                .get_temp::<u64>(egui::Id::new(SHOWN))
+                .is_some_and(|shown| shown + 1 >= pass)
+    })
+}
+
 pub(super) fn keybindings_tab(
     ctx: &egui::Context,
     ui: &mut egui::Ui,
@@ -44,8 +66,19 @@ pub(super) fn keybindings_tab(
     }
     ui.add_space(SPACE_XS);
 
-    let recording_id = egui::Id::new("anima.kb.recording");
-    let mut recording_for: Option<Action> = ctx.memory(|m| m.data.get_temp(recording_id));
+    let recording_id = egui::Id::new(RECORDING);
+    // A recording the tab was left in the middle of ends there.
+    let pass = ctx.cumulative_pass_nr();
+    let shown_id = egui::Id::new(SHOWN);
+    let was_shown = ctx
+        .memory(|m| m.data.get_temp::<u64>(shown_id))
+        .is_some_and(|shown| shown + 1 >= pass);
+    ctx.memory_mut(|m| m.data.insert_temp(shown_id, pass));
+    let mut recording_for: Option<Action> = if was_shown {
+        ctx.memory(|m| m.data.get_temp(recording_id))
+    } else {
+        None
+    };
 
     // While recording, intercept the first non-modifier key press as
     // the chord for the target action. Esc cancels. Repeat events are
@@ -300,10 +333,13 @@ fn chord_cell(
                             .small()
                             .wrap_mode(egui::TextWrapMode::Extend),
                     )
+                    // Which row too: `Del` is Undo's and Delete's both
+                    // once bound twice, and the two read the same.
                     .named(format!(
-                        "{}: {}",
+                        "{}: {} — {}",
                         t("keybindings-remove-chord"),
-                        chord.display_str(mod_names)
+                        chord.display_str(mod_names),
+                        t(action.i18n_key())
                     ))
                     .on_hover_text(t("keybindings-remove-chord"))
                     .clicked()
@@ -335,4 +371,45 @@ fn chord_cell(
             ctx.memory_mut(|m| m.data.insert_temp(recording_id, action));
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn draw(ctx: &egui::Context, bindings: &mut KeyBindings, with_tab: bool) {
+        let mut dirty = false;
+        let _ = ctx.run(egui::RawInput::default(), |ctx| {
+            if with_tab {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    keybindings_tab(
+                        ctx,
+                        ui,
+                        bindings,
+                        &mut dirty,
+                        crate::hotkeys::probe::HotkeyStatus::TrayOnly,
+                    );
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn a_recording_holds_the_keys_only_while_its_tab_is_drawn() {
+        let ctx = egui::Context::default();
+        theme::apply(&ctx, theme::Theme::Dark);
+        let mut bindings = KeyBindings::default();
+        draw(&ctx, &mut bindings, true);
+        assert!(!recording(&ctx));
+        ctx.memory_mut(|m| m.data.insert_temp(egui::Id::new(RECORDING), Action::Undo));
+        draw(&ctx, &mut bindings, true);
+        assert!(recording(&ctx) && super::super::keyboard_held(&ctx));
+        // Another tab: the keys are the shortcuts' again…
+        draw(&ctx, &mut bindings, false);
+        draw(&ctx, &mut bindings, false);
+        assert!(!recording(&ctx) && !super::super::keyboard_held(&ctx));
+        // …and coming back, the recording is over.
+        draw(&ctx, &mut bindings, true);
+        assert!(!recording(&ctx));
+    }
 }

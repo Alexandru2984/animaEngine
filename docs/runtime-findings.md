@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R71 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R72 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2723,3 +2723,31 @@ gone too stays — its drive may be away), and adding one before then
 says "Not found"; a pack is looked for before it is walked, and the walk
 stops at the caps. **Checked:** 29 of 29 on each backend, and a pack
 imported with its walk, fall and drag.
+
+### R72 · A key pressed to record a shortcut also did its old job — `FIXED`
+
+Found working the Keybindings tab over AT-SPI and the keys on both
+backends — record, cancel, remove, reset one, reset all, a conflict, the
+recorded chord then used — each checked in the saved config. Recording
+worked, the conflict showed, the resets did what they say. But while a
+row waited for its chord nothing held the keyboard — its "Add" button,
+which has the focus, is gone once clicked — so the key went to the
+shortcuts as well:
+
+- Escape cancelled the recording and left edit mode;
+- `S`, recorded for Redo, also saved the config; `Delete` would delete
+  the selected character on its way to being recorded.
+
+And two rows bound to one key showed two buttons a screen reader read
+the same — "Remove this binding: Del" for Undo's and for Delete's.
+
+**Fixed:** a recording holds the keyboard (`keybindings_tab::recording`,
+in `panels::keyboard_held`, which both backends ask before a key
+reaches a shortcut) — while its tab is drawn only, so one left
+half-recorded on another tab neither holds every key nor resumes on the
+way back. A remove button names its row: "Remove this binding: Del —
+Undo". **Checked:** 18 of 18 on each backend; a unit test holds the
+keys-while-drawn rule.
+
+Left as it is: the keys' own names — Del, Bksp, PgUp, Space, Esc — are
+English in every language, the modifiers translated beside them.

@@ -681,6 +681,12 @@ read-only D-Bus names, for the idle time
   what a dropped file's bytes decide (`content_sniff`), beside one over
   dropped folders — named pipes, links to `/dev/zero`, thousands of
   frames (`folder_drop`).
+- **A key pressed to record a shortcut also did its old job.** Escape
+  cancelled the recording and left edit mode; `S` was recorded and saved
+  the config; `Delete` would have deleted the selected character on its
+  way to being recorded. While the Keybindings tab waits for a chord the
+  keys are its own. Each "Remove this binding" button names its row too,
+  so the two a key bound twice shows read differently.
 - **The Library tab would not open with more than 256 pictures.** Its
   thumbnails were kept one by one in the panel's shared memory, and past
   256 that memory was cleared whole — the open tab with it, so the panel
