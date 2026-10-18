@@ -74,7 +74,7 @@ fn cache_root() -> Option<PathBuf> {
 
 /// On-disk cap for the decoded-frame cache. Beyond it, [`sweep`] evicts
 /// the oldest `.bin` files. Sized to hold a couple of max-size assets
-/// (each up to `MAX_DECODED_ASSET_BYTES` = 512 MiB) plus a working set
+/// (each up to `MAX_DECODED_ASSET_BYTES` = 256 MiB) plus a working set
 /// of smaller ones, so ordinary use never trims — only a long history
 /// of edited/large assets does.
 const CACHE_DIR_CAP_BYTES: u64 = 1024 * 1024 * 1024; // 1 GiB

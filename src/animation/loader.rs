@@ -181,73 +181,13 @@ pub fn load_asset(
         return Ok(frames);
     }
 
-    let decoded = || -> Result<Vec<Frame>> {
-        Ok(match asset_type {
-            AssetType::PngSequence => {
-                tracing::info!(
-                    "Loading PNG sequence from: {}",
-                    crate::drop_validate::redact_path(asset_path)
-                );
-                png_sequence::load_png_sequence(asset_path)?
-            }
-            AssetType::PngStatic => {
-                tracing::info!(
-                    "Loading static image from: {}",
-                    crate::drop_validate::redact_path(asset_path)
-                );
-                vec![png_sequence::load_single_png(asset_path)?]
-            }
-            AssetType::Gif => {
-                tracing::info!(
-                    "Loading GIF from: {}",
-                    crate::drop_validate::redact_path(asset_path)
-                );
-                gif_loader::load_gif(asset_path)?
-            }
-            AssetType::WebpAnimated => {
-                tracing::info!(
-                    "Loading animated WebP from: {}",
-                    crate::drop_validate::redact_path(asset_path)
-                );
-                webp_loader::load_webp(asset_path)?
-            }
-            AssetType::WebpStatic => {
-                tracing::info!(
-                    "Loading static WebP from: {}",
-                    crate::drop_validate::redact_path(asset_path)
-                );
-                webp_loader::load_static_webp(asset_path)?
-            }
-            AssetType::Spritesheet => {
-                let cols = spritesheet_columns.unwrap_or(4);
-                let rows = spritesheet_rows.unwrap_or(1);
-                tracing::info!(
-                    "Loading spritesheet from: {} ({}x{} grid)",
-                    crate::drop_validate::redact_path(asset_path),
-                    cols,
-                    rows
-                );
-                spritesheet::load_spritesheet(asset_path, cols, rows)?
-            }
-            AssetType::Video => {
-                #[cfg(feature = "video")]
-                {
-                    tracing::info!(
-                        "Loading MP4 video from: {}",
-                        crate::drop_validate::redact_path(asset_path)
-                    );
-                    video_loader::load_video(asset_path)?
-                }
-                #[cfg(not(feature = "video"))]
-                {
-                    return Err(crate::error::AnimaError::VideoDecode(
-                        "video support was not compiled into this build".into(),
-                    ));
-                }
-            }
-        })
-    };
-    let frames = decoded().map_err(|e| unreadable(asset_path, e))?;
+    let frames = decode(
+        asset_type,
+        asset_path,
+        spritesheet_columns,
+        spritesheet_rows,
+    )
+    .map_err(|e| unreadable(asset_path, e))?;
 
     // Best-effort cache write — never fails the load.
     if let Err(e) = cache::try_save(
@@ -265,6 +205,169 @@ pub fn load_asset(
     }
 
     Ok(frames)
+}
+
+/// Decode `asset_path` as `asset_type`, past the dimension check and the
+/// cache.
+fn decode(
+    asset_type: &AssetType,
+    asset_path: &Path,
+    spritesheet_columns: Option<u32>,
+    spritesheet_rows: Option<u32>,
+) -> Result<Vec<Frame>> {
+    Ok(match asset_type {
+        AssetType::PngSequence => {
+            tracing::info!(
+                "Loading PNG sequence from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
+            png_sequence::load_png_sequence(asset_path)?
+        }
+        AssetType::PngStatic => {
+            tracing::info!(
+                "Loading static image from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
+            vec![png_sequence::load_single_png(asset_path)?]
+        }
+        AssetType::Gif => {
+            tracing::info!(
+                "Loading GIF from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
+            gif_loader::load_gif(asset_path)?
+        }
+        AssetType::WebpAnimated => {
+            tracing::info!(
+                "Loading animated WebP from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
+            webp_loader::load_webp(asset_path)?
+        }
+        AssetType::WebpStatic => {
+            tracing::info!(
+                "Loading static WebP from: {}",
+                crate::drop_validate::redact_path(asset_path)
+            );
+            webp_loader::load_static_webp(asset_path)?
+        }
+        AssetType::Spritesheet => {
+            let cols = spritesheet_columns.unwrap_or(4);
+            let rows = spritesheet_rows.unwrap_or(1);
+            tracing::info!(
+                "Loading spritesheet from: {} ({}x{} grid)",
+                crate::drop_validate::redact_path(asset_path),
+                cols,
+                rows
+            );
+            spritesheet::load_spritesheet(asset_path, cols, rows)?
+        }
+        AssetType::Video => {
+            #[cfg(feature = "video")]
+            {
+                tracing::info!(
+                    "Loading MP4 video from: {}",
+                    crate::drop_validate::redact_path(asset_path)
+                );
+                video_loader::load_video(asset_path)?
+            }
+            #[cfg(not(feature = "video"))]
+            {
+                return Err(crate::error::AnimaError::VideoDecode(
+                    "video support was not compiled into this build".into(),
+                ));
+            }
+        }
+    })
+}
+
+/// For the `content_sniff` fuzz target: `bytes` saved as `name` in `dir`,
+/// then what a drop of it does up to the frames — the drop's checks, the
+/// type by name and content, the dimension check, the decode. Not the
+/// frame cache: a fuzz run would fill the real one. Never panics.
+#[doc(hidden)]
+pub fn fuzz_content_sniff(dir: &Path, name: &str, bytes: &[u8]) {
+    let path = dir.join(name);
+    if std::fs::write(&path, bytes).is_err() {
+        return;
+    }
+    let _ = content_format(&path);
+    let (asset_type, _) = detect_asset_type(&path);
+    // A video goes to openh264, upstream's C, slow and fuzzed there.
+    if crate::drop_validate::pre_validate_dropped_file(&path).is_ok()
+        && asset_type != AssetType::Video
+        && validate_image_dimensions(&path).is_ok()
+    {
+        let _ = decode(&asset_type, &path, Some(2), Some(2)).map_err(|e| unreadable(&path, e));
+    }
+    let _ = std::fs::remove_file(&path);
+}
+
+/// For the `folder_drop` fuzz target: a folder built in `dir` from `ops`,
+/// two bytes each — PNG frames, broken ones, named pipes, links (to
+/// `/dev/zero`, to a file outside, back up, to the folder itself),
+/// folders named like pictures, other files, a couple of thousand empty
+/// frames at once — then dropped: the drop's check, the type, the
+/// dimension check over every frame, the sequence decoded. A pipe or a
+/// link to `/dev/zero` that is opened hangs the run, which libFuzzer
+/// reports. Not the frame cache. Never panics.
+#[cfg(unix)]
+#[doc(hidden)]
+pub fn fuzz_folder_drop(dir: &Path, ops: &[u8]) {
+    let folder = dir.join("drop");
+    let _ = fs::remove_dir_all(&folder);
+    if fs::create_dir_all(&folder).is_err() {
+        return;
+    }
+    let png = |side: u32| {
+        let mut bytes = Vec::new();
+        let image = image::RgbaImage::from_pixel(side, side, image::Rgba([200, 40, 90, 255]));
+        let _ = image.write_to(
+            &mut std::io::Cursor::new(&mut bytes),
+            image::ImageFormat::Png,
+        );
+        bytes
+    };
+    for &[kind, arg] in ops.as_chunks::<2>().0.iter().take(64) {
+        let kind = kind % 8;
+        let at = |name: String| folder.join(name);
+        let _ = match kind {
+            0 => fs::write(at(format!("f{arg:03}.png")), png(u32::from(arg % 8) + 1)),
+            1 => fs::write(at(format!("g{arg:03}.png")), vec![0xAB; usize::from(arg)]),
+            2 => {
+                let Ok(c) = std::ffi::CString::new(
+                    at(format!("p{arg:03}.png"))
+                        .into_os_string()
+                        .into_encoded_bytes(),
+                ) else {
+                    continue;
+                };
+                // SAFETY: `c` is a NUL-terminated path that outlives the call.
+                unsafe { libc::mkfifo(c.as_ptr(), 0o600) };
+                Ok(())
+            }
+            3 => {
+                let target = match arg % 4 {
+                    0 => Path::new("/dev/zero").to_path_buf(),
+                    1 => Path::new("/etc/passwd").to_path_buf(),
+                    2 => Path::new("..").to_path_buf(),
+                    _ => Path::new("f000.png").to_path_buf(),
+                };
+                std::os::unix::fs::symlink(target, at(format!("l{arg:03}.png")))
+            }
+            4 => fs::create_dir_all(at(format!("d{arg:03}.png"))),
+            5 => fs::write(at(format!("t{arg:03}.txt")), b"text"),
+            6 => std::os::unix::fs::symlink(".", at(format!("s{arg:03}"))),
+            _ => (0..usize::from(arg) * 8)
+                .try_for_each(|n| fs::write(at(format!("e{n:04}.png")), b"")),
+        };
+    }
+    let _ = crate::drop_validate::pre_validate_dropped_file(&folder);
+    let (asset_type, _) = detect_asset_type(&folder);
+    if validate_image_dimensions(&folder).is_ok() && asset_type == AssetType::PngSequence {
+        let _ = decode(&asset_type, &folder, None, None).map_err(|e| unreadable(&folder, e));
+    }
+    let _ = fs::remove_dir_all(&folder);
 }
 
 /// A decoder's failure, as the user is told it: the picture or the video

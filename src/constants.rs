@@ -76,9 +76,10 @@ pub const MAX_ANIMATION_FRAMES: usize = 600;
 pub const MAX_SEQUENCE_FILES: usize = 1_000;
 
 /// Hard cap on the total decoded-RGBA size we'll hold in memory for a
-/// single asset (after resize / sequence). 512 MB matches what a high-end
-/// integrated GPU can host without thrashing; loaders that exceed it
-/// truncate and log a warning.
+/// single asset (after resize / sequence): 256 MiB, what an integrated
+/// GPU hosts without thrashing; loaders that exceed it truncate and log a
+/// warning. The animated decoders allocate within it too
+/// (`animated::limits`).
 pub const MAX_DECODED_ASSET_BYTES: usize = 256 * 1024 * 1024;
 
 /// Cap on the on-disk size we'll accept for a single drag-dropped asset.
@@ -88,7 +89,7 @@ pub const MAX_ASSET_FILE_BYTES: u64 = 200 * 1024 * 1024;
 
 /// Hard cap on the *aggregate* decoded-RGBA size across all entities
 /// loaded into a scene. The per-asset cap [`MAX_DECODED_ASSET_BYTES`]
-/// alone allows a worst case of 64 × 512 MB = 32 GB — fine for one
+/// alone allows a worst case of 64 × 256 MiB = 16 GiB — fine for one
 /// hostile asset, catastrophic for a hostile config full of them. The
 /// runtime budget defaults to 1 GB, overridable at startup with
 /// `ANIMA_MEMORY_BUDGET_MB=<int>` so high-RAM machines can opt in.

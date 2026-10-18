@@ -1,7 +1,7 @@
 use super::frame::Frame;
 use crate::error::Result;
 use image::codecs::webp::WebPDecoder;
-use image::AnimationDecoder;
+use image::{AnimationDecoder, ImageDecoder};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -12,7 +12,8 @@ use std::path::Path;
 pub fn load_webp(path: &Path) -> Result<Vec<Frame>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
-    let decoder = WebPDecoder::new(reader)?;
+    let mut decoder = WebPDecoder::new(reader)?;
+    decoder.set_limits(super::animated::limits())?;
 
     if decoder.has_animation() {
         super::animated::collect_frames(decoder.into_frames(), "animated WebP", path)

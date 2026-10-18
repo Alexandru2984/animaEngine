@@ -78,3 +78,15 @@ name = "scene_save_over"
 path = "fuzz_targets/scene_save_over.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "content_sniff"
+path = "fuzz_targets/content_sniff.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "folder_drop"
+path = "fuzz_targets/folder_drop.rs"
+test = false
+doc = false

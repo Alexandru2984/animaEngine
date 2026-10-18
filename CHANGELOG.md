@@ -667,6 +667,19 @@ read-only D-Bus names, for the idle time
   also left a directory each in `/tmp` every run. The tests touch
   neither now; a whole run, both feature sets, leaves nothing behind
   outside the checkout.
+- **A GIF cut short froze the app and filled the log.** Its decoder
+  answers every frame after the cut with the same error, and the loop
+  reading the frames went on past errors, logging each — a 55-byte file,
+  dropped or added from the library, held the app with a warning per
+  turn, for good. The frames stop at the first that fails, those before
+  it kept, and one with none is said to be unreadable; animated WebPs
+  share the loop. And an 8×8 GIF whose frame claimed 46003×46003 pixels
+  had 8.4 GB asked for at once — the header's size is checked, a frame's
+  was not: GIFs and WebPs are decoded within the app's limits now, 4096
+  pixels a side and 256 MiB. Found by a new fuzz target over
+  what a dropped file's bytes decide (`content_sniff`), beside one over
+  dropped folders — named pipes, links to `/dev/zero`, thousands of
+  frames (`folder_drop`).
 - **The Library tab would not open with more than 256 pictures.** Its
   thumbnails were kept one by one in the panel's shared memory, and past
   256 that memory was cleared whole — the open tab with it, so the panel

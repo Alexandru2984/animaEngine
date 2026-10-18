@@ -1,7 +1,7 @@
 use super::frame::Frame;
 use crate::error::Result;
 use image::codecs::gif::GifDecoder;
-use image::AnimationDecoder;
+use image::{AnimationDecoder, ImageDecoder};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -14,7 +14,8 @@ use std::path::Path;
 pub fn load_gif(path: &Path) -> Result<Vec<Frame>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
-    let decoder = GifDecoder::new(reader)?;
+    let mut decoder = GifDecoder::new(reader)?;
+    decoder.set_limits(super::animated::limits())?;
     super::animated::collect_frames(decoder.into_frames(), "GIF", path)
 }
 
@@ -66,6 +67,64 @@ mod tests {
             // GIF stores delays in centiseconds, so 100ms round-trips.
             assert_eq!(f.delay_ms, Some(100), "per-frame delay preserved");
         }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_gif_cut_short_ends_instead_of_failing_for_good() {
+        // An 8×8 GIF whose one frame claims 2048×2048, its data cut off:
+        // every next frame was the same error, and the load never ended
+        // (found by the `content_sniff` fuzz target, which this is).
+        let dir = tmp_dir("cut_short");
+        let path = dir.join("cut.gif");
+        std::fs::write(
+            &path,
+            [
+                71, 73, 70, 56, 55, 97, 8, 0, 8, 0, 129, 0, 0, 200, 40, 90, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 44, 0, 0, 0, 0, 8, 0, 8, 0, 0, 8, 15, 0, 1, 8, 28, 218, 176, 160, 193, 131, 8,
+                19, 42, 76, 24, 16, 0, 59,
+            ],
+        )
+        .unwrap();
+        let (done, result) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = done.send(load_gif(&path).map(|frames| frames.len()));
+        });
+        let loaded = result
+            .recv_timeout(std::time::Duration::from_secs(20))
+            .expect("the load ends");
+        assert!(
+            matches!(loaded, Err(AnimaError::ImageDecode(_))),
+            "{loaded:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_frame_bigger_than_its_gif_is_refused_before_it_is_allocated() {
+        // An 8×8 GIF — past the header check — whose frame says
+        // 46003×46003: 8.4 GB were asked for at once (found by the
+        // `content_sniff` fuzz target, which this is).
+        let dir = tmp_dir("frame_bomb");
+        let path = dir.join("bomb.gif");
+        std::fs::write(
+            &path,
+            [
+                71, 73, 70, 56, 55, 97, 8, 0, 8, 0, 129, 0, 0, 90, 40, 200, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 44, 0, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179,
+                179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179,
+                179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 179, 0, 10, 10,
+                10, 40, 0, 0, 0, 112, 1, 0, 157, 1, 42, 8, 0, 8, 0, 1, 64, 38, 37, 160, 2, 116, 0,
+                0, 32, 43, 61, 0, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
+                130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
+                130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
+                130, 130, 130, 130, 130, 130, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+                10, 10, 10, 10, 28, 72, 160, 160, 193, 131, 8, 19, 42, 76, 24, 16, 0, 59,
+            ],
+        )
+        .unwrap();
+        assert!(crate::animation::loader::validate_image_dimensions(&path).is_ok());
+        assert!(matches!(load_gif(&path), Err(AnimaError::ImageDecode(_))));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

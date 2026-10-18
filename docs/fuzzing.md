@@ -16,6 +16,8 @@ that sit closest to untrusted input:
 | `small_parsers` | `speech::fuzz_small_parsers` | 1.5's hand-written text parsers fed from `config.toml`: bubble colours, `HH:MM` times, `MM-DD` dates and when a reminder is due, sound names, own hours, `{placeholders}` |
 | `config_round_trip` | `config::fuzz_config_round_trip` | `config.toml` itself, as a newer version or a hand edit leaves it: whatever reads, written and read again, must read and write the same — what is set aside and the keys this build does not know included (1.5) |
 | `scene_save_over` | `scenes::fuzz_scene_save_over` | a named scene's file saved over itself (1.5): whatever reads must read the same after, leave the same out, keep every key a scene does not read as it was, and not change when saved again |
+| `content_sniff` | `animation::loader::fuzz_content_sniff` | a dropped or library file's bytes under a name that may lie (1.5): the type known by its first bytes, the drop's checks, the dimension check, the decode and how its failure is said — not the frame cache. The first byte picks the name |
+| `folder_drop` | `animation::loader::fuzz_folder_drop` | a dropped folder (1.5), built from the input: PNG frames, broken ones, named pipes, links to `/dev/zero`, out and back, folders named like pictures, thousands of empty frames — checked, typed, measured and decoded as a sequence. A pipe or link that is opened hangs a run: run with `-timeout` |
 
 The invariant for every target is "**never panic**, return a typed
 error or sensible default on adversarial input." `config_round_trip`
@@ -75,7 +77,19 @@ runs in 10 ms. `scene_save_over`, added then, found within its first
 half hour that a scene saved over its file rewrote a list it does not
 read: two `[[windows]]` with one `id` had the second's keys written into
 the first. Fixed (`SetAside::note_unknown_in_lists`), it ran another
-half hour: 12 million runs, nothing. To repeat one:
+half hour: 12 million runs, nothing. `content_sniff` and `folder_drop`
+came with the round that read every file kind and folder a drop takes
+(2026-10). Within its first minute `content_sniff` found a 55-byte GIF,
+cut short, that the frame loop read for good — `image`'s GIF frames
+answer every next frame with the same error, and the loop went on past
+errors, logging each: a drop froze the app and filled its log. Fixed
+(the frames stop at the first that fails), its next quarter hour found
+an 8×8 GIF whose frame claimed 46003×46003, 8.4 GB asked for at once —
+the GIF and WebP decoders had no `Limits`. Both fixed, both inputs kept
+as seeds, it ran another quarter hour: 5.8 million runs, nothing.
+`folder_drop` — pipes, links to `/dev/zero` and out of the folder,
+thousands of empty frames — ran a quarter hour: 122 thousand runs,
+nothing. To repeat one:
 
 ```bash
 cargo +nightly fuzz run scene_file_read -- -max_total_time=1800 -rss_limit_mb=2048

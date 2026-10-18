@@ -45,7 +45,7 @@ Caps in `src/constants.rs`:
 | `MAX_ANIMATION_FRAMES` | 600 | gif/webp/video/cache loaders |
 | `MAX_VIDEO_FRAMES` | 600 | video loader |
 | `MAX_SEQUENCE_FILES` | 1000 | png_sequence loader (enumeration) |
-| `MAX_DECODED_ASSET_BYTES` | 512 MB | gif/webp/png_sequence/video/cache |
+| `MAX_DECODED_ASSET_BYTES` | 256 MiB | gif/webp/png_sequence/video/cache, and each GIF / WebP frame's allocation (`animated::limits`) |
 | `MAX_ASSET_FILE_BYTES` | 200 MB | drag-drop pre-validation |
 | `MAX_ENTITIES` | 64 | `AppConfig::load` truncation |
 | `MAX_DROP_SIZE` | 256 px | resize on drag-drop |
@@ -53,6 +53,16 @@ Caps in `src/constants.rs`:
 
 A pathological GIF / WebP / video / PNG sequence cannot run us out of
 memory at parse or decode time. Truncation is logged at `warn` level.
+Nor can one keep a decode going: the frames of an animation stop at the
+first one that fails. Until 1.5 the loop went on past a failure, and
+`image`'s GIF frames answer every next frame with the same error once
+the file is cut short — 55 bytes held a drop and wrote a warning per
+turn of the loop, for good (found by the `content_sniff` fuzz target).
+The size a GIF states in its header is checked before decoding, but each
+frame carries a size of its own: an 8×8 GIF with a 46003×46003 frame had
+8.4 GB allocated at once. The animated decoders run within `image`'s
+`Limits` now — the same 4096-pixel side and the decoded-bytes cap —
+which it checks before each frame's allocation (`animated::limits`).
 
 ### Drag-drop rejection at the boundary
 
