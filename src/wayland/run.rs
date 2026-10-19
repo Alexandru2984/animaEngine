@@ -119,6 +119,9 @@ pub fn run_native(
     // This loop paces itself (`FRAME_INTERVAL`), and behind the windows a
     // covered surface must not stall it waiting to present.
     renderer.prefer_mailbox();
+    // The pointer is this client's to know over its own input region
+    // only: in pass-through, nowhere.
+    crate::ui::panels::cursor_seen_in_edit_mode_only();
     let mut egui_renderer = WaylandEguiRenderer::new(
         &renderer.shared.device,
         renderer.shared.surface_format,

@@ -108,6 +108,7 @@ inspector-nothing-selected-hint = Click a character in the Scene tab, or press N
 behavior-idle = Idle
 behavior-walk = Walk around
 behavior-follow = Follow cursor
+behavior-follow-edit-mode-only = This desktop tells the app where the pointer is only in edit mode: outside it, the character goes to where the pointer last was.
 behavior-follow-character = Follow a character
 behavior-play-tag = Play tag
 behavior-wander = Bounded wander

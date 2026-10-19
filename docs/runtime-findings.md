@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R74 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R75 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2805,3 +2805,32 @@ In the rig, a hide by Ctrl+Shift+H cannot be undone by Ctrl+Shift+H from
 the virtual keyboard: under sway, XWayland gets keys only while one of
 its windows has the focus, and the hidden overlay was the one. On a
 real X server the grab is the root window's and holds.
+
+### R75 · Every behavior run; "Follow cursor" stood still on Wayland, unexplained — `FIXED`
+
+Found running every behavior out of edit mode on both backends and
+watching it from screenshots — one character, or two for following and
+tag, its centre found every half second by the colour of its pixels.
+Idle held still; Walk went at the speed set and turned at the screen's
+edge; Bounded wander stayed in its box; Bounce rose and fell its
+amplitude in its period; Follow a character trailed the walker at its
+distance; Tag ran the chased one into a corner, caught it, and swapped;
+a Rhai script walked at its parameter's speed; with gravity a character
+fell and stayed on the floor. Across two monitors a walker went over
+the boundary and turned at the desktop's far edge — on native Wayland,
+and on the X11 path on a real X server (Xorg's dummy driver; under
+sway's XWayland the second monitor's window lands on the first, an
+artefact of the rig).
+
+Follow cursor did not move on native Wayland. That is known and
+written down (`docs/wayland.md`): a Wayland client learns where the
+pointer is over its own input region only, and in pass-through that is
+none, so a character follows the cursor in edit mode and goes to where
+it last was outside it. The app did not say so: picked in the
+Inspector, the character stood still, with nothing to tell why.
+
+**Fixed:** under "Follow cursor" the Inspector says so on native
+Wayland (`behavior-follow-edit-mode-only`, in ten languages), set by
+the native loop (`panels::cursor_seen_in_edit_mode_only`). **Checked:**
+said there and not on the X11 path; in edit mode the character reached
+the pointer, and out of it stayed where the pointer last was.

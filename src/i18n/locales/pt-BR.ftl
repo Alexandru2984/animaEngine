@@ -85,6 +85,7 @@ inspector-nothing-selected-hint = Clique num personagem na aba Cena, ou pression
 behavior-idle = Parado
 behavior-walk = Andar
 behavior-follow = Seguir o cursor
+behavior-follow-edit-mode-only = Esta área de trabalho só informa ao app onde está o ponteiro no modo de edição: fora dele, o personagem vai para onde o ponteiro esteve por último.
 behavior-follow-character = Seguir um personagem
 behavior-play-tag = Brincar de pega-pega
 behavior-wander = Vagar limitado

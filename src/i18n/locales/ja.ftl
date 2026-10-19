@@ -85,6 +85,7 @@ inspector-nothing-selected-hint = シーンタブでキャラクターをクリ�
 behavior-idle = 待機
 behavior-walk = 歩き回る
 behavior-follow = カーソルを追う
+behavior-follow-edit-mode-only = このデスクトップでは、ポインターの位置は編集モード中にしかアプリに伝わりません。編集モード以外では、キャラクターはポインターが最後にあった場所へ向かいます。
 behavior-follow-character = キャラクターについていく
 behavior-play-tag = 鬼ごっこをする
 behavior-wander = 範囲内をさまよう

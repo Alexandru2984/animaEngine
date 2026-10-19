@@ -667,6 +667,12 @@ read-only D-Bus names, for the idle time
   also left a directory each in `/tmp` every run. The tests touch
   neither now; a whole run, both feature sets, leaves nothing behind
   outside the checkout.
+- **"Follow cursor" says why it stands still on native Wayland.** A
+  Wayland app learns where the pointer is only over its own window, so
+  outside edit mode a character goes where the pointer last was, and
+  waits; the Inspector now says so beneath the behavior. Every other
+  behavior was run and watched on both backends and two monitors, and
+  does what it says.
 - **Two more warnings that could repeat with the frames** say a streak
   once: an extra monitor's window on the X11 path whose frames kept
   failing, and a Windows layered window whose readback kept failing. A

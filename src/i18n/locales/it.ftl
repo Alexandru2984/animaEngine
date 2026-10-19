@@ -85,6 +85,7 @@ inspector-nothing-selected-hint = Clicca un personaggio nella scheda Scena, o pr
 behavior-idle = In riposo
 behavior-walk = Cammina
 behavior-follow = Segui il cursore
+behavior-follow-edit-mode-only = Questo desktop comunica all’app la posizione del puntatore solo in modalità modifica: fuori, il personaggio va dove il puntatore è stato l’ultima volta.
 behavior-follow-character = Segui un personaggio
 behavior-play-tag = Giocare ad acchiapparella
 behavior-wander = Vagare entro limiti

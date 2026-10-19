@@ -85,6 +85,7 @@ inspector-nothing-selected-hint = Cliquez sur un personnage dans l'onglet Scène
 behavior-idle = Au repos
 behavior-walk = Se promener
 behavior-follow = Suivre le curseur
+behavior-follow-edit-mode-only = Ce bureau n’indique la position du pointeur à l’application qu’en mode édition : en dehors, le personnage va là où le pointeur était en dernier.
 behavior-follow-character = Suivre un personnage
 behavior-play-tag = Jouer à chat
 behavior-wander = Errance bornée

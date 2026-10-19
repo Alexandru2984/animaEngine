@@ -88,6 +88,7 @@ inspector-nothing-selected-hint = Kliknij postać w zakładce Scena lub naciśni
 behavior-idle = Bezczynny
 behavior-walk = Chodzi
 behavior-follow = Podąża za kursorem
+behavior-follow-edit-mode-only = Ten pulpit podaje aplikacji położenie kursora tylko w trybie edycji: poza nim postać idzie tam, gdzie kursor był ostatnio.
 behavior-follow-character = Podążaj za postacią
 behavior-play-tag = Bawi się w berka
 behavior-wander = Ograniczona wędrówka

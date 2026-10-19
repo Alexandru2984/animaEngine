@@ -219,6 +219,23 @@ fn keep_focus_in_view(ui: &mut egui::Ui) {
     }
 }
 
+/// Whether the app is told where the pointer is outside edit mode. Not on
+/// native Wayland, where a client learns it only over its own input
+/// region — in pass-through, none (`docs/wayland.md`) — so the Inspector
+/// says so under "Follow cursor": a character there stood still or went
+/// to where the pointer last was, with nothing to say why.
+static CURSOR_SEEN_OUTSIDE_EDIT_MODE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(true);
+
+/// The native Wayland loop: the pointer is known in edit mode only.
+pub fn cursor_seen_in_edit_mode_only() {
+    CURSOR_SEEN_OUTSIDE_EDIT_MODE.store(false, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn cursor_seen_outside_edit_mode() -> bool {
+    CURSOR_SEEN_OUTSIDE_EDIT_MODE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// A tab a shortcut asked for, shown at the panel's next frame: 0 for
 /// none, else one more than its place in [`SettingsTab::ALL`].
 static ASKED_TAB: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);

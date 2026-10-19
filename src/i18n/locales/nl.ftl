@@ -85,6 +85,7 @@ inspector-nothing-selected-hint = Klik op een figuur in het tabblad Scène, of d
 behavior-idle = Inactief
 behavior-walk = Rondlopen
 behavior-follow = Cursor volgen
+behavior-follow-edit-mode-only = Dit bureaublad vertelt de app alleen in de bewerkmodus waar de aanwijzer is: daarbuiten gaat de figuur naar waar de aanwijzer het laatst was.
 behavior-follow-character = Een figuur volgen
 behavior-play-tag = Tikkertje spelen
 behavior-wander = Begrensd zwerven

@@ -1068,6 +1068,16 @@ fn behavior_picker(ui: &mut egui::Ui, behavior: &mut Behavior, others: Others<'_
             {
                 changed = true;
             }
+            if !super::cursor_seen_outside_edit_mode() {
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(t("behavior-follow-edit-mode-only"))
+                            .text_style(theme::caption())
+                            .weak(),
+                    )
+                    .wrap(),
+                );
+            }
         }
         Behavior::BoundedWander {
             x_min,

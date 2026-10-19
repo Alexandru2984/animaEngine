@@ -88,6 +88,7 @@ inspector-nothing-selected-hint = Apasă pe un personaj din tab-ul Scenă, sau a
 behavior-idle = Pe loc
 behavior-walk = Plimbare
 behavior-follow = Urmărește cursorul
+behavior-follow-edit-mode-only = Desktopul acesta îi spune aplicației unde e cursorul doar în modul editare: în afara lui, personajul merge unde a fost cursorul ultima oară.
 behavior-follow-character = Urmează un personaj
 behavior-play-tag = Joacă de-a prinselea
 behavior-wander = Rătăcire delimitată

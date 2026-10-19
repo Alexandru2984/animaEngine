@@ -85,6 +85,7 @@ inspector-nothing-selected-hint = Klicken Sie eine Figur im N „Szene“ an ode
 behavior-idle = Untätig
 behavior-walk = Umherlaufen
 behavior-follow = Cursor folgen
+behavior-follow-edit-mode-only = Dieser Desktop teilt der App die Zeigerposition nur im Bearbeitungsmodus mit: außerhalb geht die Figur dorthin, wo der Zeiger zuletzt war.
 behavior-follow-character = Einer Figur folgen
 behavior-play-tag = Fangen spielen
 behavior-wander = Begrenztes Wandern
