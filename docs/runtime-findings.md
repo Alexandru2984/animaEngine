@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R72 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R73 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2751,3 +2751,27 @@ keys-while-drawn rule.
 
 Left as it is: the keys' own names — Del, Bksp, PgUp, Space, Esc — are
 English in every language, the modifiers translated beside them.
+
+### R73 · Duplicate failed for the demo characters, out of the source tree — `FIXED`
+
+Found going through the right-click menu item by item on both backends
+— opened with Shift+F10 and with the pointer, each item checked in the
+saved config and taken back with Undo; arranging and grouping five;
+Save as GIF and Share through a stand-in portal; a drag, a click to
+select. All of it worked but the first item: Duplicate said `Duplicate
+failed: asset not found: …/assets/demo/ghost`.
+
+A copy was loaded again from the original's picture path as it is
+written, and a demo character's is `assets/demo/ghost`, relative —
+resolved against the current directory. Loading a scene resolves it
+(beside the executable, the current directory, then the data directory
+the demo pictures are made in); Duplicate did not. Started from the
+source tree it worked, so nobody saw it; started from a desktop's menu,
+the current directory is the home folder. And a duplicate kept only the
+scale and opacity — not the behavior, speech, hours, sounds, or a
+Shimeji's walk and fall — where a copy and paste kept everything.
+
+**Fixed:** Duplicate is a copy and a paste (`duplicate_entities` →
+`paste_with`): the whole character, a fresh id, 30 px along, a whole
+group's copies a group. A failure is said in the user's words, for
+paste too. **Checked:** 33 of 33 on each backend.

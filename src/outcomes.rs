@@ -273,15 +273,22 @@ pub fn cut_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> usize {
 /// says where), on top of the others, and select them. A whole group
 /// copied comes back as a group. Returns the new characters' indices.
 pub fn paste_entities(copied: &crate::clipboard::Copied, ctx: &mut OutcomeCtx<'_>) -> Vec<usize> {
-    paste_with(copied, ctx, ("toast-pasted", "toast-pasted-many"))
+    paste_with(
+        copied,
+        ctx,
+        ("toast-pasted", "toast-pasted-many"),
+        "toast-paste-failed",
+    )
 }
 
 /// Add `copied` to the scene, selected — fresh ids, on top, out of the
-/// way of who is there — and say so with `said` (one name, or how many).
+/// way of who is there — and say so with `said` (one name, or how many),
+/// or what stopped it with `failed_key`.
 fn paste_with(
     copied: &crate::clipboard::Copied,
     ctx: &mut OutcomeCtx<'_>,
     said: (&str, &str),
+    failed_key: &str,
 ) -> Vec<usize> {
     let mut pasted = Vec::new();
     let mut names = Vec::new();
@@ -312,7 +319,7 @@ fn paste_with(
             // budget: one toast, for the first.
             Err(e) => {
                 tracing::warn!("Paste of '{}' failed: {e}", cfg.name);
-                failed.get_or_insert(e.to_string());
+                failed.get_or_insert(e.said());
             }
         }
     }
@@ -332,8 +339,7 @@ fn paste_with(
     if let Some(error) = failed {
         let mut args = fluent::FluentArgs::new();
         args.set("error", error);
-        ctx.toasts
-            .error(crate::i18n::t_args("toast-paste-failed", &args));
+        ctx.toasts.error(crate::i18n::t_args(failed_key, &args));
     }
     if pasted.is_empty() {
         return pasted;
@@ -459,96 +465,32 @@ fn group_like(
     }
 }
 
-/// Copy entity `idx` 30 px down and right, keeping its scale and opacity,
-/// and select the copy. Returns the copy's index.
+/// Copy entity `idx` beside it and select the copy. Returns the copy's
+/// index.
 #[cfg(test)]
 pub fn duplicate_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> Option<usize> {
     duplicate_entities(&[idx], ctx).first().copied()
 }
 
-/// Copy the entities at `indices`, each 30 px down and right of its
-/// original, and select the copies — the primary's copy as the primary.
-/// One toast for them all. Returns the copies' indices; the originals'
-/// are unchanged, since copies are appended.
+/// Copy the entities at `indices` — everything about them, as a copy and
+/// a paste would: behavior, speech, hours, a Shimeji's walk and fall —
+/// beside the originals, and select the copies. A whole group's copies
+/// make a group like it. Returns their indices.
+///
+/// It used to load each copy again from its picture's path as written,
+/// relative to wherever the app was started — so a demo character, kept
+/// as `assets/demo/…`, could not be duplicated by an app started from the
+/// desktop's menu — and to keep only the scale and opacity.
 pub fn duplicate_entities(indices: &[usize], ctx: &mut OutcomeCtx<'_>) -> Vec<usize> {
-    // A whole group duplicated gives a group of the copies (1.5): a click
-    // on one of them then takes them all, as on the originals.
-    let source_group = ctx.scene.exact_group(indices).cloned();
-    let mut copies = Vec::new();
-    let mut names = Vec::new();
-    for &idx in indices {
-        match copy_entity(idx, ctx) {
-            Some(Ok((new_idx, name))) => {
-                copies.push(new_idx);
-                names.push(name);
-            }
-            Some(Err(e)) => {
-                tracing::error!("Duplicate failed: {e}");
-                let mut args = fluent::FluentArgs::new();
-                args.set("error", e);
-                ctx.toasts
-                    .error(crate::i18n::t_args("toast-duplicate-failed", &args));
-                // One toast, not one per character: what stopped this one
-                // — the entity limit, the memory budget — stops the rest.
-                break;
-            }
-            None => {}
-        }
-    }
-    if copies.is_empty() {
-        return copies;
-    }
-    if let Some(source) = source_group.filter(|_| copies.len() == indices.len()) {
-        let mut args = fluent::FluentArgs::new();
-        args.set("name", source.name.clone());
-        // Looking like the originals do — only 30 px along.
-        group_like(
-            &source,
-            &copies,
-            crate::i18n::t_args("group-copy-name", &args),
-            ctx.scene,
-        );
-    }
-    ctx.selection.select_all_of(&copies);
-    *ctx.config_dirty = true;
-    ctx.toasts.success(name_or_count(
-        &names,
-        "toast-duplicated",
-        "toast-duplicated-many",
-    ));
-    copies
-}
-
-/// Add the copy of `idx`; its index and the original's name. `None`
-/// when there is no entity at `idx`.
-fn copy_entity(idx: usize, ctx: &mut OutcomeCtx<'_>) -> Option<Result<(usize, String), String>> {
-    let src = ctx.scene.entities.get(idx)?;
-    // Everything read before the add: reading through `src` after the
-    // scene's Vec has grown is the pattern `get`/`get_mut` retire.
-    let src_name = src.name.clone();
-    let src_path = std::path::PathBuf::from(&src.asset_path);
-    let (new_x, new_y) = (src.x + 30.0, src.y + 30.0);
-    let (scale, opacity) = (src.scale, src.opacity);
-
-    match ctx.scene.add_entity_from_path(&src_path, new_x, new_y) {
-        Ok(new_idx) => {
-            if let Some(entity) = ctx.scene.entities.get_mut(new_idx) {
-                entity.scale = scale;
-                entity.opacity = opacity;
-            }
-            if let Some(renderer) = ctx.renderer.as_deref_mut() {
-                if let Some(entity) = ctx.scene.entities.get(new_idx) {
-                    renderer.ensure_texture(entity);
-                }
-                if let Some(entity) = ctx.scene.entities.get_mut(new_idx) {
-                    entity.texture_dirty = false;
-                }
-            }
-            tracing::info!("Duplicated '{src_name}' at ({new_x:.0}, {new_y:.0})");
-            Some(Ok((new_idx, src_name)))
-        }
-        Err(e) => Some(Err(e.to_string())),
-    }
+    let Some(copied) = crate::clipboard::Copied::of(ctx.scene, indices) else {
+        return Vec::new();
+    };
+    paste_with(
+        &copied,
+        ctx,
+        ("toast-duplicated", "toast-duplicated-many"),
+        "toast-duplicate-failed",
+    )
 }
 
 /// Make the scene the one saved in `path` (`crate::scenes`) and say so;
@@ -1417,6 +1359,7 @@ fn add_shared_characters(
         &copied,
         ctx,
         ("toast-character-added", "toast-characters-added"),
+        "toast-paste-failed",
     );
     !added.is_empty()
 }
@@ -1802,8 +1745,8 @@ mod tests {
         assert!(w.scene.groups.is_empty());
     }
 
-    /// Everything about the character comes along — not just its asset,
-    /// scale and opacity as with Duplicate — on top, with a fresh id.
+    /// Everything about the character comes along, on top, with a fresh
+    /// id.
     #[test]
     fn a_paste_brings_the_whole_character() {
         let mut w = demo_world();
@@ -1825,6 +1768,26 @@ mod tests {
             .all(|e| e.z_index < copy.z_index || e.id == copy.id));
         assert_eq!(w.selection.selected_indices(), pasted);
         assert!(w.dirty);
+    }
+
+    /// Duplicate is a copy and a paste: the whole character, beside it.
+    /// It loaded the picture again from its path as written, relative
+    /// to where the app started, and kept only the scale and opacity.
+    #[test]
+    fn a_duplicate_is_the_whole_character_beside_it() {
+        let mut w = demo_world();
+        w.scene.entities[0].behavior = crate::behavior::Behavior::WalkAround { speed: 55.0 };
+        w.scene.entities[0].physics.enable();
+        let before = w.scene.entities.len();
+        let copies = duplicate_entities(&[0], &mut w.ctx());
+        assert_eq!(copies, vec![before]);
+        let (original, copy) = (&w.scene.entities[0], &w.scene.entities[before]);
+        assert_ne!(copy.id, original.id);
+        assert_eq!(copy.asset_path, original.asset_path);
+        assert_eq!(copy.behavior, original.behavior);
+        assert!(copy.physics.enabled);
+        assert_eq!((copy.x, copy.y), (original.x + 30.0, original.y + 30.0));
+        assert_eq!(w.selection.selected_indices(), copies);
     }
 
     /// Copied together, a follower and its leader come back together: the

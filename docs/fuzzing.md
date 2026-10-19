@@ -89,7 +89,17 @@ the GIF and WebP decoders had no `Limits`. Both fixed, both inputs kept
 as seeds, it ran another quarter hour: 5.8 million runs, nothing.
 `folder_drop` — pipes, links to `/dev/zero` and out of the folder,
 thousands of empty frames — ran a quarter hour: 122 thousand runs,
-nothing. To repeat one:
+nothing. Then every target again, half an hour each from its seeds, six
+at a time, with one set of decode limits for every picture
+(`loader::decode_limits`), 2026-10-19: no crash, leak, timeout or
+out-of-memory in any. Runs: `keychord_parse` 1.03 billion,
+`avcc_nalu_walk` 571 million, `uri_list_parse` 509 million,
+`cache_deserialize` 506 million, `small_parsers` 337 million,
+`asset_type_detect` 252 million, `shimeji_xml` 181 million,
+`scene_file_read` 103 million, `thumbnail_decode` 58 million,
+`content_sniff` 9.2 million, `scene_save_over` 9.1 million,
+`config_round_trip` 5.1 million, `folder_drop` 144 thousand. To repeat
+one:
 
 ```bash
 cargo +nightly fuzz run scene_file_read -- -max_total_time=1800 -rss_limit_mb=2048

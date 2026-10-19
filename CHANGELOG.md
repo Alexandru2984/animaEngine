@@ -681,6 +681,12 @@ read-only D-Bus names, for the idle time
   what a dropped file's bytes decide (`content_sniff`), beside one over
   dropped folders — named pipes, links to `/dev/zero`, thousands of
   frames (`folder_drop`).
+- **Duplicate failed for the demo characters** in an app started from the
+  desktop's menu — "asset not found: …/assets/demo/ghost": a copy was
+  loaded again from the picture's path as written, against the current
+  directory. And it kept only the size and opacity. Duplicate is a copy
+  and a paste now: the whole character — behavior, speech, hours, sounds,
+  a Shimeji's walk and fall — beside the original.
 - **A key pressed to record a shortcut also did its old job.** Escape
   cancelled the recording and left edit mode; `S` was recorded and saved
   the config; `Delete` would have deleted the selected character on its
