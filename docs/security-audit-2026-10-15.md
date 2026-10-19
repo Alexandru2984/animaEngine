@@ -93,6 +93,18 @@ Douăsprezece blocuri de cel puțin zece linii semnificative apăreau de două o
 
 Rămân trei, lăsate cu intenție: argumentele panoului în cele două bucle (plumbing între backend-uri), pregătirea comună a două metode care împrumută câmpuri diferite din `App`, și listele de parametri ale panourilor.
 
+## Adăugat pe 19.10.2026
+
+Pe 16.10 RustSec a marcat `zvariant` (RUSTSEC-2026-0370), `zbus_names`
+(-0371) și `zvariant_derive` (-0372) ca nemenținute: au fost mutate în
+`zbus` 6.0. Job-ul `cargo audit` a picat pe primul push de după. Sunt
+accesibile la rulare (serializarea D-Bus, prin `zbus::zvariant`), dar
+fără defect cunoscut. Versiunile 5.x vin prin `zbus` 5, folosit și de
+`ksni` 0.3, iar 4.x prin `accesskit_unix` 0.13 (egui 0.31). Un `zbus` 6
+doar pentru noi ar adăuga o a treia copie și nu ar scoate niciuna.
+Acceptate în `ci.yml` și `deny.toml`, cu justificarea acolo; de scos
+când `ksni` și stiva egui/accesskit trec pe `zbus` 6.
+
 ## Riscuri rămase
 
 - **H.264 se decodează în proces, de openh264 (C).** E documentat în modelul de amenințare; decodarea într-un proces separat e în lista de amânări.
