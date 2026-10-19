@@ -370,6 +370,35 @@ code, the decoded frames, egui's state — is some 10–15 MB of heap and
 its binary. Nothing found worth trimming; on a desktop with a GPU, the
 seven-day protocol below is the measure that counts.
 
+### How fast the log grows on a broken config (rig, 2026-10-19)
+
+The app may be started at login and log into the journal for days, so
+a fault that repeats with the frames is a disk filling. A config made to
+walk every error path it could — a picture missing, a broken one, six
+behavior scripts (missing, failing every tick, looping until stopped,
+not parsing, writing NaN, printing), a follow target and a tag partner
+not there, a monitor not there, hours `25:99`, sounds gone, a group id
+twice and a character in two groups, a schedule to scenes not there,
+reminders every minute and at `77:77`, keys that do not exist, window
+awareness on — ran three minutes on each backend: a minute in edit mode
+with the pointer moving over the characters, a minute in pass-through
+the same, a minute still. Default log level.
+
+| | native Wayland | X11 path |
+|---|---|---|
+| Starting, every fault said | 18.1 KB | 18.9 KB |
+| Edit mode, pointer about, 60 s | +286 B | +258 B |
+| Pass-through, pointer about, 60 s | +351 B | +436 B |
+| Still, 60 s | +100 B | +72 B |
+
+Every fault is said once; what came again was a reminder said each
+minute, as it should be. Reading every `warn!`/`error!`/`info!` in code
+that runs with the frames or on outside events found two that would
+not be: an extra monitor's window on the X11 path whose frames kept
+failing, and a Windows layered window whose readback kept failing,
+each a warning per frame. Both say a streak once now
+(`renderer::ErrorOnce`), as the primary window has since 1.5.
+
 ## 7-day desktop protocol (manual, pre-1.0)
 
 The automated soak runs headless on synthetic load; the real-session

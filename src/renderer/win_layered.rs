@@ -63,6 +63,9 @@ pub struct LayeredTarget {
     readback: wgpu::Buffer,
     padded_bytes_per_row: u32,
     dib: Dib,
+    /// A frame whose readback failed, said once a streak: it was said
+    /// every frame (`super::ErrorOnce`).
+    errors: super::ErrorOnce,
 }
 
 impl LayeredTarget {
@@ -85,6 +88,7 @@ impl LayeredTarget {
             readback,
             padded_bytes_per_row,
             dib: Dib::new(width, height),
+            errors: super::ErrorOnce::default(),
         }
     }
 
@@ -150,9 +154,9 @@ impl LayeredTarget {
         });
         device.poll(wgpu::Maintain::Wait);
         match rx.recv() {
-            Ok(Ok(())) => {}
+            Ok(Ok(())) => self.errors.drew(),
             other => {
-                tracing::warn!("Layered readback map failed: {other:?}; dropping frame");
+                self.errors.failed("the layered window's readback", &other);
                 return;
             }
         }

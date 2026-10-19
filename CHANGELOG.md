@@ -667,6 +667,11 @@ read-only D-Bus names, for the idle time
   also left a directory each in `/tmp` every run. The tests touch
   neither now; a whole run, both feature sets, leaves nothing behind
   outside the checkout.
+- **Two more warnings that could repeat with the frames** say a streak
+  once: an extra monitor's window on the X11 path whose frames kept
+  failing, and a Windows layered window whose readback kept failing. A
+  config made to break every way it could logs 18 KB on starting and a
+  few hundred bytes a minute after (docs/soak-testing.md).
 - **A GIF cut short froze the app and filled the log.** Its decoder
   answers every frame after the cut with the same error, and the loop
   reading the frames went on past errors, logging each — a 55-byte file,

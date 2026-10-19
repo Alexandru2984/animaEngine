@@ -82,6 +82,10 @@ pub(super) struct WindowSlot {
     pub tap_rects: Vec<crate::tap::SurfaceRect>,
     /// Its last frame: `None` draws the next whatever it shows.
     pub last_frame: Option<LastFrame>,
+    /// Its failed frames, said once each (`renderer::ErrorOnce`): a
+    /// window that kept failing logged a warning every frame, the
+    /// primary's fix having missed the other monitors' windows.
+    pub render_errors: crate::renderer::ErrorOnce,
 }
 
 /// What a window's last frame showed, for per-window pacing: in the
@@ -388,6 +392,7 @@ impl App {
                     pointer: None,
                     tap_rects: Vec::new(),
                     last_frame: None,
+                    render_errors: crate::renderer::ErrorOnce::default(),
                 },
             );
             // The new window gets the keyboard hint on the next frame.
@@ -538,6 +543,7 @@ impl App {
                     );
                     outcome = outcome.or(decided);
                     slot.surface.present(&renderer.shared, output);
+                    slot.render_errors.drew();
                     slot.last_frame = Some(LastFrame {
                         key,
                         overlay: painted,
@@ -550,9 +556,7 @@ impl App {
                     // Its contents went with it.
                     slot.last_frame = None;
                 }
-                Err(e) => {
-                    tracing::warn!("Render error on {}: {e:?}", slot.monitor.name);
-                }
+                Err(e) => slot.render_errors.failed(&slot.monitor.name, &e),
             }
         }
         if let Some(outcome) = outcome {
