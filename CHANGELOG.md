@@ -687,6 +687,11 @@ read-only D-Bus names, for the idle time
   directory. And it kept only the size and opacity. Duplicate is a copy
   and a paste now: the whole character — behavior, speech, hours, sounds,
   a Shimeji's walk and fall — beside the original.
+- **Keys are named in your language** in the Keybindings tab and the
+  command palette, as your keyboard labels them — Entf, Leertaste, Bild↑
+  in German, Suppr, Échap in French, Spațiu in Romanian — where they were
+  English everywhere beside translated modifiers (`Strg+Del`). "Bksp"
+  reads "Backspace" in English. The config file keeps the English names.
 - **A key pressed to record a shortcut also did its old job.** Escape
   cancelled the recording and left edit mode; `S` was recorded and saved
   the config; `Delete` would have deleted the selected character on its

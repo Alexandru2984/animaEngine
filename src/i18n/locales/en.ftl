@@ -233,6 +233,18 @@ key-mod-ctrl = Ctrl
 key-mod-shift = Shift
 key-mod-alt = Alt
 key-mod-super = Super
+# The named keys as this language's keyboards label them, in the
+# Keybindings tab and the command palette. The config file keeps English.
+key-escape = Esc
+key-space = Space
+key-tab = Tab
+key-enter = Enter
+key-backspace = Backspace
+key-delete = Del
+key-home = Home
+key-end = End
+key-page-up = PgUp
+key-page-down = PgDn
 
 # ── Action labels (D.1.7) ─────────────────────────────────────────────
 # Used by the Keybindings tab and the command palette. Keep aligned

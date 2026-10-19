@@ -167,7 +167,7 @@ onboarding-coach-skip = Tour überspringen
 onboarding-coach-done = Verstanden
 palette-replace-row = Szene ersetzen durch: { $preset }
 palette-append-row = Preset anhängen: { $preset }
-palette-footer-hint = Esc schließt · Strg+K schaltet um · ↑↓ + Enter wählt
+palette-footer-hint = Esc schließt · Strg+K schaltet um · ↑↓ + Eingabe wählt
 onboarding-dismiss = Schließen
 
 menu-duplicate = Duplizieren
@@ -223,6 +223,16 @@ key-mod-ctrl = Strg
 key-mod-shift = Shift
 key-mod-alt = Alt
 key-mod-super = Super
+key-escape = Esc
+key-space = Leertaste
+key-tab = Tab
+key-enter = Eingabe
+key-backspace = Rücktaste
+key-delete = Entf
+key-home = Pos1
+key-end = Ende
+key-page-up = Bild↑
+key-page-down = Bild↓
 
 # ── Action labels (D.1.7) — placeholder pending D.4 native-speaker audit
 action-toggle-edit-mode = Bearbeitungsmodus umschalten

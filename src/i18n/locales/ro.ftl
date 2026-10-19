@@ -227,6 +227,16 @@ key-mod-ctrl = Ctrl
 key-mod-shift = Shift
 key-mod-alt = Alt
 key-mod-super = Super
+key-escape = Esc
+key-space = Spațiu
+key-tab = Tab
+key-enter = Enter
+key-backspace = Backspace
+key-delete = Del
+key-home = Home
+key-end = End
+key-page-up = PgUp
+key-page-down = PgDn
 
 # ── Etichete acțiuni (D.1.7) ──────────────────────────────────────────
 action-toggle-edit-mode = Comută modul editare

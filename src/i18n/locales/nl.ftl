@@ -223,6 +223,16 @@ key-mod-ctrl = Ctrl
 key-mod-shift = Shift
 key-mod-alt = Alt
 key-mod-super = Super
+key-escape = Esc
+key-space = Spatie
+key-tab = Tab
+key-enter = Enter
+key-backspace = Backspace
+key-delete = Del
+key-home = Home
+key-end = End
+key-page-up = PgUp
+key-page-down = PgDn
 
 # ── Action labels (D.1.7) — placeholder pending D.4 native-speaker audit
 action-toggle-edit-mode = Bewerkmodus omschakelen

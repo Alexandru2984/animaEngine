@@ -106,18 +106,61 @@ impl KeyChord {
     /// parameter so a caller rendering a whole table looks them up once.
     pub fn display_str(&self, names: &ModifierNames) -> String {
         // See `canonical_str` for why this is `.as_str()`.
-        self.modifier_prefix(names) + self.key.display_str().as_str()
+        self.modifier_prefix(names) + self.key.display_with(names.keys.as_ref()).as_str()
+    }
+}
+
+/// What the named keys are called on the current language's keyboards —
+/// Space, Del, Backspace in English; Leertaste, Entf, Rücktaste in German
+/// — from the `key-*` messages. They used to be English in every
+/// language, beside modifiers that were translated: `Strg+Del`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyLabels {
+    pub escape: Cow<'static, str>,
+    pub space: Cow<'static, str>,
+    pub tab: Cow<'static, str>,
+    pub enter: Cow<'static, str>,
+    pub backspace: Cow<'static, str>,
+    pub delete: Cow<'static, str>,
+    pub home: Cow<'static, str>,
+    pub end: Cow<'static, str>,
+    pub page_up: Cow<'static, str>,
+    pub page_down: Cow<'static, str>,
+}
+
+impl KeyLabels {
+    /// The current UI language's labels.
+    pub fn localized() -> Self {
+        Self::from(|key| crate::i18n::t(key).into())
+    }
+
+    /// The labels `name` gives for each `key-*` message.
+    pub fn from(name: impl Fn(&str) -> Cow<'static, str>) -> Self {
+        Self {
+            escape: name("key-escape"),
+            space: name("key-space"),
+            tab: name("key-tab"),
+            enter: name("key-enter"),
+            backspace: name("key-backspace"),
+            delete: name("key-delete"),
+            home: name("key-home"),
+            end: name("key-end"),
+            page_up: name("key-page-up"),
+            page_down: name("key-page-down"),
+        }
     }
 }
 
 /// What each modifier is called: in the config file (always English), or
-/// on the keyboard of the current UI language.
+/// on the keyboard of the current UI language — and, for display there,
+/// the named keys too (`keys`; `None` keeps the short English forms).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModifierNames {
     pub ctrl: Cow<'static, str>,
     pub shift: Cow<'static, str>,
     pub alt: Cow<'static, str>,
     pub sup: Cow<'static, str>,
+    pub keys: Option<KeyLabels>,
 }
 
 impl ModifierNames {
@@ -127,6 +170,7 @@ impl ModifierNames {
         shift: Cow::Borrowed("Shift"),
         alt: Cow::Borrowed("Alt"),
         sup: Cow::Borrowed("Super"),
+        keys: None,
     };
 
     /// The current UI language's names, from the `key-mod-*` messages.
@@ -136,6 +180,7 @@ impl ModifierNames {
             shift: crate::i18n::t("key-mod-shift").into(),
             alt: crate::i18n::t("key-mod-alt").into(),
             sup: crate::i18n::t("key-mod-super").into(),
+            keys: Some(KeyLabels::localized()),
         }
     }
 }

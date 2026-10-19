@@ -421,6 +421,7 @@ mod tests {
                 shift: name("key-mod-shift"),
                 alt: name("key-mod-alt"),
                 sup: name("key-mod-super"),
+                keys: Some(crate::keybindings::KeyLabels::from(name)),
             };
             let displayed: HashSet<String> = Action::ALL
                 .iter()

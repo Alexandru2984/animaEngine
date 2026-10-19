@@ -26,7 +26,7 @@ pub mod shared;
 
 pub use action::Action;
 pub use bindings::KeyBindings;
-pub use chord::{ChordParseError, KeyChord, ModifierNames};
+pub use chord::{ChordParseError, KeyChord, KeyLabels, ModifierNames};
 pub use keys::{KeyCode, ModifierMask, NamedKey, SymbolKey};
 
 // ── Tests ──────────────────────────────────────────────────────────────

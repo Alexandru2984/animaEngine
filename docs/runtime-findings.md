@@ -2749,8 +2749,12 @@ way back. A remove button names its row: "Remove this binding: Del —
 Undo". **Checked:** 18 of 18 on each backend; a unit test holds the
 keys-while-drawn rule.
 
-Left as it is: the keys' own names — Del, Bksp, PgUp, Space, Esc — are
-English in every language, the modifiers translated beside them.
+The keys' own names — Del, Bksp, PgUp, Space, Esc — were English in
+every language, the modifiers translated beside them (`Strg+Del`). They
+are each language's keyboard labels now (`KeyLabels`, the `key-*`
+messages): Entf, Rücktaste, Bild↑ in German, Suppr, Échap in French,
+Spațiu in Romanian; arrows and F-keys as printed. The config file keeps
+the English names.
 
 ### R73 · Duplicate failed for the demo characters, out of the source tree — `FIXED`
 

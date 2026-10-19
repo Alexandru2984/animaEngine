@@ -158,6 +158,29 @@ impl KeyCode {
         }
     }
 
+    /// [`Self::display_str`], with the named keys as `labels` call them —
+    /// the current language's (`ModifierNames::localized`).
+    pub fn display_with(self, labels: Option<&super::KeyLabels>) -> String {
+        let (Self::Named(named), Some(labels)) = (self, labels) else {
+            return self.display_str();
+        };
+        let label = match named {
+            NamedKey::Escape => &labels.escape,
+            NamedKey::Space => &labels.space,
+            NamedKey::Tab => &labels.tab,
+            NamedKey::Enter => &labels.enter,
+            NamedKey::Backspace => &labels.backspace,
+            NamedKey::Delete => &labels.delete,
+            NamedKey::Home => &labels.home,
+            NamedKey::End => &labels.end,
+            NamedKey::PageUp => &labels.page_up,
+            NamedKey::PageDown => &labels.page_down,
+            // Arrows as glyphs, F-keys as printed, everywhere.
+            _ => return self.display_str(),
+        };
+        label.to_string()
+    }
+
     /// Build from an `egui::Key` — used by the rebinding UI when the
     /// user presses a chord to record. Mirrors `from_winit` but with
     /// egui's pre-mapped enum so the panel doesn't have to reach into

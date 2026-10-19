@@ -223,6 +223,16 @@ key-mod-ctrl = Ctrl
 key-mod-shift = Shift
 key-mod-alt = Alt
 key-mod-super = Super
+key-escape = Échap
+key-space = Espace
+key-tab = Tab
+key-enter = Entrée
+key-backspace = Retour arr.
+key-delete = Suppr
+key-home = Début
+key-end = Fin
+key-page-up = Pg préc.
+key-page-down = Pg suiv.
 
 # ── Action labels (D.1.7) — placeholder pending D.4 native-speaker audit
 action-toggle-edit-mode = Basculer le mode édition
