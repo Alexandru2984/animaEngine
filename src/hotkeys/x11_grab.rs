@@ -37,6 +37,7 @@ struct Grab {
     keycode: Keycode,
     mods: ModMask,
     action: Action,
+    chord: KeyChord,
     down: bool,
 }
 
@@ -95,6 +96,7 @@ impl Grabber {
                         keycode,
                         mods,
                         action,
+                        chord,
                         down: false,
                     });
                 }
@@ -152,7 +154,7 @@ impl Grabber {
 
     /// Wait for the shortcuts, and hand each press of one to `pressed`.
     /// Returns when the X server goes away.
-    pub fn serve(mut self, mut pressed: impl FnMut(Action)) {
+    pub fn serve(mut self, mut pressed: impl FnMut(Action, KeyChord)) {
         loop {
             let event = match self.conn.wait_for_event() {
                 Ok(event) => event,
@@ -167,7 +169,7 @@ impl Grabber {
                     for grab in &mut self.grabs {
                         if grab.keycode == e.detail && grab.mods == mods && !grab.down {
                             grab.down = true;
-                            pressed(grab.action);
+                            pressed(grab.action, grab.chord);
                         }
                     }
                 }

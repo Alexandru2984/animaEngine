@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R73 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R74 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2775,3 +2775,29 @@ Shimeji's walk and fall — where a copy and paste kept everything.
 `paste_with`): the whole character, a fresh id, 30 px along, a whole
 group's copies a group. A failure is said in the user's words, for
 paste too. **Checked:** 33 of 33 on each backend.
+
+### R74 · A global shortcut pressed to be recorded ran instead — `FIXED`
+
+Found reviewing R72 on the X11 path, where the app grabs its global
+shortcuts itself: recording Ctrl+Shift+P for Redo paused every animation
+and recorded nothing. The grab on the root window takes a grabbed chord
+before the focused window sees it, so R72's hold on the keyboard never
+came into it; the grab's thread turned the press into its action at
+once. Through the portal (native Wayland, an X11 session that has one)
+the desktop owns the keys: the action ran there too.
+
+**Fixed:** a global shortcut reaches the loops as what it is —
+`AnimaEvent::Shortcut(action, chord)`, the chord where the backend knows
+it (the X11 grab, Windows; not the portal) — and the loops decide: while
+a shortcut is being recorded the chord goes to the recording, the
+action waits; otherwise it becomes its event, Hide or Show by what the
+overlay is now (it was each thread's own guess, which a hide from the
+tray left behind). **Checked:** on the X11 path Ctrl+Shift+P is recorded
+for Redo and pauses nothing, and not recording it pauses; hide and show
+through XTEST; the Keybindings sweep 18 of 18 on each backend again; a
+unit test hands a grabbed chord to a recording.
+
+In the rig, a hide by Ctrl+Shift+H cannot be undone by Ctrl+Shift+H from
+the virtual keyboard: under sway, XWayland gets keys only while one of
+its windows has the focus, and the hidden overlay was the one. On a
+real X server the grab is the root window's and holds.

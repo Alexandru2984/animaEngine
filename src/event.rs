@@ -8,6 +8,15 @@
 pub enum AnimaEvent {
     /// Toggle edit ↔ pass-through mode.
     ToggleEditMode,
+    /// A global shortcut was pressed: `action`, by the chord where the
+    /// backend knows it — the X11 grab and Windows do, the portal does not
+    /// (the desktop owns those keys). The loops turn it into the action's
+    /// event (`hotkeys::action_to_event`) — unless a shortcut is being
+    /// recorded, which takes the chord instead and leaves the action be.
+    Shortcut(
+        crate::keybindings::Action,
+        Option<crate::keybindings::KeyChord>,
+    ),
     /// Pause / resume global animation playback.
     ToggleGlobalPlayback,
     /// Hide the overlay window (set invisible).

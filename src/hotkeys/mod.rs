@@ -36,8 +36,6 @@ use global_hotkey::{
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(windows)]
-use std::sync::Arc;
-#[cfg(windows)]
 use winit::event_loop::EventLoopProxy;
 
 /// Owns the manager + the registered hotkeys (Windows). Dropping it
@@ -129,11 +127,7 @@ pub fn register(
         }
     };
 
-    // Track visibility state for HideOverlay's hard toggle. Stored as
-    // Arc<AtomicBool> so the closure stays `Send + 'static`.
-    let visible = Arc::new(AtomicBool::new(true));
-
-    let mut id_to_action: HashMap<u32, Action> = HashMap::new();
+    let mut id_to_action: HashMap<u32, (Action, KeyChord)> = HashMap::new();
     let mut registered_any = false;
 
     for (chord, action) in global_chords(bindings) {
@@ -152,7 +146,7 @@ pub fn register(
                     chord.canonical_str(),
                     action,
                 );
-                id_to_action.insert(hk.id(), action);
+                id_to_action.insert(hk.id(), (action, chord));
                 registered_any = true;
             }
             Err(e) => {
@@ -173,13 +167,13 @@ pub fn register(
         if event.state != HotKeyState::Pressed {
             return;
         }
-        let Some(action) = id_to_action.get(&event.id).copied() else {
+        let Some((action, chord)) = id_to_action.get(&event.id).copied() else {
             return;
         };
-        let Some(outgoing) = action_to_event(action, &visible) else {
-            return;
-        };
-        if proxy.send_event(outgoing).is_err() {
+        if proxy
+            .send_event(AnimaEvent::Shortcut(action, Some(chord)))
+            .is_err()
+        {
             // Event loop is closed — nothing left to do.
         }
     }));

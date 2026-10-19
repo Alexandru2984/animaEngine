@@ -869,6 +869,22 @@ impl ApplicationHandler<AnimaEvent> for App {
     /// Handle tray / global-hotkey commands routed through the event loop.
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AnimaEvent) {
         match event {
+            AnimaEvent::Shortcut(action, chord) => {
+                // Being recorded, the shortcut is the recorder's.
+                if self
+                    .ui
+                    .as_ref()
+                    .is_some_and(|ui| ui.take_for_recording(chord))
+                {
+                    self.request_redraw();
+                    return;
+                }
+                // Hide or show by what the overlay is now.
+                let visible = std::sync::atomic::AtomicBool::new(!self.overlay_hidden);
+                if let Some(event) = crate::hotkeys::action_to_event(action, &visible) {
+                    self.user_event(event_loop, event);
+                }
+            }
             AnimaEvent::ToggleEditMode => {
                 self.toggle_edit_mode();
             }

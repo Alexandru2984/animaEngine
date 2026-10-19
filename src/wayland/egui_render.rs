@@ -70,6 +70,20 @@ impl WaylandEguiRenderer {
         self.surface.context()
     }
 
+    /// A global shortcut pressed while one is being recorded: the chord,
+    /// where the backend knows it, goes to the recording. `true` when it
+    /// was taken, and the shortcut's action is not to run.
+    pub fn take_for_recording(&self, chord: Option<crate::keybindings::KeyChord>) -> bool {
+        if !crate::ui::panels::recording_shortcut(self.context()) {
+            return false;
+        }
+        if let Some(chord) = chord {
+            crate::ui::panels::record_grabbed_chord(self.context(), chord);
+        }
+        crate::wayland::waker::wake();
+        true
+    }
+
     /// Whether an input is under way that an edit is still coming from:
     /// a pointer button held, a text field focused, a list or the palette
     /// open. Holds an undo step open (`crate::undo`).

@@ -17,6 +17,18 @@ use crate::ui::theme::{self, SPACE_M, SPACE_S, SPACE_XS};
 const RECORDING: &str = "anima.kb.recording";
 /// The pass the tab was last drawn in.
 const SHOWN: &str = "anima.kb.shown";
+/// A chord a global shortcut's grab took before the window saw it
+/// (`record_grabbed`), for the recording to have.
+const GRABBED: &str = "anima.kb.grabbed";
+
+/// Give the recording a chord the global shortcuts' grab took: on X11 the
+/// grab gets a grabbed chord before the window does, so recording
+/// Ctrl+Shift+P for another action paused everything instead, and
+/// recorded nothing (`AnimaEvent::Shortcut`).
+pub(super) fn record_grabbed(ctx: &egui::Context, chord: KeyChord) {
+    ctx.memory_mut(|m| m.data.insert_temp(egui::Id::new(GRABBED), chord));
+    ctx.request_repaint();
+}
 
 /// Whether a shortcut is being recorded: the keys are the recorder's
 /// then (`panels::keyboard_held`). They were everyone's: Escape cancelled
@@ -79,6 +91,16 @@ pub(super) fn keybindings_tab(
     } else {
         None
     };
+    let grabbed: Option<KeyChord> = ctx.memory_mut(|m| {
+        let chord = m.data.get_temp(egui::Id::new(GRABBED));
+        m.data.remove::<KeyChord>(egui::Id::new(GRABBED));
+        chord
+    });
+    if let (Some(action), Some(chord)) = (recording_for, grabbed) {
+        bindings.add_chord(action, chord);
+        *config_dirty = true;
+        recording_for = None;
+    }
 
     // While recording, intercept the first non-modifier key press as
     // the chord for the target action. Esc cancels. Repeat events are
@@ -410,6 +432,26 @@ mod tests {
         assert!(!recording(&ctx) && !super::super::keyboard_held(&ctx));
         // …and coming back, the recording is over.
         draw(&ctx, &mut bindings, true);
+        assert!(!recording(&ctx));
+    }
+
+    #[test]
+    fn a_chord_a_global_grab_took_goes_to_the_recording() {
+        let ctx = egui::Context::default();
+        theme::apply(&ctx, theme::Theme::Dark);
+        let mut bindings = KeyBindings::default();
+        let chord: KeyChord = "Ctrl+Shift+P".parse().unwrap();
+        // Not recording: a grabbed chord is nobody's.
+        draw(&ctx, &mut bindings, true);
+        record_grabbed(&ctx, chord);
+        draw(&ctx, &mut bindings, true);
+        assert!(!bindings.chords_for(Action::Redo).contains(&chord));
+        // Recording Redo: it is Redo's, and the recording is over.
+        ctx.memory_mut(|m| m.data.insert_temp(egui::Id::new(RECORDING), Action::Redo));
+        draw(&ctx, &mut bindings, true);
+        record_grabbed(&ctx, chord);
+        draw(&ctx, &mut bindings, true);
+        assert!(bindings.chords_for(Action::Redo).contains(&chord));
         assert!(!recording(&ctx));
     }
 }

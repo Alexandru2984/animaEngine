@@ -29,6 +29,18 @@ pub use toggle_button::toggle_button;
 /// and a shortcut being recorded (`keybindings_tab::recording`). No key
 /// reaches a shortcut then. With a list open, Escape closed the list and
 /// also left edit mode.
+/// Whether a shortcut is being recorded (`keybindings_tab::recording`):
+/// a global shortcut pressed meanwhile is the recorder's, not its action.
+pub fn recording_shortcut(ctx: &egui::Context) -> bool {
+    keybindings_tab::recording(ctx)
+}
+
+/// Hand a recording the chord a global shortcut's grab took
+/// (`keybindings_tab::record_grabbed`).
+pub fn record_grabbed_chord(ctx: &egui::Context, chord: crate::keybindings::KeyChord) {
+    keybindings_tab::record_grabbed(ctx, chord);
+}
+
 pub fn keyboard_held(ctx: &egui::Context) -> bool {
     command_palette_open(ctx)
         || ctx.memory(|m| m.any_popup_open())

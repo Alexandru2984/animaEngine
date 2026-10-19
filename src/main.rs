@@ -410,12 +410,9 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
                     .spawn(move || {
                         match hotkeys::x11_grab::Grabber::new(hotkeys::global_chords(&bindings)) {
                             Some(grabber) => {
-                                let visible = std::sync::atomic::AtomicBool::new(true);
-                                grabber.serve(|action| {
-                                    if let Some(event) = hotkeys::action_to_event(action, &visible)
-                                    {
-                                        let _ = proxy.send_event(event);
-                                    }
+                                grabber.serve(|action, chord| {
+                                    let _ =
+                                        proxy.send_event(AnimaEvent::Shortcut(action, Some(chord)));
                                 });
                             }
                             None => {
@@ -554,20 +551,19 @@ fn portal_bridge(
     bindings: &anima_engine::keybindings::KeyBindings,
 ) {
     use hotkeys::portal::PortalMsg;
-    use std::sync::atomic::AtomicBool;
 
     match rx.recv() {
         Ok(PortalMsg::Ready) => {
             tracing::info!("Portal shortcuts active");
-            let visible = AtomicBool::new(true);
             while let Ok(msg) = rx.recv() {
                 let PortalMsg::Activated(action) = msg else {
                     continue;
                 };
-                let Some(ev) = hotkeys::action_to_event(action, &visible) else {
-                    continue;
-                };
-                if proxy.send_event(ev).is_err() {
+                // The desktop owns these keys: which chord, it does not say.
+                if proxy
+                    .send_event(AnimaEvent::Shortcut(action, None))
+                    .is_err()
+                {
                     return; // event loop gone — exit with it
                 }
             }
@@ -582,11 +578,8 @@ fn portal_bridge(
                     tracing::info!("XGrabKey fallback active");
                     let _ = proxy.send_event(AnimaEvent::PortalShortcutsDenied);
                     // This thread waits for the shortcuts from now on.
-                    let visible = AtomicBool::new(true);
-                    grabber.serve(|action| {
-                        if let Some(ev) = hotkeys::action_to_event(action, &visible) {
-                            let _ = proxy.send_event(ev);
-                        }
+                    grabber.serve(|action, chord| {
+                        let _ = proxy.send_event(AnimaEvent::Shortcut(action, Some(chord)));
                     });
                 }
                 None => {

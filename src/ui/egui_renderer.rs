@@ -112,6 +112,19 @@ impl EguiRenderer {
             || crate::ui::panels::keyboard_held(&self.context)
     }
 
+    /// A global shortcut pressed while one is being recorded: the chord,
+    /// where the backend knows it, goes to the recording. `true` when it
+    /// was taken, and the shortcut's action is not to run.
+    pub fn take_for_recording(&self, chord: Option<crate::keybindings::KeyChord>) -> bool {
+        if !crate::ui::panels::recording_shortcut(&self.context) {
+            return false;
+        }
+        if let Some(chord) = chord {
+            crate::ui::panels::record_grabbed_chord(&self.context, chord);
+        }
+        true
+    }
+
     /// Whether the pointer is over the UI — in pass-through, the ⚙ button.
     pub fn owns_pointer(&self) -> bool {
         self.context.is_pointer_over_area()

@@ -898,7 +898,23 @@ pub fn run_native(
             if let Some(rx) = &command_rx {
                 while let Ok(ev) = rx.try_recv() {
                     activity = true;
+                    // A global shortcut: the recorder's while one is being
+                    // recorded, else the event it stands for now.
+                    let ev = match ev {
+                        AnimaEvent::Shortcut(action, chord) => {
+                            if egui_renderer.take_for_recording(chord) {
+                                continue;
+                            }
+                            let visible = std::sync::atomic::AtomicBool::new(!overlay_hidden);
+                            match crate::hotkeys::action_to_event(action, &visible) {
+                                Some(ev) => ev,
+                                None => continue,
+                            }
+                        }
+                        other => other,
+                    };
                     match ev {
+                        AnimaEvent::Shortcut(..) => {}
                         AnimaEvent::ToggleEditMode => toggle_edit_xor ^= true,
                         AnimaEvent::ToggleGlobalPlayback => toggle_playback_xor ^= true,
                         AnimaEvent::HideOverlay => last_visibility = Some(AnimaEvent::HideOverlay),
@@ -974,6 +990,10 @@ pub fn run_native(
                             toasts.warn(crate::i18n::t("portal-denied-native-toast"));
                             hotkey_backend_status = HotkeyStatus::CompositorBindings;
                         }
+                        // The desktop owns the keys: which chord, it does
+                        // not say, so a recording takes nothing — but the
+                        // action waits while one is under way.
+                        PortalMsg::Activated(_) if egui_renderer.take_for_recording(None) => {}
                         PortalMsg::Activated(action) => match action {
                             KbAction::ToggleFocus | KbAction::ToggleSnooze => {
                                 snoozing |= timer_shortcut(action, config.global.focus);

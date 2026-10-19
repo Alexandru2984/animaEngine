@@ -691,7 +691,8 @@ read-only D-Bus names, for the idle time
   cancelled the recording and left edit mode; `S` was recorded and saved
   the config; `Delete` would have deleted the selected character on its
   way to being recorded. While the Keybindings tab waits for a chord the
-  keys are its own. Each "Remove this binding" button names its row too,
+  keys are its own — a global one too: on X11, recording Ctrl+Shift+P
+  paused every animation and recorded nothing. Each "Remove this binding" button names its row too,
   so the two a key bound twice shows read differently.
 - **The Library tab would not open with more than 256 pictures.** Its
   thumbnails were kept one by one in the panel's shared memory, and past
