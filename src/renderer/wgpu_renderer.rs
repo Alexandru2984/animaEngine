@@ -109,6 +109,15 @@ enum Target {
     },
     #[cfg(windows)]
     Layered(crate::renderer::win_layered::LayeredTarget),
+    /// A plain offscreen texture with no present step — the headless
+    /// golden-image tests render into it and read the pixels back
+    /// (`COPY_SRC`). Test-only so release builds carry neither the
+    /// variant nor its match arms. Shares the real `render` draw loop
+    /// through the same [`AcquiredFrame`] / `create_view` path the
+    /// Windows layered target uses, so the test exercises production
+    /// rendering rather than a parallel copy of it.
+    #[cfg(test)]
+    Offscreen { texture: wgpu::Texture },
 }
 
 /// A frame acquired for rendering. Handed back un-presented so egui can
@@ -117,8 +126,10 @@ enum Target {
 pub enum AcquiredFrame {
     /// A swapchain image; presenting it hands it to the compositor.
     Swapchain(wgpu::SurfaceTexture),
-    /// An offscreen image; presenting it reads it back and blits it.
-    #[cfg(windows)]
+    /// An offscreen image; presenting it reads it back and blits it
+    /// (Windows layered overlay), or — in the headless tests — is read
+    /// back directly with no present at all.
+    #[cfg(any(windows, test))]
     Offscreen(wgpu::Texture),
 }
 
@@ -129,7 +140,7 @@ impl AcquiredFrame {
         let desc = wgpu::TextureViewDescriptor::default();
         match self {
             Self::Swapchain(output) => output.texture.create_view(&desc),
-            #[cfg(windows)]
+            #[cfg(any(windows, test))]
             Self::Offscreen(texture) => texture.create_view(&desc),
         }
     }
@@ -343,6 +354,31 @@ impl GpuShared {
         tracing::info!("Using alpha mode: {:?}", alpha_mode);
         tracing::info!("Using surface format: {:?}", surface_format);
 
+        Ok(Self::from_parts(
+            instance,
+            adapter,
+            device,
+            queue,
+            surface_format,
+            alpha_mode,
+        ))
+    }
+
+    /// Build the shared GPU state from already-negotiated parts: the
+    /// shader, pipeline, bind-group layouts, index buffer and the UI
+    /// textures. Factored out of [`GpuShared::new`] so the headless
+    /// test path ([`GpuShared::new_headless`]) builds the *same*
+    /// pipeline — same shader, same `PREMULTIPLIED_ALPHA_BLENDING`,
+    /// same layouts — instead of a hand-rolled copy that could drift
+    /// from production.
+    fn from_parts(
+        instance: wgpu::Instance,
+        adapter: wgpu::Adapter,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        surface_format: wgpu::TextureFormat,
+        alpha_mode: wgpu::CompositeAlphaMode,
+    ) -> Self {
         // --- Create shader module ---
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Sprite Shader"),
@@ -459,7 +495,7 @@ impl GpuShared {
             "selection_highlight",
         );
 
-        Ok(Self {
+        Self {
             instance,
             adapter,
             device,
@@ -475,7 +511,51 @@ impl GpuShared {
             selection_tex,
             uploads_this_frame: std::cell::Cell::new(0),
             draws_this_frame: std::cell::Cell::new(0),
-        })
+        }
+    }
+
+    /// Build a headless GPU context for the golden-image tests: no
+    /// surface, a fixed `Rgba8UnormSrgb` target format and premultiplied
+    /// alpha (what a real Linux surface negotiates), and the exact same
+    /// pipeline as production via [`GpuShared::from_parts`].
+    ///
+    /// Returns `None` when no adapter is reachable — a machine with no
+    /// Vulkan/GL driver (and no llvmpipe/lavapipe) can't run a GPU test,
+    /// so the caller skips rather than fails. CI installs
+    /// `mesa-vulkan-drivers`, which provides the lavapipe software
+    /// adapter, so the test runs there.
+    #[cfg(test)]
+    pub(crate) fn new_headless() -> Option<Self> {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
+            ..Default::default()
+        });
+        let request = |force_fallback_adapter| {
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::LowPower,
+                compatible_surface: None,
+                force_fallback_adapter,
+            }))
+        };
+        let adapter = request(false).or_else(|| request(true))?;
+        let (device, queue) = pollster::block_on(adapter.request_device(
+            &wgpu::DeviceDescriptor {
+                label: Some("animaEngine Headless Test Device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::default(),
+                memory_hints: Default::default(),
+            },
+            None,
+        ))
+        .ok()?;
+        Some(Self::from_parts(
+            instance,
+            adapter,
+            device,
+            queue,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            wgpu::CompositeAlphaMode::PreMultiplied,
+        ))
     }
 
     /// Ensure a texture exists for an entity, creating or updating as needed
@@ -588,6 +668,97 @@ impl SurfaceState {
         )
     }
 
+    /// Build a headless offscreen target for the golden-image tests: a
+    /// `RENDER_ATTACHMENT | COPY_SRC` texture in the shared surface
+    /// format, rendered into by the real [`SurfaceState::render`] loop
+    /// and read back with [`SurfaceState::read_rgba`].
+    #[cfg(test)]
+    pub(crate) fn new_offscreen(shared: &GpuShared, width: u32, height: u32) -> Self {
+        let width = width.max(1);
+        let height = height.max(1);
+        let texture = shared.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("animaEngine offscreen test target"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: shared.surface_format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        Self::with_target(shared, Target::Offscreen { texture }, width, height)
+    }
+
+    /// Read the offscreen target back into tightly-packed RGBA bytes
+    /// (row-major, top-left origin), stripping the 256-byte row padding
+    /// wgpu requires on the copy buffer. Test-only.
+    #[cfg(test)]
+    pub(crate) fn read_rgba(&self, shared: &GpuShared) -> Vec<u8> {
+        let Target::Offscreen { texture } = &self.target else {
+            panic!("read_rgba is only valid on an offscreen test target");
+        };
+        let w = self.window_width;
+        let h = self.window_height;
+        let unpadded_bpr = w * 4;
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT; // 256
+        let padded_bpr = unpadded_bpr.div_ceil(align) * align;
+
+        let buffer = shared.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("offscreen readback"),
+            size: (padded_bpr * h) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let mut encoder = shared
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("readback encoder"),
+            });
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bpr),
+                    rows_per_image: Some(h),
+                },
+            },
+            wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
+        );
+        shared.queue.submit(std::iter::once(encoder.finish()));
+
+        let slice = buffer.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |r| r.expect("map readback buffer"));
+        // No surface frames drive this device, so block until the copy
+        // completes and the buffer is mapped.
+        shared.device.poll(wgpu::Maintain::Wait);
+
+        let data = slice.get_mapped_range();
+        let mut out = Vec::with_capacity((unpadded_bpr * h) as usize);
+        for row in 0..h {
+            let start = (row * padded_bpr) as usize;
+            out.extend_from_slice(&data[start..start + unpadded_bpr as usize]);
+        }
+        drop(data);
+        buffer.unmap();
+        out
+    }
+
     /// Build a Windows overlay target: no swapchain, an offscreen image
     /// blitted with `UpdateLayeredWindow`. See
     /// [`crate::renderer::win_layered`] for why a swapchain can't be
@@ -675,6 +846,10 @@ impl SurfaceState {
                     layered.present(&shared.device, &shared.queue);
                 }
             }
+            // Headless test target: the test reads the texture back
+            // itself, so there is nothing to present.
+            #[cfg(all(test, not(windows)))]
+            AcquiredFrame::Offscreen(_) => {}
         }
     }
 
@@ -696,6 +871,11 @@ impl SurfaceState {
             Target::Layered(layered) => {
                 layered.resize(&shared.device, new_width, new_height);
             }
+            // The headless test target is a fixed-size texture; tests
+            // that need a different size build a new one. Nothing to
+            // reconfigure, but the projection update below still applies.
+            #[cfg(test)]
+            Target::Offscreen { .. } => {}
         }
 
         // Update projection matrix
@@ -758,6 +938,8 @@ impl SurfaceState {
             // stays owned by the target across frames.
             #[cfg(windows)]
             Target::Layered(layered) => AcquiredFrame::Offscreen(layered.texture().clone()),
+            #[cfg(test)]
+            Target::Offscreen { texture } => AcquiredFrame::Offscreen(texture.clone()),
         };
         let view = output.create_view();
 
@@ -1082,5 +1264,144 @@ mod alpha_mode_tests {
     fn opaque_only_is_refused_on_every_platform() {
         let err = pick_alpha_mode(&[Opaque]).unwrap_err().to_string();
         assert!(err.contains("black"), "error should say why: {err}");
+    }
+}
+
+/// Headless golden-image tests: render real entities through the real
+/// [`SurfaceState::render`] draw loop into an offscreen texture, then
+/// read the pixels back and assert on them. This closes the gap the
+/// 0.9 review flagged — rendering correctness was "validated by
+/// construction", with nothing in CI that would catch a regression in
+/// the shader, the orthographic projection, the premultiplied-alpha
+/// blend, or quad placement. These do, on any machine (or CI runner)
+/// with a Vulkan/GL adapter, including lavapipe software rendering.
+///
+/// They skip (not fail) when no adapter is reachable, so `cargo test`
+/// on a driver-less box stays green.
+#[cfg(test)]
+mod golden {
+    use super::*;
+    use crate::animation::frame::Frame;
+    use crate::animation::Animation;
+    use crate::config::{AssetType, CharacterConfig};
+
+    /// Build a solid-color (or two-tone) entity with a single opaque
+    /// frame at a known position. `rgba` is the frame pixel data for a
+    /// `w`×`h` texture.
+    fn entity_with_frame(id: &str, x: f32, y: f32, rgba: Vec<u8>, w: u32, h: u32) -> Entity {
+        let frame = Frame::new(rgba, w, h);
+        let anim = Animation::new(vec![frame], 1.0, false);
+        let cfg = CharacterConfig {
+            id: id.into(),
+            name: id.into(),
+            asset_type: AssetType::PngStatic,
+            asset_path: String::new(),
+            x,
+            y,
+            scale: 1.0,
+            opacity: 1.0,
+            fps: 1.0,
+            visible: true,
+            playing: false,
+            z_index: 0,
+            physics_enabled: false,
+            behavior: crate::behavior::Behavior::Idle,
+            spritesheet_columns: None,
+            spritesheet_rows: None,
+            monitor: None,
+            easing: None,
+            animations: std::collections::BTreeMap::new(),
+        };
+        Entity::from_config(&cfg, anim)
+    }
+
+    /// `(r, g, b, a)` of the pixel at `(px, py)` in a tightly-packed
+    /// RGBA buffer `fw` pixels wide.
+    fn px(buf: &[u8], fw: u32, px: u32, py: u32) -> (u8, u8, u8, u8) {
+        let i = ((py * fw + px) * 4) as usize;
+        (buf[i], buf[i + 1], buf[i + 2], buf[i + 3])
+    }
+
+    /// Render one entity into a `fw`×`fh` offscreen target and read it
+    /// back, or `None` if this machine has no GPU adapter.
+    fn render_one(entity: &Entity, fw: u32, fh: u32) -> Option<Vec<u8>> {
+        let mut shared = GpuShared::new_headless()?;
+        let mut surface = SurfaceState::new_offscreen(&shared, fw, fh);
+        shared.ensure_texture(entity);
+        surface
+            .render(&shared, &[entity], &[], false, None, (0.0, 0.0))
+            .expect("offscreen render never returns a surface error");
+        shared.device.poll(wgpu::Maintain::Wait);
+        Some(surface.read_rgba(&shared))
+    }
+
+    #[test]
+    fn sprite_lands_where_placed_and_background_stays_transparent() {
+        // A fully-opaque red 16×16 sprite at (10, 20) on a 64×64 target.
+        let red = [255u8, 0, 0, 255].repeat(16 * 16);
+        let entity = entity_with_frame("red", 10.0, 20.0, red, 16, 16);
+        let Some(buf) = render_one(&entity, 64, 64) else {
+            eprintln!("no GPU adapter; skipping golden render test");
+            return;
+        };
+
+        // Center of the sprite rect (10+8, 20+8): opaque and red.
+        let (r, g, b, a) = px(&buf, 64, 18, 28);
+        assert!(a > 250, "sprite center should be opaque, got alpha {a}");
+        assert!(r > 230, "sprite center should be red, got r={r}");
+        assert!(g < 25 && b < 25, "sprite center bled color: g={g} b={b}");
+
+        // A point well outside the sprite stays the transparent clear
+        // — proves the quad is positioned, not covering the whole
+        // surface, and that the clear-to-transparent actually ran.
+        let (_, _, _, a_out) = px(&buf, 64, 50, 55);
+        assert!(
+            a_out < 5,
+            "background should be transparent, got alpha {a_out}"
+        );
+
+        // Just left of the sprite's left edge (x=10) is also background.
+        let (_, _, _, a_left) = px(&buf, 64, 4, 28);
+        assert!(
+            a_left < 5,
+            "left of sprite should be clear, got alpha {a_left}"
+        );
+    }
+
+    #[test]
+    fn facing_left_mirrors_the_sprite_horizontally() {
+        // 16×16 texture: left half red, right half blue, both opaque.
+        let mut rgba = Vec::with_capacity(16 * 16 * 4);
+        for _y in 0..16 {
+            for x in 0..16 {
+                if x < 8 {
+                    rgba.extend_from_slice(&[255, 0, 0, 255]); // left: red
+                } else {
+                    rgba.extend_from_slice(&[0, 0, 255, 255]); // right: blue
+                }
+            }
+        }
+
+        // Unflipped: the left quarter of the on-screen sprite is red.
+        let mut entity = entity_with_frame("two_tone", 0.0, 0.0, rgba, 16, 16);
+        let Some(buf) = render_one(&entity, 32, 32) else {
+            eprintln!("no GPU adapter; skipping flip golden test");
+            return;
+        };
+        let (r, _, bl, _) = px(&buf, 32, 2, 8); // x=2 → inside left half
+        assert!(
+            r > 200 && bl < 60,
+            "unflipped left edge should be red, got r={r} b={bl}"
+        );
+
+        // Flipped: facing_left swaps the U coords, so the same on-screen
+        // left edge now samples the texture's right (blue) half.
+        entity.facing_left = true;
+        let buf = render_one(&entity, 32, 32).expect("adapter was present a moment ago");
+        let (r2, _, bl2, _) = px(&buf, 32, 2, 8);
+        assert!(
+            bl2 > 200 && r2 < 60,
+            "flipped left edge should be blue, got r={r2} b={bl2}"
+        );
     }
 }

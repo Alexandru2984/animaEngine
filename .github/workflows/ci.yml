@@ -184,9 +184,14 @@ jobs:
       - name: Install system deps
         run: |
           sudo apt-get update
+          # mesa-vulkan-drivers provides the lavapipe software Vulkan
+          # adapter so the headless golden-image render test
+          # (renderer::wgpu_renderer::golden) finds a GPU and actually
+          # runs here instead of skipping. Without it the test no-ops.
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
+            libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev \
+            mesa-vulkan-drivers
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2
         with:
