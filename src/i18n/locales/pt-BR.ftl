@@ -488,7 +488,7 @@ whats-new-editing = Desfaça com Ctrl+Z, selecione vários personagens de uma ve
 whats-new-files = As cenas ganham nome, imagem e horário; compartilhe uma cena ou um só personagem, ou faça backup de tudo em um único arquivo.
 whats-new-sound = Sons no volume que você quiser, com um volume próprio para cada personagem, silêncio na hora de dormir e mudo pela bandeja ou por um atalho.
 whats-new-keyboard = Tudo também pelo teclado: Shift+F10 abre o menu de um personagem, Ctrl+A seleciona todos, N passa de um para outro.
-onboarding-keybindings = Clique em um atalho para removê-lo; pressione uma combinação para gravar um novo.
+onboarding-keybindings = Clique em um atalho para removê-lo, ou em Adicionar e depois nas teclas para gravar um novo.
 onboarding-perf-overlay = Pressione Ctrl+Shift+` para abrir o overlay de desempenho ao vivo.
 appearance-reset-onboarding = Restaurar dicas de boas-vindas
 

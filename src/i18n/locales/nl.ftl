@@ -488,7 +488,7 @@ whats-new-editing = Ongedaan maken met Ctrl+Z, meerdere figuren tegelijk selecte
 whats-new-files = Scènes krijgen een naam, een afbeelding en een schema; deel een scène of één figuur, of maak een back-up van alles in één bestand.
 whats-new-sound = Geluiden op het volume dat u wilt, met een eigen volume voor elke figuur, stilte bij bedtijd en dempen vanuit het systeemvak of met een sneltoets.
 whats-new-keyboard = Alles ook met het toetsenbord: Shift+F10 opent het menu van een figuur, Ctrl+A selecteert ze allemaal, N gaat ze een voor een langs.
-onboarding-keybindings = Klik op een sneltoets om hem te verwijderen; druk een combinatie om een nieuwe op te nemen.
+onboarding-keybindings = Klik op een sneltoets om hem te verwijderen, of op Toevoegen en dan de toetsen om een nieuwe op te nemen.
 onboarding-perf-overlay = Druk Ctrl+Shift+` om de live prestatie-overlay te openen.
 appearance-reset-onboarding = Introductietips herstellen
 

@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R76 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R77 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2868,3 +2868,28 @@ The same journal had zbus warning at every start that the instance name
 was asked for before its object server existed; the server is set up
 first now, so a second start calling in between is answered "no such
 object" and tries again, rather than waiting out its timeout.
+
+### R77 · The tour, the hints and "What's new", step by step — `FIXED`
+
+Found going through the first-run tour, each hint and "What's new" over
+AT-SPI and the keys on both backends, and in Romanian: a fresh install
+(its config deleted), then an upgrade from a 1.4 config. The tour's
+first step waited outside edit mode and the second came as edit mode
+opened; left mid-tour it waited and came back at the same step; Next,
+then Got it ended it, saved. No "What's new" on a fresh install; on the
+upgrade no tour, the panel with its six highlights, translated, gone
+when dismissed with 1.5.0 saved. Each hint came, went, and was saved.
+Three things were not right:
+
+- **"Reset onboarding hints"** says it brings back the hints and the
+  "What's new" panel. It brought back the hints and the tour; the panel
+  stayed seen — the version it was dismissed at is kept apart, and was
+  not cleared.
+- **Re-armed, the tour began at its last step**, 3/3 — the step the
+  previous tour ended on was still in the panel's memory.
+- **The Keybindings hint** said to press a key combination to record a
+  new shortcut; the row's Add comes first.
+
+**Fixed:** the reset clears `last_seen_whats_new` too; a tour that ends
+forgets its step; the hint names Add, in ten languages. **Checked:** 14
+of 14 on each backend, the upgrade's panel in Romanian.

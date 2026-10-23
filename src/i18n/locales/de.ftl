@@ -488,7 +488,7 @@ whats-new-editing = Rückgängig mit Strg+Z, mehrere Figuren auf einmal auswähl
 whats-new-files = Szenen bekommen Namen, Bilder und einen Zeitplan; teilen Sie eine Szene oder eine einzelne Figur, oder sichern Sie alles in einer Datei.
 whats-new-sound = Klänge in der gewünschten Lautstärke, mit einer eigenen für jede Figur, Ruhe zur Schlafenszeit und Stummschalten über das Tray oder ein Tastenkürzel.
 whats-new-keyboard = Alles auch mit der Tastatur: Shift+F10 öffnet das Menü einer Figur, Strg+A wählt alle aus, N geht sie der Reihe nach durch.
-onboarding-keybindings = Klicken Sie auf ein Kürzel, um es zu entfernen; drücken Sie eine Kombination, um ein neues aufzunehmen.
+onboarding-keybindings = Klicken Sie auf ein Kürzel, um es zu entfernen, oder auf Hinzufügen und dann die Tasten, um ein neues aufzunehmen.
 onboarding-perf-overlay = Strg+Shift+` öffnet das Live-Performance-Overlay.
 appearance-reset-onboarding = Einführungshinweise zurücksetzen
 

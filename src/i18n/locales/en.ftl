@@ -498,7 +498,7 @@ whats-new-sound = Sounds at the volume you want, with one of its own for each ch
 whats-new-keyboard = All of it from the keyboard too: Shift+F10 opens a character's menu, Ctrl+A selects them all, N steps through them.
 
 # ── New onboarding hints (D.7) ────────────────────────────────────────
-onboarding-keybindings = Click any chord to remove it; press a key combo to record a new one.
+onboarding-keybindings = Click any chord to remove it, or Add, then press the keys, to record a new one.
 onboarding-perf-overlay = Press Ctrl+Shift+` to open the live perf overlay.
 appearance-reset-onboarding = Reset onboarding hints
 

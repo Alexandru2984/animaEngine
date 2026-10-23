@@ -485,7 +485,7 @@ whats-new-editing = Ctrl+Z で元に戻す、複数のキャラクターをま�
 whats-new-files = シーンに名前・画像・スケジュール。シーンやキャラクター 1 体を共有したり、すべてを 1 つのファイルにバックアップしたりできます。
 whats-new-sound = 好きな音量でサウンドを。キャラクターごとの音量、就寝時の消音、トレイやショートカットからのミュートにも対応。
 whats-new-keyboard = すべてキーボードでも操作できます。Shift+F10 でキャラクターのメニュー、Ctrl+A ですべて選択、N で順に切り替え。
-onboarding-keybindings = ショートカットをクリックすると削除、キーの組み合わせを押すと新規登録できます。
+onboarding-keybindings = ショートカットをクリックすると削除、「追加」を押してからキーを押すと新規登録できます。
 onboarding-perf-overlay = Ctrl+Shift+` でライブのパフォーマンス表示を開けます。
 appearance-reset-onboarding = オンボーディングのヒントをリセット
 

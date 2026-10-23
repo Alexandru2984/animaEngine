@@ -498,7 +498,7 @@ whats-new-sound = Sunete la volumul dorit, cu un volum propriu pentru fiecare pe
 whats-new-keyboard = Totul și din tastatură: Shift+F10 deschide meniul unui personaj, Ctrl+A le selectează pe toate, N trece de la unul la altul.
 
 # ── Hint-uri onboarding noi (D.7) ─────────────────────────────────────
-onboarding-keybindings = Apasă × pe o combinație ca s-o elimini; apasă o combinație nouă ca s-o înregistrezi.
+onboarding-keybindings = Apasă pe o combinație ca s-o elimini, sau pe Adaugă și apoi tastele, ca să înregistrezi una nouă.
 onboarding-perf-overlay = Apasă Ctrl+Shift+` ca să deschizi suprapunerea de performanță.
 appearance-reset-onboarding = Resetează hint-urile de bun venit
 

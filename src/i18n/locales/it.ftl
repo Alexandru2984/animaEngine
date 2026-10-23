@@ -488,7 +488,7 @@ whats-new-editing = Annulla con Ctrl+Z, seleziona più personaggi insieme, raggr
 whats-new-files = Le scene hanno nome, immagine e orario; condividi una scena o un solo personaggio, oppure fai un backup di tutto in un unico file.
 whats-new-sound = Suoni al volume che vuoi, con uno proprio per ogni personaggio, silenzio all’ora di dormire e muto dall’area di notifica o da una scorciatoia.
 whats-new-keyboard = Tutto anche da tastiera: Shift+F10 apre il menu di un personaggio, Ctrl+A li seleziona tutti, N passa dall’uno all’altro.
-onboarding-keybindings = Fai clic su una scorciatoia per rimuoverla; premi una combinazione per registrarne una nuova.
+onboarding-keybindings = Fai clic su una scorciatoia per rimuoverla, oppure su Aggiungi e poi i tasti per registrarne una nuova.
 onboarding-perf-overlay = Premi Ctrl+Shift+` per aprire l’overlay prestazioni in tempo reale.
 appearance-reset-onboarding = Ripristina i suggerimenti iniziali
 

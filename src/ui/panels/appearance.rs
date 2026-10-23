@@ -19,6 +19,7 @@ pub(super) fn appearance_tab(
     locale: &mut Option<String>,
     config_dirty: &mut bool,
     onboarding: &mut OnboardingProgress,
+    last_seen_whats_new: &mut Option<String>,
     accesskit_enabled: &mut bool,
     accesskit_supported: bool,
     reduced_motion: &mut bool,
@@ -194,6 +195,9 @@ pub(super) fn appearance_tab(
         .clicked()
     {
         onboarding.reset();
+        // As the hint says: the What's new panel too. It stayed seen —
+        // the version it was dismissed at is kept apart from the hints.
+        *last_seen_whats_new = None;
         *config_dirty = true;
     }
     ui.add_space(SPACE_M);

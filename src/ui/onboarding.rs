@@ -300,6 +300,12 @@ pub fn coach_marks(
                 });
         });
 
+    // Over, by Got it or Skip: the next tour — "Reset onboarding hints"
+    // re-arms it — starts at the beginning, where it began at its last
+    // step, the one this one ended on.
+    if progress.coach_marks {
+        ctx.data_mut(|d| d.remove::<u8>(step_id));
+    }
     dirty
 }
 

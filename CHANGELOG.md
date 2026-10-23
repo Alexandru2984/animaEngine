@@ -667,6 +667,10 @@ read-only D-Bus names, for the idle time
   also left a directory each in `/tmp` every run. The tests touch
   neither now; a whole run, both feature sets, leaves nothing behind
   outside the checkout.
+- **"Reset onboarding hints" brings back "What's new" too**, as it says
+  it does; a tour re-armed that way starts at its beginning, not its
+  last step; and the Keybindings hint says the row's Add comes before
+  the keys.
 - **The frame cache keeps frames at the size they are shown** — at most
   256 px a side, as every picture is cut to on loading. It kept them at
   full size and cut them again at every start: a 24-frame animation at

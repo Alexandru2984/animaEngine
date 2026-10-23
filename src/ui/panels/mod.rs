@@ -587,6 +587,7 @@ pub fn settings(
                                 locale,
                                 config_dirty,
                                 onboarding,
+                                last_seen_whats_new,
                                 accesskit_enabled,
                                 accesskit_supported,
                                 reduced_motion,
