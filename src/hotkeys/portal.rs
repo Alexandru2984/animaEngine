@@ -227,9 +227,19 @@ async fn run_portal_session(
 async fn portal_handshake(
     rows: &[(String, String, Option<String>)],
 ) -> Result<(zbus::Connection, zbus::Proxy<'static>, String), String> {
-    let conn = zbus::Connection::session()
+    let mut conn = zbus::Connection::session()
         .await
         .map_err(|e| format!("session bus: {e}"))?;
+    // Who we are, first (`portal::register_host_app`). A portal without
+    // the registry reads it from our systemd scope instead, on a
+    // connection's first call: give the desktop the moment it takes to
+    // put us there, and ask on a fresh connection.
+    if crate::portal::register_host_app(&conn).await == crate::portal::Registered::NoRegistry {
+        crate::portal::wait_for_app_scope(std::time::Duration::from_secs(2)).await;
+        conn = zbus::Connection::session()
+            .await
+            .map_err(|e| format!("session bus: {e}"))?;
+    }
 
     let unique = conn
         .unique_name()

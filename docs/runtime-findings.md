@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R75 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R76 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2834,3 +2834,37 @@ Wayland (`behavior-follow-edit-mode-only`, in ten languages), set by
 the native loop (`panels::cursor_seen_in_edit_mode_only`). **Checked:**
 said there and not on the X11 path; in edit mode the character reached
 the pointer, and out of it stayed where the pointer last was.
+
+### R76 · On the maintainer's GNOME, the global shortcuts lost the portal — `FIXED`
+
+Found reading the journal of the installed app — 1.5's code, built as a
+`.deb` and started from GNOME's app grid on the maintainer's laptop
+(Ubuntu, GNOME Wayland, xdg-desktop-portal 1.21). 0.9, the day before,
+had said `Portal shortcuts bound (3 entries)`. 1.5 said
+`GlobalShortcuts portal session failed: CreateSession: … NotAllowed: An
+app id is required` and fell back to grabbing the keys through
+XWayland — which on a Wayland session holds only while an X window has
+the keyboard, so Ctrl+Shift+A, H and P were no longer global.
+
+The journal's own timestamps tell why. A host app's id is read from the
+systemd scope its desktop launches it in, and the portal keeps the first
+answer for the connection. GNOME starts that scope a moment after the
+process: 1.5, which starts faster than 0.9 did, asked at 22:17:34.275005
+and the scope came at .279400 — four milliseconds late. 0.9 had asked
+150 ms after its scope. Reproduced from a plain process on the same
+portal: without the app's id, "An app id is required"; with it, the
+session.
+
+**Fixed:** the app says who it is first, on the connection it uses —
+`org.freedesktop.host.portal.Registry.Register("com.animaengine.Anima")`
+(`portal::register_host_app`), which xdg-desktop-portal has had since
+1.19 for apps outside a sandbox; inside Flatpak the sandbox says it. A
+portal without the registry gets the scope waited for, two seconds at
+most, and a fresh connection (`portal::wait_for_app_scope`). Started from
+a terminal, which no app scope holds, the shortcuts reach the portal now
+too.
+
+The same journal had zbus warning at every start that the instance name
+was asked for before its object server existed; the server is set up
+first now, so a second start calling in between is answered "no such
+object" and tries again, rather than waiting out its timeout.

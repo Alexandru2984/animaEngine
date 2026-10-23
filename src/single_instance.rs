@@ -303,6 +303,14 @@ pub fn try_acquire() -> AcquireOutcome {
             }
         };
 
+        // The object server first, empty until `install_service` mounts
+        // `Activate` once the event loop exists: a second start calling
+        // in between is answered "no such object" and tries again
+        // (`signal_existing`'s loop), where its call used to go
+        // unanswered until it timed out — and zbus warned so at every
+        // start, in the journal.
+        let _ = connection.object_server();
+
         // `DoNotQueue` means: don't put us on a waiting list if the name
         // is taken — fail fast instead so we can hand off and exit.
         use zbus::fdo::{RequestNameFlags, RequestNameReply};

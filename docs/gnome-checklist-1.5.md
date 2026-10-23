@@ -115,6 +115,12 @@ edit mode from anywhere.
       key works, and GNOME's own settings list them for the app (where
       depends on the GNOME version).
 
+- [ ] **Bound through the portal at once.** Started from the app grid,
+      the journal (`journalctl --user -t com.animaengine.Anima.desktop`)
+      says `Portal shortcuts active`, not `GlobalShortcuts portal session
+      failed … An app id is required` and `falling back to XGrabKey`
+      (R76: 1.5 asked before GNOME had put it in its scope). Started
+      from a terminal, the same.
 - [ ] **Which mechanism.** The log says `Hotkey strategy: …`. With
       `X11 XGrabKey`: `Ctrl+Shift+A` from an X11 app in front (`xterm`)
       opens edit mode; switch the keyboard layout (`Super+Space`) and it

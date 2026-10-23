@@ -667,6 +667,13 @@ read-only D-Bus names, for the idle time
   also left a directory each in `/tmp` every run. The tests touch
   neither now; a whole run, both feature sets, leaves nothing behind
   outside the checkout.
+- **Global shortcuts on GNOME went through an X11 grab** instead of the
+  desktop's portal — so Ctrl+Shift+A, H and P worked only while an X
+  window had the keyboard. 1.5 starts fast enough to ask the portal for
+  its shortcuts a few milliseconds before GNOME has put it in the scope
+  the portal reads its id from, and was refused for having none. It says
+  its id to the portal first now. Found in the journal of the app
+  installed on a GNOME laptop.
 - **"Follow cursor" says why it stands still on native Wayland.** A
   Wayland app learns where the pointer is only over its own window, so
   outside edit mode a character goes where the pointer last was, and

@@ -61,6 +61,7 @@ pub async fn desktop_portal(
     let conn = zbus::Connection::session()
         .await
         .map_err(|e| format!("session bus: {e}"))?;
+    register_host_app(&conn).await;
     let sender = sanitize_sender(
         conn.unique_name()
             .ok_or_else(|| "connection has no unique name".to_string())?
@@ -75,6 +76,104 @@ pub async fn desktop_portal(
     .await
     .map_err(|e| format!("{interface} proxy: {e}"))?;
     Ok((conn, sender, proxy))
+}
+
+/// This app's id: its desktop file's name, and its bus name.
+pub const APP_ID: &str = "com.animaengine.Anima";
+
+/// Say which app this connection is, for the portals that serve no app
+/// without an id (GlobalShortcuts) — first, before any other portal call
+/// on `conn` (`org.freedesktop.host.portal.Registry`, xdg-desktop-portal
+/// 1.19 and later).
+///
+/// Without it a host app's id is read from the systemd scope its desktop
+/// puts it in, and a connection keeps the first answer. On GNOME the scope
+/// came 4 ms after 1.5 asked for its shortcuts — it starts faster than
+/// 0.9 did — so the portal said "An app id is required" and the shortcuts
+/// fell back to an X11 grab, which holds only while an X window has the
+/// keyboard. Not inside Flatpak, where the sandbox says who it is.
+pub async fn register_host_app(conn: &zbus::Connection) -> Registered {
+    if std::path::Path::new("/.flatpak-info").exists() {
+        return Registered::NotOurs;
+    }
+    let options: HashMap<&str, Value<'_>> = HashMap::new();
+    match conn
+        .call_method(
+            Some("org.freedesktop.portal.Desktop"),
+            "/org/freedesktop/portal/desktop",
+            Some("org.freedesktop.host.portal.Registry"),
+            "Register",
+            &(APP_ID, options),
+        )
+        .await
+    {
+        Ok(_) => {
+            tracing::debug!("Registered with the desktop portal as {APP_ID}");
+            Registered::Yes
+        }
+        Err(e) => {
+            tracing::debug!("Portal registry: {e}");
+            match e {
+                zbus::Error::MethodError(name, _, _)
+                    if matches!(
+                        name.as_str(),
+                        "org.freedesktop.DBus.Error.UnknownMethod"
+                            | "org.freedesktop.DBus.Error.UnknownInterface"
+                            | "org.freedesktop.DBus.Error.UnknownObject"
+                    ) =>
+                {
+                    Registered::NoRegistry
+                }
+                _ => Registered::NotOurs,
+            }
+        }
+    }
+}
+
+/// What [`register_host_app`] got.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Registered {
+    /// The portal knows this connection by [`APP_ID`].
+    Yes,
+    /// A portal older than its registry: it reads the id from the app's
+    /// systemd scope ([`wait_for_app_scope`]).
+    NoRegistry,
+    /// Not for us to say — inside a sandbox, which says it, or no portal
+    /// at all.
+    NotOurs,
+}
+
+/// Wait, up to `limit`, for the desktop to put this process in its app's
+/// systemd scope — where a portal without the registry reads the app's id
+/// from. Returns whether it is there. Started some other way (a terminal)
+/// it never is, and this waits `limit` out.
+pub async fn wait_for_app_scope(limit: std::time::Duration) -> bool {
+    let until = std::time::Instant::now() + limit;
+    loop {
+        let cgroup = std::fs::read_to_string("/proc/self/cgroup").unwrap_or_default();
+        if in_app_scope(&cgroup, APP_ID) {
+            return true;
+        }
+        if std::time::Instant::now() >= until {
+            return false;
+        }
+        async_io::Timer::after(std::time::Duration::from_millis(50)).await;
+    }
+}
+
+/// Whether `/proc/self/cgroup` puts this process in a systemd unit of the
+/// app `app_id`'s — `app-gnome-com.animaengine.Anima-4242.scope`, as the
+/// desktop names the ones it launches (systemd's desktop-environment
+/// convention).
+fn in_app_scope(cgroup: &str, app_id: &str) -> bool {
+    cgroup.lines().any(|line| {
+        line.rsplit('/').next().is_some_and(|unit| {
+            unit.starts_with("app-")
+                && unit
+                    .split(['-', '@'])
+                    .any(|part| part == app_id || part.strip_suffix(".scope") == Some(app_id))
+        })
+    })
 }
 
 /// `:1.42` → `1_42`, per the portal Request-path convention.
@@ -178,6 +277,28 @@ mod tests {
                 "token {t} carries an illegal char"
             );
         }
+    }
+
+    #[test]
+    fn the_apps_own_scope_is_told_from_others() {
+        let ours = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/\
+                    app-gnome-com.animaengine.Anima-2892862.scope\n";
+        assert!(in_app_scope(ours, APP_ID));
+        assert!(in_app_scope(
+            "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.animaengine.Anima@x.service",
+            APP_ID
+        ));
+        // Still in the shell's, a moment after it started us.
+        assert!(!in_app_scope(
+            "0::/user.slice/user-1000.slice/user@1000.service/session.slice/org.gnome.Shell@ubuntu.service",
+            APP_ID
+        ));
+        // Started from a terminal in another app's scope.
+        assert!(!in_app_scope(
+            "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-gnome-code-1234.scope",
+            APP_ID
+        ));
+        assert!(!in_app_scope("", APP_ID));
     }
 
     #[test]
