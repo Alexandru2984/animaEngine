@@ -399,6 +399,32 @@ failing, and a Windows layered window whose readback kept failing,
 each a warning per frame. Both say a streak once now
 (`renderer::ErrorOnce`), as the primary window has since 1.5.
 
+### 64 characters at once (rig, 2026-10-24)
+
+The most a scene holds (`MAX_ENTITIES`): 64 demo characters at 0.6
+scale, every behavior among them — walking, bouncing, wandering,
+following, tag in pairs, a Rhai script, gravity on every eleventh —
+characters bumping and greeting on, two minutes each. The rig draws in
+software (llvmpipe), so the CPU figure is mostly drawing; on a GPU it is
+a fraction of it.
+
+| | native Wayland | X11 path |
+|---|---|---|
+| Up in | 1.4 s | 3.9 s |
+| CPU, steady | 140–149 % | 141–146 % |
+| Memory | 247 MB, flat | 226 MB, flat |
+| Log, after starting | +0 B | +0 B |
+
+A config with 70 is read as 64, said once. At 64, Duplicate adds none
+and says why — in English in every language until now; it is
+`error-too-many-characters`. Sixteen animations of 24 frames at
+1024×1024: 325 MB (Wayland) and 298 MB (X11), each frame cut to 256 px
+a side on loading, as every picture is. That cut was logged once per
+frame — 384 lines for these — and is said once per animation now; and
+the frame cache kept the frames at full size, cutting them again at
+every start, 96 MB on disk for 6 MB used each. It keeps them as they
+are shown now (cache format 2).
+
 ## 7-day desktop protocol (manual, pre-1.0)
 
 The automated soak runs headless on synthetic load; the real-session

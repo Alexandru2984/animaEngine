@@ -1118,6 +1118,8 @@ mod tests {
             say("ro", "palette-snooze-minutes", "minutes", 60),
             "Ațipește 60 de minute"
         );
+        assert!(say("ro", "error-too-many-characters", "max", 64)
+            .starts_with("Pot fi cel mult 64 de personaje pe ecran"));
         assert_eq!(
             say("ja", "shimeji-imported-toast", "n", 0),
             "HDMI-1 をインポートしました"

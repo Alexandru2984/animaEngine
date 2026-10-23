@@ -667,6 +667,16 @@ read-only D-Bus names, for the idle time
   also left a directory each in `/tmp` every run. The tests touch
   neither now; a whole run, both feature sets, leaves nothing behind
   outside the checkout.
+- **The frame cache keeps frames at the size they are shown** — at most
+  256 px a side, as every picture is cut to on loading. It kept them at
+  full size and cut them again at every start: a 24-frame animation at
+  1024×1024 took 96 MB of disk for 6 MB used. Cut once, said once per
+  animation, where each frame was a line of the log. Old cache files
+  are read again and written over once.
+- **At 64 characters, adding one more says so in your language** — "At
+  most 64 characters can be on screen" — rather than "entity limit
+  reached", in English everywhere. Checked with 64 characters on both
+  backends: memory flat, nothing logged after starting.
 - **Global shortcuts on GNOME went through an X11 grab** instead of the
   desktop's portal — so Ctrl+Shift+A, H and P worked only while an X
   window had the keyboard. 1.5 starts fast enough to ask the portal for

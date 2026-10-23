@@ -188,6 +188,11 @@ pub fn load_asset(
         spritesheet_rows,
     )
     .map_err(|e| unreadable(asset_path, e))?;
+    // At the size every caller shows it (`Scene::cap_to_drop_size`), before
+    // it is cached: the cache kept the full size and every start resized
+    // it again — a 1024² sequence of 24 frames was 96 MB on disk for
+    // 6 MB used (cache format 2).
+    let frames = super::frame::capped(frames, crate::constants::MAX_DROP_SIZE)?;
 
     // Best-effort cache write — never fails the load.
     if let Err(e) = cache::try_save(
@@ -642,6 +647,21 @@ mod tests {
         // "asset not found" — the path exists, it just isn't a PNG — and
         // that it is said in the user's words (1.5).
         assert!(matches!(err, AnimaError::Said(_)));
+    }
+
+    #[test]
+    fn frames_come_back_at_the_size_they_are_shown() {
+        // So the frame cache keeps them so, not at full size (format 2).
+        let dir = temp_dir("capped_frames");
+        for i in 0..3 {
+            image::RgbaImage::from_pixel(600, 300, image::Rgba([i * 40, 9, 9, 255]))
+                .save(dir.join(format!("frame_{i:03}.png")))
+                .unwrap();
+        }
+        let frames = load_asset(&AssetType::PngSequence, &dir, None, None).unwrap();
+        assert_eq!(frames.len(), 3);
+        let max = crate::constants::MAX_DROP_SIZE;
+        assert!(frames.iter().all(|f| (f.width, f.height) == (max, max / 2)));
     }
 
     #[test]

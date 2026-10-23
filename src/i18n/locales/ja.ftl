@@ -595,6 +595,7 @@ error-not-a-scene-file = animaEngine のシーンやキャラクターのファ�
 error-not-a-backup = animaEngine のバックアップではありません。
 error-file-damaged = ファイルが壊れているか、animaEngine で作られたものではありません。
 error-file-newer = 新しいバージョンの animaEngine で作られています。開くにはアップデートしてください。
+error-too-many-characters = 画面に置けるキャラクターは最大 { $max } 体です。追加するには、いくつか削除してください。
 shimeji-no-actions = パックの conf フォルダーに actions.xml がありません。
 shimeji-no-idle = パックに待機ポーズ（Stay アクション）がありません。
 shimeji-not-utf8 = パックの XML が UTF-8 ではありません。Shift-JIS のパックは読み込めません。

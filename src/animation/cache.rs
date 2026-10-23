@@ -21,7 +21,7 @@
 //! ## File format (little-endian)
 //! ```text
 //! u32 magic     = 0x414E494D ("ANIM")
-//! u32 version   = 1
+//! u32 version   = 2   (1 held frames at full size; see `VERSION`)
 //! u32 n_frames
 //! per frame:
 //!   u32 width
@@ -45,7 +45,10 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 const MAGIC: u32 = 0x414E_494D;
-const VERSION: u32 = 1;
+/// 2 (1.5): frames are cached at the size they are shown, at most
+/// `MAX_DROP_SIZE` a side (`loader::load_asset`); a version-1 file holds
+/// them at full size, and is decoded again and written over.
+const VERSION: u32 = 2;
 const HEADER_BYTES: usize = 12; // magic + version + count
 const PER_FRAME_HEADER: usize = 12; // width + height + delay
 

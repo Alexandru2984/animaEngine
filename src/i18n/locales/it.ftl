@@ -600,6 +600,7 @@ error-not-a-scene-file = Non è una scena né un personaggio di animaEngine.
 error-not-a-backup = Non è un backup di animaEngine.
 error-file-damaged = Il file è danneggiato, oppure non è stato creato da animaEngine.
 error-file-newer = È stato creato da una versione più recente di animaEngine; aggiorna per aprirlo.
+error-too-many-characters = Al massimo { $max } personaggi sullo schermo: rimuovine qualcuno per aggiungerne altri.
 shimeji-no-actions = Il pacchetto non ha un actions.xml nella sua cartella conf.
 shimeji-no-idle = Il pacchetto non ha una posa di riposo (un’azione Stay).
 shimeji-not-utf8 = L’XML del pacchetto non è in UTF-8; i pacchetti in Shift-JIS non si possono leggere.

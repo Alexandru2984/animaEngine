@@ -14,6 +14,28 @@ pub struct Frame {
     pub delay_ms: Option<u32>,
 }
 
+/// `frames`, each at most `max_dim` a side ([`Frame::resized`]); how many
+/// changed, and from what, said once.
+pub fn capped(frames: Vec<Frame>, max_dim: u32) -> Result<Vec<Frame>> {
+    let first = frames.first().map(|f| (f.width, f.height));
+    let over = frames
+        .iter()
+        .filter(|f| f.width > max_dim || f.height > max_dim)
+        .count();
+    let frames: Vec<Frame> = frames
+        .into_iter()
+        .map(|f| f.resized(max_dim))
+        .collect::<Result<_>>()?;
+    if let (true, Some((w, h)), Some(now)) = (over > 0, first, frames.first()) {
+        tracing::info!(
+            "Resized {over} frames to at most {max_dim} px a side ({w}x{h} → {}x{} first)",
+            now.width,
+            now.height
+        );
+    }
+    Ok(frames)
+}
+
 impl Frame {
     pub fn new(rgba: Vec<u8>, width: u32, height: u32) -> Self {
         Self {
@@ -57,6 +79,8 @@ impl Frame {
     /// match `width * height * 4` — we refuse to fabricate a fake frame at
     /// the wrong dimensions, which would later desync the GPU texture.
     pub fn resized(self, max_dim: u32) -> Result<Self> {
+        // Said once per animation, by `capped`: per frame, a 600-frame
+        // sequence logged 600 lines each time it was decoded.
         if self.width <= max_dim && self.height <= max_dim {
             return Ok(self);
         }
@@ -90,7 +114,7 @@ impl Frame {
 
         let resized =
             image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Triangle);
-        tracing::info!("Resized frame: {}x{} → {}x{}", orig_w, orig_h, new_w, new_h);
+        tracing::debug!("Resized frame: {}x{} → {}x{}", orig_w, orig_h, new_w, new_h);
 
         Ok(Self {
             rgba: resized.into_raw(),

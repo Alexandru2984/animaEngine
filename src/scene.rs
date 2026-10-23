@@ -180,10 +180,7 @@ impl Scene {
     fn cap_to_drop_size(
         frames: Vec<crate::animation::frame::Frame>,
     ) -> Result<Vec<crate::animation::frame::Frame>> {
-        frames
-            .into_iter()
-            .map(|f| f.resized(MAX_DROP_SIZE))
-            .collect()
+        crate::animation::frame::capped(frames, MAX_DROP_SIZE)
     }
 
     /// Load a single entity from config. The legacy top-level asset
@@ -898,9 +895,7 @@ impl Scene {
         // bypass the cap. A drag-flood from a hostile compositor could
         // otherwise spawn arbitrary entities until OOM.
         if self.entities.len() >= MAX_ENTITIES {
-            return Err(AnimaError::other(format!(
-                "entity limit reached ({MAX_ENTITIES}); remove some before adding more"
-            )));
+            return Err(too_many_characters());
         }
 
         let (asset_type, type_desc) = detect_asset_type(path);
@@ -1142,9 +1137,7 @@ impl Scene {
     /// pre-check. Today every caller passes a hardcoded preset config.
     pub fn append_character_config(&mut self, cfg: &CharacterConfig) -> Result<()> {
         if self.entities.len() >= MAX_ENTITIES {
-            return Err(AnimaError::other(format!(
-                "entity limit reached ({MAX_ENTITIES}); remove some before adding more"
-            )));
+            return Err(too_many_characters());
         }
         let mut entity = Self::load_entity(cfg)?;
         // Arrives fading in (`Scene::fade_step`).
@@ -1161,6 +1154,13 @@ impl Scene {
         self.settle_again();
         Ok(())
     }
+}
+
+/// The scene holds `MAX_ENTITIES` already: said in the user's words. It
+/// read "entity limit reached (64); remove some before adding more" in
+/// every language.
+fn too_many_characters() -> AnimaError {
+    AnimaError::said_as(crate::i18n::Msg::new("error-too-many-characters").arg("max", MAX_ENTITIES))
 }
 
 /// `groups` as a scene holds them: each character in one at most

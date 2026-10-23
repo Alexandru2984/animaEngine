@@ -614,6 +614,11 @@ error-not-a-scene-file = Aceasta nu este o scenă sau un personaj din animaEngin
 error-not-a-backup = Aceasta nu este o copie de rezervă animaEngine.
 error-file-damaged = Fișierul este deteriorat sau nu a fost creat de animaEngine.
 error-file-newer = A fost creat de o versiune mai nouă a animaEngine; actualizează aplicația ca să îl deschizi.
+error-too-many-characters = Pot fi cel mult { $max ->
+        [one] { $max } personaj
+        [few] { $max } personaje
+       *[other] { $max } de personaje
+    } pe ecran: șterge câteva ca să adaugi altele.
 shimeji-no-actions = Pachetul nu are actions.xml în dosarul conf.
 shimeji-no-idle = Pachetul nu are o poziție de repaus (o acțiune Stay).
 shimeji-not-utf8 = XML-ul pachetului nu este în UTF-8; pachetele în Shift-JIS nu pot fi citite.
