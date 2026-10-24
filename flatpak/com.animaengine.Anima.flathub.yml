@@ -4,8 +4,10 @@
 #   - builds from the released git tag, not the working tree;
 #   - every crate is pinned by hash in cargo-sources.json (Flathub
 #     forbids network access during build), regenerate with:
-#       python3 flatpak-cargo-generator.py Cargo.lock -o cargo-sources.json
-#     from https://github.com/flatpak/flatpak-builder-tools/tree/master/cargo
+#       scripts/cargo-sources.py
+#     after any change to Cargo.lock (CI fails while it is stale). Same
+#     output as flatpak-cargo-generator.py from
+#     https://github.com/flatpak/flatpak-builder-tools/tree/master/cargo
 #
 # See FLATHUB.md for the submission checklist.
 

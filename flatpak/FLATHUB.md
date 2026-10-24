@@ -7,8 +7,9 @@ doesn't exist yet.
 ## Ready ✅
 
 - `com.animaengine.Anima.flathub.yml` — offline manifest building the
-  `v1.4.0` tag, crates pinned in `cargo-sources.json` (1045 entries,
-  regenerate on every release: see header comment in the manifest).
+  `v1.4.0` tag, crates pinned in `cargo-sources.json` (991 entries,
+  written from `Cargo.lock` by `scripts/cargo-sources.py`; CI fails
+  while the two disagree).
 - Metainfo passes `appstreamcli validate` with release entries up to
   1.4.0, OARS rating, launchable, provides, URLs.
 - Desktop file + scalable icon installed under the app-id name (the
@@ -68,7 +69,8 @@ Flathub's verification rules:
 ## Per-release maintenance
 
 On every new tag: bump `tag:`/`commit:` in the manifest, regenerate
-`cargo-sources.json` from the new `Cargo.lock`, add the release entry
-to the metainfo (already part of the release ceremony), push to the
-flathub repo. Flathub bots open the update PR automatically if you
-enable them (recommended: `flathubbot` checker).
+`cargo-sources.json` from the new `Cargo.lock`
+(`scripts/cargo-sources.py`), add the release entry to the metainfo
+(already part of the release ceremony), push to the flathub repo.
+Flathub bots open the update PR automatically if you enable them
+(recommended: `flathubbot` checker).

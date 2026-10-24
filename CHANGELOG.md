@@ -414,6 +414,18 @@ read-only D-Bus names, for the idle time
   are one each now — the panel's paint pass, the demo characters' frame
   writing, the portal connection autostart and the file chooser share.
   Nothing a user sees changes.
+- **Dependencies at their latest compatible versions.** 88 crates moved
+  within their semver range — `libc`, `bytemuck`, `wayland-client`,
+  `regex`, `zune-jpeg` and others — and three left the build
+  (`multiversion`, `multiversion-macros`, `target-features`), as did a
+  third copy of `quick-xml`. No crate is new. Held back: the updates
+  that would bring in crates the build does not have (`zbus` and
+  `zvariant`, `serde`, `thiserror`, `ksni`, `rhai`, `toml`, `flate2`,
+  `openh264` and a few more pull `syn` 3 or new ones), and `uuid` at
+  1.26, the last before Rust 1.89. The fuzz targets' lockfile has the
+  same versions. `flatpak/cargo-sources.json` is now written from
+  `Cargo.lock` by `scripts/cargo-sources.py`, which CI runs to fail
+  while the two disagree.
 
 ### Fixed
 

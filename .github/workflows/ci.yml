@@ -259,6 +259,9 @@ jobs:
           sudo apt-get install -y desktop-file-utils appstream
       - run: desktop-file-validate data/com.animaengine.Anima.desktop
       - run: appstreamcli validate --no-net data/com.animaengine.Anima.metainfo.xml
+      # The Flatpak builds offline from this list: a crate Cargo.lock
+      # gained and the list did not is one the build was never given.
+      - run: python3 scripts/cargo-sources.py --check
 
   build:
     name: release build
