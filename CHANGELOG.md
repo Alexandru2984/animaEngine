@@ -681,6 +681,11 @@ read-only D-Bus names, for the idle time
   most 64 characters can be on screen" — rather than "entity limit
   reached", in English everywhere. Checked with 64 characters on both
   backends: memory flat, nothing logged after starting.
+- **GNOME's dialog asking to allow the shortcuts had 15 seconds** before
+  the app gave up on the desktop's portal. 1.5 asks for six shortcuts
+  where 1.4 asked for three, so GNOME asks again on the first start; it
+  is waited for ten minutes now, and the Keybindings tab says it is
+  waiting for your approval meanwhile.
 - **Global shortcuts on GNOME went through an X11 grab** instead of the
   desktop's portal — so Ctrl+Shift+A, H and P worked only while an X
   window had the keyboard. 1.5 starts fast enough to ask the portal for

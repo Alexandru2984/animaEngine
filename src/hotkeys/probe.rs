@@ -36,7 +36,9 @@ impl HotkeyStrategy {
     /// strategy is started.
     pub fn status(self) -> HotkeyStatus {
         match self {
-            Self::Portal { .. } => HotkeyStatus::Portal,
+            // Until the desktop answers — on GNOME, once the user has
+            // allowed them (`AnimaEvent::PortalShortcutsActive`).
+            Self::Portal { .. } => HotkeyStatus::PortalAwaiting,
             Self::X11Grab => HotkeyStatus::Grab,
             Self::DbusOnly => HotkeyStatus::TrayOnly,
         }
@@ -258,7 +260,10 @@ mod tests {
             let label = status.label();
             assert!(!label.contains("keybindings-"), "{status:?}: {label}");
         }
-        assert_eq!(choose(Some(1), false).status(), HotkeyStatus::Portal);
+        assert_eq!(
+            choose(Some(1), false).status(),
+            HotkeyStatus::PortalAwaiting
+        );
         assert_eq!(choose(None, true).status(), HotkeyStatus::Grab);
         assert_eq!(choose(None, false).status(), HotkeyStatus::TrayOnly);
     }

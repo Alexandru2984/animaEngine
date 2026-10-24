@@ -115,6 +115,11 @@ edit mode from anywhere.
       key works, and GNOME's own settings list them for the app (where
       depends on the GNOME version).
 
+- [ ] **The dialog waits for you.** On the first start of 1.5, GNOME
+      asks to allow six shortcuts (three are new since 1.4). Leave it
+      open a minute before allowing: the Keybindings tab says *waiting
+      for your approval* meanwhile, then *The desktop*; the journal says
+      `Portal shortcuts active`, not `portal did not respond in time`.
 - [ ] **Bound through the portal at once.** Started from the app grid,
       the journal (`journalctl --user -t com.animaengine.Anima.desktop`)
       says `Portal shortcuts active`, not `GlobalShortcuts portal session

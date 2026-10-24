@@ -1011,6 +1011,9 @@ impl ApplicationHandler<AnimaEvent> for App {
                 self.hotkey_backend_status =
                     crate::hotkeys::probe::HotkeyStatus::GrabPortalDeclined;
             }
+            AnimaEvent::PortalShortcutsActive => {
+                self.hotkey_backend_status = crate::hotkeys::probe::HotkeyStatus::Portal;
+            }
         }
         // Every non-quit tray/hotkey action mutates visible state
         // (mode, playback, visibility) — wake the paced render loop.

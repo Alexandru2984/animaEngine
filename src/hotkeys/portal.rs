@@ -68,6 +68,14 @@ const PORTAL_QUEUE_CAP: usize = 64;
 /// block the hotkey thread for good, and the fallback would never run.
 const SHORTCUTS_TIMEOUT: Option<std::time::Duration> = Some(std::time::Duration::from_secs(15));
 
+/// The same for `BindShortcuts`, which GNOME answers only once the user
+/// has allowed the shortcuts in its dialog — the first time, and again
+/// whenever the app asks for one more. At 15 s, someone reading the
+/// dialog lost the portal to the X11 grab, which holds only over X
+/// windows on Wayland (1.5 asks for six where 0.9 asked for three). Ten
+/// minutes; the Keybindings tab says it is waiting meanwhile.
+const BIND_TIMEOUT: Option<std::time::Duration> = Some(std::time::Duration::from_secs(10 * 60));
+
 /// Portal shortcut id for an action. Stable public identifiers —
 /// they show up in the desktop's shortcut settings UI, so changing
 /// one orphans the user's stored binding.
@@ -283,7 +291,7 @@ async fn portal_handshake(
         &sender,
         &shortcuts_proxy,
         "BindShortcuts",
-        SHORTCUTS_TIMEOUT,
+        BIND_TIMEOUT,
         |token| {
             let shortcuts: Vec<(String, HashMap<&str, Value<'_>>)> = rows
                 .iter()

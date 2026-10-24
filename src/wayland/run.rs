@@ -936,7 +936,9 @@ pub fn run_native(
                         }
                         // Hotkey resolution events are winit-path UI; the
                         // native path logs the outcome where it resolves.
-                        AnimaEvent::HotkeysUnavailable | AnimaEvent::PortalShortcutsDenied => {}
+                        AnimaEvent::HotkeysUnavailable
+                        | AnimaEvent::PortalShortcutsDenied
+                        | AnimaEvent::PortalShortcutsActive => {}
                         // This loop learns it from the compositor's
                         // toplevel list instead.
                         AnimaEvent::FullscreenInFront(_) | AnimaEvent::ChosenAppInFront(_) => {}

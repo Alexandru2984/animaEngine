@@ -555,6 +555,7 @@ fn portal_bridge(
     match rx.recv() {
         Ok(PortalMsg::Ready) => {
             tracing::info!("Portal shortcuts active");
+            let _ = proxy.send_event(AnimaEvent::PortalShortcutsActive);
             while let Ok(msg) = rx.recv() {
                 let PortalMsg::Activated(action) = msg else {
                     continue;

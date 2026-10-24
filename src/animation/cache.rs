@@ -49,6 +49,9 @@ const MAGIC: u32 = 0x414E_494D;
 /// `MAX_DROP_SIZE` a side (`loader::load_asset`); a version-1 file holds
 /// them at full size, and is decoded again and written over.
 const VERSION: u32 = 2;
+
+/// What [`read_frames_from`] says of a file in another format version.
+const OLDER_FORMAT: &str = "cache version mismatch";
 const HEADER_BYTES: usize = 12; // magic + version + count
 const PER_FRAME_HEADER: usize = 12; // width + height + delay
 
@@ -355,6 +358,17 @@ pub fn try_load(
             );
             Some(frames)
         }
+        // A file from before the format changed is not damaged: it is
+        // decoded again, said quietly. It was a warning that the cache was
+        // corrupt, once per picture, the first start after an upgrade.
+        Err(e) if e.to_string() == OLDER_FORMAT => {
+            tracing::debug!(
+                "Asset cache {}: another format; decoding again",
+                crate::drop_validate::redact_path(&key)
+            );
+            let _ = fs::remove_file(&key);
+            None
+        }
         Err(e) => {
             tracing::warn!(
                 "Asset cache corrupt at {}: {}",
@@ -489,7 +503,7 @@ fn read_frames_from<R: Read>(r: &mut R) -> Result<Vec<Frame>> {
     }
     let version = u32::from_le_bytes(header[4..8].try_into().unwrap());
     if version != VERSION {
-        return Err(AnimaError::other("cache version mismatch"));
+        return Err(AnimaError::other(OLDER_FORMAT));
     }
 
     let count = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;

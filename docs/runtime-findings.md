@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R77 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R78 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2893,3 +2893,35 @@ Three things were not right:
 **Fixed:** the reset clears `last_seen_whats_new` too; a tour that ends
 forgets its step; the hint names Add, in ten languages. **Checked:** 14
 of 14 on each backend, the upgrade's panel in Romanian.
+
+### R78 · On the maintainer's laptop: GNOME's shortcuts dialog had 15 seconds — `FIXED`
+
+Found running the installed app on the maintainer's laptop (GNOME on
+Wayland, an AMD integrated GPU beside a sleeping NVIDIA one) as a
+transient user service with the session's environment, for two minutes:
+CPU 2.3 %, 92 MB, 16 threads, the NVIDIA GPU asleep throughout, a
+SIGTERM quitting cleanly and leaving the config as it was. With R76's
+fix the portal took the session — and then `BindShortcuts` went
+unanswered for 15 seconds, "portal did not respond in time", and the
+shortcuts fell back to the XWayland grab again.
+
+GNOME answers `BindShortcuts` only once the user has allowed the
+shortcuts in its dialog: GNOME Settings' provider started as the call
+came. It had three allowed, from 0.9; 1.5 asks for six — the focus
+timer, snooze and mute are new — so it asked. The 15-second limit,
+there against a portal that never answers, applied to the dialog as
+well, which the code's own comment says "may sit on screen for
+minutes". And on the X11 path the Keybindings tab said "The desktop"
+from the start, not that it was waiting.
+
+The same run's journal called each demo picture's frame cache
+"corrupt": a file in the older format (R-round 39), not a damaged one.
+
+**Fixed:** `BindShortcuts` waits ten minutes (`BIND_TIMEOUT`), creating
+the session keeps its 15 s; on the X11 path the tab says "waiting for
+your approval" until the portal binds
+(`AnimaEvent::PortalShortcutsActive`), as the native path already did; a
+cache file in another format is decoded again quietly. **Checked** with
+a stand-in portal on the rig's bus that answers `BindShortcuts` after 25
+s, then fires a shortcut: on both backends the tab waited, the shortcuts
+bound, the tab said "The desktop", and Pause all paused.
