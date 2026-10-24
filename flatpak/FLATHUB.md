@@ -56,13 +56,16 @@ Flathub's verification rules:
    `com.animaengine.Anima.yml`) and `cargo-sources.json`.
 3. Open a PR against the `new-pr` branch; CI builds it; a reviewer
    looks at finish-args and metainfo.
-4. Typical review asks: justify the filesystem grants (answer: the
-   app's own asset library `xdg-data/animaEngine:create`, plus
-   `xdg-pictures:ro` + `xdg-download:ro` as the common drag-drop /
-   config-path asset sources — deliberately *not* `home`, to keep
-   credentials and browser profiles out of reach; a file-chooser portal
-   for arbitrary locations is post-1.0), justify `--talk-name`s
-   (StatusNotifierItem tray + notifications).
+4. Typical review asks: justify the filesystem grants (answer: only
+   `xdg-pictures:ro` + `xdg-download:ro`, the common drag-drop and
+   config-path asset sources; the app's own config, cache and asset
+   library live in `~/.var/app/com.animaengine.Anima/` and need none;
+   deliberately *not* `home`, to keep credentials and browser profiles
+   out of reach; anything elsewhere comes through the file-chooser
+   portal, Scene → Add file…), justify the D-Bus names
+   (StatusNotifierItem tray, notifications, GNOME's idle monitor
+   read-only, UPower for the battery) and `--socket=pulseaudio`
+   (script sounds; no capture code is linked).
 5. After merge, the app builds on Flathub's infra; install counts
    appear on the dashboard at <https://flathub.org/apps>.
 
