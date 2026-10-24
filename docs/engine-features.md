@@ -117,7 +117,7 @@ default config carries one window (matches 0.2 behaviour).
 [[windows]]
 id = "default"
 name = "Main"
-monitor_mode = "per_monitor"  # overrides global for this window
+monitor_mode = { kind = "per_monitor" }  # overrides global for this window
 
 [[windows.characters]]
 id = "ghost"

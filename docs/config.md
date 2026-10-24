@@ -86,7 +86,7 @@ theme = "dark"              # dark | light | dark_high_contrast |
                             # light_high_contrast
 locale = "ro"              # language code (en, ro, pt-BR, …); omit
                             # the key entirely to detect from the OS
-monitor_mode = "per_monitor" # per_monitor | span | single
+monitor_mode = { kind = "per_monitor" } # or "span", or "single"
 accesskit_enabled = true    # AT-SPI / screen-reader bridge (Orca)
 hotkey_backend = "auto"     # auto | portal | x11 | none
 reduced_motion = false      # a11y: skip UI transitions + decorative
@@ -141,15 +141,16 @@ snap_while_dragging = true  # a dragged selection snaps to monitor
 |-----|--------|-------|
 | `theme` | `dark` (default), `light`, `dark_high_contrast`, `light_high_contrast` | |
 | `locale` | any shipped language code | Omit to auto-detect from the environment; an unknown code falls back to English. |
-| `monitor_mode` | `per_monitor` (default), `span`, `single` | `single` pins the overlay to one output — see below. |
+| `monitor_mode` | `kind`: `per_monitor` (default), `span`, `single` | A table, `{ kind = "span" }` — not a bare string. `single` pins the overlay to one output — see below. |
 | `accesskit_enabled` | `true` (default) / `false` | Whether a screen reader gets the panels (AT-SPI). Off, it sees an empty window. Applies live. |
 | `hotkey_backend` | `auto` (default), `portal`, `x11`, `none` | `auto` probes the GlobalShortcuts portal, then XGrabKey on X11. `none` = tray + D-Bus only. |
 | `on_fullscreen` | `hide` (default), `pause`, `ignore` | While the window in front is full screen — a game, a video, slides. Seen on X11 (EWMH) and on wlroots-based Wayland compositors (sway, Hyprland; `wlr-foreign-toplevel-management`); under GNOME or KDE on Wayland only X11 apps running through XWayland are seen. Your own hide and pause are left as they were. |
 
-Pinning the overlay to a single output uses the struct form:
+Pinning the overlay to a single output names it too:
 
 ```toml
-[global.monitor_mode.single]
+[global.monitor_mode]
+kind = "single"
 name = "eDP-1"              # connector name from `xrandr` / `wlr-randr`
 ```
 
@@ -351,7 +352,9 @@ shows everyone whatever their hours.
 | `video`            | MP4 / M4V / MOV with H.264 video (audio dropped) |
 
 Asset paths are tried relative to the binary, then to the working
-directory. Use absolute paths to avoid ambiguity. `~/` expands to your
+directory; `assets/demo/<name>` also finds the demo characters'
+pictures, which the app makes in its data directory at the first
+start. Use absolute paths to avoid ambiguity. `~/` expands to your
 home directory; `~user` is **not** expanded (it passes through as a
 literal rather than risk building a path inside the wrong home).
 
@@ -502,9 +505,7 @@ y = 300.0
 [[windows]]
 id = "side"
 name = "Companion"
-monitor_mode = "single"     # this window only; struct form for a pin:
-# [windows.monitor_mode.single]
-# name = "HDMI-A-1"
+monitor_mode = { kind = "single", name = "HDMI-A-1" } # this window only
 ```
 
 If both top-level `characters` and explicit `windows` are present, the

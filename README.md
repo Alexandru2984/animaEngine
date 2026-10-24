@@ -127,36 +127,64 @@ next to no CPU while nothing moves.
 
 ### Pre-built packages
 
-If you have one of the artifacts under [releases](
-https://github.com/Alexandru2984/animaEngine/releases) (or built locally
-via `make appimage` / `make deb` / `make flatpak`):
+Each [release](https://github.com/Alexandru2984/animaEngine/releases)
+carries a `.deb`, an AppImage and their `SHA256SUMS`, and GitHub attests
+where each was built. Check what you downloaded first:
 
 ```bash
-# Debian / Ubuntu (.deb)
+sha256sum -c --ignore-missing SHA256SUMS-v1.4.0.txt
+# gh 2.49 or newer — a distribution's may be older: cli.github.com
+gh attestation verify anima-engine_1.4.0-1_amd64.deb --repo Alexandru2984/animaEngine
+```
+
+```bash
+# Debian / Ubuntu (.deb) — and `sudo apt remove anima-engine` to remove it
 sudo apt install ./anima-engine_1.4.0-1_amd64.deb
 
 # AppImage (any distro)
 chmod +x animaEngine-1.4.0-x86_64.AppImage
 ./animaEngine-1.4.0-x86_64.AppImage
+```
 
-# Flatpak
-flatpak install --user com.animaengine.Anima.flatpak
+A Flatpak is built locally (`make flatpak`, see
+[flatpak/README.md](flatpak/README.md)); its runtime comes from Flathub:
+
+```bash
+flatpak remote-add --user --if-not-exists flathub \
+    https://flathub.org/repo/flathub.flatpakrepo
+flatpak install --user build/com.animaengine.Anima.flatpak
 flatpak run com.animaengine.Anima
 ```
 
+`make appimage` and `make deb` build the other two the same way.
+
 ### From source
+
+Rust 1.88 or newer, from [rustup](https://rustup.rs) — a distribution's
+own `rustc` is often older (Ubuntu 24.04's is 1.75).
 
 ```bash
 # System deps (Ubuntu/Debian) — pkg-config is required and is NOT
 # part of build-essential; without it the xkbcommon build script fails.
-sudo apt install -y build-essential cmake pkg-config \
+# libasound2-dev is for script sounds (the `audio` feature).
+sudo apt install -y build-essential pkg-config \
     libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-    libxkbcommon-x11-dev libwayland-dev libxrandr-dev
+    libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
 
 # Build & run
 cargo build --release
 ./target/release/anima_engine
+
+# Or install it as `anima-engine`, with its menu entry and icons
+# (drawn by rsvg-convert: sudo apt install librsvg2-bin)
+make icons && sudo make install      # under /usr/local
+make install PREFIX=$HOME/.local     # or for you alone
+sudo make uninstall                  # and back out
 ```
+
+`--no-default-features` builds without video (the openh264 decoder) and
+without sound (ALSA); `--features video` or `--features audio` puts one
+back.
 
 ## Daily use
 
@@ -265,14 +293,16 @@ flag needed there.
 | Multi-monitor distribution | stable | stable |
 | Hi-DPI | the panel and the characters at the screen's scale factor | each monitor at its own scale, 125 % / 150 % too |
 | Perf overlay | stable | stable |
-| Global hotkeys | stable (XGrabKey) | via D-Bus + compositor binding |
+| Global hotkeys | the GlobalShortcuts portal (GNOME, KDE), else XGrabKey | the portal where the compositor has one, else D-Bus + compositor binding |
 | Hot-reload | stable | stable |
 | Tapping characters outside edit mode | stable | stable |
 | Full-screen apps seen | EWMH (X11 apps) | `wlr-foreign-toplevel-management` |
 | Idle time (dozing, welcome back) | GNOME, or a real X server | `ext-idle-notify` (sway, Hyprland) |
 
-Global shortcuts on the native path go through `org.animaengine.Anima`
-D-Bus methods that compositor bindings call via `gdbus` — see
+Through the portal, the desktop asks once to allow the shortcuts, and
+they can be changed in its settings. Without one, global shortcuts on
+the native path go through `org.animaengine.Anima` D-Bus methods that
+compositor bindings call via `gdbus` — see
 [docs/wayland.md](docs/wayland.md) for sway / Hyprland / river config
 snippets.
 

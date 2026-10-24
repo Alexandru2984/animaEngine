@@ -2228,7 +2228,7 @@ mod upgrade_tests {
 
     /// Every value in a table, by its path: `global.theme`,
     /// `characters[2].behavior.speed`.
-    fn values(path: &str, value: &toml::Value, out: &mut BTreeMap<String, toml::Value>) {
+    pub(super) fn values(path: &str, value: &toml::Value, out: &mut BTreeMap<String, toml::Value>) {
         match value {
             toml::Value::Table(table) => {
                 for (key, value) in table {
@@ -2314,6 +2314,101 @@ mod upgrade_tests {
                     );
                 }
             }
+        }
+    }
+}
+
+/// The TOML that README.md and docs/config.md show reads here as written,
+/// every key known: one that does not read is set aside, and whoever
+/// copied it gets a banner instead of the setting (`monitor_mode` was a
+/// bare string there until 1.5, and never read).
+#[cfg(test)]
+mod doc_example_tests {
+    use super::upgrade_tests::values;
+    use super::*;
+    use std::collections::BTreeMap;
+
+    /// The character a `[characters.…]` table on its own belongs to.
+    const CHARACTER: &str = "[[characters]]\nid = \"slime\"\nname = \"Slime\"\n\
+        asset_type = \"png_sequence\"\nasset_path = \"assets/demo/slime\"\nx = 0.0\ny = 0.0\n";
+
+    #[test]
+    fn the_documented_config_reads_as_written() {
+        for (doc, text) in [
+            ("README.md", include_str!("../README.md")),
+            ("docs/config.md", include_str!("../docs/config.md")),
+        ] {
+            for block in text.split("```toml\n").skip(1) {
+                let block = block.split("```").next().unwrap_or_default();
+                // A fragment, the rest of it left out.
+                if block.contains("# …") {
+                    continue;
+                }
+                // The behaviors, listed one after another in one block.
+                const BEHAVIOR: &str = "\n[characters.behavior]\n";
+                let parts: Vec<String> = if block.matches(BEHAVIOR).count() > 1 {
+                    block
+                        .split(BEHAVIOR)
+                        .skip(1)
+                        .map(|part| format!("{BEHAVIOR}{part}"))
+                        .collect()
+                } else {
+                    vec![block.to_string()]
+                };
+                for part in parts {
+                    let table = part.lines().find(|l| l.starts_with('['));
+                    if table.is_some_and(|l| l.starts_with("[characters.")) {
+                        check(doc, &format!("{CHARACTER}{part}"));
+                    } else {
+                        check(doc, &part);
+                    }
+                }
+            }
+        }
+    }
+
+    fn check(doc: &str, toml: &str) {
+        let (config, _) = AppConfig::decode_config_str(toml)
+            .unwrap_or_else(|e| panic!("{doc}: does not read: {e}\n{toml}"));
+        assert!(
+            config.set_aside.is_empty() && config.extra.is_empty(),
+            "{doc}: {:?} {:?}\n{toml}",
+            config.set_aside,
+            config.extra
+        );
+        // And every value is kept: a key a behavior does not have is
+        // passed over without a word, so a misspelt one reads as its
+        // default.
+        let mut written = BTreeMap::new();
+        values("", &toml::Value::Table(toml.parse().unwrap()), &mut written);
+        let mut saved = BTreeMap::new();
+        let out = config.to_toml_string().unwrap();
+        values("", &toml::Value::Table(out.parse().unwrap()), &mut saved);
+        let lost: Vec<String> = written
+            .iter()
+            .filter(|(path, value)| saved.get(*path) != Some(value))
+            .filter(|(path, value)| !saved_otherwise(path, value, saved.get(*path)))
+            .map(|(path, value)| format!("{path} = {value} → {:?}", saved.get(path)))
+            .collect();
+        assert!(lost.is_empty(), "{doc}: {lost:#?}\n{toml}");
+    }
+
+    /// A value kept, but saved another way: the focus timer's lengths at
+    /// their defaults are not written, a chord is in its canonical
+    /// spelling (`Up` → `ArrowUp`).
+    fn saved_otherwise(path: &str, was: &toml::Value, now: Option<&toml::Value>) -> bool {
+        let chords = |v: &toml::Value| -> Option<Vec<crate::keybindings::KeyChord>> {
+            v.as_array()?
+                .iter()
+                .map(|c| c.as_str()?.parse().ok())
+                .collect()
+        };
+        match path {
+            "global.focus.minutes" | "global.focus.break_minutes" => now.is_none(),
+            _ if path.starts_with("keybindings.map.") => {
+                chords(was).is_some() && now.and_then(chords) == chords(was)
+            }
+            _ => false,
         }
     }
 }

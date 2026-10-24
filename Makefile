@@ -23,6 +23,7 @@ ICON_SIZES := 16 24 32 48 64 128 256
 
 BINARY := target/release/anima_engine
 APPID  := com.animaengine.Anima
+ICONS  := build/icons/.rendered
 
 .PHONY: all release install uninstall validate appimage deb flatpak clean-build icons
 
@@ -51,7 +52,7 @@ clean-build:
 	rm -rf build/AppDir build/animaEngine-*.AppImage build/anima-engine_*.deb \
 	       build/com.animaengine.Anima.flatpak build/flatpak-*
 
-install: $(BINARY) icons
+install: $(BINARY) $(ICONS)
 	install -Dm0755 $(BINARY)                              $(BINDIR)/anima-engine
 	# .desktop filename MUST match the AppStream <id> (com.animaengine.Anima)
 	# — see Cargo.toml metadata.deb assets for the GNOME Shell 47+ reason.
@@ -71,11 +72,20 @@ install: $(BINARY) icons
 	@echo "Installed under $(PREFIX)."
 	@echo "Run: anima-engine"
 
-# Rasterize the SVG into the discrete hicolor sizes. Idempotent; runs
-# automatically as part of `make install`, and triggered explicitly
-# by `scripts/build-deb.sh` before cargo-deb reads the assets.
-icons:
+# Not built here: `sudo make install` would run cargo as root, and leave
+# root's files in target/.
+$(BINARY):
+	@echo "No $(BINARY): run 'cargo build --release' first." >&2; exit 1
+
+# Rasterize the SVG into the discrete hicolor sizes, when it changed —
+# so `make icons` then `sudo make install` writes nothing of root's into
+# build/. `make install` runs it too, and `scripts/build-deb.sh` runs the
+# script itself before cargo-deb reads the assets.
+icons: $(ICONS)
+
+$(ICONS): data/anima-engine.svg scripts/render-icons.sh
 	scripts/render-icons.sh
+	@touch $@
 
 uninstall:
 	rm -f $(BINDIR)/anima-engine

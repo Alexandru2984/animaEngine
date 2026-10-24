@@ -785,6 +785,23 @@ read-only D-Bus names, for the idle time
   app looked it up — several times a frame, 1631 lines in six seconds.
   The app never does this; a config written by hand or a shared scene
   can. It stays in its first group when read, said once.
+- **The documentation's config reads as written.** `docs/config.md`
+  showed `monitor_mode = "per_monitor"`, a bare string that never read:
+  copied, the setting was set aside with a banner. It is a table,
+  `{ kind = "span" }`, there now and in `docs/engine-features.md`. A test
+  reads every TOML example in the README and `docs/config.md` and fails
+  on a key that does not read or a value that is not kept — a misspelt
+  behavior setting read silently as its default.
+- **Building from source, as the README says.** On a clean Ubuntu its
+  steps stopped at `alsa-sys`: `libasound2-dev` was missing, while
+  `cmake`, which nothing uses, was asked for. It says now that Rust 1.88
+  or newer is needed (a distribution's `rustc` is often older), how to
+  check a download against `SHA256SUMS` and its attestation, that the
+  Flatpak's runtime comes from Flathub, and how to install from source.
+  `sudo make install` rendered the icons again, as root, into `build/`;
+  they are rendered only when the SVG changes now, and without a
+  release build `make install` says to make one instead of failing on a
+  missing file.
 
 ## [1.4.0] — 2026-09-28
 
