@@ -2318,10 +2318,11 @@ mod upgrade_tests {
     }
 }
 
-/// The TOML that README.md and docs/config.md show reads here as written,
-/// every key known: one that does not read is set aside, and whoever
-/// copied it gets a banner instead of the setting (`monitor_mode` was a
-/// bare string there until 1.5, and never read).
+/// The config TOML the docs show reads here as written, every key known:
+/// one that does not read is set aside, and whoever copied it gets a
+/// banner instead of the setting (`monitor_mode` was a bare string in
+/// docs/config.md until 1.5, and never read). Not the GNOME checklist's,
+/// which is meant not to read.
 #[cfg(test)]
 mod doc_example_tests {
     use super::upgrade_tests::values;
@@ -2336,12 +2337,20 @@ mod doc_example_tests {
     fn the_documented_config_reads_as_written() {
         for (doc, text) in [
             ("README.md", include_str!("../README.md")),
+            ("CONTRIBUTING.md", include_str!("../CONTRIBUTING.md")),
             ("docs/config.md", include_str!("../docs/config.md")),
+            (
+                "docs/engine-features.md",
+                include_str!("../docs/engine-features.md"),
+            ),
         ] {
             for block in text.split("```toml\n").skip(1) {
                 let block = block.split("```").next().unwrap_or_default();
-                // A fragment, the rest of it left out.
-                if block.contains("# …") {
+                // A fragment, the rest of it left out (`…`, `# … other fields`).
+                if block
+                    .lines()
+                    .any(|l| l.trim() == "…" || l.trim_start().starts_with("# …"))
+                {
                     continue;
                 }
                 // The behaviors, listed one after another in one block.
