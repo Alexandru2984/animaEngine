@@ -322,6 +322,7 @@ pub const HEART: &str = ph::HEART;
 pub const FLAME: &str = ph::FLAME;
 pub const CONFETTI: &str = ph::CONFETTI;
 pub const SPARKLE: &str = ph::SPARKLE;
+pub const FLOWER: &str = ph::FLOWER;
 
 // Library
 pub const LIBRARY: &str = ph::FOLDER;

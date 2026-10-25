@@ -126,6 +126,15 @@ pub fn ellipse(cx: f32, cy: f32, rx: f32, ry: f32) -> impl Fn(f32, f32) -> f32 {
     }
 }
 
+/// A box `2·hw` by `2·hh` round (`cx`, `cy`), its corners rounded by `r`.
+pub fn round_rect(cx: f32, cy: f32, hw: f32, hh: f32, r: f32) -> impl Fn(f32, f32) -> f32 {
+    move |x, y| {
+        let qx = (x - cx).abs() - hw + r;
+        let qy = (y - cy).abs() - hh + r;
+        (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - r
+    }
+}
+
 /// A segment from `a` to `b`, `r` thick on each side.
 pub fn capsule(ax: f32, ay: f32, bx: f32, by: f32, r: f32) -> impl Fn(f32, f32) -> f32 {
     move |x, y| {

@@ -3,7 +3,7 @@
 //! Each [`Preset`] bundles a name, a one-line description, a Phosphor
 //! icon, and a list of [`CharacterConfig`]s built exclusively from the
 //! shipped demo assets (`assets/demo/ghost`, `slime`, `heart`, `star`,
-//! `cat`). Because no preset references external paths, applying one
+//! `cat`, and from 1.5 `bunny`, `frog`, `robot`, `cloud`, `mushroom`). Because no preset references external paths, applying one
 //! is a pure-data operation that always works after `cargo run`.
 //!
 //! Presets are consumed from the Scene tab via [`apply_to_scene`] in
@@ -33,6 +33,7 @@ pub enum PresetId {
     BirthdayConfetti,
     StudioSession,
     CursorFollower,
+    MeadowFriends,
 }
 
 impl PresetId {
@@ -44,6 +45,7 @@ impl PresetId {
         Self::BirthdayConfetti,
         Self::StudioSession,
         Self::CursorFollower,
+        Self::MeadowFriends,
     ];
 }
 
@@ -117,13 +119,14 @@ impl Preset {
             PresetId::BirthdayConfetti => birthday_confetti(),
             PresetId::StudioSession => studio_session(),
             PresetId::CursorFollower => cursor_follower(),
+            PresetId::MeadowFriends => meadow_friends(),
         }
     }
 }
 
 // ─── individual presets ────────────────────────────────────────────────
 
-fn demo_character(
+pub(crate) fn demo_character(
     id: &str,
     name: &str,
     asset_path: &str,
@@ -365,6 +368,64 @@ fn studio_session() -> Preset {
                     y_max: 800.0,
                     speed: 80.0,
                 },
+            ),
+        ],
+    }
+}
+
+/// The five characters 1.5 added, each up to something.
+fn meadow_friends() -> Preset {
+    Preset {
+        id: PresetId::MeadowFriends,
+        name: t("preset-meadow-friends"),
+        description: t("preset-meadow-friends-about"),
+        icon: icons::FLOWER,
+        characters: vec![
+            demo_character(
+                "bunny_meadow",
+                &t("demo-bunny"),
+                "assets/demo/bunny",
+                300.0,
+                620.0,
+                Behavior::Idle,
+            ),
+            demo_character(
+                "frog_meadow",
+                &t("demo-frog"),
+                "assets/demo/frog",
+                700.0,
+                700.0,
+                Behavior::WalkAround { speed: 30.0 },
+            ),
+            demo_character(
+                "robot_meadow",
+                &t("demo-robot"),
+                "assets/demo/robot",
+                1100.0,
+                640.0,
+                Behavior::WalkAround { speed: 45.0 },
+            ),
+            demo_character(
+                "cloud_meadow",
+                &t("demo-cloud"),
+                "assets/demo/cloud",
+                800.0,
+                160.0,
+                Behavior::BoundedWander {
+                    x_min: 300.0,
+                    x_max: 1400.0,
+                    y_min: 100.0,
+                    y_max: 260.0,
+                    speed: 25.0,
+                },
+            ),
+            demo_character(
+                "mushroom_meadow",
+                &t("demo-mushroom"),
+                "assets/demo/mushroom",
+                1450.0,
+                700.0,
+                Behavior::Idle,
             ),
         ],
     }

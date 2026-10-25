@@ -15,12 +15,24 @@
 //!
 //! Not part of the runtime engine — only called from `main.rs` at startup.
 
+mod bunny;
 mod cat;
+mod cloud;
+mod frog;
 mod ghost;
 mod heart;
+mod mushroom;
 mod paint;
+mod robot;
 mod slime;
 mod star;
+
+/// The characters the app draws itself, by folder: the first five are the
+/// first run's scene; the rest come from Library -> Built-in characters
+/// and the Meadow friends preset. Each one's name is `demo-<folder>`.
+pub const CHARACTERS: [&str; 10] = [
+    "ghost", "slime", "heart", "star", "cat", "bunny", "frog", "robot", "cloud", "mushroom",
+];
 
 /// Every demo character's side, in pixels.
 const SIZE: u32 = 128;
@@ -58,6 +70,11 @@ pub fn generate_assets_in(base: &Path) {
     heart::generate(base);
     star::generate(base);
     cat::generate(base);
+    bunny::generate(base);
+    frog::generate(base);
+    robot::generate(base);
+    cloud::generate(base);
+    mushroom::generate(base);
 }
 
 /// The folder demo `name`'s frames go in, emptied and made ready — or

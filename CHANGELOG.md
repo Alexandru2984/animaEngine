@@ -341,6 +341,13 @@ read-only D-Bus names, for the idle time
   writes a standard autostart entry (the one the desktop's "Startup
   Applications" lists too), and in the Flatpak it asks the Background
   portal, which may ask you. Off by default.
+- **Five more characters of the app's own**: a bunny that hops, a frog
+  puffing its throat, a robot with a blinking antenna, a raining cloud
+  and a swaying toadstool, drawn like the first five. Library opens with
+  **Built-in characters**, all ten as picture buttons — a click adds one
+  — even before a picture of your own is in the library; the **Meadow
+  friends** preset brings the five new ones. The first run's scene is
+  unchanged. Their names in all ten languages.
 - **The first characters, drawn again.** The ghost, the slime, the
   heart, the star and the cat were hard-edged flat shapes; they are
   anti-aliased, outlined, lit from the upper left with a gloss, with a

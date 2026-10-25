@@ -23,6 +23,9 @@ pub struct LibraryOutcome {
     pub relative_path: String,
     /// Human-friendly name for the toast.
     pub display_name: String,
+    /// One of the app's own characters (`crate::demo::CHARACTERS`), by
+    /// folder in `relative_path`, rather than a file of the library.
+    pub builtin: bool,
 }
 
 pub(super) fn library_tab(
@@ -59,6 +62,8 @@ pub(super) fn library_tab(
         });
         ui.ctx().memory_mut(|m| m.data.insert_temp(path_id, path));
     });
+    ui.separator();
+    builtin_characters(ui, outcome);
     ui.separator();
 
     // One resolved path for both the sentence and the clipboard, so the
@@ -160,6 +165,64 @@ pub(super) fn library_tab(
         library_row(ui, asset, outcome);
         ui.add_space(SPACE_XS);
     }
+}
+
+/// The characters the app draws itself (`crate::demo::CHARACTERS`), each a
+/// picture button that adds it — there for someone new before a picture
+/// of their own is in the library, and named for a screen reader.
+fn builtin_characters(ui: &mut egui::Ui, outcome: &mut Option<LibraryOutcome>) {
+    ui.label(egui::RichText::new(t("library-builtin-header")).strong());
+    ui.label(
+        egui::RichText::new(t("library-builtin-hint"))
+            .text_style(theme::caption())
+            .weak(),
+    );
+    ui.add_space(SPACE_XS);
+    let add = t("library-add-to-scene");
+    ui.horizontal_wrapped(|ui| {
+        for name in crate::demo::CHARACTERS {
+            let label = t(&format!("demo-{name}"));
+            let button = match builtin_texture(ui.ctx(), name) {
+                Some(tex) => egui::Button::image(
+                    egui::Image::new(&tex).fit_to_exact_size(egui::vec2(40.0, 40.0)),
+                ),
+                None => egui::Button::new(label.clone()),
+            };
+            let clicked = ui
+                .add(button)
+                .on_hover_text(&label)
+                .named(format!("{add}: {label}"))
+                .clicked();
+            if clicked && outcome.is_none() {
+                *outcome = Some(LibraryOutcome {
+                    asset_id: String::new(),
+                    relative_path: name.to_string(),
+                    display_name: label,
+                    builtin: true,
+                });
+            }
+        }
+    });
+}
+
+/// A built-in character's first frame as a texture, loaded once and kept
+/// in egui's memory; `None` while its pictures are not there.
+fn builtin_texture(ctx: &egui::Context, name: &str) -> Option<egui::TextureHandle> {
+    let id = egui::Id::new(("anima.builtin.thumb", name));
+    if let Some(tex) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return Some(tex);
+    }
+    let path = crate::demo::dir().join(name).join("frame_001.png");
+    let image = image::open(&path).ok()?.to_rgba8();
+    let size = [image.width() as usize, image.height() as usize];
+    let pixels = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
+    let tex = ctx.load_texture(
+        format!("builtin-{name}"),
+        pixels,
+        egui::TextureOptions::LINEAR,
+    );
+    ctx.data_mut(|d| d.insert_temp(id, tex.clone()));
+    Some(tex)
 }
 
 /// Thumbnail textures kept at once: the rows on screen and those seen
@@ -325,6 +388,7 @@ fn library_row(ui: &mut egui::Ui, asset: &LibraryAsset, outcome: &mut Option<Lib
                             asset_id: asset.id.clone(),
                             relative_path: asset.path.clone(),
                             display_name,
+                            builtin: false,
                         });
                     }
                 });

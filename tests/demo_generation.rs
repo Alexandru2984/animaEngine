@@ -1,7 +1,7 @@
 //! Smoke test: run `demo::generate_assets()` against a clean state and
 //! verify every advertised demo character produces a frame_001.png with
 //! the expected dimensions. This is the closest we can get to "I ran the
-//! app and saw five characters appear" without spinning up a display.
+//! app and saw its characters appear" without spinning up a display.
 //!
 //! Both checks live in one test so cargo's parallel runner doesn't race
 //! two `set_current_dir` calls against each other.
@@ -35,6 +35,11 @@ const DEMO_DIRS: &[(&str, &str)] = &[
     ("heart", "frame_001.png"),
     ("star", "frame_001.png"),
     ("cat", "frame_001.png"),
+    ("bunny", "frame_001.png"),
+    ("frog", "frame_001.png"),
+    ("robot", "frame_001.png"),
+    ("cloud", "frame_001.png"),
+    ("mushroom", "frame_001.png"),
 ];
 
 /// Sentinel size that all demo characters target. If a generator silently
@@ -79,7 +84,7 @@ fn generate_assets_full_smoke() {
         demo.display()
     );
 
-    // ── Step 1: clean state → generate → expect five characters at 128 px.
+    // ── Step 1: clean state → generate → expect every character at 128 px.
     anima_engine::demo::generate_assets();
 
     for (dir, first_frame) in DEMO_DIRS {

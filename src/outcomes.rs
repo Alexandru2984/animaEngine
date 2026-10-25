@@ -643,6 +643,10 @@ pub fn apply_library_outcome(
     library: &mut Option<LibraryIndex>,
     at: (f32, f32),
 ) {
+    if outcome.builtin {
+        add_builtin_character(&outcome, ctx, at);
+        return;
+    }
     let Some(root) = library_root else {
         tracing::warn!("Library outcome received but no library_root is set; ignoring.");
         return;
@@ -707,6 +711,40 @@ pub fn apply_library_outcome(
             tracing::warn!("Library add failed for {}: {e}", redact_path(rel_path));
             tracing::debug!("Failed relative path: {}", outcome.relative_path);
             // Why, as a drop says it: "Couldn't add notpng.png" was all.
+            let mut args = fluent::FluentArgs::new();
+            args.set("error", e.said());
+            ctx.toasts
+                .error(crate::i18n::t_args("toast-load-failed", &args));
+        }
+    }
+}
+
+/// Library -> Built-in characters: one of the app's own characters
+/// (`crate::demo::CHARACTERS`), named in the app's language, at `at`.
+fn add_builtin_character(outcome: &LibraryOutcome, ctx: &mut OutcomeCtx<'_>, at: (f32, f32)) {
+    let name = outcome.relative_path.as_str();
+    if !crate::demo::CHARACTERS.contains(&name) {
+        tracing::warn!("Not a built-in character: {name}");
+        return;
+    }
+    let id = ctx.scene.unique_id(name);
+    let config = crate::presets::demo_character(
+        &id,
+        &outcome.display_name,
+        &format!("assets/demo/{name}"),
+        at.0,
+        at.1,
+        crate::behavior::Behavior::Idle,
+    );
+    match ctx.scene.append_character_config(&config) {
+        Ok(()) => {
+            let mut args = fluent::FluentArgs::new();
+            args.set("name", outcome.display_name.clone());
+            ctx.toasts
+                .success(crate::i18n::t_args("library-asset-added-toast", &args));
+            *ctx.config_dirty = true;
+        }
+        Err(e) => {
             let mut args = fluent::FluentArgs::new();
             args.set("error", e.said());
             ctx.toasts
@@ -1911,6 +1949,7 @@ mod tests {
         let outcome = LibraryOutcome {
             asset_id: "0123456789ab".into(),
             relative_path: "a.png".into(),
+            builtin: false,
             display_name: "a".into(),
         };
         apply_library_outcome(outcome, &mut w.ctx(), None, &mut None, (0.0, 0.0));
@@ -2047,6 +2086,7 @@ mod tests {
         let outcome = LibraryOutcome {
             asset_id: "0123456789ab".into(),
             relative_path: "../../etc/passwd".into(),
+            builtin: false,
             display_name: "passwd".into(),
         };
         apply_library_outcome(outcome, &mut w.ctx(), Some(&root), &mut None, (0.0, 0.0));
