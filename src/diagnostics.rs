@@ -151,15 +151,19 @@ pub fn report() -> String {
     };
     line("Version", env!("CARGO_PKG_VERSION").to_string());
     line("System", system());
-    let env = |name: &str| std::env::var(name).unwrap_or_else(|_| "-".into());
-    line(
-        "Session",
-        format!(
-            "{}, desktop {}",
-            env("XDG_SESSION_TYPE"),
-            env("XDG_CURRENT_DESKTOP")
-        ),
-    );
+    // A desktop session's kind and name, where the variables say them —
+    // Linux and the BSDs; Windows has none.
+    if cfg!(unix) {
+        let env = |name: &str| std::env::var(name).unwrap_or_else(|_| "-".into());
+        line(
+            "Session",
+            format!(
+                "{}, desktop {}",
+                env("XDG_SESSION_TYPE"),
+                env("XDG_CURRENT_DESKTOP")
+            ),
+        );
+    }
     let packaging = if crate::autostart::in_flatpak() {
         "Flatpak"
     } else if std::env::var_os("APPIMAGE").is_some() {

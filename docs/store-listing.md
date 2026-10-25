@@ -27,7 +27,7 @@ its lines and plays its sound. Two who meet say hello.
 
 **Make anything a character.** Drop a PNG, GIF, WebP or short MP4 on the
 screen — or paste a picture you copied anywhere — and it comes alive.
-Shimeji packs import as they are. A character can also move by a small
+Shimeji packs can be imported. A character can also move by a small
 script you write.
 
 **A companion for your day.** Characters remind you to stand up or drink
