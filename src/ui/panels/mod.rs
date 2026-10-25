@@ -108,6 +108,9 @@ pub enum SceneRequest {
 pub struct AwayControls<'a> {
     pub idle_minutes: &'a mut u32,
     pub on_battery: &'a mut bool,
+    /// How often moving characters are drawn (`crate::pacing::FrameRate`):
+    /// beside the battery, which one of its choices follows.
+    pub frame_rate: &'a mut crate::pacing::FrameRate,
     /// Greeted back after being away (`crate::welcome`).
     pub welcome_back: &'a mut bool,
     /// Whether the user's idle time can be read here; `None` until the

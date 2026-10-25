@@ -91,6 +91,10 @@ pub struct GlobalConfig {
     /// Hold the scene still while the machine runs on battery.
     #[serde(default)]
     pub pause_on_battery: bool,
+    /// How often moving characters are drawn: about sixty a second, or
+    /// thirty, always or on battery (`crate::pacing::FrameRate`).
+    #[serde(default)]
+    pub frame_rate: crate::pacing::FrameRate,
 
     /// The saved scene last loaded or saved (`crate::scenes`), by name —
     /// what "Next scene" goes on from, and what the Scene tab can update.
@@ -234,6 +238,7 @@ impl Default for GlobalConfig {
             little_effects: true,
             pause_when_idle_minutes: default_pause_when_idle_minutes(),
             pause_on_battery: false,
+            frame_rate: Default::default(),
             active_scene: None,
             start_at_login: false,
             bedtime: Default::default(),

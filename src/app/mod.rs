@@ -746,7 +746,7 @@ impl App {
                 global.pause_when_idle_minutes,
                 !self.config.reminders.is_empty() || global.welcome_back,
             ),
-            global.pause_on_battery,
+            global.pause_on_battery || global.frame_rate.watches_battery(),
         );
         let still = crate::away::stillness(
             global.pause_when_idle_minutes,

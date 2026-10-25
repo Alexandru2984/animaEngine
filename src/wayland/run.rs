@@ -116,7 +116,7 @@ pub fn run_native(
     // declaration order).
     let mut renderer =
         WgpuRenderer::with_surface_from(&|instance| layer.wgpu_surface(instance), width, height)?;
-    // This loop paces itself (`FRAME_INTERVAL`), and behind the windows a
+    // This loop paces itself (`pacing::FrameRate`), and behind the windows a
     // covered surface must not stall it waiting to present.
     renderer.prefer_mailbox();
     // The pointer is this client's to know over its own input region
@@ -571,7 +571,10 @@ pub fn run_native(
             !config.reminders.is_empty() || global.welcome_back,
         );
         layer.set_idle_timeout(idle_watch);
-        crate::away::configure(idle_watch, global.pause_on_battery);
+        crate::away::configure(
+            idle_watch,
+            global.pause_on_battery || global.frame_rate.watches_battery(),
+        );
         // Bedtime by the clock (`crate::bedtime`) — not while editing.
         let bedtime_now = !layer.state.edit_mode && bedtime_watch.now(&global.bedtime);
         // The library's fresh scan, once it is done (`asset_library::open`).
@@ -1843,6 +1846,7 @@ pub fn run_native(
                 let at = crate::pacing::soonest(egui_at, reminder_timers.next_due(now));
                 crate::pacing::next_wait(
                     crate::pacing::sooner(scene_pacing(&scene), at, now),
+                    (config.global.frame_rate).interval(on_battery, layer.state.edit_mode),
                     frame_gate.last_draw,
                     awaiting,
                     now,
@@ -2035,6 +2039,7 @@ pub fn run_native(
                 let little_effects_mut = &mut config.global.little_effects;
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
                 let on_battery_mut = &mut config.global.pause_on_battery;
+                let frame_rate_mut = &mut config.global.frame_rate;
                 let welcome_back_mut = &mut config.global.welcome_back;
                 let sound_volume_mut = &mut config.global.sound_volume;
                 let sounds_muted_mut = &mut config.global.sounds_muted;
@@ -2143,6 +2148,7 @@ pub fn run_native(
                                     panels::AwayControls {
                                         idle_minutes: &mut *idle_minutes_mut,
                                         on_battery: &mut *on_battery_mut,
+                                        frame_rate: &mut *frame_rate_mut,
                                         welcome_back: &mut *welcome_back_mut,
                                         idle_available,
                                     },
@@ -2547,12 +2553,14 @@ pub fn run_native(
         // for the one thing it exists to answer.
         perf_sampler.end_frame();
 
-        // Soft cap at ~60 Hz. The dispatch above returns immediately when
-        // events were already queued, so pace on the frame's actual
-        // elapsed time rather than sleeping unconditionally — otherwise a
-        // busy compositor would spin faster than the cap and an idle one
-        // would wait out the poll timeout *and* a full sleep on top.
-        if let Some(rest) = FRAME_INTERVAL.checked_sub(frame_start.elapsed()) {
+        // Soft cap at ~60 Hz, or ~30 as set (`FrameRate`). The dispatch
+        // above returns immediately when events were already queued, so
+        // pace on the frame's actual elapsed time rather than sleeping
+        // unconditionally — otherwise a busy compositor would spin faster
+        // than the cap and an idle one would wait out the poll timeout
+        // *and* a full sleep on top.
+        let frame = (config.global.frame_rate).interval(on_battery, layer.state.edit_mode);
+        if let Some(rest) = frame.checked_sub(frame_start.elapsed()) {
             std::thread::sleep(rest);
         }
         wait = next_wait!();

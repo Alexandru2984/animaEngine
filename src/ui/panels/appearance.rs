@@ -586,6 +586,9 @@ fn away_controls(ui: &mut egui::Ui, away: super::AwayControls<'_>) -> bool {
     {
         changed = true;
     }
+    if frame_rate_picker(ui, away.frame_rate) {
+        changed = true;
+    }
     if ui
         .checkbox(away.welcome_back, t("appearance-welcome-label"))
         .on_hover_text(t("appearance-welcome-hint"))
@@ -593,6 +596,40 @@ fn away_controls(ui: &mut egui::Ui, away: super::AwayControls<'_>) -> bool {
     {
         changed = true;
     }
+    changed
+}
+
+/// How often moving characters are drawn (`crate::pacing::FrameRate`).
+/// Returns whether the choice changed.
+fn frame_rate_picker(ui: &mut egui::Ui, setting: &mut crate::pacing::FrameRate) -> bool {
+    use crate::pacing::FrameRate;
+    let mut changed = false;
+    // The label over the choice, as the others: side by side they were
+    // wider than the panel in longer languages.
+    ui.label(t("appearance-frame-rate-label"));
+    let combo_value = t(setting.i18n_key());
+    let combo = egui::ComboBox::from_id_salt("anima.frame_rate")
+        .selected_text(combo_value.clone())
+        .show_ui(ui, |ui| {
+            for option in FrameRate::ALL {
+                if ui
+                    .selectable_label(*setting == option, t(option.i18n_key()))
+                    .picked()
+                    && *setting != option
+                {
+                    *setting = option;
+                    changed = true;
+                }
+            }
+        });
+    crate::ui::accessible::name_combo(
+        &combo.response,
+        &t("appearance-frame-rate-label"),
+        &combo_value,
+    );
+    combo
+        .response
+        .on_hover_text(t("appearance-frame-rate-hint"));
     changed
 }
 

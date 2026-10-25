@@ -119,6 +119,9 @@ pause_when_idle_minutes = 10 # hold the characters still after this
                             # server, or a Wayland compositor with
                             # idle notifications.
 pause_on_battery = false    # hold them still on battery (UPower)
+frame_rate = "smooth"       # while they move: smooth (about 60 a
+                            # second), light (30) or light_on_battery;
+                            # edit mode always draws 60
 welcome_back = true         # a character greets you back after you
                             # were away (watched for five minutes
                             # even with pausing off)
@@ -144,6 +147,7 @@ snap_while_dragging = true  # a dragged selection snaps to monitor
 | `monitor_mode` | `kind`: `per_monitor` (default), `span`, `single` | A table, `{ kind = "span" }` — not a bare string. `single` pins the overlay to one output — see below. |
 | `accesskit_enabled` | `true` (default) / `false` | Whether a screen reader gets the panels (AT-SPI). Off, it sees an empty window. Applies live. |
 | `hotkey_backend` | `auto` (default), `portal`, `x11`, `none` | `auto` probes the GlobalShortcuts portal, then XGrabKey on X11. `none` = tray + D-Bus only. |
+| `frame_rate` | `smooth` (default), `light`, `light_on_battery` | How often moving characters are drawn: about sixty a second, or thirty — half the work for the graphics card, at the same speed — always or while on battery (UPower). Edit mode always draws sixty. |
 | `on_fullscreen` | `hide` (default), `pause`, `ignore` | While the window in front is full screen — a game, a video, slides. Seen on X11 (EWMH) and on wlroots-based Wayland compositors (sway, Hyprland; `wlr-foreign-toplevel-management`); under GNOME or KDE on Wayland only X11 apps running through XWayland are seen. Your own hide and pause are left as they were. |
 
 Pinning the overlay to a single output names it too:

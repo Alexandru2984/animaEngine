@@ -18,7 +18,7 @@
 //! 7. Present + close the perf frame + request next redraw.
 
 use super::App;
-use crate::pacing::{RedrawPacing, FRAME_INTERVAL, IDLE_HEARTBEAT};
+use crate::pacing::{RedrawPacing, IDLE_HEARTBEAT};
 use crate::renderer::wgpu_renderer::WgpuRenderer;
 use crate::ui::panels;
 use std::time::Instant;
@@ -552,6 +552,7 @@ impl App {
                         let little_effects_mut = &mut self.config.global.little_effects;
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
                         let on_battery_mut = &mut self.config.global.pause_on_battery;
+                        let frame_rate_mut = &mut self.config.global.frame_rate;
                         let welcome_back_mut = &mut self.config.global.welcome_back;
                         let sound_volume_mut = &mut self.config.global.sound_volume;
                         let sounds_muted_mut = &mut self.config.global.sounds_muted;
@@ -677,6 +678,7 @@ impl App {
                                     panels::AwayControls {
                                         idle_minutes: &mut *idle_minutes_mut,
                                         on_battery: &mut *on_battery_mut,
+                                        frame_rate: &mut *frame_rate_mut,
                                         welcome_back: &mut *welcome_back_mut,
                                         idle_available,
                                     },
@@ -886,12 +888,13 @@ impl App {
             || self.pending_shimeji.is_some();
         self.history.settle(&self.scene, busy, Instant::now());
 
+        // At most about sixty a second, or thirty as set (`FrameRate`).
+        let frame = (self.config.global.frame_rate).interval(self.on_battery, self.edit_mode);
         match self.redraw_pacing() {
-            // At most about sixty a second (`FRAME_INTERVAL`): asked for at
-            // once, a frame came as fast as the driver would draw it — 160
-            // a second in the test rig while a toast showed.
+            // Asked for at once, a frame came as fast as the driver would
+            // draw it — 160 a second in the test rig while a toast showed.
             RedrawPacing::Continuous => {
-                let next = frame_start + FRAME_INTERVAL;
+                let next = frame_start + frame;
                 if next <= Instant::now() {
                     event_loop.set_control_flow(ControlFlow::Wait);
                     if let Some(window) = &self.window {
@@ -901,9 +904,12 @@ impl App {
                     event_loop.set_control_flow(ControlFlow::WaitUntil(next));
                 }
             }
+            // A sprite's next picture a frame after this one at the
+            // soonest: a 60 fps GIF is drawn at the rate set too.
             RedrawPacing::Deadline(due) => {
                 let heartbeat = Instant::now() + IDLE_HEARTBEAT;
-                event_loop.set_control_flow(ControlFlow::WaitUntil(due.min(heartbeat)));
+                let at = due.min(heartbeat).max(frame_start + frame);
+                event_loop.set_control_flow(ControlFlow::WaitUntil(at));
             }
             RedrawPacing::Idle => {
                 event_loop

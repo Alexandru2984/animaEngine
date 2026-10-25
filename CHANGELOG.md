@@ -307,6 +307,13 @@ read-only D-Bus names, for the idle time
   in front greets you as you return — "Good morning!" when you come back
   in the morning after the night. Not at bedtime, nor while the
   characters are out of sight; a switch in Appearance turns it off.
+- **Thirty frames a second, if you like.** While characters walk,
+  bounce or follow, the overlay is drawn about sixty times a second, the
+  whole screen each time: five walking kept a laptop's integrated GPU
+  44 % busy. Appearance → "Frames a second while they move" draws thirty
+  instead, always or only on battery; they go as fast. In the test rig
+  the app's CPU halved on both backends (X11 98 % → 47 %, Wayland
+  90 % → 46 %). Edit mode always draws sixty. `[global] frame_rate`.
 
 #### On the desktop
 

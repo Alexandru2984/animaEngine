@@ -8,6 +8,7 @@
 //! now ask this function what the scene needs.
 
 use crate::scene::Scene;
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
 /// How soon the scene needs another frame.
@@ -28,6 +29,62 @@ pub enum RedrawPacing {
 /// present that waits for the display (`Fifo`) paces most drivers by
 /// itself, but not every one, nor a window that is not mapped.
 pub const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+
+/// [`FrameRate::Light`]'s shortest time between two frames: about thirty
+/// a second — a hair under two refreshes of a 60 Hz display, so a present
+/// that waits for it lands every second refresh, not every third.
+pub const LIGHT_FRAME_INTERVAL: Duration = Duration::from_millis(32);
+
+/// How often moving characters are drawn (1.5): `[global] frame_rate`,
+/// set in Appearance. What moves — a walk, a bounce, a GIF — moves by the
+/// clock, so at thirty a second it goes as fast, in half the frames: half
+/// the drawing of an overlay the size of the screen, where five walking
+/// characters kept a laptop's integrated GPU 44 % busy at sixty.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FrameRate {
+    /// About sixty a second ([`FRAME_INTERVAL`]).
+    #[default]
+    Smooth,
+    /// About thirty ([`LIGHT_FRAME_INTERVAL`]).
+    Light,
+    /// Thirty on battery, sixty on mains.
+    LightOnBattery,
+}
+
+impl FrameRate {
+    pub const ALL: [Self; 3] = [Self::Smooth, Self::Light, Self::LightOnBattery];
+
+    /// Stable i18n key for the Appearance picker.
+    pub fn i18n_key(self) -> &'static str {
+        match self {
+            Self::Smooth => "frame-rate-smooth",
+            Self::Light => "frame-rate-light",
+            Self::LightOnBattery => "frame-rate-light-on-battery",
+        }
+    }
+
+    /// Whether the battery has to be watched for it (`crate::away`).
+    pub fn watches_battery(self) -> bool {
+        self == Self::LightOnBattery
+    }
+
+    /// The shortest time between two frames now. Edit mode has every
+    /// frame whatever the setting: the panel, and a character dragged,
+    /// follow the pointer.
+    pub fn interval(self, on_battery: bool, edit_mode: bool) -> Duration {
+        let light = match self {
+            Self::Smooth => false,
+            Self::Light => true,
+            Self::LightOnBattery => on_battery,
+        };
+        if light && !edit_mode {
+            LIGHT_FRAME_INTERVAL
+        } else {
+            FRAME_INTERVAL
+        }
+    }
+}
 
 /// The longest the overlay goes without a frame. Matches the config
 /// hot-reload poll, so an edit to the file still shows while the scene
@@ -85,17 +142,18 @@ pub fn soonest(at: Option<Instant>, reminders: Option<Instant>) -> Option<Instan
 pub const AWAIT_POLL: Duration = Duration::from_millis(100);
 
 /// How long a loop may sleep before it next has something to do: a frame
-/// interval while anything moves; else until `pacing`'s deadline, at most
-/// the heartbeat after the last frame (`last_draw`), and [`AWAIT_POLL`]
-/// while `awaiting` a result.
+/// interval (`frame`, [`FrameRate::interval`]) while anything moves; else
+/// until `pacing`'s deadline, at most the heartbeat after the last frame
+/// (`last_draw`), and [`AWAIT_POLL`] while `awaiting` a result.
 pub fn next_wait(
     pacing: RedrawPacing,
+    frame: Duration,
     last_draw: Option<Instant>,
     awaiting: bool,
     now: Instant,
 ) -> Duration {
     let mut until = match pacing {
-        RedrawPacing::Continuous => return FRAME_INTERVAL,
+        RedrawPacing::Continuous => return frame,
         RedrawPacing::Deadline(due) => due,
         RedrawPacing::Idle => now + IDLE_HEARTBEAT,
     };
@@ -238,6 +296,31 @@ mod tests {
         assert_eq!(redraw_pacing(&s, false), RedrawPacing::Idle);
     }
 
+    /// Thirty a second when asked for, or on battery if so — never in edit
+    /// mode, where the panel follows the pointer.
+    #[test]
+    fn the_light_rate_halves_the_frames_outside_edit_mode() {
+        use FrameRate::{Light, LightOnBattery, Smooth};
+        assert_eq!(Smooth.interval(true, false), FRAME_INTERVAL);
+        assert_eq!(Light.interval(false, false), LIGHT_FRAME_INTERVAL);
+        assert_eq!(Light.interval(false, true), FRAME_INTERVAL, "edit mode");
+        assert_eq!(LightOnBattery.interval(false, false), FRAME_INTERVAL);
+        assert_eq!(LightOnBattery.interval(true, false), LIGHT_FRAME_INTERVAL);
+        assert_eq!(LightOnBattery.interval(true, true), FRAME_INTERVAL);
+        assert!(LightOnBattery.watches_battery() && !Light.watches_battery());
+        let now = Instant::now();
+        assert_eq!(
+            next_wait(
+                RedrawPacing::Continuous,
+                LIGHT_FRAME_INTERVAL,
+                Some(now),
+                false,
+                now
+            ),
+            LIGHT_FRAME_INTERVAL
+        );
+    }
+
     /// A loop that sleeps until woken sleeps as long as it can: a frame
     /// while anything moves, else to the next deadline, never past the
     /// heartbeat, and a tenth of a second while a result is due.
@@ -247,31 +330,61 @@ mod tests {
         let ms = Duration::from_millis;
         let drew = Some(now);
         assert_eq!(
-            next_wait(RedrawPacing::Continuous, drew, false, now),
+            next_wait(RedrawPacing::Continuous, FRAME_INTERVAL, drew, false, now),
             FRAME_INTERVAL
         );
         assert_eq!(
-            next_wait(RedrawPacing::Idle, drew, false, now),
+            next_wait(RedrawPacing::Idle, FRAME_INTERVAL, drew, false, now),
             IDLE_HEARTBEAT
         );
         assert_eq!(
-            next_wait(RedrawPacing::Deadline(now + ms(125)), drew, false, now),
+            next_wait(
+                RedrawPacing::Deadline(now + ms(125)),
+                FRAME_INTERVAL,
+                drew,
+                false,
+                now
+            ),
             ms(125),
             "an 8 fps sprite's next picture"
         );
         assert_eq!(
-            next_wait(RedrawPacing::Deadline(now + ms(9000)), drew, false, now),
+            next_wait(
+                RedrawPacing::Deadline(now + ms(9000)),
+                FRAME_INTERVAL,
+                drew,
+                false,
+                now
+            ),
             IDLE_HEARTBEAT
         );
         assert_eq!(
-            next_wait(RedrawPacing::Idle, Some(now - ms(1500)), false, now),
+            next_wait(
+                RedrawPacing::Idle,
+                FRAME_INTERVAL,
+                Some(now - ms(1500)),
+                false,
+                now
+            ),
             ms(500),
             "the heartbeat counts from the last frame"
         );
-        assert_eq!(next_wait(RedrawPacing::Idle, None, false, now), ms(0));
-        assert_eq!(next_wait(RedrawPacing::Idle, drew, true, now), AWAIT_POLL);
         assert_eq!(
-            next_wait(RedrawPacing::Deadline(now - ms(5)), drew, false, now),
+            next_wait(RedrawPacing::Idle, FRAME_INTERVAL, None, false, now),
+            ms(0)
+        );
+        assert_eq!(
+            next_wait(RedrawPacing::Idle, FRAME_INTERVAL, drew, true, now),
+            AWAIT_POLL
+        );
+        assert_eq!(
+            next_wait(
+                RedrawPacing::Deadline(now - ms(5)),
+                FRAME_INTERVAL,
+                drew,
+                false,
+                now
+            ),
             ms(0),
             "overdue"
         );

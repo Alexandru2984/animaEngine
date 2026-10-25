@@ -381,6 +381,14 @@ reason to (`FrameGate` in `wayland/run.rs`): input or another compositor
 event, a message from a channel, a sprite's next animation frame, a
 repaint egui asked for, something moving every frame — or the heartbeat.
 
+"Every frame" is about sixty a second, or thirty as Appearance sets it
+(`pacing::FrameRate`, `[global] frame_rate`: always, or on battery). Both
+loops ask `FrameRate::interval` each frame, from the setting, UPower's
+`OnBattery` (`crate::away` watches it for this too) and edit mode, which
+always has sixty. Motion goes by the clock, so it is as fast at thirty.
+Five characters walking in the rig: X11 98% → 47% of a core, the
+compositor 16% → 9%; native Wayland 90% → 46%.
+
 **Hotplug (T.9):** monitor-set changes diff the registry — spawn
 windows for new monitors, despawn for vanished ones, re-resolve
 entity pins (stale pins fall back to centroid resolution with a
@@ -453,7 +461,7 @@ front, so the panel is in reach. Both run every frame, cached. A
 surface under a window that covers it is never shown, and a compositor
 sends no frame callbacks to it — under `Fifo` the next present never
 returned and the Wayland loop stopped there, so that loop, which paces
-itself at `FRAME_INTERVAL`, presents with `Mailbox` where the driver has
+itself (`FrameRate::interval`), presents with `Mailbox` where the driver has
 it (`WgpuRenderer::prefer_mailbox`). The X11 loop leans on `Fifo` for
 its pacing and keeps it; XWayland paces a hidden window on its own.
 
