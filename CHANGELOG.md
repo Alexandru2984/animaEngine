@@ -309,11 +309,13 @@ read-only D-Bus names, for the idle time
   characters are out of sight; a switch in Appearance turns it off.
 - **Thirty frames a second, if you like.** While characters walk,
   bounce or follow, the overlay is drawn about sixty times a second, the
-  whole screen each time: five walking kept a laptop's integrated GPU
-  44 % busy. Appearance → "Frames a second while they move" draws thirty
-  instead, always or only on battery; they go as fast. In the test rig
-  the app's CPU halved on both backends (X11 98 % → 47 %, Wayland
-  90 % → 46 %). Edit mode always draws sixty. `[global] frame_rate`.
+  whole screen each time. Appearance → "Frames a second while they
+  move" draws thirty instead, always or only on battery; they go as
+  fast. On a laptop's AMD integrated GPU under GNOME, five moving
+  characters took 13.6 % of its time at sixty — the app and the
+  compositor about half each — and 6.9 % at thirty; in the test rig the
+  app's CPU halved on both backends (X11 98 % → 47 %, Wayland 90 % →
+  46 %). Edit mode always draws sixty. `[global] frame_rate`.
 
 #### On the desktop
 

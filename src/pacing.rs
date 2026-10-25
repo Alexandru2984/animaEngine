@@ -38,8 +38,10 @@ pub const LIGHT_FRAME_INTERVAL: Duration = Duration::from_millis(32);
 /// How often moving characters are drawn (1.5): `[global] frame_rate`,
 /// set in Appearance. What moves — a walk, a bounce, a GIF — moves by the
 /// clock, so at thirty a second it goes as fast, in half the frames: half
-/// the drawing of an overlay the size of the screen, where five walking
-/// characters kept a laptop's integrated GPU 44 % busy at sixty.
+/// the drawing of an overlay the size of the screen — on a laptop's AMD
+/// integrated GPU under GNOME, five moving characters took 13.6 % of its
+/// time at sixty (the app 7.4 %, the compositor 6.2 %) and 6.9 % at
+/// thirty.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FrameRate {

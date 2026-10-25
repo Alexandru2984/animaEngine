@@ -401,7 +401,12 @@ loops ask `FrameRate::interval` each frame, from the setting, UPower's
 `OnBattery` (`crate::away` watches it for this too) and edit mode, which
 always has sixty. Motion goes by the clock, so it is as fast at thirty.
 Five characters walking in the rig: X11 98% → 47% of a core, the
-compositor 16% → 9%; native Wayland 90% → 46%.
+compositor 16% → 9%; native Wayland 90% → 46%. On the maintainer's
+laptop (GNOME on Wayland, the X11 path, an AMD integrated GPU), GPU time
+from the DRM clients' `fdinfo` with five moving characters: the app
+7.4% and gnome-shell 6.2% at sixty, 3.7% and 3.1% at thirty, 0.06% and
+0.05% with the scene still; the app's wake-ups 709 → 373 a second.
+`gpu_busy_percent` on that GPU was too coarse to tell them apart.
 
 **Hotplug (T.9):** monitor-set changes diff the registry — spawn
 windows for new monitors, despawn for vanished ones, re-resolve
