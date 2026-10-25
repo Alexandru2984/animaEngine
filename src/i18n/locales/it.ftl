@@ -501,6 +501,13 @@ scene-empty-action-browse-presets = Sfoglia i preset
 library-empty-action-copy-path = Copia il percorso negli appunti
 
 appearance-reset-onboarding-hint = Ripristina i suggerimenti chiusi e il pannello «Novità».
+appearance-about-header = Informazioni
+about-version = animaEngine { $version }
+about-licence = Software libero, con licenza MIT.
+about-privacy = Non si connette alla rete: nulla di ciò che fai qui lascia questo computer.
+about-components = Realizzato con { $count } componenti open source, ognuno con la propria licenza.
+about-licences-button = Licenze…
+about-licences-title = Licenze
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Permesso per le scorciatoie negato — verranno usate le scorciatoie X11. Riprova dalla scheda Scorciatoie.

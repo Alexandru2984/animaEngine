@@ -501,6 +501,13 @@ scene-empty-action-browse-presets = Presets verkennen
 library-empty-action-copy-path = Pad naar klembord kopiëren
 
 appearance-reset-onboarding-hint = Haalt de weggeklikte tips en het ‘Wat is nieuw’-paneel terug.
+appearance-about-header = Over
+about-version = animaEngine { $version }
+about-licence = Vrije software, onder de MIT-licentie.
+about-privacy = Het maakt geen netwerkverbinding: niets wat u hier doet verlaat deze computer.
+about-components = Gebouwd met { $count } opensourcecomponenten, elk onder een eigen licentie.
+about-licences-button = Licenties…
+about-licences-title = Licenties
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Toestemming voor sneltoetsen geweigerd — er worden X11-sneltoetsen gebruikt. Probeer opnieuw via het tabblad Sneltoetsen.

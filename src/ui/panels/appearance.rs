@@ -210,6 +210,80 @@ pub(super) fn appearance_tab(
     ) {
         *config_dirty = true;
     }
+    ui.add_space(SPACE_2XL);
+    about(ui);
+}
+
+/// The app's own licence and every crate's built into it
+/// (`scripts/third-party-licenses.py`), in the binary: shown wherever it
+/// was installed from, a package's copy beside it or not.
+const LICENCE: &str = include_str!("../../../LICENSE");
+const THIRD_PARTY: &str = include_str!("../../../data/THIRD-PARTY-LICENSES.txt");
+
+/// Version, licence, that nothing leaves the computer, and the licences
+/// of what it is built with — the last in a window of their own.
+fn about(ui: &mut egui::Ui) {
+    let wrapped = |ui: &mut egui::Ui, text: String| {
+        ui.add(egui::Label::new(text).wrap());
+    };
+    ui.label(egui::RichText::new(t("appearance-about-header")).text_style(h2()));
+    ui.add_space(SPACE_S);
+    let mut args = fluent::FluentArgs::new();
+    args.set("version", env!("CARGO_PKG_VERSION"));
+    wrapped(ui, crate::i18n::t_args("about-version", &args));
+    wrapped(ui, t("about-licence"));
+    wrapped(ui, t("about-privacy"));
+    let mut args = fluent::FluentArgs::new();
+    args.set("count", component_count());
+    wrapped(ui, crate::i18n::t_args("about-components", &args));
+    let open_id = egui::Id::new("anima.about.licences");
+    let mut open = ui
+        .ctx()
+        .data(|d| d.get_temp::<bool>(open_id).unwrap_or(false));
+    if ui.button(t("about-licences-button")).clicked() {
+        open = true;
+    }
+    if open {
+        licences_window(ui.ctx(), &mut open);
+    }
+    ui.ctx().data_mut(|d| d.insert_temp(open_id, open));
+}
+
+/// How many crates `THIRD_PARTY` names: its header says.
+fn component_count() -> u32 {
+    THIRD_PARTY
+        .split("built with the ")
+        .nth(1)
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(0)
+}
+
+/// The licence texts, a line a row, only the rows in view laid out: the
+/// third-party file is some 4000 lines.
+fn licences_window(ctx: &egui::Context, open: &mut bool) {
+    static LINES: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    let lines = LINES.get_or_init(|| {
+        LICENCE
+            .lines()
+            .chain([""])
+            .chain(THIRD_PARTY.lines())
+            .collect()
+    });
+    egui::Window::new(t("about-licences-title"))
+        .open(open)
+        .default_size([560.0, 440.0])
+        .collapsible(false)
+        .show(ctx, |ui| {
+            let row = ui.text_style_height(&egui::TextStyle::Monospace);
+            egui::ScrollArea::both()
+                .auto_shrink([false, false])
+                .show_rows(ui, row, lines.len(), |ui, range| {
+                    for line in &lines[range] {
+                        ui.add(egui::Label::new(egui::RichText::new(*line).monospace()).extend());
+                    }
+                });
+        });
 }
 
 /// Locale dropdown. Each option is the locale's *autonym* (its name in

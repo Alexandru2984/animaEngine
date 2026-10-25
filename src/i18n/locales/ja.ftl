@@ -498,6 +498,13 @@ scene-empty-action-browse-presets = プリセットを見る
 library-empty-action-copy-path = パスをクリップボードにコピー
 
 appearance-reset-onboarding-hint = 閉じたヒントと「新着情報」パネルを復活させます。
+appearance-about-header = このアプリについて
+about-version = animaEngine { $version }
+about-licence = MIT ライセンスのフリーソフトウェアです。
+about-privacy = ネットワークには一切接続しません。ここで行ったことがこのコンピューターの外に出ることはありません。
+about-components = { $count } 個のオープンソースコンポーネントで作られています。それぞれに独自のライセンスがあります。
+about-licences-button = ライセンス…
+about-licences-title = ライセンス
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = ショートカットの許可が拒否されました — 代わりに X11 ホットキーを使用します。「ショートカット」タブから再試行できます。

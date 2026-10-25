@@ -501,6 +501,13 @@ scene-empty-action-browse-presets = Parcourir les presets
 library-empty-action-copy-path = Copier le chemin dans le presse-papiers
 
 appearance-reset-onboarding-hint = Fait revenir les astuces masquées et le panneau « Nouveautés ».
+appearance-about-header = À propos
+about-version = animaEngine { $version }
+about-licence = Logiciel libre, sous licence MIT.
+about-privacy = Aucune connexion réseau : rien de ce que vous faites ici ne quitte cet ordinateur.
+about-components = Construit avec { $count } composants open source, chacun sous sa propre licence.
+about-licences-button = Licences…
+about-licences-title = Licences
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Permission de raccourcis refusée — les raccourcis X11 prennent le relais. Réessayez depuis l’onglet Raccourcis.

@@ -71,6 +71,11 @@ modules:
             /app/share/icons/hicolor/scalable/apps/com.animaengine.Anima.svg
       - install -Dm0644 data/com.animaengine.Anima.metainfo.xml
             /app/share/metainfo/com.animaengine.Anima.metainfo.xml
+      # Its licence, and those of every crate built in — the latter from
+      # 1.5 on: bump the tag below with the release, as FLATHUB.md says.
+      - install -Dm0644 LICENSE /app/share/licenses/com.animaengine.Anima/LICENSE
+      - install -Dm0644 data/THIRD-PARTY-LICENSES.txt
+            /app/share/licenses/com.animaengine.Anima/THIRD-PARTY-LICENSES.txt
       # The .desktop ships Icon=anima-engine for the .deb / AppImage
       # paths; Flatpak export requires the icon name to equal the
       # app-id.

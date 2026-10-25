@@ -501,6 +501,13 @@ scene-empty-action-browse-presets = Explorar presets
 library-empty-action-copy-path = Copiar la ruta al portapapeles
 
 appearance-reset-onboarding-hint = Recupera las pistas descartadas y el panel «Novedades».
+appearance-about-header = Acerca de
+about-version = animaEngine { $version }
+about-licence = Software libre, bajo la licencia MIT.
+about-privacy = No hace ninguna conexión de red: nada de lo que haces aquí sale de este equipo.
+about-components = Hecho con { $count } componentes de código abierto, cada uno bajo su propia licencia.
+about-licences-button = Licencias…
+about-licences-title = Licencias
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Se denegó el permiso de atajos — se usarán atajos X11. Reinténtalo desde la pestaña Atajos.

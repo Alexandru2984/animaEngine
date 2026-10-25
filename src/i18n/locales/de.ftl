@@ -501,6 +501,13 @@ scene-empty-action-browse-presets = Presets durchstöbern
 library-empty-action-copy-path = Pfad in die Zwischenablage kopieren
 
 appearance-reset-onboarding-hint = Holt die ausgeblendeten Hinweise und das „Neuigkeiten“-Panel zurück.
+appearance-about-header = Über
+about-version = animaEngine { $version }
+about-licence = Freie Software unter der MIT-Lizenz.
+about-privacy = Es baut keine Netzwerkverbindung auf: Nichts, was Sie hier tun, verlässt diesen Computer.
+about-components = Gebaut mit { $count } Open-Source-Komponenten, jede unter ihrer eigenen Lizenz.
+about-licences-button = Lizenzen…
+about-licences-title = Lizenzen
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Berechtigung für Kurzbefehle abgelehnt — es werden X11-Hotkeys verwendet. Erneut versuchen im Tab „Kurzbefehle“.

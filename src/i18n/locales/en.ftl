@@ -513,6 +513,13 @@ library-empty-action-copy-path = Copy path to clipboard
 
 # ── Tooltips (D.9) ────────────────────────────────────────────────────
 appearance-reset-onboarding-hint = Brings back the dismissed progressive hints and the "What's new" panel.
+appearance-about-header = About
+about-version = animaEngine { $version }
+about-licence = Free software, under the MIT licence.
+about-privacy = It makes no network connection: nothing you do here leaves this computer.
+about-components = Built with { $count } open-source components, each under its own licence.
+about-licences-button = Licences…
+about-licences-title = Licences
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Shortcut permission was declined — using X11 hotkeys instead. Retry from the Keybindings tab.

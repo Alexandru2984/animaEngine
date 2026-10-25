@@ -513,6 +513,17 @@ library-empty-action-copy-path = Copiază calea
 
 # ── Tooltips (D.9) ────────────────────────────────────────────────────
 appearance-reset-onboarding-hint = Reactivează hint-urile descărcate și panoul "Noutăți".
+appearance-about-header = Despre
+about-version = animaEngine { $version }
+about-licence = Software liber, sub licența MIT.
+about-privacy = Nu face nicio conexiune la rețea: nimic din ce faci aici nu pleacă de pe acest calculator.
+about-components = Construit cu { $count ->
+        [one] { $count } componentă open-source
+        [few] { $count } componente open-source
+       *[other] { $count } de componente open-source
+    }, fiecare sub licența ei.
+about-licences-button = Licențe…
+about-licences-title = Licențe
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Permisiunea pentru scurtături a fost refuzată — folosim scurtăturile X11. Reîncearcă din tabul Scurtături.

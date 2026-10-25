@@ -341,6 +341,16 @@ read-only D-Bus names, for the idle time
   writes a standard autostart entry (the one the desktop's "Startup
   Applications" lists too), and in the Flatpak it asks the Background
   portal, which may ask you. Off by default.
+- **About, and every licence.** Appearance ends with About: the version,
+  the MIT licence, that the app makes no network connection, and a
+  Licences window with its own licence and those of the 352 crates
+  built into it — egui's fonts and the H.264 decoder among them. The
+  same text, `data/THIRD-PARTY-LICENSES.txt`, is installed by every
+  package (the `.deb`, the AppImage, both Flatpak manifests, the AUR
+  package and `make install`); none carried it before, though MIT,
+  BSD, Apache, OFL and MPL ask for it. `scripts/third-party-licenses.py`
+  writes it from `Cargo.lock`, with the standard text for the 39 crates
+  published without one, and CI fails while it is out of date.
 
 ### Changed
 

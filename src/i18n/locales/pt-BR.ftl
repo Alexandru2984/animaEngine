@@ -501,6 +501,13 @@ scene-empty-action-browse-presets = Explorar presets
 library-empty-action-copy-path = Copiar caminho para a área de transferência
 
 appearance-reset-onboarding-hint = Traz de volta as dicas dispensadas e o painel “Novidades”.
+appearance-about-header = Sobre
+about-version = animaEngine { $version }
+about-licence = Software livre, sob a licença MIT.
+about-privacy = Não faz nenhuma conexão de rede: nada do que você faz aqui sai deste computador.
+about-components = Feito com { $count } componentes de código aberto, cada um sob sua própria licença.
+about-licences-button = Licenças…
+about-licences-title = Licenças
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = A permissão de atalhos foi negada — atalhos X11 em uso. Tente novamente na aba Atalhos.

@@ -509,6 +509,16 @@ scene-empty-action-browse-presets = Przeglądaj presety
 library-empty-action-copy-path = Skopiuj ścieżkę do schowka
 
 appearance-reset-onboarding-hint = Przywraca zamknięte wskazówki i panel „Co nowego”.
+appearance-about-header = O programie
+about-version = animaEngine { $version }
+about-licence = Wolne oprogramowanie na licencji MIT.
+about-privacy = Nie łączy się z siecią: nic, co tu robisz, nie opuszcza tego komputera.
+about-components = Zbudowano z { $count ->
+        [one] { $count } komponentu open source
+       *[other] { $count } komponentów open source
+    }, każdego na własnej licencji.
+about-licences-button = Licencje…
+about-licences-title = Licencje
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Odmówiono uprawnień do skrótów — w użyciu są skróty X11. Spróbuj ponownie z karty Skróty.
