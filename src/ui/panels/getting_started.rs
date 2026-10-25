@@ -117,14 +117,15 @@ pub(super) fn window(
             }
             ui.add_space(SPACE_M);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                // In the accent: the one way on.
-                let selection = ui.visuals().selection;
+                // The one way on: a primary button (design system §7.2),
+                // whose colours are held to contrast in every theme.
+                let palette = theme::palette_of(ui.ctx());
                 let button = egui::Button::new(
                     egui::RichText::new(t("first-run-continue"))
                         .strong()
-                        .color(selection.stroke.color),
+                        .color(palette.fg_inverse),
                 )
-                .fill(selection.bg_fill)
+                .fill(palette.accent_base)
                 .min_size(egui::vec2(96.0, 28.0));
                 if ui.add(button).clicked() {
                     done = true;
@@ -170,24 +171,36 @@ fn tile(ui: &mut egui::Ui, name: &str, on: bool) -> egui::Response {
     if !ui.is_rect_visible(rect) {
         return response;
     }
-    let visuals = ui.style().interact_selectable(&response, on);
-    let painter = ui.painter();
-    painter.rect(
-        rect,
-        RADIUS_MD,
-        if on {
-            visuals.bg_fill
+    // On, as a selected row is (design system §7.7): the accent's tint
+    // and a border in it, the name in the primary text colour. egui's
+    // selected colours put the accent's text on its fill — 3.1:1 in the
+    // dark high-contrast theme.
+    let palette = theme::palette_of(ui.ctx());
+    let (fill, stroke, colour) = if on {
+        (
+            palette.accent_subtle,
+            egui::Stroke::new(2.0_f32, palette.accent_base),
+            palette.fg_primary,
+        )
+    } else {
+        let border = if response.hovered() {
+            palette.border_focus
         } else {
-            visuals.weak_bg_fill
-        },
-        visuals.bg_stroke,
-        egui::StrokeKind::Inside,
-    );
+            palette.border_strong
+        };
+        (
+            palette.bg_elevated,
+            egui::Stroke::new(1.0_f32, border),
+            palette.fg_secondary,
+        )
+    };
+    let painter = ui.painter();
+    painter.rect(rect, RADIUS_MD, fill, stroke, egui::StrokeKind::Inside);
     if response.has_focus() {
         painter.rect_stroke(
             rect.expand(2.0),
             RADIUS_MD,
-            ui.visuals().selection.stroke,
+            egui::Stroke::new(2.0_f32, palette.border_focus),
             egui::StrokeKind::Outside,
         );
     }
@@ -215,7 +228,7 @@ fn tile(ui: &mut egui::Ui, name: &str, on: bool) -> egui::Response {
             egui::Align2::RIGHT_TOP,
             crate::ui::icons::SUCCESS,
             egui::FontId::proportional(14.0),
-            visuals.fg_stroke.color,
+            palette.accent_base,
         );
     }
     let mut font = ui
@@ -224,7 +237,6 @@ fn tile(ui: &mut egui::Ui, name: &str, on: bool) -> egui::Response {
         .get(&theme::caption())
         .cloned()
         .unwrap_or_else(|| egui::FontId::proportional(12.0));
-    let colour = visuals.text_color();
     let mut name = painter.layout_no_wrap(label.clone(), font.clone(), colour);
     // "Paddenstoel", "Coniglietto": a long name smaller, not cut.
     let room = TILE.x - 6.0;

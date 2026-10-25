@@ -32,10 +32,18 @@ secundă, iar cu scena oprită ~0,1 %.
 5. **Release-urile nu sunt publice.** 1.2.1, 1.3.0 și 1.4.0 sunt drafturi
    pe GitHub; public, ultima versiune e 1.2.0.
 
-**Important (P1):** personajele incluse sunt forme generate din cod;
-traducerile sunt automate în nouă limbi din zece; nu există site, pagină de
-magazin sau canal de suport; nu există actualizări automate în afara
-managerelor de pachete.
+**Important (P1):** traducerile sunt automate în nouă limbi din zece; nu
+există actualizări automate în afara managerelor de pachete; lipsește un
+trailer. Personajele incluse sunt tot desenate de cod, dar redesenate
+(runda 44) și acum zece (runda 45) — un artist ar ridica nivelul, nu mai
+e o lipsă. Site-ul, pagina de magazin și suportul există ca draft (runda
+44), de publicat de tine.
+
+**Stare la 26 octombrie 2026** (`4317cb9` și după): rezolvate de la audit —
+licențele terțe și „Despre” (43), suportul: raport de diagnostic, FAQ,
+formulare de issue (44), site, politică de confidențialitate și fișă de
+magazin (44), personajele redesenate și încă cinci, iconiță nouă, grafică
+de magazin, ecran de bun venit la prima pornire (45).
 
 ## 1. Legal
 
@@ -119,7 +127,10 @@ clienți.
 
 ### 1.6 Conținut
 
-- Personajele demo sunt generate din cod, deci sunt ale proiectului.
+- Personajele incluse (zece, din 1.5) sunt desenate de cod
+  (`src/demo/`), deci sunt ale proiectului; la fel iconița și grafica de
+  magazin, compuse din ele (`examples/store_pictures.rs`,
+  `scripts/store-art.py`).
 - Nu e inclus niciun sunet.
 - Pachetele Shimeji le importă utilizatorul; aplicația nu le distribuie.
 
@@ -154,31 +165,35 @@ Fără semnătură, SmartScreen avertizează la fiecare descărcare.
 
 ## 3. Produsul
 
-- **Personaje incluse.** Forme simple generate din cod (fantomă, slime,
-  inimă, stea, pisică). Un produs vândut are nevoie de personaje desenate:
-  comandate sau licențiate, cu drepturi de redistribuire. Importul Shimeji
-  e un avantaj, dar nu poate fi conținutul implicit.
+- **Personaje incluse.** Zece, desenate de cod cu contur, lumină,
+  umbră și ochi care clipesc, câte douăsprezece cadre (rundele 44–45). Un
+  artist ar putea face mai mult — personaje cu personalitate, animații de
+  mers și de somn —, comandate sau licențiate, cu drepturi de
+  redistribuire. Importul Shimeji rămâne un avantaj.
 - **Traduceri.** Nouă limbi din zece sunt traduse automat, cu un glosar și
   teste de consecvență. Pentru piețele țintă trebuie o recitire de către un
   vorbitor nativ.
-- **Prima impresie.** Turul în trei pași, What's new și indiciile sunt
-  verificate pas cu pas. Lipsesc o pagină de magazin, capturi la rezoluția
-  magazinelor și un videoclip scurt.
-- **Suport.** Lipsesc un canal (e-mail, issue tracker cu șabloane), un FAQ
-  și o pagină „Probleme cunoscute” — de exemplu, pe GNOME scurtăturile
-  globale cer o aprobare.
+- **Prima impresie.** La prima intrare în modul de editare, un ecran de
+  bun venit: ce personaje, limba, pornirea la login (runda 45); apoi turul
+  în trei pași. What's new și indiciile sunt verificate pas cu pas. Pagina
+  de magazin, capturile la 1920×1080 și grafica pentru Steam și itch.io
+  există (`site/`, `docs/store-listing.md`); lipsește un videoclip scurt.
+- **Suport.** Formulare de issue pe GitHub, `docs/faq.md` (cu problemele
+  cunoscute, de exemplu aprobarea scurtăturilor pe GNOME), `SUPPORT.md`
+  (runda 44). Un e-mail de suport e decizia ta.
 - **Actualizări.** Fără rețea, nu există actualizări din aplicație. Pe
   Linux le fac managerele de pachete și Flathub; AppImage poate primi
   informații zsync (AppImageUpdate); pe Windows, manual sau prin magazin.
 - **Rapoarte de erori.** Instantaneele de recuperare sunt locale și nu se
-  trimite nimic. Un raport pe care utilizatorul îl copiază și îl trimite
-  singur ar respecta promisiunea de confidențialitate.
+  trimite nimic. Din runda 44, Despre → „Copiază raportul de diagnostic”
+  pune în clipboard versiunea, sistemul și ultimele avertismente, pe care
+  utilizatorul le trimite singur.
 
 ## 4. Calitate rămasă de verificat
 
 - Lista din [gnome-checklist-1.5.md](gnome-checklist-1.5.md), pe hardware
   real: sunet, Orca, tray-ul AppIndicator.
-- KDE Plasma pe Wayland: ambele căi.
+- KDE Plasma pe Wayland: ambele căi (runda 46).
 - Un soak de 7 zile ([soak-testing.md](soak-testing.md)).
 - Windows real: pornire, click-through, tray, pornire la login, mai multe
   monitoare, DPI.
@@ -192,13 +207,13 @@ Fără semnătură, SmartScreen avertizează la fiecare descărcare.
 | P0 | Windows: rulare reală, semnare | piața principală; installerul e făcut | tu (homelab, certificat), eu (ce iese la rulare) | mic–mediu |
 | P0 | Model de business și canal | totul depinde de el | tu | — |
 | P0 | Publicarea release-urilor | utilizatorii văd 1.2.0 | tu | mic |
-| P1 | Personaje desenate | primul lucru pe care îl vede un cumpărător | artist (comandă/licență) | mediu–mare |
+| P1 | Personaje desenate | primul lucru pe care îl vede un cumpărător | redesenate și zece (44–45); un artist, opțional | — |
 | P1 | Recitirea traducerilor | calitate percepută | vorbitori nativi | mediu |
-| P1 | Pagina de produs, capturi, video | vânzarea în sine | eu (draft), tu (decizii) | mic–mediu |
-| P1 | Canal de suport, FAQ | încredere | tu + eu | mic |
+| P1 | Pagina de produs, capturi, video | vânzarea în sine | pagină și capturi făcute (44–45); trailer în runda 46; publicarea e a ta | mic |
+| P1 | Canal de suport, FAQ | încredere | făcut (44); e-mailul e al tău | — |
 | P1 | Căutare de marcă, domeniu | evită o redenumire mai târziu | tu | mic |
 | P2 | Actualizări AppImage (zsync) | comoditate | eu | mic |
-| P2 | Raport de eroare copiat de utilizator | suport | eu | mic |
+| P2 | Raport de eroare copiat de utilizator | suport | făcut (44) | — |
 | P2 | macOS | piață nouă | eu | mare |
 
 ## 6. Decizii care îți aparțin

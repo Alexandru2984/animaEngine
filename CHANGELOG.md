@@ -512,6 +512,12 @@ read-only D-Bus names, for the idle time
 
 ### Fixed
 
+- **In the dark high-contrast theme, text on the accent's tint** — a
+  selected row, the active tab, a hint — **was 5:1, not the theme's
+  7:1.** The overlay's GPU blends in linear light, where a quarter of the
+  cyan comes out much lighter than the same blend of its numbers, which
+  the contrast tests had checked. The tint is thinner (7.3:1), and a test
+  now blends as the screen does, in all four themes.
 - **Logging out, shutting down or Ctrl+C lost what was not yet saved.**
   The app saved on the tray's Quit, but a logout or a shutdown (SIGTERM),
   a terminal's Ctrl+C (SIGINT) or a closed terminal (SIGHUP) ended it

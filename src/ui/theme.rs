@@ -250,7 +250,11 @@ impl Palette {
             // Bright cyan: ~16:1 on black, distinct from any text colour.
             accent_base: Color32::from_rgb(0x00, 0xE5, 0xFF),
             accent_hover: Color32::from_rgb(0x66, 0xF0, 0xFF),
-            accent_subtle: Color32::from_rgba_unmultiplied(0x00, 0xE5, 0xFF, 0x40),
+            // Behind selected rows, the active tab, hints: thin, because
+            // the GPU blends it in linear light, where a quarter of this
+            // cyan (0x40, as it was) came out (0, 123, 137) and white text
+            // on it 5:1. At 0x24 it is (0, 93, 104) and 7.3:1.
+            accent_subtle: Color32::from_rgba_unmultiplied(0x00, 0xE5, 0xFF, 0x24),
 
             // Saturated semantic colours; all pass AAA on pure black.
             semantic_success: Color32::from_rgb(0x33, 0xFF, 0x66),
@@ -773,6 +777,54 @@ mod tests {
         ] {
             let ratio = contrast_ratio(p.fg_inverse, p.accent_base);
             assert!(ratio >= 7.0, "HC accent button = {ratio:.2}");
+        }
+    }
+
+    /// `top` painted over the opaque `under` as the overlay's GPU does
+    /// it: on an sRGB surface, blended in linear light. A thin tint comes
+    /// out much lighter than the same blend of the sRGB numbers — in the
+    /// dark high-contrast theme, (0, 123, 137) where the numbers said
+    /// (0, 57, 64), measured on the rig's screenshots (1.5).
+    fn painted_over(top: Color32, under: Color32) -> Color32 {
+        use egui::ecolor::{gamma_u8_from_linear_f32, linear_f32_from_gamma_u8};
+        let [r, g, b, a] = top.to_srgba_unmultiplied();
+        let a = a as f32 / 255.0;
+        let mix = |t: u8, u: u8| {
+            gamma_u8_from_linear_f32(
+                a * linear_f32_from_gamma_u8(t) + (1.0 - a) * linear_f32_from_gamma_u8(u),
+            )
+        };
+        Color32::from_rgb(mix(r, under.r()), mix(g, under.g()), mix(b, under.b()))
+    }
+
+    #[test]
+    fn painted_over_matches_the_screen() {
+        let p = Palette::dark_high_contrast();
+        let old = Color32::from_rgba_unmultiplied(0x00, 0xE5, 0xFF, 0x40);
+        assert_eq!(
+            painted_over(old, p.bg_surface),
+            Color32::from_rgb(0, 123, 137)
+        );
+    }
+
+    /// Text on the accent's tint — a selected row, the active tab, a
+    /// hint, a character on in the welcome — reads as text on the panel
+    /// does: AAA in the high-contrast themes, AA in the others.
+    #[test]
+    fn text_on_the_accent_tint_is_readable() {
+        for (name, p, least) in [
+            ("dark", Palette::dark(), 4.5),
+            ("light", Palette::light(), 4.5),
+            ("dark HC", Palette::dark_high_contrast(), 7.0),
+            ("light HC", Palette::light_high_contrast(), 7.0),
+        ] {
+            for under in [p.bg_surface, p.bg_elevated] {
+                let ratio = contrast_ratio(p.fg_primary, painted_over(p.accent_subtle, under));
+                assert!(
+                    ratio >= least,
+                    "{name}: fg_primary on accent_subtle = {ratio:.2}"
+                );
+            }
         }
     }
 

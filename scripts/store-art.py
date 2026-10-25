@@ -11,6 +11,7 @@ here. The title's font is Ubuntu Bold where it is installed, else DejaVu
 Sans Bold. Needs Pillow. Steam's sizes are those of its graphical-asset
 guidelines in 2026; check them before uploading.
 """
+import math
 import random
 import sys
 from pathlib import Path
@@ -58,7 +59,6 @@ def sky(w, h, seed=7):
     for k, (colour, base, amp) in enumerate([((60, 42, 120, 255), 0.80, 0.07), ((40, 28, 86, 255), 0.88, 0.05)]):
         pts = [(0, h)]
         for i in range(0, w + 21, 20):
-            import math
             y = h * base - h * amp * math.sin(i / w * math.pi * (1.6 + k) + k)
             pts.append((i, y))
         pts.append((w, h))
@@ -128,7 +128,8 @@ def main():
     vertical = sky(748, 896)
     title(vertical, TITLE, 92, 374, 150)
     for i, (name, frame) in enumerate(FIVE):
-        put(vertical, name, frame, 210, 150 + (i % 3) * 225 - (i // 3) * -112, 520 + (i // 3) * 270)
+        # Three on the first row, two between them on the second.
+        put(vertical, name, frame, 210, 150 + (i % 3) * 225 + (i // 3) * 112, 520 + (i // 3) * 270)
     save(vertical, "steam-vertical-748x896.png")
     library = sky(600, 900)
     title(library, TITLE, 76, 300, 140)
