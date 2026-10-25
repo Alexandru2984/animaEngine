@@ -106,9 +106,9 @@ left with nothing to read: labels that were only an icon, and the empty
 backdrops egui gives its floating areas. Controls that are *only* an
 icon are named where they are built — see section 6.
 
-**The Appearance setting** — **Appearance → Accessibility → Generate
-AccessKit tree updates** — decides whether a listening reader gets the
-tree. Off, it gets the application's window with nothing in it, so the
+**The Appearance setting** — **Appearance → Accessibility → Screen
+reader support** (named "Generate AccessKit tree updates" before 1.5) —
+decides whether a listening reader gets the tree. Off, it gets the application's window with nothing in it, so the
 last tree does not stay readable and nothing typed in the panels
 reaches the bus. Applies from the next frame; persisted in `[global]`
 as `accesskit_enabled = true/false`.

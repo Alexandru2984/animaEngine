@@ -319,7 +319,7 @@ action-show-help = Arată ajutor pentru taste
 
 # ── Secțiune accesibilitate în tab-ul Aspect (D.3) ────────────────────
 appearance-accessibility-header = Accesibilitate
-appearance-accesskit-label = Generează actualizări AccessKit
+appearance-accesskit-label = Suport pentru cititoare de ecran
 # Screen readers (1.4): machine-translated, pending native review.
 appearance-accesskit-hint = Permite cititoarelor de ecran (Orca și altele, prin AT-SPI) să citească și să folosească panourile. Dezactivat, un cititor de ecran vede o fereastră goală. Notă: cât timp rulează unul, textul tastat în panouri ajunge pe magistrala AT-SPI, unde îl poate citi orice proces care rulează ca utilizatorul tău.
 # Machine-translated, pending native review.

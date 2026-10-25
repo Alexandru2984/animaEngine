@@ -312,7 +312,7 @@ action-show-help = キーボードヘルプを表示
 
 # ── Accessibility section (D.3) — placeholder pending D.4 native-speaker audit
 appearance-accessibility-header = アクセシビリティ
-appearance-accesskit-label = AccessKit ツリー更新を生成
+appearance-accesskit-label = スクリーンリーダー対応
 # Screen readers (1.4): machine-translated, pending native review.
 appearance-accesskit-hint = スクリーンリーダー（Orca など、AT-SPI 経由）がパネルを読み上げ・操作できるようにします。オフにすると、スクリーンリーダーには空のウィンドウが見えます。注意：スクリーンリーダーの動作中は、パネルに入力したテキストが AT-SPI バスに流れ、同じユーザーのプロセスなら読み取れます。
 # Machine-translated, pending native review.

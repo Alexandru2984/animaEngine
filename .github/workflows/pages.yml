@@ -1,0 +1,39 @@
+name: Website
+
+# Publishes site/ — the product page and the privacy policy — to GitHub
+# Pages. By hand only (Actions -> Website -> Run workflow): what the site
+# says and when it goes live is a decision, not a side effect of a push.
+# Needs Settings -> Pages -> Source: "GitHub Actions".
+#
+# No build step: the site is static HTML and CSS, with nothing fetched
+# from anywhere else.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: publish site/
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write # deploy to Pages
+      id-token: write # verify the deployment's origin
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

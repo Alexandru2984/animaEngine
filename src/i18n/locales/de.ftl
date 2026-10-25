@@ -315,7 +315,7 @@ action-show-help = Tastaturhilfe anzeigen
 
 # ── Accessibility section (D.3) — placeholder pending D.4 native-speaker audit
 appearance-accessibility-header = Barrierefreiheit
-appearance-accesskit-label = AccessKit-Baumaktualisierungen erzeugen
+appearance-accesskit-label = Screenreader-Unterstützung
 # Screen readers (1.4): machine-translated, pending native review.
 appearance-accesskit-hint = Lässt Screenreader (Orca und andere, über AT-SPI) die Panels lesen und bedienen. Ausgeschaltet sieht ein Screenreader ein leeres Fenster. Hinweis: Solange einer läuft, steht in Panels eingegebener Text auf dem AT-SPI-Bus, wo ihn jeder Prozess Ihres Benutzers lesen kann.
 # Machine-translated, pending native review.

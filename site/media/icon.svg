@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    Variant 1 — "Ghost Mascot"
+
+    Reads as: "the friendly desktop pet"
+    Mood:     warm, character-driven, memorable at small sizes
+    Palette:  accent gradient from the design system (Dark+Light theme accents)
+    Hook:     the demo asset called "ghost" is the de-facto mascot already;
+              this leans into it. The wavy hem + tiny motion dots tell the
+              user this is *animated*, not static.
+
+    NOTE: this file must start with the bytes `<svg` — no XML prolog,
+    no leading comment. gdk-pixbuf's SVG loader detects the format by
+    sniffing the first bytes of the file (librsvg's module signature
+    is anchored at the start), and GNOME Shell renders launcher icons
+    through gdk-pixbuf. With a prolog/comment first, every lookup that
+    picks the scalable entry silently renders *nothing* and the app
+    grid shows a blank tile. rsvg-convert parses fine either way,
+    which is exactly why earlier attempts kept "verifying" a broken
+    icon as good.
+  -->
+  <title>animaEngine — Ghost Mascot</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5163E8"/>
+      <stop offset="1" stop-color="#9AA8FF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.35" r="0.6">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Rounded badge -->
+  <rect width="256" height="256" rx="56" ry="56" fill="url(#bg)"/>
+  <rect width="256" height="256" rx="56" ry="56" fill="url(#glow)"/>
+
+  <!-- Ghost body — bell shape with scalloped hem -->
+  <g filter="url(#soft)">
+    <path d="
+        M 80 90
+        C 80 56, 176 56, 176 90
+        L 176 178
+        C 176 178, 168 188, 160 178
+        C 152 168, 144 188, 136 178
+        C 128 168, 120 188, 112 178
+        C 104 168, 96 188, 88 178
+        C 80 168, 80 188, 80 178
+        Z"
+      fill="#FFFFFF"/>
+  </g>
+
+  <!-- Eyes -->
+  <circle cx="112" cy="118" r="9" fill="#15181E"/>
+  <circle cx="148" cy="118" r="9" fill="#15181E"/>
+  <!-- Eye highlights -->
+  <circle cx="115" cy="115" r="2.6" fill="#FFFFFF"/>
+  <circle cx="151" cy="115" r="2.6" fill="#FFFFFF"/>
+
+  <!-- Subtle smile -->
+  <path d="M 118 138 Q 128 146 138 138"
+        stroke="#15181E" stroke-width="3.6" fill="none" stroke-linecap="round"/>
+
+  <!-- Motion trail — three fading dots leading from the right -->
+  <circle cx="208" cy="138" r="6"   fill="#FFFFFF" opacity="0.85"/>
+  <circle cx="226" cy="138" r="4.5" fill="#FFFFFF" opacity="0.55"/>
+  <circle cx="240" cy="138" r="3"   fill="#FFFFFF" opacity="0.30"/>
+</svg>

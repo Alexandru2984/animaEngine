@@ -315,7 +315,7 @@ action-show-help = Toetsenbordhulp tonen
 
 # ── Accessibility section (D.3) — placeholder pending D.4 native-speaker audit
 appearance-accessibility-header = Toegankelijkheid
-appearance-accesskit-label = AccessKit-boomupdates genereren
+appearance-accesskit-label = Ondersteuning voor schermlezers
 # Screen readers (1.4): machine-translated, pending native review.
 appearance-accesskit-hint = Laat schermlezers (Orca en andere, via AT-SPI) de panelen lezen en bedienen. Uit ziet een schermlezer een leeg venster. Let op: zolang er een draait, staat tekst die u in panelen typt op de AT-SPI-bus, waar elk proces van uw gebruiker hem kan lezen.
 # Machine-translated, pending native review.

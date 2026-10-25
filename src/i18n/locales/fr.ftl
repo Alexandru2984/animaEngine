@@ -315,7 +315,7 @@ action-show-help = Afficher l’aide clavier
 
 # ── Accessibility section (D.3) — placeholder pending D.4 native-speaker audit
 appearance-accessibility-header = Accessibilité
-appearance-accesskit-label = Générer les mises à jour de l’arbre AccessKit
+appearance-accesskit-label = Prise en charge des lecteurs d’écran
 # Screen readers (1.4): machine-translated, pending native review.
 appearance-accesskit-hint = Permet aux lecteurs d’écran (Orca et d’autres, via AT-SPI) de lire et d’utiliser les panneaux. Désactivé, un lecteur d’écran voit une fenêtre vide. Remarque : tant qu’un lecteur tourne, le texte saisi dans les panneaux passe sur le bus AT-SPI, où tout processus de votre utilisateur peut le lire.
 # Machine-translated, pending native review.

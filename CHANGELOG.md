@@ -341,6 +341,14 @@ read-only D-Bus names, for the idle time
   writes a standard autostart entry (the one the desktop's "Startup
   Applications" lists too), and in the Flatpak it asks the Background
   portal, which may ask you. Off by default.
+- **A product page and a privacy policy**, in `site/`: static HTML and
+  CSS that load nothing from anywhere else, light and dark, readable on a
+  phone, with 1920×1080 screenshots. A Website workflow publishes them to
+  GitHub Pages, by hand only. `docs/store-listing.md` has the text and
+  images for a store page.
+- **"Screen reader support"** is what Appearance's accessibility switch
+  is called now, in every language; it read "Generate AccessKit tree
+  updates", a library's name for it.
 - **A diagnostic report, for asking for help.** Appearance → About →
   "Copy diagnostic report" puts on the clipboard the version, the
   system and session, how it was installed, what the log said about the

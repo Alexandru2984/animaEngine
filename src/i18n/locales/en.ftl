@@ -328,7 +328,7 @@ action-show-help = Show keyboard help
 
 # ── Accessibility section in Appearance tab (D.3) ─────────────────────
 appearance-accessibility-header = Accessibility
-appearance-accesskit-label = Generate AccessKit tree updates
+appearance-accesskit-label = Screen reader support
 appearance-accesskit-hint = Lets screen readers (Orca and others, over AT-SPI) read and operate the panels. Off, a screen reader sees an empty window. Note: while one is running, text you type in the panels is on the AT-SPI bus, where any process running as your user can read it.
 appearance-accesskit-unsupported = Screen readers are not supported on this system yet.
 appearance-reduced-motion-label = Reduce motion

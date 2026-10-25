@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — animaEngine</title>
+<meta name="description" content="animaEngine collects nothing: the app makes no network connection.">
+<link rel="icon" href="media/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="./"><img src="media/icon.svg" alt="">animaEngine</a>
+    <nav><a href="./">Home</a></nav>
+  </header>
+  <main class="prose">
+    <h1>Privacy</h1>
+    <p><strong>The app collects nothing.</strong> animaEngine makes no network connection of any kind: no telemetry, no crash reporting, no update checks, no accounts, no advertising. Nothing about you, your computer or what is on your screen leaves it.</p>
+
+    <h2>What the app keeps, on your computer</h2>
+    <ul>
+      <li>Its settings and your scenes, in your user's configuration folder (<code>~/.config/animaengine</code> on Linux, <code>%APPDATA%\animaEngine</code> on Windows).</li>
+      <li>The pictures you add, in its asset library, and decoded copies of them in a cache folder, so they load faster.</li>
+      <li>After a crash, a copy of the scene from just before it, for <code>anima-engine --recover</code>.</li>
+    </ul>
+    <p>All of it stays on your computer, in your own user's folders. Uninstalling leaves it in place for a later install; delete those folders to remove it. The <a href="https://github.com/Alexandru2984/animaEngine/blob/main/docs/faq.md#removing-it">FAQ</a> says where they are.</p>
+
+    <h2>The diagnostic report</h2>
+    <p>Appearance → About → <em>Copy diagnostic report</em> puts a short text on your clipboard: the app's version, your system's name, your graphics card and the app's latest warnings — never the paths of your files. The app sends it nowhere. It goes only where you paste it.</p>
+
+    <h2>This website</h2>
+    <p>This site sets no cookies and runs no analytics or scripts, and it loads nothing from other sites. It is served by GitHub Pages, which, like any web server, receives your IP address with each request; see <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>. Downloads come from GitHub's release pages, under the same statement.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about privacy: <a href="https://github.com/Alexandru2984/animaEngine/issues">open an issue</a>, or, for a security problem, follow the <a href="https://github.com/Alexandru2984/animaEngine/blob/main/SECURITY.md">security policy</a>.</p>
+    <p class="note">Last changed: 25 October 2026.</p>
+  </main>
+  <footer>
+    animaEngine is free software under the MIT licence. · <a href="./">Home</a>
+  </footer>
+</div>
+</body>
+</html>
