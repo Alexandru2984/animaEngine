@@ -351,6 +351,16 @@ read-only D-Bus names, for the idle time
   — even before a picture of your own is in the library; the **Meadow
   friends** preset brings the five new ones. The first run's scene is
   unchanged. Their names in all ten languages.
+- **A welcome on the first run.** The first time edit mode opens, a
+  window beside the panel: the ten characters as toggles, the first
+  run's five pressed — a click puts one on the desktop or takes it off —
+  or a ready-made scene in their place; the language; start at login.
+  Continue, and the tour goes on where it was. From the keyboard, which
+  starts in it, and to a screen reader, each character a toggle button
+  that says whether it is on; in all ten languages. An upgrade does not
+  see it, and "Reset onboarding hints" brings it back. A built-in
+  character added from it or from the Library stands at a spot of its
+  own below the middle of the screen, not on the last one added.
 - **The first characters, drawn again.** The ghost, the slime, the
   heart, the star and the cat were hard-edged flat shapes; they are
   anti-aliased, outlined, lit from the upper left with a gloss, with a

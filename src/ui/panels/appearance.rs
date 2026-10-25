@@ -359,7 +359,7 @@ fn licences_window(ctx: &egui::Context, open: &mut bool) {
 /// Locale dropdown. Each option is the locale's *autonym* (its name in
 /// its own language) so users see "Română" / "日本語" / "Polski" and
 /// can pick theirs without reading English first.
-fn language_picker(ui: &mut egui::Ui, locale: &mut Option<String>) -> bool {
+pub(super) fn language_picker(ui: &mut egui::Ui, locale: &mut Option<String>) -> bool {
     use crate::i18n::{current_locale, set_locale, SUPPORTED};
     let mut changed = false;
     let active_code = locale
@@ -496,7 +496,7 @@ fn theme_label_with_icon(t: Theme) -> String {
 /// Start at login (`crate::autostart`). `granted` is the Flatpak's
 /// remembered portal answer; installed natively, the entry on disk is
 /// read instead. Returns whether the setting changed.
-fn autostart_switch(ui: &mut egui::Ui, granted: &mut bool) -> bool {
+pub(super) fn autostart_switch(ui: &mut egui::Ui, granted: &mut bool) -> bool {
     let error_key = egui::Id::new("anima.autostart-error");
     let mut on = crate::autostart::is_enabled(*granted);
     let mut changed = false;

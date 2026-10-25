@@ -8,6 +8,7 @@ mod appearance;
 mod arrange;
 mod command_palette;
 mod context_menu;
+mod getting_started;
 mod inspector;
 mod keybindings_tab;
 mod library;
@@ -646,6 +647,20 @@ pub fn settings(
                 });
             });
         });
+
+    // A first run's welcome, beside the panel the first time it opens.
+    if open {
+        getting_started::window(
+            ctx,
+            onboarding,
+            scene,
+            selection,
+            locale,
+            start_at_login,
+            library_outcome,
+            config_dirty,
+        );
+    }
 }
 
 #[cfg(test)]

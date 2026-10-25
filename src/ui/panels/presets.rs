@@ -99,7 +99,7 @@ fn preset_card(
         });
 }
 
-fn apply_preset(
+pub(super) fn apply_preset(
     scene: &mut Scene,
     selection: &mut SelectionState,
     preset: &Preset,

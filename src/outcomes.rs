@@ -723,17 +723,18 @@ pub fn apply_library_outcome(
 /// (`crate::demo::CHARACTERS`), named in the app's language, at `at`.
 fn add_builtin_character(outcome: &LibraryOutcome, ctx: &mut OutcomeCtx<'_>, at: (f32, f32)) {
     let name = outcome.relative_path.as_str();
-    if !crate::demo::CHARACTERS.contains(&name) {
+    let Some(place) = crate::demo::CHARACTERS.iter().position(|c| *c == name) else {
         tracing::warn!("Not a built-in character: {name}");
         return;
-    }
+    };
     let id = ctx.scene.unique_id(name);
+    let (x, y) = builtin_spot(place, at);
     let config = crate::presets::demo_character(
         &id,
         &outcome.display_name,
         &format!("assets/demo/{name}"),
-        at.0,
-        at.1,
+        x,
+        y,
         crate::behavior::Behavior::Idle,
     );
     match ctx.scene.append_character_config(&config) {
@@ -751,6 +752,19 @@ fn add_builtin_character(outcome: &LibraryOutcome, ctx: &mut OutcomeCtx<'_>, at:
                 .error(crate::i18n::t_args("toast-load-failed", &args));
         }
     }
+}
+
+/// Where the built-in character `place` in `demo::CHARACTERS` goes, the
+/// middle of the screen being `at`: each its own spot in a row below the
+/// middle, so ten added one after another — as the welcome does — stand
+/// side by side, not on one another, and clear of a window at the top.
+fn builtin_spot(place: usize, at: (f32, f32)) -> (f32, f32) {
+    let half = crate::demo::SIZE as f32 / 2.0;
+    let column = place as f32 - (crate::demo::CHARACTERS.len() as f32 - 1.0) / 2.0;
+    (
+        at.0 - half + column * 110.0,
+        at.1 + 120.0 + (place % 2) as f32 * 36.0,
+    )
 }
 
 /// Whether a dropped path is a Shimeji pack — a directory with `conf/` and
@@ -1598,6 +1612,25 @@ fn reject(toasts: &mut ToastQueue, reason: crate::i18n::Msg) {
 mod tests {
     use super::*;
     use crate::presets::{ApplyMode, PresetId};
+
+    /// The ten, added one after another, stand side by side below the
+    /// middle — the row centred on it — not on one another.
+    #[test]
+    fn built_in_characters_each_have_a_spot() {
+        let at = (960.0, 540.0);
+        let spots: Vec<_> = (0..crate::demo::CHARACTERS.len())
+            .map(|place| builtin_spot(place, at))
+            .collect();
+        for (i, a) in spots.iter().enumerate() {
+            assert!(a.1 > at.1, "{a:?} below the middle");
+            for b in &spots[i + 1..] {
+                assert!((a.0 - b.0).abs() >= 100.0, "{a:?} and {b:?} apart");
+            }
+        }
+        let half = crate::demo::SIZE as f32 / 2.0;
+        let middle = (spots[0].0 + spots[9].0) / 2.0 + half;
+        assert!((middle - at.0).abs() < 0.5, "centred: {middle}");
+    }
 
     fn scene_with(n: usize) -> Scene {
         let mut scene = Scene::from_config(&AppConfig::default());

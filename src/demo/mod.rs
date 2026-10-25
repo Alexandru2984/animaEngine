@@ -35,7 +35,7 @@ pub const CHARACTERS: [&str; 10] = [
 ];
 
 /// Every demo character's side, in pixels.
-const SIZE: u32 = 128;
+pub(crate) const SIZE: u32 = 128;
 
 /// The frames in each one's loop.
 const FRAMES: u32 = 12;

@@ -207,7 +207,7 @@ fn builtin_characters(ui: &mut egui::Ui, outcome: &mut Option<LibraryOutcome>) {
 
 /// A built-in character's first frame as a texture, loaded once and kept
 /// in egui's memory; `None` while its pictures are not there.
-fn builtin_texture(ctx: &egui::Context, name: &str) -> Option<egui::TextureHandle> {
+pub(super) fn builtin_texture(ctx: &egui::Context, name: &str) -> Option<egui::TextureHandle> {
     let id = egui::Id::new(("anima.builtin.thumb", name));
     if let Some(tex) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
         return Some(tex);

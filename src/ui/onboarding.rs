@@ -1,7 +1,10 @@
 //! Progressive in-line onboarding hints.
 //!
 //! We deliberately avoid a first-run modal (per project decision —
-//! see [[user-language]] notes). Instead, contextual one-line hints
+//! see [[user-language]] notes). The welcome a first run shows on
+//! entering edit mode (`panels::getting_started`) is a window beside the
+//! panel, not a modal: nothing waits on it but the tour. Beyond it,
+//! contextual one-line hints
 //! appear next to the feature they explain, and the user dismisses
 //! each one with a small ✕. State is persisted in
 //! [`crate::config::AppConfig`].
@@ -66,10 +69,18 @@ pub struct OnboardingProgress {
     /// only a brand-new install (`Default::default()`) gets it.
     #[serde(default = "coach_marks_skipped")]
     pub coach_marks: bool,
+
+    /// The welcome (1.5): the window a first run shows on entering edit
+    /// mode — which characters, the language, start at login. Like the
+    /// tour, missing means seen: an upgrade welcomes nobody. The tour's
+    /// steps in edit mode wait for it.
+    #[serde(default = "coach_marks_skipped")]
+    pub getting_started: bool,
 }
 
-/// Serde default for [`OnboardingProgress::coach_marks`] — see the
-/// field docs for why this is `true` (upgraders skip the tour).
+/// Serde default for [`OnboardingProgress::coach_marks`] and
+/// [`OnboardingProgress::getting_started`] — see the first's docs for
+/// why this is `true` (upgraders skip the tour).
 fn coach_marks_skipped() -> bool {
     true
 }
@@ -86,6 +97,7 @@ impl OnboardingProgress {
             keybindings_tab: true,
             perf_overlay: true,
             coach_marks: true,
+            getting_started: true,
         }
     }
 
@@ -211,8 +223,9 @@ pub fn coach_marks(
         ctx.data_mut(|d| d.insert_temp(step_id, step));
     }
     // Leaving edit mode mid-tour pauses it at step 0's anchor — the
-    // remaining steps need the panel's input shape to be clickable.
-    if step > 0 && !edit_mode {
+    // remaining steps need the panel's input shape to be clickable. And
+    // the welcome comes first: the rest of the tour waits for it.
+    if step > 0 && (!edit_mode || !progress.getting_started) {
         return false;
     }
 
@@ -339,6 +352,7 @@ mod tests {
             keybindings_tab: false,
             perf_overlay: false,
             coach_marks: false,
+            getting_started: false,
         };
         assert!(!p.fully_dismissed());
     }
@@ -352,6 +366,8 @@ mod tests {
         assert!(!p.perf_overlay);
         // V.2: the coach-mark tour re-arms through the same flow.
         assert!(!p.coach_marks);
+        // And the welcome before it (1.5).
+        assert!(!p.getting_started);
     }
 
     /// Existing users (whose config was saved before A.6) deserialize
@@ -390,7 +406,19 @@ mod tests {
         let parsed: OnboardingProgress =
             toml::from_str("tabs = true").expect("partial deserialize");
         assert!(parsed.coach_marks, "upgraders must not see the tour");
+        assert!(parsed.getting_started, "nor the welcome");
         // Fresh installs do see it.
         assert!(!OnboardingProgress::default().coach_marks);
+        assert!(!OnboardingProgress::default().getting_started);
+    }
+
+    /// 1.5: a config from 1.4, which knew the tour, keeps knowing it —
+    /// mid-tour or done, it is not welcomed on upgrade.
+    #[test]
+    fn a_config_from_before_the_welcome_skips_it() {
+        let parsed: OnboardingProgress =
+            toml::from_str("tabs = true\ncoach_marks = false").expect("deserialize");
+        assert!(!parsed.coach_marks);
+        assert!(parsed.getting_started);
     }
 }
