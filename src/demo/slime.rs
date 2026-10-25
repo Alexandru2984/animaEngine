@@ -12,12 +12,12 @@ pub fn generate(base: &Path) {
         return;
     };
     for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f));
+        super::save_frame(&dir, f + 1, &frame(f, 1));
     }
     tracing::info!("Generated {FRAMES} slime demo frames ({SIZE}×{SIZE})");
 }
 
-fn frame(f: u32) -> image::RgbaImage {
+pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let phase = f as f32 / FRAMES as f32 * std::f32::consts::TAU;
     let squash = phase.sin();
     let floor = 110.0;
@@ -35,7 +35,7 @@ fn frame(f: u32) -> image::RgbaImage {
 
     let base = rgb(96, 214, 112);
     let ink = rgb(28, 104, 48);
-    let mut c = Canvas::new(SIZE);
+    let mut c = Canvas::scaled(SIZE, scale);
     c.ground_shadow(cx, floor + 3.0, w * 0.95, 5.0, 0.3);
     c.solid(paint::grow(&body, 2.0), ink, 1.0);
     c.fill(&body, |x, y| {

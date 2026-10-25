@@ -12,12 +12,12 @@ pub fn generate(base: &Path) {
         return;
     };
     for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f));
+        super::save_frame(&dir, f + 1, &frame(f, 1));
     }
     tracing::info!("Generated {FRAMES} mushroom demo frames ({SIZE}×{SIZE})");
 }
 
-fn frame(f: u32) -> image::RgbaImage {
+pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let phase = f as f32 / FRAMES as f32 * std::f32::consts::TAU;
     let sway = 3.0 * phase.sin();
     let bounce = 1.0 + 0.05 * (phase * 2.0).sin();
@@ -34,7 +34,7 @@ fn frame(f: u32) -> image::RgbaImage {
     let red = rgb(226, 62, 62);
     let cream = rgb(250, 236, 212);
     let ink = rgb(110, 32, 30);
-    let mut c = Canvas::new(SIZE);
+    let mut c = Canvas::scaled(SIZE, scale);
     c.ground_shadow(cx, floor + 2.0, 28.0, 4.5, 0.28);
     // The stem under the cap, outlined, then the cap over it.
     c.solid(paint::grow(&stem, 2.0), ink, 1.0);

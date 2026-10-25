@@ -1,13 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <!--
-    Variant 1 — "Ghost Mascot"
-
-    Reads as: "the friendly desktop pet"
-    Mood:     warm, character-driven, memorable at small sizes
-    Palette:  accent gradient from the design system (Dark+Light theme accents)
-    Hook:     the demo asset called "ghost" is the de-facto mascot already;
-              this leans into it. The wavy hem + tiny motion dots tell the
-              user this is *animated*, not static.
+    animaEngine's icon (1.5): the ghost, drawn as the app's own characters
+    are — an outline, light from the upper left, a gloss, eyes that catch
+    the light, a shadow on the ground — waving, with a sparkle, on a
+    violet badge in the website's colours.
 
     NOTE: this file must start with the bytes `<svg` — no XML prolog,
     no leading comment. gdk-pixbuf's SVG loader detects the format by
@@ -17,55 +13,69 @@
     picks the scalable entry silently renders *nothing* and the app
     grid shows a blank tile. rsvg-convert parses fine either way,
     which is exactly why earlier attempts kept "verifying" a broken
-    icon as good.
+    icon as good. No filters either: renderers differ on them.
   -->
-  <title>animaEngine — Ghost Mascot</title>
+  <title>animaEngine</title>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#5163E8"/>
-      <stop offset="1" stop-color="#9AA8FF"/>
+    <linearGradient id="badge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5A44D6"/>
+      <stop offset="1" stop-color="#A68EFF"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.35" r="0.6">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+    <radialGradient id="glow" cx="0.35" cy="0.25" r="0.75">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.28"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur stdDeviation="0.6"/>
-    </filter>
+    <radialGradient id="body" cx="0.36" cy="0.28" r="0.85">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.55" stop-color="#EEF0FF"/>
+      <stop offset="1" stop-color="#B7BCE6"/>
+    </radialGradient>
   </defs>
 
-  <!-- Rounded badge -->
-  <rect width="256" height="256" rx="56" ry="56" fill="url(#bg)"/>
+  <!-- The badge -->
+  <rect width="256" height="256" rx="56" ry="56" fill="url(#badge)"/>
   <rect width="256" height="256" rx="56" ry="56" fill="url(#glow)"/>
 
-  <!-- Ghost body — bell shape with scalloped hem -->
-  <g filter="url(#soft)">
-    <path d="
-        M 80 90
-        C 80 56, 176 56, 176 90
-        L 176 178
-        C 176 178, 168 188, 160 178
-        C 152 168, 144 188, 136 178
-        C 128 168, 120 188, 112 178
-        C 104 168, 96 188, 88 178
-        C 80 168, 80 188, 80 178
-        Z"
-      fill="#FFFFFF"/>
+  <!-- Its shadow on the ground -->
+  <ellipse cx="128" cy="210" rx="54" ry="9" fill="#1C1240" fill-opacity="0.32"/>
+
+  <!-- Arms, waving: outline, then fill; the body goes over their joints -->
+  <g stroke-linecap="round" fill="none">
+    <path d="M 70 150 L 42 128" stroke="#2B2266" stroke-width="27"/>
+    <path d="M 186 150 L 214 132" stroke="#2B2266" stroke-width="27"/>
+    <path d="M 70 150 L 42 128" stroke="#E6E8FF" stroke-width="18"/>
+    <path d="M 186 150 L 214 132" stroke="#E6E8FF" stroke-width="18"/>
   </g>
 
-  <!-- Eyes -->
-  <circle cx="112" cy="118" r="9" fill="#15181E"/>
-  <circle cx="148" cy="118" r="9" fill="#15181E"/>
-  <!-- Eye highlights -->
-  <circle cx="115" cy="115" r="2.6" fill="#FFFFFF"/>
-  <circle cx="151" cy="115" r="2.6" fill="#FFFFFF"/>
+  <!-- The ghost: a round head, a sheet with a scalloped hem -->
+  <path d="
+      M 62 118
+      A 66 66 0 0 1 194 118
+      L 194 182
+      C 188 202, 170 202, 161 186
+      C 153 202, 136 202, 128 186
+      C 120 202, 103 202, 95 186
+      C 86 202, 68 202, 62 182
+      Z"
+    fill="url(#body)" stroke="#2B2266" stroke-width="7" stroke-linejoin="round"/>
 
-  <!-- Subtle smile -->
-  <path d="M 118 138 Q 128 146 138 138"
-        stroke="#15181E" stroke-width="3.6" fill="none" stroke-linecap="round"/>
+  <!-- Gloss -->
+  <ellipse cx="96" cy="82" rx="16" ry="8" fill="#FFFFFF" fill-opacity="0.75" transform="rotate(-32 96 82)"/>
 
-  <!-- Motion trail — three fading dots leading from the right -->
-  <circle cx="208" cy="138" r="6"   fill="#FFFFFF" opacity="0.85"/>
-  <circle cx="226" cy="138" r="4.5" fill="#FFFFFF" opacity="0.55"/>
-  <circle cx="240" cy="138" r="3"   fill="#FFFFFF" opacity="0.30"/>
+  <!-- Eyes, with catch lights -->
+  <ellipse cx="106" cy="124" rx="9.5" ry="11.5" fill="#28224E"/>
+  <ellipse cx="150" cy="124" rx="9.5" ry="11.5" fill="#28224E"/>
+  <circle cx="102.5" cy="119" r="3.8" fill="#FFFFFF"/>
+  <circle cx="146.5" cy="119" r="3.8" fill="#FFFFFF"/>
+  <circle cx="109" cy="129" r="1.7" fill="#FFFFFF" fill-opacity="0.8"/>
+  <circle cx="153" cy="129" r="1.7" fill="#FFFFFF" fill-opacity="0.8"/>
+
+  <!-- A little "o" of a mouth, and cheeks -->
+  <ellipse cx="128" cy="146" rx="5.5" ry="6.5" fill="#3A2A5E"/>
+  <ellipse cx="86" cy="142" rx="11" ry="6.5" fill="#FF7AA0" fill-opacity="0.5"/>
+  <ellipse cx="170" cy="142" rx="11" ry="6.5" fill="#FF7AA0" fill-opacity="0.5"/>
+
+  <!-- Sparkles -->
+  <path d="M 206 40 L 210 54 L 224 58 L 210 62 L 206 76 L 202 62 L 188 58 L 202 54 Z" fill="#FFFFFF" fill-opacity="0.95"/>
+  <path d="M 228 84 L 230 91 L 237 93 L 230 95 L 228 102 L 226 95 L 219 93 L 226 91 Z" fill="#FFFFFF" fill-opacity="0.8"/>
 </svg>

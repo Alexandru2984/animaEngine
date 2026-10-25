@@ -341,6 +341,9 @@ read-only D-Bus names, for the idle time
   writes a standard autostart entry (the one the desktop's "Startup
   Applications" lists too), and in the Flatpak it asks the Background
   portal, which may ask you. Off by default.
+- **A new icon**, drawn as the characters are: the ghost waving on a
+  violet badge, with an outline, light and a sparkle — in the menus, the
+  Windows `.exe` and its installer, and on the site.
 - **Five more characters of the app's own**: a bunny that hops, a frog
   puffing its throat, a robot with a blinking antenna, a raining cloud
   and a swaying toadstool, drawn like the first five. Library opens with

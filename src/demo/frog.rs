@@ -12,12 +12,12 @@ pub fn generate(base: &Path) {
         return;
     };
     for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f));
+        super::save_frame(&dir, f + 1, &frame(f, 1));
     }
     tracing::info!("Generated {FRAMES} frog demo frames ({SIZE}×{SIZE})");
 }
 
-fn frame(f: u32) -> image::RgbaImage {
+pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let phase = f as f32 / FRAMES as f32 * std::f32::consts::TAU;
     let breath = 1.0 + 0.03 * phase.sin();
     let puff = (phase * 2.0).sin().max(0.0);
@@ -42,7 +42,7 @@ fn frame(f: u32) -> image::RgbaImage {
 
     let base = rgb(112, 200, 92);
     let ink = rgb(34, 92, 36);
-    let mut c = Canvas::new(SIZE);
+    let mut c = Canvas::scaled(SIZE, scale);
     c.ground_shadow(cx, floor + 4.0, 42.0, 5.0, 0.28);
     c.solid(paint::grow(&shape, 2.0), ink, 1.0);
     c.fill(&shape, |x, y| {

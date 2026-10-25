@@ -12,12 +12,12 @@ pub fn generate(base: &Path) {
         return;
     };
     for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f));
+        super::save_frame(&dir, f + 1, &frame(f, 1));
     }
     tracing::info!("Generated {FRAMES} cloud demo frames ({SIZE}×{SIZE})");
 }
 
-fn frame(f: u32) -> image::RgbaImage {
+pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let t = f as f32 / FRAMES as f32;
     let phase = t * std::f32::consts::TAU;
     let drift = 3.0 * phase.sin();
@@ -43,7 +43,7 @@ fn frame(f: u32) -> image::RgbaImage {
 
     let base = rgb(246, 249, 255);
     let ink = rgb(108, 128, 172);
-    let mut c = Canvas::new(SIZE);
+    let mut c = Canvas::scaled(SIZE, scale);
     // Rain: three drops falling, each at its own time.
     for (k, dx) in [-18.0_f32, 2.0, 20.0].iter().enumerate() {
         let fall = (t + k as f32 * 0.37).fract();

@@ -12,12 +12,12 @@ pub fn generate(base: &Path) {
         return;
     };
     for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f));
+        super::save_frame(&dir, f + 1, &frame(f, 1));
     }
     tracing::info!("Generated {FRAMES} ghost demo frames ({SIZE}×{SIZE})");
 }
 
-fn frame(f: u32) -> image::RgbaImage {
+pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let phase = f as f32 / FRAMES as f32 * std::f32::consts::TAU;
     let bob = 3.5 * phase.sin();
     let cx = 64.0;
@@ -36,7 +36,7 @@ fn frame(f: u32) -> image::RgbaImage {
 
     let base = rgb(236, 238, 255);
     let ink = rgb(70, 66, 120);
-    let mut c = Canvas::new(SIZE);
+    let mut c = Canvas::scaled(SIZE, scale);
     c.ground_shadow(cx, 117.0, 24.0 - bob, 4.5, 0.28);
     c.solid(paint::grow(&body, 2.0), ink, 1.0);
     c.fill(&body, |x, y| {

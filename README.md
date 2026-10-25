@@ -1,5 +1,7 @@
 # animaEngine
 
+![animaEngine: a ghost, a slime, a cat, a heart, a star, a bunny, a frog, a robot, a cloud and a mushroom on a dusk hillside](site/media/store/banner-1600x500.png)
+
 [![CI](https://github.com/Alexandru2984/animaEngine/actions/workflows/ci.yml/badge.svg)](https://github.com/Alexandru2984/animaEngine/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Alexandru2984/animaEngine)](https://github.com/Alexandru2984/animaEngine/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)

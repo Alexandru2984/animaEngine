@@ -63,6 +63,26 @@ pub fn generate_assets() {
     generate_assets_in(&dir());
 }
 
+/// Frame `frame` of the built-in character `name`, drawn `scale` times as
+/// large as the app's — for pictures of them, a store page's; `None` for a
+/// name not in [`CHARACTERS`].
+pub fn picture(name: &str, frame: u32, scale: u32) -> Option<image::RgbaImage> {
+    let f = frame % FRAMES;
+    Some(match name {
+        "ghost" => ghost::frame(f, scale),
+        "slime" => slime::frame(f, scale),
+        "heart" => heart::frame(f, scale),
+        "star" => star::frame(f, scale),
+        "cat" => cat::frame(f, scale),
+        "bunny" => bunny::frame(f, scale),
+        "frog" => frog::frame(f, scale),
+        "robot" => robot::frame(f, scale),
+        "cloud" => cloud::frame(f, scale),
+        "mushroom" => mushroom::frame(f, scale),
+        _ => return None,
+    })
+}
+
 /// [`generate_assets`] into `base`: `base/ghost`, `base/slime` and the rest.
 pub fn generate_assets_in(base: &Path) {
     ghost::generate(base);

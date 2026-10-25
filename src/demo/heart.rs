@@ -12,12 +12,12 @@ pub fn generate(base: &Path) {
         return;
     };
     for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f));
+        super::save_frame(&dir, f + 1, &frame(f, 1));
     }
     tracing::info!("Generated {FRAMES} heart demo frames ({SIZE}×{SIZE})");
 }
 
-fn frame(f: u32) -> image::RgbaImage {
+pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let t = f as f32 / FRAMES as f32;
     let phase = t * std::f32::consts::TAU;
     // Lub-dub: a beat, a smaller one just after, then rest.
@@ -34,7 +34,7 @@ fn frame(f: u32) -> image::RgbaImage {
 
     let base = rgb(240, 72, 112);
     let ink = rgb(120, 18, 48);
-    let mut c = Canvas::new(SIZE);
+    let mut c = Canvas::scaled(SIZE, scale);
     c.ground_shadow(cx, 117.0, 20.0 * beat, 4.0, 0.26);
     c.solid(paint::grow(&body, 2.0), ink, 1.0);
     c.fill(&body, |x, y| {

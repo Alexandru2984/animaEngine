@@ -82,13 +82,22 @@ Free and open source under the MIT licence.
 | `site/media/edit-mode.png` | 1920×1080 | Screenshot: edit mode, a character selected |
 | `site/media/command-palette.png` | 1920×1080 | Screenshot: the command palette and presets |
 | `site/media/appearance.png` | 1920×1080 | Screenshot: the Appearance settings |
-| `site/media/cover-630x500.png` | 630×500 | itch.io cover |
 | `site/media/demo.gif` | 800×500 | Animated preview, a store's GIF slot or the page |
+| `site/media/store/itch-cover-630x500.png` | 630×500 | itch.io cover |
+| `site/media/store/steam-header-920x430.png` | 920×430 | Steam header capsule |
+| `site/media/store/steam-small-462x174.png` | 462×174 | Steam small capsule |
+| `site/media/store/steam-main-1232x706.png` | 1232×706 | Steam main capsule |
+| `site/media/store/steam-vertical-748x896.png` | 748×896 | Steam vertical capsule |
+| `site/media/store/steam-library-600x900.png` | 600×900 | Steam library capsule |
+| `site/media/store/steam-library-hero-3840x1240.png` | 3840×1240 | Steam library hero (no text, as it asks) |
+| `site/media/store/steam-logo-1280x720.png` | 1280×720 | Steam library logo, transparent |
+| `site/media/store/banner-1600x500.png` | 1600×500 | A banner: the README, social posts |
 
-Steam also asks for capsule, header and library art, in the sizes its
-current graphical-asset guidelines give. They are art, not screenshots,
-and are not made yet: they would come with the characters a store build
-ships.
+The capsules and banners are drawn by `scripts/store-art.py` from the
+built-in characters at four times their size
+(`cargo run --release --example store_pictures -- <folder>`), with the
+title in Ubuntu Bold. Steam's sizes are those of its guidelines in 2026:
+check them before uploading, and run the script again for others.
 
 ## System requirements
 

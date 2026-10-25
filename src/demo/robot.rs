@@ -12,12 +12,12 @@ pub fn generate(base: &Path) {
         return;
     };
     for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f));
+        super::save_frame(&dir, f + 1, &frame(f, 1));
     }
     tracing::info!("Generated {FRAMES} robot demo frames ({SIZE}×{SIZE})");
 }
 
-fn frame(f: u32) -> image::RgbaImage {
+pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let phase = f as f32 / FRAMES as f32 * std::f32::consts::TAU;
     let swing = 8.0 * phase.sin();
     let tilt = 2.5 * (phase + 0.6).sin();
@@ -63,7 +63,7 @@ fn frame(f: u32) -> image::RgbaImage {
 
     let base = rgb(150, 178, 212);
     let ink = rgb(44, 58, 90);
-    let mut c = Canvas::new(SIZE);
+    let mut c = Canvas::scaled(SIZE, scale);
     c.ground_shadow(cx, floor + 3.0, 30.0, 4.5, 0.28);
     c.solid(paint::grow(&shape, 2.0), ink, 1.0);
     c.fill(&shape, |x, y| {

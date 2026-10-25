@@ -5,9 +5,12 @@
 
 use image::{Rgba, RgbaImage};
 
-/// Premultiplied RGBA, 0..=1, a pixel each.
+/// Premultiplied RGBA, 0..=1, a pixel each. Drawn in a `size`-unit
+/// square, at `scale` pixels a unit: the app's frames at 1, larger pictures
+/// of the same drawing — for a store page — at more, as sharp.
 pub struct Canvas {
     size: u32,
+    scale: f32,
     px: Vec<[f32; 4]>,
 }
 
@@ -32,10 +35,13 @@ pub fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
 }
 
 impl Canvas {
-    pub fn new(size: u32) -> Self {
+    /// A `size`-unit square drawn `scale` times as many pixels across.
+    pub fn scaled(size: u32, scale: u32) -> Self {
+        let side = size * scale.max(1);
         Self {
-            size,
-            px: vec![[0.0; 4]; (size * size) as usize],
+            size: side,
+            scale: scale.max(1) as f32,
+            px: vec![[0.0; 4]; (side * side) as usize],
         }
     }
 
@@ -46,11 +52,11 @@ impl Canvas {
         dist: impl Fn(f32, f32) -> f32,
         color: impl Fn(f32, f32) -> ([f32; 3], f32),
     ) {
-        let n = self.size;
+        let (n, s) = (self.size, self.scale);
         for y in 0..n {
             for x in 0..n {
-                let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
-                let cover = (0.5 - dist(fx, fy)).clamp(0.0, 1.0);
+                let (fx, fy) = ((x as f32 + 0.5) / s, (y as f32 + 0.5) / s);
+                let cover = (0.5 - dist(fx, fy) * s).clamp(0.0, 1.0);
                 if cover <= 0.0 {
                     continue;
                 }
@@ -67,11 +73,11 @@ impl Canvas {
 
     /// A soft shadow on the ground: an ellipse fading out over its radii.
     pub fn ground_shadow(&mut self, cx: f32, cy: f32, rx: f32, ry: f32, alpha: f32) {
-        let n = self.size;
+        let (n, s) = (self.size, self.scale);
         for y in 0..n {
             for x in 0..n {
-                let dx = (x as f32 + 0.5 - cx) / rx;
-                let dy = (y as f32 + 0.5 - cy) / ry;
+                let dx = ((x as f32 + 0.5) / s - cx) / rx;
+                let dy = ((y as f32 + 0.5) / s - cy) / ry;
                 let r = (dx * dx + dy * dy).sqrt();
                 if r < 1.0 {
                     let a = alpha * (1.0 - r * r);

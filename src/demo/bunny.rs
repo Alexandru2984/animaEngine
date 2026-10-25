@@ -12,12 +12,12 @@ pub fn generate(base: &Path) {
         return;
     };
     for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f));
+        super::save_frame(&dir, f + 1, &frame(f, 1));
     }
     tracing::info!("Generated {FRAMES} bunny demo frames ({SIZE}×{SIZE})");
 }
 
-fn frame(f: u32) -> image::RgbaImage {
+pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let phase = f as f32 / FRAMES as f32 * std::f32::consts::TAU;
     // Two hops a loop: up in an arc, squashed a little on landing.
     let hop = (phase * 2.0).sin().max(0.0);
@@ -61,7 +61,7 @@ fn frame(f: u32) -> image::RgbaImage {
     let base = rgb(250, 246, 242);
     let ink = rgb(120, 96, 110);
     let pink = rgb(255, 170, 190);
-    let mut c = Canvas::new(SIZE);
+    let mut c = Canvas::scaled(SIZE, scale);
     c.ground_shadow(cx, floor + 6.0, 26.0 - lift * 0.8, 4.5, 0.26);
     c.solid(paint::grow(&shape, 2.0), ink, 1.0);
     c.fill(&shape, |x, y| {
