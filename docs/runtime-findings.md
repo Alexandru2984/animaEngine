@@ -2952,5 +2952,9 @@ the first version did this at start only). The frame cache keeps each size under
 name (256's as before). **Checked** with the same picture against the
 installed build: at 200 % on both backends the character is 512 screen
 pixels as before and its stripes show (contrast 58.5); the log says
-"Pictures kept sharp at 512 px" once.
+"Pictures kept sharp at 512 px" once. Two monitors at two scales on native
+Wayland (100 % beside 200 %): the picture 256 pixels on the first, 512
+and sharp on the second; a slime walking across the seam 86 pixels wide,
+then 174. Two monitors at 200 % on a real X server (Xorg's dummy driver),
+the second one's an extra window: 511 pixels wide and sharp on both.
 
