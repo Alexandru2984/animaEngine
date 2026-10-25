@@ -2944,9 +2944,11 @@ in `Animation::pixel_scale`, which `Entity::draw_scale` multiplies in, so
 sizes, hit tests, margins and bumping are unchanged. The scene is loaded
 at 256 and, once the scale is known (the first window, a scale change, a
 new surface), `Scene::sharpen` loads again the characters that were made
-smaller — within the decode budget, or left as they were, and a config
-loaded with too little budget for the sharp pictures takes the 256 ones
-rather than a fallback. The frame cache keeps each size under its own
+smaller — within the decode budget, or left as they were. A character
+whose sharp pictures would pass the budget — at start, dropped, pasted,
+brought back by an undo or another scene — takes the 256 ones, as it did
+before, rather than a refusal or a fallback (`Scene::load_entity_within`;
+the first version did this at start only). The frame cache keeps each size under its own
 name (256's as before). **Checked** with the same picture against the
 installed build: at 200 % on both backends the character is 512 screen
 pixels as before and its stripes show (contrast 58.5); the log says

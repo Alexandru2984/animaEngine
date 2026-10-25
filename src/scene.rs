@@ -93,31 +93,14 @@ impl Scene {
         let mut decoded_total: usize = 0;
 
         for char_config in &config.characters {
-            let cap = crate::entity::picture_cap();
-            let mut loaded = Self::load_entity_at(char_config, cap);
-            // Kept sharp for a HiDPI screen, a picture takes up to four
-            // times the memory: one that fits at the size it is shown is
-            // kept at that rather than replaced by a fallback.
-            if cap > MAX_DROP_SIZE
-                && loaded.as_ref().is_ok_and(|e| {
-                    check_budget(decoded_total, e.animations.decoded_bytes(), budget).is_err()
-                })
-            {
-                loaded = Self::load_entity_at(char_config, MAX_DROP_SIZE);
-            }
-            match loaded {
+            match Self::load_entity_within(
+                char_config,
+                crate::entity::picture_cap(),
+                decoded_total,
+                budget,
+            ) {
                 Ok(entity) => {
-                    let incoming = entity.animations.decoded_bytes();
-                    if check_budget(decoded_total, incoming, budget).is_err() {
-                        tracing::warn!(
-                            "Entity '{}' would exceed the {} MB decode budget at load; using fallback",
-                            char_config.id,
-                            budget / (1024 * 1024),
-                        );
-                        entities.push(Self::create_fallback_entity(char_config));
-                        continue;
-                    }
-                    decoded_total = decoded_total.saturating_add(incoming);
+                    decoded_total = decoded_total.saturating_add(entity.animations.decoded_bytes());
                     tracing::info!(
                         "Loaded entity '{}' ({} frames, per-frame delays: {})",
                         entity.name,
@@ -248,6 +231,28 @@ impl Scene {
     /// missing walk sequence can't take the whole entity down.
     fn load_entity(config: &CharacterConfig) -> Result<Entity> {
         Self::load_entity_at(config, crate::entity::picture_cap())
+    }
+
+    /// [`Self::load_entity_at`] within the decode budget, `used` of it
+    /// taken: kept sharp at `cap` (`entity::picture_cap`) if that fits,
+    /// else at the size it shows (`MAX_DROP_SIZE`) if that does. Sharp, a
+    /// picture takes up to four times the memory, and one that loaded
+    /// before must not be refused — or replaced by a fallback — for it.
+    fn load_entity_within(
+        config: &CharacterConfig,
+        cap: u32,
+        used: usize,
+        budget: usize,
+    ) -> Result<Entity> {
+        let entity = Self::load_entity_at(config, cap)?;
+        let fits = check_budget(used, entity.animations.decoded_bytes(), budget);
+        if fits.is_ok() || cap <= MAX_DROP_SIZE {
+            return fits.map(|()| entity);
+        }
+        drop(entity);
+        let entity = Self::load_entity_at(config, MAX_DROP_SIZE)?;
+        check_budget(used, entity.animations.decoded_bytes(), budget)?;
+        Ok(entity)
     }
 
     /// [`Self::load_entity`], each picture at most `cap` a side
@@ -1016,41 +1021,23 @@ impl Scene {
             hours: None,
         };
 
-        // Load frames and resize to overlay-friendly dimensions
-        let cap = crate::entity::picture_cap();
-        let resolved = AppConfig::resolve_asset_path(&char_config.asset_path);
-        let frames = load_asset(
-            &char_config.asset_type,
-            &resolved,
-            char_config.spritesheet_columns,
-            char_config.spritesheet_rows,
-            cap,
-        )?;
-
-        // Cap frames for overlay-friendly sprites — the same cap
-        // `load_entity_at` applies on startup so the sprite is the same size
-        // across restarts. `?` propagates a corrupt-buffer error instead of
-        // silently producing a frame with mismatched dimensions.
-        let frames = Self::cap_to(frames, cap)?;
-
-        let animation = Animation::new(frames, char_config.fps, char_config.playing).kept_at(cap);
-        let entity = Entity::from_config(&char_config, animation);
-
-        // Aggregate memory budget — per-asset cap × MAX_ENTITIES is a
-        // 32 GB worst case, so we also gate the total here. Decoded
-        // frames go out of scope on early-return and free their RGBA
-        // buffers; no leak.
-        check_budget(
+        // Loaded as at startup, so the sprite is the same size across
+        // restarts, and within the aggregate memory budget — per-asset
+        // cap × MAX_ENTITIES is a 32 GB worst case. Decoded frames go out
+        // of scope on early-return and free their RGBA buffers; no leak.
+        let entity = Self::load_entity_within(
+            &char_config,
+            crate::entity::picture_cap(),
             self.total_decoded_bytes(),
-            entity.animations.decoded_bytes(),
             max_total_decoded_bytes(),
         )?;
 
         tracing::info!(
-            "Entity '{}' loaded: {} frames (max {}px)",
+            "Entity '{}' loaded: {} frames ({}x{})",
             entity.id,
             entity.animation().frame_count(),
-            cap
+            entity.animation().frames.first().map_or(0, |f| f.width),
+            entity.animation().frames.first().map_or(0, |f| f.height),
         );
 
         self.entities.push(entity);
@@ -1154,25 +1141,13 @@ impl Scene {
                 }
                 // New here: it fades in (`Scene::fade_step`).
                 _ => {
-                    let mut fresh = match Self::load_entity(cfg) {
-                        Ok(entity)
-                            if check_budget(
-                                decoded_total,
-                                entity.animations.decoded_bytes(),
-                                budget,
-                            )
-                            .is_ok() =>
-                        {
-                            entity
-                        }
-                        Ok(_) => {
-                            tracing::warn!(
-                                "Entity '{}' would exceed the {} MB decode budget; using fallback",
-                                cfg.id,
-                                budget / (1024 * 1024),
-                            );
-                            Self::create_fallback_entity(cfg)
-                        }
+                    let mut fresh = match Self::load_entity_within(
+                        cfg,
+                        crate::entity::picture_cap(),
+                        decoded_total,
+                        budget,
+                    ) {
+                        Ok(entity) => entity,
                         Err(err) => {
                             tracing::warn!(
                                 "Entity '{}' failed to reload: {}; using fallback",
@@ -1208,15 +1183,14 @@ impl Scene {
         if self.entities.len() >= MAX_ENTITIES {
             return Err(too_many_characters());
         }
-        let mut entity = Self::load_entity(cfg)?;
-        // Arrives fading in (`Scene::fade_step`).
-        entity.fade = 0.0;
-
-        check_budget(
+        let mut entity = Self::load_entity_within(
+            cfg,
+            crate::entity::picture_cap(),
             self.total_decoded_bytes(),
-            entity.animations.decoded_bytes(),
             max_total_decoded_bytes(),
         )?;
+        // Arrives fading in (`Scene::fade_step`).
+        entity.fade = 0.0;
 
         self.entities.push(entity);
         self.mark_visible_dirty();
@@ -1790,6 +1764,32 @@ mod sharp_tests {
 
         assert!(!scene.sharpen(512), "once");
         assert!(!scene.sharpen(256), "never blurrier again");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A character whose sharp pictures would pass the decode budget is
+    /// loaded at the size it shows, as it was before they were kept sharp;
+    /// one that fits at neither is refused, as before.
+    #[test]
+    fn sharp_pictures_never_cost_a_character_its_place() {
+        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("sharp_budget_tests");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let big = dir.join("big.png");
+        image::RgbaImage::from_pixel(1024, 512, image::Rgba([200, 80, 40, 255]))
+            .save(&big)
+            .unwrap();
+        let config = character("big", &big);
+        let (sharp, shown) = (512 * 256 * 4, 256 * 128 * 4);
+        let side = |budget: usize| {
+            Scene::load_entity_within(&config, 512, 1000, 1000 + budget)
+                .map(|e| e.animation().frames[0].width)
+        };
+        assert_eq!(side(sharp).unwrap(), 512, "sharp, when it fits");
+        assert_eq!(side(sharp - 1).unwrap(), 256, "else as it shows");
+        assert!(side(shown - 1).is_err(), "else refused");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
