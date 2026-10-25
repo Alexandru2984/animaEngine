@@ -41,18 +41,75 @@ bindings and a new dependency tree to audit.
 ## What is left
 
 1. **Run it on Windows.** The smoke checklist below, on a real machine
-   or VM. Nothing here has been seen working on screen yet except the
-   layered presentation, which was measured on a VM when it was written.
-2. **An MSVC build.** CI checks the GNU target from Linux; the MSVC one
-   needs a Windows runner or machine.
-3. **Video.** `openh264` compiles C, so the cross-check builds without
-   the `video` feature. A native Windows build should build it as-is.
+   or VM. Under Wine the release build installs, starts, draws its
+   characters through the layered window, registers its tray icon,
+   raises the first copy on a second start, and uninstalls clean — but
+   Wine is not Windows.
+2. **Signing.** The `.exe` and the installer are not signed, so
+   SmartScreen warns on every download until enough people have run
+   them. The ways to sign are listed under "Releasing" below.
+3. **An MSVC build.** CI builds the GNU target from Linux; the MSVC one
+   needs a Windows runner or machine. `build.rs` already compiles the
+   resources with `rc.exe` there.
+
+## Releasing
+
+`scripts/build-windows.sh` builds, from Linux, what a release ships for
+Windows:
+
+- `animaEngine-<version>-windows-x86_64.zip`: the portable app,
+  `anima-engine.exe` with `LICENSE.txt`, `THIRD-PARTY-LICENSES.txt` and
+  a `README.txt`. Reproducible: two builds of a commit give the same
+  bytes.
+- `animaEngine-<version>-windows-x86_64-setup.exe`: an NSIS installer
+  (`packaging/windows/installer.nsi`). It installs per user into
+  `%LOCALAPPDATA%\Programs\animaEngine`, without asking for
+  administrator rights. It adds a Start-menu entry and an uninstaller
+  that Settings -> Apps lists, and speaks the app's ten languages. A
+  running copy is asked to close first, and saves as it would on Quit.
+  Uninstalling keeps the settings and characters, and removes "Start at
+  login".
+
+The `.exe` is cross-compiled with mingw-w64. libstdc++ (the C++ runtime
+of the H.264 decoder) is linked in statically, from the win32 thread
+model's, so the `.exe` needs only DLLs every Windows has; the script
+fails if it would need another. `build.rs` gives it the icon (also the
+tray's) and the version details its Properties show. The release
+workflow runs the script, checksums both files with the Linux packages,
+attests them and attaches them to the draft.
+
+"Start at login" is the `animaEngine` value of
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` — what Task
+Manager's Startup tab lists too. Its test writes the registry, so it is
+`#[ignore]`d: run it under Wine in a throwaway prefix with `-- --ignored`.
+
+**Signing**, for when the app is distributed — each with its own cost and
+checks, to compare at the time:
+
+- an OV or EV code-signing certificate from a certificate authority
+  (`osslsigncode` signs from Linux);
+- Azure Trusted Signing;
+- for open-source projects, SignPath Foundation;
+- the Microsoft Store, which signs what it distributes (it needs an MSIX
+  package).
+
+A signature does not end SmartScreen's warnings at once: they stop as
+the signed file builds up a reputation (an EV certificate used to skip
+that, but no longer does). Sign the installer and the `.exe` inside it.
 
 ## Testing
 
 From Linux, the compile and lint checks and the unit tests under Wine
-are in [CONTRIBUTING.md](../CONTRIBUTING.md#windows-and-freebsd). Wine
-has no GPU path worth testing the overlay on, so for everything else:
+are in [CONTRIBUTING.md](../CONTRIBUTING.md#windows-and-freebsd). The
+installer and the app run under Wine too, in a throwaway prefix
+(`WINEPREFIX`, `HOME` and a private `Xvfb` of their own, and
+`winemenubuilder.exe=d` so the Start-menu entry does not reach your own
+desktop's menu). On a real Windows machine:
+
+- the installer runs without asking for administrator rights, in the
+  language Windows is set to; the Start-menu entry starts the app;
+  Settings -> Apps lists it and uninstalls it;
+- SmartScreen's warning, while the files are unsigned;
 
 - it launches, and a second launch exits and raises the first;
 - the ⚙ button toggles edit mode, and click-through reaches the desktop
@@ -65,7 +122,10 @@ has no GPU path worth testing the overlay on, so for everything else:
 - the global hotkeys register;
 - config lands under `%APPDATA%\animaEngine\config` and the asset
   library under `%APPDATA%\animaEngine\data\assets` (the paths the Wine
-  run produced).
+  run produced);
+- "Start at login" (Appearance) starts it at the next sign-in, and Task
+  Manager's Startup tab shows it;
+- a 125 % or 150 % display scale, and two monitors.
 
 ## macOS / BSD, for free
 

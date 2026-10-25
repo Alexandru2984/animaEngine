@@ -9,9 +9,14 @@
 //!   The Background portal's `RequestBackground` asks the desktop to add
 //!   or remove the entry, perhaps asking the user first; its answer is
 //!   kept as `start_at_login` in the config, all the app can know of it.
-//! - Not on Windows: there is no switch there.
+//! - On Windows, the `animaEngine` value of the user's
+//!   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` key: the
+//!   path of this `.exe`. As with the entry, the value is the truth — the
+//!   Task Manager's Startup tab lists and switches the same.
 
-use crate::error::{AnimaError, Result};
+#[cfg(not(windows))]
+use crate::error::AnimaError;
+use crate::error::Result;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -28,9 +33,17 @@ pub fn entry_path() -> Option<PathBuf> {
     directories::BaseDirs::new().map(|d| d.config_dir().join("autostart").join(ENTRY_NAME))
 }
 
+/// Whether the app starts with the session: on Windows, whether its `Run`
+/// value is there.
+#[cfg(windows)]
+pub fn is_enabled(_granted: bool) -> bool {
+    windows_run::is_enabled()
+}
+
 /// Whether the app starts with the session: the entry on disk when
 /// installed natively; in the Flatpak, what the portal last granted
 /// (`granted`, from the config).
+#[cfg(not(windows))]
 pub fn is_enabled(granted: bool) -> bool {
     if in_flatpak() {
         granted
@@ -39,9 +52,16 @@ pub fn is_enabled(granted: bool) -> bool {
     }
 }
 
+/// Turn it on or off: on Windows, its `Run` value written or removed.
+#[cfg(windows)]
+pub fn set(on: bool) -> Result<()> {
+    windows_run::set(on)
+}
+
 /// Turn it on or off. Natively the entry is written or removed at once;
 /// in the Flatpak the portal is asked on a thread of its own, and its
 /// answer comes back through [`take_portal_answer`].
+#[cfg(not(windows))]
 pub fn set(on: bool) -> Result<()> {
     if in_flatpak() {
         #[cfg(unix)]
@@ -137,6 +157,7 @@ async fn request_background(on: bool) -> std::result::Result<bool, crate::portal
     ))
 }
 
+#[cfg(not(windows))]
 /// The command the entry runs: this program — the AppImage, not the
 /// mount it runs from, which is gone once it exits — with the native
 /// Wayland opt-in carried over when this run has it.
@@ -153,6 +174,7 @@ fn exec_line() -> Result<String> {
     Ok(line)
 }
 
+#[cfg(not(windows))]
 /// One argument of an `Exec` line, per the Desktop Entry spec: quoted if
 /// it has a reserved character, with `"` `` ` `` `$` `\` escaped inside;
 /// then the value's own escaping doubles every backslash, and a `%` —
@@ -175,6 +197,7 @@ fn exec_arg(arg: &str) -> String {
     quoted.replace('\\', "\\\\").replace('%', "%%")
 }
 
+#[cfg(not(windows))]
 fn entry(exec: &str) -> String {
     format!(
         "[Desktop Entry]\n\
@@ -190,15 +213,106 @@ fn entry(exec: &str) -> String {
     )
 }
 
+/// The Windows side: a value under the user's `Run` key.
+#[cfg(windows)]
+mod windows_run {
+    use crate::error::{AnimaError, Result};
+    use windows_sys::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS};
+    use windows_sys::Win32::System::Registry::{
+        RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW, HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_SZ,
+    };
+
+    const KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+    const VALUE: &str = "animaEngine";
+
+    fn wide(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain([0]).collect()
+    }
+
+    pub fn is_enabled() -> bool {
+        let (key, value) = (wide(KEY), wide(VALUE));
+        let mut size = 0u32;
+        // SAFETY: both names are NUL-terminated; with no buffer the call
+        // only says whether the value is there, and its size.
+        let status = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                key.as_ptr(),
+                value.as_ptr(),
+                RRF_RT_REG_SZ,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &mut size,
+            )
+        };
+        status == ERROR_SUCCESS
+    }
+
+    pub fn set(on: bool) -> Result<()> {
+        let (key, value) = (wide(KEY), wide(VALUE));
+        let status = if on {
+            let exe = std::env::current_exe()
+                .map_err(|_| AnimaError::other("cannot tell where this program is"))?;
+            // Quoted: a path with a space is one command, not two.
+            let data = wide(&format!("\"{}\"", exe.display()));
+            // SAFETY: NUL-terminated names; `data` is a REG_SZ of the
+            // byte length given, its terminator included.
+            unsafe {
+                RegSetKeyValueW(
+                    HKEY_CURRENT_USER,
+                    key.as_ptr(),
+                    value.as_ptr(),
+                    REG_SZ,
+                    data.as_ptr().cast(),
+                    (data.len() * 2) as u32,
+                )
+            }
+        } else {
+            // SAFETY: NUL-terminated names.
+            match unsafe { RegDeleteKeyValueW(HKEY_CURRENT_USER, key.as_ptr(), value.as_ptr()) } {
+                ERROR_FILE_NOT_FOUND => ERROR_SUCCESS,
+                other => other,
+            }
+        };
+        if status == ERROR_SUCCESS {
+            tracing::info!("Start at login: {}", if on { "on" } else { "off" });
+            Ok(())
+        } else {
+            Err(AnimaError::other(format!("registry error {status}")))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// On Windows the switch is the `Run` value: on writes it, off takes
+    /// it away, and taking away what is not there is no error. Ignored, as
+    /// it writes the user's registry: run it under Wine, in a throwaway
+    /// prefix (CONTRIBUTING, "Windows and FreeBSD", with `-- --ignored`).
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "writes HKCU's Run key: run under Wine in a throwaway prefix"]
+    fn windows_start_at_login_is_the_run_value() {
+        let was = is_enabled(false);
+        set(true).unwrap();
+        assert!(is_enabled(false));
+        set(false).unwrap();
+        assert!(!is_enabled(false));
+        set(false).unwrap();
+        if was {
+            set(true).unwrap();
+        }
+    }
+
+    #[cfg(not(windows))]
     #[test]
     fn a_plain_path_is_left_as_it_is() {
         assert_eq!(exec_arg("/usr/bin/anima-engine"), "/usr/bin/anima-engine");
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn a_path_with_reserved_characters_is_quoted_per_the_spec() {
         assert_eq!(
@@ -215,6 +329,7 @@ mod tests {
         assert_eq!(exec_arg("/x/100%"), "/x/100%%");
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn the_entry_runs_the_line_given() {
         let e = entry("\"/opt/my apps/anima\"");

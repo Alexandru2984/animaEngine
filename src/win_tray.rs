@@ -180,10 +180,14 @@ unsafe fn add_icon(hwnd: HWND) -> bool {
     let mut nid = icon_data(hwnd);
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.uCallbackMessage = WM_TRAY;
-    // The stock application icon until the project has a raster brand
-    // mark; the Linux tray uses a stock freedesktop icon for the same
-    // reason.
-    nid.hIcon = LoadIconW(0, IDI_APPLICATION);
+    // The app's own icon, resource 1 of the .exe (`build.rs`); the stock
+    // application icon if the build had no resource compiler.
+    let own = LoadIconW(GetModuleHandleW(std::ptr::null()), 1 as _);
+    nid.hIcon = if own != 0 {
+        own
+    } else {
+        LoadIconW(0, IDI_APPLICATION)
+    };
     copy_truncated(&mut nid.szTip, TITLE);
     Shell_NotifyIconW(NIM_ADD, &nid) != 0
 }

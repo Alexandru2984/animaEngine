@@ -107,7 +107,9 @@ for t in x86_64-pc-windows-gnu x86_64-unknown-freebsd; do
 done
 ```
 
-Without `video`, whose openh264 needs a C cross toolchain. The Windows
+Without `video`, whose openh264 needs a C++ cross toolchain;
+`scripts/build-windows.sh` builds the whole release — ZIP and installer —
+with mingw-w64's (see [porting-windows.md](docs/porting-windows.md#releasing)). The Windows
 unit tests can also be *run*, under Wine — named mutexes, events and the
 rest behave there as on Windows, which a compile check cannot show. Use
 a throwaway prefix, and no display, so nothing reaches your desktop:

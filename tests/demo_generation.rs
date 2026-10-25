@@ -20,6 +20,12 @@
 //!
 //! Everything therefore happens inside a scratch directory now. Nothing
 //! here may touch the repository.
+//!
+//! Unix only: the scratch data directory is given through
+//! `XDG_DATA_HOME`, and on Windows the data directory is `%APPDATA%`'s,
+//! from the shell's known-folder call, which no variable moves — the test
+//! would write the user's own (it failed under Wine on exactly that).
+#![cfg(unix)]
 
 use std::path::{Path, PathBuf};
 

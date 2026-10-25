@@ -158,6 +158,15 @@ flatpak run com.animaengine.Anima
 
 `make appimage` and `make deb` build the other two the same way.
 
+### Windows
+
+From 1.5, each release also carries a Windows installer and a portable
+ZIP, built by `scripts/build-windows.sh`. The installer needs no
+administrator rights, installs for you alone and is removed from
+Settings -> Apps; the ZIP runs from any folder. Neither is signed yet, so
+SmartScreen asks before running them. Windows support is new and so far
+tested under Wine only: see [docs/porting-windows.md](docs/porting-windows.md).
+
 ### From source
 
 Rust 1.88 or newer, from [rustup](https://rustup.rs) — a distribution's

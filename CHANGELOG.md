@@ -341,6 +341,16 @@ read-only D-Bus names, for the idle time
   writes a standard autostart entry (the one the desktop's "Startup
   Applications" lists too), and in the Flatpak it asks the Background
   portal, which may ask you. Off by default.
+- **Windows: an installer and a portable ZIP.** Built from Linux by
+  `scripts/build-windows.sh` and attached to each release, checksummed
+  and attested like the Linux packages. The installer (NSIS) asks for no
+  administrator rights, installs per user, adds a Start-menu entry and
+  an uninstaller in Settings -> Apps, and speaks the app's ten
+  languages; uninstalling keeps the settings. The `.exe` needs only
+  Windows' own DLLs, carries its icon — the tray's too — and version
+  details, and "Start at login" works there now, through the user's
+  `Run` key. Run under Wine: installed, started, a second start raised
+  the first, uninstalled clean; not yet on a real Windows.
 - **About, and every licence.** Appearance ends with About: the version,
   the MIT licence, that the app makes no network connection, and a
   Licences window with its own licence and those of the 352 crates

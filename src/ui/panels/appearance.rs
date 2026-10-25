@@ -157,7 +157,7 @@ pub(super) fn appearance_tab(
     {
         *config_dirty = true;
     }
-    if cfg!(unix) && autostart_switch(ui, start_at_login) {
+    if autostart_switch(ui, start_at_login) {
         *config_dirty = true;
     }
     ui.add_space(SPACE_M);

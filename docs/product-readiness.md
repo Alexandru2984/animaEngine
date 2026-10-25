@@ -20,14 +20,13 @@ secundă, iar cu scena oprită ~0,1 %.
    licența de brevete pe care Cisco o plătește pentru binarul *lor* nu se
    aplică. Pentru un produs plătit trebuie o decizie — variantele sunt mai
    jos.
-2. **Licențele terțe nu sunt în pachete.** ~350 de crate-uri sub MIT,
-   Apache, BSD, ISC, Zlib, Unicode, OFL (fonturile egui), Ubuntu Font
-   Licence și MPL-2.0 cer ca textul licenței și notițele de copyright să
-   însoțească binarul. Acum nu le însoțește nimic.
+2. ~~**Licențele terțe nu sunt în pachete.**~~ Rezolvat după acest audit
+   (`84cfbd2`): `data/THIRD-PARTY-LICENSES.txt`, scris din `Cargo.lock`,
+   e în fiecare pachet și în aplicație (Appearance → Despre).
 3. **Windows.** Piața aplicațiilor de tip „desktop pet” e în mare parte pe
-   Windows. Portul compilează și testele trec sub Wine, dar n-a rulat pe un
-   Windows real, nu are installer și nu e semnat (SmartScreen avertizează
-   la fiecare descărcare).
+   Windows. Are acum installer și ZIP la fiecare release, iar sub Wine se
+   instalează, rulează și se dezinstalează. N-a rulat pe un Windows real și
+   nu e semnat (SmartScreen avertizează la fiecare descărcare).
 4. **Decizia de business** — ce se vinde, la ce preț, pe ce canal, sub ce
    licență. Codul e MIT: oricine îl poate compila și redistribui. E a ta.
 5. **Release-urile nu sunt publice.** 1.2.1, 1.3.0 și 1.4.0 sunt drafturi
@@ -131,7 +130,7 @@ clienți.
 | Linux .deb / AppImage | construite în CI, reproductibile, cu atestare | licențele terțe; release-urile publicate |
 | Flatpak | manifest Flathub gata | domeniul app id-ului; Flathub nu vinde (doar link de donații) |
 | AUR | construiește (reparat în 1.5: `!lto`) | — |
-| Windows | compilează; testele unitare trec sub Wine; tray și o singură instanță implementate | rulare pe Windows real; installer; semnătură de cod |
+| Windows | installer per utilizator (NSIS, 10 limbi) și ZIP portabil, construite la fiecare release; iconiță, informații de versiune, pornire la login; instalat, rulat și dezinstalat sub Wine | rulare pe Windows real; semnătură de cod |
 | macOS | nu e suportat | stratul de ferestre (click-through, always-on-top) ar trebui scris |
 
 **Canale de vânzare de luat în calcul** (prețurile și condițiile se schimbă
@@ -188,9 +187,9 @@ Fără semnătură, SmartScreen avertizează la fiecare descărcare.
 
 | # | Ce | De ce | Cine | Efort |
 |---|---|---|---|---|
-| P0 | Licențe terțe în pachete și „Despre” | obligație legală la orice distribuție | eu (acum) | mic |
+| P0 | Licențe terțe în pachete și „Despre” | obligație legală la orice distribuție | făcut (`84cfbd2`) | — |
 | P0 | Decizia H.264/AAC | expunere la brevete în buildurile vândute | tu decizi; eu implementez | mic–mediu |
-| P0 | Windows: installer, rulare reală, semnare | piața principală | eu (installer, Wine); tu (homelab, certificat) | mediu |
+| P0 | Windows: rulare reală, semnare | piața principală; installerul e făcut | tu (homelab, certificat), eu (ce iese la rulare) | mic–mediu |
 | P0 | Model de business și canal | totul depinde de el | tu | — |
 | P0 | Publicarea release-urilor | utilizatorii văd 1.2.0 | tu | mic |
 | P1 | Personaje desenate | primul lucru pe care îl vede un cumpărător | artist (comandă/licență) | mediu–mare |
@@ -207,7 +206,8 @@ Fără semnătură, SmartScreen avertizează la fiecare descărcare.
 1. Ce vinzi: build-uri gata făcute, conținut, suport, sau o combinație.
 2. Unde: itch.io, Steam, magazinul tău, Microsoft Store.
 3. Licența versiunilor viitoare: rămâne MIT sau nu.
-4. H.264/AAC: varianta A, B, C sau D (cu un avocat).
+4. H.264/AAC: varianta A, B, C sau D — amânată pe 25 octombrie 2026,
+   până la părerea unui avocat.
 5. Numele și domeniul.
 6. Ce personaje: comandate, licențiate, sau doar import.
 

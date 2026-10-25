@@ -1,7 +1,8 @@
 name: Release
 
 # Tag-triggered release pipeline. Pushing a `vX.Y.Z` tag builds the
-# .deb + AppImage with embedded SBOMs (cargo auditable) in an
+# .deb + AppImage, and for Windows a ZIP + installer cross-compiled with
+# mingw-w64, with embedded SBOMs (cargo auditable) in an
 # **unprivileged** job, then a separate **publish** job attests build
 # provenance for both and opens a **draft** GitHub release with the
 # artifacts attached and the notes from docs/release-notes/. A human
@@ -75,13 +76,16 @@ jobs:
           fi
 
       - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          targets: x86_64-pc-windows-gnu
       - name: Install system deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
             libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev \
-            librsvg2-bin desktop-file-utils file
+            librsvg2-bin desktop-file-utils file \
+            gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 nsis
 
       # Deliberately no build cache on the release path: artifacts are
       # produced by a from-scratch build of exactly the tagged tree.
@@ -103,6 +107,10 @@ jobs:
         run: scripts/build-deb.sh
       - name: Build AppImage
         run: scripts/build-appimage.sh
+      # The ZIP and the installer; the script fails if the .exe would
+      # need a DLL Windows does not have.
+      - name: Build for Windows
+        run: scripts/build-windows.sh
 
       # GitHub replaces `~` in release-asset filenames with `.` on
       # upload, but cargo-deb correctly names pre-release debs with a
@@ -123,10 +131,11 @@ jobs:
         run: |
           cd build
           sha256sum anima-engine_*.deb animaEngine-*.AppImage \
+            animaEngine-*-windows-x86_64.zip animaEngine-*-windows-x86_64-setup.exe \
             > "SHA256SUMS-$GITHUB_REF_NAME.txt"
           cat "SHA256SUMS-$GITHUB_REF_NAME.txt"
 
-      # Stage exactly the three release files into a clean dir so the
+      # Stage exactly the release files into a clean dir so the
       # artifact hand-off carries them (and nothing from build/'s AppDir /
       # tools cruft) at a predictable path for the publish job.
       - name: Stage release artifacts
@@ -134,6 +143,8 @@ jobs:
           mkdir -p dist
           cp build/anima-engine_*.deb \
              build/animaEngine-*.AppImage \
+             build/animaEngine-*-windows-x86_64.zip \
+             build/animaEngine-*-windows-x86_64-setup.exe \
              "build/SHA256SUMS-$GITHUB_REF_NAME.txt" \
              dist/
           ls -l dist
@@ -176,6 +187,8 @@ jobs:
           subject-path: |
             dist/anima-engine_*.deb
             dist/animaEngine-*.AppImage
+            dist/animaEngine-*-windows-x86_64.zip
+            dist/animaEngine-*-windows-x86_64-setup.exe
 
       - name: Create draft release
         env:
@@ -190,5 +203,7 @@ jobs:
             --notes-file "$NOTES" \
             dist/anima-engine_*.deb \
             dist/animaEngine-*.AppImage \
+            dist/animaEngine-*-windows-x86_64.zip \
+            dist/animaEngine-*-windows-x86_64-setup.exe \
             "dist/SHA256SUMS-$GITHUB_REF_NAME.txt"
           echo "Draft release created — review and publish from the Releases page."
