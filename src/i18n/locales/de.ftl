@@ -508,6 +508,9 @@ about-privacy = Es baut keine Netzwerkverbindung auf: Nichts, was Sie hier tun, 
 about-components = Gebaut mit { $count } Open-Source-Komponenten, jede unter ihrer eigenen Lizenz.
 about-licences-button = Lizenzen…
 about-licences-title = Lizenzen
+about-report-button = Diagnosebericht kopieren
+about-report-hint = Version, System, Grafikkarte und die letzten Warnungen, ohne die Pfade Ihrer Dateien. Es wird nichts gesendet: Fügen Sie ihn dort ein, wo Sie um Hilfe bitten.
+about-report-copied = Kopiert – fügen Sie ihn in Ihren Fehlerbericht ein.
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Berechtigung für Kurzbefehle abgelehnt — es werden X11-Hotkeys verwendet. Erneut versuchen im Tab „Kurzbefehle“.

@@ -508,6 +508,9 @@ about-privacy = Non si connette alla rete: nulla di ciò che fai qui lascia ques
 about-components = Realizzato con { $count } componenti open source, ognuno con la propria licenza.
 about-licences-button = Licenze…
 about-licences-title = Licenze
+about-report-button = Copia il rapporto diagnostico
+about-report-hint = La versione, il sistema, la scheda grafica e gli ultimi avvisi, senza i percorsi dei tuoi file. Non viene inviato nulla: incollalo dove chiedi aiuto.
+about-report-copied = Copiato: incollalo nella tua segnalazione.
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Permesso per le scorciatoie negato — verranno usate le scorciatoie X11. Riprova dalla scheda Scorciatoie.

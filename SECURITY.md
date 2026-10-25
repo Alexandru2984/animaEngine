@@ -6,10 +6,10 @@ Only the **latest released minor** of animaEngine receives security
 fixes. Older minors are out of scope; upgrade to the current release
 to pick up patches.
 
-| Version | Supported |
-|---------|-----------|
-| 0.9.x   | yes       |
-| < 0.9   | no        |
+| Version                          | Supported |
+|----------------------------------|-----------|
+| The latest released minor (x.Y.*) | yes       |
+| Every earlier one                | no        |
 
 What "supported" guarantees across a release line — config, D-Bus, CLI,
 asset formats, file locations — is spelled out in the

@@ -508,6 +508,9 @@ about-privacy = Aucune connexion réseau : rien de ce que vous faites ici ne qui
 about-components = Construit avec { $count } composants open source, chacun sous sa propre licence.
 about-licences-button = Licences…
 about-licences-title = Licences
+about-report-button = Copier le rapport de diagnostic
+about-report-hint = La version, le système, la carte graphique et les derniers avertissements, sans les chemins de vos fichiers. Rien n’est envoyé : collez-le là où vous demandez de l’aide.
+about-report-copied = Copié — collez-le dans votre rapport de bug.
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Permission de raccourcis refusée — les raccourcis X11 prennent le relais. Réessayez depuis l’onglet Raccourcis.

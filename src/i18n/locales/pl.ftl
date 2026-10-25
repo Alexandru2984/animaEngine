@@ -519,6 +519,9 @@ about-components = Zbudowano z { $count ->
     }, każdego na własnej licencji.
 about-licences-button = Licencje…
 about-licences-title = Licencje
+about-report-button = Kopiuj raport diagnostyczny
+about-report-hint = Wersja, system, karta graficzna i ostatnie ostrzeżenia, bez ścieżek do twoich plików. Nic nie jest wysyłane: wklej go tam, gdzie prosisz o pomoc.
+about-report-copied = Skopiowano — wklej go do zgłoszenia błędu.
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Odmówiono uprawnień do skrótów — w użyciu są skróty X11. Spróbuj ponownie z karty Skróty.

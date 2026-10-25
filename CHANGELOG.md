@@ -341,6 +341,14 @@ read-only D-Bus names, for the idle time
   writes a standard autostart entry (the one the desktop's "Startup
   Applications" lists too), and in the Flatpak it asks the Background
   portal, which may ask you. Off by default.
+- **A diagnostic report, for asking for help.** Appearance → About →
+  "Copy diagnostic report" puts on the clipboard the version, the
+  system and session, how it was installed, what the log said about the
+  graphics card, the backend and the shortcuts, and the last 30 warnings
+  and errors — never a file's path, the home directory written `~`. The
+  app sends nothing; the GitHub issue form asks for it to be pasted. A
+  FAQ (`docs/faq.md`) answers the common questions and lists the known
+  problems, and `SUPPORT.md` says where to go.
 - **Windows: an installer and a portable ZIP.** Built from Linux by
   `scripts/build-windows.sh` and attached to each release, checksummed
   and attested like the Linux packages. The installer (NSIS) asks for no

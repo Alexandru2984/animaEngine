@@ -240,9 +240,29 @@ fn about(ui: &mut egui::Ui) {
     let mut open = ui
         .ctx()
         .data(|d| d.get_temp::<bool>(open_id).unwrap_or(false));
-    if ui.button(t("about-licences-button")).clicked() {
-        open = true;
-    }
+    ui.horizontal_wrapped(|ui| {
+        if ui.button(t("about-licences-button")).clicked() {
+            open = true;
+        }
+        // For a bug report: copied, never sent (`crate::diagnostics`).
+        let copied_id = egui::Id::new("anima.about.report-copied");
+        if ui
+            .button(t("about-report-button"))
+            .on_hover_text(t("about-report-hint"))
+            .clicked()
+        {
+            ui.ctx().copy_text(crate::diagnostics::report());
+            let now = ui.input(|i| i.time);
+            ui.ctx().data_mut(|d| d.insert_temp(copied_id, now));
+        }
+        let copied = ui.ctx().data(|d| d.get_temp::<f64>(copied_id));
+        let now = ui.input(|i| i.time);
+        if let Some(at) = copied.filter(|at| now - at < 6.0) {
+            ui.label(t("about-report-copied"));
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_secs_f64(6.0 - (now - at)));
+        }
+    });
     if open {
         licences_window(ui.ctx(), &mut open);
     }

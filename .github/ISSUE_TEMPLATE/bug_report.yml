@@ -1,0 +1,53 @@
+name: Something does not work
+description: A bug, a crash, something that looks wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. [The FAQ](https://github.com/Alexandru2984/animaEngine/blob/main/docs/faq.md) answers the most common questions and lists the known problems.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      placeholder: |
+        1. Open edit mode
+        2. Drop a GIF on the screen
+        3. …
+  - type: textarea
+    id: report
+    attributes:
+      label: Diagnostic report
+      description: >-
+        Appearance → About → **Copy diagnostic report**, then paste it here.
+        It holds the version, your system, your graphics card and the app's
+        latest warnings — never your files' paths. The app sends nothing.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: installed
+    attributes:
+      label: Installed from
+      options:
+        - .deb package
+        - AppImage
+        - Flatpak
+        - AUR
+        - Windows installer
+        - Windows ZIP
+        - Built from source
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots, the picture that will not load, a log (`RUST_LOG=anima_engine=debug anima-engine`).

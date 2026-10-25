@@ -508,6 +508,9 @@ about-privacy = Het maakt geen netwerkverbinding: niets wat u hier doet verlaat 
 about-components = Gebouwd met { $count } opensourcecomponenten, elk onder een eigen licentie.
 about-licences-button = Licenties…
 about-licences-title = Licenties
+about-report-button = Diagnoserapport kopiëren
+about-report-hint = De versie, het systeem, de videokaart en de laatste waarschuwingen, zonder de paden van uw bestanden. Er wordt niets verstuurd: plak het waar u om hulp vraagt.
+about-report-copied = Gekopieerd — plak het in uw foutmelding.
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Toestemming voor sneltoetsen geweigerd — er worden X11-sneltoetsen gebruikt. Probeer opnieuw via het tabblad Sneltoetsen.

@@ -520,6 +520,9 @@ about-privacy = It makes no network connection: nothing you do here leaves this 
 about-components = Built with { $count } open-source components, each under its own licence.
 about-licences-button = Licences…
 about-licences-title = Licences
+about-report-button = Copy diagnostic report
+about-report-hint = The version, the system, the graphics card and the latest warnings, without your files' paths. Nothing is sent: paste it where you ask for help.
+about-report-copied = Copied — paste it into your bug report.
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Shortcut permission was declined — using X11 hotkeys instead. Retry from the Keybindings tab.

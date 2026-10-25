@@ -508,6 +508,9 @@ about-privacy = No hace ninguna conexión de red: nada de lo que haces aquí sal
 about-components = Hecho con { $count } componentes de código abierto, cada uno bajo su propia licencia.
 about-licences-button = Licencias…
 about-licences-title = Licencias
+about-report-button = Copiar informe de diagnóstico
+about-report-hint = La versión, el sistema, la tarjeta gráfica y las últimas advertencias, sin las rutas de tus archivos. No se envía nada: pégalo donde pidas ayuda.
+about-report-copied = Copiado: pégalo en tu informe de error.
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Se denegó el permiso de atajos — se usarán atajos X11. Reinténtalo desde la pestaña Atajos.

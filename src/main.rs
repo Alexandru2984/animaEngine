@@ -537,6 +537,8 @@ fn init_tracing() {
                 .with_target(false)
                 .with_timer(fmt::time::uptime()),
         )
+        // What Appearance -> About's diagnostic report says it saw.
+        .with(anima_engine::diagnostics::Layer)
         .init();
 }
 

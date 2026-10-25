@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and known problems (FAQ)
+    url: https://github.com/Alexandru2984/animaEngine/blob/main/docs/faq.md
+    about: Settings, shortcuts, the GPU, Windows' warning, uninstalling.
+  - name: A security problem
+    url: https://github.com/Alexandru2984/animaEngine/blob/main/SECURITY.md
+    about: Please report it privately, as SECURITY.md says, not in a public issue.

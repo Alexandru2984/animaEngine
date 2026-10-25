@@ -524,6 +524,9 @@ about-components = Construit cu { $count ->
     }, fiecare sub licența ei.
 about-licences-button = Licențe…
 about-licences-title = Licențe
+about-report-button = Copiază raportul de diagnostic
+about-report-hint = Versiunea, sistemul, placa video și ultimele avertismente, fără căile fișierelor tale. Nu se trimite nimic: îl lipești unde ceri ajutor.
+about-report-copied = Copiat — lipește-l în raportul de problemă.
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = Permisiunea pentru scurtături a fost refuzată — folosim scurtăturile X11. Reîncearcă din tabul Scurtături.

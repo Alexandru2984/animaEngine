@@ -1,0 +1,16 @@
+name: An idea
+description: Something you would like animaEngine to do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+      description: What you would do with it, more than how it should work.
+    validations:
+      required: true
+  - type: textarea
+    id: now
+    attributes:
+      label: How you do it today
+      description: If you work around it now, how.

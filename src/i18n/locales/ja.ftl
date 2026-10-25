@@ -505,6 +505,9 @@ about-privacy = ネットワークには一切接続しません。ここで行�
 about-components = { $count } 個のオープンソースコンポーネントで作られています。それぞれに独自のライセンスがあります。
 about-licences-button = ライセンス…
 about-licences-title = ライセンス
+about-report-button = 診断レポートをコピー
+about-report-hint = バージョン、システム、グラフィックカード、最近の警告。ファイルのパスは含みません。何も送信されません。助けを求める場所に貼り付けてください。
+about-report-copied = コピーしました。不具合報告に貼り付けてください。
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = ショートカットの許可が拒否されました — 代わりに X11 ホットキーを使用します。「ショートカット」タブから再試行できます。

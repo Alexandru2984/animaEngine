@@ -322,6 +322,11 @@ compositor bindings call via `gdbus` — see
 [docs/wayland.md](docs/wayland.md) for sway / Hyprland / river config
 snippets.
 
+## Help
+
+[Questions and known problems](docs/faq.md) first; then an issue, with
+the diagnostic report from Appearance → About ([SUPPORT.md](SUPPORT.md)).
+
 ## Security & trust
 
 Single-user desktop overlay, designed to run as your unprivileged user.

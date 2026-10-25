@@ -508,6 +508,9 @@ about-privacy = Não faz nenhuma conexão de rede: nada do que você faz aqui sa
 about-components = Feito com { $count } componentes de código aberto, cada um sob sua própria licença.
 about-licences-button = Licenças…
 about-licences-title = Licenças
+about-report-button = Copiar relatório de diagnóstico
+about-report-hint = A versão, o sistema, a placa de vídeo e os últimos avisos, sem os caminhos dos seus arquivos. Nada é enviado: cole-o onde você pedir ajuda.
+about-report-copied = Copiado — cole-o no seu relato de problema.
 
 # ── Portal shortcuts (T.3) ────────────────────────────────────────────
 portal-denied-x11-fallback-toast = A permissão de atalhos foi negada — atalhos X11 em uso. Tente novamente na aba Atalhos.
