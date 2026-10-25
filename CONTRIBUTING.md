@@ -63,10 +63,9 @@ cd animaEngine
 # xkbcommon through it); build-essential does NOT pull it in, and the
 # GitHub CI runners ship it preinstalled, which is why its absence only
 # bites on a clean Debian/Kali box.
-sudo apt install -y build-essential pkg-config \
-    libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-    libxkbcommon-x11-dev libwayland-dev libxrandr-dev \
-    libasound2-dev
+# The binary links xkbcommon and ALSA only; Vulkan, X11 and Wayland are
+# opened at run time. Fedora and Arch: see the README.
+sudo apt install -y build-essential pkg-config libxkbcommon-dev libasound2-dev
 
 # Sanity check
 cargo build

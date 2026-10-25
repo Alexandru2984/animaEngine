@@ -815,7 +815,17 @@ read-only D-Bus names, for the idle time
   `sudo make install` rendered the icons again, as root, into `build/`;
   they are rendered only when the SVG changes now, and without a
   release build `make install` says to make one instead of failing on a
-  missing file.
+  missing file. It names the packages for Fedora and Arch too, and only
+  the four a build needs: the binary links xkbcommon and ALSA alone —
+  Vulkan, OpenGL, X11 and Wayland it opens at run time — so the six
+  other `-dev` packages it listed were never used. Each list was built
+  from in a clean container (Ubuntu 24.04, Debian 12, Fedora 42, Arch).
+  The AUR package no longer asks for `cmake`, `vulkan-headers`, `libx11`
+  and `libxcb` to build — and builds again: makepkg compiles C and C++
+  with GCC's LTO by default, and Rust's linker could not read the H.264
+  decoder built so ("undefined symbol: WelsCreateDecoder"). It sets
+  `!lto` now; `makepkg -s` in a clean Arch container built it and its
+  590 tests passed.
 
 ## [1.4.0] — 2026-09-28
 

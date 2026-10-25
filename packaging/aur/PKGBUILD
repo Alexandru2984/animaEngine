@@ -11,7 +11,11 @@ url="https://github.com/Alexandru2984/animaEngine"
 license=('MIT')
 # alsa-lib: the default `audio` feature links libasound (script sounds).
 depends=('libxkbcommon-x11' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'libxrandr' 'alsa-lib')
-makedepends=('cargo' 'cmake' 'librsvg' 'vulkan-headers' 'libxkbcommon' 'libx11' 'libxcb')
+makedepends=('cargo' 'librsvg')
+# makepkg builds C and C++ with GCC's LTO by default; the H.264 decoder
+# (openh264, built from source) then carries GCC bytecode that rustc's
+# linker cannot read: "undefined symbol: WelsCreateDecoder".
+options=('!lto')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('eeb65e1f35a3ab126fca67fcf88c27ec438b62a5e2ba73f36a4c5a1d365fc5a9')
 

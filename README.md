@@ -163,20 +163,27 @@ flatpak run com.animaengine.Anima
 Rust 1.88 or newer, from [rustup](https://rustup.rs) — a distribution's
 own `rustc` is often older (Ubuntu 24.04's is 1.75).
 
+The binary links two system libraries, xkbcommon and ALSA (for script
+sounds, the `audio` feature), and the C++ runtime of its H.264 decoder;
+Vulkan, OpenGL, X11 and Wayland it opens at run time, as any desktop has
+them, so their headers are not needed. pkg-config finds the two — it is
+not part of `build-essential`, and without it the xkbcommon build script
+fails.
+
 ```bash
-# System deps (Ubuntu/Debian) — pkg-config is required and is NOT
-# part of build-essential; without it the xkbcommon build script fails.
-# libasound2-dev is for script sounds (the `audio` feature).
-sudo apt install -y build-essential pkg-config \
-    libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
-    libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev
+# Ubuntu, Debian
+sudo apt install -y build-essential pkg-config libxkbcommon-dev libasound2-dev
+# Fedora
+sudo dnf install -y gcc gcc-c++ pkgconf-pkg-config libxkbcommon-devel alsa-lib-devel
+# Arch
+sudo pacman -S --needed base-devel libxkbcommon alsa-lib
 
 # Build & run
 cargo build --release
 ./target/release/anima_engine
 
 # Or install it as `anima-engine`, with its menu entry and icons
-# (drawn by rsvg-convert: sudo apt install librsvg2-bin)
+# (drawn by rsvg-convert, from librsvg: librsvg2-bin on Ubuntu)
 make icons && sudo make install      # under /usr/local
 make install PREFIX=$HOME/.local     # or for you alone
 sudo make uninstall                  # and back out

@@ -52,7 +52,13 @@ complaints (missing depends, misplaced files) before users do.
 - `depends` are runtime-linked libs only; wgpu loads Vulkan/GL at
   runtime through `vulkan-icd-loader`/`libglvnd`.
 - `openh264` builds from vendored C source via the `cc` crate — no
-  system codec dependency, but that's why `cmake` sits in
-  `makedepends`.
-- The `check()` runs the lib test suite (~250 tests, <1 min); drop it
-  only if a future flaky test blocks users from installing.
+  system codec dependency, and no `cmake`: base-devel's compiler is
+  enough. `makedepends` is `cargo` and `librsvg` (the icons); the two
+  libraries the binary links, xkbcommon and ALSA, come with `depends`.
+- `options=('!lto')`: makepkg's default GCC LTO left openh264's objects
+  as GCC bytecode that Rust's linker cannot read ("undefined symbol:
+  WelsCreateDecoder"). Checked 2026-10-25 with `makepkg -s` in a clean
+  `archlinux` container.
+- The `check()` runs the lib test suite (590 tests at 1.4.0, about a
+  second); drop it only if a future flaky test blocks users from
+  installing.
