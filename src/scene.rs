@@ -93,7 +93,19 @@ impl Scene {
         let mut decoded_total: usize = 0;
 
         for char_config in &config.characters {
-            match Self::load_entity(char_config) {
+            let cap = crate::entity::picture_cap();
+            let mut loaded = Self::load_entity_at(char_config, cap);
+            // Kept sharp for a HiDPI screen, a picture takes up to four
+            // times the memory: one that fits at the size it is shown is
+            // kept at that rather than replaced by a fallback.
+            if cap > MAX_DROP_SIZE
+                && loaded.as_ref().is_ok_and(|e| {
+                    check_budget(decoded_total, e.animations.decoded_bytes(), budget).is_err()
+                })
+            {
+                loaded = Self::load_entity_at(char_config, MAX_DROP_SIZE);
+            }
+            match loaded {
                 Ok(entity) => {
                     let incoming = entity.animations.decoded_bytes();
                     if check_budget(decoded_total, incoming, budget).is_err() {
@@ -170,17 +182,63 @@ impl Scene {
         }
     }
 
-    /// Cap every frame at `MAX_DROP_SIZE`, the same overlay-friendly size
-    /// `add_entity_from_path` applies when an asset is first dropped.
-    /// Startup load must apply it too, or a sprite decoded from disk comes
-    /// back at its original resolution: a 1024² asset shown at 256² during
-    /// the drop session reloaded at 1024² after a restart, shifting its
-    /// placement and inflating RAM/VRAM. `?`-propagates a corrupt buffer
-    /// rather than fabricating a mismatched frame.
-    fn cap_to_drop_size(
+    /// Cap every frame at `cap` a side (`entity::picture_cap`), as
+    /// `add_entity_from_path` does when an asset is first dropped. Startup
+    /// load must apply it too, or a sprite decoded from disk comes back at
+    /// its original resolution: a 1024² asset shown at 256² during the drop
+    /// session reloaded at 1024² after a restart, shifting its placement
+    /// and inflating RAM/VRAM. Kept above `MAX_DROP_SIZE` for a HiDPI
+    /// screen, it is shown at that size all the same
+    /// (`Animation::pixel_scale`). `?`-propagates a corrupt buffer rather
+    /// than fabricating a mismatched frame.
+    fn cap_to(
         frames: Vec<crate::animation::frame::Frame>,
+        cap: u32,
     ) -> Result<Vec<crate::animation::frame::Frame>> {
-        crate::animation::frame::capped(frames, MAX_DROP_SIZE)
+        crate::animation::frame::capped(frames, cap)
+    }
+
+    /// Pictures kept sharp at `cap` a side (`entity::picture_cap`) — for a
+    /// screen whose scale has just been learned, or has grown: each
+    /// character made smaller than its files at a lower cap is loaded again
+    /// at this one, where it is in its loop and how large it shows kept.
+    /// Within the decode budget, or left as it is. Cheap when nothing is to
+    /// be done; the loops call it every frame. Returns whether any changed.
+    pub fn sharpen(&mut self, cap: u32) -> bool {
+        let mut changed = false;
+        let budget = max_total_decoded_bytes();
+        for i in 0..self.entities.len() {
+            if !self.entities[i].animations.sharper_at(cap) {
+                continue;
+            }
+            let config = self.entities[i].to_config();
+            let fresh = match Self::load_entity_at(&config, cap) {
+                Ok(fresh) => fresh.animations,
+                Err(e) => {
+                    tracing::warn!("Entity '{}': not loaded sharper ({e})", config.id);
+                    self.entities[i].animations.keep_as_is();
+                    continue;
+                }
+            };
+            let others = self.total_decoded_bytes() - self.entities[i].animations.decoded_bytes();
+            if check_budget(others, fresh.decoded_bytes(), budget).is_err() {
+                tracing::info!(
+                    "Entity '{}' kept at {MAX_DROP_SIZE} px: sharper would pass the decode budget",
+                    config.id
+                );
+                self.entities[i].animations.keep_as_is();
+                continue;
+            }
+            let entity = &mut self.entities[i];
+            entity.animations.replace_frames(fresh);
+            entity.texture_dirty = true;
+            changed = true;
+        }
+        if changed {
+            tracing::info!("Pictures kept sharp at {cap} px for the screen's scale");
+            self.mark_visible_dirty();
+        }
+        changed
     }
 
     /// Load a single entity from config. The legacy top-level asset
@@ -189,15 +247,22 @@ impl Scene {
     /// skipped with a warning — the `Idle` fallback covers it — so a
     /// missing walk sequence can't take the whole entity down.
     fn load_entity(config: &CharacterConfig) -> Result<Entity> {
+        Self::load_entity_at(config, crate::entity::picture_cap())
+    }
+
+    /// [`Self::load_entity`], each picture at most `cap` a side
+    /// ([`Self::cap_to`]).
+    fn load_entity_at(config: &CharacterConfig, cap: u32) -> Result<Entity> {
         let resolved_path = AppConfig::resolve_asset_path(&config.asset_path);
         let frames = load_asset(
             &config.asset_type,
             &resolved_path,
             config.spritesheet_columns,
             config.spritesheet_rows,
+            cap,
         )?;
-        let frames = Self::cap_to_drop_size(frames)?;
-        let idle = Animation::new(frames, config.fps, config.playing);
+        let frames = Self::cap_to(frames, cap)?;
+        let idle = Animation::new(frames, config.fps, config.playing).kept_at(cap);
         let mut set = crate::animation::AnimationSet::single(idle);
 
         for (state, scfg) in &config.animations {
@@ -216,12 +281,14 @@ impl Scene {
                 &resolved,
                 scfg.spritesheet_columns,
                 scfg.spritesheet_rows,
+                cap,
             )
-            .and_then(Self::cap_to_drop_size);
+            .and_then(|frames| Self::cap_to(frames, cap));
             match loaded {
                 Ok(frames) => {
                     let fps = scfg.fps.unwrap_or(config.fps);
-                    set.insert(*state, Animation::new(frames, fps, config.playing));
+                    let animation = Animation::new(frames, fps, config.playing).kept_at(cap);
+                    set.insert(*state, animation);
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -950,21 +1017,23 @@ impl Scene {
         };
 
         // Load frames and resize to overlay-friendly dimensions
+        let cap = crate::entity::picture_cap();
         let resolved = AppConfig::resolve_asset_path(&char_config.asset_path);
         let frames = load_asset(
             &char_config.asset_type,
             &resolved,
             char_config.spritesheet_columns,
             char_config.spritesheet_rows,
+            cap,
         )?;
 
-        // Cap frames at MAX_DROP_SIZE for overlay-friendly sprites — the
-        // same cap `load_entity` applies on startup so the sprite is the
-        // same size across restarts. `?` propagates a corrupt-buffer error
-        // instead of silently producing a frame with mismatched dimensions.
-        let frames = Self::cap_to_drop_size(frames)?;
+        // Cap frames for overlay-friendly sprites — the same cap
+        // `load_entity_at` applies on startup so the sprite is the same size
+        // across restarts. `?` propagates a corrupt-buffer error instead of
+        // silently producing a frame with mismatched dimensions.
+        let frames = Self::cap_to(frames, cap)?;
 
-        let animation = Animation::new(frames, char_config.fps, char_config.playing);
+        let animation = Animation::new(frames, char_config.fps, char_config.playing).kept_at(cap);
         let entity = Entity::from_config(&char_config, animation);
 
         // Aggregate memory budget — per-asset cap × MAX_ENTITIES is a
@@ -981,7 +1050,7 @@ impl Scene {
             "Entity '{}' loaded: {} frames (max {}px)",
             entity.id,
             entity.animation().frame_count(),
-            MAX_DROP_SIZE
+            cap
         );
 
         self.entities.push(entity);
@@ -1657,5 +1726,70 @@ mod script_tests {
         scene.entities.retain(|e| e.id == "a");
         scene.tick(bounds(), None, Some(ctx(&mut host, &mut audio, &dir.0)));
         assert_eq!(scene.entities[0].x, 3.0, "surviving entity lost its state");
+    }
+}
+
+/// Pictures kept sharp for a HiDPI screen (`Scene::sharpen`).
+#[cfg(test)]
+mod sharp_tests {
+    use super::tests::make_entity;
+    use super::*;
+
+    fn character(id: &str, path: &std::path::Path) -> CharacterConfig {
+        let mut config = make_entity(id, 0, true).to_config();
+        config.asset_type = crate::config::AssetType::PngStatic;
+        config.asset_path = path.to_string_lossy().into_owned();
+        config
+    }
+
+    /// Loaded before the screen's scale is known, a picture larger than it
+    /// is shown is loaded again sharper once it is: as large on screen, at
+    /// twice the pixels — once, and never blurrier again.
+    #[test]
+    fn a_big_picture_is_kept_sharp_for_a_hidpi_screen() {
+        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("sharp_tests");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (big, small) = (dir.join("big.png"), dir.join("small.png"));
+        image::RgbaImage::from_pixel(1024, 512, image::Rgba([200, 80, 40, 255]))
+            .save(&big)
+            .unwrap();
+        image::RgbaImage::from_pixel(100, 100, image::Rgba([40, 80, 200, 255]))
+            .save(&small)
+            .unwrap();
+        let config = AppConfig {
+            characters: vec![character("big", &big), character("small", &small)],
+            ..AppConfig::default()
+        };
+        let mut scene = Scene::from_config(&config);
+        let size = |scene: &Scene, id: &str| {
+            let e = scene.entities.iter().find(|e| e.id == id).unwrap();
+            let frame = &e.animation().frames[0];
+            (
+                e.scaled_width(),
+                e.scaled_height(),
+                frame.width,
+                frame.height,
+            )
+        };
+        assert_eq!(size(&scene, "big"), (256.0, 128.0, 256, 128));
+
+        assert!(scene.sharpen(512));
+        assert_eq!(
+            size(&scene, "big"),
+            (256.0, 128.0, 512, 256),
+            "as large on screen, at twice the pixels"
+        );
+        assert_eq!(size(&scene, "small"), (100.0, 100.0, 100, 100));
+        let big_one = scene.entities.iter().find(|e| e.id == "big").unwrap();
+        assert!(big_one.texture_dirty, "its texture is made again");
+        assert!(big_one.contains_point(big_one.x + 250.0, big_one.y + 120.0));
+        assert!(!big_one.contains_point(big_one.x + 260.0, big_one.y + 10.0));
+
+        assert!(!scene.sharpen(512), "once");
+        assert!(!scene.sharpen(256), "never blurrier again");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -508,6 +508,15 @@ pub fn run_native(
                 activity = true;
             }
         }
+        // The pictures as sharp as the sharpest of them shows them
+        // (`Scene::sharpen`): the scene was loaded before any said.
+        let detail = (extra_surfaces.keys())
+            .map(|name| layer.extra_scale(name))
+            .fold(primary_scale, f32::max);
+        crate::entity::set_detail_scale(detail);
+        if scene.sharpen(crate::entity::picture_cap()) {
+            activity = true;
+        }
 
         // Entities live in window-local coordinates in single-output
         // modes (today's only well-exercised case) and in global

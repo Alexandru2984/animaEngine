@@ -154,8 +154,11 @@ impl App {
             Ok(window) => {
                 let window = Arc::new(window);
                 // The characters at the screen's scale, as the panel is
-                // (`entity::display_scale`).
+                // (`entity::display_scale`), and their pictures as sharp:
+                // the scene was loaded before there was a window to say.
                 crate::entity::set_display_scale(window.scale_factor() as f32);
+                crate::entity::set_detail_scale(window.scale_factor() as f32);
+                self.scene.sharpen(crate::entity::picture_cap());
                 tracing::info!(
                     "Window created: {:?} ({}x{})",
                     window.id(),

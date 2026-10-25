@@ -44,22 +44,66 @@ pub struct Animation {
     /// How fast it plays, runtime-only: 1 as made, more or less with the
     /// time of day (`crate::moods`). Divides every frame's hold.
     pub tempo: f32,
+    /// The longest side of any of its frames, in pixels.
+    largest: u32,
+    /// See [`Animation::pixel_scale`].
+    pixel_scale: f32,
+    /// The most a side its pictures were let be when loaded
+    /// (`entity::picture_cap`); `None` when not loaded from a file.
+    kept_at: Option<u32>,
 }
 
 impl Animation {
     pub fn new(frames: Vec<Frame>, fps: f32, playing: bool) -> Self {
         let has_per_frame_delays = frames.iter().any(|f| f.delay_ms.is_some());
+        // `frames` last: its scale is read from it first.
         Self {
-            frames,
             current_frame: 0,
             fps: fps.max(0.1), // Prevent division by zero
             playing,
             last_frame_time: Instant::now(),
             has_per_frame_delays,
             easing: None,
+            largest: largest_side(&frames),
+            pixel_scale: pixel_scale_of(largest_side(&frames)),
             margins: std::sync::OnceLock::new(),
             tempo: 1.0,
+            kept_at: None,
+            frames,
         }
+    }
+
+    /// Loaded with its pictures at most `cap` a side ([`Self::sharper_at`]).
+    pub fn kept_at(mut self, cap: u32) -> Self {
+        self.kept_at = Some(cap);
+        self
+    }
+
+    /// Screen units a frame pixel takes, before the character's own scale:
+    /// 1 for a picture kept at the size it is shown — `MAX_DROP_SIZE` a
+    /// side at most — and less for one kept larger, sharp on a HiDPI
+    /// screen, which so shows at that same size.
+    pub fn pixel_scale(&self) -> f32 {
+        self.pixel_scale
+    }
+
+    /// Whether loading it again at `cap` a side would keep it sharper: it
+    /// was made smaller than its file to fit a lower cap.
+    pub fn sharper_at(&self, cap: u32) -> bool {
+        self.kept_at
+            .is_some_and(|kept| kept < cap && self.largest >= kept)
+    }
+
+    /// The same pictures at another size (`Scene::sharpen`): where it is
+    /// in its loop, and how it plays, stay.
+    pub fn replace_frames(&mut self, fresh: Animation) {
+        self.current_frame = self.current_frame.min(fresh.frames.len().saturating_sub(1));
+        self.frames = fresh.frames;
+        self.has_per_frame_delays = fresh.has_per_frame_delays;
+        self.largest = fresh.largest;
+        self.pixel_scale = fresh.pixel_scale;
+        self.kept_at = fresh.kept_at;
+        self.margins = std::sync::OnceLock::new();
     }
 
     /// The empty rows above and below what is seen, the fewest over every
@@ -308,12 +352,93 @@ impl AnimationSet {
             .values()
             .fold(0usize, |acc, a| acc.saturating_add(a.decoded_bytes()))
     }
+
+    /// Whether any state would be sharper loaded again at `cap` a side
+    /// ([`Animation::sharper_at`]).
+    pub fn sharper_at(&self, cap: u32) -> bool {
+        self.states.values().any(|a| a.sharper_at(cap))
+    }
+
+    /// Not to be loaded sharper again: it would not fit, or did not load.
+    pub fn keep_as_is(&mut self) {
+        for animation in self.states.values_mut() {
+            animation.kept_at = None;
+        }
+    }
+
+    /// Each state's pictures from `fresh`, the same states loaded again
+    /// ([`Animation::replace_frames`]); one `fresh` has not is kept.
+    pub fn replace_frames(&mut self, fresh: AnimationSet) {
+        for (state, animation) in fresh.states {
+            if let Some(mine) = self.states.get_mut(&state) {
+                mine.replace_frames(animation);
+            }
+        }
+    }
+}
+
+/// The longest side of any of `frames`.
+fn largest_side(frames: &[Frame]) -> u32 {
+    frames
+        .iter()
+        .map(|f| f.width.max(f.height))
+        .max()
+        .unwrap_or(0)
+}
+
+/// [`Animation::pixel_scale`] for frames whose longest side is `largest`:
+/// what makes it at most `MAX_DROP_SIZE` on screen.
+fn pixel_scale_of(largest: u32) -> f32 {
+    let shown = crate::constants::MAX_DROP_SIZE;
+    if largest > shown {
+        shown as f32 / largest as f32
+    } else {
+        1.0
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    fn frames(side: u32) -> Vec<Frame> {
+        vec![Frame::new(vec![0u8; (side * side * 4) as usize], side, side); 2]
+    }
+
+    /// A picture kept at more pixels than it is shown takes them back on
+    /// screen; one kept at most at its shown size, or made by the app,
+    /// never asks to be loaded sharper.
+    #[test]
+    fn a_picture_kept_larger_than_shown_shows_at_the_same_size() {
+        let shown = crate::constants::MAX_DROP_SIZE;
+        assert_eq!(Animation::new(frames(shown), 1.0, true).pixel_scale(), 1.0);
+        assert_eq!(
+            Animation::new(frames(2 * shown), 1.0, true).pixel_scale(),
+            0.5
+        );
+        assert_eq!(Animation::new(frames(100), 1.0, true).pixel_scale(), 1.0);
+
+        let capped = Animation::new(frames(shown), 1.0, true).kept_at(shown);
+        assert!(capped.sharper_at(2 * shown));
+        assert!(!capped.sharper_at(shown));
+        assert!(!Animation::new(frames(100), 1.0, true)
+            .kept_at(shown)
+            .sharper_at(2 * shown));
+        assert!(
+            !Animation::new(frames(shown), 1.0, true).sharper_at(2 * shown),
+            "not from a file"
+        );
+
+        let mut set = AnimationSet::single(capped);
+        set.current_mut().current_frame = 1;
+        set.replace_frames(AnimationSet::single(
+            Animation::new(frames(2 * shown), 1.0, true).kept_at(2 * shown),
+        ));
+        assert_eq!(set.current().current_frame, 1, "where it was in its loop");
+        assert_eq!(set.current().pixel_scale(), 0.5);
+        assert!(!set.sharper_at(2 * shown));
+    }
 
     /// 1×1 frame carrying a per-frame delay, GIF-style.
     fn delayed_frame(delay_ms: u32) -> Frame {

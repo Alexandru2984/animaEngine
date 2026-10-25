@@ -1197,6 +1197,8 @@ impl ApplicationHandler<AnimaEvent> for App {
             // characters follow it, as the panel does.
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 crate::entity::set_display_scale(scale_factor as f32);
+                crate::entity::set_detail_scale(scale_factor as f32);
+                self.scene.sharpen(crate::entity::picture_cap());
                 self.request_redraw_all();
             }
 

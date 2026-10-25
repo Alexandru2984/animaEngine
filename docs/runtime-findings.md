@@ -10,7 +10,7 @@ Status legend: `OPEN` needs fixing · `FIXED` resolved, kept for history ·
 entry says why · `BY DESIGN` observed, deliberate, not changing ·
 `RETRACTED` reported here in error, kept so the mistake isn't repeated.
 
-**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R78 are
+**Current state: nothing is `OPEN`.** R1–R5, R7–R21 and R23–R79 are
 `FIXED`; R6 and R22 are `BY DESIGN`; R6b is `RETRACTED`. R22 was the last
 one open and is now explained rather than fixed — the `ERROR` line at
 startup is one enumerated adapter failing a probe, and the evidence is in
@@ -2925,3 +2925,30 @@ cache file in another format is decoded again quietly. **Checked** with
 a stand-in portal on the rig's bus that answers `BindShortcuts` after 25
 s, then fires a shortcut: on both backends the tab waited, the shortcuts
 bound, the tab said "The desktop", and Pause all paused.
+
+### R79 · On a 200 % screen a large picture was drawn up from 256² — `FIXED`
+
+Every picture is kept at most 256 pixels a side (`MAX_DROP_SIZE`), the
+size a character shows at scale 1. On a screen at 200 % that size is 512
+screen pixels, so a 1024² picture was made 256² and then drawn twice as
+large: its detail gone. In the rig, a picture of 2-pixel stripes at 200 %
+showed as a flat grey square on both backends (contrast 0.0 over its
+lower half). The scene is loaded before there is a window to say what
+the screen's scale is.
+
+**Fixed:** pictures are kept at 256 times the screen's scale, up to twice
+that (`entity::picture_cap`, `MAX_PICTURE_DETAIL`): the X11 path's scale
+factor, or the largest of native Wayland's surfaces'. Shown at the same
+size all the same — an animation kept larger than it shows takes it back
+in `Animation::pixel_scale`, which `Entity::draw_scale` multiplies in, so
+sizes, hit tests, margins and bumping are unchanged. The scene is loaded
+at 256 and, once the scale is known (the first window, a scale change, a
+new surface), `Scene::sharpen` loads again the characters that were made
+smaller — within the decode budget, or left as they were, and a config
+loaded with too little budget for the sharp pictures takes the 256 ones
+rather than a fallback. The frame cache keeps each size under its own
+name (256's as before). **Checked** with the same picture against the
+installed build: at 200 % on both backends the character is 512 screen
+pixels as before and its stripes show (contrast 58.5); the log says
+"Pictures kept sharp at 512 px" once.
+

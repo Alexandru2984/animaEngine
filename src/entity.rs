@@ -26,6 +26,31 @@ pub fn display_scale() -> f32 {
     f32::from_bits(DISPLAY_SCALE.load(Ordering::Relaxed))
 }
 
+/// The scale factor pictures are kept sharp for (`f32` bits): the screen's
+/// on X11, the largest of its surfaces' on native Wayland. 1 until a
+/// window says — the scene is loaded before there is one — and then
+/// `Scene::sharpen` loads again what was made smaller.
+static DETAIL_SCALE: AtomicU32 = AtomicU32::new(1.0f32.to_bits());
+
+/// Set the scale factor pictures are kept sharp for ([`picture_cap`]);
+/// nothing for one that is not a positive number.
+pub fn set_detail_scale(scale: f32) {
+    if scale.is_finite() && scale > 0.0 {
+        DETAIL_SCALE.store(scale.to_bits(), Ordering::Relaxed);
+    }
+}
+
+/// The most a side pictures are kept at now: `MAX_DROP_SIZE` at the scale
+/// they are kept sharp for, up to `MAX_PICTURE_DETAIL` times it. On a 200 %
+/// screen a 1024² picture is kept at 512² and shown at 256 units — 512
+/// pixels — rather than drawn up from 256².
+pub fn picture_cap() -> u32 {
+    use crate::constants::{MAX_DROP_SIZE, MAX_PICTURE_DETAIL};
+    let detail =
+        f32::from_bits(DETAIL_SCALE.load(Ordering::Relaxed)).clamp(1.0, MAX_PICTURE_DETAIL);
+    (MAX_DROP_SIZE as f32 * detail).round() as u32
+}
+
 /// Below this horizontal speed (px per tick) an entity counts as
 /// standing still — keeps float jitter from flapping Walk/Idle.
 const FACING_EPSILON: f32 = 0.01;
@@ -635,9 +660,11 @@ impl Entity {
     }
 
     /// Screen pixels per picture pixel: its own scale, times the
-    /// screen's ([`display_scale`]). `scale` is what the user set.
+    /// screen's ([`display_scale`]), times what a picture kept sharper than
+    /// it is shown takes back (`Animation::pixel_scale`). `scale` is what
+    /// the user set.
     pub fn draw_scale(&self) -> f32 {
-        self.scale * display_scale()
+        self.scale * display_scale() * self.animation().pixel_scale()
     }
 
     /// Get the current frame dimensions (scaled)

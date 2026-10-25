@@ -9,6 +9,11 @@ pub const MAX_IMAGE_DIM: u32 = 4096;
 /// Keeps overlay-friendly sprites and bounds GPU texture allocations.
 pub const MAX_DROP_SIZE: u32 = 256;
 
+/// How much sharper than `MAX_DROP_SIZE` a picture is kept, at most, for
+/// a HiDPI screen: twice — 512 a side at 200 % and above
+/// (`entity::picture_cap`). Its size on screen is the same.
+pub const MAX_PICTURE_DETAIL: f32 = 2.0;
+
 /// Hard cap on entities loaded from a config file. Prevents resource
 /// exhaustion from a malicious or runaway config.
 pub const MAX_ENTITIES: usize = 64;

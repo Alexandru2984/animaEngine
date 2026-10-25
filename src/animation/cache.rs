@@ -211,11 +211,15 @@ fn evictions_needed(sizes_oldest_first: &[u64], cap: u64) -> usize {
 /// spritesheet with a different column/row grid, produces different
 /// frames and must land on a different key — otherwise a cache hit serves
 /// the frames from the previous decode configuration.
+/// The file for an asset's frames at most `max_dim` a side: at
+/// `MAX_DROP_SIZE`, named as before sharper pictures were kept, so the
+/// cache a 1.5 build wrote is read; at another size, that size after.
 fn cache_key(
     asset_path: &Path,
     asset_type: &AssetType,
     columns: Option<u32>,
     rows: Option<u32>,
+    max_dim: u32,
 ) -> Option<PathBuf> {
     let root = cache_root()?;
     let canon = asset_path.canonicalize().ok()?;
@@ -223,7 +227,16 @@ fn cache_key(
 
     let base = hash_fingerprint(&canon, &fp);
     let decode = decode_descriptor_hash(asset_type, columns, rows);
-    Some(root.join(format!("{base:016x}-{decode:08x}.bin")))
+    Some(root.join(key_name(base, decode, max_dim)))
+}
+
+/// [`cache_key`]'s file name.
+fn key_name(base: u64, decode: u32, max_dim: u32) -> String {
+    if max_dim == crate::constants::MAX_DROP_SIZE {
+        format!("{base:016x}-{decode:08x}.bin")
+    } else {
+        format!("{base:016x}-{decode:08x}-{max_dim}.bin")
+    }
 }
 
 fn hash_fingerprint(canon: &Path, fp: &PathFingerprint) -> u64 {
@@ -320,11 +333,12 @@ pub fn try_load(
     asset_type: &AssetType,
     columns: Option<u32>,
     rows: Option<u32>,
+    max_dim: u32,
 ) -> Option<Vec<Frame>> {
     if cache_disabled() {
         return None;
     }
-    let key = cache_key(asset_path, asset_type, columns, rows)?;
+    let key = cache_key(asset_path, asset_type, columns, rows, max_dim)?;
     if !key.exists() {
         return None;
     }
@@ -390,12 +404,13 @@ pub fn try_save(
     asset_type: &AssetType,
     columns: Option<u32>,
     rows: Option<u32>,
+    max_dim: u32,
     frames: &[Frame],
 ) -> Result<()> {
     if cache_disabled() {
         return Ok(());
     }
-    let Some(key) = cache_key(asset_path, asset_type, columns, rows) else {
+    let Some(key) = cache_key(asset_path, asset_type, columns, rows, max_dim) else {
         return Ok(());
     };
 

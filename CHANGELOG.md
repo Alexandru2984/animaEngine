@@ -421,6 +421,13 @@ read-only D-Bus names, for the idle time
   are one each now — the panel's paint pass, the demo characters' frame
   writing, the portal connection autostart and the file chooser share.
   Nothing a user sees changes.
+- **Characters as sharp as the screen.** On a screen at 200 % a
+  character's picture was kept at 256 pixels a side and drawn twice as
+  large, its detail lost. A picture larger than that is kept at the
+  screen's scale now, up to 512 a side — the same size on screen, twice
+  the pixels — on both backends. It is loaded again once the screen's
+  scale is known, or when it grows; within the decode budget, or as
+  before.
 - **Dependencies at their latest compatible versions.** 88 crates moved
   within their semver range — `libc`, `bytemuck`, `wayland-client`,
   `regex`, `zune-jpeg` and others — and three left the build

@@ -174,8 +174,22 @@ animation::loader::load_asset()           src/animation/loader.rs
    ↓
 Vec<Frame> { rgba: Vec<u8>, width, height, delay_ms? }
    ↓
+frame::capped(max_dim)                     at most entity::picture_cap() a side
+   ↓
 cache::try_save()                          best-effort RGBA cache write
 ```
+
+A picture shows at most 256 units a side (`MAX_DROP_SIZE`) and is kept at
+that times the screen's scale, up to twice (`entity::picture_cap`): on a
+200 % screen a 1024² picture is kept at 512² and shown at 256 units, 512
+pixels. `Animation::pixel_scale` (256 / its longest side, at most 1) is
+part of `Entity::draw_scale`, so every size, hit test and margin is in
+the same units whatever the picture's pixels. The scene is loaded before
+any window knows the scale, at 256; the loops then call
+`Scene::sharpen(picture_cap())` — on X11 at the first window and a scale
+change, on native Wayland every frame, the cap the largest of its
+surfaces' scales — which loads again, within the decode budget, the
+characters made smaller at a lower cap. The cache names each size apart.
 
 ### Event command bus
 

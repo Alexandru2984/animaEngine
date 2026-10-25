@@ -36,9 +36,12 @@ impl GifJob {
     pub fn of(entity: &Entity) -> Option<Self> {
         let animation = entity.animation();
         let first = animation.frames.first()?;
+        // At the size it shows, a picture kept sharp for a HiDPI screen
+        // as one that is not (`Animation::pixel_scale`).
+        let scale = entity.scale * animation.pixel_scale();
         let (w, h) = (
-            (first.width as f32 * entity.scale).max(1.0),
-            (first.height as f32 * entity.scale).max(1.0),
+            (first.width as f32 * scale).max(1.0),
+            (first.height as f32 * scale).max(1.0),
         );
         let fit = (MAX_SIDE as f32 / w.max(h)).min(1.0);
         let size = (

@@ -150,7 +150,8 @@ fn validate_directory(dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Load animation frames based on asset type and path.
+/// Load animation frames based on asset type and path, each at most
+/// `max_dim` a side (`entity::picture_cap`).
 /// Returns a Vec of Frame on success.
 #[tracing::instrument(
     skip(spritesheet_columns, spritesheet_rows),
@@ -161,6 +162,7 @@ pub fn load_asset(
     asset_path: &Path,
     spritesheet_columns: Option<u32>,
     spritesheet_rows: Option<u32>,
+    max_dim: u32,
 ) -> Result<Vec<Frame>> {
     // Reject decompression bombs up-front (works for files AND directories).
     validate_image_dimensions(asset_path)?;
@@ -172,6 +174,7 @@ pub fn load_asset(
         asset_type,
         spritesheet_columns,
         spritesheet_rows,
+        max_dim,
     ) {
         tracing::info!(
             "Asset cache hit ({}): {} frames",
@@ -188,11 +191,11 @@ pub fn load_asset(
         spritesheet_rows,
     )
     .map_err(|e| unreadable(asset_path, e))?;
-    // At the size every caller shows it (`Scene::cap_to_drop_size`), before
-    // it is cached: the cache kept the full size and every start resized
-    // it again — a 1024² sequence of 24 frames was 96 MB on disk for
-    // 6 MB used (cache format 2).
-    let frames = super::frame::capped(frames, crate::constants::MAX_DROP_SIZE)?;
+    // At the size every caller keeps it (`Scene::cap_to`), before it is
+    // cached: the cache kept the full size and every start resized it
+    // again — a 1024² sequence of 24 frames was 96 MB on disk for 6 MB
+    // used (cache format 2).
+    let frames = super::frame::capped(frames, max_dim)?;
 
     // Best-effort cache write — never fails the load.
     if let Err(e) = cache::try_save(
@@ -200,6 +203,7 @@ pub fn load_asset(
         asset_type,
         spritesheet_columns,
         spritesheet_rows,
+        max_dim,
         &frames,
     ) {
         tracing::warn!(
@@ -658,7 +662,14 @@ mod tests {
                 .save(dir.join(format!("frame_{i:03}.png")))
                 .unwrap();
         }
-        let frames = load_asset(&AssetType::PngSequence, &dir, None, None).unwrap();
+        let frames = load_asset(
+            &AssetType::PngSequence,
+            &dir,
+            None,
+            None,
+            crate::constants::MAX_DROP_SIZE,
+        )
+        .unwrap();
         assert_eq!(frames.len(), 3);
         let max = crate::constants::MAX_DROP_SIZE;
         assert!(frames.iter().all(|f| (f.width, f.height) == (max, max / 2)));
@@ -703,7 +714,14 @@ mod tests {
         .unwrap();
         std::fs::write(&path, &bytes[..bytes.len() / 2]).unwrap();
         assert!(validate_image_dimensions(&path).is_ok());
-        let err = load_asset(&AssetType::PngStatic, &path, None, None).unwrap_err();
+        let err = load_asset(
+            &AssetType::PngStatic,
+            &path,
+            None,
+            None,
+            crate::constants::MAX_DROP_SIZE,
+        )
+        .unwrap_err();
         assert!(matches!(err, AnimaError::Said(_)), "{err:?}");
     }
 
