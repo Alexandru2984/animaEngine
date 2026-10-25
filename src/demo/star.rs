@@ -1,84 +1,49 @@
-//! Procedural star demo: 128×128, 6 frames, slow rotation + twinkle.
+//! The star: a golden five-pointed star rocking from side to side, with
+//! sparkles twinkling around it; it blinks once a loop.
 
+use super::paint::{self, rgb, Canvas};
+use super::{FRAMES, SIZE};
 use std::path::Path;
 
 const NAME: &str = "star";
-const SIZE: u32 = 128;
-const TOTAL_FRAMES: u32 = 6;
 
 pub fn generate(base: &Path) {
-    let Some(dir) = super::prepare(base, NAME, SIZE, TOTAL_FRAMES) else {
+    let Some(dir) = super::prepare(base, NAME, SIZE, FRAMES) else {
         return;
     };
-    let path = dir.as_path();
-
-    let cx = SIZE as f32 / 2.0;
-    let cy = SIZE as f32 / 2.0;
-
-    for frame_idx in 1..=TOTAL_FRAMES {
-        let mut img = image::RgbaImage::new(SIZE, SIZE);
-        let phase = (frame_idx as f32 - 1.0) * std::f32::consts::TAU / TOTAL_FRAMES as f32;
-
-        // Slow rotation (small angle per frame).
-        let rotation = phase * 0.25;
-        // Twinkle: outer radius pulses ±10 %.
-        let twinkle = 1.0 + 0.10 * phase.sin();
-
-        let outer_r = 48.0 * twinkle;
-        let inner_r = 18.0 * twinkle;
-        let points = 5;
-
-        for y in 0..SIZE {
-            for x in 0..SIZE {
-                let fx = x as f32 - cx;
-                let fy = y as f32 - cy;
-                let r = (fx * fx + fy * fy).sqrt();
-                let angle = fy.atan2(fx) - rotation;
-
-                // Star polar equation: alternate outer/inner radius every
-                // PI/points radians, lerp between them to form straight edges.
-                let segment = angle * points as f32 / std::f32::consts::PI;
-                let frac = segment.rem_euclid(2.0);
-                let t = (frac - 1.0).abs(); // 0 at peaks, 1 at valleys
-                let edge = outer_r * (1.0 - t) + inner_r * t;
-
-                if r < edge {
-                    // Gold gradient — brighter at center.
-                    let lum = 1.0 - (r / outer_r).clamp(0.0, 1.0) * 0.35;
-                    let red = (255.0 * lum) as u8;
-                    let g = (215.0 * lum) as u8;
-                    let b = (60.0 * lum) as u8;
-                    img.put_pixel(x, y, image::Rgba([red, g, b, 240]));
-                } else if r < edge + 1.5 {
-                    // Anti-aliased outline.
-                    let aa = ((edge + 1.5 - r) / 1.5).clamp(0.0, 1.0);
-                    let a = (180.0 * aa) as u8;
-                    img.put_pixel(x, y, image::Rgba([200, 150, 30, a]));
-                }
-            }
-        }
-
-        // Center hot-spot — small bright dot that glints with twinkle.
-        let hot_r = 5.0 + 1.5 * phase.cos();
-        for dy in -(hot_r as i32 + 1)..=(hot_r as i32 + 1) {
-            for dx in -(hot_r as i32 + 1)..=(hot_r as i32 + 1) {
-                let dist = ((dx * dx + dy * dy) as f32).sqrt();
-                if dist < hot_r {
-                    let px = (cx + dx as f32) as u32;
-                    let py = (cy + dy as f32) as u32;
-                    if px < SIZE && py < SIZE {
-                        let intensity = (1.0 - dist / hot_r).powi(2);
-                        let r = (255.0 * intensity + 200.0 * (1.0 - intensity)) as u8;
-                        let g = (250.0 * intensity + 180.0 * (1.0 - intensity)) as u8;
-                        let b = (210.0 * intensity + 40.0 * (1.0 - intensity)) as u8;
-                        img.put_pixel(px, py, image::Rgba([r, g, b, 250]));
-                    }
-                }
-            }
-        }
-
-        super::save_frame(path, frame_idx, &img);
+    for f in 0..FRAMES {
+        super::save_frame(&dir, f + 1, &frame(f));
     }
+    tracing::info!("Generated {FRAMES} star demo frames ({SIZE}×{SIZE})");
+}
 
-    tracing::info!("Generated {TOTAL_FRAMES} star demo frames ({SIZE}×{SIZE})");
+fn frame(f: u32) -> image::RgbaImage {
+    let phase = f as f32 / FRAMES as f32 * std::f32::consts::TAU;
+    let rock = 0.16 * phase.sin();
+    let swell = 1.0 + 0.03 * (phase * 2.0).sin();
+    let (cx, cy) = (64.0, 64.0);
+    let body = paint::star(cx, cy, 46.0 * swell, 0.5, rock, 5.0);
+
+    let base = rgb(255, 204, 60);
+    let ink = rgb(160, 100, 16);
+    let mut c = Canvas::new(SIZE);
+    c.ground_shadow(cx, 118.0, 22.0, 4.0, 0.22);
+    c.solid(paint::grow(&body, 2.0), ink, 1.0);
+    c.fill(&body, |x, y| {
+        (paint::lit(base, x, y, cx - 8.0, cy - 6.0, 40.0, 40.0), 1.0)
+    });
+    // The face turns with the star, a little.
+    let fx = cx + rock * 14.0;
+    let open = if f == 3 { 0.0 } else { 1.0 };
+    paint::eyes(&mut c, fx, cy + 2.0, 18.0, 4.2, open, rgb(90, 50, 8));
+    paint::smile(&mut c, fx, cy + 12.0, 6.0, rgb(90, 50, 8));
+    paint::blush(&mut c, fx, cy + 9.0, 30.0, 4.0);
+    for (k, (sx, sy)) in [(18.0_f32, 26.0_f32), (110.0, 30.0), (104.0, 100.0)]
+        .iter()
+        .enumerate()
+    {
+        let alpha = (0.5 + 0.5 * (phase + k as f32 * 2.1).sin()).powi(2);
+        paint::sparkle(&mut c, *sx, *sy, 6.0, alpha);
+    }
+    c.into_image()
 }

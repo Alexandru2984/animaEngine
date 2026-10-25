@@ -18,8 +18,20 @@
 mod cat;
 mod ghost;
 mod heart;
+mod paint;
 mod slime;
 mod star;
+
+/// Every demo character's side, in pixels.
+const SIZE: u32 = 128;
+
+/// The frames in each one's loop.
+const FRAMES: u32 = 12;
+
+/// The drawing's version, kept in each folder (`.art`): pictures made by
+/// an earlier one are made again. 2 (1.5): anti-aliased, outlined, lit,
+/// twelve frames; 1 drew hard-edged flat shapes in six or eight.
+const ART: &str = "2";
 
 use std::path::{Path, PathBuf};
 
@@ -54,7 +66,8 @@ pub fn generate_assets_in(base: &Path) {
 fn prepare(base: &Path, name: &str, size: u32, frames: u32) -> Option<std::path::PathBuf> {
     let dir = base.join(name);
     if dir.exists() {
-        if assets_already_at_size(&dir, size) {
+        let same_art = std::fs::read_to_string(dir.join(".art")).is_ok_and(|v| v.trim() == ART);
+        if same_art && assets_already_at_size(&dir, size) {
             tracing::debug!(
                 "Demo {name} assets already exist at {size}px: {}",
                 dir.display()
@@ -69,6 +82,9 @@ fn prepare(base: &Path, name: &str, size: u32, frames: u32) -> Option<std::path:
         tracing::warn!("Failed to create demo directory {}: {e}", dir.display());
         return None;
     }
+    // Written first: a run cut short leaves no frame_001.png, and that alone
+    // has the next start make them again.
+    let _ = std::fs::write(dir.join(".art"), ART);
     Some(dir)
 }
 

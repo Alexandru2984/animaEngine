@@ -341,6 +341,17 @@ read-only D-Bus names, for the idle time
   writes a standard autostart entry (the one the desktop's "Startup
   Applications" lists too), and in the Flatpak it asks the Background
   portal, which may ask you. Off by default.
+- **The first characters, drawn again.** The ghost, the slime, the
+  heart, the star and the cat were hard-edged flat shapes; they are
+  anti-aliased, outlined, lit from the upper left with a gloss, with a
+  shadow on the ground, eyes that catch the light and blink, and twelve
+  frames a loop instead of six or eight — the ghost bobs and waves, the
+  slime squashes and stretches with bubbles rising, the heart beats
+  twice, the star rocks among sparkles, the cat breathes, swishes its
+  tail and twitches an ear. Still drawn by the app at its first start,
+  same size; pictures of the old drawing are made again (a `.art` file
+  in each folder says which). The screenshots, the demo GIF and the
+  site show them.
 - **A product page and a privacy policy**, in `site/`: static HTML and
   CSS that load nothing from anywhere else, light and dark, readable on a
   phone, with 1920×1080 screenshots. A Website workflow publishes them to

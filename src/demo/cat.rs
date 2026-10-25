@@ -1,167 +1,177 @@
-//! Procedural cat demo: 128×128, 8 frames, tail wave + ear twitch + slow breath.
+//! The cat: an orange tabby sitting up, breathing, swishing its tail and
+//! twitching an ear; it blinks once a loop.
 
+use super::paint::{self, blend, capsule, circle, ellipse, rgb, triangle, Canvas};
+use super::{FRAMES, SIZE};
 use std::path::Path;
 
 const NAME: &str = "cat";
-const SIZE: u32 = 128;
-const TOTAL_FRAMES: u32 = 8;
 
 pub fn generate(base: &Path) {
-    let Some(dir) = super::prepare(base, NAME, SIZE, TOTAL_FRAMES) else {
+    let Some(dir) = super::prepare(base, NAME, SIZE, FRAMES) else {
         return;
     };
-    let path = dir.as_path();
-
-    let cx = SIZE as f32 / 2.0;
-
-    for frame_idx in 1..=TOTAL_FRAMES {
-        let mut img = image::RgbaImage::new(SIZE, SIZE);
-        let phase = (frame_idx as f32 - 1.0) * std::f32::consts::TAU / TOTAL_FRAMES as f32;
-
-        // Subtle breath: body expands ±2 % over the cycle.
-        let breath = 1.0 + 0.02 * phase.sin();
-
-        // Body — sitting cat silhouette, ellipse on a wider base.
-        let body_cx = cx;
-        let body_cy = 78.0;
-        let body_rx = 30.0 * breath;
-        let body_ry = 34.0 * breath;
-
-        // Head — circle on top of body.
-        let head_cx = cx;
-        let head_cy = 38.0;
-        let head_r = 22.0;
-
-        for y in 0..SIZE {
-            for x in 0..SIZE {
-                let fx = x as f32;
-                let fy = y as f32;
-
-                // Tail — sinusoid starting at right side of body.
-                let tail_base_x = body_cx + body_rx * 0.6;
-                let tail_base_y = body_cy - 4.0;
-                let tail_t = ((fx - tail_base_x) / 38.0).clamp(0.0, 1.0);
-                let tail_y_offset =
-                    -30.0 * tail_t + 6.0 * (tail_t * std::f32::consts::TAU + phase * 2.0).sin();
-                let tail_thick = 5.0 * (1.0 - tail_t * 0.4);
-                let in_tail = (fx - tail_base_x) > 0.0
-                    && (fx - tail_base_x) < 38.0
-                    && (fy - (tail_base_y + tail_y_offset)).abs() < tail_thick;
-
-                // Body ellipse.
-                let dx = (fx - body_cx) / body_rx;
-                let dy = (fy - body_cy) / body_ry;
-                let in_body = dx * dx + dy * dy < 1.0;
-
-                // Head circle.
-                let head_d = ((fx - head_cx).powi(2) + (fy - head_cy).powi(2)).sqrt();
-                let in_head = head_d < head_r;
-
-                // Front legs — two small bumps at the bottom of the body.
-                let leg_y = body_cy + body_ry * 0.8;
-                let in_left_leg =
-                    (fx - (body_cx - 10.0)).abs() < 6.0 && fy > leg_y && fy < leg_y + 16.0;
-                let in_right_leg =
-                    (fx - (body_cx + 10.0)).abs() < 6.0 && fy > leg_y && fy < leg_y + 16.0;
-
-                if in_body || in_head || in_tail || in_left_leg || in_right_leg {
-                    // Orange tabby fur with slight gradient.
-                    let depth = ((fy - 20.0) / 100.0).clamp(0.0, 1.0);
-                    let r = (240.0 - depth * 50.0) as u8;
-                    let g = (150.0 - depth * 60.0) as u8;
-                    let b = (60.0 - depth * 30.0) as u8;
-                    img.put_pixel(x, y, image::Rgba([r, g, b, 240]));
-                }
-            }
-        }
-
-        // Triangle ears — twitch on frame 4 (one ear flicks).
-        let twitch = if frame_idx == 4 { 4.0 } else { 0.0 };
-        draw_triangle_ear(&mut img, head_cx - 12.0, head_cy - 14.0, 10.0, 0.0);
-        draw_triangle_ear(&mut img, head_cx + 12.0, head_cy - 14.0, 10.0, twitch);
-
-        // Eyes — almond-shaped, blink on frame 7.
-        let is_blink = frame_idx == 7;
-        for side in [-1.0f32, 1.0f32] {
-            let eye_cx = head_cx + side * 7.0;
-            let eye_cy = head_cy - 1.0;
-            if is_blink {
-                for i in -4i32..=4 {
-                    let px = (eye_cx + i as f32) as u32;
-                    let py = eye_cy as u32;
-                    if px < SIZE && py < SIZE {
-                        img.put_pixel(px, py, image::Rgba([40, 30, 20, 240]));
-                    }
-                }
-            } else {
-                for dy in -3i32..=3 {
-                    for dx in -4i32..=4 {
-                        let nx = dx as f32 / 4.0;
-                        let ny = dy as f32 / 3.0;
-                        if nx * nx + ny * ny < 1.0 {
-                            let px = (eye_cx + dx as f32) as u32;
-                            let py = (eye_cy + dy as f32) as u32;
-                            if px < SIZE && py < SIZE {
-                                let inner = nx * nx + ny * ny;
-                                let (r, g, b) = if inner < 0.35 {
-                                    (60, 200, 80) // green pupil
-                                } else {
-                                    (240, 230, 220) // white sclera
-                                };
-                                img.put_pixel(px, py, image::Rgba([r, g, b, 245]));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Nose — small pink triangle.
-        for dy in 0i32..=3 {
-            let half = 3 - dy;
-            for dx in -half..=half {
-                let px = (head_cx + dx as f32) as u32;
-                let py = (head_cy + 6.0 + dy as f32) as u32;
-                if px < SIZE && py < SIZE {
-                    img.put_pixel(px, py, image::Rgba([220, 120, 130, 240]));
-                }
-            }
-        }
-
-        super::save_frame(path, frame_idx, &img);
+    for f in 0..FRAMES {
+        super::save_frame(&dir, f + 1, &frame(f));
     }
-
-    tracing::info!("Generated {TOTAL_FRAMES} cat demo frames ({SIZE}×{SIZE})");
+    tracing::info!("Generated {FRAMES} cat demo frames ({SIZE}×{SIZE})");
 }
 
-/// Filled triangle pointing up, centered at (cx, cy). `tilt` shears the apex
-/// horizontally — used for the ear twitch.
-fn draw_triangle_ear(img: &mut image::RgbaImage, cx: f32, cy: f32, height: f32, tilt: f32) {
-    let apex_x = cx + tilt;
-    let apex_y = cy - height;
-    let base_y = cy;
-    let base_half = height * 0.6;
+fn frame(f: u32) -> image::RgbaImage {
+    let phase = f as f32 / FRAMES as f32 * std::f32::consts::TAU;
+    let breath = 1.0 + 0.025 * phase.sin();
+    let sway = phase.sin();
+    let cx = 60.0;
+    let (head_x, head_y) = (cx, 48.0);
+    let twitch = if f == 4 || f == 5 { 4.0 } else { 0.0 };
 
-    for y in (apex_y as i32)..=(base_y as i32) {
-        let t = (y as f32 - apex_y) / (base_y - apex_y).max(0.001);
-        let width = base_half * t;
-        let row_cx = apex_x + (cx - apex_x) * t;
-        for x in ((row_cx - width) as i32)..=((row_cx + width) as i32) {
-            if x >= 0 && y >= 0 && (x as u32) < SIZE && (y as u32) < SIZE {
-                img.put_pixel(x as u32, y as u32, image::Rgba([230, 140, 60, 240]));
-            }
+    let body = ellipse(cx, 86.0, 25.0 * breath, 26.0 * breath);
+    let head = circle(head_x, head_y, 22.0);
+    let ears = paint::union(
+        triangle(
+            [
+                (head_x - 20.0, head_y - 6.0),
+                (head_x - 16.0, head_y - 30.0),
+                (head_x - 3.0, head_y - 18.0),
+            ],
+            2.0,
+        ),
+        triangle(
+            [
+                (head_x + 20.0, head_y - 6.0),
+                (head_x + 16.0 + twitch, head_y - 30.0),
+                (head_x + 3.0, head_y - 18.0),
+            ],
+            2.0,
+        ),
+    );
+    let paws = paint::union(
+        ellipse(cx - 10.0, 108.0, 8.0, 6.0),
+        ellipse(cx + 10.0, 108.0, 8.0, 6.0),
+    );
+    // The tail: from behind the body, round and up, swishing.
+    let tail_pts = [
+        (cx + 18.0, 104.0),
+        (cx + 34.0, 104.0),
+        (cx + 44.0 + 3.0 * sway, 92.0),
+        (cx + 46.0 + 7.0 * sway, 76.0),
+        (cx + 42.0 + 11.0 * sway, 62.0),
+    ];
+    let tail = move |x: f32, y: f32| {
+        (0..tail_pts.len() - 1)
+            .map(|i| {
+                let (a, b) = (tail_pts[i], tail_pts[i + 1]);
+                capsule(a.0, a.1, b.0, b.1, 6.0 - i as f32 * 0.6)(x, y)
+            })
+            .fold(f32::MAX, f32::min)
+    };
+    let torso = blend(body, head, 6.0);
+    let shape = paint::union(paint::union(torso, ears), paint::union(paws, tail));
+
+    let base = rgb(245, 150, 62);
+    let ink = rgb(110, 54, 18);
+    let stripe = rgb(200, 100, 34);
+    let cream = rgb(255, 238, 214);
+    let mut c = Canvas::new(SIZE);
+    c.ground_shadow(cx + 8.0, 116.0, 38.0, 5.0, 0.28);
+    c.solid(paint::grow(&shape, 2.0), ink, 1.0);
+    c.fill(&shape, |x, y| {
+        (paint::lit(base, x, y, cx - 8.0, 64.0, 40.0, 56.0), 1.0)
+    });
+    // Inner ears.
+    c.solid(
+        triangle(
+            [
+                (head_x - 17.0, head_y - 9.0),
+                (head_x - 15.0, head_y - 24.0),
+                (head_x - 7.0, head_y - 17.0),
+            ],
+            1.0,
+        ),
+        rgb(255, 170, 170),
+        0.9,
+    );
+    c.solid(
+        triangle(
+            [
+                (head_x + 17.0, head_y - 9.0),
+                (head_x + 15.0 + twitch * 0.8, head_y - 24.0),
+                (head_x + 7.0, head_y - 17.0),
+            ],
+            1.0,
+        ),
+        rgb(255, 170, 170),
+        0.9,
+    );
+    // Tabby stripes: on the forehead, the body's sides, the tail.
+    for dx in [-6.0_f32, 0.0, 6.0] {
+        c.solid(
+            capsule(
+                head_x + dx,
+                head_y - 19.0,
+                head_x + dx * 0.8,
+                head_y - 11.0,
+                1.6,
+            ),
+            stripe,
+            0.85,
+        );
+    }
+    for (y0, side) in [(76.0_f32, -1.0_f32), (86.0, -1.0), (76.0, 1.0), (86.0, 1.0)] {
+        let x0 = cx + side * 24.0 * breath;
+        c.solid(capsule(x0, y0, x0 - side * 7.0, y0 + 3.0, 1.8), stripe, 0.8);
+    }
+    for &(x, y) in &tail_pts[1..4] {
+        c.solid(
+            capsule(x - 5.0, y + 1.0, x + 5.0, y - 1.0, 1.6),
+            stripe,
+            0.8,
+        );
+    }
+    // Belly and muzzle.
+    c.solid(ellipse(cx, 92.0, 13.0 * breath, 15.0), cream, 0.9);
+    c.solid(ellipse(head_x, head_y + 9.0, 11.0, 7.5), cream, 0.95);
+    // Eyes: green, slit pupils.
+    for side in [-1.0_f32, 1.0] {
+        let ex = head_x + side * 8.5;
+        let ey = head_y - 1.0;
+        if f == 8 {
+            c.solid(capsule(ex - 4.5, ey, ex + 4.5, ey, 1.1), ink, 1.0);
+        } else {
+            c.solid(ellipse(ex, ey, 4.6, 5.4), rgb(110, 196, 80), 1.0);
+            c.solid(
+                capsule(ex, ey - 3.6, ex, ey + 3.6, 1.2),
+                rgb(20, 30, 10),
+                1.0,
+            );
+            c.solid(circle(ex - 1.6, ey - 2.0, 1.3), [1.0; 3], 0.9);
         }
     }
-    // Inner ear — smaller triangle, pink.
-    let inner_apex_y = apex_y + 3.0;
-    for y in (inner_apex_y as i32)..=(base_y as i32 - 2) {
-        let t = (y as f32 - inner_apex_y) / (base_y - 2.0 - inner_apex_y).max(0.001);
-        let width = (base_half - 2.5) * t;
-        let row_cx = apex_x + (cx - apex_x) * t;
-        for x in ((row_cx - width) as i32)..=((row_cx + width) as i32) {
-            if x >= 0 && y >= 0 && (x as u32) < SIZE && (y as u32) < SIZE {
-                img.put_pixel(x as u32, y as u32, image::Rgba([255, 180, 170, 220]));
-            }
+    // Nose, mouth, whiskers.
+    c.solid(
+        triangle(
+            [
+                (head_x - 3.0, head_y + 5.0),
+                (head_x + 3.0, head_y + 5.0),
+                (head_x, head_y + 8.0),
+            ],
+            0.5,
+        ),
+        rgb(230, 120, 140),
+        1.0,
+    );
+    paint::smile(&mut c, head_x - 2.5, head_y + 11.0, 3.0, ink);
+    paint::smile(&mut c, head_x + 2.5, head_y + 11.0, 3.0, ink);
+    for (dy, out) in [(8.0_f32, -2.0_f32), (11.0, 1.0)] {
+        for side in [-1.0_f32, 1.0] {
+            let x0 = head_x + side * 9.0;
+            c.solid(
+                capsule(x0, head_y + dy, x0 + side * 15.0, head_y + dy + out, 0.45),
+                ink,
+                0.7,
+            );
         }
     }
+    paint::blush(&mut c, head_x, head_y + 7.0, 30.0, 4.0);
+    c.into_image()
 }

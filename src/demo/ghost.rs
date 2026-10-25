@@ -1,157 +1,55 @@
-//! Procedurally generated ghost demo: 128×128, 8 frames,
-//! floating bob + wavy tail + occasional blink.
+//! The ghost: a pale floating sheet with a wavy hem, bobbing and waving
+//! its little arms; it blinks once a loop.
 
+use super::paint::{self, blend, capsule, circle, rgb, Canvas};
+use super::{FRAMES, SIZE};
 use std::path::Path;
 
 const NAME: &str = "ghost";
-const SIZE: u32 = 128;
-const TOTAL_FRAMES: u32 = 8;
 
 pub fn generate(base: &Path) {
-    let Some(dir) = super::prepare(base, NAME, SIZE, TOTAL_FRAMES) else {
+    let Some(dir) = super::prepare(base, NAME, SIZE, FRAMES) else {
         return;
     };
-    let path = dir.as_path();
-
-    let cx = SIZE as f32 / 2.0;
-
-    for frame_idx in 1..=TOTAL_FRAMES {
-        let mut img = image::RgbaImage::new(SIZE, SIZE);
-        let phase = (frame_idx as f32 - 1.0) * std::f32::consts::TAU / TOTAL_FRAMES as f32;
-
-        // Floating bob
-        let float_y = phase.sin() * 4.0;
-
-        // Body geometry
-        let body_cx = cx;
-        let body_cy = 42.0 + float_y;
-        let body_rx = 32.0;
-        let body_ry = 28.0;
-
-        for y in 0..SIZE {
-            for x in 0..SIZE {
-                let fx = x as f32;
-                let fy = y as f32;
-
-                let dx = (fx - body_cx) / body_rx;
-                let dy = (fy - body_cy) / body_ry;
-                let dist_sq = dx * dx + dy * dy;
-
-                let in_head = dist_sq < 1.0 && fy <= body_cy + body_ry * 0.5;
-
-                let tail_top = body_cy;
-                let tail_bottom = body_cy + 50.0 + float_y * 0.5;
-                let tail_half_w =
-                    body_rx * (1.0 - ((fy - tail_top) / (tail_bottom - tail_top)).max(0.0) * 0.15);
-
-                let wave_freq = 3.0;
-                let wave_amp = 5.0 + (phase * 0.5).sin() * 2.0;
-                let wave_offset =
-                    (fx / SIZE as f32 * wave_freq * std::f32::consts::TAU + phase * 2.0).sin()
-                        * wave_amp;
-                let effective_bottom = tail_bottom + wave_offset;
-
-                let in_tail =
-                    fy > tail_top && fy < effective_bottom && (fx - body_cx).abs() < tail_half_w;
-
-                let in_body = in_head || in_tail;
-
-                if in_body {
-                    let center_dist = ((fx - body_cx).powi(2) + (fy - body_cy).powi(2)).sqrt();
-                    let max_dist = 60.0;
-                    let brightness = 1.0 - (center_dist / max_dist).min(1.0) * 0.25;
-
-                    let r = (210.0 * brightness) as u8;
-                    let g = (215.0 * brightness) as u8;
-                    let b = (240.0 * brightness) as u8;
-
-                    let alpha_base = 160u8;
-                    let tail_fade = if fy > tail_top {
-                        let progress = (fy - tail_top) / (effective_bottom - tail_top);
-                        1.0 - progress * 0.6
-                    } else {
-                        1.0
-                    };
-                    let a = (alpha_base as f32 * tail_fade).max(30.0) as u8;
-
-                    img.put_pixel(x, y, image::Rgba([r, g, b, a]));
-                } else if in_head || dist_sq < 1.15 {
-                    let edge = ((1.15 - dist_sq) / 0.15).max(0.0);
-                    let a = (40.0 * edge) as u8;
-                    if a > 0 {
-                        img.put_pixel(x, y, image::Rgba([200, 210, 240, a]));
-                    }
-                }
-            }
-        }
-
-        // Eyes (blink on frame 5)
-        let eye_y = body_cy - 2.0 + float_y * 0.2;
-        let eye_spacing = 12.0;
-        let is_blink = frame_idx == 5;
-
-        for side in [-1.0f32, 1.0f32] {
-            let eye_cx = body_cx + side * eye_spacing;
-
-            if is_blink {
-                for dx in -5i32..=5 {
-                    let ex = (eye_cx + dx as f32) as u32;
-                    let ey = eye_y as u32;
-                    if ex < SIZE && ey < SIZE {
-                        img.put_pixel(ex, ey, image::Rgba([30, 30, 60, 240]));
-                    }
-                }
-            } else {
-                let eye_r = 7.0;
-                let pupil_r = 4.0;
-                let highlight_r = 2.0;
-
-                for dy in -(eye_r as i32)..=(eye_r as i32) {
-                    for dx in -(eye_r as i32)..=(eye_r as i32) {
-                        let ex = (eye_cx + dx as f32) as u32;
-                        let ey = (eye_y + dy as f32) as u32;
-                        if ex >= SIZE || ey >= SIZE {
-                            continue;
-                        }
-
-                        let dist = ((dx * dx + dy * dy) as f32).sqrt();
-
-                        let hdx = dx as f32 - 2.0;
-                        let hdy = dy as f32 + 2.0;
-                        let h_dist = (hdx * hdx + hdy * hdy).sqrt();
-
-                        if h_dist < highlight_r {
-                            img.put_pixel(ex, ey, image::Rgba([255, 255, 255, 250]));
-                        } else if dist < pupil_r {
-                            img.put_pixel(ex, ey, image::Rgba([20, 20, 50, 240]));
-                        } else if dist < eye_r {
-                            let edge = (eye_r - dist) / 1.5;
-                            let a = (220.0 * edge.min(1.0)) as u8;
-                            img.put_pixel(ex, ey, image::Rgba([240, 240, 255, a]));
-                        }
-                    }
-                }
-            }
-        }
-
-        // Mouth
-        let mouth_y = body_cy + 10.0 + float_y * 0.2;
-        let mouth_r = 3.0;
-        for dy in -(mouth_r as i32)..=(mouth_r as i32) {
-            for dx in -(mouth_r as i32)..=(mouth_r as i32) {
-                let dist = ((dx * dx + dy * dy) as f32).sqrt();
-                if dist > mouth_r - 1.5 && dist < mouth_r {
-                    let ex = (body_cx + dx as f32) as u32;
-                    let ey = (mouth_y + dy as f32) as u32;
-                    if ex < SIZE && ey < SIZE {
-                        img.put_pixel(ex, ey, image::Rgba([60, 60, 100, 180]));
-                    }
-                }
-            }
-        }
-
-        super::save_frame(path, frame_idx, &img);
+    for f in 0..FRAMES {
+        super::save_frame(&dir, f + 1, &frame(f));
     }
+    tracing::info!("Generated {FRAMES} ghost demo frames ({SIZE}×{SIZE})");
+}
 
-    tracing::info!("Generated {TOTAL_FRAMES} ghost demo frames ({SIZE}×{SIZE})");
+fn frame(f: u32) -> image::RgbaImage {
+    let phase = f as f32 / FRAMES as f32 * std::f32::consts::TAU;
+    let bob = 3.5 * phase.sin();
+    let cx = 64.0;
+    let cy = 48.0 + bob;
+    let hem_y = 98.0 + bob;
+    let wave = move |x: f32| hem_y + 4.0 * ((x - cx) * 0.3 + phase * 2.0).sin();
+    let head = circle(cx, cy, 32.0);
+    let skirt = move |x: f32, y: f32| ((x - cx).abs() - 32.0).max(cy - y).max(y - wave(x));
+    let wavy = move |x: f32, y: f32| head(x, y).min(skirt(x, y));
+    let arm = 4.0 * (phase * 2.0).sin();
+    let arms = paint::union(
+        capsule(cx - 30.0, cy + 18.0, cx - 40.0, cy + 10.0 + arm, 5.0),
+        capsule(cx + 30.0, cy + 18.0, cx + 40.0, cy + 10.0 - arm, 5.0),
+    );
+    let body = blend(wavy, arms, 4.0);
+
+    let base = rgb(236, 238, 255);
+    let ink = rgb(70, 66, 120);
+    let mut c = Canvas::new(SIZE);
+    c.ground_shadow(cx, 117.0, 24.0 - bob, 4.5, 0.28);
+    c.solid(paint::grow(&body, 2.0), ink, 1.0);
+    c.fill(&body, |x, y| {
+        let lit = paint::lit(base, x, y, cx - 8.0, cy + 8.0, 44.0, 56.0);
+        (lit, 0.96)
+    });
+    let open = if f == 9 { 0.0 } else { 1.0 };
+    paint::eyes(&mut c, cx, cy + 2.0, 22.0, 5.0, open, rgb(40, 36, 72));
+    c.solid(
+        paint::ellipse(cx, cy + 15.0, 3.2, 4.2),
+        rgb(60, 40, 80),
+        1.0,
+    );
+    paint::blush(&mut c, cx, cy + 11.0, 36.0, 5.0);
+    c.into_image()
 }
