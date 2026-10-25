@@ -28,6 +28,8 @@ rustup target list --installed | grep -qx "$TARGET" || die "rustup target add $T
 
 VERSION="$(cargo metadata --no-deps --format-version 1 \
     | python3 -c 'import json, sys; print(json.load(sys.stdin)["packages"][0]["version"])')"
+# Windows' version resource takes numbers only: 1.5.0 of 1.5.0-rc1.
+VERSION_NUM="${VERSION%%[-+]*}"
 NAME="animaEngine-${VERSION}-windows-x86_64"
 STAGE="build/windows/$NAME"
 
@@ -109,7 +111,7 @@ PY
 
 log "Building the installer…"
 # Absolute paths: makensis reads relative ones from the script's folder.
-makensis -V2 -DVERSION="$VERSION" -DSTAGE="$PWD/$STAGE" -DICON="$PWD/data/anima-engine.ico" \
+makensis -V2 -DVERSION="$VERSION" -DVERSION_NUM="$VERSION_NUM" -DSTAGE="$PWD/$STAGE" -DICON="$PWD/data/anima-engine.ico" \
     -DOUTFILE="$PWD/build/$NAME-setup.exe" packaging/windows/installer.nsi
 
 log "Built:"

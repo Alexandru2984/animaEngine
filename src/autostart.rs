@@ -229,32 +229,75 @@ mod windows_run {
         s.encode_utf16().chain([0]).collect()
     }
 
+    /// On when the value starts this program: one left by a copy since
+    /// moved — a portable ZIP unpacked elsewhere — starts nothing, and the
+    /// switch says so; turned on, it is written again for this one.
     pub fn is_enabled() -> bool {
-        let (key, value) = (wide(KEY), wide(VALUE));
-        let mut size = 0u32;
-        // SAFETY: both names are NUL-terminated; with no buffer the call
-        // only says whether the value is there, and its size.
-        let status = unsafe {
-            RegGetValueW(
+        match (read(), line()) {
+            (Some(value), Ok(line)) => value.to_lowercase() == line.to_lowercase(),
+            _ => false,
+        }
+    }
+
+    /// What the value holds: this program, quoted, so a path with a space
+    /// is one command.
+    fn line() -> Result<String> {
+        let exe = std::env::current_exe()
+            .map_err(|_| AnimaError::other("cannot tell where this program is"))?;
+        Ok(format!("\"{}\"", exe.display()))
+    }
+
+    /// Write the value as given — another copy's path — for the test.
+    #[cfg(test)]
+    pub fn write_raw(text: &str) {
+        let (key, value, data) = (wide(KEY), wide(VALUE), wide(text));
+        // SAFETY: as in `set`.
+        unsafe {
+            RegSetKeyValueW(
                 HKEY_CURRENT_USER,
                 key.as_ptr(),
                 value.as_ptr(),
-                RRF_RT_REG_SZ,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-                &mut size,
-            )
+                REG_SZ,
+                data.as_ptr().cast(),
+                (data.len() * 2) as u32,
+            );
+        }
+    }
+
+    /// The value, if it is there.
+    fn read() -> Option<String> {
+        let (key, value) = (wide(KEY), wide(VALUE));
+        let get = |buffer: *mut std::ffi::c_void, size: &mut u32| {
+            // SAFETY: NUL-terminated names; `buffer` is null (asking only
+            // the size) or holds `size` bytes.
+            unsafe {
+                RegGetValueW(
+                    HKEY_CURRENT_USER,
+                    key.as_ptr(),
+                    value.as_ptr(),
+                    RRF_RT_REG_SZ,
+                    std::ptr::null_mut(),
+                    buffer,
+                    size,
+                )
+            }
         };
-        status == ERROR_SUCCESS
+        let mut size = 0u32;
+        if get(std::ptr::null_mut(), &mut size) != ERROR_SUCCESS || size == 0 {
+            return None;
+        }
+        let mut text = vec![0u16; size.div_ceil(2) as usize];
+        if get(text.as_mut_ptr().cast(), &mut size) != ERROR_SUCCESS {
+            return None;
+        }
+        let end = text.iter().position(|&c| c == 0).unwrap_or(text.len());
+        Some(String::from_utf16_lossy(&text[..end]))
     }
 
     pub fn set(on: bool) -> Result<()> {
         let (key, value) = (wide(KEY), wide(VALUE));
         let status = if on {
-            let exe = std::env::current_exe()
-                .map_err(|_| AnimaError::other("cannot tell where this program is"))?;
-            // Quoted: a path with a space is one command, not two.
-            let data = wide(&format!("\"{}\"", exe.display()));
+            let data = wide(&line()?);
             // SAFETY: NUL-terminated names; `data` is a REG_SZ of the
             // byte length given, its terminator included.
             unsafe {
@@ -296,6 +339,11 @@ mod tests {
     #[ignore = "writes HKCU's Run key: run under Wine in a throwaway prefix"]
     fn windows_start_at_login_is_the_run_value() {
         let was = is_enabled(false);
+        set(true).unwrap();
+        assert!(is_enabled(false));
+        // A copy since moved: its value starts nothing, so the switch is off.
+        windows_run::write_raw(r#""C:\elsewhere\anima-engine.exe""#);
+        assert!(!is_enabled(false));
         set(true).unwrap();
         assert!(is_enabled(false));
         set(false).unwrap();

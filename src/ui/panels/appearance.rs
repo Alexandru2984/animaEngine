@@ -236,7 +236,7 @@ fn about(ui: &mut egui::Ui) {
     let mut args = fluent::FluentArgs::new();
     args.set("count", component_count());
     wrapped(ui, crate::i18n::t_args("about-components", &args));
-    let open_id = egui::Id::new("anima.about.licences");
+    let open_id = licences_id();
     let mut open = ui
         .ctx()
         .data(|d| d.get_temp::<bool>(open_id).unwrap_or(false));
@@ -259,8 +259,24 @@ fn component_count() -> u32 {
         .unwrap_or(0)
 }
 
+fn licences_id() -> egui::Id {
+    egui::Id::new("anima.about.licences")
+}
+
+/// Whether the Licences window is open: while it is, the keyboard is its
+/// (`panels::keyboard_held`) — the arrows scroll it rather than nudge the
+/// selected character. Open and drawn in the last pass: another tab
+/// hides it, and it must not keep the keys then.
+pub(super) fn licences_open(ctx: &egui::Context) -> bool {
+    let drawn = ctx.data(|d| d.get_temp::<u64>(licences_id().with("drawn")));
+    ctx.data(|d| d.get_temp::<bool>(licences_id()).unwrap_or(false))
+        && drawn.is_some_and(|pass| pass + 1 >= ctx.cumulative_pass_nr())
+}
+
 /// The licence texts, a line a row, only the rows in view laid out: the
-/// third-party file is some 4000 lines.
+/// third-party file is some 4000 lines. Read from the keyboard too — the
+/// arrows, Page Up and Down, Home and End scroll it, Escape closes it —
+/// so that a screen reader, which hears the rows in view, can go on.
 fn licences_window(ctx: &egui::Context, open: &mut bool) {
     static LINES: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
     let lines = LINES.get_or_init(|| {
@@ -270,20 +286,54 @@ fn licences_window(ctx: &egui::Context, open: &mut bool) {
             .chain(THIRD_PARTY.lines())
             .collect()
     });
+    let mut closed = false;
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| d.insert_temp(licences_id().with("drawn"), pass));
     egui::Window::new(t("about-licences-title"))
         .open(open)
         .default_size([560.0, 440.0])
         .collapsible(false)
         .show(ctx, |ui| {
             let row = ui.text_style_height(&egui::TextStyle::Monospace);
+            let page = (ui.available_height() - row).max(row);
+            let step = ui.input_mut(|i| {
+                use egui::{Key, Modifiers};
+                let mut take = |key| i.consume_key(Modifiers::NONE, key);
+                if take(Key::ArrowDown) {
+                    -row
+                } else if take(Key::ArrowUp) {
+                    row
+                } else if take(Key::PageDown) {
+                    -page
+                } else if take(Key::PageUp) {
+                    page
+                } else if take(Key::End) {
+                    f32::NEG_INFINITY
+                } else if take(Key::Home) {
+                    f32::INFINITY
+                } else {
+                    0.0
+                }
+            });
+            if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+                closed = true;
+            }
             egui::ScrollArea::both()
                 .auto_shrink([false, false])
                 .show_rows(ui, row, lines.len(), |ui, range| {
+                    if step != 0.0 {
+                        // Home and End as far as it goes: the scroll area
+                        // stops at its ends, row spacing included.
+                        ui.scroll_with_delta(egui::vec2(0.0, step.clamp(-1e9, 1e9)));
+                    }
                     for line in &lines[range] {
                         ui.add(egui::Label::new(egui::RichText::new(*line).monospace()).extend());
                     }
                 });
         });
+    if closed {
+        *open = false;
+    }
 }
 
 /// Locale dropdown. Each option is the locale's *autonym* (its name in

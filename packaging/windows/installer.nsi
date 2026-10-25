@@ -1,5 +1,8 @@
 ; animaEngine's Windows installer, built by scripts/build-windows.sh:
-;   makensis -DVERSION=1.5.0 -DSTAGE=<dir> -DICON=<ico> -DOUTFILE=<exe> installer.nsi
+;   makensis -DVERSION=1.5.0-rc1 -DVERSION_NUM=1.5.0 -DSTAGE=<dir> \
+;            -DICON=<ico> -DOUTFILE=<exe> installer.nsi
+; VERSION_NUM is VERSION without a pre-release part: Windows' version
+; resource takes numbers only.
 ;
 ; Per user: into %LOCALAPPDATA%\Programs\animaEngine, with no
 ; administrator rights asked, a Start-menu entry, and an uninstaller that
@@ -9,6 +12,7 @@
 
 Unicode true
 !include "MUI2.nsh"
+!include "LogicLib.nsh"
 
 !define APP "animaEngine"
 !define UNINST "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP}"
@@ -23,7 +27,7 @@ SetCompressor /SOLID lzma
 ShowInstDetails nevershow
 ShowUninstDetails nevershow
 
-VIProductVersion "${VERSION}.0"
+VIProductVersion "${VERSION_NUM}.0"
 VIAddVersionKey /LANG=1033 "ProductName" "${APP}"
 VIAddVersionKey /LANG=1033 "ProductVersion" "${VERSION}"
 VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION}"
@@ -53,10 +57,21 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright (c) animaEngine contribut
 !insertmacro MUI_LANGUAGE "Japanese"
 
 ; A running copy holds its .exe open. Asked to close — not forced — it
-; saves as it does when its window is closed.
+; saves as it does when its window is closed; waited for, up to ten
+; seconds, before its files are written over.
 !macro CloseRunning
   nsExec::Exec 'taskkill /im anima-engine.exe'
-  Sleep 1500
+  Pop $0
+  StrCpy $1 0
+  ${Do}
+    nsExec::Exec 'cmd /c tasklist /fi "imagename eq anima-engine.exe" | find /i "anima-engine.exe"'
+    Pop $0
+    ${If} $0 != 0
+      ${Break}
+    ${EndIf}
+    Sleep 500
+    IntOp $1 $1 + 1
+  ${LoopUntil} $1 >= 20
 !macroend
 
 Section "${APP}"
@@ -85,7 +100,16 @@ SectionEnd
 
 Section "Uninstall"
   !insertmacro CloseRunning
-  Delete "$INSTDIR\anima-engine.exe"
+  ; A copy just closed can hold its .exe a moment longer than it is listed.
+  StrCpy $1 0
+  ${Do}
+    Delete "$INSTDIR\anima-engine.exe"
+    ${IfNot} ${FileExists} "$INSTDIR\anima-engine.exe"
+      ${Break}
+    ${EndIf}
+    Sleep 500
+    IntOp $1 $1 + 1
+  ${LoopUntil} $1 >= 20
   Delete "$INSTDIR\LICENSE.txt"
   Delete "$INSTDIR\THIRD-PARTY-LICENSES.txt"
   Delete "$INSTDIR\README.txt"

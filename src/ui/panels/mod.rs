@@ -45,6 +45,7 @@ pub fn keyboard_held(ctx: &egui::Context) -> bool {
     command_palette_open(ctx)
         || ctx.memory(|m| m.any_popup_open())
         || keybindings_tab::recording(ctx)
+        || appearance::licences_open(ctx)
 }
 
 use crate::asset_library::LibraryIndex;
