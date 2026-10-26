@@ -104,7 +104,11 @@ are in [CONTRIBUTING.md](../CONTRIBUTING.md#windows-and-freebsd). The
 installer and the app run under Wine too, in a throwaway prefix
 (`WINEPREFIX`, `HOME` and a private `Xvfb` of their own, and
 `winemenubuilder.exe=d` so the Start-menu entry does not reach your own
-desktop's menu). On a real Windows machine:
+desktop's menu). On a real Windows machine,
+[`packaging/windows/test-kit/Test-AnimaEngine.ps1`](../packaging/windows/test-kit/README.md)
+goes through most of this list — installing, running, asking what only
+a person can see, uninstalling — and leaves a report to send back; a
+second launch, restarting Explorer and a real sign-in are still by hand:
 
 - the installer runs without asking for administrator rights, in the
   language Windows is set to; the Start-menu entry starts the app;
