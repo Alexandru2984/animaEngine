@@ -147,7 +147,8 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
         .into_iter()
         .enumerate()
     {
-        let on = ((f as usize + k * 4) % FRAMES as usize) < 8;
+        // Asleep, all of them low.
+        let on = state != StateId::Sleep && ((f as usize + k * 4) % FRAMES as usize) < 8;
         c.solid(
             circle(cx - 8.0 + k as f32 * 8.0, body_y - 3.0, 2.6),
             color,
