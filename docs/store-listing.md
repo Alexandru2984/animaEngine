@@ -99,6 +99,35 @@ built-in characters at four times their size
 title in Ubuntu Bold. Steam's sizes are those of its guidelines in 2026:
 check them before uploading, and run the script again for others.
 
+## Trailer
+
+| File | Size | Use |
+|---|---|---|
+| `build/trailer/trailer-1080p.mp4` | 1920×1080, 33 s, H.264 | Steam's trailer upload |
+| `build/trailer/trailer-1080p.webm` | 1920×1080, 33 s, VP9 | itch.io, a download |
+| `site/media/trailer-720p.webm` | 1280×720, 33 s, VP9, 1 MB | The product page |
+| `site/media/trailer-poster.jpg` | 1280×720 | Its poster: the title card |
+
+No sound: add music if a store asks for an audio track. A title card,
+four scenes with a caption each, an end card, cross-faded:
+
+1. "They live on your desktop" — walkers on the floor, the ghost
+   floating, the heart and the star idle.
+2. "Tap one, and it answers" — a tap on the cat (it hops, says "Hi
+   there!"), then on the heart ("Hello!").
+3. "Choose who lives there" — the gear clicked, the welcome; the bunny,
+   the frog, the mushroom and the cloud put on; Continue.
+4. "Pick them up. Let them fall." — the cat picked up and held (it
+   swings and laughs), let go: it falls and lands.
+
+The scenes are recorded on the test rig (a headless sway at 1920×1080,
+native Wayland, the app's debug build) with `wf-recorder -r 30`, the
+pointer moved by a virtual pointer; the app runs from a folder whose
+`assets/demo` holds the built-in characters drawn at 192 px, so they
+are sharp at that size. `scripts/trailer-compose.py <scenes> <pictures>`
+makes the cards and captions and cuts the files. `build/` is not
+committed: the 1080p files are made again with the script.
+
 ## System requirements
 
 | | Minimum |
