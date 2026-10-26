@@ -300,8 +300,9 @@ read-only D-Bus names, for the idle time
   10 or 30 minutes, or never, and pausing on battery as well (a plain
   pause: you are there). The idle time comes from GNOME (on X11 or
   Wayland), a real X server, or a Wayland compositor with idle
-  notifications (sway, Hyprland, KDE); elsewhere the setting says it is
-  unavailable. The Flatpak asks for the two read-only D-Bus names it
+  notifications (sway, Hyprland, KDE) — on either path, so on KDE
+  Plasma also through XWayland, the default there, which had none
+  before; elsewhere the setting says it is unavailable. The Flatpak asks for the two read-only D-Bus names it
   needs.
 - **Welcome back.** After a while away from the computer, the character
   in front greets you as you return — "Good morning!" when you come back

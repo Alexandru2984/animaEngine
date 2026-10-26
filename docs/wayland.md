@@ -12,16 +12,19 @@ and how to wire shortcuts through your compositor since the X11-style
 ## When to prefer native Wayland
 
 - You don't want XWayland in your session at all.
-- You're on **sway / Hyprland / river / Wayfire** (wlroots-based) and
-  want true overlay layer semantics — animaEngine sits above normal
-  windows without reserving an exclusive zone.
+- You're on **sway / Hyprland / river / Wayfire** (wlroots-based) or
+  **KDE Plasma 6** and want true overlay layer semantics — animaEngine
+  sits above normal windows without reserving an exclusive zone.
 - You want crisper HiDPI rendering without XWayland's scale fallbacks.
 
 Stay on the X11 path when:
 
-- You're on **GNOME Mutter** or **KDE KWin** — neither advertises
+- You're on **GNOME Mutter** — it does not advertise
   `zwlr_layer_shell_v1`, so the probe fails and animaEngine falls back
   silently.
+- You're on **KDE Plasma** and want the characters to step aside for
+  full-screen apps: KWin has no `wlr-foreign-toplevel-management`, so
+  only the X11 path (EWMH) can see a full-screen window there.
 - You rely on tray icon integrations that haven't moved off
   StatusNotifierItem yet (still works on most compositors, but Mutter
   needs an extension).
@@ -57,7 +60,7 @@ set the env var.
 | Multi-monitor info | XRandR | `wl_output` enumeration |
 | Hi-DPI | the panel and the characters at the X screen's scale factor | each surface at its output's scale, fractional ones too: `wp_fractional_scale_v1` + `wp_viewporter` (since 1.5) |
 | Stepping aside for full-screen apps | EWMH `_NET_ACTIVE_WINDOW` / `_NET_WM_STATE` | `wlr-foreign-toplevel-management` (sway, Hyprland; not GNOME/KDE) |
-| Holding still when away | MIT-SCREEN-SAVER on a real X server; Mutter's IdleMonitor (D-Bus) under XWayland on GNOME | `ext-idle-notify-v1` (sway, Hyprland, KDE) |
+| Holding still when away | MIT-SCREEN-SAVER on a real X server; Mutter's IdleMonitor (D-Bus) under XWayland on GNOME; the compositor's `ext-idle-notify-v1` under XWayland elsewhere (KDE, wlroots — 1.5) | `ext-idle-notify-v1` (sway, Hyprland, KDE) |
 | `MonitorMode::PerMonitor` distribution | extra `winit::Window` per monitor | extra layer-shell surface per `wl_output` (headless sway, 2–3 outputs — see below) |
 | Global hotkeys | XGrabKey (`Ctrl+Shift+A/H/P`) | **GlobalShortcuts portal** (preferred) or compositor bindings + D-Bus (see below) |
 | Tray icon (StatusNotifierItem) | ✓ | ✓ |
@@ -232,7 +235,19 @@ it.
 | **river** (≥0.3) | ✓ | ✓ | Expected to work |
 | **Wayfire** | ✓ | ✓ | Expected to work |
 | **GNOME Mutter** | ✗ | ✓ | Probe fails → X11 fallback |
-| **KDE KWin** | ✗ | ✓ | Probe fails → X11 fallback (KWin gates `wlr-layer-shell` behind a KConfig flag) |
+| **KDE KWin** (Plasma 6) | ✓ | ✓ | Checked (both paths, see below); the X11 path stays the default |
+
+**KDE Plasma 6, checked on 26 October 2026** — a full Plasma 6 session
+(Ubuntu 26.04's packages, KWin drawing into a window on Xvfb, in a
+container): on both paths the characters draw over the wallpaper and
+the panel, a click on empty space reaches the window beneath, edit mode
+opens from D-Bus and from Ctrl+Shift+A, the tray icon sits in Plasma's
+system tray, and the global shortcuts go through KDE's portal — Plasma
+asks to allow them once, and marks Ctrl+Shift+A as taken by the
+standard *Deselect* action in KDE apps; another chord can be chosen in
+that dialog or the Keybindings tab. The portal knows the app only with
+its desktop file installed, as the packages install it. Holding still
+when away reads `ext-idle-notify-v1` on both paths since 1.5.
 
 When you hit a compositor-specific quirk, file a GitHub issue tagged
 `wayland` with:

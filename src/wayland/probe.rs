@@ -99,19 +99,19 @@ pub fn log_status(caps: &WaylandCapabilities, native_active: bool) {
     if caps.layer_shell && native_active {
         tracing::info!(
             "Native Wayland: detected wlr-layer-shell — overlay-ready compositor \
-             (sway / Hyprland / river / etc.). ANIMA_USE_WAYLAND_NATIVE=1 is set, \
+             (KDE Plasma 6, sway, Hyprland, river…). ANIMA_USE_WAYLAND_NATIVE=1 is set, \
              so this session uses the native layer-shell path, not XWayland."
         );
     } else if caps.layer_shell {
         tracing::info!(
             "Native Wayland: detected wlr-layer-shell — overlay-ready compositor \
-             (sway / Hyprland / river / etc.). Still routing through XWayland; \
+             (KDE Plasma 6, sway, Hyprland, river…). Still routing through XWayland; \
              set ANIMA_USE_WAYLAND_NATIVE=1 to use the native layer-shell path."
         );
     } else {
         tracing::info!(
             "Native Wayland: session present, but no wlr-layer-shell (likely \
-             GNOME Mutter or KDE KWin). XWayland route is the only option here."
+             GNOME's Mutter). XWayland route is the only option here."
         );
     }
 }

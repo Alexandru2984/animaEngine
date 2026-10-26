@@ -7,12 +7,15 @@
 //!   (`wayland::layer_window::idle`);
 //! - the X11 path on a real X server: the MIT-SCREEN-SAVER extension;
 //! - the X11 path under a Wayland session (XWayland): Mutter's
-//!   `org.gnome.Mutter.IdleMonitor` over D-Bus, so GNOME. XWayland's own
-//!   screen-saver counter only sees input that reaches X11 windows: it
-//!   would call the user away while they type into every native app, so
-//!   it is never used there. KDE's D-Bus idle time is inconsistent about
-//!   its units; under KDE on Wayland the X11 path has no source, and the
-//!   setting says so.
+//!   `org.gnome.Mutter.IdleMonitor` over D-Bus, so GNOME; elsewhere the
+//!   compositor's own `ext-idle-notify-v1`, over a Wayland connection of
+//!   the watch's own with no surface (`wayland_idle` below) — KDE Plasma's
+//!   KWin and the wlroots compositors (1.5; until then the X11 path had no
+//!   source under KDE on Wayland, whose D-Bus `GetSessionIdleTime` answers
+//!   "not supported" there). XWayland's own screen-saver counter only sees
+//!   input that reaches X11 windows: it would call the user away while
+//!   they type into every native app, so it is never used there. With
+//!   none of them the setting says it is unavailable.
 //!
 //! Battery comes from UPower's `OnBattery`, on the system bus.
 //!
@@ -150,7 +153,7 @@ pub fn spawn_watch(sink: EventSink, watch_idle: bool) {
             loop {
                 let after = IDLE_AFTER_MS.load(Ordering::Relaxed);
                 let now_away = match idle.as_mut() {
-                    Some(source) if after > 0 => source.idle_ms().is_some_and(|ms| ms >= after),
+                    Some(source) if after > 0 => source.away(after),
                     _ => false,
                 };
                 // Resent until delivered: a full channel is not a gone loop.
@@ -193,6 +196,9 @@ enum IdleSource {
     /// GNOME's IdleMonitor, under a Wayland session.
     #[cfg(unix)]
     Mutter(zbus::Connection),
+    /// The compositor's notifications, under another Wayland session.
+    #[cfg(unix)]
+    Wayland(Box<wayland_idle::WaylandIdle>),
     None,
 }
 
@@ -221,6 +227,9 @@ impl IdleSource {
                     return source;
                 }
             }
+            if let Some(wayland) = wayland_idle::WaylandIdle::open() {
+                return Self::Wayland(Box::new(wayland));
+            }
         }
         Self::None
     }
@@ -231,7 +240,18 @@ impl IdleSource {
             Self::ScreenSaver { .. } => "the X server (MIT-SCREEN-SAVER)",
             #[cfg(unix)]
             Self::Mutter(_) => "Mutter's IdleMonitor (D-Bus)",
+            #[cfg(unix)]
+            Self::Wayland(_) => "the Wayland compositor (ext-idle-notify-v1)",
             Self::None => "nowhere — pausing when away is unavailable",
+        }
+    }
+
+    /// Whether there has been no input for `after_ms`.
+    fn away(&mut self, after_ms: u64) -> bool {
+        match self {
+            #[cfg(unix)]
+            Self::Wayland(wayland) => wayland.away(after_ms).unwrap_or(false),
+            _ => self.idle_ms().is_some_and(|ms| ms >= after_ms),
         }
     }
 
@@ -258,7 +278,149 @@ impl IdleSource {
                     .ok()?;
                 reply.body().deserialize::<u64>().ok()
             }),
+            // It says when, not how long: see `away`.
+            #[cfg(unix)]
+            Self::Wayland(_) => None,
             Self::None => None,
+        }
+    }
+}
+
+/// `ext-idle-notify-v1` for the X11 path: a Wayland connection of its own
+/// — no surface, a seat and the notifier — asking to be told once the
+/// seat has had no input for the time set, as the native path does
+/// (`wayland::layer_window::idle`). The compositor honours idle
+/// inhibitors, so a video playing keeps the characters going there too.
+#[cfg(unix)]
+mod wayland_idle {
+    use wayland_client::globals::{registry_queue_init, GlobalListContents};
+    use wayland_client::protocol::{wl_registry, wl_seat::WlSeat};
+    use wayland_client::{Connection, Dispatch, EventQueue, QueueHandle};
+    use wayland_protocols::ext::idle_notify::v1::client::{
+        ext_idle_notification_v1::{self, ExtIdleNotificationV1},
+        ext_idle_notifier_v1::{self, ExtIdleNotifierV1},
+    };
+
+    #[derive(Default)]
+    pub struct State {
+        idle: bool,
+    }
+
+    pub struct WaylandIdle {
+        _conn: Connection,
+        queue: EventQueue<State>,
+        state: State,
+        notifier: ExtIdleNotifierV1,
+        seat: WlSeat,
+        notification: Option<ExtIdleNotificationV1>,
+        /// What the notification was asked for; 0 none.
+        timeout_ms: u64,
+    }
+
+    impl WaylandIdle {
+        /// The session's compositor, if it is one and has the protocol.
+        pub fn open() -> Option<Self> {
+            std::env::var_os("WAYLAND_DISPLAY")?;
+            let conn = Connection::connect_to_env().ok()?;
+            let (globals, queue) = registry_queue_init::<State>(&conn).ok()?;
+            let qh = queue.handle();
+            let notifier = globals
+                .bind::<ExtIdleNotifierV1, _, _>(&qh, 1..=1, ())
+                .ok()?;
+            let seat = globals.bind::<WlSeat, _, _>(&qh, 1..=1, ()).ok()?;
+            Some(Self {
+                _conn: conn,
+                queue,
+                state: State::default(),
+                notifier,
+                seat,
+                notification: None,
+                timeout_ms: 0,
+            })
+        }
+
+        /// Whether the seat has had no input for `after_ms`, as the
+        /// compositor has said by now; asked again when the time changes.
+        /// `None` when the connection is gone.
+        pub fn away(&mut self, after_ms: u64) -> Option<bool> {
+            if after_ms != self.timeout_ms {
+                if let Some(old) = self.notification.take() {
+                    old.destroy();
+                }
+                self.state.idle = false;
+                self.timeout_ms = after_ms;
+                if after_ms > 0 {
+                    let ms = u32::try_from(after_ms).unwrap_or(u32::MAX);
+                    let qh = self.queue.handle();
+                    self.notification =
+                        Some(self.notifier.get_idle_notification(ms, &self.seat, &qh, ()));
+                }
+            }
+            self.queue.flush().ok()?;
+            if let Some(guard) = self.queue.prepare_read() {
+                // Without waiting: nothing come yet is not an error.
+                match guard.read() {
+                    Ok(_) => {}
+                    Err(wayland_client::backend::WaylandError::Io(e))
+                        if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                    Err(_) => return None,
+                }
+            }
+            self.queue.dispatch_pending(&mut self.state).ok()?;
+            Some(self.state.idle)
+        }
+    }
+
+    impl Dispatch<wl_registry::WlRegistry, GlobalListContents> for State {
+        fn event(
+            _: &mut Self,
+            _: &wl_registry::WlRegistry,
+            _: wl_registry::Event,
+            _: &GlobalListContents,
+            _: &Connection,
+            _: &QueueHandle<Self>,
+        ) {
+        }
+    }
+
+    impl Dispatch<WlSeat, ()> for State {
+        fn event(
+            _: &mut Self,
+            _: &WlSeat,
+            _: wayland_client::protocol::wl_seat::Event,
+            _: &(),
+            _: &Connection,
+            _: &QueueHandle<Self>,
+        ) {
+        }
+    }
+
+    impl Dispatch<ExtIdleNotifierV1, ()> for State {
+        fn event(
+            _: &mut Self,
+            _: &ExtIdleNotifierV1,
+            _: ext_idle_notifier_v1::Event,
+            _: &(),
+            _: &Connection,
+            _: &QueueHandle<Self>,
+        ) {
+        }
+    }
+
+    impl Dispatch<ExtIdleNotificationV1, ()> for State {
+        fn event(
+            state: &mut Self,
+            _: &ExtIdleNotificationV1,
+            event: ext_idle_notification_v1::Event,
+            _: &(),
+            _: &Connection,
+            _: &QueueHandle<Self>,
+        ) {
+            match event {
+                ext_idle_notification_v1::Event::Idled => state.idle = true,
+                ext_idle_notification_v1::Event::Resumed => state.idle = false,
+                _ => {}
+            }
         }
     }
 }

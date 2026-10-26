@@ -73,9 +73,9 @@ pub fn log_platform_info(native_wayland_active: bool) {
         // — click-through "not supported", advice to `cargo run`.
         DisplayServer::Wayland => {
             tracing::info!(
-                "Wayland session: the overlay runs through XWayland. On a wlroots \
-                 compositor (sway, Hyprland, river), ANIMA_USE_WAYLAND_NATIVE=1 \
-                 runs it natively."
+                "Wayland session: the overlay runs through XWayland. On a compositor \
+                 with layer shell (KDE Plasma 6, sway, Hyprland, river), \
+                 ANIMA_USE_WAYLAND_NATIVE=1 runs it natively."
             );
         }
         DisplayServer::Unknown(_) => {
