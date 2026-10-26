@@ -51,7 +51,9 @@ curat.
    - `CHANGELOG.md`: `[Unreleased]` → `[1.5.0] — data`;
    - `README.md`: rândul de stare și comenzile de instalare (acum `1.4.0`);
    - `docs/release-notes/v1.5.0.md` există deja — o recitire.
-4. **Tag-ul** `v1.5.0` pe `main` și push → `release.yml` construiește
+4. **Înainte de tag**, `scripts/check-release-flow.py` (fișierele care
+   trec între job-urile de release, pe fișiere de probă; câteva secunde).
+   **Tag-ul** `v1.5.0` pe `main` și push → `release.yml` construiește
    (Linux pe 22.04, Windows pe 24.04), atestă și deschide un **draft**.
    Verifici draft-ul și îl publici.
 5. **Draft-urile vechi** (1.2.1, 1.3.0, 1.4.0) încă nu sunt publice;
