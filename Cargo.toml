@@ -56,6 +56,10 @@ assets = [
     ["build/icons/256/anima-engine.png", "usr/share/icons/hicolor/256x256/apps/", "644"],
     ["data/com.animaengine.Anima.metainfo.xml", "usr/share/metainfo/", "644"],
     ["README.md", "usr/share/doc/anima-engine/", "644"],
+    # The manual page (cargo-deb compresses it), and the lintian checks
+    # that are wrong for this package, each with its reason.
+    ["data/anima-engine.1", "usr/share/man/man1/", "644"],
+    ["data/anima-engine.lintian-overrides", "usr/share/lintian/overrides/anima-engine", "644"],
     # The licences of every crate built in (scripts/third-party-licenses.py).
     ["data/THIRD-PARTY-LICENSES.txt", "usr/share/doc/anima-engine/", "644"],
 ]

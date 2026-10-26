@@ -20,6 +20,7 @@ ICONDIR    := $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps
 ICONROOT   := $(DESTDIR)$(PREFIX)/share/icons/hicolor
 METAINFODIR:= $(DESTDIR)$(PREFIX)/share/metainfo
 DOCDIR     := $(DESTDIR)$(PREFIX)/share/doc/anima-engine
+MANDIR     := $(DESTDIR)$(PREFIX)/share/man/man1
 ICON_SIZES := 16 24 32 48 64 128 256
 
 BINARY := target/release/anima_engine
@@ -67,6 +68,7 @@ install: $(BINARY) $(ICONS)
 	# Its licence, and those of every crate built in.
 	install -Dm0644 LICENSE                                $(DOCDIR)/LICENSE
 	install -Dm0644 data/THIRD-PARTY-LICENSES.txt          $(DOCDIR)/THIRD-PARTY-LICENSES.txt
+	install -Dm0644 data/anima-engine.1                    $(MANDIR)/anima-engine.1
 	@if [ -z "$(DESTDIR)" ] && command -v update-desktop-database >/dev/null 2>&1; then \
 		update-desktop-database -q $(APPDIR) || true; \
 	fi
@@ -103,6 +105,7 @@ uninstall:
 	done
 	rm -f $(METAINFODIR)/$(APPID).metainfo.xml
 	rm -f $(DOCDIR)/LICENSE $(DOCDIR)/THIRD-PARTY-LICENSES.txt
+	rm -f $(MANDIR)/anima-engine.1
 	-rmdir $(DOCDIR) 2>/dev/null
 	# The caches only for a real install, as `install` does: run under a
 	# DESTDIR they wrote a mimeinfo.cache into the staging tree, the one

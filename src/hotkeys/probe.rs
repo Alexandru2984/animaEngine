@@ -27,6 +27,9 @@ impl HotkeyStrategy {
     pub fn describe(self) -> String {
         match self {
             Self::Portal { version } => format!("portal (GlobalShortcuts v{version})"),
+            // On Windows the same strategy is RegisterHotKey: this line
+            // reaches the diagnostic report, which said X11 there.
+            Self::X11Grab if cfg!(windows) => "RegisterHotKey".to_string(),
             Self::X11Grab => "X11 XGrabKey".to_string(),
             Self::DbusOnly => "none (tray + D-Bus methods only)".to_string(),
         }

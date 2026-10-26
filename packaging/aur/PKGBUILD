@@ -57,6 +57,10 @@ package() {
     "$pkgdir/usr/share/metainfo/com.animaengine.Anima.metainfo.xml"
   install -Dm0644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   # Every crate's licence, from 1.5 on (scripts/third-party-licenses.py).
+  # The manual page, from 1.5.
+  if [ -f data/anima-engine.1 ]; then
+    install -Dm0644 data/anima-engine.1 "$pkgdir/usr/share/man/man1/anima-engine.1"
+  fi
   if [ -f data/THIRD-PARTY-LICENSES.txt ]; then
     install -Dm0644 data/THIRD-PARTY-LICENSES.txt \
       "$pkgdir/usr/share/licenses/$pkgname/THIRD-PARTY-LICENSES.txt"

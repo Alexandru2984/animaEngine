@@ -1,0 +1,11 @@
+# Each with a wildcard: the lintian of Ubuntu 22.04, where the release
+# is built, and newer ones write a hint's context differently.
+# Kept on purpose: a crash report (src/crash.rs) carries a backtrace,
+# which needs the symbol table to name the functions in it.
+anima-engine: unstripped-binary-or-object *
+# Not zlib: the deflate the PNG and ZIP code uses is miniz_oxide, in
+# Rust, built into the binary; lintian takes its messages for zlib's.
+anima-engine: embedded-library *
+# SingleMainWindow is a standard key since the Desktop Entry spec 1.5;
+# older lintian does not know it yet.
+anima-engine: desktop-entry-contains-unknown-key *SingleMainWindow*

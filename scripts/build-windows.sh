@@ -24,6 +24,11 @@ die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 TARGET=x86_64-pc-windows-gnu
 command -v x86_64-w64-mingw32-g++ >/dev/null || die "no x86_64-w64-mingw32-g++: apt install g++-mingw-w64-x86-64"
 command -v makensis >/dev/null || die "no makensis: apt install nsis"
+# 22.04's mingw-w64 (GCC 10) cannot link the .exe: libgcc's gthr-win32
+# wants __mingwthr_key_dtor, which its runtime does not give. 24.04's
+# (GCC 13) can. Said here rather than as a page of linker errors.
+MINGW_GCC_MAJOR="$(x86_64-w64-mingw32-gcc -dumpversion | cut -d. -f1)"
+[[ "$MINGW_GCC_MAJOR" -gt 10 ]] || die "mingw-w64 GCC $MINGW_GCC_MAJOR cannot link it — build on Ubuntu 24.04 or newer (GCC 13)"
 rustup target list --installed | grep -qx "$TARGET" || die "rustup target add $TARGET"
 
 VERSION="$(cargo metadata --no-deps --format-version 1 \

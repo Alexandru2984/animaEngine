@@ -75,8 +75,10 @@ of the H.264 decoder) is linked in statically, from the win32 thread
 model's, so the `.exe` needs only DLLs every Windows has; the script
 fails if it would need another. `build.rs` gives it the icon (also the
 tray's) and the version details its Properties show. The release
-workflow runs the script, checksums both files with the Linux packages,
-attests them and attaches them to the draft.
+workflow runs the script in a job of its own on Ubuntu 24.04 — 22.04's
+mingw-w64 (GCC 10) cannot link the `.exe`, and the script says so — then
+checksums both files with the Linux packages, attests them and attaches
+them to the draft.
 
 "Start at login" is the `animaEngine` value of
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` — what Task

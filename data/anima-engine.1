@@ -1,0 +1,61 @@
+.TH ANIMA-ENGINE 1 "October 2026" "animaEngine" "User Commands"
+.SH NAME
+anima-engine \- animated characters that live on your desktop
+.SH SYNOPSIS
+.B anima-engine
+.RI [ OPTIONS ]
+.SH DESCRIPTION
+.B anima-engine
+draws animated characters \(em pictures, GIFs, WebPs, short videos,
+Shimeji packs, or the ten it draws itself \(em over the desktop, or
+behind your windows. Clicks go through to the windows beneath. The
+gear button in the top-right corner, or Ctrl+Shift+A, opens edit mode,
+where they are added, arranged and changed; Escape leaves it.
+.PP
+A second start does not run a second copy: it brings up the one
+running. It makes no network connection.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Print a short help and exit.
+.TP
+.BR \-V ", " \-\-version
+Print the version and exit.
+.TP
+.BR \-r ", " \-\-recover
+Restore the crash-recovery snapshot over the live configuration (which
+is first backed up to
+.IR config.toml.bak ),
+then exit.
+.SH ENVIRONMENT
+.TP
+.B ANIMA_USE_WAYLAND_NATIVE=1
+On a Wayland compositor with layer shell (KDE Plasma 6, sway, Hyprland,
+river), draw through it rather than XWayland.
+.TP
+.B RUST_LOG=anima_engine=debug
+More detailed logs on standard error.
+.TP
+.B ANIMA_NO_CACHE=1
+Neither read nor write the decoded-frame cache.
+.TP
+.B __NV_PRIME_RENDER_OFFLOAD=1
+On a laptop with an NVIDIA GPU, draw on it; otherwise it is left asleep.
+.SH FILES
+.TP
+.I ~/.config/animaengine/config.toml
+Settings and the characters on screen.
+.TP
+.I ~/.config/animaengine/scenes/
+Saved scenes.
+.TP
+.I ~/.local/share/animaengine/
+The picture library, and the built-in characters' pictures.
+.TP
+.I ~/.cache/animaengine/
+Decoded frames and thumbnails; safe to delete.
+.SH SEE ALSO
+The README, in
+.IR /usr/share/doc/anima-engine/ ;
+the FAQ and the full documentation at
+https://github.com/Alexandru2984/animaEngine.

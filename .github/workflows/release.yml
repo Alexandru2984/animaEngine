@@ -8,12 +8,18 @@ name: Release
 # artifacts attached and the notes from docs/release-notes/. A human
 # reviews the draft and clicks publish — nothing goes public on its own.
 #
-# Why two jobs: the build downloads and runs `linuxdeploy` (content-
+# Why separate jobs: the build downloads and runs `linuxdeploy` (content-
 # pinned by SHA-256, but still third-party code) with the workspace open.
 # Keeping the signing token (id-token) and release-write permission out of
 # that job means a compromised build tool can't misuse the credentials or
 # certify a malicious artifact — it can only produce an artifact the
 # publish job then attests. The publish job runs no third-party code.
+#
+# The Windows build has a job of its own on 24.04: 22.04's mingw-w64
+# (GCC 10) cannot link the .exe — `undefined reference to
+# __mingwthr_key_dtor` from libgcc's gthr-win32 — while 24.04's (GCC 13)
+# can, and the Linux artifacts must stay on 22.04 for its glibc (below).
+# Found building exactly this pipeline in containers before 1.5's tag.
 #
 # Guards (in build): the tag must be an ancestor of origin/main, match
 # Cargo.toml's version, have a notes file, and the full test suite must
@@ -76,16 +82,13 @@ jobs:
           fi
 
       - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-        with:
-          targets: x86_64-pc-windows-gnu
       - name: Install system deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libvulkan-dev libx11-dev libxcb1-dev libxkbcommon-dev \
             libxkbcommon-x11-dev libwayland-dev libxrandr-dev libasound2-dev \
-            librsvg2-bin desktop-file-utils file \
-            gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 nsis
+            librsvg2-bin desktop-file-utils file
 
       # Deliberately no build cache on the release path: artifacts are
       # produced by a from-scratch build of exactly the tagged tree.
@@ -107,10 +110,6 @@ jobs:
         run: scripts/build-deb.sh
       - name: Build AppImage
         run: scripts/build-appimage.sh
-      # The ZIP and the installer; the script fails if the .exe would
-      # need a DLL Windows does not have.
-      - name: Build for Windows
-        run: scripts/build-windows.sh
 
       # GitHub replaces `~` in release-asset filenames with `.` on
       # upload, but cargo-deb correctly names pre-release debs with a
@@ -127,14 +126,6 @@ jobs:
             mv -v "$f" "${f//\~/.}"
           done
 
-      - name: Checksums
-        run: |
-          cd build
-          sha256sum anima-engine_*.deb animaEngine-*.AppImage \
-            animaEngine-*-windows-x86_64.zip animaEngine-*-windows-x86_64-setup.exe \
-            > "SHA256SUMS-$GITHUB_REF_NAME.txt"
-          cat "SHA256SUMS-$GITHUB_REF_NAME.txt"
-
       # Stage exactly the release files into a clean dir so the
       # artifact hand-off carries them (and nothing from build/'s AppDir /
       # tools cruft) at a predictable path for the publish job.
@@ -143,22 +134,62 @@ jobs:
           mkdir -p dist
           cp build/anima-engine_*.deb \
              build/animaEngine-*.AppImage \
-             build/animaEngine-*-windows-x86_64.zip \
-             build/animaEngine-*-windows-x86_64-setup.exe \
-             "build/SHA256SUMS-$GITHUB_REF_NAME.txt" \
              dist/
           ls -l dist
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: release-dist
+          name: release-linux
+          path: dist
+          if-no-files-found: error
+          retention-days: 1
+
+  build-windows:
+    name: build for Windows (unprivileged)
+    # After `build`: its guards and test gate cover this commit too.
+    needs: build
+    # 24.04, not 22.04: see the top of this file. Only the Windows
+    # artifacts come from here; glibc does not matter to them.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          targets: x86_64-pc-windows-gnu
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 nsis
+
+      - name: Install packaging tools
+        run: cargo install --locked cargo-auditable@0.7.5
+
+      # The ZIP and the installer; the script fails if the .exe would
+      # need a DLL Windows does not have.
+      - name: Build for Windows
+        run: scripts/build-windows.sh
+
+      - name: Stage release artifacts
+        run: |
+          mkdir -p dist
+          cp build/animaEngine-*-windows-x86_64.zip \
+             build/animaEngine-*-windows-x86_64-setup.exe \
+             dist/
+          ls -l dist
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-windows
           path: dist
           if-no-files-found: error
           retention-days: 1
 
   publish:
     name: attest + draft
-    needs: build
+    needs: [build, build-windows]
     runs-on: ubuntu-22.04
     # The only job with elevated permissions — and it runs no third-party
     # code, just downloads the built artifacts, attests them, and opens
@@ -175,8 +206,18 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: release-dist
+          pattern: release-*
+          merge-multiple: true
           path: dist
+
+      # Over both jobs' files, once they are together.
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum anima-engine_*.deb animaEngine-*.AppImage \
+            animaEngine-*-windows-x86_64.zip animaEngine-*-windows-x86_64-setup.exe \
+            > "SHA256SUMS-$GITHUB_REF_NAME.txt"
+          cat "SHA256SUMS-$GITHUB_REF_NAME.txt"
 
       # Provenance: cryptographically links each artifact to this workflow
       # run, repo and commit. Verify with:
