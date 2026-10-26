@@ -179,7 +179,7 @@ Ask 'The animaEngine icon is in the notification area (perhaps under the ^ arrow
 Ask 'Right-click on that icon shows a menu (Edit mode, Pause, Quit...)?' | Out-Null
 Ask 'The gear button in the top-right corner opens edit mode with the Welcome window?' | Out-Null
 Ask 'In edit mode, a character can be dragged; let go, it falls back down?' | Out-Null
-Ask 'With Notepad in front, Ctrl+Shift+A opens and closes edit mode?' | Out-Null
+Ask 'With Notepad in front, Win+Alt+A opens and closes edit mode?' | Out-Null
 if ($dpi -and $dpi.AppliedDPI -gt 96) {
     Ask 'At your scaling, the characters and the settings panel look sharp, not blurry?' | Out-Null
 }

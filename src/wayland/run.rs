@@ -2115,6 +2115,7 @@ pub fn run_native(
                                 ctx,
                                 onboarding_mut,
                                 edit_mode_snapshot,
+                                keybindings_mut,
                             ) {
                                 *config_dirty_mut = true;
                             }

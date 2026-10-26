@@ -632,6 +632,7 @@ impl App {
                                     ctx,
                                     onboarding_mut,
                                     edit_mode,
+                                    keybindings_mut,
                                 ) {
                                     *config_dirty_mut = true;
                                 }

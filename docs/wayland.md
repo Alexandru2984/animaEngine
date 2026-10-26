@@ -62,7 +62,7 @@ set the env var.
 | Stepping aside for full-screen apps | EWMH `_NET_ACTIVE_WINDOW` / `_NET_WM_STATE` | `wlr-foreign-toplevel-management` (sway, Hyprland; not GNOME/KDE) |
 | Holding still when away | MIT-SCREEN-SAVER on a real X server; Mutter's IdleMonitor (D-Bus) under XWayland on GNOME; the compositor's `ext-idle-notify-v1` under XWayland elsewhere (KDE, wlroots — 1.5) | `ext-idle-notify-v1` (sway, Hyprland, KDE) |
 | `MonitorMode::PerMonitor` distribution | extra `winit::Window` per monitor | extra layer-shell surface per `wl_output` (headless sway, 2–3 outputs — see below) |
-| Global hotkeys | XGrabKey (`Ctrl+Shift+A/H/P`) | **GlobalShortcuts portal** (preferred) or compositor bindings + D-Bus (see below) |
+| Global hotkeys | XGrabKey (`Super+Alt+A/H/P`; `Ctrl+Shift` before 1.5) | **GlobalShortcuts portal** (preferred) or compositor bindings + D-Bus (see below) |
 | Tray icon (StatusNotifierItem) | ✓ | ✓ |
 | AccessKit / AT-SPI (screen readers) | ✓ (since 1.4) | ✓ (since 1.4) |
 
@@ -173,25 +173,31 @@ gdbus call --session \
     --method org.animaengine.Anima.ToggleEditMode
 ```
 
+The examples use the app's own defaults, Super+Alt+A, H and P (from
+1.5). Where your compositor already uses one — sway's default config
+moves windows with Super+Shift+H, which the examples used before; river's
+example `init` moves views with Super+Alt+H, so the river example below
+hides the overlay on Super+Alt+Shift+H — pick another where yours does.
+
 ### sway bindings example
 
 Put these in `~/.config/sway/config`:
 
 ```
-# Anima: edit mode toggle on Mod4+Shift+A
-bindsym Mod4+Shift+a exec gdbus call --session \
+# Anima: edit mode toggle on Mod4+Mod1+A
+bindsym Mod4+Mod1+a exec gdbus call --session \
     --dest com.animaengine.Anima \
     --object-path /com/animaengine/Anima \
     --method org.animaengine.Anima.ToggleEditMode
 
-# Anima: hide overlay on Mod4+Shift+H
-bindsym Mod4+Shift+h exec gdbus call --session \
+# Anima: hide overlay on Mod4+Mod1+H
+bindsym Mod4+Mod1+h exec gdbus call --session \
     --dest com.animaengine.Anima \
     --object-path /com/animaengine/Anima \
     --method org.animaengine.Anima.HideOverlay
 
-# Anima: pause / resume playback on Mod4+Shift+P
-bindsym Mod4+Shift+p exec gdbus call --session \
+# Anima: pause / resume playback on Mod4+Mod1+P
+bindsym Mod4+Mod1+p exec gdbus call --session \
     --dest com.animaengine.Anima \
     --object-path /com/animaengine/Anima \
     --method org.animaengine.Anima.ToggleGlobalPlayback
@@ -204,9 +210,9 @@ Reload sway (`Mod4+Shift+c`) to pick up the new bindings.
 `~/.config/hypr/hyprland.conf`:
 
 ```
-bind = SUPER SHIFT, A, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleEditMode
-bind = SUPER SHIFT, H, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.HideOverlay
-bind = SUPER SHIFT, P, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleGlobalPlayback
+bind = SUPER ALT, A, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleEditMode
+bind = SUPER ALT, H, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.HideOverlay
+bind = SUPER ALT, P, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleGlobalPlayback
 ```
 
 Reload with `hyprctl reload`.
@@ -216,9 +222,9 @@ Reload with `hyprctl reload`.
 `~/.config/river/init`:
 
 ```
-riverctl map normal Super+Shift A spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleEditMode'
-riverctl map normal Super+Shift H spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.HideOverlay'
-riverctl map normal Super+Shift P spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleGlobalPlayback'
+riverctl map normal Super+Alt A spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleEditMode'
+riverctl map normal Super+Alt+Shift H spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.HideOverlay'
+riverctl map normal Super+Alt P spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleGlobalPlayback'
 ```
 
 ## Compositor compatibility — tested matrix
@@ -241,11 +247,12 @@ it.
 (Ubuntu 26.04's packages, KWin drawing into a window on Xvfb, in a
 container): on both paths the characters draw over the wallpaper and
 the panel, a click on empty space reaches the window beneath, edit mode
-opens from D-Bus and from Ctrl+Shift+A, the tray icon sits in Plasma's
-system tray, and the global shortcuts go through KDE's portal — Plasma
-asks to allow them once, and marks Ctrl+Shift+A as taken by the
-standard *Deselect* action in KDE apps; another chord can be chosen in
-that dialog or the Keybindings tab. The portal knows the app only with
+opens from D-Bus and from its global shortcut, the tray icon sits in
+Plasma's system tray, and the global shortcuts go through KDE's portal —
+Plasma asks to allow them once. It marked Ctrl+Shift+A, the edit-mode
+shortcut then, as taken by the standard *Deselect* action in KDE apps:
+one of the reasons the defaults moved to Super+Alt in 1.5
+([global-shortcuts-decision.md](global-shortcuts-decision.md)). The portal knows the app only with
 its desktop file installed, as the packages install it. Holding still
 when away reads `ext-idle-notify-v1` on both paths since 1.5.
 

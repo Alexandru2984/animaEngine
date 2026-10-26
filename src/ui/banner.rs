@@ -27,7 +27,7 @@ pub enum Warning {
     /// `hotkeys::register` returned `None` at startup — typically
     /// because the session is native Wayland without XWayland
     /// fallback, where `XGrabKey` isn't exposed. The tray menu and
-    /// the `⚙` button still work; only Ctrl+Shift+A/H/P are dead.
+    /// the `⚙` button still work; only the global shortcuts are dead.
     GlobalHotkeysUnavailable,
     /// The hot-reload worker thread disconnected before delivering a
     /// reload result. Surfacing this matters because the user's

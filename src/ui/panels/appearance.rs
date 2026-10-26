@@ -36,6 +36,8 @@ pub(super) fn appearance_tab(
     moods: &mut bool,
     start_at_login: &mut bool,
     request: &mut Option<super::SceneRequest>,
+    // Edit mode's shortcut, as the hints name it.
+    edit_chord: &str,
 ) {
     ui.label(egui::RichText::new(t("appearance-theme-header")).text_style(h2()));
     ui.add_space(SPACE_S);
@@ -135,7 +137,11 @@ pub(super) fn appearance_tab(
     let mut behind = !*always_on_top;
     if ui
         .checkbox(&mut behind, t("appearance-behind-windows-label"))
-        .on_hover_text(t("appearance-behind-windows-hint"))
+        .on_hover_text({
+            let mut args = fluent::FluentArgs::new();
+            args.set("edit", edit_chord.to_string());
+            crate::i18n::t_args("appearance-behind-windows-hint", &args)
+        })
         .changed()
     {
         *always_on_top = !behind;

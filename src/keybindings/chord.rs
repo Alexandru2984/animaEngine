@@ -50,6 +50,20 @@ impl KeyChord {
         physical: Option<egui::Key>,
         mods: egui::Modifiers,
     ) -> Option<Self> {
+        Self::from_egui_parts(key, physical, mods, super::keys::super_held())
+    }
+
+    /// [`Self::from_egui_event`] with whether Super is held given. egui
+    /// carries Super only on macOS (`mac_cmd`): elsewhere a press of
+    /// Super+Alt+A arrives as Alt+A, and the global shortcuts are on Super
+    /// from 1.5 — so the backends say when it is held
+    /// (`keys::set_super_held`), and it is added here.
+    pub fn from_egui_parts(
+        key: egui::Key,
+        physical: Option<egui::Key>,
+        mods: egui::Modifiers,
+        super_held: bool,
+    ) -> Option<Self> {
         // Only `mac_cmd` means Super. `command` does NOT: off macOS egui
         // defines it as an alias for `ctrl`, so treating it as Super
         // turned every Ctrl chord into Ctrl+Super — which matches nothing
@@ -60,7 +74,8 @@ impl KeyChord {
         // backends, persisting a chord that could never fire again (R26).
         // On macOS `mac_cmd` is set for the real Cmd key, so Super still
         // round-trips there.
-        let mask = ModifierMask::from_state(mods.ctrl, mods.shift, mods.alt, mods.mac_cmd);
+        let sup = mods.mac_cmd || (!cfg!(target_os = "macos") && super_held);
+        let mask = ModifierMask::from_state(mods.ctrl, mods.shift, mods.alt, sup);
         let code = KeyCode::resolve(
             KeyCode::from_egui(key),
             physical.and_then(KeyCode::from_egui),
@@ -81,16 +96,18 @@ impl KeyChord {
         self.modifier_prefix(&ModifierNames::CANONICAL) + self.key.canonical_str().as_str()
     }
 
-    /// The `Ctrl+Shift+Alt+Super+` prefix both renderings share. Order is
+    /// The `Super+Ctrl+Shift+Alt+` prefix both renderings share. Order is
     /// fixed so a chord always round-trips to the same string — parsing
     /// accepts any order, but serialising must not vary.
     fn modifier_prefix(&self, names: &ModifierNames) -> String {
         let mut s = String::new();
+        // Super first, as GNOME (Super+Alt), KDE (Meta+Alt) and Windows
+        // (Win+Alt) all write it; the rest as they always were.
         for (held, name) in [
+            (self.mods.sup(), &names.sup),
             (self.mods.ctrl(), &names.ctrl),
             (self.mods.shift(), &names.shift),
             (self.mods.alt(), &names.alt),
-            (self.mods.sup(), &names.sup),
         ] {
             if held {
                 s.push_str(name);
@@ -179,7 +196,12 @@ impl ModifierNames {
             ctrl: crate::i18n::t("key-mod-ctrl").into(),
             shift: crate::i18n::t("key-mod-shift").into(),
             alt: crate::i18n::t("key-mod-alt").into(),
-            sup: crate::i18n::t("key-mod-super").into(),
+            // What its keyboards and help call it there.
+            sup: if cfg!(windows) {
+                "Win".into()
+            } else {
+                crate::i18n::t("key-mod-super").into()
+            },
             keys: Some(KeyLabels::localized()),
         }
     }

@@ -27,6 +27,21 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ModifierMask(pub(crate) u8);
 
+/// Whether Super is held, as the window system last said: egui does not
+/// carry it off macOS (`KeyChord::from_egui_parts`). One keyboard, one
+/// process: the backend whose window has the keys keeps it.
+static SUPER_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Called by a backend when the keyboard's modifiers change.
+pub fn set_super_held(held: bool) {
+    SUPER_HELD.store(held, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Whether Super was held at the last modifiers change.
+pub(crate) fn super_held() -> bool {
+    SUPER_HELD.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 impl ModifierMask {
     pub const NONE: Self = Self(0);
     pub const CTRL: Self = Self(0b0001);

@@ -20,8 +20,11 @@ cargo build --release
 RUST_LOG=anima_engine=info ./target/release/anima_engine 2>&1 | tee /tmp/anima-1.5.log
 ```
 
-Keep that terminal: several checks read the log. `Ctrl+Shift+A` opens
-edit mode from anywhere.
+Keep that terminal: several checks read the log. The edit-mode shortcut
+opens edit mode from anywhere: `Super+Alt+A` on a config made by 1.5,
+`Ctrl+Shift+A` on one from before, which keeps its shortcuts — yours
+does. Below, *edit* and *hide* mean those (`Super+Alt+H` /
+`Ctrl+Shift+H` for hide).
 
 ## 1. Start
 
@@ -127,13 +130,13 @@ edit mode from anywhere.
       (R76: 1.5 asked before GNOME had put it in its scope). Started
       from a terminal, the same.
 - [ ] **Which mechanism.** The log says `Hotkey strategy: …`. With
-      `X11 XGrabKey`: `Ctrl+Shift+A` from an X11 app in front (`xterm`)
+      `X11 XGrabKey`: *edit* from an X11 app in front (`xterm`)
       opens edit mode; switch the keyboard layout (`Super+Space`) and it
       still does; held down, it toggles once.
 - [ ] **Their names, in your language.** With the app in Romanian,
       GNOME's list of the app's shortcuts (where item 1 of this section
       found it) names them in Romanian, after a restart of the app.
-- [ ] **Without a mouse.** `Ctrl+Shift+A`; `Tab` to a character's name
+- [ ] **Without a mouse.** *edit*; `Tab` to a character's name
       in the Scene tab, `Enter`; `Esc` (still in edit mode);
       `Shift+F10` opens the right-click menu with its first item
       focused — `Tab` to *Save as GIF…*, `Enter`: GNOME's save dialog.
@@ -206,7 +209,7 @@ edit mode from anywhere.
 
 ## 8. A working day
 
-- [ ] **Still, it rests.** Hide the overlay (`Ctrl+Shift+H`), then count
+- [ ] **Still, it rests.** Hide the overlay (*hide*), then count
       its wake-ups over ten seconds:
 
       ```bash

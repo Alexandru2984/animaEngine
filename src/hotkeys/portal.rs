@@ -386,8 +386,10 @@ mod tests {
 
     #[test]
     fn xdg_trigger_for_default_chords() {
-        let chord: KeyChord = "Ctrl+Shift+A".parse().unwrap();
-        assert_eq!(chord_to_xdg_trigger(chord).as_deref(), Some("CTRL+SHIFT+a"));
+        // As the defaults are from 1.5, and a 1.4 config's.
+        let bindings = crate::keybindings::KeyBindings::default();
+        let edit = bindings.chords_for(crate::keybindings::Action::ToggleEditMode)[0];
+        assert_eq!(chord_to_xdg_trigger(edit).as_deref(), Some("ALT+LOGO+a"));
         let chord: KeyChord = "Ctrl+Shift+H".parse().unwrap();
         assert_eq!(chord_to_xdg_trigger(chord).as_deref(), Some("CTRL+SHIFT+h"));
     }

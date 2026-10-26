@@ -157,7 +157,7 @@ silently lose actions added in 0.4.
 Everything in edit mode can be reached from the keyboard (1.5, checked
 on both backends):
 
-- `Ctrl+Shift+A` opens edit mode. `Tab` moves through the settings
+- `Super+Alt+A` opens edit mode. `Tab` moves through the settings
   panel, `Enter` or `Space` presses what has the focus, and `Esc` gives
   the keyboard back to the scene, still in edit mode.
 - A character is picked in the Scene tab's list: `Tab` to its name and
@@ -183,7 +183,8 @@ it.
 Global hotkeys are restricted to chords with at least one modifier
 (Ctrl / Alt / Super) — registering a bare letter via `XGrabKey`
 would steal the key from every focused app. The default global set
-(`Ctrl+Shift+A` / `Ctrl+Shift+H` / `Ctrl+Shift+P`) maps onto
+(`Super+Alt+A` / `Super+Alt+H` / `Super+Alt+P`; `Ctrl+Shift` before
+1.5) maps onto
 `ToggleEditMode` / `HideOverlay` / `PauseAll`; rebinding any of those
 onto an unmodifier chord silently demotes it to in-app-only. The focus
 timer, the snooze and muting the sounds (`ToggleFocus`, `ToggleSnooze`,
@@ -241,7 +242,7 @@ need to suppress sprite visuals entirely can:
 - Use the toggle button ⚙ to enter pass-through mode where only the
   16×16 corner control is visible
 - Toggle visibility per entity in the Inspector (V key)
-- Hide the whole overlay via the tray menu or `Ctrl+Shift+H`
+- Hide the whole overlay via the tray menu or `Super+Alt+H`
 
 ### Per-user audio cues
 

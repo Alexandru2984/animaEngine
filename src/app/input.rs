@@ -555,6 +555,7 @@ impl App {
         self.ctrl_held = modifiers.state().control_key();
         self.alt_held = modifiers.state().alt_key();
         self.super_held = modifiers.state().super_key();
+        crate::keybindings::set_super_held(self.super_held);
     }
 }
 

@@ -27,7 +27,7 @@ pub mod shared;
 pub use action::Action;
 pub use bindings::KeyBindings;
 pub use chord::{ChordParseError, KeyChord, KeyLabels, ModifierNames};
-pub use keys::{KeyCode, ModifierMask, NamedKey, SymbolKey};
+pub use keys::{set_super_held, KeyCode, ModifierMask, NamedKey, SymbolKey};
 
 // ── Tests ──────────────────────────────────────────────────────────────
 
@@ -157,8 +157,11 @@ mod tests {
     #[test]
     fn lookup_finds_default_chord() {
         let bindings = KeyBindings::default();
-        let chord: KeyChord = "Ctrl+Shift+A".parse().unwrap();
+        let chord: KeyChord = "Super+Alt+A".parse().unwrap();
         assert_eq!(bindings.lookup(chord), Some(Action::ToggleEditMode));
+        // Ctrl+Shift+A is VS Code's, Firefox's and KDE's again (1.5).
+        let chord: KeyChord = "Ctrl+Shift+A".parse().unwrap();
+        assert_eq!(bindings.lookup(chord), None);
         let chord: KeyChord = "Esc".parse().unwrap();
         assert_eq!(bindings.lookup(chord), Some(Action::ToggleEditMode));
         let chord: KeyChord = "Space".parse().unwrap();
@@ -552,8 +555,25 @@ mod tests {
             shift: true,
             ..egui::Modifiers::NONE
         };
-        let chord = KeyChord::from_egui(egui::Key::A, mods).unwrap();
-        assert_eq!(bindings.lookup(chord), Some(Action::ToggleEditMode));
+        let chord = KeyChord::from_egui(egui::Key::G, mods).unwrap();
+        assert_eq!(bindings.lookup(chord), Some(Action::UngroupSelected));
+    }
+
+    /// Off macOS egui drops Super: the backend says it is held, and the
+    /// chord read from egui has it — Super+Alt+A records and fires as
+    /// itself, not as Alt+A (1.5, when the global shortcuts moved there).
+    #[test]
+    fn super_comes_from_the_backend() {
+        let alt = egui::Modifiers {
+            alt: true,
+            ..egui::Modifiers::NONE
+        };
+        let bindings = KeyBindings::default();
+        let held = KeyChord::from_egui_parts(egui::Key::A, None, alt, true).unwrap();
+        assert_eq!(held.to_string(), "Super+Alt+A");
+        assert_eq!(bindings.lookup(held), Some(Action::ToggleEditMode));
+        let not = KeyChord::from_egui_parts(egui::Key::A, None, alt, false).unwrap();
+        assert_eq!(bindings.lookup(not), None);
     }
 
     /// macOS still needs a way to express Super, and `mac_cmd` is it.

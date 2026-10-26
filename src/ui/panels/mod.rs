@@ -609,6 +609,7 @@ pub fn settings(
                                 moods,
                                 start_at_login,
                                 scene_request,
+                                &keybindings.label_for(crate::keybindings::Action::ToggleEditMode),
                             );
                         }
                         SettingsTab::Keybindings => {

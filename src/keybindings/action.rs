@@ -326,14 +326,22 @@ impl Action {
     // gets proper static storage — `&[KeyChord::new(...)]` returned
     // directly from a match arm doesn't const-promote and fails to
     // borrow-check.
+    // The three global ones on Super+Alt (1.5; Ctrl+Shift before): a
+    // global shortcut is taken from every app while this one runs, and
+    // Ctrl+Shift+A, H and P are KDE's Deselect, Firefox's add-ons,
+    // history and private window, VS Code's comment, replace in files
+    // and command palette. Super+Alt is free on GNOME, KDE and Windows
+    // (docs/global-shortcuts-decision.md). A config keeps the chords it
+    // has: only a new one starts with these.
+    const GLOBAL: ModifierMask = ModifierMask(ModifierMask::SUPER.0 | ModifierMask::ALT.0);
     const C_TOGGLE_EDIT_MODE: &'static [KeyChord] = &[
-        KeyChord::new(ModifierMask(0b0011), KeyCode::Letter('A')),
+        KeyChord::new(Self::GLOBAL, KeyCode::Letter('A')),
         KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::Escape)),
     ];
     const C_HIDE_OVERLAY: &'static [KeyChord] =
-        &[KeyChord::new(ModifierMask(0b0011), KeyCode::Letter('H'))];
+        &[KeyChord::new(Self::GLOBAL, KeyCode::Letter('H'))];
     const C_PAUSE_ALL: &'static [KeyChord] = &[
-        KeyChord::new(ModifierMask(0b0011), KeyCode::Letter('P')),
+        KeyChord::new(Self::GLOBAL, KeyCode::Letter('P')),
         KeyChord::new(ModifierMask::NONE, KeyCode::Named(NamedKey::Space)),
     ];
     const C_QUIT_WITH_SAVE: &'static [KeyChord] =

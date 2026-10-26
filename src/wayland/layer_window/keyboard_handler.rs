@@ -172,6 +172,7 @@ impl KeyboardHandler for WaylandState {
         modifiers: SctkModifiers,
         _layout: u32,
     ) {
+        crate::keybindings::set_super_held(modifiers.logo);
         self.last_modifiers = modifiers;
     }
 

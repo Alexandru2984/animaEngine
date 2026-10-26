@@ -160,6 +160,19 @@ impl KeyBindings {
         self.effective(action).into_owned()
     }
 
+    /// The shortcut a text names for `action` — the tour's, a hint's — as
+    /// the Keybindings tab writes it in the UI's language: its first chord
+    /// here, or, with none bound, its first default. Texts used to say
+    /// "Ctrl+Shift+A" whatever it was.
+    pub fn label_for(&self, action: Action) -> String {
+        let names = super::ModifierNames::localized();
+        self.effective(action)
+            .first()
+            .or_else(|| action.default_chords().first())
+            .map(|chord| chord.display_str(&names))
+            .unwrap_or_default()
+    }
+
     /// Find the action bound to `chord`. Linear scan — total bindings
     /// stay under ~50 so this is well below any UI-event budget. When
     /// multiple actions are bound to the same chord (a conflict), the

@@ -10,7 +10,8 @@ report**).
 **I click a character and nothing happens.** Clicks go through the
 characters to whatever is underneath: that is what lets them live on
 your desktop. To change them, open edit mode — the ⚙ button in the
-top-right corner of the screen, or `Ctrl+Shift+A`. To poke them without
+top-right corner of the screen, or `Super+Alt+A` (`Win+Alt+A` on
+Windows). To poke them without
 it, turn on Appearance → **Characters can be tapped**.
 
 **How do I add a character?** In edit mode, drop a PNG, GIF, WebP, JPEG
@@ -46,7 +47,13 @@ wherever you paste it, nowhere else.
 
 ## Shortcuts
 
-**`Ctrl+Shift+A` does nothing on GNOME or KDE under Wayland.** Global
+**My shortcuts are still Ctrl+Shift+A, H and P.** They were the
+defaults before 1.5, and a config from then keeps what it has. They
+clash with VS Code, Firefox and KDE's own (Deselect), which is why new
+installs start on Super+Alt. Change them in the Keybindings tab — on
+GNOME and KDE under Wayland, in the desktop's own shortcut settings.
+
+**`Super+Alt+A` does nothing on GNOME or KDE under Wayland.** Global
 shortcuts there go through the desktop's shortcuts portal, which asks
 you, the first time, whether to allow them. Answer the dialog, and they
 work everywhere. If it was dismissed, the desktop asks again at the

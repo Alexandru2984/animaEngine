@@ -27,7 +27,9 @@ command -v makensis >/dev/null || die "no makensis: apt install nsis"
 # 22.04's mingw-w64 (GCC 10) cannot link the .exe: libgcc's gthr-win32
 # wants __mingwthr_key_dtor, which its runtime does not give. 24.04's
 # (GCC 13) can. Said here rather than as a page of linker errors.
-MINGW_GCC_MAJOR="$(x86_64-w64-mingw32-gcc -dumpversion | cut -d. -f1)"
+# `-dumpversion` says `13-win32` on Debian and Ubuntu: the leading digits.
+MINGW_GCC_MAJOR="$(x86_64-w64-mingw32-gcc -dumpversion)"
+MINGW_GCC_MAJOR="${MINGW_GCC_MAJOR%%[!0-9]*}"
 [[ "$MINGW_GCC_MAJOR" -gt 10 ]] || die "mingw-w64 GCC $MINGW_GCC_MAJOR cannot link it — build on Ubuntu 24.04 or newer (GCC 13)"
 rustup target list --installed | grep -qx "$TARGET" || die "rustup target add $TARGET"
 

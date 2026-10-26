@@ -427,6 +427,18 @@ read-only D-Bus names, for the idle time
 
 ### Changed
 
+- **The global shortcuts are Super+Alt+A, H and P** (Win+Alt on
+  Windows) for edit mode, hiding and pausing, in a new config. Ctrl+Shift+A,
+  H and P were taken from every app while this one ran: KDE's standard
+  Deselect, Firefox's add-ons, history and private window, VS Code's block
+  comment, replace in files and command palette. Super+Alt is free on
+  GNOME, KDE and Windows, and types nothing through AltGr
+  (docs/global-shortcuts-decision.md). A config from before keeps its
+  shortcuts. The tour and the hints name the shortcuts as they are bound,
+  not as they used to be; a chord with Super records in the Keybindings tab
+  (egui carries Super only on macOS — the backends now say when it is
+  held); Super is written first, as the desktops write it, and is "Win" on
+  Windows.
 - **A laptop's NVIDIA GPU is left asleep.** With one beside an
   integrated AMD or Intel GPU, the app draws on the integrated one, but
   the Vulkan loader loaded NVIDIA's driver too, and that woke the NVIDIA

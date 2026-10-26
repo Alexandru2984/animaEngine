@@ -40,7 +40,7 @@ administrator.
 | instalarea: dosarul, Apps & features, meniul Start | iconița din tray și meniul ei |
 | pornirea, CPU și memoria în repaus | rotița deschide modul de editare cu bun-venitul |
 | erorile din jurnal | un personaj tras cade înapoi |
-| pornirea la login: intrarea `Run` scrisă, apoi ștearsă | Ctrl+Shift+A cu Notepad în față |
+| pornirea la login: intrarea `Run` scrisă, apoi ștearsă | Win+Alt+A cu Notepad în față |
 | raportul de diagnostic ajunge în clipboard | claritatea la scalare peste 100% |
 | dezinstalarea nu lasă nimic în urmă | al doilea ecran, dacă există |
 

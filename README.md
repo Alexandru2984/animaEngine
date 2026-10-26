@@ -112,7 +112,7 @@ next to no CPU while nothing moves.
   right-click menu, `Ctrl+A` selects every character, `N` steps through
   them, and `Tab` moves through the settings panel.
 - **System integration**: tray icon (StatusNotifierItem),
-  `Ctrl+Shift+A/H/P` global hotkeys, single-instance D-Bus handshake,
+  `Super+Alt+A/H/P` global hotkeys, single-instance D-Bus handshake,
   and "Start at login" (an autostart entry, or the portal in the
   Flatpak).
 - **Hot-reload**: edit `~/.config/animaengine/config.toml` while the app
@@ -208,7 +208,7 @@ back.
 
 | Action | How |
 |--------|-----|
-| Enter edit mode | Click ⚙ (top-right), or `Ctrl+Shift+A` from anywhere |
+| Enter edit mode | Click ⚙ (top-right), or `Super+Alt+A` from anywhere (`Win+Alt+A` on Windows) |
 | Add a character | Drag a PNG / GIF / WebP / JPEG / MP4 onto the overlay |
 | Move a character | Drag it (edit mode) or use the X/Y sliders; let go mid-swing to throw it |
 | Adjust scale / opacity / FPS | Sliders in the settings panel |
@@ -217,11 +217,11 @@ back.
 | Delete | `Delete`, right-click → Delete, or the trash button in the Scene list |
 | Group / ungroup | `Ctrl+G` / `Ctrl+Shift+G` on the selection, or right-click → Group |
 | Copy / cut / paste | `Ctrl+C` / `Ctrl+X` / `Ctrl+V`, right-click → Copy or Cut, and Paste in the Scene tab — into this scene or another saved one; `Ctrl+V` also pastes a picture copied anywhere |
-| Hide overlay | `Ctrl+Shift+H` (global) or tray menu |
+| Hide overlay | `Super+Alt+H` (global) or tray menu |
 | Tap a character | With "Characters can be tapped" on (Appearance), click it — clicks elsewhere still reach your windows |
 | Snooze | Tray or command palette: 15 minutes, 1 hour or until morning; they come back on their own |
 | Focus timer | Tray, command palette or the Scene tab; a shortcut of your choice in Keybindings |
-| Pause animations | `Space` (edit mode), `Ctrl+Shift+P` (global), or tray |
+| Pause animations | `Space` (edit mode), `Super+Alt+P` (global), or tray |
 | Save & quit | `Q` (edit mode), tray → Quit, or close the window |
 
 Full keyboard reference: press `H` in edit mode — the Keybindings tab,

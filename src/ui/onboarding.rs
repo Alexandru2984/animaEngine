@@ -206,6 +206,8 @@ pub fn coach_marks(
     ctx: &egui::Context,
     progress: &mut OnboardingProgress,
     edit_mode: bool,
+    // The shortcuts the last step names, as they are bound.
+    keys: &crate::keybindings::KeyBindings,
 ) -> bool {
     use crate::i18n::t;
 
@@ -279,8 +281,18 @@ pub fn coach_marks(
                                 .strong(),
                         );
                         ui.add_space(SPACE_XS);
+                        let body = if body_key == "onboarding-coach-step3" {
+                            use crate::keybindings::Action;
+                            let mut args = fluent::FluentArgs::new();
+                            args.set("palette", keys.label_for(Action::OpenCommandPalette));
+                            args.set("edit", keys.label_for(Action::ToggleEditMode));
+                            args.set("hide", keys.label_for(Action::HideOverlay));
+                            crate::i18n::t_args(body_key, &args)
+                        } else {
+                            t(body_key)
+                        };
                         ui.label(
-                            egui::RichText::new(t(body_key))
+                            egui::RichText::new(body)
                                 .text_style(theme::caption())
                                 .color(body_color),
                         );
