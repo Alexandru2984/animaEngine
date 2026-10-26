@@ -759,7 +759,7 @@ mod tests {
         let into = dir.join("in");
         let back = import(&file, &into).unwrap().scene;
         for c in &back.characters {
-            for state in [StateId::Walk, StateId::Fall, StateId::Drag] {
+            for state in [StateId::Walk, StateId::Fall, StateId::Drag, StateId::Sleep] {
                 let s = c
                     .animations
                     .get(&state)

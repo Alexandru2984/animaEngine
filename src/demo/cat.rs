@@ -41,7 +41,7 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
     // Paws: on the ground; one up, then the other, walking; spread,
     // falling; hanging, held by the scruff.
     let (left_paw, right_paw) = match state {
-        StateId::Idle => ((cx - 10.0, 108.0), (cx + 10.0, 108.0)),
+        StateId::Idle | StateId::Sleep => ((cx - 10.0, 108.0), (cx + 10.0, 108.0)),
         StateId::Walk => (
             (cx - 10.0, 108.0 - 4.0 * (-phase.sin()).max(0.0)),
             (cx + 10.0, 108.0 - 4.0 * phase.sin().max(0.0)),
@@ -69,6 +69,14 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
             (cx + 34.0 + 2.0 * sway, 101.0),
             (cx + 37.0 + 3.0 * sway, 94.0),
             (cx + 38.0 + 4.0 * sway, 86.0),
+        ],
+        // Asleep, wrapped round its front paws.
+        StateId::Sleep => [
+            (cx + 18.0, 104.0),
+            (cx + 26.0, 111.0),
+            (cx + 16.0, 116.0),
+            (cx + 2.0, 116.0),
+            (cx - 12.0, 113.0),
         ],
         _ => [
             (cx + 18.0, 104.0),
@@ -161,6 +169,7 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
     let ey = head_y - 1.0;
     match look.eyes {
         paint::Eyes::Happy => paint::happy_eyes(&mut c, fx, ey, 17.0, 4.2, ink),
+        paint::Eyes::Asleep => paint::sleeping_eyes(&mut c, fx, ey, 17.0, 4.2, ink),
         eyes => {
             for side in [-1.0_f32, 1.0] {
                 let ex = fx + side * 8.5;

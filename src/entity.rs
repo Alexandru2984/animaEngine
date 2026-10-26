@@ -658,7 +658,9 @@ impl Entity {
 
     /// Take the idle pose — asleep (`crate::doze`), not frozen mid-stride.
     pub fn rest(&mut self) {
-        if self.animations.switch(StateId::Idle) {
+        // Its sleeping picture where it has one (1.5); idle otherwise —
+        // a set without the state falls back to idle by itself.
+        if self.animations.switch(StateId::Sleep) {
             self.texture_dirty = true;
         }
     }

@@ -41,10 +41,21 @@ pub(crate) const SIZE: u32 = 128;
 const FRAMES: u32 = 12;
 
 /// The drawing's version, kept in each folder (`.art`): pictures made by
-/// an earlier one are made again. 3 (1.5): a walk, a fall and being held
-/// too, in `walk/`, `fall/` and `drag/`; 2: anti-aliased, outlined, lit,
-/// twelve frames; 1 drew hard-edged flat shapes in six or eight.
-const ART: &str = "3";
+/// an earlier one are made again. 4 (1.5): asleep too, in `sleep/`; 3: a
+/// walk, a fall and being held, in `walk/`, `fall/` and `drag/`; 2:
+/// anti-aliased, outlined, lit, twelve frames; 1 drew hard-edged flat
+/// shapes in six or eight.
+const ART: &str = "4";
+
+/// The frames drawn of `state`: a loop's, but one asleep — a sleeping
+/// scene holds still, so its first frame is all that shows.
+pub(crate) fn frames_of(state: StateId) -> u32 {
+    if state == StateId::Sleep {
+        1
+    } else {
+        FRAMES
+    }
+}
 
 use crate::animation::StateId;
 use std::path::{Path, PathBuf};
@@ -117,7 +128,7 @@ fn generate(base: &Path, name: &str) {
             tracing::warn!("Failed to create demo directory {}: {e}", into.display());
             return;
         }
-        saved &= (0..FRAMES)
+        saved &= (0..frames_of(state))
             .into_par_iter()
             .map(|f| match picture_in(name, state, f, 1) {
                 Some(image) => save_frame(&into, f + 1, &image),
@@ -129,7 +140,7 @@ fn generate(base: &Path, name: &str) {
     // mark, and the next start makes them all again.
     if saved {
         let _ = std::fs::write(dir.join(".art"), ART);
-        tracing::info!("Generated {name}'s pictures: {FRAMES} frames in each of four states");
+        tracing::info!("Generated {name}'s pictures: standing, walking, falling, held and asleep");
     }
 }
 
@@ -187,6 +198,10 @@ impl Look {
                 look.mouth = paint::Mouth::Laugh;
                 look.grounded = false;
             }
+            StateId::Sleep => {
+                look.eyes = paint::Eyes::Asleep;
+                look.mouth = paint::Mouth::O;
+            }
         }
         look
     }
@@ -224,6 +239,13 @@ impl Look {
                 sy: 1.03,
                 angle: 0.13 * self.phase.sin(),
                 dy: -2.0,
+                ..still
+            },
+            // Settled: a little lower and wider, as a body at rest is.
+            StateId::Sleep => paint::Motion {
+                pivot: (centre, floor),
+                sx: 1.03,
+                sy: 0.95,
                 ..still
             },
         }
@@ -287,7 +309,13 @@ mod tests {
     #[test]
     fn nothing_is_cut_off_at_the_edges() {
         use rayon::prelude::*;
-        let states = [StateId::Idle, StateId::Walk, StateId::Fall, StateId::Drag];
+        let states = [
+            StateId::Idle,
+            StateId::Walk,
+            StateId::Fall,
+            StateId::Drag,
+            StateId::Sleep,
+        ];
         let cut: Vec<String> = CHARACTERS
             .par_iter()
             .flat_map(|name| {
@@ -315,7 +343,7 @@ mod tests {
     fn every_state_is_drawn() {
         for name in CHARACTERS {
             let idle = picture_in(name, StateId::Idle, 3, 1).unwrap();
-            for state in [StateId::Walk, StateId::Fall, StateId::Drag] {
+            for state in [StateId::Walk, StateId::Fall, StateId::Drag, StateId::Sleep] {
                 let other = picture_in(name, state, 3, 1).unwrap();
                 assert_ne!(idle.as_raw(), other.as_raw(), "{name} {state:?}");
             }

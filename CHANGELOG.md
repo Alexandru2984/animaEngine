@@ -366,7 +366,11 @@ read-only D-Bus names, for the idle time
   state, unless the config gives one (docs/config.md). Shared — a scene,
   a character, a backup — they go along as states of their own. With
   Reduce motion, the swing while held and the wobble in a fall hold
-  their first frame.
+  their first frame. **And they sleep**: dozing — away, or at bedtime —
+  each takes a sleeping drawing, eyes shut and a small open mouth, the
+  ghost sunk low with its arms down, the cat's tail wrapped round its
+  paws, the bunny's ears drooping, the robot's screen and antenna dark,
+  the cloud's rain stopped; a `sleep/` folder does it for any picture.
 - **A welcome on the first run.** The first time edit mode opens, a
   window beside the panel: the ten characters as toggles, the first
   run's five pressed — a click puts one on the desktop or takes it off —

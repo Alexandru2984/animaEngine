@@ -116,6 +116,11 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
                 c.solid(circle(ex, eyes_y, 8.5), [1.0; 3], 1.0);
                 paint::happy_eyes(&mut c, ex, eyes_y + 1.0, 0.0, 4.5, ink);
             }
+            // Asleep: the lids down, green over the white.
+            paint::Eyes::Asleep => {
+                c.solid(circle(ex, eyes_y, 8.5), paint::shade(base, 0.9), 1.0);
+                paint::sleeping_eyes(&mut c, ex, eyes_y + 2.0, 0.0, 4.5, ink);
+            }
             eyes => {
                 let pupil = if eyes == paint::Eyes::Wide { 3.0 } else { 4.8 };
                 c.solid(circle(ex, eyes_y, 8.5), [1.0; 3], 1.0);

@@ -8,10 +8,15 @@ use crate::animation::StateId;
 pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
     let look = Look::of(state, f);
     let phase = look.phase;
-    let bob = 3.5 * phase.sin();
+    // Asleep, it sinks a little and stops bobbing.
+    let (bob, sink) = if state == StateId::Sleep {
+        (0.0, 6.0)
+    } else {
+        (3.5 * phase.sin(), 0.0)
+    };
     let cx = 64.0;
-    let cy = 48.0 + bob;
-    let hem_y = 98.0 + bob;
+    let cy = 48.0 + bob + sink;
+    let hem_y = 98.0 + bob + sink;
     // The hem ripples faster on the move.
     let ripple = if state == StateId::Idle { 2.0 } else { 3.0 };
     let wave = move |x: f32| hem_y + 4.0 * ((x - cx) * 0.3 + phase * ripple).sin();
@@ -25,7 +30,7 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
         StateId::Idle => ((cx - 40.0, cy + 10.0 + arm), (cx + 40.0, cy + 10.0 - arm)),
         StateId::Walk => ((cx - 39.0, cy + 20.0 + arm), (cx + 42.0, cy + 8.0 - arm)),
         StateId::Fall => ((cx - 40.0, cy - 6.0 + arm), (cx + 40.0, cy - 6.0 - arm)),
-        StateId::Drag => ((cx - 35.0, cy + 31.0), (cx + 35.0, cy + 31.0)),
+        StateId::Drag | StateId::Sleep => ((cx - 35.0, cy + 31.0), (cx + 35.0, cy + 31.0)),
     };
     let arms = paint::union(
         capsule(cx - 30.0, cy + 18.0, left.0, left.1, 5.0),

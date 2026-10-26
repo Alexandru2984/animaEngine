@@ -9,7 +9,12 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
     let look = Look::of(state, f);
     let phase = look.phase;
     let swing = 8.0 * phase.sin();
-    let tilt = 2.5 * (phase + 0.6).sin();
+    // Asleep, its head droops to one side.
+    let tilt = if state == StateId::Sleep {
+        5.0
+    } else {
+        2.5 * (phase + 0.6).sin()
+    };
     let cx = 64.0;
     let floor = 112.0;
     let body_y = 88.0;
@@ -69,7 +74,9 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
         (paint::lit(base, x, y, cx - 10.0, 64.0, 34.0, 52.0), 1.0)
     });
     // The antenna's light, pulsing — flashing red as it falls.
-    let glow = if state == StateId::Fall {
+    let glow = if state == StateId::Sleep {
+        0.0
+    } else if state == StateId::Fall {
         if f.is_multiple_of(2) {
             1.0
         } else {
@@ -83,11 +90,13 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
         rgb(255, 120, 110),
         0.25 * glow,
     );
-    c.solid(
-        circle(cx + tilt * 1.5, head_y - 32.0, 3.6),
-        paint::mix(rgb(200, 60, 60), rgb(255, 150, 140), glow),
-        1.0,
-    );
+    // Off, asleep: grey glass.
+    let bulb = if state == StateId::Sleep {
+        rgb(120, 112, 124)
+    } else {
+        paint::mix(rgb(200, 60, 60), rgb(255, 150, 140), glow)
+    };
+    c.solid(circle(cx + tilt * 1.5, head_y - 32.0, 3.6), bulb, 1.0);
     // The face: a dark screen, two glowing eyes, a smile — looking where
     // it goes.
     c.solid(
@@ -99,6 +108,13 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
     let fx = cx + tilt + look.face_dx * 0.7;
     match look.eyes {
         paint::Eyes::Happy => paint::happy_eyes(&mut c, fx, head_y - 1.0, 16.0, 3.4, eye),
+        // Asleep, the screen dims to two lines.
+        paint::Eyes::Asleep => {
+            for side in [-1.0_f32, 1.0] {
+                let ex = fx + side * 8.0;
+                c.solid(capsule(ex - 3.5, head_y, ex + 3.5, head_y, 1.0), eye, 0.45);
+            }
+        }
         paint::Eyes::Wide => {
             for side in [-1.0_f32, 1.0] {
                 c.solid(circle(fx + side * 8.0, head_y - 1.0, 4.4), eye, 1.0);

@@ -35,8 +35,8 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
     let mut c = Canvas::scaled(SIZE, scale);
     c.set_motion(look.motion(bottom, cy - 30.0));
     // Rain: three drops falling, each at its own time — none while it is
-    // held up or falling itself.
-    if look.grounded {
+    // held up, falling itself, or asleep.
+    if look.grounded && state != StateId::Sleep {
         for (k, dx) in [-18.0_f32, 2.0, 20.0].iter().enumerate() {
             let fall = (t + k as f32 * 0.37).fract();
             let y = bottom + 6.0 + fall * 28.0;

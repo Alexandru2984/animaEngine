@@ -37,6 +37,7 @@ pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
     let flop = match state {
         StateId::Fall => -3.0,
         StateId::Drag => 7.0 + 2.0 * phase.sin(),
+        StateId::Sleep => 9.0,
         _ => 6.0 * land - 4.0 * hop,
     };
     let ears = paint::union(

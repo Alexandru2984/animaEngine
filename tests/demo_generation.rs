@@ -110,12 +110,18 @@ fn generate_assets_full_smoke() {
             .unwrap_or_else(|e| panic!("can't read dims of {}: {e}", frame_path.display()));
         assert_eq!(w, EXPECTED_PX, "{}: width", dir);
         assert_eq!(h, EXPECTED_PX, "{}: height", dir);
-        // And walking, falling and held (1.5), each a folder beside it with
-        // as many frames as standing.
+        // And walking, falling, held and asleep (1.5), each a folder beside
+        // it: as many frames as standing, one asleep (a sleeping scene
+        // holds still).
         let standing = frames_in(&demo.join(dir));
-        for (_, state) in anima_engine::animation::StateId::FOLDERS {
-            let folder = demo.join(dir).join(state);
-            assert_eq!(frames_in(&folder), standing, "{}", folder.display());
+        for (state, name) in anima_engine::animation::StateId::FOLDERS {
+            let folder = demo.join(dir).join(name);
+            let want = if state == anima_engine::animation::StateId::Sleep {
+                1
+            } else {
+                standing
+            };
+            assert_eq!(frames_in(&folder), want, "{}", folder.display());
         }
     }
 

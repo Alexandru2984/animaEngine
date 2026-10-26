@@ -258,17 +258,22 @@ pub enum StateId {
     Fall,
     /// While the user drags the entity.
     Drag,
+    /// Asleep: while the scene dozes, away or at bedtime (1.5,
+    /// `crate::doze`). The scene then holds still, so its first frame is
+    /// what shows.
+    Sleep,
 }
 
 impl StateId {
     /// The states a picture folder can bring in folders of its own beside
-    /// its frames, which stand for idle (1.5): a `walk/`, `fall/` or
-    /// `drag/` holding a picture sequence. The built-in characters come
-    /// so; any folder may (`Scene::load_entity_at`).
-    pub const FOLDERS: [(StateId, &'static str); 3] = [
+    /// its frames, which stand for idle (1.5): a `walk/`, `fall/`, `drag/`
+    /// or `sleep/` holding a picture sequence. The built-in characters
+    /// come so; any folder may (`Scene::load_entity_at`).
+    pub const FOLDERS: [(StateId, &'static str); 4] = [
         (StateId::Walk, "walk"),
         (StateId::Fall, "fall"),
         (StateId::Drag, "drag"),
+        (StateId::Sleep, "sleep"),
     ];
 }
 

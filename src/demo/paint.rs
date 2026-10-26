@@ -340,6 +340,8 @@ pub enum Eyes {
     Wide,
     /// Shut in a smile, `^ ^`: held up and swung.
     Happy,
+    /// Shut in sleep, `‿ ‿`.
+    Asleep,
 }
 
 /// A mouth as a pose has them.
@@ -382,6 +384,14 @@ pub fn eyes_as(
             }
         }
         Eyes::Happy => happy_eyes(c, cx, y, gap, r, ink),
+        Eyes::Asleep => sleeping_eyes(c, cx, y, gap, r, ink),
+    }
+}
+
+/// Eyes shut in sleep: two lids bowed down, `‿ ‿`.
+pub fn sleeping_eyes(c: &mut Canvas, cx: f32, y: f32, gap: f32, r: f32, ink: [f32; 3]) {
+    for side in [-1.0_f32, 1.0] {
+        smile(c, cx + side * gap / 2.0, y - r * 0.4, r * 1.3, ink);
     }
 }
 

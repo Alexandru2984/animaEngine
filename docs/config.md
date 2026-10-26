@@ -405,7 +405,9 @@ asset_type = "png_sequence"
 asset_path = "imported/shime/drag"
 ```
 
-State keys are `idle`, `walk`, `fall`, `drag`. The top-level
+State keys are `idle`, `walk`, `fall`, `drag` and, from 1.5, `sleep`
+— shown while the scene dozes, away or at bedtime; the scene then holds
+still, so its first frame is what shows. The top-level
 `asset_type` / `asset_path` **always** define `idle`, so an explicit
 `[characters.animations.idle]` is ignored with a warning (one
 unambiguous source). A misspelled state name is a hard parse error, not
@@ -425,13 +427,14 @@ my-character/
   walk/frame_001.png …
   fall/frame_001.png …
   drag/frame_001.png …
+  sleep/frame_001.png
 ```
 
-Each of `walk/`, `fall/` and `drag/` is used for the state it is named
+Each of `walk/`, `fall/`, `drag/` and `sleep/` is used for the state it is named
 after unless the config gives that state; a missing or empty one leaves
 the state on idle. Nothing is written to the config. The built-in
-characters (`assets/demo/<name>`) come this way: they walk, fall and are
-held with drawings of their own. As everywhere, the art faces right; a
+characters (`assets/demo/<name>`) come this way: they walk, fall, are
+held and sleep with drawings of their own. As everywhere, the art faces right; a
 character walking left is mirrored.
 
 ### Behavior
