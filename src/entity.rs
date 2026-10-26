@@ -594,9 +594,13 @@ impl Entity {
             self.texture_dirty = true;
         }
 
-        // Animation frame advance, at its pace (`crate::moods`).
+        // Animation frame advance, at its pace (`crate::moods`). Held up or
+        // falling, a character's swing and wobble answer the pointer, as
+        // the recoil does: with Reduce motion they hold their first frame
+        // — the face, not the movement (1.5).
         self.animations.current_mut().tempo = self.tempo;
-        if self.animations.current_mut().tick() {
+        let still = reduced_motion && matches!(desired, StateId::Drag | StateId::Fall);
+        if !still && self.animations.current_mut().tick() {
             self.texture_dirty = true;
             return true;
         }
@@ -940,6 +944,26 @@ mod tests {
     /// Bounds wide enough that only the clamp under test can bite.
     fn wide_bounds() -> crate::monitor::DesktopBounds {
         crate::monitor::DesktopBounds::from_size(10_000.0, 10_000.0)
+    }
+
+    /// Held up, a character with a drag animation plays it — unless
+    /// Reduce motion is on, when it holds the first frame (1.5).
+    #[test]
+    fn held_with_reduce_motion_the_swing_holds_still() {
+        for reduced in [false, true] {
+            // Five frames at 50 fps, 30 ms on: one frame later, and back to
+            // the first only after a whole loop, 100 ms.
+            let frames = || vec![checker_frame(); 5];
+            let mut e = Entity::for_test(0.0, 0.0, Animation::new(frames(), 1.0, true));
+            e.animations
+                .insert(StateId::Drag, Animation::new(frames(), 50.0, true));
+            e.dragging = true;
+            e.tick(0.016, wide_bounds(), None, &[], reduced, false, None);
+            std::thread::sleep(std::time::Duration::from_millis(30));
+            e.tick(0.016, wide_bounds(), None, &[], reduced, false, None);
+            let frame = e.animations.current().current_frame;
+            assert_eq!(frame == 0, reduced, "reduced {reduced}: frame {frame}");
+        }
     }
 
     fn checker_frame() -> Frame {

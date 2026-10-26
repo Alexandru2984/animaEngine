@@ -363,7 +363,10 @@ read-only D-Bus names, for the idle time
   are unchanged (the `.art` marker is 3, so pictures from an earlier
   1.5 build are made again). **Any picture folder** can do the same: a
   `walk/`, `fall/` or `drag/` folder of frames beside its own is that
-  state, unless the config gives one (docs/config.md).
+  state, unless the config gives one (docs/config.md). Shared — a scene,
+  a character, a backup — they go along as states of their own. With
+  Reduce motion, the swing while held and the wobble in a fall hold
+  their first frame.
 - **A welcome on the first run.** The first time edit mode opens, a
   window beside the panel: the ten characters as toggles, the first
   run's five pressed — a click puts one on the desktop or takes it off —

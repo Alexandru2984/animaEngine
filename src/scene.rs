@@ -17,6 +17,29 @@ struct VisibleCache {
     valid: bool,
 }
 
+/// The states `config`'s picture folder brings in folders of its own
+/// (`StateId::FOLDERS`: `walk/`, `fall/`, `drag/`, 1.5) and its config
+/// does not give, each with its folder. Loading plays them; sharing packs
+/// them as states of their own (`scene_file`), as a shared file keeps a
+/// sequence one folder deep.
+pub fn folder_states(
+    config: &CharacterConfig,
+) -> Vec<(crate::animation::StateId, std::path::PathBuf)> {
+    if config.asset_type != crate::config::AssetType::PngSequence {
+        return Vec::new();
+    }
+    let folder = AppConfig::resolve_asset_path(&config.asset_path);
+    if !folder.is_dir() {
+        return Vec::new();
+    }
+    crate::animation::StateId::FOLDERS
+        .iter()
+        .filter(|(state, _)| !config.animations.contains_key(state))
+        .map(|(state, name)| (*state, folder.join(name)))
+        .filter(|(_, dir)| dir.is_dir())
+        .collect()
+}
+
 /// The scene holds all active entities and global playback state
 #[derive(Debug)]
 pub struct Scene {
@@ -308,30 +331,24 @@ impl Scene {
         // states the config does not give: how the built-in characters
         // walk, fall and are held, and any folder laid out as they are.
         // Not written back: the config stays as it was.
-        if config.asset_type == crate::config::AssetType::PngSequence && resolved_path.is_dir() {
-            for (state, folder) in crate::animation::StateId::FOLDERS {
-                let dir = resolved_path.join(folder);
-                if config.animations.contains_key(&state) || !dir.is_dir() {
-                    continue;
+        for (state, dir) in folder_states(config) {
+            match load_asset(
+                &crate::config::AssetType::PngSequence,
+                &dir,
+                None,
+                None,
+                cap,
+            )
+            .and_then(|frames| Self::cap_to(frames, cap))
+            {
+                Ok(frames) => {
+                    let animation = Animation::new(frames, config.fps, config.playing);
+                    set.insert(state, animation.kept_at(cap));
                 }
-                match load_asset(
-                    &crate::config::AssetType::PngSequence,
-                    &dir,
-                    None,
-                    None,
-                    cap,
-                )
-                .and_then(|frames| Self::cap_to(frames, cap))
-                {
-                    Ok(frames) => {
-                        let animation = Animation::new(frames, config.fps, config.playing);
-                        set.insert(state, animation.kept_at(cap));
-                    }
-                    Err(e) => tracing::debug!(
-                        "Entity '{}': its {folder}/ folder did not load ({e})",
-                        config.id
-                    ),
-                }
+                Err(e) => tracing::debug!(
+                    "Entity '{}': its {state:?} folder did not load ({e})",
+                    config.id
+                ),
             }
         }
         Ok(Entity::from_config_set(config, set))

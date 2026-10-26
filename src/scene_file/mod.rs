@@ -162,6 +162,23 @@ fn export_as(
 /// file), a script stood still, its sound and monitor left behind.
 /// Returns whether a script was left out.
 fn pack_character(c: &mut crate::config::CharacterConfig, packer: &mut Packer) -> Result<bool> {
+    // Its folder's own walk/, fall/ and drag/ go as states of their own:
+    // a file keeps a sequence one folder deep, and they would be left
+    // behind — the built-in characters' too (1.5). An empty one stays.
+    for (state, dir) in crate::scene::folder_states(c) {
+        if has_frames(&dir) {
+            c.animations.insert(
+                state,
+                crate::config::StateSequenceConfig {
+                    asset_type: AssetType::PngSequence,
+                    asset_path: dir.to_string_lossy().into_owned(),
+                    fps: None,
+                    spritesheet_columns: None,
+                    spritesheet_rows: None,
+                },
+            );
+        }
+    }
     c.asset_path = packer
         .place(&c.asset_type, &c.asset_path)
         .map_err(|e| e.for_(&c.name))?;
@@ -214,6 +231,15 @@ fn write_zip(
     let file = out.into_inner().map_err(|e| e.into_error())?;
     file.sync_all()?;
     Ok(file.metadata()?.len())
+}
+
+/// Whether the folder `dir` holds a PNG frame.
+fn has_frames(dir: &Path) -> bool {
+    std::fs::read_dir(dir).is_ok_and(|entries| {
+        entries
+            .flatten()
+            .any(|e| e.path().extension().is_some_and(|x| x == "png"))
+    })
 }
 
 /// A picture to pack: a regular file within the drop cap.
@@ -717,6 +743,32 @@ mod tests {
         for c in &back.characters {
             scene.append_character_config(c).unwrap();
         }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A sequence's own walk/, fall/ and drag/ — the built-in characters'
+    /// (1.5) — travel as states of their own and come back with frames;
+    /// the scene as saved is left as it was.
+    #[test]
+    fn a_folders_own_states_travel_with_it() {
+        use crate::animation::StateId;
+        let dir = tmp("states");
+        let saved = demo();
+        let file = dir.join("s.animascene");
+        export(&saved, None, &file).unwrap();
+        let into = dir.join("in");
+        let back = import(&file, &into).unwrap().scene;
+        for c in &back.characters {
+            for state in [StateId::Walk, StateId::Fall, StateId::Drag] {
+                let s = c
+                    .animations
+                    .get(&state)
+                    .unwrap_or_else(|| panic!("{} came back without {state:?}", c.id));
+                let at = Path::new(&s.asset_path);
+                assert!(at.starts_with(&into) && has_frames(at), "{}", s.asset_path);
+            }
+        }
+        assert!(saved.characters.iter().all(|c| c.animations.is_empty()));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
