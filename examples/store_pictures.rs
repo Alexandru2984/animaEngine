@@ -1,6 +1,7 @@
 //! The built-in characters drawn large, for `scripts/store-art.py`: a PNG
 //! for each character at four points of its loop, `scale` times the app's
-//! 128 px (4 by default: 512 px), as sharp as the app's own frames.
+//! 128 px (4 by default: 512 px), as sharp as the app's own frames — and at
+//! the same points walking, falling and held (`<name>-walk-<frame>.png`).
 //!
 //!     cargo run --release --example store_pictures -- <folder> [scale]
 
@@ -16,6 +17,12 @@ fn main() {
             picture
                 .save(dir.join(format!("{name}-{frame}.png")))
                 .expect("write the picture");
+            for (state, folder) in anima_engine::animation::StateId::FOLDERS {
+                anima_engine::demo::picture_in(name, state, frame, scale)
+                    .expect("a built-in character")
+                    .save(dir.join(format!("{name}-{folder}-{frame}.png")))
+                    .expect("write the picture");
+            }
         }
     }
 }

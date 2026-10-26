@@ -352,6 +352,18 @@ read-only D-Bus names, for the idle time
   — even before a picture of your own is in the library; the **Meadow
   friends** preset brings the five new ones. The first run's scene is
   unchanged. Their names in all ten languages.
+- **The built-in characters walk, fall and are held.** Each of the ten
+  has a walk — a step up and a lean forward, the face turned the way it
+  goes, the robot and the cat lifting a foot, the frog and the bunny
+  hopping —, a fall — stretched, eyes wide, an "o" of a mouth, the ghost
+  and the robot with their arms up, the cat's tail up — and a drawing
+  for being held up with the pointer: swinging from its top, eyes shut
+  in a smile, laughing, legs and tail hanging. Twelve frames each,
+  drawn by the app at its first start beside the standing ones, which
+  are unchanged (the `.art` marker is 3, so pictures from an earlier
+  1.5 build are made again). **Any picture folder** can do the same: a
+  `walk/`, `fall/` or `drag/` folder of frames beside its own is that
+  state, unless the config gives one (docs/config.md).
 - **A welcome on the first run.** The first time edit mode opens, a
   window beside the panel: the ten characters as toggles, the first
   run's five pressed — a click puts one on the desktop or takes it off —

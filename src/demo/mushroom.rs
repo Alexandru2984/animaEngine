@@ -2,24 +2,17 @@
 //! stem and bouncing its cap; it blinks once a loop.
 
 use super::paint::{self, blend, ellipse, rgb, round_rect, Canvas};
-use super::{FRAMES, SIZE};
-use std::path::Path;
+use super::{Look, SIZE};
+use crate::animation::StateId;
 
-const NAME: &str = "mushroom";
-
-pub fn generate(base: &Path) {
-    let Some(dir) = super::prepare(base, NAME, SIZE, FRAMES) else {
-        return;
+pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
+    let look = Look::of(state, f);
+    let phase = look.phase;
+    // Its cap sways as it stands, and leans back as it hurries.
+    let sway = match state {
+        StateId::Walk => -2.0 + 2.0 * phase.sin(),
+        _ => 3.0 * phase.sin(),
     };
-    for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f, 1));
-    }
-    tracing::info!("Generated {FRAMES} mushroom demo frames ({SIZE}×{SIZE})");
-}
-
-pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
-    let phase = f as f32 / FRAMES as f32 * std::f32::consts::TAU;
-    let sway = 3.0 * phase.sin();
     let bounce = 1.0 + 0.05 * (phase * 2.0).sin();
     let cx = 64.0;
     let floor = 112.0;
@@ -35,7 +28,10 @@ pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let cream = rgb(250, 236, 212);
     let ink = rgb(110, 32, 30);
     let mut c = Canvas::scaled(SIZE, scale);
-    c.ground_shadow(cx, floor + 2.0, 28.0, 4.5, 0.28);
+    if look.grounded {
+        c.ground_shadow(cx, floor + 2.0, 28.0 - look.lift, 4.5, 0.28);
+    }
+    c.set_motion(look.motion(floor, cap_y - 32.0));
     // The stem under the cap, outlined, then the cap over it.
     c.solid(paint::grow(&stem, 2.0), ink, 1.0);
     c.fill(&stem, |x, y| {
@@ -62,9 +58,13 @@ pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
         );
     }
     let face_y = 92.0;
+    let fx = cx + look.face_dx;
     let open = if f == 2 { 0.0 } else { 1.0 };
-    paint::eyes(&mut c, cx, face_y, 14.0, 3.6, open, rgb(70, 40, 30));
-    paint::smile(&mut c, cx, face_y + 9.0, 5.0, rgb(70, 40, 30));
-    paint::blush(&mut c, cx, face_y + 6.0, 24.0, 3.5);
+    let face = rgb(70, 40, 30);
+    paint::eyes_as(&mut c, look.eyes, open, fx, face_y, 14.0, 3.6, face);
+    paint::mouth_as(&mut c, look.mouth, fx, face_y + 9.0, 5.0, face, |c| {
+        paint::smile(c, fx, face_y + 9.0, 5.0, face);
+    });
+    paint::blush(&mut c, fx, face_y + 6.0, 24.0, 3.5);
     c.into_image()
 }

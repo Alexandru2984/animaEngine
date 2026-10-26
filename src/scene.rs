@@ -304,6 +304,36 @@ impl Scene {
                 }
             }
         }
+        // A picture folder's own walk/, fall/ and drag/ (1.5), for the
+        // states the config does not give: how the built-in characters
+        // walk, fall and are held, and any folder laid out as they are.
+        // Not written back: the config stays as it was.
+        if config.asset_type == crate::config::AssetType::PngSequence && resolved_path.is_dir() {
+            for (state, folder) in crate::animation::StateId::FOLDERS {
+                let dir = resolved_path.join(folder);
+                if config.animations.contains_key(&state) || !dir.is_dir() {
+                    continue;
+                }
+                match load_asset(
+                    &crate::config::AssetType::PngSequence,
+                    &dir,
+                    None,
+                    None,
+                    cap,
+                )
+                .and_then(|frames| Self::cap_to(frames, cap))
+                {
+                    Ok(frames) => {
+                        let animation = Animation::new(frames, config.fps, config.playing);
+                        set.insert(state, animation.kept_at(cap));
+                    }
+                    Err(e) => tracing::debug!(
+                        "Entity '{}': its {folder}/ folder did not load ({e})",
+                        config.id
+                    ),
+                }
+            }
+        }
         Ok(Entity::from_config_set(config, set))
     }
 
@@ -1265,6 +1295,54 @@ mod tests {
             scene.fade_step(t0 + std::time::Duration::from_millis(100 * k));
         }
         assert_eq!(scene.drawn_entities().len(), n - 1);
+    }
+
+    /// A picture folder's walk/, fall/ and drag/ are its states (1.5),
+    /// unless the config gives one; a folder that holds no pictures is
+    /// left out, and the config is not changed.
+    #[test]
+    fn a_folder_brings_its_own_states() {
+        let dir = std::env::temp_dir().join(format!("anima-states-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let pixel = |path: std::path::PathBuf, v: u8| {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            image::RgbaImage::from_pixel(4, 4, image::Rgba([v, 0, 0, 255]))
+                .save(path)
+                .unwrap();
+        };
+        pixel(dir.join("frame_001.png"), 10);
+        pixel(dir.join("walk/frame_001.png"), 20);
+        pixel(dir.join("drag/frame_001.png"), 30);
+        std::fs::create_dir_all(dir.join("fall")).unwrap();
+        let mut config = make_entity("folder", 0, true).to_config();
+        config.asset_type = AssetType::PngSequence;
+        config.asset_path = dir.to_string_lossy().into_owned();
+
+        let entity = Scene::load_entity(&config).expect("loads");
+        assert!(entity.animations.has(crate::animation::StateId::Walk));
+        assert!(entity.animations.has(crate::animation::StateId::Drag));
+        assert!(
+            !entity.animations.has(crate::animation::StateId::Fall),
+            "empty"
+        );
+        assert!(entity.to_config().animations.is_empty(), "not written back");
+
+        // Given in the config, the config's wins.
+        pixel(dir.join("mine/frame_001.png"), 40);
+        config.animations.insert(
+            crate::animation::StateId::Walk,
+            crate::config::StateSequenceConfig {
+                asset_type: AssetType::PngSequence,
+                asset_path: dir.join("mine").to_string_lossy().into_owned(),
+                fps: None,
+                spritesheet_columns: None,
+                spritesheet_rows: None,
+            },
+        );
+        let mut entity = Scene::load_entity(&config).expect("loads");
+        entity.animations.switch(crate::animation::StateId::Walk);
+        assert_eq!(entity.animations.current().frames[0].rgba[0], 40);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

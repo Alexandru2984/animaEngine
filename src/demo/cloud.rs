@@ -2,24 +2,13 @@
 //! a few drops of rain falling under it; it blinks once a loop.
 
 use super::paint::{self, blend, capsule, circle, rgb, Canvas};
-use super::{FRAMES, SIZE};
-use std::path::Path;
+use super::{Look, FRAMES, SIZE};
+use crate::animation::StateId;
 
-const NAME: &str = "cloud";
-
-pub fn generate(base: &Path) {
-    let Some(dir) = super::prepare(base, NAME, SIZE, FRAMES) else {
-        return;
-    };
-    for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f, 1));
-    }
-    tracing::info!("Generated {FRAMES} cloud demo frames ({SIZE}×{SIZE})");
-}
-
-pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
+pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
+    let look = Look::of(state, f);
     let t = f as f32 / FRAMES as f32;
-    let phase = t * std::f32::consts::TAU;
+    let phase = look.phase;
     let drift = 3.0 * phase.sin();
     let puff = 1.0 + 0.04 * (phase * 2.0).sin();
     let cx = 64.0;
@@ -44,16 +33,20 @@ pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let base = rgb(246, 249, 255);
     let ink = rgb(108, 128, 172);
     let mut c = Canvas::scaled(SIZE, scale);
-    // Rain: three drops falling, each at its own time.
-    for (k, dx) in [-18.0_f32, 2.0, 20.0].iter().enumerate() {
-        let fall = (t + k as f32 * 0.37).fract();
-        let y = bottom + 6.0 + fall * 28.0;
-        let alpha = 0.85 * (1.0 - fall);
-        c.solid(
-            capsule(cx + dx, y, cx + dx, y + 6.0, 2.2),
-            rgb(120, 170, 240),
-            alpha,
-        );
+    c.set_motion(look.motion(bottom, cy - 30.0));
+    // Rain: three drops falling, each at its own time — none while it is
+    // held up or falling itself.
+    if look.grounded {
+        for (k, dx) in [-18.0_f32, 2.0, 20.0].iter().enumerate() {
+            let fall = (t + k as f32 * 0.37).fract();
+            let y = bottom + 6.0 + fall * 28.0;
+            let alpha = 0.85 * (1.0 - fall);
+            c.solid(
+                capsule(cx + dx, y, cx + dx, y + 6.0, 2.2),
+                rgb(120, 170, 240),
+                alpha,
+            );
+        }
     }
     c.solid(paint::grow(&shape, 2.0), ink, 1.0);
     c.fill(&shape, |x, y| {
@@ -62,17 +55,13 @@ pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
             0.98,
         )
     });
+    let fx = cx + 2.0 + look.face_dx;
     let open = if f == 4 { 0.0 } else { 1.0 };
-    paint::eyes(
-        &mut c,
-        cx + 2.0,
-        cy + 4.0,
-        22.0,
-        4.0,
-        open,
-        rgb(60, 70, 110),
-    );
-    paint::smile(&mut c, cx + 2.0, cy + 14.0, 6.0, rgb(60, 70, 110));
-    paint::blush(&mut c, cx + 2.0, cy + 11.0, 34.0, 4.5);
+    let face = rgb(60, 70, 110);
+    paint::eyes_as(&mut c, look.eyes, open, fx, cy + 4.0, 22.0, 4.0, face);
+    paint::mouth_as(&mut c, look.mouth, fx, cy + 14.0, 6.0, face, |c| {
+        paint::smile(c, fx, cy + 14.0, 6.0, face);
+    });
+    paint::blush(&mut c, fx, cy + 11.0, 34.0, 4.5);
     c.into_image()
 }

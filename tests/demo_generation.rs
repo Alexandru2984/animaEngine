@@ -46,6 +46,18 @@ const DEMO_DIRS: &[(&str, &str)] = &[
 /// drops to a smaller size the test catches it.
 const EXPECTED_PX: u32 = 128;
 
+/// The PNG frames directly in `dir`.
+fn frames_in(dir: &Path) -> usize {
+    std::fs::read_dir(dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|e| e.path().extension().is_some_and(|x| x == "png"))
+                .count()
+        })
+        .unwrap_or(0)
+}
+
 /// A private directory to generate into, named after this process so
 /// concurrent runs can't collide. Removed on the way out.
 struct Sandbox(PathBuf);
@@ -98,6 +110,13 @@ fn generate_assets_full_smoke() {
             .unwrap_or_else(|e| panic!("can't read dims of {}: {e}", frame_path.display()));
         assert_eq!(w, EXPECTED_PX, "{}: width", dir);
         assert_eq!(h, EXPECTED_PX, "{}: height", dir);
+        // And walking, falling and held (1.5), each a folder beside it with
+        // as many frames as standing.
+        let standing = frames_in(&demo.join(dir));
+        for (_, state) in anima_engine::animation::StateId::FOLDERS {
+            let folder = demo.join(dir).join(state);
+            assert_eq!(frames_in(&folder), standing, "{}", folder.display());
+        }
     }
 
     // ── Step 2: idempotency. A second call must not rewrite anything.

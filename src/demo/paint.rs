@@ -12,6 +12,52 @@ pub struct Canvas {
     size: u32,
     scale: f32,
     px: Vec<[f32; 4]>,
+    motion: Motion,
+}
+
+/// The whole body moved: squashed or stretched and leant about `pivot`,
+/// then turned about it by `angle` and shifted by (`dx`, `dy`). Shapes are
+/// drawn where they stand still; `Canvas::fill` reads them through this,
+/// so a step, a fall and a swing are one drawing moved, not three. The
+/// ground shadow stays on the ground.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Motion {
+    pub pivot: (f32, f32),
+    pub sx: f32,
+    pub sy: f32,
+    /// Units the top goes right for each unit above the pivot.
+    pub lean: f32,
+    /// Radians, clockwise on screen.
+    pub angle: f32,
+    pub dx: f32,
+    pub dy: f32,
+}
+
+impl Motion {
+    pub const STILL: Self = Self {
+        pivot: (0.0, 0.0),
+        sx: 1.0,
+        sy: 1.0,
+        lean: 0.0,
+        angle: 0.0,
+        dx: 0.0,
+        dy: 0.0,
+    };
+
+    /// Where on the still drawing the moved one's (`x`, `y`) comes from.
+    fn source(&self, x: f32, y: f32) -> (f32, f32) {
+        let (px, py) = self.pivot;
+        let (vx, vy) = (x - px - self.dx, y - py - self.dy);
+        let (sin, cos) = (-self.angle).sin_cos();
+        let (vx, vy) = (vx * cos - vy * sin, vx * sin + vy * cos);
+        let vx = vx + self.lean * vy;
+        (px + vx / self.sx, py + vy / self.sy)
+    }
+
+    /// How much longer a distance is once moved, near enough.
+    fn stretch(&self) -> f32 {
+        (self.sx * self.sy).sqrt()
+    }
 }
 
 /// An RGB colour from 0..=255 components.
@@ -42,7 +88,13 @@ impl Canvas {
             size: side,
             scale: scale.max(1) as f32,
             px: vec![[0.0; 4]; (side * side) as usize],
+            motion: Motion::STILL,
         }
+    }
+
+    /// Draw what follows moved by `motion` (`Motion::STILL` to stop).
+    pub fn set_motion(&mut self, motion: Motion) {
+        self.motion = motion;
     }
 
     /// Lay `color(x, y)` — RGB and alpha — where `dist(x, y) < 0`, its edge
@@ -53,10 +105,11 @@ impl Canvas {
         color: impl Fn(f32, f32) -> ([f32; 3], f32),
     ) {
         let (n, s) = (self.size, self.scale);
+        let (m, k) = (self.motion, self.motion.stretch());
         for y in 0..n {
             for x in 0..n {
-                let (fx, fy) = ((x as f32 + 0.5) / s, (y as f32 + 0.5) / s);
-                let cover = (0.5 - dist(fx, fy) * s).clamp(0.0, 1.0);
+                let (fx, fy) = m.source((x as f32 + 0.5) / s, (y as f32 + 0.5) / s);
+                let cover = (0.5 - dist(fx, fy) * k * s).clamp(0.0, 1.0);
                 if cover <= 0.0 {
                     continue;
                 }
@@ -274,6 +327,112 @@ pub fn eyes(c: &mut Canvas, cx: f32, y: f32, gap: f32, r: f32, open: f32, ink: [
             c.solid(circle(ex + r * 0.3, y + ry * 0.3, r * 0.16), [1.0; 3], 0.7);
         } else {
             c.solid(capsule(ex - r, y, ex + r, y, 1.1), ink, 1.0);
+        }
+    }
+}
+
+/// Eyes as a pose has them (`super::Look`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Eyes {
+    /// The character's own, blinking on its frame.
+    Own,
+    /// Wide open: falling.
+    Wide,
+    /// Shut in a smile, `^ ^`: held up and swung.
+    Happy,
+}
+
+/// A mouth as a pose has them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mouth {
+    Own,
+    /// A small round "o".
+    O,
+    /// Open in a laugh.
+    Laugh,
+}
+
+/// [`eyes`], or wide, or happy, as `look` says; `open` is the character's
+/// own blink, for `Eyes::Own`.
+#[allow(clippy::too_many_arguments)]
+pub fn eyes_as(
+    c: &mut Canvas,
+    look: Eyes,
+    open: f32,
+    cx: f32,
+    y: f32,
+    gap: f32,
+    r: f32,
+    ink: [f32; 3],
+) {
+    match look {
+        Eyes::Own => eyes(c, cx, y, gap, r, open, ink),
+        Eyes::Wide => {
+            for side in [-1.0_f32, 1.0] {
+                let ex = cx + side * gap / 2.0;
+                c.solid(circle(ex, y, r * 1.3), [1.0; 3], 1.0);
+                c.solid(circle(ex, y + r * 0.1, r * 0.75), ink, 1.0);
+                c.solid(circle(ex - r * 0.25, y - r * 0.2, r * 0.25), [1.0; 3], 0.95);
+            }
+            // The whites' rims, drawn after so the pupils stay inside.
+            for side in [-1.0_f32, 1.0] {
+                let ex = cx + side * gap / 2.0;
+                let ring = move |x: f32, yy: f32| circle(ex, y, r * 1.3)(x, yy).abs() - 0.7;
+                c.solid(ring, ink, 1.0);
+            }
+        }
+        Eyes::Happy => happy_eyes(c, cx, y, gap, r, ink),
+    }
+}
+
+/// Eyes shut in a smile: two arcs bowed up, `^ ^`.
+pub fn happy_eyes(c: &mut Canvas, cx: f32, y: f32, gap: f32, r: f32, ink: [f32; 3]) {
+    for side in [-1.0_f32, 1.0] {
+        let ex = cx + side * gap / 2.0;
+        let rr = r * 1.1;
+        let arc = move |x: f32, yy: f32| {
+            let d = ((x - ex).powi(2) + (yy - (y + rr * 0.45)).powi(2)).sqrt() - rr;
+            let above = (y + rr * 0.2) - yy;
+            d.abs().max(-above) - 1.2
+        };
+        c.solid(arc, ink, 1.0);
+    }
+}
+
+/// The mouth `look` asks for at (`cx`, `y`), `w` wide; `own` draws the
+/// character's own.
+#[allow(clippy::too_many_arguments)]
+pub fn mouth_as(
+    c: &mut Canvas,
+    look: Mouth,
+    cx: f32,
+    y: f32,
+    w: f32,
+    ink: [f32; 3],
+    own: impl FnOnce(&mut Canvas),
+) {
+    match look {
+        Mouth::Own => own(c),
+        Mouth::O => {
+            let r = (w * 0.38).max(2.4);
+            c.solid(ellipse(cx, y, r * 0.85, r), ink, 1.0);
+            c.solid(
+                ellipse(cx, y + r * 0.35, r * 0.5, r * 0.4),
+                rgb(230, 110, 130),
+                0.9,
+            );
+        }
+        Mouth::Laugh => {
+            let hw = (w * 0.7).max(3.5);
+            let open = ellipse(cx, y - hw * 0.15, hw, hw * 0.85);
+            let lower = move |x: f32, yy: f32| open(x, yy).max((y - hw * 0.25) - yy);
+            c.solid(&lower, ink, 1.0);
+            let tongue = ellipse(cx, y + hw * 0.35, hw * 0.55, hw * 0.3);
+            c.solid(
+                move |x, yy| tongue(x, yy).max(lower(x, yy)),
+                rgb(240, 110, 130),
+                1.0,
+            );
         }
     }
 }

@@ -2,30 +2,24 @@
 //! sparkles circling it; it blinks once a loop.
 
 use super::paint::{self, rgb, Canvas};
-use super::{FRAMES, SIZE};
-use std::path::Path;
+use super::{Look, FRAMES, SIZE};
+use crate::animation::StateId;
 
-const NAME: &str = "heart";
-
-pub fn generate(base: &Path) {
-    let Some(dir) = super::prepare(base, NAME, SIZE, FRAMES) else {
-        return;
-    };
-    for f in 0..FRAMES {
-        super::save_frame(&dir, f + 1, &frame(f, 1));
-    }
-    tracing::info!("Generated {FRAMES} heart demo frames ({SIZE}×{SIZE})");
-}
-
-pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
+pub(super) fn frame(state: StateId, f: u32, scale: u32) -> image::RgbaImage {
+    let look = Look::of(state, f);
     let t = f as f32 / FRAMES as f32;
-    let phase = t * std::f32::consts::TAU;
-    // Lub-dub: a beat, a smaller one just after, then rest.
+    let phase = look.phase;
+    // Lub-dub: a beat, a smaller one just after, then rest — racing when
+    // it falls.
     let pulse = |at: f32, width: f32| {
         let d = ((t - at + 0.5).rem_euclid(1.0) - 0.5) / width;
         (-d * d).exp()
     };
-    let beat = 1.0 + 0.08 * pulse(0.0, 0.06) + 0.05 * pulse(0.17, 0.05);
+    let beat = if state == StateId::Fall {
+        1.0 + 0.06 * pulse(0.0, 0.06) + 0.06 * pulse(0.5, 0.06)
+    } else {
+        1.0 + 0.08 * pulse(0.0, 0.06) + 0.05 * pulse(0.17, 0.05)
+    };
     let cx = 64.0;
     let size = 54.0 * beat;
     let tip = 66.0 + size * 0.55;
@@ -35,7 +29,10 @@ pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
     let base = rgb(240, 72, 112);
     let ink = rgb(120, 18, 48);
     let mut c = Canvas::scaled(SIZE, scale);
-    c.ground_shadow(cx, 117.0, 20.0 * beat, 4.0, 0.26);
+    if look.grounded {
+        c.ground_shadow(cx, 117.0, 20.0 * beat - look.lift, 4.0, 0.26);
+    }
+    c.set_motion(look.motion(108.0, 34.0));
     c.solid(paint::grow(&body, 2.0), ink, 1.0);
     c.fill(&body, |x, y| {
         (
@@ -48,10 +45,14 @@ pub(super) fn frame(f: u32, scale: u32) -> image::RgbaImage {
         [1.0; 3],
         0.55,
     );
+    let fx = cx + look.face_dx;
     let open = if f == 10 { 0.0 } else { 1.0 };
-    paint::eyes(&mut c, cx, mid_y + 2.0, 22.0, 4.5, open, rgb(70, 10, 30));
-    paint::smile(&mut c, cx, mid_y + 13.0, 7.0, rgb(70, 10, 30));
-    paint::blush(&mut c, cx, mid_y + 10.0, 34.0, 4.5);
+    let face = rgb(70, 10, 30);
+    paint::eyes_as(&mut c, look.eyes, open, fx, mid_y + 2.0, 22.0, 4.5, face);
+    paint::mouth_as(&mut c, look.mouth, fx, mid_y + 13.0, 7.0, face, |c| {
+        paint::smile(c, fx, mid_y + 13.0, 7.0, face);
+    });
+    paint::blush(&mut c, fx, mid_y + 10.0, 34.0, 4.5);
     // Two sparkles going round.
     for k in 0..2 {
         let a = phase + k as f32 * std::f32::consts::PI;

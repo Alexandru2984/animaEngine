@@ -415,6 +415,25 @@ a silent drop. Each state table mirrors the character's asset fields
 Characters that never use states omit the block entirely and round-trip
 byte-identically with pre-0.7 configs.
 
+**States in the folder itself (1.5).** A `png_sequence` folder can hold
+its states as folders of its own, beside the frames that stand for
+idle — no `[characters.animations]` needed:
+
+```text
+my-character/
+  frame_001.png …     idle
+  walk/frame_001.png …
+  fall/frame_001.png …
+  drag/frame_001.png …
+```
+
+Each of `walk/`, `fall/` and `drag/` is used for the state it is named
+after unless the config gives that state; a missing or empty one leaves
+the state on idle. Nothing is written to the config. The built-in
+characters (`assets/demo/<name>`) come this way: they walk, fall and are
+held with drawings of their own. As everywhere, the art faces right; a
+character walking left is mirrored.
+
 ### Behavior
 
 Optional autonomous motion. Skipped on serialize when the entity is

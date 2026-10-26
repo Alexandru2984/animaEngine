@@ -260,6 +260,18 @@ pub enum StateId {
     Drag,
 }
 
+impl StateId {
+    /// The states a picture folder can bring in folders of its own beside
+    /// its frames, which stand for idle (1.5): a `walk/`, `fall/` or
+    /// `drag/` holding a picture sequence. The built-in characters come
+    /// so; any folder may (`Scene::load_entity_at`).
+    pub const FOLDERS: [(StateId, &'static str); 3] = [
+        (StateId::Walk, "walk"),
+        (StateId::Fall, "fall"),
+        (StateId::Drag, "drag"),
+    ];
+}
+
 /// A set of per-state animations with one active state (U.1).
 ///
 /// Invariant: `Idle` is always present — constructors take the idle
@@ -293,6 +305,11 @@ impl AnimationSet {
     #[cfg(test)]
     pub fn active_state(&self) -> StateId {
         self.active
+    }
+
+    #[cfg(test)]
+    pub fn has(&self, state: StateId) -> bool {
+        self.states.contains_key(&state)
     }
 
     /// The animation for the active state. Falls back to `Idle` when
