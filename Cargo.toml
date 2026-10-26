@@ -17,7 +17,10 @@ readme = "README.md"
 # The release binary is renamed to `anima-engine` in /usr/bin and the
 # .desktop / icon / metainfo files land at the freedesktop XDG paths.
 [package.metadata.deb]
-maintainer = "animaEngine contributors"
+maintainer = "animaEngine <984.alexmihai@proton.me>"
+# Written by scripts/build-deb.sh for the version being built: a .deb
+# that is not Debian's own carries a changelog.Debian (lintian).
+changelog = "target/debian-changelog"
 copyright = "2026, animaEngine contributors"
 license-file = ["LICENSE", "0"]
 extended-description = """\

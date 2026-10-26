@@ -33,17 +33,18 @@ cu `cargo-deb 3.7.0` și `cargo-auditable 0.7.5`; Windows pe **Ubuntu
 - Jurnalul de pornire (și deci raportul de diagnostic) spunea „X11
   XGrabKey” pe Windows; acum spune `RegisterHotKey`.
 
-**Rămâne de la lintian** — amândouă cer o adresă de email publică, deci
-le hotărăști tu: `malformed-contact Maintainer` și `no-changelog`.
+**lintian, rezolvat în runda 48:** câmpul Maintainer are adresa ta
+(`984.alexmihai@proton.me`), iar build-ul scrie un `changelog.Debian`
+pentru versiunea construită. Cu lintian-ul de pe Ubuntu 22.04 nu mai
+rămâne nimic; cel de pe sistemul tău raportează doar un `groff-message`
+pe care nu-l pot reproduce — `man --warnings` pe aceeași pagină trece
+curat.
 
 ## Ce ai de făcut, în ordine
 
-1. **Scurtăturile globale** — decizia din
-   [global-shortcuts-decision.md](global-shortcuts-decision.md). Dacă le
-   schimbăm, se face înainte de lansare (tur, What's new, documentație).
-2. **Adresa pentru pachete.** În `Cargo.toml`, `[package.metadata.deb]`
-   `maintainer = "Nume <email>"`. Cu ea, pot genera și
-   `changelog.Debian` la build.
+1. ~~Scurtăturile globale~~ — făcut în runda 48: Super+Alt+A/H/P la un
+   config nou; un config vechi își păstrează scurtăturile.
+2. ~~Adresa pentru pachete~~ — făcut în runda 48.
 3. **Commit-ul de versiune** (al tău, ca de obicei):
    - `Cargo.toml` → `1.5.0` (și `Cargo.lock`, prin `cargo update -p anima_engine`);
    - `data/com.animaengine.Anima.metainfo.xml` → un `<release version="1.5.0" date="…">`;

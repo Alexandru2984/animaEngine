@@ -9,3 +9,6 @@ anima-engine: embedded-library *
 # SingleMainWindow is a standard key since the Desktop Entry spec 1.5;
 # older lintian does not know it yet.
 anima-engine: desktop-entry-contains-unknown-key *SingleMainWindow*
+# This package is not uploaded to Debian's archive, so its first
+# version has no "intent to package" bug to close.
+anima-engine: initial-upload-closes-no-bugs *

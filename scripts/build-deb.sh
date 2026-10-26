@@ -46,6 +46,22 @@ else
     cargo build --release --locked
 fi
 
+# The Debian changelog cargo-deb packs (Cargo.toml `changelog`): one
+# entry, this version, pointing to the project's own changelog. Dated by
+# the commit, so two builds of a commit stay byte-for-byte the same.
+VERSION="$(cargo metadata --no-deps --format-version 1 \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin)["packages"][0]["version"])')"
+MAINTAINER="$(sed -n 's/^maintainer = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+mkdir -p target
+cat > target/debian-changelog <<CHANGELOG
+anima-engine (${VERSION//-/\~}-1) unstable; urgency=medium
+
+  * animaEngine ${VERSION}. What changed is in CHANGELOG.md:
+    https://github.com/Alexandru2984/animaEngine/blob/main/CHANGELOG.md
+
+ -- ${MAINTAINER}  $(LC_ALL=C date -u -R -d "@${SOURCE_DATE_EPOCH}")
+CHANGELOG
+
 # `cargo deb` reads [package.metadata.deb] for everything else. Output
 # ends up at target/debian/. We move it to build/ for parity with the
 # AppImage path.
