@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+<meta name="description" content="{{description}}">
+{{alternates}}
+<link rel="icon" href="{{root}}media/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{{root}}style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="./"><img src="{{root}}media/icon.svg" alt="">animaEngine</a>
+    <nav>
+      <a href="#features">{{nav_features}}</a>
+      <a href="#download">{{nav_download}}</a>
+      <a href="https://github.com/Alexandru2984/animaEngine/blob/main/docs/faq.md">{{nav_faq}}</a>
+      <a href="https://github.com/Alexandru2984/animaEngine">{{nav_source}}</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero">
+      <h1>{{h1}}</h1>
+      <p class="lead">{{lead}}</p>
+      <div class="buttons">
+        <a class="button" href="#download">{{nav_download}}</a>
+        <a class="button quiet" href="https://github.com/Alexandru2984/animaEngine">{{view_source}}</a>
+      </div>
+      <div class="demo">
+        <img src="{{root}}media/demo.gif" width="800" height="500" alt="{{demo_alt}}">
+      </div>
+    </div>
+
+    <section id="features">
+      <h2>{{features}}</h2>
+      <div class="grid">
+        <div class="card"><h3>{{card1_h}}</h3><p>{{card1}}</p></div>
+        <div class="card"><h3>{{card2_h}}</h3><p>{{card2}}</p></div>
+        <div class="card"><h3>{{card3_h}}</h3><p>{{card3}}</p></div>
+        <div class="card"><h3>{{card4_h}}</h3><p>{{card4}}</p></div>
+        <div class="card"><h3>{{card5_h}}</h3><p>{{card5}}</p></div>
+        <div class="card"><h3>{{card6_h}}</h3><p>{{card6}}</p></div>
+        <div class="card"><h3>{{card7_h}}</h3><p>{{card7}}</p></div>
+        <div class="card"><h3>{{card8_h}}</h3><p>{{card8}}</p></div>
+      </div>
+    </section>
+
+    <section id="screens">
+      <h2>{{look}}</h2>
+      <figure class="trailer">
+        <video controls preload="none" width="1280" height="720" poster="{{root}}media/trailer-poster.jpg" aria-describedby="trailer-about">
+          <source src="{{root}}media/trailer-720p.webm" type="video/webm">
+        </video>
+        <figcaption id="trailer-about">{{trailer}}</figcaption>
+      </figure>
+      <div class="shots">
+        <figure><a href="{{root}}media/overlay.png"><img src="{{root}}media/overlay-960.jpg" width="960" height="540" alt="{{shot1_alt}}" loading="lazy"></a><figcaption>{{shot1}}</figcaption></figure>
+        <figure><a href="{{root}}media/edit-mode.png"><img src="{{root}}media/edit-mode-960.jpg" width="960" height="540" alt="{{shot2_alt}}" loading="lazy"></a><figcaption>{{shot2}}</figcaption></figure>
+        <figure><a href="{{root}}media/command-palette.png"><img src="{{root}}media/command-palette-960.jpg" width="960" height="540" alt="{{shot3_alt}}" loading="lazy"></a><figcaption>{{shot3}}</figcaption></figure>
+        <figure><a href="{{root}}media/appearance.png"><img src="{{root}}media/appearance-960.jpg" width="960" height="540" alt="{{shot4_alt}}" loading="lazy"></a><figcaption>{{shot4}}</figcaption></figure>
+      </div>
+    </section>
+
+    <section id="download">
+      <h2>{{nav_download}}</h2>
+      <table class="downloads">
+        <tr><th>Linux</th><td>{{dl_linux}} <a href="https://github.com/Alexandru2984/animaEngine/releases/latest">{{latest}}</a> · <a href="https://github.com/Alexandru2984/animaEngine#install">{{install_notes}}</a></td></tr>
+        <tr><th>Windows</th><td>{{dl_windows}} <a href="https://github.com/Alexandru2984/animaEngine/releases/latest">{{latest}}</a></td></tr>
+        <tr><th>{{source}}</th><td>{{dl_source}} <a href="https://github.com/Alexandru2984/animaEngine">github.com/Alexandru2984/animaEngine</a></td></tr>
+      </table>
+      <p class="note">{{dl_note}}</p>
+    </section>
+  </main>
+
+  <footer>
+    {{free}} ·
+    <a href="privacy.html">{{privacy}}</a> ·
+    <a href="https://github.com/Alexandru2984/animaEngine/blob/main/SUPPORT.md">{{help}}</a> ·
+    <a href="https://github.com/Alexandru2984/animaEngine/blob/main/data/THIRD-PARTY-LICENSES.txt">{{licences}}</a>
+    <p class="languages">{{languages}}</p>
+  </footer>
+</div>
+</body>
+</html>

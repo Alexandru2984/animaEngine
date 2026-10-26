@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{p_title}}</title>
+<meta name="description" content="{{p_description}}">
+{{alternates}}
+<link rel="icon" href="{{root}}media/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{{root}}style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="./"><img src="{{root}}media/icon.svg" alt="">animaEngine</a>
+    <nav><a href="./">{{home}}</a></nav>
+  </header>
+  <main class="prose">
+    <h1>{{privacy}}</h1>
+    <p>{{p_intro}}</p>
+
+    <h2>{{p_keeps}}</h2>
+    <ul>
+      <li>{{p_keeps1}}</li>
+      <li>{{p_keeps2}}</li>
+      <li>{{p_keeps3}}</li>
+    </ul>
+    <p>{{p_keeps_after}}</p>
+
+    <h2>{{p_report}}</h2>
+    <p>{{p_report_text}}</p>
+
+    <h2>{{p_site}}</h2>
+    <p>{{p_site_text}}</p>
+
+    <h2>{{p_contact}}</h2>
+    <p>{{p_contact_text}}</p>
+    <p class="note">{{p_changed}}</p>
+  </main>
+  <footer>
+    {{free}} · <a href="./">{{home}}</a>
+    <p class="languages">{{languages}}</p>
+  </footer>
+</div>
+</body>
+</html>

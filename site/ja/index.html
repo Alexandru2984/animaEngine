@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>animaEngine — デスクトップに住むアニメーションキャラクター</title>
+<meta name="description" content="デスクトップに住むアニメーションキャラクター。歩いたり、跳ねたり、後を追いかけたり、話したり、休憩を思い出させてくれます。Linux と Windows。ネットワーク接続なし、オープンソース。">
+<link rel="alternate" hreflang="en" href="../">
+<link rel="alternate" hreflang="ro" href="../ro/">
+<link rel="alternate" hreflang="de" href="../de/">
+<link rel="alternate" hreflang="fr" href="../fr/">
+<link rel="alternate" hreflang="es" href="../es/">
+<link rel="alternate" hreflang="it" href="../it/">
+<link rel="alternate" hreflang="pt-BR" href="../pt-br/">
+<link rel="alternate" hreflang="nl" href="../nl/">
+<link rel="alternate" hreflang="pl" href="../pl/">
+<link rel="alternate" hreflang="ja" href="../ja/">
+<link rel="alternate" hreflang="x-default" href="../">
+<link rel="icon" href="../media/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="./"><img src="../media/icon.svg" alt="">animaEngine</a>
+    <nav>
+      <a href="#features">機能</a>
+      <a href="#download">ダウンロード</a>
+      <a href="https://github.com/Alexandru2984/animaEngine/blob/main/docs/faq.md">よくある質問</a>
+      <a href="https://github.com/Alexandru2984/animaEngine">ソース</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero">
+      <h1>デスクトップに住むアニメーションキャラクター</h1>
+      <p class="lead">ウィンドウの上で — あるいは下で — 歩いたり、跳ねたり、後を追いかけたり、鬼ごっこをしたりします。タップするとあいさつします。クリックはそのまま作業中のウィンドウに届きます。</p>
+      <div class="buttons">
+        <a class="button" href="#download">ダウンロード</a>
+        <a class="button quiet" href="https://github.com/Alexandru2984/animaEngine">ソースを見る</a>
+      </div>
+      <div class="demo">
+        <img src="../media/demo.gif" width="800" height="500" alt="キャラクターをタップするとあいさつし、編集モードが開いてキャラクターが選択され、貼り付けた画像が新しいキャラクターになります。">
+      </div>
+    </div>
+
+    <section id="features">
+      <h2>できること</h2>
+      <div class="grid">
+        <div class="card"><h3>どんな画像も動き出す</h3><p>PNG、GIF、WebP、短い MP4 を画面にドロップするか、画像を貼り付けるだけでキャラクターになります。</p></div>
+        <div class="card"><h3>自分だけの暮らし</h3><p>歩く、うろうろする、跳ねる、カーソルや仲間についていく、鬼ごっこをする — 自分で書いた小さなスクリプトでも動きます。</p></div>
+        <div class="card"><h3>一日に寄り添う</h3><p>休憩や水分補給のリマインダー、集中タイマー、おやすみの時間、戻ってきたときの「おかえり」。</p></div>
+        <div class="card"><h3>邪魔をしない</h3><p>クリックは通り抜けます。全画面のゲームや動画では脇によけ、席を外している間はじっとしています。</p></div>
+        <div class="card"><h3>シーンを共有</h3><p>画面の様子を名前を付けて保存し、時間帯で切り替え、シーンやキャラクターを 1 つのファイルで共有できます。</p></div>
+        <div class="card"><h3>軽い</h3><p>何も動いていないときは CPU をほとんど使わず、好みで毎秒 30 フレームに。Linux のノートパソコンでは NVIDIA GPU は眠ったままです。</p></div>
+        <div class="card"><h3>すべての人に</h3><p>10 の言語、スクリーンリーダー、すべての操作をキーボードで、ハイコントラストのテーマ。</p></div>
+        <div class="card"><h3>設計からプライベート</h3><p>ネットワークには一切接続しません。あなたやデスクトップについての情報がコンピューターの外に出ることはありません。</p></div>
+      </div>
+    </section>
+
+    <section id="screens">
+      <h2>見てみる</h2>
+      <figure class="trailer">
+        <video controls preload="none" width="1280" height="720" poster="../media/trailer-poster.jpg" aria-describedby="trailer-about">
+          <source src="../media/trailer-720p.webm" type="video/webm">
+        </video>
+        <figcaption id="trailer-about">音声なしの 30 秒: デスクトップを歩いたり浮かんだりするキャラクター。猫とハートをタップすると、それぞれがあいさつ。ウェルカム画面でうさぎ、カエル、キノコ、くもをデスクトップに置き、猫を持ち上げて、つかんで、手を離すと落ちていきます。</figcaption>
+      </figure>
+      <div class="shots">
+        <figure><a href="../media/overlay.png"><img src="../media/overlay-960.jpg" width="960" height="540" alt="デスクトップの壁紙の上に 5 体のキャラクター。猫が「Hi there!」と話しています。" loading="lazy"></a><figcaption>デスクトップの上、クリックは通り抜けます</figcaption></figure>
+        <figure><a href="../media/edit-mode.png"><img src="../media/edit-mode-960.jpg" width="960" height="540" alt="編集モード: 猫が選択され、インスペクターに位置と外観が表示されています。" loading="lazy"></a><figcaption>編集モード: 並べて変更</figcaption></figure>
+        <figure><a href="../media/command-palette.png"><img src="../media/command-palette-960.jpg" width="960" height="540" alt="既製のシーンが並ぶコマンドパレット。" loading="lazy"></a><figcaption>すべてキーボードで</figcaption></figure>
+        <figure><a href="../media/appearance.png"><img src="../media/appearance-960.jpg" width="960" height="540" alt="外観タブ: テーマ、言語、アクセシビリティ、一時停止、フレームレート。" loading="lazy"></a><figcaption>あなたの仕事の仕方に合わせて</figcaption></figure>
+      </div>
+    </section>
+
+    <section id="download">
+      <h2>ダウンロード</h2>
+      <table class="downloads">
+        <tr><th>Linux</th><td>Ubuntu と Debian 用の <code>.deb</code>、どのディストリビューションでも動く AppImage、Flatpak、AUR。 <a href="https://github.com/Alexandru2984/animaEngine/releases/latest">最新リリース</a> · <a href="https://github.com/Alexandru2984/animaEngine#install">インストール方法</a></td></tr>
+        <tr><th>Windows</th><td>管理者権限のいらないインストーラー、またはポータブルな ZIP — 1.5 からの新機能です。 <a href="https://github.com/Alexandru2984/animaEngine/releases/latest">最新リリース</a></td></tr>
+        <tr><th>ソース</th><td>Rust、MIT ライセンス。 <a href="https://github.com/Alexandru2984/animaEngine">github.com/Alexandru2984/animaEngine</a></td></tr>
+      </table>
+      <p class="note">各リリースにはファイルの SHA-256 が記載され、GitHub がそれぞれのビルド元を証明します。インストーラーにまだ署名がないため、Windows が実行前に警告することがあります。対処法は<a href="https://github.com/Alexandru2984/animaEngine/blob/main/docs/faq.md">よくある質問</a>にあります。</p>
+    </section>
+  </main>
+
+  <footer>
+    animaEngine は MIT ライセンスのフリーソフトウェアです。 ·
+    <a href="privacy.html">プライバシー</a> ·
+    <a href="https://github.com/Alexandru2984/animaEngine/blob/main/SUPPORT.md">ヘルプ</a> ·
+    <a href="https://github.com/Alexandru2984/animaEngine/blob/main/data/THIRD-PARTY-LICENSES.txt">サードパーティのライセンス</a>
+    <p class="languages">言語: <a href="../" hreflang="en" lang="en">English</a> · <a href="../ro/" hreflang="ro" lang="ro">Română</a> · <a href="../de/" hreflang="de" lang="de">Deutsch</a> · <a href="../fr/" hreflang="fr" lang="fr">Français</a> · <a href="../es/" hreflang="es" lang="es">Español</a> · <a href="../it/" hreflang="it" lang="it">Italiano</a> · <a href="../pt-br/" hreflang="pt-BR" lang="pt-BR">Português (Brasil)</a> · <a href="../nl/" hreflang="nl" lang="nl">Nederlands</a> · <a href="../pl/" hreflang="pl" lang="pl">Polski</a> · <strong aria-current="page">日本語</strong></p>
+  </footer>
+</div>
+</body>
+</html>

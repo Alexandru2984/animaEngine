@@ -392,7 +392,9 @@ read-only D-Bus names, for the idle time
   CSS that load nothing from anywhere else, light and dark, readable on a
   phone, with 1920×1080 screenshots. A Website workflow publishes them to
   GitHub Pages, by hand only. `docs/store-listing.md` has the text and
-  images for a store page.
+  images for a store page. Both pages are in the app's ten languages,
+  each naming the others and listing them by their own names, made by
+  `scripts/site-pages.py` from `site-src/` (CI checks they match).
 - **"Screen reader support"** is what Appearance's accessibility switch
   is called now, in every language; it read "Generate AccessKit tree
   updates", a library's name for it.

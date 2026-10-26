@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prywatność — animaEngine</title>
+<meta name="description" content="animaEngine niczego nie zbiera: aplikacja nie łączy się z siecią.">
+<link rel="alternate" hreflang="en" href="../privacy.html">
+<link rel="alternate" hreflang="ro" href="../ro/privacy.html">
+<link rel="alternate" hreflang="de" href="../de/privacy.html">
+<link rel="alternate" hreflang="fr" href="../fr/privacy.html">
+<link rel="alternate" hreflang="es" href="../es/privacy.html">
+<link rel="alternate" hreflang="it" href="../it/privacy.html">
+<link rel="alternate" hreflang="pt-BR" href="../pt-br/privacy.html">
+<link rel="alternate" hreflang="nl" href="../nl/privacy.html">
+<link rel="alternate" hreflang="pl" href="../pl/privacy.html">
+<link rel="alternate" hreflang="ja" href="../ja/privacy.html">
+<link rel="alternate" hreflang="x-default" href="../privacy.html">
+<link rel="icon" href="../media/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="./"><img src="../media/icon.svg" alt="">animaEngine</a>
+    <nav><a href="./">Strona główna</a></nav>
+  </header>
+  <main class="prose">
+    <h1>Prywatność</h1>
+    <p><strong>Aplikacja niczego nie zbiera.</strong> animaEngine nie łączy się z siecią w żaden sposób: bez telemetrii, bez wysyłania raportów o awariach, bez sprawdzania aktualizacji, bez kont, bez reklam. Nic o tobie, twoim komputerze ani o tym, co masz na ekranie, go nie opuszcza.</p>
+
+    <h2>Co aplikacja przechowuje na twoim komputerze</h2>
+    <ul>
+      <li>Swoje ustawienia i twoje sceny, w folderze konfiguracji twojego użytkownika (<code>~/.config/animaengine</code> w Linuksie, <code>%APPDATA%\animaEngine</code> w Windows).</li>
+      <li>Obrazki, które dodajesz, w swojej bibliotece, oraz ich zdekodowane kopie w folderze pamięci podręcznej, żeby wczytywały się szybciej.</li>
+      <li>Po awarii kopię sceny sprzed niej, dla <code>anima-engine --recover</code>.</li>
+    </ul>
+    <p>Wszystko zostaje na twoim komputerze, w folderach twojego użytkownika. Odinstalowanie zostawia je na potem; usuń te foldery, żeby je skasować. <a href="https://github.com/Alexandru2984/animaEngine/blob/main/docs/faq.md#removing-it">Najczęstsze pytania</a> mówią, gdzie są.</p>
+
+    <h2>Raport diagnostyczny</h2>
+    <p>Wygląd → O programie → <em>Kopiuj raport diagnostyczny</em> umieszcza krótki tekst w schowku: wersję aplikacji, nazwę twojego systemu, twoją kartę graficzną i ostatnie ostrzeżenia aplikacji — nigdy ścieżki twoich plików. Aplikacja nigdzie go nie wysyła. Trafia tylko tam, gdzie go wkleisz.</p>
+
+    <h2>Ta strona</h2>
+    <p>Ta strona nie zapisuje ciasteczek, nie uruchamia statystyk ani skryptów i nie wczytuje niczego z innych stron. Udostępnia ją GitHub Pages, który jak każdy serwer WWW otrzymuje twój adres IP przy każdym żądaniu; zobacz <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">oświadczenie o prywatności GitHub</a>. Pliki do pobrania pochodzą ze stron wydań GitHub, na tych samych zasadach.</p>
+
+    <h2>Kontakt</h2>
+    <p>Pytania o prywatność: <a href="https://github.com/Alexandru2984/animaEngine/issues">zgłoś problem</a> albo, w sprawie bezpieczeństwa, postępuj według <a href="https://github.com/Alexandru2984/animaEngine/blob/main/SECURITY.md">zasad bezpieczeństwa</a>.</p>
+    <p class="note">Ostatnia zmiana: 25 października 2026.</p>
+  </main>
+  <footer>
+    animaEngine to wolne oprogramowanie na licencji MIT. · <a href="./">Strona główna</a>
+    <p class="languages">Język: <a href="../privacy.html" hreflang="en" lang="en">English</a> · <a href="../ro/privacy.html" hreflang="ro" lang="ro">Română</a> · <a href="../de/privacy.html" hreflang="de" lang="de">Deutsch</a> · <a href="../fr/privacy.html" hreflang="fr" lang="fr">Français</a> · <a href="../es/privacy.html" hreflang="es" lang="es">Español</a> · <a href="../it/privacy.html" hreflang="it" lang="it">Italiano</a> · <a href="../pt-br/privacy.html" hreflang="pt-BR" lang="pt-BR">Português (Brasil)</a> · <a href="../nl/privacy.html" hreflang="nl" lang="nl">Nederlands</a> · <strong aria-current="page">Polski</strong> · <a href="../ja/privacy.html" hreflang="ja" lang="ja">日本語</a></p>
+  </footer>
+</div>
+</body>
+</html>

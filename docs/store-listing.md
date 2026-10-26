@@ -6,6 +6,12 @@ is still to decide before listing anywhere is in
 [product-readiness.md](product-readiness.md): the price, the H.264
 question, and signing for Windows.
 
+The product page in `site/` is in the app's ten languages. Its words
+are in `site-src/strings/<language>.toml`, its pages in `site-src/`;
+change those and run `scripts/site-pages.py`, never the pages in
+`site/` themselves (CI checks they match). Like the app's, nine of the
+ten were translated without a native speaker.
+
 ## Name and lines
 
 - **Name:** animaEngine
