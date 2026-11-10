@@ -37,15 +37,15 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/Alexandru2984/animaEngine/v1.2.1/screenshots/overlay.png</image>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/Alexandru2984/animaEngine/v1.5.0/screenshots/overlay.png</image>
       <caption>Characters on the desktop; clicks pass through to what is underneath</caption>
     </screenshot>
     <screenshot>
-      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/Alexandru2984/animaEngine/v1.2.1/screenshots/edit-mode.png</image>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/Alexandru2984/animaEngine/v1.5.0/screenshots/edit-mode.png</image>
       <caption>Edit mode: select a character and adjust it in the Inspector</caption>
     </screenshot>
     <screenshot>
-      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/Alexandru2984/animaEngine/v1.2.1/screenshots/command-palette.png</image>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/Alexandru2984/animaEngine/v1.5.0/screenshots/command-palette.png</image>
       <caption>The command palette applies themes and scene presets from the keyboard</caption>
     </screenshot>
   </screenshots>

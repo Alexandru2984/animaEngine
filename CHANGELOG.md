@@ -455,6 +455,15 @@ read-only D-Bus names, for the idle time
   loaded now. `prime-run`, a desktop's "Launch using Discrete Graphics
   Card", `DRI_PRIME` or the loader's own variables still choose; the
   log says which it did.
+- **Fewer frames with nothing moving.** Characters playing at the same
+  rate change frames at the same instant now. Each one's clock started
+  when its pictures had loaded, so five at 10 frames a second drew 30
+  frames a second between them, and on Wayland the compositor drew the
+  whole screen again for each. They draw 10: in the rig, with five
+  characters still, the compositor's share of an integrated GPU went from
+  8.4% to 2.1%, and the app's CPU from 1.2% to 0.5% of a core. The first
+  frame after a start or a change of state is held from half a frame to
+  one and a half; frames held over half a second are left as they were.
 - **Characters at the screen's scale on X11.** With a scale factor
   above 1 (`Xft.dpi: 192`, or a desktop's scaling) the panel grew, but
   the characters kept their pictures' pixels — half the size native

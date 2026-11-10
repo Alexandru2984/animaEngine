@@ -40,6 +40,13 @@ rămâne nimic; cel de pe sistemul tău raportează doar un `groff-message`
 pe care nu-l pot reproduce — `man --warnings` pe aceeași pagină trece
 curat.
 
+**Runda 49 (10 noiembrie):** capturile din metainfo trimiteau la tag-ul
+`v1.2.1`, adică la personajele de dinainte de a fi redesenate; acum
+trimit la `v1.5.0` și se încarcă de îndată ce există tag-ul
+(`appstreamcli validate` trece). `CHANGELOG.md` și notele de lansare au
+schimbarea din runda 49 (cadrele pe ritm). `check-release-flow.py`:
+14/14.
+
 ## Ce ai de făcut, în ordine
 
 1. ~~Scurtăturile globale~~ — făcut în runda 48: Super+Alt+A/H/P la un
