@@ -7,7 +7,7 @@ pkgver=1.5.2
 pkgrel=1
 pkgdesc="Linux-first animated desktop overlay engine — render animated characters over your desktop"
 arch=('x86_64' 'aarch64')
-url="https://github.com/Alexandru2984/animaEngine"
+url="https://animaengine.eu"
 license=('MIT')
 # alsa-lib: the default `audio` feature links libasound (script sounds).
 depends=('libxkbcommon-x11' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'libxrandr' 'alsa-lib')
@@ -16,7 +16,7 @@ makedepends=('cargo' 'librsvg')
 # (openh264, built from source) then carries GCC bytecode that rustc's
 # linker cannot read: "undefined symbol: WelsCreateDecoder".
 options=('!lto')
-source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::https://github.com/Alexandru2984/animaEngine/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('633d91b82c81944a3458b55e6b88c23d5c610577ee3f906aebb64186cb1e0031')
 
 _srcdir="animaEngine-$pkgver"

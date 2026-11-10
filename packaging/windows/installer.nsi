@@ -89,7 +89,7 @@ Section "${APP}"
   WriteRegStr HKCU "${UNINST}" "Publisher" "${APP}"
   WriteRegStr HKCU "${UNINST}" "DisplayIcon" "$INSTDIR\anima-engine.exe"
   WriteRegStr HKCU "${UNINST}" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKCU "${UNINST}" "URLInfoAbout" "https://github.com/Alexandru2984/animaEngine"
+  WriteRegStr HKCU "${UNINST}" "URLInfoAbout" "https://animaengine.eu"
   WriteRegStr HKCU "${UNINST}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegStr HKCU "${UNINST}" "QuietUninstallString" '"$INSTDIR\uninstall.exe" /S'
   WriteRegDWORD HKCU "${UNINST}" "NoModify" 1

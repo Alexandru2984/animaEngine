@@ -9,7 +9,7 @@ rust-version = "1.88"
 description = "Linux-first animated desktop overlay engine — render multiple animated characters over your desktop"
 license = "MIT"
 resolver = "2"
-homepage = "https://github.com/Alexandru2984/animaEngine"
+homepage = "https://animaengine.eu"
 repository = "https://github.com/Alexandru2984/animaEngine"
 readme = "README.md"
 

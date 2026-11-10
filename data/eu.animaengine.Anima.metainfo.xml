@@ -62,8 +62,9 @@
     <dbus type="session">eu.animaengine.Anima</dbus>
   </provides>
 
-  <url type="homepage">https://github.com/Alexandru2984/animaEngine</url>
+  <url type="homepage">https://animaengine.eu/</url>
   <url type="bugtracker">https://github.com/Alexandru2984/animaEngine/issues</url>
+  <url type="vcs-browser">https://github.com/Alexandru2984/animaEngine</url>
 
   <developer id="eu.animaengine">
     <name>animaEngine contributors</name>
