@@ -83,227 +83,470 @@ use wayland_client::EventQueue;
 /// the layer surface (or the compositor disconnected).
 #[tracing::instrument(skip(scene, config, command_rx, portal_rx))]
 pub fn run_native(
-    mut scene: Scene,
-    mut config: AppConfig,
+    scene: Scene,
+    config: AppConfig,
     // Outside commands: the D-Bus activation service and the tray both send here.
     command_rx: Option<mpsc::Receiver<AnimaEvent>>,
     portal_rx: Option<mpsc::Receiver<crate::hotkeys::portal::PortalMsg>>,
 ) -> Result<()> {
-    // Tracks the parity of portal HideOverlay toggles — the portal
-    // delivers one *action*, the Hide/Show intent derives from state.
-    let mut overlay_hidden = false;
-    // Keybindings-tab backend status (T.4), updated by PortalMsg.
-    let mut hotkey_backend_status = if portal_rx.is_some() {
-        HotkeyStatus::PortalAwaiting
-    } else {
-        HotkeyStatus::CompositorBindings
-    };
-    // `Single` names the monitor the overlay belongs on; the other modes
-    // let the compositor choose.
-    let preferred_output = match &config.global.monitor_mode {
-        crate::monitor::MonitorMode::Single { name } => Some(name.clone()),
-        _ => None,
-    };
-    let mut layer = LayerWindow::try_create(preferred_output.as_deref())?;
-    let (width, height) = layer
-        .size
-        .ok_or_else(|| AnimaError::other("compositor produced no initial size"))?;
+    Native::new(scene, config, command_rx, portal_rx)?.run()
+}
 
-    // The renderer builds its surface from the layer, for each instance
-    // it tries. The wl_surface backing it stays alive inside
-    // `layer.state.layer` for the rest of this scope; ordering guarantees
-    // `renderer` is dropped before `layer` (Rust drops locals in reverse
-    // declaration order).
-    let mut renderer =
-        WgpuRenderer::with_surface_from(&|instance| layer.wgpu_surface(instance), width, height)?;
-    // This loop paces itself (`pacing::FrameRate`), and behind the windows a
-    // covered surface must not stall it waiting to present.
-    renderer.prefer_mailbox();
-    // The pointer is this client's to know over its own input region
-    // only: in pass-through, nowhere.
-    crate::ui::panels::cursor_seen_in_edit_mode_only();
-    let mut egui_renderer = WaylandEguiRenderer::new(
-        &renderer.shared.device,
-        renderer.shared.surface_format,
-        config.global.theme,
-    );
-    let mut selection = SelectionState::new();
-    let mut drag = crate::input::drag::DragController::new();
-    // A selection rectangle being dragged over empty space.
-    let mut marquee: Option<crate::input::multi::Marquee> = None;
-    // Edit mode as of the last iteration, to notice it ending.
-    let mut was_editing = false;
-    let mut toasts = ToastQueue::default();
-    let mut config_dirty = false;
-    // What a panel outcome may touch (`crate::outcomes`), borrowed per
-    // call so the loop keeps using these locals in between.
-    macro_rules! outcome_ctx {
-        () => {
-            OutcomeCtx {
-                scene: &mut scene,
-                selection: &mut selection,
-                toasts: &mut toasts,
-                config_dirty: &mut config_dirty,
-                renderer: Some(&mut renderer),
-            }
+/// What one turn of the loop tells it ([`Native::iteration`]).
+enum Flow {
+    /// Round again.
+    Next,
+    /// Out of the loop: a quit, or the overlay gone for good.
+    Exit,
+}
+
+/// The native loop's state, kept from one turn to the next ([`run_native`]).
+///
+/// The fields are in the reverse of the order they are made in, so they
+/// drop as the locals they were did: every wgpu surface before the
+/// `layer` whose wl_surface it draws into, on an error as on a quit.
+struct Native {
+    quit_requested: bool,
+    reopens: Reopens,
+    loop_started: Instant,
+    wait: Duration,
+    waker: Option<crate::wayland::waker::Waker>,
+    last_monitor_mode: MonitorMode,
+    primary_frame: Option<crate::app::windows::LastFrame>,
+    extra_render_errors: HashMap<String, crate::renderer::ErrorOnce>,
+    render_errors: crate::renderer::ErrorOnce,
+    extra_frames: HashMap<String, crate::app::windows::LastFrame>,
+    extra_eguis: HashMap<String, crate::ui::surface_egui::SurfaceEgui>,
+    extra_surfaces: HashMap<String, SurfaceState>,
+    library_scan: Option<mpsc::Receiver<crate::asset_library::LibraryIndex>>,
+    audio_host: crate::audio::AudioHost,
+    script_host: crate::scripting::ScriptHost,
+    drag_widened: bool,
+    scene_schedule: crate::schedule::Schedule,
+    reminder_timers: crate::reminders::Timers,
+    held_for_away: bool,
+    on_battery: bool,
+    aside: crate::fullscreen::StepAside,
+    history: crate::undo::UndoHistory,
+    frame_gate: FrameGate,
+    palette_actions: Vec<Action>,
+    pending_paste: Option<(mpsc::Receiver<crate::system_clipboard::Content>, (f32, f32))>,
+    pending_text_paste: Option<mpsc::Receiver<crate::system_clipboard::Content>>,
+    tap_gesture: crate::tap::TapGesture,
+    tap_refreshed: Instant,
+    moods: crate::moods::Moods,
+    was_hidden: bool,
+    welcome: crate::welcome::Welcome,
+    hours_clock: crate::hours::Clock,
+    bedtime_watch: crate::bedtime::Watch,
+    pending_transfer: Option<crate::outcomes::SceneTransfer>,
+    pending_file_chooser: Option<crate::outcomes::FileChooserAdd>,
+    pending_shimeji: Option<ShimejiImport>,
+    library_root: Option<std::path::PathBuf>,
+    library: Option<crate::asset_library::LibraryIndex>,
+    context_menu_state: Option<crate::app::ContextMenuState>,
+    warnings: BTreeSet<Warning>,
+    soak: Option<crate::soak::SoakRecorder>,
+    perf_overlay_visible: bool,
+    perf_sampler: crate::perf::PerfSampler,
+    config_watch: crate::config_watch::ConfigWatcher,
+    config_dirty: bool,
+    toasts: ToastQueue,
+    was_editing: bool,
+    marquee: Option<crate::input::multi::Marquee>,
+    drag: crate::input::drag::DragController,
+    selection: SelectionState,
+    egui_renderer: WaylandEguiRenderer,
+    renderer: WgpuRenderer,
+    layer: LayerWindow,
+    hotkey_backend_status: HotkeyStatus,
+    overlay_hidden: bool,
+    portal_rx: Option<mpsc::Receiver<crate::hotkeys::portal::PortalMsg>>,
+    command_rx: Option<mpsc::Receiver<AnimaEvent>>,
+    config: AppConfig,
+    scene: Scene,
+}
+
+impl Native {
+    /// Everything up to the first turn: the overlay and its renderer, the
+    /// library's scan, the other monitors' overlays, the textures.
+    fn new(
+        mut scene: Scene,
+        config: AppConfig,
+        // Outside commands: the D-Bus activation service and the tray both send here.
+        command_rx: Option<mpsc::Receiver<AnimaEvent>>,
+        portal_rx: Option<mpsc::Receiver<crate::hotkeys::portal::PortalMsg>>,
+    ) -> Result<Self> {
+        // Tracks the parity of portal HideOverlay toggles — the portal
+        // delivers one *action*, the Hide/Show intent derives from state.
+        let overlay_hidden = false;
+        // Keybindings-tab backend status (T.4), updated by PortalMsg.
+        let hotkey_backend_status = if portal_rx.is_some() {
+            HotkeyStatus::PortalAwaiting
+        } else {
+            HotkeyStatus::CompositorBindings
         };
-    }
-    let mut config_watch = crate::config_watch::ConfigWatcher::new();
-    // Frame timings for the perf overlay (R27). This loop had no sampler
-    // at all, so `TogglePerfOverlay` was one of five rebindable actions
-    // that did nothing here — and the README's parity table called the
-    // overlay stable on both backends.
-    let mut perf_sampler = crate::perf::PerfSampler::default();
-    let mut perf_overlay_visible = false;
-    // Soak metrics (W.1). Previously wired only into the winit render
-    // loop, so `ANIMA_SOAK_METRICS` was silently a no-op here: the
-    // memory-regression harness covered one of the two backends and gave
-    // no indication it was skipping the other.
-    let mut soak = crate::soak::SoakRecorder::from_env();
-    let mut warnings: BTreeSet<Warning> = BTreeSet::new();
-    if crate::config::loaded_defaults_over_unreadable_config() {
-        warnings.insert(Warning::ConfigUnreadable);
-    }
-    if config.set_aside.unread() {
-        warnings.insert(Warning::ConfigPartlyUnread);
-    }
-    // Right-click context menu state, mirroring `app::ContextMenuState`
-    // on the X11 path. Persists across frames while the menu is open.
-    let mut context_menu_state: Option<crate::app::ContextMenuState> = None;
-    tracing::info!("Native Wayland renderer initialized ({width}×{height})");
+        // `Single` names the monitor the overlay belongs on; the other modes
+        // let the compositor choose.
+        let preferred_output = match &config.global.monitor_mode {
+            crate::monitor::MonitorMode::Single { name } => Some(name.clone()),
+            _ => None,
+        };
+        let mut layer = LayerWindow::try_create(preferred_output.as_deref())?;
+        let (width, height) = layer
+            .size
+            .ok_or_else(|| AnimaError::other("compositor produced no initial size"))?;
 
-    // Discover + load + merge-scan the asset library — same sequence
-    // as the X11 path's `handle_resumed` (src/app/lifecycle.rs).
-    // Errors are logged but never fatal — an empty library is fine.
-    let mut library: Option<crate::asset_library::LibraryIndex> = None;
-    let mut library_root: Option<std::path::PathBuf> = None;
-    // A Shimeji pack import running off the UI thread, if any.
-    let mut pending_shimeji: Option<ShimejiImport> = None;
-    // The desktop's file chooser, open after "Add file…" until it answers.
-    let mut pending_file_chooser: Option<crate::outcomes::FileChooserAdd> = None;
-    // A scene being shared or imported (`crate::scene_file`).
-    let mut pending_transfer: Option<crate::outcomes::SceneTransfer> = None;
-    // Bedtime against the clock (`crate::bedtime`).
-    let mut bedtime_watch = crate::bedtime::Watch::default();
-    let mut hours_clock = crate::hours::Clock::default();
-    let mut welcome = crate::welcome::Welcome::default();
-    let mut was_hidden = false;
-    let mut moods = crate::moods::Moods::default();
-    // Tapping in pass-through (`crate::tap`): when the input region last
-    // followed the characters, and a press waiting for its release.
-    let mut tap_refreshed = Instant::now();
-    let mut tap_gesture = crate::tap::TapGesture::default();
-    // Text a text field asked for with Ctrl+V, on its way.
-    let mut pending_text_paste: Option<
-        std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
-    > = None;
-    // A paste waiting on the clipboard's answer, and where it lands.
-    let mut pending_paste: Option<(
-        std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
-        (f32, f32),
-    )> = None;
-    // Actions picked in the command palette, run next frame through the
-    // same `match` as the ones bound to keys.
-    let mut palette_actions: Vec<Action> = Vec::new();
-    // Whether an iteration draws (`FrameGate`).
-    let mut frame_gate = FrameGate::default();
-    // Edits to the scene, for undo and redo (`crate::undo`).
-    let mut history = crate::undo::UndoHistory::default();
-    // Stepping aside while another window is full screen
-    // (`crate::fullscreen`) — apart from the user's own hide and pause.
-    let mut aside = crate::fullscreen::StepAside::default();
-    // Running on battery, as the away watch last said, and whether the
-    // scene is held still for someone being away (`crate::away`).
-    let mut on_battery = false;
-    let mut held_for_away = false;
-    // When each reminder is next due (`crate::reminders`).
-    let mut reminder_timers = crate::reminders::Timers::default();
-    // Scenes by time of day: what the clock last showed (`crate::schedule`).
-    let mut scene_schedule = crate::schedule::Schedule::default();
-    // Whether the input region is currently widened for a drag
-    // (`drag_region`).
-    let mut drag_widened = false;
-    // Rhai host for `Behavior::Script`, mirroring the winit path's
-    // `App::script_host`. Scripts resolve against `library_root`.
-    let mut script_host = crate::scripting::ScriptHost::new();
-    let mut audio_host = crate::audio::AudioHost::new();
-    // The scanned index arrives from its own thread (`asset_library::open`).
-    let mut library_scan: Option<std::sync::mpsc::Receiver<crate::asset_library::LibraryIndex>> =
-        None;
-    if let Some(root) = crate::asset_library::ensure_asset_root() {
-        library_scan = Some(crate::asset_library::open(&root));
-        library = Some(crate::asset_library::LibraryIndex::default());
-        crate::sounds::set_root(&root);
-        library_root = Some(root);
-    } else {
-        tracing::info!("No asset library root found; Library tab will show empty state.");
-    }
-
-    // Start in pass-through mode with the ⚙ button cutout — same default
-    // as the X11 path.
-    layer.set_input_region(Some(InputRect::toggle_button_corner(
-        width,
-        shown_button(&config.global),
-    )))?;
-
-    // Sprite-only extra surfaces for `MonitorMode::PerMonitor`, one
-    // per non-primary output — the Wayland counterpart of the X11
-    // path's `App.extra_windows`. Keyed by monitor name so it can be
-    // diffed against `monitor::plan_windows`'s output on every
-    // topology / mode change. Exercised against a real headless sway
-    // session including output hotplug (see docs/wayland.md and the
-    // module doc on `layer_window::mod`).
-    let mut extra_surfaces: HashMap<String, SurfaceState> = HashMap::new();
-    // Each other monitor's egui, for the speech bubbles of the characters
-    // there (`ui::surface_egui`), made the first time one is needed.
-    let mut extra_eguis: HashMap<String, crate::ui::surface_egui::SurfaceEgui> = HashMap::new();
-    // Each extra surface's last frame: one that would look the same is not
-    // drawn (`app::windows::needs_frame`).
-    let mut extra_frames: HashMap<String, crate::app::windows::LastFrame> = HashMap::new();
-    // Render errors said once each (`renderer::ErrorOnce`), the primary's
-    // and each other monitor's apart, so two failing in turn don't take
-    // turns at the log.
-    let mut render_errors = crate::renderer::ErrorOnce::default();
-    let mut extra_render_errors: HashMap<String, crate::renderer::ErrorOnce> = HashMap::new();
-    // And the primary's, outside edit mode.
-    let mut primary_frame: Option<crate::app::windows::LastFrame> = None;
-    let mut last_monitor_mode = config.global.monitor_mode.clone();
-    // Not on a guess of which monitor the primary is on: the loop makes
-    // them once the compositor says (`awaiting_primary_output`).
-    {
-        let initial_monitors = layer.monitors();
-        if !awaiting_primary_output(
-            &config.global.monitor_mode,
-            initial_monitors.len(),
-            layer.state.primary_output_name.is_some(),
-            std::time::Duration::ZERO,
-        ) {
-            let plan = monitor::plan_windows(&config.global.monitor_mode, &initial_monitors);
-            rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
+        // The renderer builds its surface from the layer, for each instance
+        // it tries. The wl_surface backing it stays alive inside
+        // `layer.state.layer` for the rest of this scope; ordering guarantees
+        // `renderer` is dropped before `layer` (Rust drops locals in reverse
+        // declaration order).
+        let mut renderer = WgpuRenderer::with_surface_from(
+            &|instance| layer.wgpu_surface(instance),
+            width,
+            height,
+        )?;
+        // This loop paces itself (`pacing::FrameRate`), and behind the windows a
+        // covered surface must not stall it waiting to present.
+        renderer.prefer_mailbox();
+        // The pointer is this client's to know over its own input region
+        // only: in pass-through, nowhere.
+        crate::ui::panels::cursor_seen_in_edit_mode_only();
+        let egui_renderer = WaylandEguiRenderer::new(
+            &renderer.shared.device,
+            renderer.shared.surface_format,
+            config.global.theme,
+        );
+        let selection = SelectionState::new();
+        let drag = crate::input::drag::DragController::new();
+        // A selection rectangle being dragged over empty space.
+        let marquee: Option<crate::input::multi::Marquee> = None;
+        // Edit mode as of the last iteration, to notice it ending.
+        let was_editing = false;
+        let toasts = ToastQueue::default();
+        let config_dirty = false;
+        let config_watch = crate::config_watch::ConfigWatcher::new();
+        // Frame timings for the perf overlay (R27). This loop had no sampler
+        // at all, so `TogglePerfOverlay` was one of five rebindable actions
+        // that did nothing here — and the README's parity table called the
+        // overlay stable on both backends.
+        let perf_sampler = crate::perf::PerfSampler::default();
+        let perf_overlay_visible = false;
+        // Soak metrics (W.1). Previously wired only into the winit render
+        // loop, so `ANIMA_SOAK_METRICS` was silently a no-op here: the
+        // memory-regression harness covered one of the two backends and gave
+        // no indication it was skipping the other.
+        let soak = crate::soak::SoakRecorder::from_env();
+        let mut warnings: BTreeSet<Warning> = BTreeSet::new();
+        if crate::config::loaded_defaults_over_unreadable_config() {
+            warnings.insert(Warning::ConfigUnreadable);
         }
+        if config.set_aside.unread() {
+            warnings.insert(Warning::ConfigPartlyUnread);
+        }
+        // Right-click context menu state, mirroring `app::ContextMenuState`
+        // on the X11 path. Persists across frames while the menu is open.
+        let context_menu_state: Option<crate::app::ContextMenuState> = None;
+        tracing::info!("Native Wayland renderer initialized ({width}×{height})");
+
+        // Discover + load + merge-scan the asset library — same sequence
+        // as the X11 path's `handle_resumed` (src/app/lifecycle.rs).
+        // Errors are logged but never fatal — an empty library is fine.
+        let mut library: Option<crate::asset_library::LibraryIndex> = None;
+        let mut library_root: Option<std::path::PathBuf> = None;
+        // A Shimeji pack import running off the UI thread, if any.
+        let pending_shimeji: Option<ShimejiImport> = None;
+        // The desktop's file chooser, open after "Add file…" until it answers.
+        let pending_file_chooser: Option<crate::outcomes::FileChooserAdd> = None;
+        // A scene being shared or imported (`crate::scene_file`).
+        let pending_transfer: Option<crate::outcomes::SceneTransfer> = None;
+        // Bedtime against the clock (`crate::bedtime`).
+        let bedtime_watch = crate::bedtime::Watch::default();
+        let hours_clock = crate::hours::Clock::default();
+        let welcome = crate::welcome::Welcome::default();
+        let was_hidden = false;
+        let moods = crate::moods::Moods::default();
+        // Tapping in pass-through (`crate::tap`): when the input region last
+        // followed the characters, and a press waiting for its release.
+        let tap_refreshed = Instant::now();
+        let tap_gesture = crate::tap::TapGesture::default();
+        // Text a text field asked for with Ctrl+V, on its way.
+        let pending_text_paste: Option<
+            std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
+        > = None;
+        // A paste waiting on the clipboard's answer, and where it lands.
+        let pending_paste: Option<(
+            std::sync::mpsc::Receiver<crate::system_clipboard::Content>,
+            (f32, f32),
+        )> = None;
+        // Actions picked in the command palette, run next frame through the
+        // same `match` as the ones bound to keys.
+        let palette_actions: Vec<Action> = Vec::new();
+        // Whether an iteration draws (`FrameGate`).
+        let frame_gate = FrameGate::default();
+        // Edits to the scene, for undo and redo (`crate::undo`).
+        let history = crate::undo::UndoHistory::default();
+        // Stepping aside while another window is full screen
+        // (`crate::fullscreen`) — apart from the user's own hide and pause.
+        let aside = crate::fullscreen::StepAside::default();
+        // Running on battery, as the away watch last said, and whether the
+        // scene is held still for someone being away (`crate::away`).
+        let on_battery = false;
+        let held_for_away = false;
+        // When each reminder is next due (`crate::reminders`).
+        let reminder_timers = crate::reminders::Timers::default();
+        // Scenes by time of day: what the clock last showed (`crate::schedule`).
+        let scene_schedule = crate::schedule::Schedule::default();
+        // Whether the input region is currently widened for a drag
+        // (`drag_region`).
+        let drag_widened = false;
+        // Rhai host for `Behavior::Script`, mirroring the winit path's
+        // `App::script_host`. Scripts resolve against `library_root`.
+        let script_host = crate::scripting::ScriptHost::new();
+        let audio_host = crate::audio::AudioHost::new();
+        // The scanned index arrives from its own thread (`asset_library::open`).
+        let mut library_scan: Option<
+            std::sync::mpsc::Receiver<crate::asset_library::LibraryIndex>,
+        > = None;
+        if let Some(root) = crate::asset_library::ensure_asset_root() {
+            library_scan = Some(crate::asset_library::open(&root));
+            library = Some(crate::asset_library::LibraryIndex::default());
+            crate::sounds::set_root(&root);
+            library_root = Some(root);
+        } else {
+            tracing::info!("No asset library root found; Library tab will show empty state.");
+        }
+
+        // Start in pass-through mode with the ⚙ button cutout — same default
+        // as the X11 path.
+        layer.set_input_region(Some(InputRect::toggle_button_corner(
+            width,
+            shown_button(&config.global),
+        )))?;
+
+        // Sprite-only extra surfaces for `MonitorMode::PerMonitor`, one
+        // per non-primary output — the Wayland counterpart of the X11
+        // path's `App.extra_windows`. Keyed by monitor name so it can be
+        // diffed against `monitor::plan_windows`'s output on every
+        // topology / mode change. Exercised against a real headless sway
+        // session including output hotplug (see docs/wayland.md and the
+        // module doc on `layer_window::mod`).
+        let mut extra_surfaces: HashMap<String, SurfaceState> = HashMap::new();
+        // Each other monitor's egui, for the speech bubbles of the characters
+        // there (`ui::surface_egui`), made the first time one is needed.
+        let extra_eguis: HashMap<String, crate::ui::surface_egui::SurfaceEgui> = HashMap::new();
+        // Each extra surface's last frame: one that would look the same is not
+        // drawn (`app::windows::needs_frame`).
+        let extra_frames: HashMap<String, crate::app::windows::LastFrame> = HashMap::new();
+        // Render errors said once each (`renderer::ErrorOnce`), the primary's
+        // and each other monitor's apart, so two failing in turn don't take
+        // turns at the log.
+        let render_errors = crate::renderer::ErrorOnce::default();
+        let extra_render_errors: HashMap<String, crate::renderer::ErrorOnce> = HashMap::new();
+        // And the primary's, outside edit mode.
+        let primary_frame: Option<crate::app::windows::LastFrame> = None;
+        let last_monitor_mode = config.global.monitor_mode.clone();
+        // Not on a guess of which monitor the primary is on: the loop makes
+        // them once the compositor says (`awaiting_primary_output`).
+        {
+            let initial_monitors = layer.monitors();
+            if !awaiting_primary_output(
+                &config.global.monitor_mode,
+                initial_monitors.len(),
+                layer.state.primary_output_name.is_some(),
+                std::time::Duration::ZERO,
+            ) {
+                let plan = monitor::plan_windows(&config.global.monitor_mode, &initial_monitors);
+                rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
+            }
+        }
+
+        // Upload textures once for the initial scene.
+        for entity in &scene.entities {
+            renderer.ensure_texture(entity);
+        }
+        for entity in &mut scene.entities {
+            entity.texture_dirty = false;
+        }
+
+        // ── Main loop ──
+        // Waits for compositor events, or for another thread to wake it
+        // (`waker`), at most until the next thing it has to do — a frame
+        // interval while anything moves, else a sprite's next picture, egui's
+        // repaint or the heartbeat (`pacing::next_wait`). See
+        // `dispatch_with_timeout`.
+        let waker = crate::wayland::waker::Waker::install();
+        let wait = FRAME_INTERVAL;
+        let loop_started = Instant::now();
+        let reopens = Reopens::default();
+        // Quit asked for: the tray, a signal, the shortcut (`Closing`).
+        let quit_requested = false;
+        Ok(Self {
+            quit_requested,
+            reopens,
+            loop_started,
+            wait,
+            waker,
+            last_monitor_mode,
+            primary_frame,
+            extra_render_errors,
+            render_errors,
+            extra_frames,
+            extra_eguis,
+            extra_surfaces,
+            library_scan,
+            audio_host,
+            script_host,
+            drag_widened,
+            scene_schedule,
+            reminder_timers,
+            held_for_away,
+            on_battery,
+            aside,
+            history,
+            frame_gate,
+            palette_actions,
+            pending_paste,
+            pending_text_paste,
+            tap_gesture,
+            tap_refreshed,
+            moods,
+            was_hidden,
+            welcome,
+            hours_clock,
+            bedtime_watch,
+            pending_transfer,
+            pending_file_chooser,
+            pending_shimeji,
+            library_root,
+            library,
+            context_menu_state,
+            warnings,
+            soak,
+            perf_overlay_visible,
+            perf_sampler,
+            config_watch,
+            config_dirty,
+            toasts,
+            was_editing,
+            marquee,
+            drag,
+            selection,
+            egui_renderer,
+            renderer,
+            layer,
+            hotkey_backend_status,
+            overlay_hidden,
+            portal_rx,
+            command_rx,
+            config,
+            scene,
+        })
     }
 
-    // Upload textures once for the initial scene.
-    for entity in &scene.entities {
-        renderer.ensure_texture(entity);
-    }
-    for entity in &mut scene.entities {
-        entity.texture_dirty = false;
+    /// The loop, and the save on the way out.
+    fn run(mut self) -> Result<()> {
+        while let Flow::Next = self.iteration()? {}
+
+        // Renderer (and every extra surface's wgpu::Surface) is dropped
+        // here before `layer` — each wgpu surface releases its handle
+        // while the wl_surface it points into is still alive. `extra_surfaces`
+        // holds the same kind of raw-handle surface the primary one does
+        // (E.7), so it needs the identical ordering, not just `renderer`.
+        // Persist any unsaved edits on a clean shutdown — Quit from the tray,
+        // or a logout, Ctrl+C or closed terminal, which `quit_signal` turns
+        // into that Quit — so the last toggle is not lost.
+        if self.config_dirty {
+            if let Err(e) = sync_and_save(&mut self.config, &self.scene) {
+                tracing::warn!("Final config save failed: {e}");
+            }
+        }
+
+        drop(self.renderer);
+        drop(self.extra_surfaces);
+        drop(self.layer);
+        Ok(())
     }
 
-    // ── Main loop ──
-    // Waits for compositor events, or for another thread to wake it
-    // (`waker`), at most until the next thing it has to do — a frame
-    // interval while anything moves, else a sprite's next picture, egui's
-    // repaint or the heartbeat (`pacing::next_wait`). See
-    // `dispatch_with_timeout`.
-    let waker = crate::wayland::waker::Waker::install();
-    let mut wait = FRAME_INTERVAL;
-    let loop_started = Instant::now();
-    let mut reopens = Reopens::default();
-    // Quit asked for: the tray, a signal, the shortcut (`Closing`).
-    let mut quit_requested = false;
-    loop {
+    /// One turn of the loop: the compositor's events, then everything
+    /// that follows from them and from the time, then a frame if there
+    /// is a reason for one.
+    fn iteration(&mut self) -> Result<Flow> {
+        let Self {
+            quit_requested,
+            reopens,
+            loop_started,
+            wait,
+            waker,
+            last_monitor_mode,
+            primary_frame,
+            extra_render_errors,
+            render_errors,
+            extra_frames,
+            extra_eguis,
+            extra_surfaces,
+            library_scan,
+            audio_host,
+            script_host,
+            drag_widened,
+            scene_schedule,
+            reminder_timers,
+            held_for_away,
+            on_battery,
+            aside,
+            history,
+            frame_gate,
+            palette_actions,
+            pending_paste,
+            pending_text_paste,
+            tap_gesture,
+            tap_refreshed,
+            moods,
+            was_hidden,
+            welcome,
+            hours_clock,
+            bedtime_watch,
+            pending_transfer,
+            pending_file_chooser,
+            pending_shimeji,
+            library_root,
+            library,
+            context_menu_state,
+            warnings,
+            soak,
+            perf_overlay_visible,
+            perf_sampler,
+            config_watch,
+            config_dirty,
+            toasts,
+            was_editing,
+            marquee,
+            drag,
+            selection,
+            egui_renderer,
+            renderer,
+            layer,
+            hotkey_backend_status,
+            overlay_hidden,
+            portal_rx,
+            command_rx,
+            config,
+            scene,
+        } = self;
+        // What a panel outcome may touch (`crate::outcomes`), borrowed per
+        // call so the loop keeps using these locals in between.
+        macro_rules! outcome_ctx {
+            () => {
+                OutcomeCtx {
+                    scene: &mut *scene,
+                    selection: &mut *selection,
+                    toasts: &mut *toasts,
+                    config_dirty: &mut *config_dirty,
+                    renderer: Some(&mut *renderer),
+                }
+            };
+        }
         let frame_start = Instant::now();
         // Opens the perf frame before the blocking dispatch, so the wait
         // for the compositor lands in `Idle` rather than vanishing — the
@@ -313,7 +556,7 @@ pub fn run_native(
             &mut layer.event_queue,
             &mut layer.state,
             waker.as_ref(),
-            wait,
+            *wait,
         )?;
         // Whether anything happened this iteration that a frame should
         // show. Input and every other compositor event count; so does
@@ -322,12 +565,12 @@ pub fn run_native(
         // A step to undo opens at the first thing someone does, before it
         // is applied (`crate::undo`).
         if layer.has_user_action() || egui_renderer.has_screen_reader_requests() {
-            history.input(&scene, &selection, Instant::now());
+            history.input(scene, selection, Instant::now());
         }
 
         // Capture-and-reset the previous frame's GPU op counters. The
         // counters are `Cell`s, so this is a shared borrow and does not
-        // conflict with the `&mut renderer` uses below.
+        // conflict with the `&mut *renderer` uses below.
         let (gpu_uploads, gpu_draws) = renderer.shared.take_frame_gpu_counters();
 
         // The compositor closed the overlay: its monitor went — unplugged,
@@ -337,28 +580,28 @@ pub fn run_native(
         // keeps closing it ends the app, as every close did before
         // (`Reopens`). A quit is not a close (`Closing`).
         match closing(
-            quit_requested,
+            *quit_requested,
             layer.state.close_requested,
             !layer.monitors().is_empty(),
-            &mut reopens,
+            &mut *reopens,
             Instant::now(),
         ) {
             Closing::Open => {}
-            Closing::Quit => break,
+            Closing::Quit => return Ok(Flow::Exit),
             Closing::WaitForMonitor => {
-                wait = Duration::from_millis(500);
-                continue;
+                *wait = Duration::from_millis(500);
+                return Ok(Flow::Next);
             }
             Closing::GiveUp => {
                 tracing::info!("Layer surface closed by compositor again and again — exiting.");
-                break;
+                return Ok(Flow::Exit);
             }
-            Closing::Reopen => match reopen_primary(&mut layer, &mut renderer) {
+            Closing::Reopen => match reopen_primary(&mut *layer, &mut *renderer) {
                 Ok(()) => {
                     tracing::info!("Layer surface closed by compositor — made again");
                     let region = region_for_state(
-                        overlay_hidden || aside.hidden,
-                        layer.state.edit_mode || drag_widened,
+                        *overlay_hidden || aside.hidden,
+                        layer.state.edit_mode || *drag_widened,
                         renderer.primary.window_width,
                         renderer.primary.window_height,
                         shown_button(&config.global),
@@ -366,14 +609,14 @@ pub fn run_native(
                     if let Err(e) = layer.set_input_region(region) {
                         tracing::warn!("input region after reopening: {e}");
                     }
-                    primary_frame = None;
+                    *primary_frame = None;
                     activity = true;
                 }
                 Err(e) => {
                     tracing::warn!(
                         "Layer surface closed by compositor, not made again ({e}) — exiting."
                     );
-                    break;
+                    return Ok(Flow::Exit);
                 }
             },
         }
@@ -388,8 +631,8 @@ pub fn run_native(
                 // click-through, and a resize while hidden made it
                 // clickable again.
                 let region = region_for_state(
-                    overlay_hidden || aside.hidden,
-                    layer.state.edit_mode || drag_widened,
+                    *overlay_hidden || aside.hidden,
+                    layer.state.edit_mode || *drag_widened,
                     new_w,
                     new_h,
                     shown_button(&config.global),
@@ -403,15 +646,15 @@ pub fn run_native(
         // table calls it stable on both backends; this loop never did it
         // at all, so editing config.toml with the overlay running on
         // Wayland did nothing (R28).
-        let poll = config_watch.poll(config_dirty);
+        let poll = config_watch.poll(*config_dirty);
         activity |= !matches!(poll, crate::config_watch::Poll::Idle);
         let reloaded = matches!(poll, crate::config_watch::Poll::Ready(_));
         if reloaded {
             // The characters a drag or a rectangle holds are about to be
             // replaced: let go while they are still the ones it froze.
-            crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
+            crate::input::multi::cancel(&mut *scene, &mut *selection, &mut *drag, &mut *marquee);
         }
-        crate::config_watch::handle(poll, &mut outcome_ctx!(), &mut config, &mut warnings);
+        crate::config_watch::handle(poll, &mut outcome_ctx!(), &mut *config, &mut *warnings);
         if reloaded {
             // The scene was replaced from the file: the steps no longer
             // describe it.
@@ -419,16 +662,16 @@ pub fn run_native(
         }
         if let Some(import) = &pending_shimeji {
             if import.poll(&mut outcome_ctx!()).is_some() {
-                pending_shimeji = None;
+                *pending_shimeji = None;
                 activity = true;
             }
         }
         if let Some(chooser) = &pending_file_chooser {
             if let Some(added) = chooser.poll(&mut outcome_ctx!()) {
-                pending_file_chooser = None;
+                *pending_file_chooser = None;
                 activity = true;
                 if added > 0 {
-                    config_dirty = true;
+                    *config_dirty = true;
                 }
             }
         }
@@ -442,45 +685,45 @@ pub fn run_native(
             };
             if let Some(content) = content {
                 let at = *at;
-                pending_paste = None;
+                *pending_paste = None;
                 activity = true;
                 // The key that asked may be a while ago: open a step if it
                 // closed.
-                history.input(&scene, &selection, Instant::now());
+                history.input(scene, selection, Instant::now());
                 let pasted = outcomes::apply_pasted(content, at, &mut outcome_ctx!());
                 for path in pasted.to_import {
                     // A shared scene or a Shimeji pack copied in a file
                     // manager goes where a drop of it would.
                     if crate::scene_file::is_scene_file(&path) {
                         if pending_transfer.is_none() {
-                            pending_transfer =
+                            *pending_transfer =
                                 Some(crate::outcomes::SceneTransfer::import(path, Some(at)));
                         }
                     } else if pending_shimeji.is_none() {
-                        pending_shimeji =
-                            ShimejiImport::start(&path, library_root.as_deref(), at, &mut toasts);
+                        *pending_shimeji =
+                            ShimejiImport::start(&path, library_root.as_deref(), at, &mut *toasts);
                     }
                 }
             }
         }
-        if let Some(transfer) = &mut pending_transfer {
-            match transfer.poll(&mut toasts) {
+        if let Some(transfer) = &mut *pending_transfer {
+            match transfer.poll(&mut *toasts) {
                 crate::outcomes::Transfer::Pending => {}
                 crate::outcomes::Transfer::Done => {
-                    pending_transfer = None;
+                    *pending_transfer = None;
                     activity = true;
                 }
                 crate::outcomes::Transfer::Imported(saved) => {
-                    pending_transfer = None;
+                    *pending_transfer = None;
                     activity = true;
                     // Not input, so no undo step is open: open one, as
                     // "Next scene" does; and let go of any gesture.
-                    history.input(&scene, &selection, Instant::now());
+                    history.input(scene, selection, Instant::now());
                     crate::input::multi::cancel(
-                        &mut scene,
-                        &mut selection,
-                        &mut drag,
-                        &mut marquee,
+                        &mut *scene,
+                        &mut *selection,
+                        &mut *drag,
+                        &mut *marquee,
                     );
                     let bounds = monitor::covered_bounds(
                         &monitor::plan_windows(&config.global.monitor_mode, &layer.monitors()),
@@ -521,15 +764,15 @@ pub fn run_native(
             &config.global.monitor_mode,
             monitors_now.len(),
             layer.state.primary_output_name.is_some(),
-            loop_started.elapsed(),
+            (*loop_started).elapsed(),
         );
         if !awaiting_primary
-            && (config.global.monitor_mode != last_monitor_mode || plan_names != current_names)
+            && (config.global.monitor_mode != *last_monitor_mode || plan_names != current_names)
         {
-            rebuild_extra_surfaces(&mut layer, &renderer, &plan, &mut extra_surfaces);
+            rebuild_extra_surfaces(&mut *layer, renderer, &plan, &mut *extra_surfaces);
             // New surfaces, with nothing on them yet.
             extra_frames.clear();
-            last_monitor_mode = config.global.monitor_mode.clone();
+            *last_monitor_mode = config.global.monitor_mode.clone();
         }
         for (name, new_w, new_h) in layer.drain_extra_resizes() {
             if let Some(surface) = extra_surfaces.get_mut(&name) {
@@ -546,7 +789,7 @@ pub fn run_native(
             tracing::info!("Overlay drawn at scale {primary_scale}");
             activity = true;
         }
-        for (name, surface) in &mut extra_surfaces {
+        for (name, surface) in extra_surfaces.iter_mut() {
             let scale = layer.extra_scale(name);
             if surface.pixel_scale() != scale {
                 surface.set_pixel_scale(&renderer.shared, scale);
@@ -615,7 +858,7 @@ pub fn run_native(
         // login", once it comes (`crate::autostart`).
         if let Some(granted) = crate::autostart::take_portal_answer() {
             config.global.start_at_login = granted;
-            config_dirty = true;
+            *config_dirty = true;
         }
         // Held still while nobody is there, too (`crate::away`): idle from
         // the compositor, the battery from the away watch.
@@ -636,10 +879,10 @@ pub fn run_native(
         if let Some(rx) = &library_scan {
             match rx.try_recv() {
                 Ok(index) => {
-                    library = Some(index);
-                    library_scan = None;
+                    *library = Some(index);
+                    *library_scan = None;
                 }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => library_scan = None,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => *library_scan = None,
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
         }
@@ -664,12 +907,12 @@ pub fn run_native(
             global.pause_when_idle_minutes,
             layer.is_idle(),
             global.pause_on_battery,
-            on_battery,
+            *on_battery,
         )
         .with_bedtime(bedtime_now)
         .watching(layer.fullscreen_in_front());
-        if still.any() != held_for_away {
-            held_for_away = still.any();
+        if still.any() != *held_for_away {
+            *held_for_away = still.any();
             activity = true;
             tracing::info!(
                 "Away: scene {}",
@@ -688,8 +931,13 @@ pub fn run_native(
         // not in edit mode, the undo step opened here, gestures let go.
         if !layer.state.edit_mode {
             if let Some(name) = scene_schedule.due_now(&config.scene_schedule) {
-                history.input(&scene, &selection, Instant::now());
-                crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
+                history.input(scene, selection, Instant::now());
+                crate::input::multi::cancel(
+                    &mut *scene,
+                    &mut *selection,
+                    &mut *drag,
+                    &mut *marquee,
+                );
                 if crate::outcomes::apply_scheduled(
                     &name,
                     &mut outcome_ctx!(),
@@ -706,12 +954,12 @@ pub fn run_native(
         // the work, and its break counts as a break.
         let focus = crate::focus::phase();
         if crate::reminders::deliver(
-            &mut reminder_timers,
+            &mut *reminder_timers,
             &config.reminders,
             &config.global.reminder_sound,
             config.global.notify_reminders,
-            &mut scene,
-            !(overlay_hidden || wanted.hidden),
+            &mut *scene,
+            !(*overlay_hidden || wanted.hidden),
             // The night counts as a break too.
             crate::reminders::Away {
                 on_a_break: layer.is_idle()
@@ -726,8 +974,8 @@ pub fn run_native(
         }
         // Each turn of the timer, said once it can be seen.
         if crate::focus::say_news(
-            &mut scene,
-            !(overlay_hidden || wanted.hidden),
+            &mut *scene,
+            !(*overlay_hidden || wanted.hidden),
             &config.global.reminder_sound,
             config.global.notify_reminders,
             |_| true,
@@ -737,24 +985,24 @@ pub fn run_native(
         // The pace by the time of day, and a yawn before bedtime
         // (`crate::moods`).
         moods.step(
-            &mut scene,
+            &mut *scene,
             config.global.moods,
             &config.global.bedtime,
-            !(overlay_hidden || wanted.hidden),
+            !(*overlay_hidden || wanted.hidden),
         );
         // Back after being away (`crate::welcome`): greeted where it can be
         // seen, and not by sleepers.
         let minute = hours_clock.minute();
         if let Some(greeting) = welcome.check(layer.is_idle(), minute).filter(|_| {
-            config.global.welcome_back && !(overlay_hidden || wanted.hidden) && !bedtime_now
+            config.global.welcome_back && !(*overlay_hidden || wanted.hidden) && !bedtime_now
         }) {
             if let Some(i) = scene.frontmost_visible() {
                 scene.entities[i].say(&greeting.line(), crate::welcome::SAY_SECONDS);
                 activity = true;
             }
         }
-        if wanted != aside {
-            aside = wanted;
+        if wanted != *aside {
+            *aside = wanted;
             activity = true;
             tracing::info!(
                 "{}: overlay {}",
@@ -776,8 +1024,8 @@ pub fn run_native(
                 }
             );
             let region = region_for_state(
-                overlay_hidden || aside.hidden,
-                layer.state.edit_mode || drag_widened,
+                *overlay_hidden || aside.hidden,
+                layer.state.edit_mode || *drag_widened,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
                 shown_button(&config.global),
@@ -790,14 +1038,14 @@ pub fn run_native(
         // Widen the input region while a drag is over us in pass-through,
         // and put it back when the drag ends.
         let widen = drag_region(
-            overlay_hidden || aside.hidden,
+            *overlay_hidden || aside.hidden,
             layer.state.edit_mode,
             layer.state.drag_over,
         );
-        if widen != drag_widened {
-            drag_widened = widen;
+        if widen != *drag_widened {
+            *drag_widened = widen;
             let region = region_for_state(
-                overlay_hidden || aside.hidden,
+                *overlay_hidden || aside.hidden,
                 layer.state.edit_mode || widen,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
@@ -818,14 +1066,14 @@ pub fn run_native(
         // for: a game's clicks are the game's.
         let tapping = config.global.tap_characters
             && !layer.state.edit_mode
-            && !(overlay_hidden || aside.hidden || aside.paused)
+            && !(*overlay_hidden || aside.hidden || aside.paused)
             && !widen;
         layer.set_keyboard_wanted(
             layer.state.edit_mode || !config.global.tap_characters || egui_renderer.owns_pointer(),
         );
-        let tap_refresh = tapping && tap_refreshed.elapsed() >= crate::tap::REFRESH;
+        let tap_refresh = tapping && (*tap_refreshed).elapsed() >= crate::tap::REFRESH;
         if tap_refresh {
-            tap_refreshed = Instant::now();
+            *tap_refreshed = Instant::now();
             let base = region_for_state(
                 false,
                 false,
@@ -834,7 +1082,7 @@ pub fn run_native(
                 shown_button(&config.global),
             );
             let rects = crate::tap::rects(
-                &scene,
+                scene,
                 primary_origin,
                 (
                     renderer.primary.window_width,
@@ -845,7 +1093,7 @@ pub fn run_native(
         } else if !tapping && layer.tap_region_applied() {
             // Tapping just went off: the plain region again.
             let region = region_for_state(
-                overlay_hidden || aside.hidden,
+                *overlay_hidden || aside.hidden,
                 layer.state.edit_mode || widen,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
@@ -863,7 +1111,11 @@ pub fn run_native(
         // snapshot as `primary_origin`, so a click, drag or drop on
         // another monitor lands in the right global place.
         layer.sync_extra_layers(
-            extras_take_input(overlay_hidden || aside.hidden, layer.state.edit_mode, widen),
+            extras_take_input(
+                *overlay_hidden || aside.hidden,
+                layer.state.edit_mode,
+                widen,
+            ),
             |name| {
                 monitors_now
                     .iter()
@@ -880,7 +1132,7 @@ pub fn run_native(
                 let mon = monitors_now.iter().find(|m| m.name == name)?;
                 let surface = extra_surfaces.get(name)?;
                 Some(crate::tap::rects(
-                    &scene,
+                    scene,
                     (mon.x as f32, mon.y as f32),
                     (surface.window_width, surface.window_height),
                 ))
@@ -896,7 +1148,7 @@ pub fn run_native(
         // and marked for saving.
         for dropped in layer.drain_dropped_files() {
             activity = true;
-            history.input(&scene, &selection, Instant::now());
+            history.input(scene, selection, Instant::now());
             let at = (
                 dropped.at.0 + primary_origin.0,
                 dropped.at.1 + primary_origin.1,
@@ -905,13 +1157,13 @@ pub fn run_native(
             for path in &dropped.paths {
                 if outcomes::is_shimeji_pack(path) {
                     if pending_shimeji.is_none() {
-                        pending_shimeji =
-                            ShimejiImport::start(path, library_root.as_deref(), at, &mut toasts);
+                        *pending_shimeji =
+                            ShimejiImport::start(path, library_root.as_deref(), at, &mut *toasts);
                     }
                 } else if crate::scene_file::is_scene_file(path) {
                     // A shared scene replaces this one.
                     if pending_transfer.is_none() {
-                        pending_transfer = Some(crate::outcomes::SceneTransfer::import(
+                        *pending_transfer = Some(crate::outcomes::SceneTransfer::import(
                             path.clone(),
                             Some(at),
                         ));
@@ -926,11 +1178,11 @@ pub fn run_native(
             // on the ⚙ corner, so that is where a drop lands.
             if added && !layer.state.edit_mode {
                 flip_edit_mode(
-                    &mut layer,
-                    &mut config,
-                    &scene,
-                    &mut config_dirty,
-                    &mut config_watch,
+                    &mut *layer,
+                    &mut *config,
+                    scene,
+                    &mut *config_dirty,
+                    &mut *config_watch,
                     "Wayland, file drop",
                 );
             }
@@ -967,7 +1219,7 @@ pub fn run_native(
                             if egui_renderer.take_for_recording(chord) {
                                 continue;
                             }
-                            let visible = std::sync::atomic::AtomicBool::new(!overlay_hidden);
+                            let visible = std::sync::atomic::AtomicBool::new(!*overlay_hidden);
                             match crate::hotkeys::action_to_event(action, &visible) {
                                 Some(ev) => ev,
                                 None => continue,
@@ -1002,7 +1254,7 @@ pub fn run_native(
                         // This loop learns it from the compositor's
                         // toplevel list instead.
                         AnimaEvent::FullscreenInFront(_) | AnimaEvent::ChosenAppInFront(_) => {}
-                        AnimaEvent::OnBattery(now) => on_battery = now,
+                        AnimaEvent::OnBattery(now) => *on_battery = now,
                         // Idle comes from the compositor here.
                         AnimaEvent::Away(_) | AnimaEvent::IdleSource(_) => {}
                         AnimaEvent::NextScene => next_scene = true,
@@ -1021,12 +1273,12 @@ pub fn run_native(
                         AnimaEvent::StopFocus => crate::focus::stop(),
                         AnimaEvent::SetMuted(muted) => {
                             config.global.sounds_muted = muted;
-                            config_dirty = true;
+                            *config_dirty = true;
                             mute_changed = true;
                         }
                         AnimaEvent::ToggleMute => {
                             config.global.sounds_muted = !config.global.sounds_muted;
-                            config_dirty = true;
+                            *config_dirty = true;
                             mute_changed = true;
                         }
                     }
@@ -1045,7 +1297,7 @@ pub fn run_native(
                     match msg {
                         PortalMsg::Ready => {
                             tracing::info!("Portal shortcuts active (native path)");
-                            hotkey_backend_status = HotkeyStatus::Portal;
+                            *hotkey_backend_status = HotkeyStatus::Portal;
                         }
                         PortalMsg::Failed => {
                             tracing::warn!(
@@ -1053,7 +1305,7 @@ pub fn run_native(
                                  bindings via D-Bus remain the fallback"
                             );
                             toasts.warn(crate::i18n::t("portal-denied-native-toast"));
-                            hotkey_backend_status = HotkeyStatus::CompositorBindings;
+                            *hotkey_backend_status = HotkeyStatus::CompositorBindings;
                         }
                         // The desktop owns the keys: which chord, it does
                         // not say, so a recording takes nothing — but the
@@ -1065,14 +1317,14 @@ pub fn run_native(
                             }
                             KbAction::ToggleMute => {
                                 config.global.sounds_muted = !config.global.sounds_muted;
-                                config_dirty = true;
+                                *config_dirty = true;
                                 mute_changed = true;
                             }
                             KbAction::ToggleEditMode => toggle_edit_xor ^= true,
                             KbAction::PauseAll => toggle_playback_xor ^= true,
                             KbAction::HideOverlay => {
-                                overlay_hidden = !overlay_hidden;
-                                last_visibility = Some(if overlay_hidden {
+                                *overlay_hidden = !*overlay_hidden;
+                                last_visibility = Some(if *overlay_hidden {
                                     AnimaEvent::HideOverlay
                                 } else {
                                     AnimaEvent::ShowOverlay
@@ -1095,9 +1347,9 @@ pub fn run_native(
             // app quits, and a config left dirty ignores the file's own
             // edits until then.
             if mute_changed && !layer.state.edit_mode {
-                match sync_and_save(&mut config, &scene) {
+                match sync_and_save(&mut *config, scene) {
                     Ok(()) => {
-                        config_dirty = false;
+                        *config_dirty = false;
                         config_watch.note_saved();
                     }
                     Err(e) => tracing::warn!("Config save failed: {e}"),
@@ -1109,17 +1361,17 @@ pub fn run_native(
                 // leaving edit mode from the tray, a D-Bus call or a portal
                 // shortcut skipped the save — R30 on a third entry point.
                 flip_edit_mode(
-                    &mut layer,
-                    &mut config,
-                    &scene,
-                    &mut config_dirty,
-                    &mut config_watch,
+                    &mut *layer,
+                    &mut *config,
+                    scene,
+                    &mut *config_dirty,
+                    &mut *config_watch,
                     "Wayland, tray / D-Bus / portal",
                 );
             }
             if toggle_playback_xor {
                 scene.toggle_global_playback();
-                config_dirty = true;
+                *config_dirty = true;
                 // Said, as on the winit path: from the tray, a shortcut or
                 // D-Bus there is nothing else to show it happened.
                 toasts.info(crate::i18n::t(if scene.global_playing {
@@ -1134,9 +1386,9 @@ pub fn run_native(
                 // keybinding path, so a D-Bus Hide/Show left the flag and
                 // the actual intent disagreeing.
                 match vis {
-                    AnimaEvent::HideOverlay => overlay_hidden = true,
+                    AnimaEvent::HideOverlay => *overlay_hidden = true,
                     AnimaEvent::ShowOverlay => {
-                        overlay_hidden = false;
+                        *overlay_hidden = false;
                         // That ends a snooze too (`crate::snooze`).
                         crate::snooze::wake();
                     }
@@ -1150,8 +1402,8 @@ pub fn run_native(
                 // the overlay was not hidden in any sense the user would
                 // recognise.
                 let region = region_for_state(
-                    overlay_hidden || aside.hidden,
-                    layer.state.edit_mode || drag_widened,
+                    *overlay_hidden || aside.hidden,
+                    layer.state.edit_mode || *drag_widened,
                     renderer.primary.window_width,
                     renderer.primary.window_height,
                     shown_button(&config.global),
@@ -1163,14 +1415,19 @@ pub fn run_native(
             if next_scene {
                 // Not input, so no undo step is open: open one, or a later
                 // undo would take the switch back with the step before it.
-                history.input(&scene, &selection, Instant::now());
+                history.input(scene, selection, Instant::now());
                 // A drag or a rectangle holds characters about to be
                 // replaced: let go first (R56).
-                crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
+                crate::input::multi::cancel(
+                    &mut *scene,
+                    &mut *selection,
+                    &mut *drag,
+                    &mut *marquee,
+                );
                 crate::outcomes::next_scene(&mut outcome_ctx!(), &mut config.global.active_scene);
             }
             if quit {
-                quit_requested = true;
+                *quit_requested = true;
             }
         }
 
@@ -1180,14 +1437,14 @@ pub fn run_native(
         if let Some(answer) = &pending_text_paste {
             match answer.try_recv() {
                 Ok(content) => {
-                    pending_text_paste = None;
+                    *pending_text_paste = None;
                     if let crate::system_clipboard::Content::Text(text) = content {
                         events.push(egui::Event::Paste(text));
                         activity = true;
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => pending_text_paste = None,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => *pending_text_paste = None,
             }
         }
         if std::mem::take(&mut layer.state.text_paste_requested)
@@ -1200,7 +1457,7 @@ pub fn run_native(
                 ) => events.push(egui::Event::Paste(text)),
                 crate::wayland::layer_window::ClipboardRead::Ready(_) => {}
                 crate::wayland::layer_window::ClipboardRead::Pending(answer) => {
-                    pending_text_paste = Some(answer);
+                    *pending_text_paste = Some(answer);
                 }
             }
         }
@@ -1218,7 +1475,7 @@ pub fn run_native(
         // Last frame's palette picks first, then this frame's keys — one
         // path for both, so an action cannot behave differently depending
         // on how it was asked for.
-        let mut actions = std::mem::take(&mut palette_actions);
+        let mut actions = std::mem::take(palette_actions);
         activity |= !actions.is_empty();
         actions.extend(
             events
@@ -1233,21 +1490,21 @@ pub fn run_native(
         }
         for action in actions {
             if action.interrupts_drag() {
-                config_dirty |= crate::input::multi::cancel(
-                    &mut scene,
-                    &mut selection,
-                    &mut drag,
-                    &mut marquee,
+                *config_dirty |= crate::input::multi::cancel(
+                    &mut *scene,
+                    &mut *selection,
+                    &mut *drag,
+                    &mut *marquee,
                 );
             }
             match action {
                 Action::ToggleEditMode => {
                     flip_edit_mode(
-                        &mut layer,
-                        &mut config,
-                        &scene,
-                        &mut config_dirty,
-                        &mut config_watch,
+                        &mut *layer,
+                        &mut *config,
+                        scene,
+                        &mut *config_dirty,
+                        &mut *config_watch,
                         "Wayland",
                     );
                 }
@@ -1257,10 +1514,10 @@ pub fn run_native(
                 // X11 the grab took it in edit mode too. Hidden as from the
                 // tray: nothing drawn, no input taken.
                 Action::HideOverlay => {
-                    overlay_hidden = true;
+                    *overlay_hidden = true;
                     let region = region_for_state(
                         true,
-                        layer.state.edit_mode || drag_widened,
+                        layer.state.edit_mode || *drag_widened,
                         renderer.primary.window_width,
                         renderer.primary.window_height,
                         shown_button(&config.global),
@@ -1272,7 +1529,7 @@ pub fn run_native(
                 // As the global shortcuts do; snoozing leaves edit mode.
                 Action::ToggleMute => {
                     config.global.sounds_muted = !config.global.sounds_muted;
-                    config_dirty = true;
+                    *config_dirty = true;
                 }
                 // The right-click menu, from the keyboard: on the panel's
                 // surface, where the keys and a screen reader are, nearest
@@ -1285,8 +1542,8 @@ pub fn run_native(
                                 e.x + e.scaled_width() / 2.0,
                                 e.y + e.scaled_height() / 2.0,
                             );
-                            crate::input::multi::select_for_menu(&scene, &mut selection, idx);
-                            context_menu_state = Some(crate::app::ContextMenuState {
+                            crate::input::multi::select_for_menu(scene, &mut *selection, idx);
+                            *context_menu_state = Some(crate::app::ContextMenuState {
                                 entity_idx: idx,
                                 pos: crate::input::multi::keyboard_menu_at(
                                     at - egui::vec2(primary_origin.0, primary_origin.1),
@@ -1306,11 +1563,11 @@ pub fn run_native(
                 Action::ToggleFocus | Action::ToggleSnooze => {
                     if timer_shortcut(action, config.global.focus) && layer.state.edit_mode {
                         flip_edit_mode(
-                            &mut layer,
-                            &mut config,
-                            &scene,
-                            &mut config_dirty,
-                            &mut config_watch,
+                            &mut *layer,
+                            &mut *config,
+                            scene,
+                            &mut *config_dirty,
+                            &mut *config_watch,
                             "Wayland",
                         );
                     }
@@ -1321,9 +1578,9 @@ pub fn run_native(
                 // they need is already here, and the in-app help screen
                 // lists all four. They did nothing at all on this backend
                 // until now (R27).
-                Action::SaveNow => match sync_and_save(&mut config, &scene) {
+                Action::SaveNow => match sync_and_save(&mut *config, scene) {
                     Ok(()) => {
-                        config_dirty = false;
+                        *config_dirty = false;
                         // Our own write changes the file's mtime and would
                         // otherwise look exactly like somebody else's edit
                         // to the watcher above, costing a pointless full
@@ -1345,10 +1602,10 @@ pub fn run_native(
                     }
                 },
                 Action::TogglePerfOverlay => {
-                    perf_overlay_visible = !perf_overlay_visible;
+                    *perf_overlay_visible = !*perf_overlay_visible;
                     tracing::debug!(
                         "Perf overlay {}",
-                        if perf_overlay_visible {
+                        if *perf_overlay_visible {
                             "shown"
                         } else {
                             "hidden"
@@ -1361,7 +1618,7 @@ pub fn run_native(
                     // of its own — and doing one here would write the
                     // scene twice on every quit.
                     tracing::info!("Quit action — saving and exiting");
-                    quit_requested = true;
+                    *quit_requested = true;
                 }
                 Action::DeleteSelected | Action::DuplicateSelected | Action::CutSelected => {
                     // The same functions the right-click menu and the winit
@@ -1401,16 +1658,16 @@ pub fn run_native(
                                 // manager goes where a drop of it would.
                                 if crate::scene_file::is_scene_file(&path) {
                                     if pending_transfer.is_none() {
-                                        pending_transfer = Some(
+                                        *pending_transfer = Some(
                                             crate::outcomes::SceneTransfer::import(path, Some(at)),
                                         );
                                     }
                                 } else if pending_shimeji.is_none() {
-                                    pending_shimeji = ShimejiImport::start(
+                                    *pending_shimeji = ShimejiImport::start(
                                         &path,
                                         library_root.as_deref(),
                                         at,
-                                        &mut toasts,
+                                        &mut *toasts,
                                     );
                                 }
                             }
@@ -1428,9 +1685,9 @@ pub fn run_native(
                 // persist while nothing happened (R19).
                 other => {
                     let mut ctx = crate::keybindings::shared::ActionCtx {
-                        scene: &mut scene,
-                        selection: &mut selection,
-                        config_dirty: &mut config_dirty,
+                        scene: &mut *scene,
+                        selection: &mut *selection,
+                        config_dirty: &mut *config_dirty,
                         shift_held: layer.state.last_modifiers.shift,
                         bounds: monitor::covered_bounds(
                             &plan,
@@ -1440,8 +1697,8 @@ pub fn run_native(
                             ),
                         ),
                         monitors: &monitors_now,
-                        toasts: &mut toasts,
-                        history: &mut history,
+                        toasts: &mut *toasts,
+                        history: &mut *history,
                     };
                     crate::keybindings::shared::dispatch_shared(other, &mut ctx);
                 }
@@ -1475,21 +1732,29 @@ pub fn run_native(
         // pass-through the surface no longer gets the pointer, and the
         // drag used to stay open until the next move in edit mode, which
         // made the character jump to the pointer.
-        if was_editing && !layer.state.edit_mode {
-            config_dirty |=
-                crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
+        if *was_editing && !layer.state.edit_mode {
+            *config_dirty |= crate::input::multi::cancel(
+                &mut *scene,
+                &mut *selection,
+                &mut *drag,
+                &mut *marquee,
+            );
             selection.deselect();
-            context_menu_state = None;
+            *context_menu_state = None;
         }
-        was_editing = layer.state.edit_mode;
+        *was_editing = layer.state.edit_mode;
         // Hidden, nothing is dragged on. Sway still delivers the release —
         // the button's implicit grab outlives the empty input region — but
         // on X11 an unmapped window gets none, and the character jumped to
         // the pointer at the first move once shown; let go here too rather
         // than count on every compositor.
-        if overlay_hidden || aside.hidden {
-            config_dirty |=
-                crate::input::multi::cancel(&mut scene, &mut selection, &mut drag, &mut marquee);
+        if *overlay_hidden || aside.hidden {
+            *config_dirty |= crate::input::multi::cancel(
+                &mut *scene,
+                &mut *selection,
+                &mut *drag,
+                &mut *marquee,
+            );
         }
         let egui_owns_pointer = egui_renderer.owns_pointer();
         // The right-click menu on another monitor's overlay (`surface`):
@@ -1512,7 +1777,7 @@ pub fn run_native(
                 .as_ref()
                 .is_some_and(|m| m.surface.is_some())
         {
-            context_menu_state = None;
+            *context_menu_state = None;
         }
         let global =
             |pos: &egui::Pos2| egui::pos2(pos.x + primary_origin.0, pos.y + primary_origin.1);
@@ -1543,7 +1808,7 @@ pub fn run_native(
                                 modifiers: *modifiers,
                             });
                         } else if *pressed {
-                            context_menu_state = None;
+                            *context_menu_state = None;
                         }
                     }
                     egui::Event::PointerGone => extra_menu_events.push(egui::Event::PointerGone),
@@ -1551,7 +1816,7 @@ pub fn run_native(
                         key: egui::Key::Escape,
                         pressed: true,
                         ..
-                    } => context_menu_state = None,
+                    } => *context_menu_state = None,
                     _ => {}
                 }
             }
@@ -1582,14 +1847,14 @@ pub fn run_native(
                             // the menu acts on the whole selection;
                             // otherwise it takes the character with its
                             // group.
-                            crate::input::multi::select_for_menu(&scene, &mut selection, idx);
+                            crate::input::multi::select_for_menu(scene, &mut *selection, idx);
                             // On the monitor clicked: another monitor's
                             // overlay draws it with its own egui, in its
                             // own points.
                             let elsewhere = monitors_now.iter().find(|m| {
                                 extra_surfaces.contains_key(&m.name) && m.contains(at.x, at.y)
                             });
-                            context_menu_state = Some(crate::app::ContextMenuState {
+                            *context_menu_state = Some(crate::app::ContextMenuState {
                                 entity_idx: idx,
                                 pos: match elsewhere {
                                     Some(m) => at - egui::vec2(m.x as f32, m.y as f32),
@@ -1623,19 +1888,19 @@ pub fn run_native(
                         match scene.entity_at_point(at.0, at.1) {
                             Some(idx) => {
                                 crate::input::multi::press_on(
-                                    &mut scene,
-                                    &mut selection,
-                                    &mut drag,
+                                    &mut *scene,
+                                    &mut *selection,
+                                    &mut *drag,
                                     idx,
                                     at,
                                     modifiers.shift,
                                 );
                             }
                             None => {
-                                marquee = Some(crate::input::multi::Marquee::begin(
+                                *marquee = Some(crate::input::multi::Marquee::begin(
                                     at,
                                     modifiers.shift,
-                                    &mut selection,
+                                    &mut *selection,
                                 ));
                             }
                         }
@@ -1645,7 +1910,7 @@ pub fn run_native(
                         pressed: false,
                         ..
                     } if marquee.is_some() => {
-                        marquee = None;
+                        *marquee = None;
                     }
                     egui::Event::PointerButton {
                         pos,
@@ -1660,7 +1925,7 @@ pub fn run_native(
                         let tapped = drag.was_tap(gx, gy, crate::constants::POKE_TAP_RADIUS);
                         if tapped {
                             // The hop that follows is play, not an edit.
-                            history.finish(&scene);
+                            history.finish(scene);
                         }
                         let poke_bounds = monitor::covered_bounds(
                             &plan,
@@ -1671,27 +1936,27 @@ pub fn run_native(
                         );
                         if tapped {
                             if let Some(idx) = drag.dragging_entity() {
-                                crate::tap::poke(&mut scene, idx, gx, poke_bounds);
+                                crate::tap::poke(&mut *scene, idx, gx, poke_bounds);
                             }
                         }
                         // Thrown: the flight is play, as a poke's hop is —
                         // the step closes where the character was let go.
                         crate::input::multi::end_drag(
-                            &mut scene,
-                            &mut selection,
-                            &mut drag,
+                            &mut *scene,
+                            &mut *selection,
+                            &mut *drag,
                             tapped,
                             modifiers.shift,
                             |scene| {
                                 history.finish(scene);
                             },
                         );
-                        config_dirty = true;
+                        *config_dirty = true;
                     }
                     egui::Event::PointerMoved(pos) if marquee.is_some() => {
                         let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
                         if let Some(m) = marquee.as_mut() {
-                            m.drag_to(at, &scene, &mut selection);
+                            m.drag_to(at, scene, &mut *selection);
                         }
                     }
                     egui::Event::PointerMoved(pos) if drag.is_dragging() => {
@@ -1701,9 +1966,9 @@ pub fn run_native(
                             && !layer.state.last_modifiers.alt)
                             .then(|| crate::input::arrange::monitor_rects(&monitors_now));
                         crate::input::multi::drag_to(
-                            &mut scene,
-                            &selection,
-                            &mut drag,
+                            &mut *scene,
+                            selection,
+                            &mut *drag,
                             at,
                             snap_to.as_deref(),
                         );
@@ -1711,7 +1976,7 @@ pub fn run_native(
                     _ => {}
                 }
             }
-        } else if config.global.tap_characters && !(overlay_hidden || aside.hidden || aside.paused)
+        } else if config.global.tap_characters && !(*overlay_hidden || aside.hidden || aside.paused)
         {
             // Pass-through with tapping on (`crate::tap`): a press and a
             // release close together on a character poke it. Presses on
@@ -1725,7 +1990,7 @@ pub fn run_native(
                         ..
                     } if !egui_owns_pointer => {
                         let at = global(pos);
-                        tap_gesture.press(&scene, at.x, at.y);
+                        tap_gesture.press(scene, at.x, at.y);
                     }
                     egui::Event::PointerButton {
                         pos,
@@ -1734,7 +1999,7 @@ pub fn run_native(
                         ..
                     } => {
                         let at = global(pos);
-                        if let Some(idx) = tap_gesture.release(&scene, at.x, at.y) {
+                        if let Some(idx) = tap_gesture.release(scene, at.x, at.y) {
                             let bounds = monitor::covered_bounds(
                                 &plan,
                                 (
@@ -1742,7 +2007,7 @@ pub fn run_native(
                                     renderer.primary.window_height as f32,
                                 ),
                             );
-                            crate::tap::poke(&mut scene, idx, at.x, bounds);
+                            crate::tap::poke(&mut *scene, idx, at.x, bounds);
                             activity = true;
                         }
                     }
@@ -1790,24 +2055,24 @@ pub fn run_native(
                 library_root
                     .as_deref()
                     .map(|root| crate::scripting::ScriptContext {
-                        host: &mut script_host,
-                        audio: &mut audio_host,
+                        host: &mut *script_host,
+                        audio: &mut *audio_host,
                         root,
                     }),
             );
         }
         // Back from hidden, everyone fades in; and the fades move on,
         // paused or not.
-        let hidden_now = overlay_hidden || aside.hidden;
-        if was_hidden && !hidden_now {
+        let hidden_now = *overlay_hidden || aside.hidden;
+        if *was_hidden && !hidden_now {
             scene.fade_all_in();
         }
-        was_hidden = hidden_now;
+        *was_hidden = hidden_now;
         scene.fade_step(Instant::now());
         // A character spoke up on its own (`crate::phrases`): show it.
         activity |= scene.take_spoke();
         // A thrown one landed: save where.
-        config_dirty |= scene.take_landed();
+        *config_dirty |= scene.take_landed();
         // Tap sounds (`crate::sounds`), panned across what the overlay covers.
         let sounds = scene.take_sounds();
         if let Some(root) = library_root.as_deref() {
@@ -1841,7 +2106,7 @@ pub fn run_native(
                 // An animation showing its next frame: this is what wakes
                 // a still scene with playing sprites, at their own rate —
                 // unless the overlay is hidden and shows nothing.
-                activity |= !(overlay_hidden || aside.hidden);
+                activity |= !(*overlay_hidden || aside.hidden);
             }
         }
 
@@ -1852,25 +2117,22 @@ pub fn run_native(
         activity |= egui_renderer.screen_reader_woke();
         let now = Instant::now();
         history.settle(
-            &scene,
+            scene,
             egui_renderer.input_in_progress()
                 || pending_file_chooser.is_some()
                 || pending_shimeji.is_some(),
             now,
         );
         // Out of sight, the scene asks for no frames.
-        let shown = !(overlay_hidden || aside.hidden);
+        let shown = !(*overlay_hidden || aside.hidden);
         let scene_pacing = |scene: &Scene| {
             if shown {
-                crate::pacing::redraw_pacing(scene, perf_overlay_visible)
+                crate::pacing::redraw_pacing(scene, *perf_overlay_visible)
             } else {
                 crate::pacing::RedrawPacing::Idle
             }
         };
-        let moving = matches!(
-            scene_pacing(&scene),
-            crate::pacing::RedrawPacing::Continuous
-        );
+        let moving = matches!(scene_pacing(scene), crate::pacing::RedrawPacing::Continuous);
         let extras_repaint = extra_eguis.values().any(|e| e.repaint_due(now));
         // The toasts' frames, in either mode while the overlay shows: one
         // raised after the last egui pass has asked egui for none. A macro
@@ -1908,7 +2170,7 @@ pub fn run_native(
                 let at = crate::pacing::soonest(egui_at, reminder_timers.next_due(now));
                 crate::pacing::next_wait(
                     crate::pacing::sooner(scene_pacing(&scene), at, now),
-                    (config.global.frame_rate).interval(on_battery, layer.state.edit_mode),
+                    (config.global.frame_rate).interval(*on_battery, layer.state.edit_mode),
                     frame_gate.last_draw,
                     awaiting,
                     now,
@@ -1924,8 +2186,8 @@ pub fn run_native(
                 || toasts_at!(now).is_some_and(|at| at <= now),
         ) {
             perf_sampler.end_frame();
-            wait = next_wait!();
-            continue;
+            *wait = next_wait!();
+            return Ok(Flow::Next);
         }
 
         // Render the scene. Pass `selected_id` so the highlight ring
@@ -1933,7 +2195,7 @@ pub fn run_native(
         // `monitors_now` (refreshed above) covers the inspector's
         // picker hot-plug needs too — no separate snapshot needed.
         let monitors = &monitors_now;
-        let selected_owned = selection.selected_ids(&scene);
+        let selected_owned = selection.selected_ids(scene);
         let selected_ids: Vec<&str> = selected_owned.iter().map(String::as_str).collect();
         let marks = crate::renderer::wgpu_renderer::EditMarks {
             selected: &selected_ids,
@@ -1953,13 +2215,13 @@ pub fn run_native(
         };
         // Speech bubbles for the characters on the primary surface
         // (`crate::speech`), gathered while the scene is free to borrow.
-        let bubbles = crate::speech::shown(&scene, primary_origin, |e| {
+        let bubbles = crate::speech::shown(scene, primary_origin, |e| {
             primary_monitor_name
                 .as_ref()
                 .is_none_or(|name| crate::app::windows::entity_on_monitor(monitors, e, name))
         });
         // And the hearts, dust and z's on it (`crate::effects`).
-        let effects = if overlay_hidden || aside.hidden {
+        let effects = if *overlay_hidden || aside.hidden {
             Vec::new()
         } else {
             scene.effects_shown(
@@ -1971,7 +2233,7 @@ pub fn run_native(
                 now,
             )
         };
-        let drawn: Vec<&Entity> = if overlay_hidden || aside.hidden || awaiting_primary {
+        let drawn: Vec<&Entity> = if *overlay_hidden || aside.hidden || awaiting_primary {
             // Hidden: present a cleared (fully transparent) surface. The
             // layer surface stays mapped — that is what a layer shell
             // gives us — but nothing is painted into it, which is the
@@ -2000,9 +2262,9 @@ pub fn run_native(
         // either way.
         // The edit-mode bar is the overlay's too: hidden, it goes with the
         // rest — it stayed, a green line across the top of a hidden one.
-        let edit_bar = layer.state.edit_mode && !(overlay_hidden || aside.hidden);
+        let edit_bar = layer.state.edit_mode && !(*overlay_hidden || aside.hidden);
         let primary_busy = layer.state.edit_mode
-            || perf_overlay_visible
+            || *perf_overlay_visible
             || !bubbles.is_empty()
             || !effects.is_empty()
             || !events.is_empty()
@@ -2018,7 +2280,7 @@ pub fn run_native(
             primary_origin,
         ));
         let primary =
-            if crate::app::windows::needs_frame(primary_frame, primary_key, primary_busy, now) {
+            if crate::app::windows::needs_frame(*primary_frame, primary_key, primary_busy, now) {
                 renderer
                     .render(&drawn, &scene.groups, edit_bar, marks, primary_origin)
                     .map(Some)
@@ -2042,7 +2304,7 @@ pub fn run_native(
                 let pixels_per_point = renderer.primary.pixel_scale();
                 let edit_mode_snapshot = layer.state.edit_mode;
                 let show_button_snapshot = config.global.show_toggle_button;
-                let hidden_snapshot = overlay_hidden || aside.hidden;
+                let hidden_snapshot = *overlay_hidden || aside.hidden;
                 // Snapshot the AccessKit flag BEFORE taking its mutable
                 // borrow, same trick as the X11 path uses; the renderer
                 // gates egui's tree on it.
@@ -2070,12 +2332,12 @@ pub fn run_native(
                 let extra_menu = context_menu_state.clone().filter(|m| m.surface.is_some());
                 let menu_offers = context_menu_state
                     .as_ref()
-                    .map(|m| crate::outcomes::menu_offers(m.entity_idx, &scene, &selection))
+                    .map(|m| crate::outcomes::menu_offers(m.entity_idx, scene, selection))
                     .unwrap_or_default();
                 // Disjoint mut borrows for the closure.
-                let scene_mut = &mut scene;
-                let selection_mut = &mut selection;
-                let config_dirty_mut = &mut config_dirty;
+                let scene_mut = &mut *scene;
+                let selection_mut = &mut *selection;
+                let config_dirty_mut = &mut *config_dirty;
                 let theme_mut = &mut config.global.theme;
                 let locale_mut = &mut config.global.locale;
                 let onboarding_mut = &mut config.global.onboarding;
@@ -2115,7 +2377,7 @@ pub fn run_native(
                 let collapse_state_mut = &mut config.collapse_state;
                 let last_seen_whats_new_mut = &mut config.global.last_seen_whats_new;
                 let warnings_ref = &warnings;
-                let hotkey_backend_ref = hotkey_backend_status;
+                let hotkey_backend_ref = *hotkey_backend_status;
                 let shimeji_import_ref = &mut shimeji_import;
                 let scene_request_ref = &mut scene_request;
                 let monitors_ref = monitors.as_slice();
@@ -2126,7 +2388,7 @@ pub fn run_native(
                 let menu_outcome_ref = &mut menu_outcome;
                 let perf_sampler_ref = &perf_sampler;
                 let perf_export_ref = &mut perf_export_request;
-                let perf_visible_snapshot = perf_overlay_visible;
+                let perf_visible_snapshot = *perf_overlay_visible;
                 if let Some(output) = output {
                     let view = output.create_view();
                     let egui_start = Instant::now();
@@ -2281,7 +2543,7 @@ pub fn run_native(
                         layer.claim_clipboard(text, false);
                     }
                     if perf_export_request {
-                        match crate::perf::export_snapshot(&perf_sampler) {
+                        match crate::perf::export_snapshot(perf_sampler) {
                             Ok(path) => {
                                 // Toast shows the full path — the user asked
                                 // for the export and wants to find the file.
@@ -2308,7 +2570,7 @@ pub fn run_native(
                         let _s = perf_sampler.scope(crate::perf::Category::Present);
                         renderer.present(output);
                     }
-                    primary_frame = Some(crate::app::windows::LastFrame {
+                    *primary_frame = Some(crate::app::windows::LastFrame {
                         key: primary_key,
                         overlay: primary_busy,
                         at: now,
@@ -2322,7 +2584,7 @@ pub fn run_native(
                 // its extra windows, but these stay mapped, and they kept
                 // showing the characters on the other monitors.
                 if !extra_surfaces.is_empty() {
-                    let extra_visible = if overlay_hidden || aside.hidden {
+                    let extra_visible = if *overlay_hidden || aside.hidden {
                         Vec::new()
                     } else {
                         scene.drawn_entities()
@@ -2342,14 +2604,14 @@ pub fn run_native(
                         // Its own egui, run while there are bubbles here —
                         // and once more when one asked for the frame that
                         // clears it.
-                        let bubbles = if overlay_hidden || aside.hidden {
+                        let bubbles = if *overlay_hidden || aside.hidden {
                             Vec::new()
                         } else {
-                            crate::speech::shown(&scene, origin, |e| {
+                            crate::speech::shown(scene, origin, |e| {
                                 crate::app::windows::entity_on_monitor(&monitors_now, e, name)
                             })
                         };
-                        let effects = if overlay_hidden || aside.hidden {
+                        let effects = if *overlay_hidden || aside.hidden {
                             Vec::new()
                         } else {
                             scene.effects_shown(
@@ -2361,7 +2623,7 @@ pub fn run_native(
                         let asked = extra_eguis.get(name).is_some_and(|e| e.repaint_due(now));
                         // Hidden means hidden, as on the panel's surface.
                         let menu_here = extra_menu.as_ref().filter(|m| {
-                            m.surface.as_ref() == Some(name) && !(overlay_hidden || aside.hidden)
+                            m.surface.as_ref() == Some(name) && !(*overlay_hidden || aside.hidden)
                         });
                         let painted = !bubbles.is_empty()
                             || !effects.is_empty()
@@ -2463,39 +2725,40 @@ pub fn run_native(
                 extra_frames.retain(|name, _| extra_surfaces.contains_key(name));
                 if toggle_requested {
                     flip_edit_mode(
-                        &mut layer,
-                        &mut config,
-                        &scene,
-                        &mut config_dirty,
-                        &mut config_watch,
+                        &mut *layer,
+                        &mut *config,
+                        scene,
+                        &mut *config_dirty,
+                        &mut *config_watch,
                         "Wayland, toggle button",
                     );
                 }
                 // Palette / library outcomes apply outside the egui
-                // closure where we can take &mut renderer + &mut toasts
+                // closure where we can take &mut *renderer + &mut *toasts
                 // without conflicting.
                 match &scene_request {
                     // Pasted with the palette's picks, next frame.
                     Some(panels::SceneRequest::Paste) => palette_actions.push(Action::Paste),
                     Some(panels::SceneRequest::Share(path)) if pending_transfer.is_none() => {
-                        pending_transfer = crate::outcomes::SceneTransfer::share(path, &mut toasts);
+                        *pending_transfer =
+                            crate::outcomes::SceneTransfer::share(path, &mut *toasts);
                     }
                     Some(panels::SceneRequest::Import) if pending_transfer.is_none() => {
-                        pending_transfer = Some(crate::outcomes::SceneTransfer::import_chooser());
+                        *pending_transfer = Some(crate::outcomes::SceneTransfer::import_chooser());
                     }
                     Some(panels::SceneRequest::BackUp) if pending_transfer.is_none() => {
-                        pending_transfer =
-                            Some(crate::outcomes::SceneTransfer::back_up(&config, &scene));
+                        *pending_transfer =
+                            Some(crate::outcomes::SceneTransfer::back_up(config, scene));
                     }
                     Some(panels::SceneRequest::Restore) if pending_transfer.is_none() => {
-                        pending_transfer = Some(crate::outcomes::SceneTransfer::restore_chooser());
+                        *pending_transfer = Some(crate::outcomes::SceneTransfer::restore_chooser());
                     }
                     _ => {}
                 }
                 if scene_request == Some(panels::SceneRequest::AddFile)
                     && pending_file_chooser.is_none()
                 {
-                    pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
+                    *pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
                         renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
                         renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
                     )));
@@ -2509,11 +2772,11 @@ pub fn run_native(
                             renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
                             renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
                         );
-                        pending_shimeji = ShimejiImport::start(
+                        *pending_shimeji = ShimejiImport::start(
                             &crate::config::AppConfig::resolve_asset_path(&path),
                             library_root.as_deref(),
                             at,
-                            &mut toasts,
+                            &mut *toasts,
                         );
                     }
                 }
@@ -2527,28 +2790,28 @@ pub fn run_native(
                             }
                         }
                         panels::ContextMenuOutcome::Close => {
-                            context_menu_state = None;
+                            *context_menu_state = None;
                         }
                         // Asks where first, as sharing a scene does.
                         panels::ContextMenuOutcome::Action(panels::MenuAction::SaveGif(idx)) => {
                             if pending_transfer.is_none() {
-                                pending_transfer =
-                                    crate::outcomes::SceneTransfer::save_gif(&scene, idx);
+                                *pending_transfer =
+                                    crate::outcomes::SceneTransfer::save_gif(scene, idx);
                             }
-                            context_menu_state = None;
+                            *context_menu_state = None;
                         }
                         panels::ContextMenuOutcome::Action(panels::MenuAction::ShareCharacter(
                             idx,
                         )) => {
                             if pending_transfer.is_none() {
-                                pending_transfer =
-                                    crate::outcomes::SceneTransfer::share_character(&scene, idx);
+                                *pending_transfer =
+                                    crate::outcomes::SceneTransfer::share_character(scene, idx);
                             }
-                            context_menu_state = None;
+                            *context_menu_state = None;
                         }
                         panels::ContextMenuOutcome::Action(action) => {
                             outcomes::apply_menu_action(action, &mut outcome_ctx!());
-                            context_menu_state = None;
+                            *context_menu_state = None;
                         }
                     }
                 }
@@ -2556,7 +2819,7 @@ pub fn run_native(
                     Some(panels::PaletteOutcome::RunAction(action)) => palette_actions.push(action),
                     Some(panels::PaletteOutcome::AddFile) => {
                         if pending_file_chooser.is_none() {
-                            pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
+                            *pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
                                 renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
                                 renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
                             )));
@@ -2567,17 +2830,17 @@ pub fn run_native(
                         crate::snooze::snooze(what);
                         if layer.state.edit_mode {
                             flip_edit_mode(
-                                &mut layer,
-                                &mut config,
-                                &scene,
-                                &mut config_dirty,
-                                &mut config_watch,
+                                &mut *layer,
+                                &mut *config,
+                                scene,
+                                &mut *config_dirty,
+                                &mut *config_watch,
                                 "Wayland, palette snooze",
                             );
                         }
                     }
                     Some(out) => {
-                        outcomes::apply_palette_outcome(out, &mut outcome_ctx!(), &mut config)
+                        outcomes::apply_palette_outcome(out, &mut outcome_ctx!(), &mut *config)
                     }
                     None => {}
                 }
@@ -2592,7 +2855,7 @@ pub fn run_native(
                         out,
                         &mut outcome_ctx!(),
                         library_root.as_deref(),
-                        &mut library,
+                        &mut *library,
                         at,
                     );
                 }
@@ -2604,7 +2867,7 @@ pub fn run_native(
                     renderer.primary.window_width,
                     renderer.primary.window_height,
                 );
-                primary_frame = None;
+                *primary_frame = None;
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 return Err(AnimaError::other("GPU out of memory"));
@@ -2628,31 +2891,13 @@ pub fn run_native(
         // unconditionally — otherwise a busy compositor would spin faster
         // than the cap and an idle one would wait out the poll timeout
         // *and* a full sleep on top.
-        let frame = (config.global.frame_rate).interval(on_battery, layer.state.edit_mode);
+        let frame = (config.global.frame_rate).interval(*on_battery, layer.state.edit_mode);
         if let Some(rest) = frame.checked_sub(frame_start.elapsed()) {
             std::thread::sleep(rest);
         }
-        wait = next_wait!();
+        *wait = next_wait!();
+        Ok(Flow::Next)
     }
-
-    // Renderer (and every extra surface's wgpu::Surface) is dropped
-    // here before `layer` — each wgpu surface releases its handle
-    // while the wl_surface it points into is still alive. `extra_surfaces`
-    // holds the same kind of raw-handle surface the primary one does
-    // (E.7), so it needs the identical ordering, not just `renderer`.
-    // Persist any unsaved edits on a clean shutdown — Quit from the tray,
-    // or a logout, Ctrl+C or closed terminal, which `quit_signal` turns
-    // into that Quit — so the last toggle is not lost.
-    if config_dirty {
-        if let Err(e) = sync_and_save(&mut config, &scene) {
-            tracing::warn!("Final config save failed: {e}");
-        }
-    }
-
-    drop(renderer);
-    drop(extra_surfaces);
-    drop(layer);
-    Ok(())
 }
 
 /// Whether a loop iteration draws a frame: when there is a reason to, and
