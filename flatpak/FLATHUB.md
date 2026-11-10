@@ -27,7 +27,7 @@ doesn't exist yet.
   `commit: <sha>`) and run `flatpak-builder --repo=… <build-dir> <copy>`.
 - Three screenshots in `screenshots/` (pass-through, edit mode, command
   palette; 1600×1000, taken on the headless rig over a generated
-  wallpaper) and in the metainfo. Their URLs point at the **`v1.2.1`**
+  wallpaper) and in the metainfo. Their URLs point at the **`v1.5.0`**
   tag, so they resolve once that tag is pushed — the next release has to
   carry that name, or the URLs change with it. To retake them, stage the
   demo scene on the rig (onboarding dismissed, the star moved out from
