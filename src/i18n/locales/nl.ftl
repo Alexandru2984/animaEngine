@@ -161,6 +161,7 @@ onboarding-tabs = Instellingen staan in vijf tabbladen — Inspector, Scène, Bi
 onboarding-quick-toggles = Tip: V wisselt zichtbaarheid, G wisselt zwaartekracht — zonder dit paneel te openen.
 onboarding-theme = Thema's worden direct toegepast — geen herstart nodig.
 onboarding-coach-step1 = Welkom! Uw figuren leven op het bureaublad. Klik op het tandwiel rechtsboven om de bewerkmodus te openen.
+onboarding-coach-step1-hidden-button = Welkom! Uw figuren leven op het bureaublad. Druk op { $edit } om de bewerkmodus te openen, of gebruik het systeemvak, of start animaEngine opnieuw vanuit uw apps.
 onboarding-coach-step2 = Sleep een PNG, GIF, WebP of MP4 ergens op het scherm om het als figuur toe te voegen. Het zijpaneel bewerkt alles wat u selecteert.
 onboarding-coach-step3 = { $palette } opent het opdrachtenpalet. { $edit } schakelt de bewerkmodus overal om, { $hide } verbergt de overlay.
 onboarding-coach-next = Volgende

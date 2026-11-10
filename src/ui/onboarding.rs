@@ -201,12 +201,18 @@ pub fn hint(ui: &mut egui::Ui, body: &str, seen: &mut bool) -> bool {
 /// — the very action it teaches. Steps 1–2 run in edit mode, where
 /// the whole window accepts input, so they carry Next/Skip buttons.
 ///
+/// With the ⚙ button hidden (`GlobalConfig::show_toggle_button`), step 0
+/// names the other ways in: the edit-mode shortcut, the tray, starting
+/// the app again.
+///
 /// Returns `true` when `progress.coach_marks` flipped (config dirty).
 pub fn coach_marks(
     ctx: &egui::Context,
     progress: &mut OnboardingProgress,
     edit_mode: bool,
-    // The shortcuts the last step names, as they are bound.
+    // Whether the ⚙ button is drawn outside edit mode.
+    show_toggle_button: bool,
+    // The shortcuts the steps name, as they are bound.
     keys: &crate::keybindings::KeyBindings,
 ) -> bool {
     use crate::i18n::t;
@@ -239,10 +245,12 @@ pub fn coach_marks(
     );
 
     let (anchor, offset) = if step == 0 {
-        // Just below the ⚙ toggle (64 px square, top-right corner).
+        // Just below the ⚙ toggle (64 px square, top-right corner), or
+        // in that corner when there is no button to point at.
+        let below = if show_toggle_button { 64.0 } else { 0.0 };
         (
             egui::Align2::RIGHT_TOP,
-            egui::vec2(-SPACE_M, 64.0 + SPACE_M),
+            egui::vec2(-SPACE_M, below + SPACE_M),
         )
     } else {
         // Edit-mode steps: top-center, clear of panel and mascots.
@@ -269,11 +277,6 @@ pub fn coach_marks(
                 .inner_margin(egui::Margin::same(SPACE_M as i8))
                 .stroke(egui::Stroke::new(1.5_f32, accent))
                 .show(ui, |ui| {
-                    let body_key = match step {
-                        0 => "onboarding-coach-step1",
-                        1 => "onboarding-coach-step2",
-                        _ => "onboarding-coach-step3",
-                    };
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new(format!("{}/3", step + 1))
@@ -281,16 +284,7 @@ pub fn coach_marks(
                                 .strong(),
                         );
                         ui.add_space(SPACE_XS);
-                        let body = if body_key == "onboarding-coach-step3" {
-                            use crate::keybindings::Action;
-                            let mut args = fluent::FluentArgs::new();
-                            args.set("palette", keys.label_for(Action::OpenCommandPalette));
-                            args.set("edit", keys.label_for(Action::ToggleEditMode));
-                            args.set("hide", keys.label_for(Action::HideOverlay));
-                            crate::i18n::t_args(body_key, &args)
-                        } else {
-                            t(body_key)
-                        };
+                        let body = step_text(step, show_toggle_button, keys);
                         ui.label(
                             egui::RichText::new(body)
                                 .text_style(theme::caption())
@@ -332,6 +326,23 @@ pub fn coach_marks(
         ctx.data_mut(|d| d.remove::<u8>(step_id));
     }
     dirty
+}
+
+/// The words of the tour's `step` (0–2), the shortcuts in them as bound.
+fn step_text(step: u8, show_toggle_button: bool, keys: &crate::keybindings::KeyBindings) -> String {
+    use crate::keybindings::Action;
+    let mut args = fluent::FluentArgs::new();
+    args.set("edit", keys.label_for(Action::ToggleEditMode));
+    match step {
+        0 if show_toggle_button => crate::i18n::t("onboarding-coach-step1"),
+        0 => crate::i18n::t_args("onboarding-coach-step1-hidden-button", &args),
+        1 => crate::i18n::t("onboarding-coach-step2"),
+        _ => {
+            args.set("palette", keys.label_for(Action::OpenCommandPalette));
+            args.set("hide", keys.label_for(Action::HideOverlay));
+            crate::i18n::t_args("onboarding-coach-step3", &args)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -426,6 +437,30 @@ mod tests {
 
     /// 1.5: a config from 1.4, which knew the tour, keeps knowing it —
     /// mid-tour or done, it is not welcomed on upgrade.
+    #[test]
+    fn with_the_button_hidden_the_first_step_names_the_shortcut() {
+        use crate::keybindings::{Action, KeyBindings, KeyChord};
+        crate::i18n::init(Some("en"));
+        let mut keys = KeyBindings::default();
+        // F9 reads F9 in every language.
+        let f9: KeyChord = "F9".parse().unwrap();
+        for chord in keys.chords_for(Action::ToggleEditMode) {
+            keys.remove_chord(Action::ToggleEditMode, chord);
+        }
+        keys.add_chord(Action::ToggleEditMode, f9);
+        let shown = step_text(0, true, &keys);
+        let hidden = step_text(0, false, &keys);
+        assert!(
+            !shown.starts_with('?') && !hidden.starts_with('?'),
+            "{hidden}"
+        );
+        assert_ne!(shown, hidden);
+        assert!(hidden.contains("F9"), "{hidden}");
+        // The later steps are the same either way.
+        assert_eq!(step_text(1, true, &keys), step_text(1, false, &keys));
+        assert!(step_text(2, false, &keys).contains("F9"));
+    }
+
     #[test]
     fn a_config_from_before_the_welcome_skips_it() {
         let parsed: OnboardingProgress =

@@ -161,6 +161,7 @@ onboarding-tabs = Die Einstellungen verteilen sich auf fünf Tabs — Inspektor,
 onboarding-quick-toggles = Tipp: V schaltet die Sichtbarkeit um, G die Schwerkraft — ohne dieses Panel zu öffnen.
 onboarding-theme = Themes greifen sofort — kein Neustart nötig.
 onboarding-coach-step1 = Willkommen! Ihre Figuren leben auf dem Desktop. Klicken Sie auf das Zahnrad oben rechts, um den Bearbeitungsmodus zu öffnen.
+onboarding-coach-step1-hidden-button = Willkommen! Ihre Figuren leben auf dem Desktop. Drücken Sie { $edit }, um den Bearbeitungsmodus zu öffnen – oder nutzen Sie das Tray oder starten Sie animaEngine erneut aus Ihren Anwendungen.
 onboarding-coach-step2 = Ziehen Sie ein PNG, GIF, WebP oder MP4 irgendwo auf den Bildschirm, um es als Figur hinzuzufügen. Das Seitenpanel bearbeitet alles, was Sie auswählen.
 onboarding-coach-step3 = { $palette } öffnet die Befehlspalette. { $edit } schaltet den Bearbeitungsmodus von überall um, { $hide } blendet das Overlay aus.
 onboarding-coach-next = Weiter

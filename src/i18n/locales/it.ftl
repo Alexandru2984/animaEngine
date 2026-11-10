@@ -161,6 +161,7 @@ onboarding-tabs = Le impostazioni sono su cinque schede — Ispettore, Scena, Li
 onboarding-quick-toggles = Suggerimento: V alterna la visibilità, G la gravità — senza aprire questo pannello.
 onboarding-theme = I temi si applicano subito — nessun riavvio richiesto.
 onboarding-coach-step1 = Benvenuto! I tuoi personaggi vivono sul desktop. Fai clic sull’ingranaggio in alto a destra per entrare in modalità modifica.
+onboarding-coach-step1-hidden-button = Benvenuto! I tuoi personaggi vivono sul desktop. Premi { $edit } per entrare in modalità modifica, oppure usa l’area di notifica o avvia di nuovo animaEngine dalle tue applicazioni.
 onboarding-coach-step2 = Trascina un PNG, GIF, WebP o MP4 ovunque sullo schermo per aggiungerlo come personaggio. Il pannello laterale modifica tutto ciò che selezioni.
 onboarding-coach-step3 = { $palette } apre la palette dei comandi. { $edit } attiva la modalità modifica da ovunque, { $hide } nasconde l’overlay.
 onboarding-coach-next = Avanti

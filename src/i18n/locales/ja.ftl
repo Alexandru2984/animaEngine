@@ -161,6 +161,7 @@ onboarding-tabs = 設定は 5 つのタブに分かれています — インス
 onboarding-quick-toggles = ヒント: V で表示の切替、G で重力の切替 — このパネルを開かずに操作できます。
 onboarding-theme = テーマは即座に適用されます — 再起動は不要です。
 onboarding-coach-step1 = ようこそ！キャラクターはデスクトップに住んでいます。右上の歯車ボタンをクリックして編集モードに入りましょう。
+onboarding-coach-step1-hidden-button = ようこそ！キャラクターはデスクトップに住んでいます。{ $edit } を押すと編集モードに入ります。トレイや、アプリ一覧から animaEngine をもう一度起動しても開けます。
 onboarding-coach-step2 = PNG・GIF・WebP・MP4 を画面のどこかにドロップすると、キャラクターとして追加されます。サイドパネルで選択したものを編集できます。
 onboarding-coach-step3 = { $palette } でコマンドパレットが開きます。{ $edit } はどこからでも編集モードを切り替え、{ $hide } はオーバーレイを隠します。
 onboarding-coach-next = 次へ

@@ -164,6 +164,7 @@ onboarding-tabs = Setările stau în cinci taburi — Inspector, Scenă, Bibliot
 onboarding-quick-toggles = Sfat: V comută vizibilitatea, G comută gravitația — fără să deschizi acest panou.
 onboarding-theme = Temele se aplică instant — niciun restart necesar.
 onboarding-coach-step1 = Bun venit! Personajele trăiesc pe desktop. Apasă butonul cu rotiță din colțul din dreapta-sus ca să intri în modul de editare.
+onboarding-coach-step1-hidden-button = Bun venit! Personajele trăiesc pe desktop. Apasă { $edit } ca să intri în modul de editare, sau folosește tray-ul ori pornește animaEngine încă o dată din aplicații.
 onboarding-coach-step2 = Trage un PNG, GIF, WebP sau MP4 oriunde pe ecran ca să-l adaugi ca personaj. Panoul lateral editează tot ce selectezi.
 onboarding-coach-step3 = { $palette } deschide paleta de comenzi. { $edit } comută modul de editare de oriunde, { $hide } ascunde suprapunerea.
 onboarding-coach-next = Înainte

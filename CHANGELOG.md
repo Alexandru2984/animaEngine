@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The first-run tour no longer points at a hidden ⚙ button.** With
+  Appearance → "Show the ⚙ button" off, its first step named the button
+  in the top-right corner; it names the edit-mode shortcut as it is bound,
+  the tray and starting animaEngine again, and sits in that corner. In all
+  ten languages, on both paths.
+
 ## [1.5.1] — 2026-11-10
 
 ### Added
