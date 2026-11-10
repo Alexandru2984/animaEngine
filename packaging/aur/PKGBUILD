@@ -3,7 +3,7 @@
 # truth; the AUR repo mirrors it per release).
 
 pkgname=animaengine
-pkgver=1.4.0
+pkgver=1.5.0
 pkgrel=1
 pkgdesc="Linux-first animated desktop overlay engine — render animated characters over your desktop"
 arch=('x86_64' 'aarch64')
@@ -17,7 +17,7 @@ makedepends=('cargo' 'librsvg')
 # linker cannot read: "undefined symbol: WelsCreateDecoder".
 options=('!lto')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('eeb65e1f35a3ab126fca67fcf88c27ec438b62a5e2ba73f36a4c5a1d365fc5a9')
+sha256sums=('8e41abbc64bafda3947f8bf2ee0bb0d88e6609bad94a0f2edc5c435039b8b261')
 
 _srcdir="animaEngine-$pkgver"
 
