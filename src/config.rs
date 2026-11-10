@@ -1462,39 +1462,15 @@ impl AppConfig {
             asset_path.to_string()
         };
 
-        let path = Path::new(&asset_path);
-        if path.is_absolute() {
-            return path.to_path_buf();
-        }
-
-        // Try relative to current executable
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(exe_dir) = exe_path.parent() {
-                let resolved = exe_dir.join(&asset_path);
-                if resolved.exists() {
-                    return resolved;
-                }
-            }
-        }
-
-        // Try relative to current directory
-        let cwd_path = PathBuf::from(&asset_path);
-        if cwd_path.exists() {
-            return cwd_path;
-        }
-
-        // A demo character's pictures, made at the first start in the
-        // data directory (`crate::demo`): an installed app has no `assets/`
-        // beside it, and the current directory is the launcher's.
-        if let Some(rest) = asset_path.strip_prefix("assets/demo/") {
-            let generated = crate::demo::dir().join(rest);
-            if generated.exists() {
-                return generated;
-            }
-        }
-
-        // Return as-is, let caller handle missing path
-        PathBuf::from(&asset_path)
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(Path::to_path_buf));
+        resolve_asset_path_in(
+            &asset_path,
+            exe_dir.as_deref(),
+            Path::new(""),
+            &crate::demo::dir(),
+        )
     }
 
     // Asset-type detection lives in animation::loader::detect_asset_type
@@ -1502,9 +1478,100 @@ impl AppConfig {
     // (it covers JPEG and MP4 / MOV / M4V too).
 }
 
+/// [`AppConfig::resolve_asset_path`] past `~`: a relative path beside the
+/// program (`exe_dir`), then in `cwd`, then — a built-in character's —
+/// among the ones made in `demo_dir` (`crate::demo`), as an installed app
+/// has no `assets/` beside it and the current directory is the launcher's.
+///
+/// A built-in character found beside the program or in `cwd` is taken only
+/// when drawn as this version draws it (`crate::demo::is_current`). 1.2.0
+/// made its pictures in the folder it was started from — the home folder,
+/// from a launcher — and those stood in front of the ones made since in
+/// the data directory: an upgrade kept the old drawings, with no walk, fall
+/// or sleep. They are left on disk, and taken only when nothing else is.
+fn resolve_asset_path_in(
+    asset_path: &str,
+    exe_dir: Option<&Path>,
+    cwd: &Path,
+    demo_dir: &Path,
+) -> PathBuf {
+    let path = Path::new(asset_path);
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    let builtin = asset_path
+        .strip_prefix("assets/demo/")
+        .and_then(|rest| rest.split('/').next())
+        .filter(|name| crate::demo::CHARACTERS.contains(name));
+    let drawn_now = |base: &Path| {
+        builtin.is_none_or(|name| crate::demo::is_current(&base.join("assets/demo").join(name)))
+    };
+    let mut stale = None;
+    for base in exe_dir.into_iter().chain(std::iter::once(cwd)) {
+        let resolved = base.join(asset_path);
+        if resolved.exists() {
+            if drawn_now(base) {
+                return resolved;
+            }
+            stale.get_or_insert(resolved);
+        }
+    }
+    if let Some(rest) = asset_path.strip_prefix("assets/demo/") {
+        let generated = demo_dir.join(rest);
+        if generated.exists() {
+            return generated;
+        }
+    }
+    // As it is when nothing is there: the caller says it is missing.
+    stale.unwrap_or_else(|| PathBuf::from(asset_path))
+}
+
 #[cfg(test)]
 mod resolve_path_tests {
     use super::*;
+
+    /// A built-in character left by 1.2.0 in the folder it ran from no
+    /// longer stands in front of the one this version made; one drawn now
+    /// still does (a build run from the repository), and what is not a
+    /// built-in character is found as before.
+    #[test]
+    fn an_old_drawing_of_a_built_in_character_gives_way() {
+        let root = std::env::temp_dir().join(format!("anima_resolve_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let (exe, cwd, demo) = (root.join("bin"), root.join("home"), root.join("data/demo"));
+        for dir in [
+            exe.clone(),
+            cwd.join("assets/demo/ghost"),
+            cwd.join("assets/demo/mine"),
+            demo.join("ghost"),
+        ] {
+            std::fs::create_dir_all(&dir).unwrap();
+        }
+        std::fs::write(cwd.join("assets/demo/ghost/frame_001.png"), b"old").unwrap();
+        std::fs::write(demo.join("ghost/frame_001.png"), b"new").unwrap();
+        std::fs::write(demo.join("ghost/.art"), crate::demo::ART).unwrap();
+        let resolve = |p: &str| resolve_asset_path_in(p, Some(&exe), &cwd, &demo);
+
+        assert_eq!(resolve("assets/demo/ghost"), demo.join("ghost"));
+        assert_eq!(
+            resolve("assets/demo/ghost/frame_001.png"),
+            demo.join("ghost/frame_001.png")
+        );
+        assert_eq!(resolve("assets/demo/mine"), cwd.join("assets/demo/mine"));
+
+        std::fs::write(cwd.join("assets/demo/ghost/.art"), crate::demo::ART).unwrap();
+        assert_eq!(resolve("assets/demo/ghost"), cwd.join("assets/demo/ghost"));
+
+        // Nothing made yet: the old one is better than none.
+        std::fs::remove_file(cwd.join("assets/demo/ghost/.art")).unwrap();
+        std::fs::remove_dir_all(&demo).unwrap();
+        assert_eq!(resolve("assets/demo/ghost"), cwd.join("assets/demo/ghost"));
+        assert_eq!(
+            resolve("assets/demo/star"),
+            PathBuf::from("assets/demo/star")
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     // `~` expansion reads `$HOME`, which unix guarantees and Windows does
     // not set at all — so both assertions below are unix-shaped. Off unix

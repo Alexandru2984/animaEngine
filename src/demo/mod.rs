@@ -45,7 +45,7 @@ const FRAMES: u32 = 12;
 /// walk, a fall and being held, in `walk/`, `fall/` and `drag/`; 2:
 /// anti-aliased, outlined, lit, twelve frames; 1 drew hard-edged flat
 /// shapes in six or eight.
-const ART: &str = "4";
+pub(crate) const ART: &str = "4";
 
 /// The frames drawn of `state`: a loop's, but one asleep — a sleeping
 /// scene holds still, so its first frame is all that shows.
@@ -252,14 +252,20 @@ impl Look {
     }
 }
 
+/// Whether `dir` holds a built-in character drawn as this version draws
+/// it (its `.art`). One an earlier version left elsewhere does not: 1.2.0
+/// made them in the folder it was started from.
+pub fn is_current(dir: &Path) -> bool {
+    std::fs::read_to_string(dir.join(".art")).is_ok_and(|v| v.trim() == ART)
+}
+
 /// The folder demo `name`'s frames go in, emptied and made ready — or
 /// `None` when they are already there, of this drawing, at `size` or
 /// larger, or it cannot be made.
 fn prepare(base: &Path, name: &str, size: u32) -> Option<std::path::PathBuf> {
     let dir = base.join(name);
     if dir.exists() {
-        let same_art = std::fs::read_to_string(dir.join(".art")).is_ok_and(|v| v.trim() == ART);
-        if same_art && assets_already_at_size(&dir, size) {
+        if is_current(&dir) && assets_already_at_size(&dir, size) {
             tracing::debug!(
                 "Demo {name} assets already exist at {size}px: {}",
                 dir.display()

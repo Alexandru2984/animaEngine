@@ -15,6 +15,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   shared files are as they were; one added under 1.5.0, shown still, is
   decoded again with its frames. The drop says "Animated PNG".
 
+### Fixed
+
+- **Upgrading from 1.2.0 kept the old drawings.** 1.2.0 made the built-in
+  characters' pictures in the folder it was started from — the home
+  folder, from a launcher — and a character's `assets/demo/…` was looked
+  for there before the data directory, where 1.5 draws them: the old
+  pictures stayed, with no walk, fall or sleep. A built-in character's
+  folder beside the program or in the current directory is taken now only
+  when drawn as this version draws it (its `.art`); the old one is left on
+  disk, and used only when nothing else is there.
+
 ## [1.5.0] — 2026-11-10
 
 The characters come to life, and the overlay finds a place in your day.
