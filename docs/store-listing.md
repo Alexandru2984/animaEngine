@@ -134,6 +134,24 @@ are sharp at that size. `scripts/trailer-compose.py <scenes> <pictures>`
 makes the cards and captions and cuts the files. `build/` is not
 committed: the 1080p files are made again with the script.
 
+## Site assets
+
+For animaengine.eu: `scripts/site-assets.py` writes `build/site-assets/` —
+each built-in character standing and asleep at 512 px, animated WebP and
+CSS sprite sheets of it standing, walking, falling and held (from
+`examples/site_pictures.rs`, the app's own drawing at any size), the
+favicons, Apple touch and maskable icons with a `site.webmanifest`, a
+1200×630 link preview in each of the ten languages, and a press kit (logo,
+wordmarks, the site's colours, each language's texts) zipped as well. Its
+`README.md` has the HTML and CSS to use them. Every file is under 25 MB, a
+Cloudflare Pages file's limit; the script says so or stops.
+
+The clips (`desktop`, `tap`, `pickup`, `sleep` — WebM at 1080p and 720p,
+MP4, a poster) and the screenshots beside them are recorded on the test
+rig like the trailer's scenes, at 1920×1080 over the store art's sky, with
+no captions and no words in the bubbles ("Mrrp!", "♥", "Zzz…"), as the
+site has ten languages. They are kept when the script runs again.
+
 ## System requirements
 
 | | Minimum |

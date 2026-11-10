@@ -49,7 +49,7 @@ pub(crate) const ART: &str = "4";
 
 /// The frames drawn of `state`: a loop's, but one asleep — a sleeping
 /// scene holds still, so its first frame is all that shows.
-pub(crate) fn frames_of(state: StateId) -> u32 {
+pub fn frames_of(state: StateId) -> u32 {
     if state == StateId::Sleep {
         1
     } else {
