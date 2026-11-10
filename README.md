@@ -14,7 +14,7 @@ next to no CPU while nothing moves.
 
 ![A tapped character says hello; edit mode opens, a character is selected, a pasted picture becomes a new one](docs/media/demo.gif)
 
-> Status: 1.4.0 — stable. Production-ready packaging
+> Status: 1.5.0 — stable. Production-ready packaging
 > (`.deb` / AppImage / Flatpak), stable X11/XWayland backend, opt-in
 > native Wayland backend (wlroots), ten UI locales, multi-monitor
 > distribution, asset library, sprite groups. See
@@ -134,18 +134,18 @@ carries a `.deb`, an AppImage and their `SHA256SUMS`, and GitHub attests
 where each was built. Check what you downloaded first:
 
 ```bash
-sha256sum -c --ignore-missing SHA256SUMS-v1.4.0.txt
+sha256sum -c --ignore-missing SHA256SUMS-v1.5.0.txt
 # gh 2.49 or newer — a distribution's may be older: cli.github.com
-gh attestation verify anima-engine_1.4.0-1_amd64.deb --repo Alexandru2984/animaEngine
+gh attestation verify anima-engine_1.5.0-1_amd64.deb --repo Alexandru2984/animaEngine
 ```
 
 ```bash
 # Debian / Ubuntu (.deb) — and `sudo apt remove anima-engine` to remove it
-sudo apt install ./anima-engine_1.4.0-1_amd64.deb
+sudo apt install ./anima-engine_1.5.0-1_amd64.deb
 
 # AppImage (any distro)
-chmod +x animaEngine-1.4.0-x86_64.AppImage
-./animaEngine-1.4.0-x86_64.AppImage
+chmod +x animaEngine-1.5.0-x86_64.AppImage
+./animaEngine-1.5.0-x86_64.AppImage
 ```
 
 A Flatpak is built locally (`make flatpak`, see

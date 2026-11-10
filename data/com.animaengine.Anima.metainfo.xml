@@ -81,6 +81,21 @@
   </recommends>
 
   <releases>
+    <release version="1.5.0" date="2026-11-10">
+      <description>
+        <p>The characters come to life, and the overlay finds a place in your day.</p>
+        <ul>
+          <li>Tap the characters: they greet each other, play tag, follow one another and say lines of their own.</li>
+          <li>Ten built-in characters that walk, fall, can be picked up and fall asleep, and a welcome on the first run.</li>
+          <li>Reminders at a set time, a focus timer, bedtime and snooze, and a welcome when you come back.</li>
+          <li>Undo, several characters at once, groups and alignment in edit mode.</li>
+          <li>Named scenes with pictures and a schedule; share a scene or one character, or back up everything in one file.</li>
+          <li>Sounds at the volume you want, one for each character, quiet at bedtime.</li>
+          <li>The global shortcuts are Super+Alt+A, H and P in a new configuration.</li>
+          <li>A laptop's NVIDIA GPU is left asleep, and fewer frames are drawn while nothing moves.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.4.0" date="2026-09-28">
       <description>
         <p>Screen readers, a file chooser, and a command palette that runs actions.</p>

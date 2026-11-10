@@ -6,6 +6,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-11-10
+
 The characters come to life, and the overlay finds a place in your day.
 They can be tapped, talk in bubbles of their own, greet each other, play
 tag and follow one another; they doze while you are away and at bedtime,
