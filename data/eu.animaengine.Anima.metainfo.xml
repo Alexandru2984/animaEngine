@@ -86,6 +86,17 @@
   </recommends>
 
   <releases>
+    <release version="1.5.1" date="2026-11-10">
+      <description>
+        <p>Animated PNGs, a way to hide the ⚙ button, and two fixes.</p>
+        <ul>
+          <li>An animated PNG (APNG) plays like a GIF, every frame for as long as it asks.</li>
+          <li>Appearance → Show the ⚙ button: hidden, its corner passes clicks; edit mode opens with its shortcut, from the tray, or by starting the app again.</li>
+          <li>Coming from 1.2.0, the built-in characters show as 1.5 draws them.</li>
+          <li>On native Wayland (sway, Hyprland), the overlay moves to another monitor when its own goes, instead of quitting.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.5.0" date="2026-11-10">
       <description>
         <p>The characters come to life, and the overlay finds a place in your day.</p>
