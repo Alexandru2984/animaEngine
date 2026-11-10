@@ -86,6 +86,15 @@
   </recommends>
 
   <releases>
+    <release version="1.5.2" date="2026-11-11">
+      <description>
+        <p>Quit works again on sway and Hyprland, and the first-run tour fits a hidden ⚙ button.</p>
+        <ul>
+          <li>On native Wayland (sway, Hyprland), Quit in the tray, the Quit shortcut and SIGTERM end the app again; since 1.5.1 they made the overlay again instead.</li>
+          <li>With the ⚙ button hidden, the first step of the tour names the edit-mode shortcut, the tray, and starting the app again.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.5.1" date="2026-11-10">
       <description>
         <p>Animated PNGs, a way to hide the ⚙ button, and two fixes.</p>

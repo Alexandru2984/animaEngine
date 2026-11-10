@@ -6,6 +6,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-11-11
+
 ### Fixed
 
 - **On sway, Hyprland and other wlroots compositors (native Wayland), Quit
