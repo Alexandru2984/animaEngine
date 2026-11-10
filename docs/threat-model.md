@@ -677,7 +677,8 @@ inputs go through the **same** boundaries as the X11 path:
 - **Asset library** is discovered, scanned, indexed, and thumbnailed
   at startup exactly like the X11 path; "Add to scene" goes through
   the same `resolve_library_asset` canonicalize-and-contain gate
-  (`src/wayland/run.rs::handle_library_outcome`).
+  (`outcomes::apply_library_outcome`, from `Native::apply_asked` in
+  `src/wayland/run/frame.rs`).
 - **`MonitorMode::PerMonitor`** spawns one sprite-only layer-shell
   surface per non-primary `wl_output` (`src/wayland/run.rs::rebuild_extra_surfaces`),
   mirroring the X11 path's extra windows: no input region, no egui,

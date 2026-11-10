@@ -308,6 +308,28 @@ backend exposes the same actions as D-Bus methods on
 bindings in [docs/wayland.md](wayland.md) that call them through
 `gdbus`.
 
+### The native loop (`src/wayland/run.rs`)
+
+`run_native` makes a `Native` — every piece of state the loop keeps from
+one turn to the next — and runs it. One turn, `Native::iteration`, is a
+list of phases, each a method in its own file under `src/wayland/run/`:
+
+| Phase | File | What it does |
+|-------|------|--------------|
+| `wake`, `overlay_closed`, `resized`, `results`, `outputs` | `wake.rs` | the wait for the compositor; the overlay closed (made again) or a quit; a resize; the hot reload and the results the loop waits on; the monitors and the other monitors' overlays |
+| `circumstances`, `input_regions` | `circumstances.rs` | full screen, chosen apps, snooze, away, battery, bedtime, scheduled scenes, reminders, focus, moods, welcome back; where the overlays take the pointer |
+| `drops`, `commands` | `commands.rs` | files dropped on an overlay; D-Bus, the tray, signals, the portal's shortcuts |
+| `keys`, `pointer` | `input.rs` | pasting into a text field and the actions of keys and palette picks; the right-click menu, selecting, dragging, tapping |
+| `tick`, `draw`, `apply_asked` | `frame.rs` | the scene moving on; the frame on every monitor; what the panels asked for in it |
+
+Between `tick` and `draw` the turn decides whether to draw at all
+(`should_draw`, `FrameGate`), and after it how long the next wait may be
+(`next_wait`). A phase takes apart the fields it uses into `&mut`
+bindings (`let Self { scene, layer, .. } = self;`), so its code borrows
+them separately, as locals would be. The fields are declared in the
+reverse of the order they are made in, so every wgpu surface drops before
+the layer surface it draws into.
+
 ## Multi-window rendering (decision record, T.5)
 
 Decided before the 0.6 implementation (T.6–T.8); recorded so the
