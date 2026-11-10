@@ -7,7 +7,7 @@ doesn't exist yet.
 ## Ready ✅
 
 - `eu.animaengine.Anima.flathub.yml` — offline manifest building the
-  `v1.5.0` tag (its commit pinned), crates pinned in `cargo-sources.json` (991 entries,
+  `v1.5.1` tag (its commit pinned), crates pinned in `cargo-sources.json` (991 entries,
   written from `Cargo.lock` by `scripts/cargo-sources.py`; CI fails
   while the two disagree).
 - Metainfo passes `appstreamcli validate` with release entries up to
