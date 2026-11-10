@@ -256,7 +256,24 @@ fn decode_descriptor_hash(asset_type: &AssetType, columns: Option<u32>, rows: Op
     columns.hash(&mut hasher);
     rows.hash(&mut hasher);
     cfg!(feature = "video").hash(&mut hasher);
+    // A decoder that makes other frames of the same bytes: hashed only
+    // past its first revision, so the other types keep the keys they had.
+    let revision = decoder_revision(asset_type);
+    if revision > 0 {
+        revision.hash(&mut hasher);
+    }
     hasher.finish() as u32
+}
+
+/// Which revision of its decoder `asset_type` is at, where one changed
+/// the frames it makes: `png_static` decodes an animated PNG's every frame
+/// since 1.5.1, where it kept the first — its earlier cache entries hold
+/// that one alone.
+fn decoder_revision(asset_type: &AssetType) -> u32 {
+    match asset_type {
+        AssetType::PngStatic => 1,
+        _ => 0,
+    }
 }
 
 /// Stat-derived signature of an asset. Two assets with the same
@@ -788,6 +805,39 @@ mod tests {
         assert_eq!(
             decode_descriptor_hash(&AssetType::Gif, Some(2), Some(3)),
             decode_descriptor_hash(&AssetType::Gif, Some(2), Some(3)),
+        );
+    }
+
+    /// `png_static` decodes an animated PNG's frames since 1.5.1: its key
+    /// moved, so a picture cached as one frame is decoded again; every
+    /// other type's stayed, and their caches still serve.
+    #[test]
+    fn only_the_revised_decoder_moves_its_keys() {
+        let before = |t: &AssetType, c: Option<u32>, r: Option<u32>| {
+            let mut hasher = DefaultHasher::new();
+            std::mem::discriminant(t).hash(&mut hasher);
+            c.hash(&mut hasher);
+            r.hash(&mut hasher);
+            cfg!(feature = "video").hash(&mut hasher);
+            hasher.finish() as u32
+        };
+        for t in [
+            AssetType::PngSequence,
+            AssetType::Gif,
+            AssetType::WebpAnimated,
+            AssetType::WebpStatic,
+            AssetType::Spritesheet,
+            AssetType::Video,
+        ] {
+            assert_eq!(
+                decode_descriptor_hash(&t, Some(4), None),
+                before(&t, Some(4), None)
+            );
+        }
+        let png = AssetType::PngStatic;
+        assert_ne!(
+            decode_descriptor_hash(&png, None, None),
+            before(&png, None, None)
         );
     }
 

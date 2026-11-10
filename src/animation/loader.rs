@@ -234,10 +234,10 @@ fn decode(
         }
         AssetType::PngStatic => {
             tracing::info!(
-                "Loading static image from: {}",
+                "Loading picture from: {}",
                 crate::drop_validate::redact_path(asset_path)
             );
-            vec![png_sequence::load_single_png(asset_path)?]
+            png_sequence::load_picture(asset_path)?
         }
         AssetType::Gif => {
             tracing::info!(
@@ -434,6 +434,8 @@ pub fn detect_asset_type(path: &Path) -> (AssetType, &'static str) {
             // If it's a directory, treat as PNG sequence
             if path.is_dir() {
                 (AssetType::PngSequence, "PNG sequence (directory)")
+            } else if png_sequence::is_apng(path) {
+                (AssetType::PngStatic, "Animated PNG")
             } else {
                 (AssetType::PngStatic, "Static PNG")
             }

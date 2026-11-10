@@ -347,7 +347,7 @@ shows everyone whatever their hours.
 
 | `asset_type` value | What it expects |
 |--------------------|-----------------|
-| `png_static`       | single PNG / JPEG file |
+| `png_static`       | single PNG / JPEG file; an animated PNG (APNG) plays its frames (1.5.1) |
 | `png_sequence`     | folder of `frame_*.png` |
 | `gif`              | animated GIF |
 | `webp_animated`    | animated WebP |

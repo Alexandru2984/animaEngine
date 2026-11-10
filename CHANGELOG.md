@@ -6,6 +6,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Animated PNG (APNG)** (issue #2). A PNG with an animation plays as a
+  GIF does: every frame, each held its own delay, a smaller frame drawn
+  over the one before at its place, within the same limits on frames and
+  memory. It stays a `png_static` character, so configs, scenes and
+  shared files are as they were; one added under 1.5.0, shown still, is
+  decoded again with its frames. The drop says "Animated PNG".
+
 ## [1.5.0] — 2026-11-10
 
 The characters come to life, and the overlay finds a place in your day.

@@ -180,6 +180,34 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
     Ok(frames)
 }
 
+/// One picture's frames (`png_static`): every frame of an animated PNG,
+/// each held its own delay as a GIF's are (1.5.1, issue #2), or the one
+/// of any other picture.
+pub fn load_picture(path: &Path) -> Result<Vec<Frame>> {
+    if super::loader::content_format(path) == Some(image::ImageFormat::Png) {
+        use image::{AnimationDecoder, ImageDecoder};
+        let file = std::io::BufReader::new(fs::File::open(path)?);
+        let mut decoder = image::codecs::png::PngDecoder::new(file)?;
+        decoder.set_limits(super::loader::decode_limits())?;
+        if decoder.is_apng()? {
+            let frames = decoder.apng()?.into_frames();
+            return super::animated::collect_frames(frames, "APNG", path);
+        }
+    }
+    Ok(vec![load_single_png(path)?])
+}
+
+/// Whether `path` is an animated PNG: one whose `acTL` comes before its
+/// first image data. Not an error when it cannot be read: it is then no
+/// animation.
+pub fn is_apng(path: &Path) -> bool {
+    fs::File::open(path)
+        .ok()
+        .and_then(|f| image::codecs::png::PngDecoder::new(std::io::BufReader::new(f)).ok())
+        .and_then(|d| d.is_apng().ok())
+        .unwrap_or(false)
+}
+
 /// Load a single static PNG file
 pub fn load_single_png(path: &Path) -> Result<Frame> {
     let img = super::loader::open_image(path)?.to_rgba8();
@@ -209,6 +237,170 @@ mod tests {
             *px = image::Rgba(color);
         }
         img.save(path).unwrap();
+    }
+
+    /// One frame of an animated PNG for [`write_apng`]: where it goes on
+    /// the canvas, how long it holds in tenths of a second, its pixels.
+    struct ApngFrame {
+        x: u32,
+        y: u32,
+        w: u32,
+        h: u32,
+        tenths: u16,
+        rgba: Vec<u8>,
+    }
+
+    /// An animated PNG, written chunk by chunk — no encoder for one is a
+    /// dependency. The first frame is the whole `w` × `h` canvas.
+    fn write_apng(path: &Path, w: u32, h: u32, frames: &[ApngFrame]) {
+        fn crc32(bytes: &[u8]) -> u32 {
+            let mut crc = 0xffff_ffffu32;
+            for &b in bytes {
+                crc ^= u32::from(b);
+                for _ in 0..8 {
+                    crc = if crc & 1 != 0 {
+                        (crc >> 1) ^ 0xedb8_8320
+                    } else {
+                        crc >> 1
+                    };
+                }
+            }
+            !crc
+        }
+        fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+            out.extend((data.len() as u32).to_be_bytes());
+            let mut body = kind.to_vec();
+            body.extend(data);
+            out.extend(&body);
+            out.extend(crc32(&body).to_be_bytes());
+        }
+        // zlib holding one stored block: each row after filter byte 0.
+        fn zlib_stored(w: u32, rgba: &[u8]) -> Vec<u8> {
+            let mut raw = Vec::new();
+            for row in rgba.chunks(w as usize * 4) {
+                raw.push(0);
+                raw.extend(row);
+            }
+            let len = raw.len() as u16;
+            let mut z = vec![0x78, 0x01, 0x01];
+            z.extend(len.to_le_bytes());
+            z.extend((!len).to_le_bytes());
+            z.extend(&raw);
+            let (mut a, mut b) = (1u32, 0u32);
+            for &x in &raw {
+                a = (a + u32::from(x)) % 65521;
+                b = (b + a) % 65521;
+            }
+            z.extend(((b << 16) | a).to_be_bytes());
+            z
+        }
+        let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
+        let mut ihdr = Vec::new();
+        ihdr.extend(w.to_be_bytes());
+        ihdr.extend(h.to_be_bytes());
+        ihdr.extend([8, 6, 0, 0, 0]);
+        chunk(&mut out, b"IHDR", &ihdr);
+        let mut actl = (frames.len() as u32).to_be_bytes().to_vec();
+        actl.extend(0u32.to_be_bytes());
+        chunk(&mut out, b"acTL", &actl);
+        let mut seq = 0u32;
+        for (i, f) in frames.iter().enumerate() {
+            let mut fctl = seq.to_be_bytes().to_vec();
+            for v in [f.w, f.h, f.x, f.y] {
+                fctl.extend(v.to_be_bytes());
+            }
+            fctl.extend(f.tenths.to_be_bytes());
+            fctl.extend(10u16.to_be_bytes());
+            fctl.extend([0, 0]);
+            chunk(&mut out, b"fcTL", &fctl);
+            seq += 1;
+            let data = zlib_stored(f.w, &f.rgba);
+            if i == 0 {
+                chunk(&mut out, b"IDAT", &data);
+            } else {
+                let mut fdat = seq.to_be_bytes().to_vec();
+                fdat.extend(data);
+                chunk(&mut out, b"fdAT", &fdat);
+                seq += 1;
+            }
+        }
+        chunk(&mut out, b"IEND", &[]);
+        std::fs::write(path, out).unwrap();
+    }
+
+    fn solid(w: u32, h: u32, px: [u8; 4]) -> Vec<u8> {
+        px.repeat((w * h) as usize)
+    }
+
+    /// Issue #2: an animated PNG plays as a GIF does — every frame, each
+    /// held its own delay, each the whole canvas, a smaller frame drawn
+    /// over the one before at its place.
+    #[test]
+    fn an_animated_png_brings_every_frame_and_its_delay() {
+        let dir = temp_dir("apng");
+        let path = dir.join("wave.png");
+        let (red, green, blue) = ([255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]);
+        write_apng(
+            &path,
+            2,
+            2,
+            &[
+                ApngFrame {
+                    x: 0,
+                    y: 0,
+                    w: 2,
+                    h: 2,
+                    tenths: 1,
+                    rgba: solid(2, 2, red),
+                },
+                ApngFrame {
+                    x: 0,
+                    y: 0,
+                    w: 2,
+                    h: 2,
+                    tenths: 2,
+                    rgba: solid(2, 2, green),
+                },
+                ApngFrame {
+                    x: 1,
+                    y: 1,
+                    w: 1,
+                    h: 1,
+                    tenths: 3,
+                    rgba: solid(1, 1, blue),
+                },
+            ],
+        );
+        assert!(is_apng(&path));
+        let frames = load_picture(&path).expect("decodes");
+        assert_eq!(frames.len(), 3);
+        let delays: Vec<_> = frames.iter().map(|f| f.delay_ms).collect();
+        assert_eq!(delays, [Some(100), Some(200), Some(300)]);
+        assert!(frames.iter().all(|f| (f.width, f.height) == (2, 2)));
+        assert_eq!(frames[0].rgba, solid(2, 2, red));
+        assert_eq!(frames[1].rgba, solid(2, 2, green));
+        let mut last = solid(2, 2, green);
+        last[12..16].copy_from_slice(&blue);
+        assert_eq!(frames[2].rgba, last, "the small frame over the one before");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A plain PNG is one frame as before, held at the character's rate;
+    /// what cannot be read is no animated PNG.
+    #[test]
+    fn a_plain_png_stays_one_frame() {
+        let dir = temp_dir("plain_picture");
+        let path = dir.join("still.png");
+        write_colored_png(&path, 3, 2, [9, 8, 7, 255]);
+        assert!(!is_apng(&path));
+        let frames = load_picture(&path).unwrap();
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].delay_ms, None);
+        assert_eq!((frames[0].width, frames[0].height), (3, 2));
+        assert!(!is_apng(&dir.join("missing.png")));
+        std::fs::write(dir.join("text.png"), b"not a picture").unwrap();
+        assert!(!is_apng(&dir.join("text.png")));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
