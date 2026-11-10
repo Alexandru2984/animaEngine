@@ -53,7 +53,7 @@ use smithay_client_toolkit::{
     registry::RegistryState,
     seat::{keyboard::Modifiers as SctkModifiers, SeatState},
     shell::{
-        wlr_layer::{Anchor, KeyboardInteractivity, Layer, LayerShell},
+        wlr_layer::{Anchor, KeyboardInteractivity, Layer, LayerShell, LayerSurface},
         WaylandSurface,
     },
 };
@@ -700,6 +700,49 @@ impl LayerWindow {
     /// the current value is a no-op so the dispatch loop can call this
     /// every time it suspects a flip happened without spamming the
     /// compositor.
+    /// Make the primary surface again after the compositor closed it —
+    /// its output gone: a monitor unplugged, or Hyprland's stand-in for
+    /// none replaced by a real one. A new `wl_surface` (a layer surface
+    /// may not be made over one that has had a buffer), on no output in
+    /// particular as at start, in the layer and keyboard mode the old one
+    /// had, and its first `configure` waited for. Returns the old layer,
+    /// for the caller to drop only once the wgpu surface made from its
+    /// `wl_surface` is gone, and the new `wl_surface`, to make one from.
+    pub fn reopen_primary(&mut self) -> Result<(LayerSurface, wl_surface::WlSurface)> {
+        let qh = self.event_queue.handle();
+        let wl_surface = self.state.compositor.create_surface(&qh);
+        let layer = self.state._layer_shell.create_layer_surface(
+            &qh,
+            wl_surface.clone(),
+            if self.state.on_top {
+                Layer::Overlay
+            } else {
+                Layer::Bottom
+            },
+            Some("anima_engine"),
+            None,
+        );
+        layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
+        layer.set_keyboard_interactivity(if self.state.keyboard_on_demand {
+            KeyboardInteractivity::OnDemand
+        } else {
+            KeyboardInteractivity::None
+        });
+        layer.set_exclusive_zone(-1);
+        layer.commit();
+        let old = std::mem::replace(&mut self.state.layer, layer);
+        // The old surface's scale objects go before it does.
+        self.state.primary_scale =
+            scale::SurfaceScale::new(&self.state.scale_globals, &wl_surface, &qh);
+        self.state.pending_size = None;
+        self.state.primary_output_name = None;
+        self.state.close_requested = false;
+        self.event_queue
+            .roundtrip(&mut self.state)
+            .map_err(|e| AnimaError::other(format!("roundtrip after reopening: {e}")))?;
+        Ok((old, wl_surface))
+    }
+
     /// Above other windows (the overlay layer), or under them on the
     /// desktop (the bottom layer) — every surface. Cheap when nothing
     /// changes; the loop calls it every frame.

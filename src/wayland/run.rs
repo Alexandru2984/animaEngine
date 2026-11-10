@@ -300,6 +300,7 @@ pub fn run_native(
     let waker = crate::wayland::waker::Waker::install();
     let mut wait = FRAME_INTERVAL;
     let loop_started = Instant::now();
+    let mut reopens = Reopens::default();
     loop {
         let frame_start = Instant::now();
         // Opens the perf frame before the blocking dispatch, so the wait
@@ -328,8 +329,43 @@ pub fn run_native(
         let (gpu_uploads, gpu_draws) = renderer.shared.take_frame_gpu_counters();
 
         if layer.state.close_requested {
-            tracing::info!("Layer surface closed by compositor — exiting.");
-            break;
+            // The compositor closed the overlay: its monitor went —
+            // unplugged, or Hyprland's stand-in for none replaced by a
+            // real one, which ended an app started from `exec-once`. The
+            // session goes on, so it is made again once a monitor is
+            // there; only a compositor that keeps closing it ends the app,
+            // as every close did before (`Reopens`).
+            if layer.monitors().is_empty() {
+                wait = Duration::from_millis(500);
+                continue;
+            }
+            if !reopens.allow(Instant::now()) {
+                tracing::info!("Layer surface closed by compositor again and again — exiting.");
+                break;
+            }
+            match reopen_primary(&mut layer, &mut renderer) {
+                Ok(()) => {
+                    tracing::info!("Layer surface closed by compositor — made again");
+                    let region = region_for_state(
+                        overlay_hidden || aside.hidden,
+                        layer.state.edit_mode || drag_widened,
+                        renderer.primary.window_width,
+                        renderer.primary.window_height,
+                        shown_button(&config.global),
+                    );
+                    if let Err(e) = layer.set_input_region(region) {
+                        tracing::warn!("input region after reopening: {e}");
+                    }
+                    primary_frame = None;
+                    activity = true;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Layer surface closed by compositor, not made again ({e}) — exiting."
+                    );
+                    break;
+                }
+            }
         }
 
         // Pick up any resize the compositor sent us.
@@ -2684,6 +2720,51 @@ fn binding_chord(event: &egui::Event, egui_owns_keyboard: bool) -> Option<KeyCho
     }
 }
 
+/// The primary surface made again after the compositor closed it
+/// (`LayerWindow::reopen_primary`), with a wgpu surface on its new
+/// `wl_surface`. The old wgpu surface goes, with the state it is replaced
+/// by, before the old layer and its `wl_surface` — the order
+/// `rebuild_extra_surfaces` keeps for the extras.
+fn reopen_primary(layer: &mut LayerWindow, renderer: &mut WgpuRenderer) -> Result<()> {
+    let (old, wl_surface) = layer.reopen_primary()?;
+    let (w, h) = layer.state.pending_size.take().unwrap_or((
+        renderer.primary.window_width,
+        renderer.primary.window_height,
+    ));
+    let wgpu_surface = layer_window::build_wgpu_surface(
+        &renderer.shared.instance,
+        &layer.connection,
+        &wl_surface,
+    )?;
+    renderer.primary = SurfaceState::new(&renderer.shared, wgpu_surface, w, h);
+    drop(old);
+    Ok(())
+}
+
+/// How often the compositor may close the overlay and see it made again:
+/// past [`Reopens::MAX`] in [`Reopens::WINDOW`], one that will not hold it
+/// ends the app rather than a loop of surfaces.
+#[derive(Default)]
+struct Reopens {
+    at: Vec<Instant>,
+}
+
+impl Reopens {
+    const MAX: usize = 5;
+    const WINDOW: Duration = Duration::from_secs(60);
+
+    /// Whether one more, at `now`, is allowed.
+    fn allow(&mut self, now: Instant) -> bool {
+        self.at
+            .retain(|t| now.saturating_duration_since(*t) < Self::WINDOW);
+        if self.at.len() >= Self::MAX {
+            return false;
+        }
+        self.at.push(now);
+        true
+    }
+}
+
 /// The ⚙ corner's side outside edit mode: none when the button is hidden
 /// (`GlobalConfig::show_toggle_button`), so the overlay passes every click.
 fn shown_button(global: &crate::config::GlobalConfig) -> u32 {
@@ -3178,6 +3259,26 @@ mod tests {
         assert!(!drag_region(false, false, false), "no drag, no widening");
         assert!(!drag_region(false, true, true), "edit mode is already full");
         assert!(!drag_region(true, false, true), "hidden takes no input");
+    }
+
+    #[test]
+    fn a_closed_overlay_is_made_again_but_not_forever() {
+        let t0 = Instant::now();
+        let mut reopens = Reopens::default();
+        for i in 0..Reopens::MAX {
+            assert!(
+                reopens.allow(t0 + Duration::from_secs(i as u64)),
+                "close {i}"
+            );
+        }
+        assert!(
+            !reopens.allow(t0 + Duration::from_secs(10)),
+            "a sixth within the minute"
+        );
+        assert!(
+            reopens.allow(t0 + Duration::from_secs(61)),
+            "a minute on, again"
+        );
     }
 
     #[test]

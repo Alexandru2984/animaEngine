@@ -25,6 +25,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The native Wayland overlay quit when its monitor went.** A compositor
+  closes a layer surface whose output is gone — a monitor unplugged, or
+  on Hyprland the stand-in for none replaced by a real one, which ended
+  an app started from `exec-once` before the monitors were up — and the
+  app took that as the end of the session. It makes the overlay again
+  now, on the monitor the compositor gives it, with its layer, keyboard
+  mode and input region as they were, and waits while there is no
+  monitor at all. A compositor that closes it more than five times in a
+  minute ends the app as before.
 - **Upgrading from 1.2.0 kept the old drawings.** 1.2.0 made the built-in
   characters' pictures in the folder it was started from — the home
   folder, from a launcher — and a character's `assets/demo/…` was looked
