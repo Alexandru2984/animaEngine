@@ -29,6 +29,7 @@ pub(super) fn appearance_tab(
     step_aside_apps: &mut Vec<String>,
     always_on_top: &mut bool,
     tap_characters: &mut bool,
+    show_toggle_button: &mut bool,
     little_effects: &mut bool,
     away: super::AwayControls<'_>,
     sounds: super::SoundControls<'_>,
@@ -115,6 +116,20 @@ pub(super) fn appearance_tab(
     if ui
         .checkbox(tap_characters, t("appearance-tap-label"))
         .on_hover_text(t("appearance-tap-hint"))
+        .changed()
+    {
+        *config_dirty = true;
+    }
+    ui.add_space(SPACE_S);
+    // The ⚙ button outside edit mode (issue #1): edit mode still comes
+    // from the tray, the shortcut, or starting the app again.
+    if ui
+        .checkbox(show_toggle_button, t("appearance-toggle-button-label"))
+        .on_hover_text({
+            let mut args = fluent::FluentArgs::new();
+            args.set("edit", edit_chord.to_string());
+            crate::i18n::t_args("appearance-toggle-button-hint", &args)
+        })
         .changed()
     {
         *config_dirty = true;

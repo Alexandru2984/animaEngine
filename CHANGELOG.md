@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The ⚙ button can be hidden** (issue #1): Appearance → "Show the ⚙
+  button", `show_toggle_button` in the config. Off, the top-right corner
+  passes clicks like the rest of the overlay outside edit mode; edit mode
+  opens from the tray, the edit-mode shortcut, a compositor binding over
+  D-Bus, or by starting animaEngine again, which then opens it — a way
+  back on every desktop, with a tray and shortcuts or without. In edit
+  mode the button shows either way, as the way out. On both paths.
+
 - **Animated PNG (APNG)** (issue #2). A PNG with an animation plays as a
   GIF does: every frame, each held its own delay, a smaller frame drawn
   over the one before at its place, within the same limits on frames and

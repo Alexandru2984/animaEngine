@@ -78,6 +78,15 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub tap_characters: bool,
 
+    /// The ⚙ button outside edit mode (1.5.1, issue #1). Off, nothing of
+    /// the overlay takes a click outside edit mode but the characters
+    /// that take taps; edit mode comes from the tray, the global shortcut,
+    /// a compositor binding over D-Bus, or starting the app again, which
+    /// opens it then. In edit mode the button shows either way: it is the
+    /// way out.
+    #[serde(default = "default_true")]
+    pub show_toggle_button: bool,
+
     /// Hearts, dust and z's (`crate::effects`). On by default; none with
     /// Reduce motion either way.
     #[serde(default = "default_true")]
@@ -235,6 +244,7 @@ impl Default for GlobalConfig {
             on_fullscreen: crate::fullscreen::OnFullscreen::default(),
             step_aside_apps: Vec::new(),
             tap_characters: false,
+            show_toggle_button: true,
             little_effects: true,
             pause_when_idle_minutes: default_pause_when_idle_minutes(),
             pause_on_battery: false,
@@ -1607,6 +1617,22 @@ mod resolve_path_tests {
     fn interior_tilde_untouched() {
         let resolved = AppConfig::resolve_asset_path("/data/backup~old/x.png");
         assert_eq!(resolved, PathBuf::from("/data/backup~old/x.png"));
+    }
+}
+
+#[cfg(test)]
+mod toggle_button_tests {
+    use super::*;
+
+    /// The ⚙ button shows unless turned off: in a new config, and in one
+    /// from before the setting, which has no key for it.
+    #[test]
+    fn the_gear_button_shows_unless_turned_off() {
+        assert!(GlobalConfig::default().show_toggle_button);
+        let before: GlobalConfig = toml::from_str("").expect("an empty [global] reads");
+        assert!(before.show_toggle_button);
+        let off: GlobalConfig = toml::from_str("show_toggle_button = false").unwrap();
+        assert!(!off.show_toggle_button);
     }
 }
 

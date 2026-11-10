@@ -110,6 +110,10 @@ step_aside_apps = ["obs", "zoom"] # and hide while one of these apps
 tap_characters = false      # outside edit mode too, a click on a
                             # character pokes it; clicks elsewhere
                             # still reach the windows underneath
+show_toggle_button = true   # the ⚙ in the top-right corner outside
+                            # edit mode (1.5.1); off, that corner passes
+                            # clicks too, and starting the app again
+                            # opens edit mode
 little_effects = true       # hearts on a tap, dust on a hard landing,
                             # z's as they fall asleep; none with
                             # reduced_motion either way

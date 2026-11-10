@@ -243,7 +243,7 @@ pub fn run_native(
     // as the X11 path.
     layer.set_input_region(Some(InputRect::toggle_button_corner(
         width,
-        TOGGLE_BUTTON_SIZE,
+        shown_button(&config.global),
     )))?;
 
     // Sprite-only extra surfaces for `MonitorMode::PerMonitor`, one
@@ -346,7 +346,7 @@ pub fn run_native(
                     layer.state.edit_mode || drag_widened,
                     new_w,
                     new_h,
-                    TOGGLE_BUTTON_SIZE,
+                    shown_button(&config.global),
                 );
                 layer.set_input_region(region)?;
                 tracing::info!("Layer surface resized to {new_w}×{new_h}");
@@ -734,7 +734,7 @@ pub fn run_native(
                 layer.state.edit_mode || drag_widened,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
-                TOGGLE_BUTTON_SIZE,
+                shown_button(&config.global),
             );
             if let Err(e) = layer.set_input_region(region) {
                 tracing::warn!("stepping aside: {e}");
@@ -755,7 +755,7 @@ pub fn run_native(
                 layer.state.edit_mode || widen,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
-                TOGGLE_BUTTON_SIZE,
+                shown_button(&config.global),
             );
             if let Err(e) = layer.set_input_region(region) {
                 tracing::warn!("drag region: {e}");
@@ -785,7 +785,7 @@ pub fn run_native(
                 false,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
-                TOGGLE_BUTTON_SIZE,
+                shown_button(&config.global),
             );
             let rects = crate::tap::rects(
                 &scene,
@@ -803,7 +803,7 @@ pub fn run_native(
                 layer.state.edit_mode || widen,
                 renderer.primary.window_width,
                 renderer.primary.window_height,
-                TOGGLE_BUTTON_SIZE,
+                shown_button(&config.global),
             );
             if let Err(e) = layer.set_input_region(region) {
                 tracing::warn!("tap region: {e}");
@@ -904,6 +904,7 @@ pub fn run_native(
         // distinct because the user might want either intent.
         {
             let mut toggle_edit_xor = false;
+            let mut open_edit = false;
             let mut toggle_playback_xor = false;
             let mut last_visibility: Option<AnimaEvent> = None;
             let mut quit = false;
@@ -944,6 +945,7 @@ pub fn run_native(
                         // happened and the start looked broken.
                         AnimaEvent::RaiseWindow => {
                             last_visibility = Some(AnimaEvent::ShowOverlay);
+                            open_edit |= !config.global.show_toggle_button;
                             tracing::info!("Raised by second-instance handshake");
                         }
                         // Hotkey resolution events are winit-path UI; the
@@ -1037,6 +1039,11 @@ pub fn run_native(
             }
             // Snoozing out of edit mode: the panel goes with the rest.
             toggle_edit_xor ^= snoozing && layer.state.edit_mode;
+            // Started again with the ⚙ button hidden: edit mode, the way
+            // back every desktop has, with a tray and shortcuts or without.
+            if open_edit {
+                toggle_edit_xor = !layer.state.edit_mode;
+            }
             // Muted or unmuted from the tray or a global shortcut: saved at
             // once outside edit mode. Nothing else would save it before the
             // app quits, and a config left dirty ignores the file's own
@@ -1101,7 +1108,7 @@ pub fn run_native(
                     layer.state.edit_mode || drag_widened,
                     renderer.primary.window_width,
                     renderer.primary.window_height,
-                    TOGGLE_BUTTON_SIZE,
+                    shown_button(&config.global),
                 );
                 if let Err(e) = layer.set_input_region(region) {
                     tracing::warn!("visibility change: {e}");
@@ -1210,7 +1217,7 @@ pub fn run_native(
                         layer.state.edit_mode || drag_widened,
                         renderer.primary.window_width,
                         renderer.primary.window_height,
-                        TOGGLE_BUTTON_SIZE,
+                        shown_button(&config.global),
                     );
                     if let Err(e) = layer.set_input_region(region) {
                         tracing::warn!("hide: {e}");
@@ -1988,6 +1995,7 @@ pub fn run_native(
                 let pixel_size = renderer.primary.pixel_size();
                 let pixels_per_point = renderer.primary.pixel_scale();
                 let edit_mode_snapshot = layer.state.edit_mode;
+                let show_button_snapshot = config.global.show_toggle_button;
                 let hidden_snapshot = overlay_hidden || aside.hidden;
                 // Snapshot the AccessKit flag BEFORE taking its mutable
                 // borrow, same trick as the X11 path uses; the renderer
@@ -2045,6 +2053,7 @@ pub fn run_native(
                 let bedtime_mut = &mut config.global.bedtime;
                 let moods_mut = &mut config.global.moods;
                 let tap_characters_mut = &mut config.global.tap_characters;
+                let show_toggle_button_mut = &mut config.global.show_toggle_button;
                 let little_effects_mut = &mut config.global.little_effects;
                 let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
                 let on_battery_mut = &mut config.global.pause_on_battery;
@@ -2100,7 +2109,9 @@ pub fn run_native(
                                 // that hid it, exactly as on the winit path.
                                 return;
                             }
-                            if panels::toggle_button(ctx, edit_mode_snapshot) {
+                            if (edit_mode_snapshot || show_button_snapshot)
+                                && panels::toggle_button(ctx, edit_mode_snapshot)
+                            {
                                 *toggle_requested_ref = true;
                             }
                             // Positions here are already in points: pointer
@@ -2152,6 +2163,7 @@ pub fn run_native(
                                     step_aside_apps_mut,
                                     always_on_top_mut,
                                     tap_characters_mut,
+                                    show_toggle_button_mut,
                                     little_effects_mut,
                                     bedtime_mut,
                                     moods_mut,
@@ -2672,6 +2684,16 @@ fn binding_chord(event: &egui::Event, egui_owns_keyboard: bool) -> Option<KeyCho
     }
 }
 
+/// The ⚙ corner's side outside edit mode: none when the button is hidden
+/// (`GlobalConfig::show_toggle_button`), so the overlay passes every click.
+fn shown_button(global: &crate::config::GlobalConfig) -> u32 {
+    if global.show_toggle_button {
+        TOGGLE_BUTTON_SIZE
+    } else {
+        0
+    }
+}
+
 /// The input region matching the current overlay state.
 ///
 /// Centralised because the region has to be re-derived from *all* of
@@ -2994,7 +3016,7 @@ fn flip_edit_mode(
     via: &str,
 ) {
     let new_mode = !layer.state.edit_mode;
-    if let Err(e) = layer.set_edit_mode(new_mode, TOGGLE_BUTTON_SIZE) {
+    if let Err(e) = layer.set_edit_mode(new_mode, shown_button(&config.global)) {
         tracing::warn!("Failed to flip input region on edit toggle: {e}");
         return;
     }
@@ -3174,6 +3196,16 @@ mod tests {
             (corner.x, corner.y, corner.w, corner.h),
             (1792, 0, 128, 128)
         );
+
+        // The ⚙ button hidden (issue #1): no corner, so no click is taken
+        // outside edit mode; edit mode still takes the whole surface.
+        let mut global = crate::config::GlobalConfig::default();
+        assert_eq!(shown_button(&global), TOGGLE_BUTTON_SIZE);
+        global.show_toggle_button = false;
+        let none = region_for_state(false, false, 1920, 1080, shown_button(&global)).unwrap();
+        assert_eq!((none.w, none.h), (0, 0));
+        let full = region_for_state(false, true, 1920, 1080, shown_button(&global)).unwrap();
+        assert_eq!((full.w, full.h), (1920, 1080));
     }
 
     /// A second monitor takes clicks exactly when the primary takes them

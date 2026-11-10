@@ -622,13 +622,18 @@ impl App {
     /// like Mutter occasionally clip the shape after fractional-scaling
     /// transitions or after the window is minimized and restored).
     fn reapply_input_shape(&mut self) {
-        // Read the scale before taking the `&mut self.x11_input` borrow.
-        let button_px = toggle_button_px(
-            self.window
-                .as_ref()
-                .map(|w| w.scale_factor())
-                .unwrap_or(1.0),
-        );
+        // Read the scale before taking the `&mut self.x11_input` borrow;
+        // no ⚙ corner when the button is hidden.
+        let button_px = if self.config.global.show_toggle_button {
+            toggle_button_px(
+                self.window
+                    .as_ref()
+                    .map(|w| w.scale_factor())
+                    .unwrap_or(1.0),
+            )
+        } else {
+            0
+        };
         if let Some(x11) = &mut self.x11_input {
             let result = if self.edit_mode {
                 x11.set_full_input()
@@ -907,6 +912,11 @@ impl ApplicationHandler<AnimaEvent> for App {
                 self.set_overlay_visible(true);
                 if let Some(window) = &self.window {
                     window.focus_window();
+                }
+                // With the ⚙ button hidden, edit mode: the way back every
+                // desktop has, with a tray and shortcuts or without.
+                if !self.config.global.show_toggle_button && !self.edit_mode {
+                    self.toggle_edit_mode();
                 }
                 tracing::info!("Raised by second-instance handshake");
             }

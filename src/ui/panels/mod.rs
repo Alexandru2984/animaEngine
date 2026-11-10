@@ -398,6 +398,7 @@ pub fn settings(
     // Above other windows, or under them on the desktop.
     always_on_top: &mut bool,
     tap_characters: &mut bool,
+    show_toggle_button: &mut bool,
     little_effects: &mut bool,
     bedtime: &mut crate::bedtime::Bedtime,
     moods: &mut bool,
@@ -602,6 +603,7 @@ pub fn settings(
                                 step_aside_apps,
                                 always_on_top,
                                 tap_characters,
+                                show_toggle_button,
                                 little_effects,
                                 away,
                                 sounds,

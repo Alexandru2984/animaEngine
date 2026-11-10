@@ -549,6 +549,8 @@ impl App {
                         let bedtime_mut = &mut self.config.global.bedtime;
                         let moods_mut = &mut self.config.global.moods;
                         let tap_characters_mut = &mut self.config.global.tap_characters;
+                        let show_toggle_button = self.config.global.show_toggle_button;
+                        let show_toggle_button_mut = &mut self.config.global.show_toggle_button;
                         let little_effects_mut = &mut self.config.global.little_effects;
                         let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
                         let on_battery_mut = &mut self.config.global.pause_on_battery;
@@ -615,7 +617,9 @@ impl App {
                                 // The toggle button: the one control
                                 // in pass-through; in edit mode it
                                 // sits on top of everything else.
-                                if panels::toggle_button(ctx, edit_mode) {
+                                if (edit_mode || show_toggle_button)
+                                    && panels::toggle_button(ctx, edit_mode)
+                                {
                                     *toggle_requested_ref = true;
                                 }
                                 // Bubbles and effects are in window pixels.
@@ -673,6 +677,7 @@ impl App {
                                     step_aside_apps_mut,
                                     always_on_top_mut,
                                     tap_characters_mut,
+                                    show_toggle_button_mut,
                                     little_effects_mut,
                                     bedtime_mut,
                                     moods_mut,

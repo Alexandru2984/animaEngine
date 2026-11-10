@@ -172,7 +172,11 @@ impl App {
                     // Set initial input shape: click-through except toggle
                     // button. Physical pixels — the constant is in egui
                     // points, see `toggle_button_px`.
-                    let button_px = super::toggle_button_px(window.scale_factor());
+                    let button_px = if self.config.global.show_toggle_button {
+                        super::toggle_button_px(window.scale_factor())
+                    } else {
+                        0
+                    };
                     if let Err(e) = mgr.set_passthrough_with_button(button_px) {
                         tracing::warn!("Failed to set initial input shape: {}", e);
                         let _ = window.set_cursor_hittest(false);
