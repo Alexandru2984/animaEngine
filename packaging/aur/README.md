@@ -4,6 +4,10 @@ The `PKGBUILD` here is the source of truth; the AUR git repo mirrors
 it on every release. AUR can't be automated from CI without storing
 SSH keys, so the publish step is manual and takes ~3 minutes.
 
+The package is `animaengine`: `anima-engine` on the AUR is another
+project's (`swordreforge`, linux_animeengine_git). The binary is still
+`anima-engine`.
+
 ## One-time setup
 
 1. Create an account on <https://aur.archlinux.org> and add your SSH
@@ -11,13 +15,13 @@ SSH keys, so the publish step is manual and takes ~3 minutes.
 2. Clone the (initially empty) package repo — first push creates it:
 
 ```bash
-git clone ssh://aur@aur.archlinux.org/anima-engine.git aur-anima-engine
+git clone ssh://aur@aur.archlinux.org/animaengine.git aur-animaengine
 ```
 
 ## Per release
 
 ```bash
-cd aur-anima-engine
+cd aur-animaengine
 cp /path/to/animaEngine/packaging/aur/PKGBUILD .
 
 # Regenerate the metadata file the AUR indexes (REQUIRED — the AUR

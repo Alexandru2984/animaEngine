@@ -2,7 +2,7 @@
 # publish workflow (this file lives in the app repo as the source of
 # truth; the AUR repo mirrors it per release).
 
-pkgname=anima-engine
+pkgname=animaengine
 pkgver=1.4.0
 pkgrel=1
 pkgdesc="Linux-first animated desktop overlay engine — render animated characters over your desktop"
