@@ -92,6 +92,35 @@ pub fn run_native(
     Native::new(scene, config, command_rx, portal_rx)?.run()
 }
 
+/// What a panel outcome may touch (`crate::outcomes`), from the `&mut`
+/// bindings a phase of [`Native::iteration`] holds of those fields —
+/// borrowed per call, so the phase keeps using them in between.
+macro_rules! outcome_ctx {
+    ($scene:ident, $selection:ident, $toasts:ident, $config_dirty:ident, $renderer:ident) => {
+        OutcomeCtx {
+            scene: &mut *$scene,
+            selection: &mut *$selection,
+            toasts: &mut *$toasts,
+            config_dirty: &mut *$config_dirty,
+            renderer: Some(&mut *$renderer),
+        }
+    };
+}
+
+/// The monitors as a turn found them ([`Native::outputs`]).
+struct Outputs {
+    /// Every output, as the compositor lists it.
+    monitors_now: Vec<MonitorInfo>,
+    /// The overlays they get (`MonitorMode`).
+    plan: WindowPlan,
+    /// The primary's monitor not known yet: nothing drawn for a moment.
+    awaiting_primary: bool,
+    /// Where the primary surface's origin sits in the scene's space.
+    primary_origin: (f32, f32),
+    /// The pointer over the primary, in the scene's space.
+    cursor_global: Option<(f32, f32)>,
+}
+
 /// What one turn of the loop tells it ([`Native::iteration`]).
 enum Flow {
     /// Round again.
@@ -473,13 +502,31 @@ impl Native {
     /// that follows from them and from the time, then a frame if there
     /// is a reason for one.
     fn iteration(&mut self) -> Result<Flow> {
+        let frame_start = Instant::now();
+        let mut activity = self.wake()?;
+        // Capture-and-reset the previous frame's GPU op counters.
+        let (gpu_uploads, gpu_draws) = self.renderer.shared.take_frame_gpu_counters();
+        if let Some(flow) = self.overlay_closed(&mut activity) {
+            return Ok(flow);
+        }
+        self.resized()?;
+        self.results(&mut activity);
+        let Outputs {
+            monitors_now,
+            plan,
+            awaiting_primary,
+            primary_origin,
+            cursor_global,
+        } = self.outputs(&mut activity);
+        self.circumstances(&mut activity);
+        self.input_regions(&monitors_now, primary_origin);
+        self.drops(primary_origin, &mut activity);
+        self.commands(&mut activity);
+        let (events, modifiers) = self.keys(&plan, &monitors_now, primary_origin, &mut activity);
+        let mut extra_menu_events =
+            self.pointer(&events, &plan, &monitors_now, primary_origin, &mut activity);
         let Self {
-            quit_requested,
-            reopens,
-            loop_started,
             wait,
-            waker,
-            last_monitor_mode,
             primary_frame,
             extra_render_errors,
             render_errors,
@@ -489,10 +536,7 @@ impl Native {
             library_scan,
             audio_host,
             script_host,
-            drag_widened,
-            scene_schedule,
             reminder_timers,
-            held_for_away,
             on_battery,
             aside,
             history,
@@ -500,13 +544,7 @@ impl Native {
             palette_actions,
             pending_paste,
             pending_text_paste,
-            tap_gesture,
-            tap_refreshed,
-            moods,
             was_hidden,
-            welcome,
-            hours_clock,
-            bedtime_watch,
             pending_transfer,
             pending_file_chooser,
             pending_shimeji,
@@ -520,7 +558,6 @@ impl Native {
             config_watch,
             config_dirty,
             toasts,
-            was_editing,
             marquee,
             drag,
             selection,
@@ -529,1493 +566,10 @@ impl Native {
             layer,
             hotkey_backend_status,
             overlay_hidden,
-            portal_rx,
-            command_rx,
             config,
             scene,
+            ..
         } = self;
-        // What a panel outcome may touch (`crate::outcomes`), borrowed per
-        // call so the loop keeps using these locals in between.
-        macro_rules! outcome_ctx {
-            () => {
-                OutcomeCtx {
-                    scene: &mut *scene,
-                    selection: &mut *selection,
-                    toasts: &mut *toasts,
-                    config_dirty: &mut *config_dirty,
-                    renderer: Some(&mut *renderer),
-                }
-            };
-        }
-        let frame_start = Instant::now();
-        // Opens the perf frame before the blocking dispatch, so the wait
-        // for the compositor lands in `Idle` rather than vanishing — the
-        // same placement the winit loop uses relative to its own wait.
-        perf_sampler.begin_frame();
-        let dispatched = dispatch_with_timeout(
-            &mut layer.event_queue,
-            &mut layer.state,
-            waker.as_ref(),
-            *wait,
-        )?;
-        // Whether anything happened this iteration that a frame should
-        // show. Input and every other compositor event count; so does
-        // whatever the loop picks up from its channels below.
-        let mut activity = dispatched > 0;
-        // A step to undo opens at the first thing someone does, before it
-        // is applied (`crate::undo`).
-        if layer.has_user_action() || egui_renderer.has_screen_reader_requests() {
-            history.input(scene, selection, Instant::now());
-        }
-
-        // Capture-and-reset the previous frame's GPU op counters. The
-        // counters are `Cell`s, so this is a shared borrow and does not
-        // conflict with the `&mut *renderer` uses below.
-        let (gpu_uploads, gpu_draws) = renderer.shared.take_frame_gpu_counters();
-
-        // The compositor closed the overlay: its monitor went — unplugged,
-        // or Hyprland's stand-in for none replaced by a real one, which
-        // ended an app started from `exec-once`. The session goes on, so it
-        // is made again once a monitor is there; only a compositor that
-        // keeps closing it ends the app, as every close did before
-        // (`Reopens`). A quit is not a close (`Closing`).
-        match closing(
-            *quit_requested,
-            layer.state.close_requested,
-            !layer.monitors().is_empty(),
-            &mut *reopens,
-            Instant::now(),
-        ) {
-            Closing::Open => {}
-            Closing::Quit => return Ok(Flow::Exit),
-            Closing::WaitForMonitor => {
-                *wait = Duration::from_millis(500);
-                return Ok(Flow::Next);
-            }
-            Closing::GiveUp => {
-                tracing::info!("Layer surface closed by compositor again and again — exiting.");
-                return Ok(Flow::Exit);
-            }
-            Closing::Reopen => match reopen_primary(&mut *layer, &mut *renderer) {
-                Ok(()) => {
-                    tracing::info!("Layer surface closed by compositor — made again");
-                    let region = region_for_state(
-                        *overlay_hidden || aside.hidden,
-                        layer.state.edit_mode || *drag_widened,
-                        renderer.primary.window_width,
-                        renderer.primary.window_height,
-                        shown_button(&config.global),
-                    );
-                    if let Err(e) = layer.set_input_region(region) {
-                        tracing::warn!("input region after reopening: {e}");
-                    }
-                    *primary_frame = None;
-                    activity = true;
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "Layer surface closed by compositor, not made again ({e}) — exiting."
-                    );
-                    return Ok(Flow::Exit);
-                }
-            },
-        }
-
-        // Pick up any resize the compositor sent us.
-        if let Some((new_w, new_h)) = layer.state.pending_size.take() {
-            if new_w != renderer.primary.window_width || new_h != renderer.primary.window_height {
-                renderer.resize(new_w, new_h);
-                // Re-derive from the live state: this used to re-apply the
-                // pass-through corner unconditionally, so a resize while
-                // in edit mode silently reverted the surface to
-                // click-through, and a resize while hidden made it
-                // clickable again.
-                let region = region_for_state(
-                    *overlay_hidden || aside.hidden,
-                    layer.state.edit_mode || *drag_widened,
-                    new_w,
-                    new_h,
-                    shown_button(&config.global),
-                );
-                layer.set_input_region(region)?;
-                tracing::info!("Layer surface resized to {new_w}×{new_h}");
-            }
-        }
-
-        // Hot-reload. The README lists it as a feature and its parity
-        // table calls it stable on both backends; this loop never did it
-        // at all, so editing config.toml with the overlay running on
-        // Wayland did nothing (R28).
-        let poll = config_watch.poll(*config_dirty);
-        activity |= !matches!(poll, crate::config_watch::Poll::Idle);
-        let reloaded = matches!(poll, crate::config_watch::Poll::Ready(_));
-        if reloaded {
-            // The characters a drag or a rectangle holds are about to be
-            // replaced: let go while they are still the ones it froze.
-            crate::input::multi::cancel(&mut *scene, &mut *selection, &mut *drag, &mut *marquee);
-        }
-        crate::config_watch::handle(poll, &mut outcome_ctx!(), &mut *config, &mut *warnings);
-        if reloaded {
-            // The scene was replaced from the file: the steps no longer
-            // describe it.
-            history.clear();
-        }
-        if let Some(import) = &pending_shimeji {
-            if import.poll(&mut outcome_ctx!()).is_some() {
-                *pending_shimeji = None;
-                activity = true;
-            }
-        }
-        if let Some(chooser) = &pending_file_chooser {
-            if let Some(added) = chooser.poll(&mut outcome_ctx!()) {
-                *pending_file_chooser = None;
-                activity = true;
-                if added > 0 {
-                    *config_dirty = true;
-                }
-            }
-        }
-        if let Some((answer, at)) = &pending_paste {
-            let content = match answer.try_recv() {
-                Ok(content) => Some(content),
-                Err(std::sync::mpsc::TryRecvError::Empty) => None,
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    Some(crate::system_clipboard::Content::Nothing)
-                }
-            };
-            if let Some(content) = content {
-                let at = *at;
-                *pending_paste = None;
-                activity = true;
-                // The key that asked may be a while ago: open a step if it
-                // closed.
-                history.input(scene, selection, Instant::now());
-                let pasted = outcomes::apply_pasted(content, at, &mut outcome_ctx!());
-                for path in pasted.to_import {
-                    // A shared scene or a Shimeji pack copied in a file
-                    // manager goes where a drop of it would.
-                    if crate::scene_file::is_scene_file(&path) {
-                        if pending_transfer.is_none() {
-                            *pending_transfer =
-                                Some(crate::outcomes::SceneTransfer::import(path, Some(at)));
-                        }
-                    } else if pending_shimeji.is_none() {
-                        *pending_shimeji =
-                            ShimejiImport::start(&path, library_root.as_deref(), at, &mut *toasts);
-                    }
-                }
-            }
-        }
-        if let Some(transfer) = &mut *pending_transfer {
-            match transfer.poll(&mut *toasts) {
-                crate::outcomes::Transfer::Pending => {}
-                crate::outcomes::Transfer::Done => {
-                    *pending_transfer = None;
-                    activity = true;
-                }
-                crate::outcomes::Transfer::Imported(saved) => {
-                    *pending_transfer = None;
-                    activity = true;
-                    // Not input, so no undo step is open: open one, as
-                    // "Next scene" does; and let go of any gesture.
-                    history.input(scene, selection, Instant::now());
-                    crate::input::multi::cancel(
-                        &mut *scene,
-                        &mut *selection,
-                        &mut *drag,
-                        &mut *marquee,
-                    );
-                    let bounds = monitor::covered_bounds(
-                        &monitor::plan_windows(&config.global.monitor_mode, &layer.monitors()),
-                        (
-                            renderer.primary.window_width as f32,
-                            renderer.primary.window_height as f32,
-                        ),
-                    );
-                    outcomes::apply_imported(
-                        saved,
-                        &mut outcome_ctx!(),
-                        &mut config.global.active_scene,
-                        bounds,
-                    );
-                }
-            }
-        }
-
-        // Rebuild PerMonitor extras whenever the user switches mode or
-        // the output topology changes (hotplug) — mirrors the X11
-        // path's `rebuild_windows_if_mode_changed` + `check_monitor_topology`.
-        // Computed early in the frame: file-drop landing coordinates
-        // and the right-click hit test below both need `primary_origin`
-        // translated into entity-space before they touch `scene`.
-        let monitors_now = layer.monitors();
-        let plan = monitor::plan_windows(&config.global.monitor_mode, &monitors_now);
-        let plan_names: std::collections::HashSet<&str> =
-            plan.extras.iter().map(|m| m.name.as_str()).collect();
-        let current_names: std::collections::HashSet<&str> =
-            extra_surfaces.keys().map(|s| s.as_str()).collect();
-        // Which monitor the primary landed on is known once the compositor
-        // says it entered one — after its first frame. Until then, for a
-        // moment at most, no other monitor gets its overlay and nothing is
-        // drawn: the plan guessed the first monitor listed, made an
-        // overlay for the primary's own monitor when the guess was wrong,
-        // and closed it again some 40 ms later.
-        let awaiting_primary = awaiting_primary_output(
-            &config.global.monitor_mode,
-            monitors_now.len(),
-            layer.state.primary_output_name.is_some(),
-            (*loop_started).elapsed(),
-        );
-        if !awaiting_primary
-            && (config.global.monitor_mode != *last_monitor_mode || plan_names != current_names)
-        {
-            rebuild_extra_surfaces(&mut *layer, renderer, &plan, &mut *extra_surfaces);
-            // New surfaces, with nothing on them yet.
-            extra_frames.clear();
-            *last_monitor_mode = config.global.monitor_mode.clone();
-        }
-        for (name, new_w, new_h) in layer.drain_extra_resizes() {
-            if let Some(surface) = extra_surfaces.get_mut(&name) {
-                surface.resize(&renderer.shared, new_w, new_h);
-            }
-        }
-        // Each surface at its output's scale (`layer_window::scale`),
-        // as the compositor last said: its buffer made again at it.
-        let primary_scale = layer.state.primary_scale.scale();
-        if renderer.primary.pixel_scale() != primary_scale {
-            renderer
-                .primary
-                .set_pixel_scale(&renderer.shared, primary_scale);
-            tracing::info!("Overlay drawn at scale {primary_scale}");
-            activity = true;
-        }
-        for (name, surface) in extra_surfaces.iter_mut() {
-            let scale = layer.extra_scale(name);
-            if surface.pixel_scale() != scale {
-                surface.set_pixel_scale(&renderer.shared, scale);
-                tracing::info!("Overlay on {name} drawn at scale {scale}");
-                activity = true;
-            }
-        }
-        // The pictures as sharp as the sharpest of them shows them
-        // (`Scene::sharpen`): the scene was loaded before any said.
-        let detail = (extra_surfaces.keys())
-            .map(|name| layer.extra_scale(name))
-            .fold(primary_scale, f32::max);
-        crate::entity::set_detail_scale(detail);
-        if scene.sharpen(crate::entity::picture_cap()) {
-            activity = true;
-        }
-
-        // Entities live in window-local coordinates in single-output
-        // modes (today's only well-exercised case) and in global
-        // desktop coordinates once PerMonitor extras exist — same
-        // duality as the X11 path's `App::primary_origin` (T.8).
-        // `primary_output_name` is learned from `surface_enter`
-        // (handlers.rs); it stays `None` (→ identity origin) if the
-        // compositor never sends it, so the fallback is always the
-        // already-shipped single-output behavior, never a wrong offset.
-        let primary_origin: (f32, f32) = compute_primary_origin(
-            !extra_surfaces.is_empty(),
-            layer.state.primary_output_name.as_deref(),
-            &monitors_now,
-        );
-        let cursor_global = layer
-            .state
-            .cursor_pos
-            .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1));
-
-        // Drain pointer + keyboard events. Until egui paint lands
-        // (E.4) we don't have a UI consumer, but we already need to
-        // detect the `Action::ToggleEditMode` chord so click-through
-        // can flip in lock-step. Scan key-press events, match against
-        // the user's bindings, dispatch the few actions that make
-        // sense without a UI thread (just edit mode for now).
-        // Step aside while another window is full screen, and come back
-        // when it is not. Recomputed every iteration from the setting, the
-        // window in front and edit mode, so nothing has to be undone.
-        // In front of the windows or behind them; edit mode always in
-        // front, so the panel is in reach.
-        layer.set_on_top(config.global.always_on_top || layer.state.edit_mode);
-        let chosen_in_front = layer
-            .state
-            .toplevels
-            .chosen_in_front(&config.global.step_aside_apps);
-        let wanted = crate::fullscreen::step_aside(
-            config.global.on_fullscreen,
-            layer.fullscreen_in_front(),
-            layer.state.edit_mode,
-        )
-        // An app the user chose in front (`crate::chosen_apps`).
-        .or_chosen_app(chosen_in_front, layer.state.edit_mode)
-        // Snoozing (`crate::snooze`): out of sight and still until it ends.
-        .or_snoozing(crate::snooze::active());
-        // The open apps, for the picker, while it shows.
-        if crate::chosen_apps::open_list_wanted() {
-            crate::chosen_apps::set_open(layer.state.toplevels.open_apps());
-        }
-        // In the Flatpak, the Background portal's answer to "start at
-        // login", once it comes (`crate::autostart`).
-        if let Some(granted) = crate::autostart::take_portal_answer() {
-            config.global.start_at_login = granted;
-            *config_dirty = true;
-        }
-        // Held still while nobody is there, too (`crate::away`): idle from
-        // the compositor, the battery from the away watch.
-        let global = &config.global;
-        // Watched for reminders even with pausing off.
-        let idle_watch = crate::away::idle_watch_minutes(
-            global.pause_when_idle_minutes,
-            !config.reminders.is_empty() || global.welcome_back,
-        );
-        layer.set_idle_timeout(idle_watch);
-        crate::away::configure(
-            idle_watch,
-            global.pause_on_battery || global.frame_rate.watches_battery(),
-        );
-        // Bedtime by the clock (`crate::bedtime`) — not while editing.
-        let bedtime_now = !layer.state.edit_mode && bedtime_watch.now(&global.bedtime);
-        // The library's fresh scan, once it is done (`asset_library::open`).
-        if let Some(rx) = &library_scan {
-            match rx.try_recv() {
-                Ok(index) => {
-                    *library = Some(index);
-                    *library_scan = None;
-                }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => *library_scan = None,
-                Err(std::sync::mpsc::TryRecvError::Empty) => {}
-            }
-        }
-        // How loud the sounds are, if at all (`crate::audio`), before the
-        // tick: scripts play from inside it.
-        audio_host.set_level(
-            global.sound_volume,
-            global.sounds_muted,
-            global.quiet_at_bedtime && bedtime_now,
-        );
-        // Characters with hours of their own (`crate::hours`) — everyone
-        // while editing.
-        let minute = if layer.state.edit_mode {
-            None
-        } else {
-            hours_clock.minute()
-        };
-        if scene.set_clock(minute) {
-            activity = true;
-        }
-        let still = crate::away::stillness(
-            global.pause_when_idle_minutes,
-            layer.is_idle(),
-            global.pause_on_battery,
-            *on_battery,
-        )
-        .with_bedtime(bedtime_now)
-        .watching(layer.fullscreen_in_front());
-        if still.any() != *held_for_away {
-            *held_for_away = still.any();
-            activity = true;
-            tracing::info!(
-                "Away: scene {}",
-                if still.doze {
-                    "dozing off"
-                } else if still.freeze {
-                    "held still"
-                } else {
-                    "back"
-                }
-            );
-        }
-        activity |= scene.set_dozing(still.doze);
-        scene.set_suspended(wanted.paused || still.freeze);
-        // Scenes by time of day (`crate::schedule`), as on the winit path:
-        // not in edit mode, the undo step opened here, gestures let go.
-        if !layer.state.edit_mode {
-            if let Some(name) = scene_schedule.due_now(&config.scene_schedule) {
-                history.input(scene, selection, Instant::now());
-                crate::input::multi::cancel(
-                    &mut *scene,
-                    &mut *selection,
-                    &mut *drag,
-                    &mut *marquee,
-                );
-                if crate::outcomes::apply_scheduled(
-                    &name,
-                    &mut outcome_ctx!(),
-                    &mut config.global.active_scene,
-                ) {
-                    activity = true;
-                }
-            }
-        }
-        // Reminders due now (`crate::reminders`), said by any character:
-        // every monitor draws its bubbles. Before the frame gate: a still
-        // scene would never reach the drawing code.
-        // While the focus timer runs (`crate::focus`), reminders wait out
-        // the work, and its break counts as a break.
-        let focus = crate::focus::phase();
-        if crate::reminders::deliver(
-            &mut *reminder_timers,
-            &config.reminders,
-            &config.global.reminder_sound,
-            config.global.notify_reminders,
-            &mut *scene,
-            !(*overlay_hidden || wanted.hidden),
-            // The night counts as a break too.
-            crate::reminders::Away {
-                on_a_break: layer.is_idle()
-                    || bedtime_now
-                    || focus == Some(crate::focus::Phase::Break),
-                idle: layer.is_idle(),
-                working: focus == Some(crate::focus::Phase::Work),
-            },
-            |_| true,
-        ) {
-            activity = true;
-        }
-        // Each turn of the timer, said once it can be seen.
-        if crate::focus::say_news(
-            &mut *scene,
-            !(*overlay_hidden || wanted.hidden),
-            &config.global.reminder_sound,
-            config.global.notify_reminders,
-            |_| true,
-        ) {
-            activity = true;
-        }
-        // The pace by the time of day, and a yawn before bedtime
-        // (`crate::moods`).
-        moods.step(
-            &mut *scene,
-            config.global.moods,
-            &config.global.bedtime,
-            !(*overlay_hidden || wanted.hidden),
-        );
-        // Back after being away (`crate::welcome`): greeted where it can be
-        // seen, and not by sleepers.
-        let minute = hours_clock.minute();
-        if let Some(greeting) = welcome.check(layer.is_idle(), minute).filter(|_| {
-            config.global.welcome_back && !(*overlay_hidden || wanted.hidden) && !bedtime_now
-        }) {
-            if let Some(i) = scene.frontmost_visible() {
-                scene.entities[i].say(&greeting.line(), crate::welcome::SAY_SECONDS);
-                activity = true;
-            }
-        }
-        if wanted != *aside {
-            *aside = wanted;
-            activity = true;
-            tracing::info!(
-                "{}: overlay {}",
-                if crate::snooze::active() {
-                    "Snoozing"
-                } else if chosen_in_front && !layer.state.edit_mode {
-                    "An app chosen in Appearance in front"
-                } else if layer.fullscreen_in_front() {
-                    "Full-screen app in front"
-                } else {
-                    "Full-screen app gone"
-                },
-                if aside.hidden {
-                    "hidden"
-                } else if aside.paused {
-                    "paused"
-                } else {
-                    "back"
-                }
-            );
-            let region = region_for_state(
-                *overlay_hidden || aside.hidden,
-                layer.state.edit_mode || *drag_widened,
-                renderer.primary.window_width,
-                renderer.primary.window_height,
-                shown_button(&config.global),
-            );
-            if let Err(e) = layer.set_input_region(region) {
-                tracing::warn!("stepping aside: {e}");
-            }
-        }
-
-        // Widen the input region while a drag is over us in pass-through,
-        // and put it back when the drag ends.
-        let widen = drag_region(
-            *overlay_hidden || aside.hidden,
-            layer.state.edit_mode,
-            layer.state.drag_over,
-        );
-        if widen != *drag_widened {
-            *drag_widened = widen;
-            let region = region_for_state(
-                *overlay_hidden || aside.hidden,
-                layer.state.edit_mode || widen,
-                renderer.primary.window_width,
-                renderer.primary.window_height,
-                shown_button(&config.global),
-            );
-            if let Err(e) = layer.set_input_region(region) {
-                tracing::warn!("drag region: {e}");
-            }
-        }
-
-        // Tapping (`crate::tap`): in pass-through, with the setting on,
-        // the characters take clicks too — their rectangles join the ⚙
-        // corner, a few times a second at most — and a click on one must
-        // not take the keyboard. A click on the ⚙ still does, so edit mode
-        // has the keys from its first moment: the pointer is over it before
-        // the press.
-        // Not over a full-screen app either, even one they only pause
-        // for: a game's clicks are the game's.
-        let tapping = config.global.tap_characters
-            && !layer.state.edit_mode
-            && !(*overlay_hidden || aside.hidden || aside.paused)
-            && !widen;
-        layer.set_keyboard_wanted(
-            layer.state.edit_mode || !config.global.tap_characters || egui_renderer.owns_pointer(),
-        );
-        let tap_refresh = tapping && (*tap_refreshed).elapsed() >= crate::tap::REFRESH;
-        if tap_refresh {
-            *tap_refreshed = Instant::now();
-            let base = region_for_state(
-                false,
-                false,
-                renderer.primary.window_width,
-                renderer.primary.window_height,
-                shown_button(&config.global),
-            );
-            let rects = crate::tap::rects(
-                scene,
-                primary_origin,
-                (
-                    renderer.primary.window_width,
-                    renderer.primary.window_height,
-                ),
-            );
-            layer.sync_tap_region(base, rects);
-        } else if !tapping && layer.tap_region_applied() {
-            // Tapping just went off: the plain region again.
-            let region = region_for_state(
-                *overlay_hidden || aside.hidden,
-                layer.state.edit_mode || widen,
-                renderer.primary.window_width,
-                renderer.primary.window_height,
-                shown_button(&config.global),
-            );
-            if let Err(e) = layer.set_input_region(region) {
-                tracing::warn!("tap region: {e}");
-            }
-        }
-
-        // The per-monitor extra surfaces follow the primary: open to
-        // input in edit mode, or while a drag is over the overlay, and
-        // click-through otherwise — but for the characters, when tapping.
-        // Their offsets into the primary's space come from the same output
-        // snapshot as `primary_origin`, so a click, drag or drop on
-        // another monitor lands in the right global place.
-        layer.sync_extra_layers(
-            extras_take_input(
-                *overlay_hidden || aside.hidden,
-                layer.state.edit_mode,
-                widen,
-            ),
-            |name| {
-                monitors_now
-                    .iter()
-                    .find(|m| m.name == name)
-                    .map(|m| (m.x as f32 - primary_origin.0, m.y as f32 - primary_origin.1))
-            },
-            |name| {
-                if !tapping {
-                    return Some(Vec::new());
-                }
-                if !tap_refresh {
-                    return None;
-                }
-                let mon = monitors_now.iter().find(|m| m.name == name)?;
-                let surface = extra_surfaces.get(name)?;
-                Some(crate::tap::rects(
-                    scene,
-                    (mon.x as f32, mon.y as f32),
-                    (surface.window_width, surface.window_height),
-                ))
-            },
-        );
-
-        // Files dropped on the overlay (E.3). Each drop carries the point
-        // it landed on in the primary surface's space (shifted there from
-        // an extra surface's); `primary_origin` turns that into the global
-        // space the scene uses. Same as the winit path,
-        // through the same code: a Shimeji pack folder goes to the
-        // importer, anything else is validated, added, selected, toasted
-        // and marked for saving.
-        for dropped in layer.drain_dropped_files() {
-            activity = true;
-            history.input(scene, selection, Instant::now());
-            let at = (
-                dropped.at.0 + primary_origin.0,
-                dropped.at.1 + primary_origin.1,
-            );
-            let mut added = false;
-            for path in &dropped.paths {
-                if outcomes::is_shimeji_pack(path) {
-                    if pending_shimeji.is_none() {
-                        *pending_shimeji =
-                            ShimejiImport::start(path, library_root.as_deref(), at, &mut *toasts);
-                    }
-                } else if crate::scene_file::is_scene_file(path) {
-                    // A shared scene replaces this one.
-                    if pending_transfer.is_none() {
-                        *pending_transfer = Some(crate::outcomes::SceneTransfer::import(
-                            path.clone(),
-                            Some(at),
-                        ));
-                    }
-                } else if outcomes::add_dropped_file(path, at, &mut outcome_ctx!()).is_some() {
-                    added = true;
-                }
-            }
-            // As on winit, a drop opens edit mode so the new character can
-            // be moved into place straight away. It matters more here: in
-            // pass-through the overlay only takes input — drops included —
-            // on the ⚙ corner, so that is where a drop lands.
-            if added && !layer.state.edit_mode {
-                flip_edit_mode(
-                    &mut *layer,
-                    &mut *config,
-                    scene,
-                    &mut *config_dirty,
-                    &mut *config_watch,
-                    "Wayland, file drop",
-                );
-            }
-        }
-
-        // Drain any D-Bus actions arriving from compositor bindings
-        // (E.6). Each event maps onto the same surface the X11 path's
-        // global hotkeys produce, so a `gdbus call … ToggleEditMode`
-        // invoked from sway is indistinguishable from clicking the ⚙
-        // button.
-        //
-        // F.3: coalesce idempotent toggle events so a spammy caller
-        // (a thousand `ToggleEditMode` calls between two frames =
-        // odd parity → noop = even parity → toggle) doesn't bounce
-        // the input region a thousand times — we apply each toggle
-        // class at most once per frame. ShowOverlay / HideOverlay are
-        // distinct because the user might want either intent.
-        {
-            let mut toggle_edit_xor = false;
-            let mut open_edit = false;
-            let mut toggle_playback_xor = false;
-            let mut last_visibility: Option<AnimaEvent> = None;
-            let mut quit = false;
-            let mut next_scene = false;
-            let mut snoozing = false;
-            let mut mute_changed = false;
-            if let Some(rx) = &command_rx {
-                while let Ok(ev) = rx.try_recv() {
-                    activity = true;
-                    // A global shortcut: the recorder's while one is being
-                    // recorded, else the event it stands for now.
-                    let ev = match ev {
-                        AnimaEvent::Shortcut(action, chord) => {
-                            if egui_renderer.take_for_recording(chord) {
-                                continue;
-                            }
-                            let visible = std::sync::atomic::AtomicBool::new(!*overlay_hidden);
-                            match crate::hotkeys::action_to_event(action, &visible) {
-                                Some(ev) => ev,
-                                None => continue,
-                            }
-                        }
-                        other => other,
-                    };
-                    match ev {
-                        AnimaEvent::Shortcut(..) => {}
-                        AnimaEvent::ToggleEditMode => toggle_edit_xor ^= true,
-                        AnimaEvent::ToggleGlobalPlayback => toggle_playback_xor ^= true,
-                        AnimaEvent::HideOverlay => last_visibility = Some(AnimaEvent::HideOverlay),
-                        AnimaEvent::ShowOverlay => last_visibility = Some(AnimaEvent::ShowOverlay),
-                        AnimaEvent::Quit => {
-                            quit = true;
-                            tracing::info!("Quit requested (tray, or a signal)");
-                        }
-                        // A second start from the menu: a layer surface has
-                        // no focus to take, but one hidden from the tray (or
-                        // snoozed) comes back, as on X11 — before, nothing
-                        // happened and the start looked broken.
-                        AnimaEvent::RaiseWindow => {
-                            last_visibility = Some(AnimaEvent::ShowOverlay);
-                            open_edit |= !config.global.show_toggle_button;
-                            tracing::info!("Raised by second-instance handshake");
-                        }
-                        // Hotkey resolution events are winit-path UI; the
-                        // native path logs the outcome where it resolves.
-                        AnimaEvent::HotkeysUnavailable
-                        | AnimaEvent::PortalShortcutsDenied
-                        | AnimaEvent::PortalShortcutsActive => {}
-                        // This loop learns it from the compositor's
-                        // toplevel list instead.
-                        AnimaEvent::FullscreenInFront(_) | AnimaEvent::ChosenAppInFront(_) => {}
-                        AnimaEvent::OnBattery(now) => *on_battery = now,
-                        // Idle comes from the compositor here.
-                        AnimaEvent::Away(_) | AnimaEvent::IdleSource(_) => {}
-                        AnimaEvent::NextScene => next_scene = true,
-                        AnimaEvent::Snooze(what) => {
-                            crate::snooze::snooze(what);
-                            snoozing = true;
-                        }
-                        AnimaEvent::Wake => crate::snooze::wake(),
-                        AnimaEvent::StartFocus(minutes) => {
-                            crate::focus::start(crate::focus::lengths_for(
-                                minutes,
-                                config.global.focus,
-                            ));
-                            activity = true;
-                        }
-                        AnimaEvent::StopFocus => crate::focus::stop(),
-                        AnimaEvent::SetMuted(muted) => {
-                            config.global.sounds_muted = muted;
-                            *config_dirty = true;
-                            mute_changed = true;
-                        }
-                        AnimaEvent::ToggleMute => {
-                            config.global.sounds_muted = !config.global.sounds_muted;
-                            *config_dirty = true;
-                            mute_changed = true;
-                        }
-                    }
-                }
-            }
-            // Portal shortcut activations land in the same per-frame
-            // accumulators as the D-Bus methods — a Ctrl+Shift+A from
-            // the portal is indistinguishable from `gdbus call …
-            // ToggleEditMode`. T.2: the portal is the first mechanism
-            // that gives the *native* path real global hotkeys.
-            if let Some(rx) = &portal_rx {
-                use crate::hotkeys::portal::PortalMsg;
-                use crate::keybindings::Action as KbAction;
-                while let Ok(msg) = rx.try_recv() {
-                    activity = true;
-                    match msg {
-                        PortalMsg::Ready => {
-                            tracing::info!("Portal shortcuts active (native path)");
-                            *hotkey_backend_status = HotkeyStatus::Portal;
-                        }
-                        PortalMsg::Failed => {
-                            tracing::warn!(
-                                "Portal shortcuts unavailable — compositor \
-                                 bindings via D-Bus remain the fallback"
-                            );
-                            toasts.warn(crate::i18n::t("portal-denied-native-toast"));
-                            *hotkey_backend_status = HotkeyStatus::CompositorBindings;
-                        }
-                        // The desktop owns the keys: which chord, it does
-                        // not say, so a recording takes nothing — but the
-                        // action waits while one is under way.
-                        PortalMsg::Activated(_) if egui_renderer.take_for_recording(None) => {}
-                        PortalMsg::Activated(action) => match action {
-                            KbAction::ToggleFocus | KbAction::ToggleSnooze => {
-                                snoozing |= timer_shortcut(action, config.global.focus);
-                            }
-                            KbAction::ToggleMute => {
-                                config.global.sounds_muted = !config.global.sounds_muted;
-                                *config_dirty = true;
-                                mute_changed = true;
-                            }
-                            KbAction::ToggleEditMode => toggle_edit_xor ^= true,
-                            KbAction::PauseAll => toggle_playback_xor ^= true,
-                            KbAction::HideOverlay => {
-                                *overlay_hidden = !*overlay_hidden;
-                                last_visibility = Some(if *overlay_hidden {
-                                    AnimaEvent::HideOverlay
-                                } else {
-                                    AnimaEvent::ShowOverlay
-                                });
-                            }
-                            _ => {}
-                        },
-                    }
-                }
-            }
-            // Snoozing out of edit mode: the panel goes with the rest.
-            toggle_edit_xor ^= snoozing && layer.state.edit_mode;
-            // Started again with the ⚙ button hidden: edit mode, the way
-            // back every desktop has, with a tray and shortcuts or without.
-            if open_edit {
-                toggle_edit_xor = !layer.state.edit_mode;
-            }
-            // Muted or unmuted from the tray or a global shortcut: saved at
-            // once outside edit mode. Nothing else would save it before the
-            // app quits, and a config left dirty ignores the file's own
-            // edits until then.
-            if mute_changed && !layer.state.edit_mode {
-                match sync_and_save(&mut *config, scene) {
-                    Ok(()) => {
-                        *config_dirty = false;
-                        config_watch.note_saved();
-                    }
-                    Err(e) => tracing::warn!("Config save failed: {e}"),
-                }
-            }
-            if toggle_edit_xor {
-                // Through `flip_edit_mode`, like the keyboard and the ⚙
-                // button. This path used to set the mode directly, so
-                // leaving edit mode from the tray, a D-Bus call or a portal
-                // shortcut skipped the save — R30 on a third entry point.
-                flip_edit_mode(
-                    &mut *layer,
-                    &mut *config,
-                    scene,
-                    &mut *config_dirty,
-                    &mut *config_watch,
-                    "Wayland, tray / D-Bus / portal",
-                );
-            }
-            if toggle_playback_xor {
-                scene.toggle_global_playback();
-                *config_dirty = true;
-                // Said, as on the winit path: from the tray, a shortcut or
-                // D-Bus there is nothing else to show it happened.
-                toasts.info(crate::i18n::t(if scene.global_playing {
-                    "toast-playback-resumed"
-                } else {
-                    "toast-playback-paused"
-                }));
-            }
-            if let Some(vis) = last_visibility {
-                // `overlay_hidden` is the single source of truth and it
-                // gates rendering below. It used to be updated only by the
-                // keybinding path, so a D-Bus Hide/Show left the flag and
-                // the actual intent disagreeing.
-                match vis {
-                    AnimaEvent::HideOverlay => *overlay_hidden = true,
-                    AnimaEvent::ShowOverlay => {
-                        *overlay_hidden = false;
-                        // That ends a snooze too (`crate::snooze`).
-                        crate::snooze::wake();
-                    }
-                    _ => {}
-                }
-                // A layer surface can't be unmapped the way winit's
-                // `set_visible(false)` unmaps a window, so "hidden" is
-                // expressed as: paint nothing (see the render gate) and
-                // accept no input. Previously hide only narrowed the input
-                // region, which left every sprite fully visible on screen —
-                // the overlay was not hidden in any sense the user would
-                // recognise.
-                let region = region_for_state(
-                    *overlay_hidden || aside.hidden,
-                    layer.state.edit_mode || *drag_widened,
-                    renderer.primary.window_width,
-                    renderer.primary.window_height,
-                    shown_button(&config.global),
-                );
-                if let Err(e) = layer.set_input_region(region) {
-                    tracing::warn!("visibility change: {e}");
-                }
-            }
-            if next_scene {
-                // Not input, so no undo step is open: open one, or a later
-                // undo would take the switch back with the step before it.
-                history.input(scene, selection, Instant::now());
-                // A drag or a rectangle holds characters about to be
-                // replaced: let go first (R56).
-                crate::input::multi::cancel(
-                    &mut *scene,
-                    &mut *selection,
-                    &mut *drag,
-                    &mut *marquee,
-                );
-                crate::outcomes::next_scene(&mut outcome_ctx!(), &mut config.global.active_scene);
-            }
-            if quit {
-                *quit_requested = true;
-            }
-        }
-
-        let mut events = layer.drain_egui_events();
-        // Text on its way from the clipboard into a text field, and Ctrl+V
-        // in one now (`crate::system_clipboard`).
-        if let Some(answer) = &pending_text_paste {
-            match answer.try_recv() {
-                Ok(content) => {
-                    *pending_text_paste = None;
-                    if let crate::system_clipboard::Content::Text(text) = content {
-                        events.push(egui::Event::Paste(text));
-                        activity = true;
-                    }
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => {}
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => *pending_text_paste = None,
-            }
-        }
-        if std::mem::take(&mut layer.state.text_paste_requested)
-            && egui_renderer.wants_keyboard()
-            && pending_text_paste.is_none()
-        {
-            match layer.read_clipboard(crate::system_clipboard::Want::Text) {
-                crate::wayland::layer_window::ClipboardRead::Ready(
-                    crate::system_clipboard::Content::Text(text),
-                ) => events.push(egui::Event::Paste(text)),
-                crate::wayland::layer_window::ClipboardRead::Ready(_) => {}
-                crate::wayland::layer_window::ClipboardRead::Pending(answer) => {
-                    *pending_text_paste = Some(answer);
-                }
-            }
-        }
-        let modifiers = layer.modifiers();
-        // A focused text field owns the keyboard: the palette's search box,
-        // a numeric field being typed into, the keybinding capture widget.
-        // Without this gate every character double-fires as a global
-        // shortcut — typing "vi" into the command palette also toggled the
-        // selection's visibility and dumped its info to the log (R25).
-        // `egui_winit` reports key events as consumed on exactly this
-        // condition, which is why the winit path never had the bug. The
-        // open palette, an open list and the right-click menu own it too:
-        // Escape there closed them and also left edit mode.
-        let egui_owns_keyboard = egui_renderer.wants_keyboard() || context_menu_state.is_some();
-        // Last frame's palette picks first, then this frame's keys — one
-        // path for both, so an action cannot behave differently depending
-        // on how it was asked for.
-        let mut actions = std::mem::take(palette_actions);
-        activity |= !actions.is_empty();
-        actions.extend(
-            events
-                .iter()
-                .filter_map(|event| binding_chord(event, egui_owns_keyboard))
-                .filter_map(|chord| config.keybindings.action_for_press(chord)),
-        );
-        // The Menu key, the keyboard's own key for the right-click menu:
-        // not a binding, egui having no name for it to record or match.
-        if std::mem::take(&mut layer.state.menu_key_pressed) && !egui_owns_keyboard {
-            actions.push(Action::OpenContextMenu);
-        }
-        for action in actions {
-            if action.interrupts_drag() {
-                *config_dirty |= crate::input::multi::cancel(
-                    &mut *scene,
-                    &mut *selection,
-                    &mut *drag,
-                    &mut *marquee,
-                );
-            }
-            match action {
-                Action::ToggleEditMode => {
-                    flip_edit_mode(
-                        &mut *layer,
-                        &mut *config,
-                        scene,
-                        &mut *config_dirty,
-                        &mut *config_watch,
-                        "Wayland",
-                    );
-                }
-                // In edit mode the keys are the overlay's, so the global
-                // chord comes as a key press rather than through the portal
-                // or a compositor binding — and was dropped here, while on
-                // X11 the grab took it in edit mode too. Hidden as from the
-                // tray: nothing drawn, no input taken.
-                Action::HideOverlay => {
-                    *overlay_hidden = true;
-                    let region = region_for_state(
-                        true,
-                        layer.state.edit_mode || *drag_widened,
-                        renderer.primary.window_width,
-                        renderer.primary.window_height,
-                        shown_button(&config.global),
-                    );
-                    if let Err(e) = layer.set_input_region(region) {
-                        tracing::warn!("hide: {e}");
-                    }
-                }
-                // As the global shortcuts do; snoozing leaves edit mode.
-                Action::ToggleMute => {
-                    config.global.sounds_muted = !config.global.sounds_muted;
-                    *config_dirty = true;
-                }
-                // The right-click menu, from the keyboard: on the panel's
-                // surface, where the keys and a screen reader are, nearest
-                // the character selected, its first item focused
-                // (`input::multi::keyboard_menu_at`).
-                Action::OpenContextMenu => {
-                    if let Some(idx) = selection.selected_index() {
-                        if let Some(e) = scene.entities.get(idx) {
-                            let at = egui::pos2(
-                                e.x + e.scaled_width() / 2.0,
-                                e.y + e.scaled_height() / 2.0,
-                            );
-                            crate::input::multi::select_for_menu(scene, &mut *selection, idx);
-                            *context_menu_state = Some(crate::app::ContextMenuState {
-                                entity_idx: idx,
-                                pos: crate::input::multi::keyboard_menu_at(
-                                    at - egui::vec2(primary_origin.0, primary_origin.1),
-                                    egui::vec2(
-                                        renderer.primary.window_width as f32,
-                                        renderer.primary.window_height as f32,
-                                    ),
-                                ),
-                                surface: None,
-                                armed: false,
-                                keyboard: true,
-                            });
-                            activity = true;
-                        }
-                    }
-                }
-                Action::ToggleFocus | Action::ToggleSnooze => {
-                    if timer_shortcut(action, config.global.focus) && layer.state.edit_mode {
-                        flip_edit_mode(
-                            &mut *layer,
-                            &mut *config,
-                            scene,
-                            &mut *config_dirty,
-                            &mut *config_watch,
-                            "Wayland",
-                        );
-                    }
-                }
-                // The next four are not shareable — each one reaches for
-                // something only this loop owns (its config, its shutdown
-                // flag, its renderer's texture cache) — but every piece
-                // they need is already here, and the in-app help screen
-                // lists all four. They did nothing at all on this backend
-                // until now (R27).
-                Action::SaveNow => match sync_and_save(&mut *config, scene) {
-                    Ok(()) => {
-                        *config_dirty = false;
-                        // Our own write changes the file's mtime and would
-                        // otherwise look exactly like somebody else's edit
-                        // to the watcher above, costing a pointless full
-                        // reload — selection and every texture included.
-                        config_watch.note_saved();
-                        tracing::info!("Config saved manually");
-                        toasts.success(crate::i18n::t("toast-config-saved"));
-                    }
-                    Err(e) => {
-                        // `config_dirty` deliberately stays set: a
-                        // transient failure must let the next edit retry
-                        // rather than silently drop the scene, which is
-                        // the same rule `save_config_if_needed` follows
-                        // on the winit path.
-                        tracing::warn!("Failed to save config: {e}");
-                        let mut args = fluent::FluentArgs::new();
-                        args.set("error", e.said());
-                        toasts.error(crate::i18n::t_args("toast-save-failed", &args));
-                    }
-                },
-                Action::TogglePerfOverlay => {
-                    *perf_overlay_visible = !*perf_overlay_visible;
-                    tracing::debug!(
-                        "Perf overlay {}",
-                        if *perf_overlay_visible {
-                            "shown"
-                        } else {
-                            "hidden"
-                        }
-                    );
-                }
-                Action::QuitWithSave => {
-                    // The shutdown path at the end of `run` persists
-                    // `config_dirty` on its way out, so this needs no save
-                    // of its own — and doing one here would write the
-                    // scene twice on every quit.
-                    tracing::info!("Quit action — saving and exiting");
-                    *quit_requested = true;
-                }
-                Action::DeleteSelected | Action::DuplicateSelected | Action::CutSelected => {
-                    // The same functions the right-click menu and the winit
-                    // path use (`crate::outcomes`), so none of the three can
-                    // drift from the others. Every selected character.
-                    let targets = selection.selected_indices();
-                    let mut ctx = outcome_ctx!();
-                    match action {
-                        Action::DeleteSelected => {
-                            outcomes::delete_entities(&targets, &mut ctx);
-                        }
-                        Action::CutSelected => {
-                            outcomes::cut_entities(&targets, &mut ctx);
-                        }
-                        _ => {
-                            outcomes::duplicate_entities(&targets, &mut ctx);
-                        }
-                    }
-                }
-                // The desktop's clipboard first: an image or files copied
-                // elsewhere since the last copy here come in as characters
-                // (`crate::system_clipboard`), at the pointer.
-                Action::Paste => {
-                    let at = layer
-                        .state
-                        .cursor_pos
-                        .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1))
-                        .unwrap_or((
-                            renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
-                            renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
-                        ));
-                    match layer.read_clipboard(crate::system_clipboard::Want::Characters) {
-                        crate::wayland::layer_window::ClipboardRead::Ready(content) => {
-                            let pasted = outcomes::apply_pasted(content, at, &mut outcome_ctx!());
-                            for path in pasted.to_import {
-                                // A shared scene or a Shimeji pack copied in a file
-                                // manager goes where a drop of it would.
-                                if crate::scene_file::is_scene_file(&path) {
-                                    if pending_transfer.is_none() {
-                                        *pending_transfer = Some(
-                                            crate::outcomes::SceneTransfer::import(path, Some(at)),
-                                        );
-                                    }
-                                } else if pending_shimeji.is_none() {
-                                    *pending_shimeji = ShimejiImport::start(
-                                        &path,
-                                        library_root.as_deref(),
-                                        at,
-                                        &mut *toasts,
-                                    );
-                                }
-                            }
-                        }
-                        crate::wayland::layer_window::ClipboardRead::Pending(answer) => {
-                            pending_paste.get_or_insert((answer, at));
-                        }
-                    }
-                }
-                // Everything that only touches the scene and the selection
-                // is shared with the winit path. Before this, the table was
-                // consulted here and matched ToggleEditMode alone, so the
-                // other twenty-seven rebindable actions were inert on this
-                // backend — the user could rebind them and see the config
-                // persist while nothing happened (R19).
-                other => {
-                    let mut ctx = crate::keybindings::shared::ActionCtx {
-                        scene: &mut *scene,
-                        selection: &mut *selection,
-                        config_dirty: &mut *config_dirty,
-                        shift_held: layer.state.last_modifiers.shift,
-                        bounds: monitor::covered_bounds(
-                            &plan,
-                            (
-                                renderer.primary.window_width as f32,
-                                renderer.primary.window_height as f32,
-                            ),
-                        ),
-                        monitors: &monitors_now,
-                        toasts: &mut *toasts,
-                        history: &mut *history,
-                    };
-                    crate::keybindings::shared::dispatch_shared(other, &mut ctx);
-                }
-            }
-        }
-        // A copy just made: its names on the desktop's clipboard, while the
-        // press that made it is the latest (setting it needs its serial).
-        if let Some(text) = crate::clipboard::take_claim() {
-            layer.claim_clipboard(text, true);
-        }
-
-        // Right-click on an entity opens the context menu and selects
-        // it, same gating and behavior as the X11 path's
-        // `handle_mouse_input` (src/app/input.rs). Entity-less right
-        // clicks (empty space) are ignored.
-        //
-        // Presses that egui owns are skipped. The winit path gets this for
-        // free — `App::window_event` forwards to egui first and returns
-        // early when the event is consumed — and without the equivalent
-        // here, a left click anywhere on the settings panel's background
-        // fell through to `entity_at_point`, found nothing, and cleared
-        // the selection. So clicking blank space in the panel threw away
-        // the very entity whose Inspector you were reading.
-        //
-        // Only the *press* arms are gated. Motion and release stay live so
-        // a drag that began on a sprite still tracks and still finishes if
-        // the pointer crosses the panel on the way.
-        // Edit mode just ended — by any of the four ways — so let go of
-        // what the pointer held and drop the selection, as the winit path
-        // does. The release of a drag in progress will not come: in
-        // pass-through the surface no longer gets the pointer, and the
-        // drag used to stay open until the next move in edit mode, which
-        // made the character jump to the pointer.
-        if *was_editing && !layer.state.edit_mode {
-            *config_dirty |= crate::input::multi::cancel(
-                &mut *scene,
-                &mut *selection,
-                &mut *drag,
-                &mut *marquee,
-            );
-            selection.deselect();
-            *context_menu_state = None;
-        }
-        *was_editing = layer.state.edit_mode;
-        // Hidden, nothing is dragged on. Sway still delivers the release —
-        // the button's implicit grab outlives the empty input region — but
-        // on X11 an unmapped window gets none, and the character jumped to
-        // the pointer at the first move once shown; let go here too rather
-        // than count on every compositor.
-        if *overlay_hidden || aside.hidden {
-            *config_dirty |= crate::input::multi::cancel(
-                &mut *scene,
-                &mut *selection,
-                &mut *drag,
-                &mut *marquee,
-            );
-        }
-        let egui_owns_pointer = egui_renderer.owns_pointer();
-        // The right-click menu on another monitor's overlay (`surface`):
-        // that overlay's egui hears the pointer while it is over that
-        // monitor, and a press anywhere else closes the menu — the egui
-        // there cannot count a click it never hears as outside. Escape
-        // closes it too: the keys go to the panel's egui. Presses on the
-        // menu stay out of the scene, as the panel's do.
-        let mut extra_menu_events: Vec<egui::Event> = Vec::new();
-        let menu_monitor = context_menu_state
-            .as_ref()
-            .and_then(|m| m.surface.as_ref())
-            .filter(|name| extra_surfaces.contains_key(*name))
-            .and_then(|name| monitors_now.iter().find(|m| &m.name == name))
-            .cloned();
-        // Its monitor went — unplugged, or the overlay down to one: nothing
-        // could draw the menu, and it kept every key from the shortcuts.
-        if menu_monitor.is_none()
-            && context_menu_state
-                .as_ref()
-                .is_some_and(|m| m.surface.is_some())
-        {
-            *context_menu_state = None;
-        }
-        let global =
-            |pos: &egui::Pos2| egui::pos2(pos.x + primary_origin.0, pos.y + primary_origin.1);
-        if let Some(mon) = &menu_monitor {
-            let origin = egui::vec2(mon.x as f32, mon.y as f32);
-            for event in &events {
-                match event {
-                    egui::Event::PointerMoved(pos) => {
-                        let at = global(pos);
-                        extra_menu_events.push(if mon.contains(at.x, at.y) {
-                            egui::Event::PointerMoved(at - origin)
-                        } else {
-                            egui::Event::PointerGone
-                        });
-                    }
-                    egui::Event::PointerButton {
-                        pos,
-                        button,
-                        pressed,
-                        modifiers,
-                    } => {
-                        let at = global(pos);
-                        if mon.contains(at.x, at.y) {
-                            extra_menu_events.push(egui::Event::PointerButton {
-                                pos: at - origin,
-                                button: *button,
-                                pressed: *pressed,
-                                modifiers: *modifiers,
-                            });
-                        } else if *pressed {
-                            *context_menu_state = None;
-                        }
-                    }
-                    egui::Event::PointerGone => extra_menu_events.push(egui::Event::PointerGone),
-                    egui::Event::Key {
-                        key: egui::Key::Escape,
-                        pressed: true,
-                        ..
-                    } => *context_menu_state = None,
-                    _ => {}
-                }
-            }
-        }
-        let extra_owns_pointer = menu_monitor
-            .as_ref()
-            .is_some_and(|m| extra_eguis.get(&m.name).is_some_and(|e| e.owns_pointer()));
-        let owned_press = |pos: &egui::Pos2| {
-            let at = global(pos);
-            egui_owns_pointer
-                || (extra_owns_pointer
-                    && menu_monitor
-                        .as_ref()
-                        .is_some_and(|m| m.contains(at.x, at.y)))
-        };
-        if layer.state.edit_mode {
-            for event in &events {
-                match event {
-                    egui::Event::PointerButton {
-                        pos,
-                        button: egui::PointerButton::Secondary,
-                        pressed: true,
-                        ..
-                    } if !owned_press(pos) => {
-                        let at = global(pos);
-                        if let Some(idx) = scene.entity_at_point(at.x, at.y) {
-                            // One of several selected keeps them all, so
-                            // the menu acts on the whole selection;
-                            // otherwise it takes the character with its
-                            // group.
-                            crate::input::multi::select_for_menu(scene, &mut *selection, idx);
-                            // On the monitor clicked: another monitor's
-                            // overlay draws it with its own egui, in its
-                            // own points.
-                            let elsewhere = monitors_now.iter().find(|m| {
-                                extra_surfaces.contains_key(&m.name) && m.contains(at.x, at.y)
-                            });
-                            *context_menu_state = Some(crate::app::ContextMenuState {
-                                entity_idx: idx,
-                                pos: match elsewhere {
-                                    Some(m) => at - egui::vec2(m.x as f32, m.y as f32),
-                                    None => *pos,
-                                },
-                                surface: elsewhere.map(|m| m.name.clone()),
-                                // Armed after the first showing — see ContextMenuState.
-                                armed: false,
-                                keyboard: false,
-                            });
-                        }
-                    }
-                    // Left press: select and begin a drag, mirroring
-                    // `App::handle_mouse_input` on the winit path. Both were
-                    // missing here — selection was right-click only, and
-                    // dragging a character (the core interaction of a
-                    // desktop-pet overlay) was not implemented on this
-                    // backend at all.
-                    egui::Event::PointerButton {
-                        pos,
-                        button: egui::PointerButton::Primary,
-                        pressed: true,
-                        modifiers,
-                        ..
-                    } if !owned_press(pos) => {
-                        let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
-                        // Select (with its group, keeping the others selected,
-                        // or toggled with Shift) and pick the selection up; on
-                        // empty space, a selection rectangle
-                        // (`crate::input::multi`).
-                        match scene.entity_at_point(at.0, at.1) {
-                            Some(idx) => {
-                                crate::input::multi::press_on(
-                                    &mut *scene,
-                                    &mut *selection,
-                                    &mut *drag,
-                                    idx,
-                                    at,
-                                    modifiers.shift,
-                                );
-                            }
-                            None => {
-                                *marquee = Some(crate::input::multi::Marquee::begin(
-                                    at,
-                                    modifiers.shift,
-                                    &mut *selection,
-                                ));
-                            }
-                        }
-                    }
-                    egui::Event::PointerButton {
-                        button: egui::PointerButton::Primary,
-                        pressed: false,
-                        ..
-                    } if marquee.is_some() => {
-                        *marquee = None;
-                    }
-                    egui::Event::PointerButton {
-                        pos,
-                        button: egui::PointerButton::Primary,
-                        pressed: false,
-                        modifiers,
-                        ..
-                    } if drag.is_dragging() => {
-                        let (gx, gy) = (pos.x + primary_origin.0, pos.y + primary_origin.1);
-                        // A press/release that never moved is a *tap*, not a
-                        // drag — poke the mascot instead of just dropping it.
-                        let tapped = drag.was_tap(gx, gy, crate::constants::POKE_TAP_RADIUS);
-                        if tapped {
-                            // The hop that follows is play, not an edit.
-                            history.finish(scene);
-                        }
-                        let poke_bounds = monitor::covered_bounds(
-                            &plan,
-                            (
-                                renderer.primary.window_width as f32,
-                                renderer.primary.window_height as f32,
-                            ),
-                        );
-                        if tapped {
-                            if let Some(idx) = drag.dragging_entity() {
-                                crate::tap::poke(&mut *scene, idx, gx, poke_bounds);
-                            }
-                        }
-                        // Thrown: the flight is play, as a poke's hop is —
-                        // the step closes where the character was let go.
-                        crate::input::multi::end_drag(
-                            &mut *scene,
-                            &mut *selection,
-                            &mut *drag,
-                            tapped,
-                            modifiers.shift,
-                            |scene| {
-                                history.finish(scene);
-                            },
-                        );
-                        *config_dirty = true;
-                    }
-                    egui::Event::PointerMoved(pos) if marquee.is_some() => {
-                        let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
-                        if let Some(m) = marquee.as_mut() {
-                            m.drag_to(at, scene, &mut *selection);
-                        }
-                    }
-                    egui::Event::PointerMoved(pos) if drag.is_dragging() => {
-                        let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
-                        // Snapping, unless it is off or Alt is held.
-                        let snap_to = (config.global.snap_while_dragging
-                            && !layer.state.last_modifiers.alt)
-                            .then(|| crate::input::arrange::monitor_rects(&monitors_now));
-                        crate::input::multi::drag_to(
-                            &mut *scene,
-                            selection,
-                            &mut *drag,
-                            at,
-                            snap_to.as_deref(),
-                        );
-                    }
-                    _ => {}
-                }
-            }
-        } else if config.global.tap_characters && !(*overlay_hidden || aside.hidden || aside.paused)
-        {
-            // Pass-through with tapping on (`crate::tap`): a press and a
-            // release close together on a character poke it. Presses on
-            // the ⚙ button are egui's.
-            for event in &events {
-                match event {
-                    egui::Event::PointerButton {
-                        pos,
-                        button: egui::PointerButton::Primary,
-                        pressed: true,
-                        ..
-                    } if !egui_owns_pointer => {
-                        let at = global(pos);
-                        tap_gesture.press(scene, at.x, at.y);
-                    }
-                    egui::Event::PointerButton {
-                        pos,
-                        button: egui::PointerButton::Primary,
-                        pressed: false,
-                        ..
-                    } => {
-                        let at = global(pos);
-                        if let Some(idx) = tap_gesture.release(scene, at.x, at.y) {
-                            let bounds = monitor::covered_bounds(
-                                &plan,
-                                (
-                                    renderer.primary.window_width as f32,
-                                    renderer.primary.window_height as f32,
-                                ),
-                            );
-                            crate::tap::poke(&mut *scene, idx, at.x, bounds);
-                            activity = true;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
         // Tick the simulation. screen_w / screen_h match the surface so
         // walk-around behaviors stay inside the visible area.
         if let Some(soak) = soak.as_mut() {
@@ -2810,7 +1364,10 @@ impl Native {
                             *context_menu_state = None;
                         }
                         panels::ContextMenuOutcome::Action(action) => {
-                            outcomes::apply_menu_action(action, &mut outcome_ctx!());
+                            outcomes::apply_menu_action(
+                                action,
+                                &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                            );
                             *context_menu_state = None;
                         }
                     }
@@ -2839,9 +1396,11 @@ impl Native {
                             );
                         }
                     }
-                    Some(out) => {
-                        outcomes::apply_palette_outcome(out, &mut outcome_ctx!(), &mut *config)
-                    }
+                    Some(out) => outcomes::apply_palette_outcome(
+                        out,
+                        &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                        &mut *config,
+                    ),
                     None => {}
                 }
                 if let Some(out) = library_outcome {
@@ -2853,7 +1412,7 @@ impl Native {
                     );
                     outcomes::apply_library_outcome(
                         out,
-                        &mut outcome_ctx!(),
+                        &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
                         library_root.as_deref(),
                         &mut *library,
                         at,
@@ -2897,6 +1456,1780 @@ impl Native {
         }
         *wait = next_wait!();
         Ok(Flow::Next)
+    }
+
+    /// Waits for the compositor — at most `wait`, or until the waker
+    /// rings — and takes what it sent: whether any of it is something a
+    /// frame should show.
+    fn wake(&mut self) -> Result<bool> {
+        let Self {
+            wait,
+            waker,
+            history,
+            perf_sampler,
+            selection,
+            egui_renderer,
+            layer,
+            scene,
+            ..
+        } = self;
+        // Opens the perf frame before the blocking dispatch, so the wait
+        // for the compositor lands in `Idle` rather than vanishing — the
+        // same placement the winit loop uses relative to its own wait.
+        perf_sampler.begin_frame();
+        let dispatched = dispatch_with_timeout(
+            &mut layer.event_queue,
+            &mut layer.state,
+            waker.as_ref(),
+            *wait,
+        )?;
+        // Whether anything happened this iteration that a frame should
+        // show. Input and every other compositor event count; so does
+        // whatever the loop picks up from its channels below.
+        let activity = dispatched > 0;
+        // A step to undo opens at the first thing someone does, before it
+        // is applied (`crate::undo`).
+        if layer.has_user_action() || egui_renderer.has_screen_reader_requests() {
+            history.input(scene, selection, Instant::now());
+        }
+
+        Ok(activity)
+    }
+
+    /// The overlay closed by the compositor, or a quit asked for
+    /// ([`Closing`]): what the loop does next, if not carry on.
+    fn overlay_closed(&mut self, activity: &mut bool) -> Option<Flow> {
+        let Self {
+            quit_requested,
+            reopens,
+            wait,
+            primary_frame,
+            drag_widened,
+            aside,
+            renderer,
+            layer,
+            overlay_hidden,
+            config,
+            ..
+        } = self;
+        // The compositor closed the overlay: its monitor went — unplugged,
+        // or Hyprland's stand-in for none replaced by a real one, which
+        // ended an app started from `exec-once`. The session goes on, so it
+        // is made again once a monitor is there; only a compositor that
+        // keeps closing it ends the app, as every close did before
+        // (`Reopens`). A quit is not a close (`Closing`).
+        match closing(
+            *quit_requested,
+            layer.state.close_requested,
+            !layer.monitors().is_empty(),
+            &mut *reopens,
+            Instant::now(),
+        ) {
+            Closing::Open => {}
+            Closing::Quit => return Some(Flow::Exit),
+            Closing::WaitForMonitor => {
+                *wait = Duration::from_millis(500);
+                return Some(Flow::Next);
+            }
+            Closing::GiveUp => {
+                tracing::info!("Layer surface closed by compositor again and again — exiting.");
+                return Some(Flow::Exit);
+            }
+            Closing::Reopen => match reopen_primary(&mut *layer, &mut *renderer) {
+                Ok(()) => {
+                    tracing::info!("Layer surface closed by compositor — made again");
+                    let region = region_for_state(
+                        *overlay_hidden || aside.hidden,
+                        layer.state.edit_mode || *drag_widened,
+                        renderer.primary.window_width,
+                        renderer.primary.window_height,
+                        shown_button(&config.global),
+                    );
+                    if let Err(e) = layer.set_input_region(region) {
+                        tracing::warn!("input region after reopening: {e}");
+                    }
+                    *primary_frame = None;
+                    *activity = true;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Layer surface closed by compositor, not made again ({e}) — exiting."
+                    );
+                    return Some(Flow::Exit);
+                }
+            },
+        }
+
+        None
+    }
+
+    /// A new size from the compositor: the buffers made again at it,
+    /// and the input region from the live state.
+    fn resized(&mut self) -> Result<()> {
+        let Self {
+            drag_widened,
+            aside,
+            renderer,
+            layer,
+            overlay_hidden,
+            config,
+            ..
+        } = self;
+        // Pick up any resize the compositor sent us.
+        if let Some((new_w, new_h)) = layer.state.pending_size.take() {
+            if new_w != renderer.primary.window_width || new_h != renderer.primary.window_height {
+                renderer.resize(new_w, new_h);
+                // Re-derive from the live state: this used to re-apply the
+                // pass-through corner unconditionally, so a resize while
+                // in edit mode silently reverted the surface to
+                // click-through, and a resize while hidden made it
+                // clickable again.
+                let region = region_for_state(
+                    *overlay_hidden || aside.hidden,
+                    layer.state.edit_mode || *drag_widened,
+                    new_w,
+                    new_h,
+                    shown_button(&config.global),
+                );
+                layer.set_input_region(region)?;
+                tracing::info!("Layer surface resized to {new_w}×{new_h}");
+            }
+        }
+
+        Ok(())
+    }
+
+    /// config.toml edited by hand (the hot reload), and the results the
+    /// loop waits on: a Shimeji import, the file chooser's answer, a
+    /// paste, a shared scene coming in or going out.
+    fn results(&mut self, activity: &mut bool) {
+        let Self {
+            history,
+            pending_paste,
+            pending_transfer,
+            pending_file_chooser,
+            pending_shimeji,
+            library_root,
+            warnings,
+            config_watch,
+            config_dirty,
+            toasts,
+            marquee,
+            drag,
+            selection,
+            renderer,
+            layer,
+            config,
+            scene,
+            ..
+        } = self;
+        // Hot-reload. The README lists it as a feature and its parity
+        // table calls it stable on both backends; this loop never did it
+        // at all, so editing config.toml with the overlay running on
+        // Wayland did nothing (R28).
+        let poll = config_watch.poll(*config_dirty);
+        *activity |= !matches!(poll, crate::config_watch::Poll::Idle);
+        let reloaded = matches!(poll, crate::config_watch::Poll::Ready(_));
+        if reloaded {
+            // The characters a drag or a rectangle holds are about to be
+            // replaced: let go while they are still the ones it froze.
+            crate::input::multi::cancel(&mut *scene, &mut *selection, &mut *drag, &mut *marquee);
+        }
+        crate::config_watch::handle(
+            poll,
+            &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+            &mut *config,
+            &mut *warnings,
+        );
+        if reloaded {
+            // The scene was replaced from the file: the steps no longer
+            // describe it.
+            history.clear();
+        }
+        if let Some(import) = &pending_shimeji {
+            if import
+                .poll(&mut outcome_ctx!(
+                    scene,
+                    selection,
+                    toasts,
+                    config_dirty,
+                    renderer
+                ))
+                .is_some()
+            {
+                *pending_shimeji = None;
+                *activity = true;
+            }
+        }
+        if let Some(chooser) = &pending_file_chooser {
+            if let Some(added) = chooser.poll(&mut outcome_ctx!(
+                scene,
+                selection,
+                toasts,
+                config_dirty,
+                renderer
+            )) {
+                *pending_file_chooser = None;
+                *activity = true;
+                if added > 0 {
+                    *config_dirty = true;
+                }
+            }
+        }
+        if let Some((answer, at)) = &pending_paste {
+            let content = match answer.try_recv() {
+                Ok(content) => Some(content),
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    Some(crate::system_clipboard::Content::Nothing)
+                }
+            };
+            if let Some(content) = content {
+                let at = *at;
+                *pending_paste = None;
+                *activity = true;
+                // The key that asked may be a while ago: open a step if it
+                // closed.
+                history.input(scene, selection, Instant::now());
+                let pasted = outcomes::apply_pasted(
+                    content,
+                    at,
+                    &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                );
+                for path in pasted.to_import {
+                    // A shared scene or a Shimeji pack copied in a file
+                    // manager goes where a drop of it would.
+                    if crate::scene_file::is_scene_file(&path) {
+                        if pending_transfer.is_none() {
+                            *pending_transfer =
+                                Some(crate::outcomes::SceneTransfer::import(path, Some(at)));
+                        }
+                    } else if pending_shimeji.is_none() {
+                        *pending_shimeji =
+                            ShimejiImport::start(&path, library_root.as_deref(), at, &mut *toasts);
+                    }
+                }
+            }
+        }
+        if let Some(transfer) = &mut *pending_transfer {
+            match transfer.poll(&mut *toasts) {
+                crate::outcomes::Transfer::Pending => {}
+                crate::outcomes::Transfer::Done => {
+                    *pending_transfer = None;
+                    *activity = true;
+                }
+                crate::outcomes::Transfer::Imported(saved) => {
+                    *pending_transfer = None;
+                    *activity = true;
+                    // Not input, so no undo step is open: open one, as
+                    // "Next scene" does; and let go of any gesture.
+                    history.input(scene, selection, Instant::now());
+                    crate::input::multi::cancel(
+                        &mut *scene,
+                        &mut *selection,
+                        &mut *drag,
+                        &mut *marquee,
+                    );
+                    let bounds = monitor::covered_bounds(
+                        &monitor::plan_windows(&config.global.monitor_mode, &layer.monitors()),
+                        (
+                            renderer.primary.window_width as f32,
+                            renderer.primary.window_height as f32,
+                        ),
+                    );
+                    outcomes::apply_imported(
+                        saved,
+                        &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                        &mut config.global.active_scene,
+                        bounds,
+                    );
+                }
+            }
+        }
+    }
+
+    /// The monitors as they are now: the other monitors' overlays made
+    /// or closed to match them, every surface at its output's scale,
+    /// and where the primary sits among them ([`Outputs`]).
+    fn outputs(&mut self, activity: &mut bool) -> Outputs {
+        let Self {
+            loop_started,
+            last_monitor_mode,
+            extra_frames,
+            extra_surfaces,
+            renderer,
+            layer,
+            config,
+            scene,
+            ..
+        } = self;
+        // Rebuild PerMonitor extras whenever the user switches mode or
+        // the output topology changes (hotplug) — mirrors the X11
+        // path's `rebuild_windows_if_mode_changed` + `check_monitor_topology`.
+        // Computed early in the frame: file-drop landing coordinates
+        // and the right-click hit test below both need `primary_origin`
+        // translated into entity-space before they touch `scene`.
+        let monitors_now = layer.monitors();
+        let plan = monitor::plan_windows(&config.global.monitor_mode, &monitors_now);
+        let plan_names: std::collections::HashSet<&str> =
+            plan.extras.iter().map(|m| m.name.as_str()).collect();
+        let current_names: std::collections::HashSet<&str> =
+            extra_surfaces.keys().map(|s| s.as_str()).collect();
+        // Which monitor the primary landed on is known once the compositor
+        // says it entered one — after its first frame. Until then, for a
+        // moment at most, no other monitor gets its overlay and nothing is
+        // drawn: the plan guessed the first monitor listed, made an
+        // overlay for the primary's own monitor when the guess was wrong,
+        // and closed it again some 40 ms later.
+        let awaiting_primary = awaiting_primary_output(
+            &config.global.monitor_mode,
+            monitors_now.len(),
+            layer.state.primary_output_name.is_some(),
+            (*loop_started).elapsed(),
+        );
+        if !awaiting_primary
+            && (config.global.monitor_mode != *last_monitor_mode || plan_names != current_names)
+        {
+            rebuild_extra_surfaces(&mut *layer, renderer, &plan, &mut *extra_surfaces);
+            // New surfaces, with nothing on them yet.
+            extra_frames.clear();
+            *last_monitor_mode = config.global.monitor_mode.clone();
+        }
+        for (name, new_w, new_h) in layer.drain_extra_resizes() {
+            if let Some(surface) = extra_surfaces.get_mut(&name) {
+                surface.resize(&renderer.shared, new_w, new_h);
+            }
+        }
+        // Each surface at its output's scale (`layer_window::scale`),
+        // as the compositor last said: its buffer made again at it.
+        let primary_scale = layer.state.primary_scale.scale();
+        if renderer.primary.pixel_scale() != primary_scale {
+            renderer
+                .primary
+                .set_pixel_scale(&renderer.shared, primary_scale);
+            tracing::info!("Overlay drawn at scale {primary_scale}");
+            *activity = true;
+        }
+        for (name, surface) in extra_surfaces.iter_mut() {
+            let scale = layer.extra_scale(name);
+            if surface.pixel_scale() != scale {
+                surface.set_pixel_scale(&renderer.shared, scale);
+                tracing::info!("Overlay on {name} drawn at scale {scale}");
+                *activity = true;
+            }
+        }
+        // The pictures as sharp as the sharpest of them shows them
+        // (`Scene::sharpen`): the scene was loaded before any said.
+        let detail = (extra_surfaces.keys())
+            .map(|name| layer.extra_scale(name))
+            .fold(primary_scale, f32::max);
+        crate::entity::set_detail_scale(detail);
+        if scene.sharpen(crate::entity::picture_cap()) {
+            *activity = true;
+        }
+
+        // Entities live in window-local coordinates in single-output
+        // modes (today's only well-exercised case) and in global
+        // desktop coordinates once PerMonitor extras exist — same
+        // duality as the X11 path's `App::primary_origin` (T.8).
+        // `primary_output_name` is learned from `surface_enter`
+        // (handlers.rs); it stays `None` (→ identity origin) if the
+        // compositor never sends it, so the fallback is always the
+        // already-shipped single-output behavior, never a wrong offset.
+        let primary_origin: (f32, f32) = compute_primary_origin(
+            !extra_surfaces.is_empty(),
+            layer.state.primary_output_name.as_deref(),
+            &monitors_now,
+        );
+        let cursor_global = layer
+            .state
+            .cursor_pos
+            .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1));
+
+        Outputs {
+            monitors_now,
+            plan,
+            awaiting_primary,
+            primary_origin,
+            cursor_global,
+        }
+    }
+
+    /// What the desktop and the time ask of the overlay: in front of the
+    /// windows or behind; stepping aside for a full-screen window, an app
+    /// chosen in front, a snooze; held still for someone away, the battery
+    /// or bedtime; the scene by the time of day; reminders and the focus
+    /// timer; the pace by the hour; a greeting for someone back.
+    fn circumstances(&mut self, activity: &mut bool) {
+        let Self {
+            library_scan,
+            audio_host,
+            drag_widened,
+            scene_schedule,
+            reminder_timers,
+            held_for_away,
+            on_battery,
+            aside,
+            history,
+            moods,
+            welcome,
+            hours_clock,
+            bedtime_watch,
+            library,
+            config_dirty,
+            toasts,
+            marquee,
+            drag,
+            selection,
+            renderer,
+            layer,
+            overlay_hidden,
+            config,
+            scene,
+            ..
+        } = self;
+        // Drain pointer + keyboard events. Until egui paint lands
+        // (E.4) we don't have a UI consumer, but we already need to
+        // detect the `Action::ToggleEditMode` chord so click-through
+        // can flip in lock-step. Scan key-press events, match against
+        // the user's bindings, dispatch the few actions that make
+        // sense without a UI thread (just edit mode for now).
+        // Step aside while another window is full screen, and come back
+        // when it is not. Recomputed every iteration from the setting, the
+        // window in front and edit mode, so nothing has to be undone.
+        // In front of the windows or behind them; edit mode always in
+        // front, so the panel is in reach.
+        layer.set_on_top(config.global.always_on_top || layer.state.edit_mode);
+        let chosen_in_front = layer
+            .state
+            .toplevels
+            .chosen_in_front(&config.global.step_aside_apps);
+        let wanted = crate::fullscreen::step_aside(
+            config.global.on_fullscreen,
+            layer.fullscreen_in_front(),
+            layer.state.edit_mode,
+        )
+        // An app the user chose in front (`crate::chosen_apps`).
+        .or_chosen_app(chosen_in_front, layer.state.edit_mode)
+        // Snoozing (`crate::snooze`): out of sight and still until it ends.
+        .or_snoozing(crate::snooze::active());
+        // The open apps, for the picker, while it shows.
+        if crate::chosen_apps::open_list_wanted() {
+            crate::chosen_apps::set_open(layer.state.toplevels.open_apps());
+        }
+        // In the Flatpak, the Background portal's answer to "start at
+        // login", once it comes (`crate::autostart`).
+        if let Some(granted) = crate::autostart::take_portal_answer() {
+            config.global.start_at_login = granted;
+            *config_dirty = true;
+        }
+        // Held still while nobody is there, too (`crate::away`): idle from
+        // the compositor, the battery from the away watch.
+        let global = &config.global;
+        // Watched for reminders even with pausing off.
+        let idle_watch = crate::away::idle_watch_minutes(
+            global.pause_when_idle_minutes,
+            !config.reminders.is_empty() || global.welcome_back,
+        );
+        layer.set_idle_timeout(idle_watch);
+        crate::away::configure(
+            idle_watch,
+            global.pause_on_battery || global.frame_rate.watches_battery(),
+        );
+        // Bedtime by the clock (`crate::bedtime`) — not while editing.
+        let bedtime_now = !layer.state.edit_mode && bedtime_watch.now(&global.bedtime);
+        // The library's fresh scan, once it is done (`asset_library::open`).
+        if let Some(rx) = &library_scan {
+            match rx.try_recv() {
+                Ok(index) => {
+                    *library = Some(index);
+                    *library_scan = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => *library_scan = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+        // How loud the sounds are, if at all (`crate::audio`), before the
+        // tick: scripts play from inside it.
+        audio_host.set_level(
+            global.sound_volume,
+            global.sounds_muted,
+            global.quiet_at_bedtime && bedtime_now,
+        );
+        // Characters with hours of their own (`crate::hours`) — everyone
+        // while editing.
+        let minute = if layer.state.edit_mode {
+            None
+        } else {
+            hours_clock.minute()
+        };
+        if scene.set_clock(minute) {
+            *activity = true;
+        }
+        let still = crate::away::stillness(
+            global.pause_when_idle_minutes,
+            layer.is_idle(),
+            global.pause_on_battery,
+            *on_battery,
+        )
+        .with_bedtime(bedtime_now)
+        .watching(layer.fullscreen_in_front());
+        if still.any() != *held_for_away {
+            *held_for_away = still.any();
+            *activity = true;
+            tracing::info!(
+                "Away: scene {}",
+                if still.doze {
+                    "dozing off"
+                } else if still.freeze {
+                    "held still"
+                } else {
+                    "back"
+                }
+            );
+        }
+        *activity |= scene.set_dozing(still.doze);
+        scene.set_suspended(wanted.paused || still.freeze);
+        // Scenes by time of day (`crate::schedule`), as on the winit path:
+        // not in edit mode, the undo step opened here, gestures let go.
+        if !layer.state.edit_mode {
+            if let Some(name) = scene_schedule.due_now(&config.scene_schedule) {
+                history.input(scene, selection, Instant::now());
+                crate::input::multi::cancel(
+                    &mut *scene,
+                    &mut *selection,
+                    &mut *drag,
+                    &mut *marquee,
+                );
+                if crate::outcomes::apply_scheduled(
+                    &name,
+                    &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                    &mut config.global.active_scene,
+                ) {
+                    *activity = true;
+                }
+            }
+        }
+        // Reminders due now (`crate::reminders`), said by any character:
+        // every monitor draws its bubbles. Before the frame gate: a still
+        // scene would never reach the drawing code.
+        // While the focus timer runs (`crate::focus`), reminders wait out
+        // the work, and its break counts as a break.
+        let focus = crate::focus::phase();
+        if crate::reminders::deliver(
+            &mut *reminder_timers,
+            &config.reminders,
+            &config.global.reminder_sound,
+            config.global.notify_reminders,
+            &mut *scene,
+            !(*overlay_hidden || wanted.hidden),
+            // The night counts as a break too.
+            crate::reminders::Away {
+                on_a_break: layer.is_idle()
+                    || bedtime_now
+                    || focus == Some(crate::focus::Phase::Break),
+                idle: layer.is_idle(),
+                working: focus == Some(crate::focus::Phase::Work),
+            },
+            |_| true,
+        ) {
+            *activity = true;
+        }
+        // Each turn of the timer, said once it can be seen.
+        if crate::focus::say_news(
+            &mut *scene,
+            !(*overlay_hidden || wanted.hidden),
+            &config.global.reminder_sound,
+            config.global.notify_reminders,
+            |_| true,
+        ) {
+            *activity = true;
+        }
+        // The pace by the time of day, and a yawn before bedtime
+        // (`crate::moods`).
+        moods.step(
+            &mut *scene,
+            config.global.moods,
+            &config.global.bedtime,
+            !(*overlay_hidden || wanted.hidden),
+        );
+        // Back after being away (`crate::welcome`): greeted where it can be
+        // seen, and not by sleepers.
+        let minute = hours_clock.minute();
+        if let Some(greeting) = welcome.check(layer.is_idle(), minute).filter(|_| {
+            config.global.welcome_back && !(*overlay_hidden || wanted.hidden) && !bedtime_now
+        }) {
+            if let Some(i) = scene.frontmost_visible() {
+                scene.entities[i].say(&greeting.line(), crate::welcome::SAY_SECONDS);
+                *activity = true;
+            }
+        }
+        if wanted != *aside {
+            *aside = wanted;
+            *activity = true;
+            tracing::info!(
+                "{}: overlay {}",
+                if crate::snooze::active() {
+                    "Snoozing"
+                } else if chosen_in_front && !layer.state.edit_mode {
+                    "An app chosen in Appearance in front"
+                } else if layer.fullscreen_in_front() {
+                    "Full-screen app in front"
+                } else {
+                    "Full-screen app gone"
+                },
+                if aside.hidden {
+                    "hidden"
+                } else if aside.paused {
+                    "paused"
+                } else {
+                    "back"
+                }
+            );
+            let region = region_for_state(
+                *overlay_hidden || aside.hidden,
+                layer.state.edit_mode || *drag_widened,
+                renderer.primary.window_width,
+                renderer.primary.window_height,
+                shown_button(&config.global),
+            );
+            if let Err(e) = layer.set_input_region(region) {
+                tracing::warn!("stepping aside: {e}");
+            }
+        }
+    }
+
+    /// Where the overlays take the pointer: wider while a drag is over
+    /// the primary in pass-through, the characters' rectangles when they
+    /// take taps, and the other monitors' overlays following the primary.
+    fn input_regions(&mut self, monitors_now: &[MonitorInfo], primary_origin: (f32, f32)) {
+        let Self {
+            extra_surfaces,
+            drag_widened,
+            aside,
+            tap_refreshed,
+            egui_renderer,
+            renderer,
+            layer,
+            overlay_hidden,
+            config,
+            scene,
+            ..
+        } = self;
+        // Widen the input region while a drag is over us in pass-through,
+        // and put it back when the drag ends.
+        let widen = drag_region(
+            *overlay_hidden || aside.hidden,
+            layer.state.edit_mode,
+            layer.state.drag_over,
+        );
+        if widen != *drag_widened {
+            *drag_widened = widen;
+            let region = region_for_state(
+                *overlay_hidden || aside.hidden,
+                layer.state.edit_mode || widen,
+                renderer.primary.window_width,
+                renderer.primary.window_height,
+                shown_button(&config.global),
+            );
+            if let Err(e) = layer.set_input_region(region) {
+                tracing::warn!("drag region: {e}");
+            }
+        }
+
+        // Tapping (`crate::tap`): in pass-through, with the setting on,
+        // the characters take clicks too — their rectangles join the ⚙
+        // corner, a few times a second at most — and a click on one must
+        // not take the keyboard. A click on the ⚙ still does, so edit mode
+        // has the keys from its first moment: the pointer is over it before
+        // the press.
+        // Not over a full-screen app either, even one they only pause
+        // for: a game's clicks are the game's.
+        let tapping = config.global.tap_characters
+            && !layer.state.edit_mode
+            && !(*overlay_hidden || aside.hidden || aside.paused)
+            && !widen;
+        layer.set_keyboard_wanted(
+            layer.state.edit_mode || !config.global.tap_characters || egui_renderer.owns_pointer(),
+        );
+        let tap_refresh = tapping && (*tap_refreshed).elapsed() >= crate::tap::REFRESH;
+        if tap_refresh {
+            *tap_refreshed = Instant::now();
+            let base = region_for_state(
+                false,
+                false,
+                renderer.primary.window_width,
+                renderer.primary.window_height,
+                shown_button(&config.global),
+            );
+            let rects = crate::tap::rects(
+                scene,
+                primary_origin,
+                (
+                    renderer.primary.window_width,
+                    renderer.primary.window_height,
+                ),
+            );
+            layer.sync_tap_region(base, rects);
+        } else if !tapping && layer.tap_region_applied() {
+            // Tapping just went off: the plain region again.
+            let region = region_for_state(
+                *overlay_hidden || aside.hidden,
+                layer.state.edit_mode || widen,
+                renderer.primary.window_width,
+                renderer.primary.window_height,
+                shown_button(&config.global),
+            );
+            if let Err(e) = layer.set_input_region(region) {
+                tracing::warn!("tap region: {e}");
+            }
+        }
+
+        // The per-monitor extra surfaces follow the primary: open to
+        // input in edit mode, or while a drag is over the overlay, and
+        // click-through otherwise — but for the characters, when tapping.
+        // Their offsets into the primary's space come from the same output
+        // snapshot as `primary_origin`, so a click, drag or drop on
+        // another monitor lands in the right global place.
+        layer.sync_extra_layers(
+            extras_take_input(
+                *overlay_hidden || aside.hidden,
+                layer.state.edit_mode,
+                widen,
+            ),
+            |name| {
+                monitors_now
+                    .iter()
+                    .find(|m| m.name == name)
+                    .map(|m| (m.x as f32 - primary_origin.0, m.y as f32 - primary_origin.1))
+            },
+            |name| {
+                if !tapping {
+                    return Some(Vec::new());
+                }
+                if !tap_refresh {
+                    return None;
+                }
+                let mon = monitors_now.iter().find(|m| m.name == name)?;
+                let surface = extra_surfaces.get(name)?;
+                Some(crate::tap::rects(
+                    scene,
+                    (mon.x as f32, mon.y as f32),
+                    (surface.window_width, surface.window_height),
+                ))
+            },
+        );
+    }
+
+    /// Files dropped on an overlay: a Shimeji pack to the importer, a
+    /// shared scene to its import, anything else added where it landed.
+    fn drops(&mut self, primary_origin: (f32, f32), activity: &mut bool) {
+        let Self {
+            history,
+            pending_transfer,
+            pending_shimeji,
+            library_root,
+            config_watch,
+            config_dirty,
+            toasts,
+            selection,
+            renderer,
+            layer,
+            config,
+            scene,
+            ..
+        } = self;
+        // Files dropped on the overlay (E.3). Each drop carries the point
+        // it landed on in the primary surface's space (shifted there from
+        // an extra surface's); `primary_origin` turns that into the global
+        // space the scene uses. Same as the winit path,
+        // through the same code: a Shimeji pack folder goes to the
+        // importer, anything else is validated, added, selected, toasted
+        // and marked for saving.
+        for dropped in layer.drain_dropped_files() {
+            *activity = true;
+            history.input(scene, selection, Instant::now());
+            let at = (
+                dropped.at.0 + primary_origin.0,
+                dropped.at.1 + primary_origin.1,
+            );
+            let mut added = false;
+            for path in &dropped.paths {
+                if outcomes::is_shimeji_pack(path) {
+                    if pending_shimeji.is_none() {
+                        *pending_shimeji =
+                            ShimejiImport::start(path, library_root.as_deref(), at, &mut *toasts);
+                    }
+                } else if crate::scene_file::is_scene_file(path) {
+                    // A shared scene replaces this one.
+                    if pending_transfer.is_none() {
+                        *pending_transfer = Some(crate::outcomes::SceneTransfer::import(
+                            path.clone(),
+                            Some(at),
+                        ));
+                    }
+                } else if outcomes::add_dropped_file(
+                    path,
+                    at,
+                    &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                )
+                .is_some()
+                {
+                    added = true;
+                }
+            }
+            // As on winit, a drop opens edit mode so the new character can
+            // be moved into place straight away. It matters more here: in
+            // pass-through the overlay only takes input — drops included —
+            // on the ⚙ corner, so that is where a drop lands.
+            if added && !layer.state.edit_mode {
+                flip_edit_mode(
+                    &mut *layer,
+                    &mut *config,
+                    scene,
+                    &mut *config_dirty,
+                    &mut *config_watch,
+                    "Wayland, file drop",
+                );
+            }
+        }
+    }
+
+    /// What came from outside: the D-Bus methods and the tray, a signal,
+    /// a second start, the portal's global shortcuts.
+    fn commands(&mut self, activity: &mut bool) {
+        let Self {
+            quit_requested,
+            drag_widened,
+            on_battery,
+            aside,
+            history,
+            config_watch,
+            config_dirty,
+            toasts,
+            marquee,
+            drag,
+            selection,
+            egui_renderer,
+            renderer,
+            layer,
+            hotkey_backend_status,
+            overlay_hidden,
+            portal_rx,
+            command_rx,
+            config,
+            scene,
+            ..
+        } = self;
+        // Drain any D-Bus actions arriving from compositor bindings
+        // (E.6). Each event maps onto the same surface the X11 path's
+        // global hotkeys produce, so a `gdbus call … ToggleEditMode`
+        // invoked from sway is indistinguishable from clicking the ⚙
+        // button.
+        //
+        // F.3: coalesce idempotent toggle events so a spammy caller
+        // (a thousand `ToggleEditMode` calls between two frames =
+        // odd parity → noop = even parity → toggle) doesn't bounce
+        // the input region a thousand times — we apply each toggle
+        // class at most once per frame. ShowOverlay / HideOverlay are
+        // distinct because the user might want either intent.
+        {
+            let mut toggle_edit_xor = false;
+            let mut open_edit = false;
+            let mut toggle_playback_xor = false;
+            let mut last_visibility: Option<AnimaEvent> = None;
+            let mut quit = false;
+            let mut next_scene = false;
+            let mut snoozing = false;
+            let mut mute_changed = false;
+            if let Some(rx) = &command_rx {
+                while let Ok(ev) = rx.try_recv() {
+                    *activity = true;
+                    // A global shortcut: the recorder's while one is being
+                    // recorded, else the event it stands for now.
+                    let ev = match ev {
+                        AnimaEvent::Shortcut(action, chord) => {
+                            if egui_renderer.take_for_recording(chord) {
+                                continue;
+                            }
+                            let visible = std::sync::atomic::AtomicBool::new(!*overlay_hidden);
+                            match crate::hotkeys::action_to_event(action, &visible) {
+                                Some(ev) => ev,
+                                None => continue,
+                            }
+                        }
+                        other => other,
+                    };
+                    match ev {
+                        AnimaEvent::Shortcut(..) => {}
+                        AnimaEvent::ToggleEditMode => toggle_edit_xor ^= true,
+                        AnimaEvent::ToggleGlobalPlayback => toggle_playback_xor ^= true,
+                        AnimaEvent::HideOverlay => last_visibility = Some(AnimaEvent::HideOverlay),
+                        AnimaEvent::ShowOverlay => last_visibility = Some(AnimaEvent::ShowOverlay),
+                        AnimaEvent::Quit => {
+                            quit = true;
+                            tracing::info!("Quit requested (tray, or a signal)");
+                        }
+                        // A second start from the menu: a layer surface has
+                        // no focus to take, but one hidden from the tray (or
+                        // snoozed) comes back, as on X11 — before, nothing
+                        // happened and the start looked broken.
+                        AnimaEvent::RaiseWindow => {
+                            last_visibility = Some(AnimaEvent::ShowOverlay);
+                            open_edit |= !config.global.show_toggle_button;
+                            tracing::info!("Raised by second-instance handshake");
+                        }
+                        // Hotkey resolution events are winit-path UI; the
+                        // native path logs the outcome where it resolves.
+                        AnimaEvent::HotkeysUnavailable
+                        | AnimaEvent::PortalShortcutsDenied
+                        | AnimaEvent::PortalShortcutsActive => {}
+                        // This loop learns it from the compositor's
+                        // toplevel list instead.
+                        AnimaEvent::FullscreenInFront(_) | AnimaEvent::ChosenAppInFront(_) => {}
+                        AnimaEvent::OnBattery(now) => *on_battery = now,
+                        // Idle comes from the compositor here.
+                        AnimaEvent::Away(_) | AnimaEvent::IdleSource(_) => {}
+                        AnimaEvent::NextScene => next_scene = true,
+                        AnimaEvent::Snooze(what) => {
+                            crate::snooze::snooze(what);
+                            snoozing = true;
+                        }
+                        AnimaEvent::Wake => crate::snooze::wake(),
+                        AnimaEvent::StartFocus(minutes) => {
+                            crate::focus::start(crate::focus::lengths_for(
+                                minutes,
+                                config.global.focus,
+                            ));
+                            *activity = true;
+                        }
+                        AnimaEvent::StopFocus => crate::focus::stop(),
+                        AnimaEvent::SetMuted(muted) => {
+                            config.global.sounds_muted = muted;
+                            *config_dirty = true;
+                            mute_changed = true;
+                        }
+                        AnimaEvent::ToggleMute => {
+                            config.global.sounds_muted = !config.global.sounds_muted;
+                            *config_dirty = true;
+                            mute_changed = true;
+                        }
+                    }
+                }
+            }
+            // Portal shortcut activations land in the same per-frame
+            // accumulators as the D-Bus methods — a Ctrl+Shift+A from
+            // the portal is indistinguishable from `gdbus call …
+            // ToggleEditMode`. T.2: the portal is the first mechanism
+            // that gives the *native* path real global hotkeys.
+            if let Some(rx) = &portal_rx {
+                use crate::hotkeys::portal::PortalMsg;
+                use crate::keybindings::Action as KbAction;
+                while let Ok(msg) = rx.try_recv() {
+                    *activity = true;
+                    match msg {
+                        PortalMsg::Ready => {
+                            tracing::info!("Portal shortcuts active (native path)");
+                            *hotkey_backend_status = HotkeyStatus::Portal;
+                        }
+                        PortalMsg::Failed => {
+                            tracing::warn!(
+                                "Portal shortcuts unavailable — compositor \
+                                 bindings via D-Bus remain the fallback"
+                            );
+                            toasts.warn(crate::i18n::t("portal-denied-native-toast"));
+                            *hotkey_backend_status = HotkeyStatus::CompositorBindings;
+                        }
+                        // The desktop owns the keys: which chord, it does
+                        // not say, so a recording takes nothing — but the
+                        // action waits while one is under way.
+                        PortalMsg::Activated(_) if egui_renderer.take_for_recording(None) => {}
+                        PortalMsg::Activated(action) => match action {
+                            KbAction::ToggleFocus | KbAction::ToggleSnooze => {
+                                snoozing |= timer_shortcut(action, config.global.focus);
+                            }
+                            KbAction::ToggleMute => {
+                                config.global.sounds_muted = !config.global.sounds_muted;
+                                *config_dirty = true;
+                                mute_changed = true;
+                            }
+                            KbAction::ToggleEditMode => toggle_edit_xor ^= true,
+                            KbAction::PauseAll => toggle_playback_xor ^= true,
+                            KbAction::HideOverlay => {
+                                *overlay_hidden = !*overlay_hidden;
+                                last_visibility = Some(if *overlay_hidden {
+                                    AnimaEvent::HideOverlay
+                                } else {
+                                    AnimaEvent::ShowOverlay
+                                });
+                            }
+                            _ => {}
+                        },
+                    }
+                }
+            }
+            // Snoozing out of edit mode: the panel goes with the rest.
+            toggle_edit_xor ^= snoozing && layer.state.edit_mode;
+            // Started again with the ⚙ button hidden: edit mode, the way
+            // back every desktop has, with a tray and shortcuts or without.
+            if open_edit {
+                toggle_edit_xor = !layer.state.edit_mode;
+            }
+            // Muted or unmuted from the tray or a global shortcut: saved at
+            // once outside edit mode. Nothing else would save it before the
+            // app quits, and a config left dirty ignores the file's own
+            // edits until then.
+            if mute_changed && !layer.state.edit_mode {
+                match sync_and_save(&mut *config, scene) {
+                    Ok(()) => {
+                        *config_dirty = false;
+                        config_watch.note_saved();
+                    }
+                    Err(e) => tracing::warn!("Config save failed: {e}"),
+                }
+            }
+            if toggle_edit_xor {
+                // Through `flip_edit_mode`, like the keyboard and the ⚙
+                // button. This path used to set the mode directly, so
+                // leaving edit mode from the tray, a D-Bus call or a portal
+                // shortcut skipped the save — R30 on a third entry point.
+                flip_edit_mode(
+                    &mut *layer,
+                    &mut *config,
+                    scene,
+                    &mut *config_dirty,
+                    &mut *config_watch,
+                    "Wayland, tray / D-Bus / portal",
+                );
+            }
+            if toggle_playback_xor {
+                scene.toggle_global_playback();
+                *config_dirty = true;
+                // Said, as on the winit path: from the tray, a shortcut or
+                // D-Bus there is nothing else to show it happened.
+                toasts.info(crate::i18n::t(if scene.global_playing {
+                    "toast-playback-resumed"
+                } else {
+                    "toast-playback-paused"
+                }));
+            }
+            if let Some(vis) = last_visibility {
+                // `overlay_hidden` is the single source of truth and it
+                // gates rendering below. It used to be updated only by the
+                // keybinding path, so a D-Bus Hide/Show left the flag and
+                // the actual intent disagreeing.
+                match vis {
+                    AnimaEvent::HideOverlay => *overlay_hidden = true,
+                    AnimaEvent::ShowOverlay => {
+                        *overlay_hidden = false;
+                        // That ends a snooze too (`crate::snooze`).
+                        crate::snooze::wake();
+                    }
+                    _ => {}
+                }
+                // A layer surface can't be unmapped the way winit's
+                // `set_visible(false)` unmaps a window, so "hidden" is
+                // expressed as: paint nothing (see the render gate) and
+                // accept no input. Previously hide only narrowed the input
+                // region, which left every sprite fully visible on screen —
+                // the overlay was not hidden in any sense the user would
+                // recognise.
+                let region = region_for_state(
+                    *overlay_hidden || aside.hidden,
+                    layer.state.edit_mode || *drag_widened,
+                    renderer.primary.window_width,
+                    renderer.primary.window_height,
+                    shown_button(&config.global),
+                );
+                if let Err(e) = layer.set_input_region(region) {
+                    tracing::warn!("visibility change: {e}");
+                }
+            }
+            if next_scene {
+                // Not input, so no undo step is open: open one, or a later
+                // undo would take the switch back with the step before it.
+                history.input(scene, selection, Instant::now());
+                // A drag or a rectangle holds characters about to be
+                // replaced: let go first (R56).
+                crate::input::multi::cancel(
+                    &mut *scene,
+                    &mut *selection,
+                    &mut *drag,
+                    &mut *marquee,
+                );
+                crate::outcomes::next_scene(
+                    &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                    &mut config.global.active_scene,
+                );
+            }
+            if quit {
+                *quit_requested = true;
+            }
+        }
+    }
+
+    /// The keyboard: text pasted into a text field, then the actions
+    /// of this turn's keys and of last turn's palette picks, through one
+    /// `match`. Gives back the turn's egui events and modifiers.
+    fn keys(
+        &mut self,
+        plan: &WindowPlan,
+        monitors_now: &[MonitorInfo],
+        primary_origin: (f32, f32),
+        activity: &mut bool,
+    ) -> (Vec<egui::Event>, egui::Modifiers) {
+        let Self {
+            quit_requested,
+            drag_widened,
+            history,
+            palette_actions,
+            pending_paste,
+            pending_text_paste,
+            pending_transfer,
+            pending_shimeji,
+            library_root,
+            context_menu_state,
+            perf_overlay_visible,
+            config_watch,
+            config_dirty,
+            toasts,
+            marquee,
+            drag,
+            selection,
+            egui_renderer,
+            renderer,
+            layer,
+            overlay_hidden,
+            config,
+            scene,
+            ..
+        } = self;
+        let mut events = layer.drain_egui_events();
+        // Text on its way from the clipboard into a text field, and Ctrl+V
+        // in one now (`crate::system_clipboard`).
+        if let Some(answer) = &pending_text_paste {
+            match answer.try_recv() {
+                Ok(content) => {
+                    *pending_text_paste = None;
+                    if let crate::system_clipboard::Content::Text(text) = content {
+                        events.push(egui::Event::Paste(text));
+                        *activity = true;
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => *pending_text_paste = None,
+            }
+        }
+        if std::mem::take(&mut layer.state.text_paste_requested)
+            && egui_renderer.wants_keyboard()
+            && pending_text_paste.is_none()
+        {
+            match layer.read_clipboard(crate::system_clipboard::Want::Text) {
+                crate::wayland::layer_window::ClipboardRead::Ready(
+                    crate::system_clipboard::Content::Text(text),
+                ) => events.push(egui::Event::Paste(text)),
+                crate::wayland::layer_window::ClipboardRead::Ready(_) => {}
+                crate::wayland::layer_window::ClipboardRead::Pending(answer) => {
+                    *pending_text_paste = Some(answer);
+                }
+            }
+        }
+        let modifiers = layer.modifiers();
+        // A focused text field owns the keyboard: the palette's search box,
+        // a numeric field being typed into, the keybinding capture widget.
+        // Without this gate every character double-fires as a global
+        // shortcut — typing "vi" into the command palette also toggled the
+        // selection's visibility and dumped its info to the log (R25).
+        // `egui_winit` reports key events as consumed on exactly this
+        // condition, which is why the winit path never had the bug. The
+        // open palette, an open list and the right-click menu own it too:
+        // Escape there closed them and also left edit mode.
+        let egui_owns_keyboard = egui_renderer.wants_keyboard() || context_menu_state.is_some();
+        // Last frame's palette picks first, then this frame's keys — one
+        // path for both, so an action cannot behave differently depending
+        // on how it was asked for.
+        let mut actions = std::mem::take(palette_actions);
+        *activity |= !actions.is_empty();
+        actions.extend(
+            events
+                .iter()
+                .filter_map(|event| binding_chord(event, egui_owns_keyboard))
+                .filter_map(|chord| config.keybindings.action_for_press(chord)),
+        );
+        // The Menu key, the keyboard's own key for the right-click menu:
+        // not a binding, egui having no name for it to record or match.
+        if std::mem::take(&mut layer.state.menu_key_pressed) && !egui_owns_keyboard {
+            actions.push(Action::OpenContextMenu);
+        }
+        for action in actions {
+            if action.interrupts_drag() {
+                *config_dirty |= crate::input::multi::cancel(
+                    &mut *scene,
+                    &mut *selection,
+                    &mut *drag,
+                    &mut *marquee,
+                );
+            }
+            match action {
+                Action::ToggleEditMode => {
+                    flip_edit_mode(
+                        &mut *layer,
+                        &mut *config,
+                        scene,
+                        &mut *config_dirty,
+                        &mut *config_watch,
+                        "Wayland",
+                    );
+                }
+                // In edit mode the keys are the overlay's, so the global
+                // chord comes as a key press rather than through the portal
+                // or a compositor binding — and was dropped here, while on
+                // X11 the grab took it in edit mode too. Hidden as from the
+                // tray: nothing drawn, no input taken.
+                Action::HideOverlay => {
+                    *overlay_hidden = true;
+                    let region = region_for_state(
+                        true,
+                        layer.state.edit_mode || *drag_widened,
+                        renderer.primary.window_width,
+                        renderer.primary.window_height,
+                        shown_button(&config.global),
+                    );
+                    if let Err(e) = layer.set_input_region(region) {
+                        tracing::warn!("hide: {e}");
+                    }
+                }
+                // As the global shortcuts do; snoozing leaves edit mode.
+                Action::ToggleMute => {
+                    config.global.sounds_muted = !config.global.sounds_muted;
+                    *config_dirty = true;
+                }
+                // The right-click menu, from the keyboard: on the panel's
+                // surface, where the keys and a screen reader are, nearest
+                // the character selected, its first item focused
+                // (`input::multi::keyboard_menu_at`).
+                Action::OpenContextMenu => {
+                    if let Some(idx) = selection.selected_index() {
+                        if let Some(e) = scene.entities.get(idx) {
+                            let at = egui::pos2(
+                                e.x + e.scaled_width() / 2.0,
+                                e.y + e.scaled_height() / 2.0,
+                            );
+                            crate::input::multi::select_for_menu(scene, &mut *selection, idx);
+                            *context_menu_state = Some(crate::app::ContextMenuState {
+                                entity_idx: idx,
+                                pos: crate::input::multi::keyboard_menu_at(
+                                    at - egui::vec2(primary_origin.0, primary_origin.1),
+                                    egui::vec2(
+                                        renderer.primary.window_width as f32,
+                                        renderer.primary.window_height as f32,
+                                    ),
+                                ),
+                                surface: None,
+                                armed: false,
+                                keyboard: true,
+                            });
+                            *activity = true;
+                        }
+                    }
+                }
+                Action::ToggleFocus | Action::ToggleSnooze => {
+                    if timer_shortcut(action, config.global.focus) && layer.state.edit_mode {
+                        flip_edit_mode(
+                            &mut *layer,
+                            &mut *config,
+                            scene,
+                            &mut *config_dirty,
+                            &mut *config_watch,
+                            "Wayland",
+                        );
+                    }
+                }
+                // The next four are not shareable — each one reaches for
+                // something only this loop owns (its config, its shutdown
+                // flag, its renderer's texture cache) — but every piece
+                // they need is already here, and the in-app help screen
+                // lists all four. They did nothing at all on this backend
+                // until now (R27).
+                Action::SaveNow => match sync_and_save(&mut *config, scene) {
+                    Ok(()) => {
+                        *config_dirty = false;
+                        // Our own write changes the file's mtime and would
+                        // otherwise look exactly like somebody else's edit
+                        // to the watcher above, costing a pointless full
+                        // reload — selection and every texture included.
+                        config_watch.note_saved();
+                        tracing::info!("Config saved manually");
+                        toasts.success(crate::i18n::t("toast-config-saved"));
+                    }
+                    Err(e) => {
+                        // `config_dirty` deliberately stays set: a
+                        // transient failure must let the next edit retry
+                        // rather than silently drop the scene, which is
+                        // the same rule `save_config_if_needed` follows
+                        // on the winit path.
+                        tracing::warn!("Failed to save config: {e}");
+                        let mut args = fluent::FluentArgs::new();
+                        args.set("error", e.said());
+                        toasts.error(crate::i18n::t_args("toast-save-failed", &args));
+                    }
+                },
+                Action::TogglePerfOverlay => {
+                    *perf_overlay_visible = !*perf_overlay_visible;
+                    tracing::debug!(
+                        "Perf overlay {}",
+                        if *perf_overlay_visible {
+                            "shown"
+                        } else {
+                            "hidden"
+                        }
+                    );
+                }
+                Action::QuitWithSave => {
+                    // The shutdown path at the end of `run` persists
+                    // `config_dirty` on its way out, so this needs no save
+                    // of its own — and doing one here would write the
+                    // scene twice on every quit.
+                    tracing::info!("Quit action — saving and exiting");
+                    *quit_requested = true;
+                }
+                Action::DeleteSelected | Action::DuplicateSelected | Action::CutSelected => {
+                    // The same functions the right-click menu and the winit
+                    // path use (`crate::outcomes`), so none of the three can
+                    // drift from the others. Every selected character.
+                    let targets = selection.selected_indices();
+                    let mut ctx = outcome_ctx!(scene, selection, toasts, config_dirty, renderer);
+                    match action {
+                        Action::DeleteSelected => {
+                            outcomes::delete_entities(&targets, &mut ctx);
+                        }
+                        Action::CutSelected => {
+                            outcomes::cut_entities(&targets, &mut ctx);
+                        }
+                        _ => {
+                            outcomes::duplicate_entities(&targets, &mut ctx);
+                        }
+                    }
+                }
+                // The desktop's clipboard first: an image or files copied
+                // elsewhere since the last copy here come in as characters
+                // (`crate::system_clipboard`), at the pointer.
+                Action::Paste => {
+                    let at = layer
+                        .state
+                        .cursor_pos
+                        .map(|(x, y)| (x + primary_origin.0, y + primary_origin.1))
+                        .unwrap_or((
+                            renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                            renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
+                        ));
+                    match layer.read_clipboard(crate::system_clipboard::Want::Characters) {
+                        crate::wayland::layer_window::ClipboardRead::Ready(content) => {
+                            let pasted = outcomes::apply_pasted(
+                                content,
+                                at,
+                                &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                            );
+                            for path in pasted.to_import {
+                                // A shared scene or a Shimeji pack copied in a file
+                                // manager goes where a drop of it would.
+                                if crate::scene_file::is_scene_file(&path) {
+                                    if pending_transfer.is_none() {
+                                        *pending_transfer = Some(
+                                            crate::outcomes::SceneTransfer::import(path, Some(at)),
+                                        );
+                                    }
+                                } else if pending_shimeji.is_none() {
+                                    *pending_shimeji = ShimejiImport::start(
+                                        &path,
+                                        library_root.as_deref(),
+                                        at,
+                                        &mut *toasts,
+                                    );
+                                }
+                            }
+                        }
+                        crate::wayland::layer_window::ClipboardRead::Pending(answer) => {
+                            pending_paste.get_or_insert((answer, at));
+                        }
+                    }
+                }
+                // Everything that only touches the scene and the selection
+                // is shared with the winit path. Before this, the table was
+                // consulted here and matched ToggleEditMode alone, so the
+                // other twenty-seven rebindable actions were inert on this
+                // backend — the user could rebind them and see the config
+                // persist while nothing happened (R19).
+                other => {
+                    let mut ctx = crate::keybindings::shared::ActionCtx {
+                        scene: &mut *scene,
+                        selection: &mut *selection,
+                        config_dirty: &mut *config_dirty,
+                        shift_held: layer.state.last_modifiers.shift,
+                        bounds: monitor::covered_bounds(
+                            plan,
+                            (
+                                renderer.primary.window_width as f32,
+                                renderer.primary.window_height as f32,
+                            ),
+                        ),
+                        monitors: monitors_now,
+                        toasts: &mut *toasts,
+                        history: &mut *history,
+                    };
+                    crate::keybindings::shared::dispatch_shared(other, &mut ctx);
+                }
+            }
+        }
+        // A copy just made: its names on the desktop's clipboard, while the
+        // press that made it is the latest (setting it needs its serial).
+        if let Some(text) = crate::clipboard::take_claim() {
+            layer.claim_clipboard(text, true);
+        }
+
+        (events, modifiers)
+    }
+
+    /// The pointer: the right-click menu, on whichever monitor it is;
+    /// letting go of a drag when edit mode ends or the overlay hides; in
+    /// edit mode, selecting, dragging, a rectangle over empty space; in
+    /// pass-through, a tap. Gives back the events for the menu's monitor,
+    /// for its overlay's egui.
+    fn pointer(
+        &mut self,
+        events: &[egui::Event],
+        plan: &WindowPlan,
+        monitors_now: &[MonitorInfo],
+        primary_origin: (f32, f32),
+        activity: &mut bool,
+    ) -> Vec<egui::Event> {
+        let Self {
+            extra_eguis,
+            extra_surfaces,
+            aside,
+            history,
+            tap_gesture,
+            context_menu_state,
+            config_dirty,
+            was_editing,
+            marquee,
+            drag,
+            selection,
+            egui_renderer,
+            renderer,
+            layer,
+            overlay_hidden,
+            config,
+            scene,
+            ..
+        } = self;
+        // Right-click on an entity opens the context menu and selects
+        // it, same gating and behavior as the X11 path's
+        // `handle_mouse_input` (src/app/input.rs). Entity-less right
+        // clicks (empty space) are ignored.
+        //
+        // Presses that egui owns are skipped. The winit path gets this for
+        // free — `App::window_event` forwards to egui first and returns
+        // early when the event is consumed — and without the equivalent
+        // here, a left click anywhere on the settings panel's background
+        // fell through to `entity_at_point`, found nothing, and cleared
+        // the selection. So clicking blank space in the panel threw away
+        // the very entity whose Inspector you were reading.
+        //
+        // Only the *press* arms are gated. Motion and release stay live so
+        // a drag that began on a sprite still tracks and still finishes if
+        // the pointer crosses the panel on the way.
+        // Edit mode just ended — by any of the four ways — so let go of
+        // what the pointer held and drop the selection, as the winit path
+        // does. The release of a drag in progress will not come: in
+        // pass-through the surface no longer gets the pointer, and the
+        // drag used to stay open until the next move in edit mode, which
+        // made the character jump to the pointer.
+        if *was_editing && !layer.state.edit_mode {
+            *config_dirty |= crate::input::multi::cancel(
+                &mut *scene,
+                &mut *selection,
+                &mut *drag,
+                &mut *marquee,
+            );
+            selection.deselect();
+            *context_menu_state = None;
+        }
+        *was_editing = layer.state.edit_mode;
+        // Hidden, nothing is dragged on. Sway still delivers the release —
+        // the button's implicit grab outlives the empty input region — but
+        // on X11 an unmapped window gets none, and the character jumped to
+        // the pointer at the first move once shown; let go here too rather
+        // than count on every compositor.
+        if *overlay_hidden || aside.hidden {
+            *config_dirty |= crate::input::multi::cancel(
+                &mut *scene,
+                &mut *selection,
+                &mut *drag,
+                &mut *marquee,
+            );
+        }
+        let egui_owns_pointer = egui_renderer.owns_pointer();
+        // The right-click menu on another monitor's overlay (`surface`):
+        // that overlay's egui hears the pointer while it is over that
+        // monitor, and a press anywhere else closes the menu — the egui
+        // there cannot count a click it never hears as outside. Escape
+        // closes it too: the keys go to the panel's egui. Presses on the
+        // menu stay out of the scene, as the panel's do.
+        let mut extra_menu_events: Vec<egui::Event> = Vec::new();
+        let menu_monitor = context_menu_state
+            .as_ref()
+            .and_then(|m| m.surface.as_ref())
+            .filter(|name| extra_surfaces.contains_key(*name))
+            .and_then(|name| monitors_now.iter().find(|m| &m.name == name))
+            .cloned();
+        // Its monitor went — unplugged, or the overlay down to one: nothing
+        // could draw the menu, and it kept every key from the shortcuts.
+        if menu_monitor.is_none()
+            && context_menu_state
+                .as_ref()
+                .is_some_and(|m| m.surface.is_some())
+        {
+            *context_menu_state = None;
+        }
+        let global =
+            |pos: &egui::Pos2| egui::pos2(pos.x + primary_origin.0, pos.y + primary_origin.1);
+        if let Some(mon) = &menu_monitor {
+            let origin = egui::vec2(mon.x as f32, mon.y as f32);
+            for event in events {
+                match event {
+                    egui::Event::PointerMoved(pos) => {
+                        let at = global(pos);
+                        extra_menu_events.push(if mon.contains(at.x, at.y) {
+                            egui::Event::PointerMoved(at - origin)
+                        } else {
+                            egui::Event::PointerGone
+                        });
+                    }
+                    egui::Event::PointerButton {
+                        pos,
+                        button,
+                        pressed,
+                        modifiers,
+                    } => {
+                        let at = global(pos);
+                        if mon.contains(at.x, at.y) {
+                            extra_menu_events.push(egui::Event::PointerButton {
+                                pos: at - origin,
+                                button: *button,
+                                pressed: *pressed,
+                                modifiers: *modifiers,
+                            });
+                        } else if *pressed {
+                            *context_menu_state = None;
+                        }
+                    }
+                    egui::Event::PointerGone => extra_menu_events.push(egui::Event::PointerGone),
+                    egui::Event::Key {
+                        key: egui::Key::Escape,
+                        pressed: true,
+                        ..
+                    } => *context_menu_state = None,
+                    _ => {}
+                }
+            }
+        }
+        let extra_owns_pointer = menu_monitor
+            .as_ref()
+            .is_some_and(|m| extra_eguis.get(&m.name).is_some_and(|e| e.owns_pointer()));
+        let owned_press = |pos: &egui::Pos2| {
+            let at = global(pos);
+            egui_owns_pointer
+                || (extra_owns_pointer
+                    && menu_monitor
+                        .as_ref()
+                        .is_some_and(|m| m.contains(at.x, at.y)))
+        };
+        if layer.state.edit_mode {
+            for event in events {
+                match event {
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Secondary,
+                        pressed: true,
+                        ..
+                    } if !owned_press(pos) => {
+                        let at = global(pos);
+                        if let Some(idx) = scene.entity_at_point(at.x, at.y) {
+                            // One of several selected keeps them all, so
+                            // the menu acts on the whole selection;
+                            // otherwise it takes the character with its
+                            // group.
+                            crate::input::multi::select_for_menu(scene, &mut *selection, idx);
+                            // On the monitor clicked: another monitor's
+                            // overlay draws it with its own egui, in its
+                            // own points.
+                            let elsewhere = monitors_now.iter().find(|m| {
+                                extra_surfaces.contains_key(&m.name) && m.contains(at.x, at.y)
+                            });
+                            *context_menu_state = Some(crate::app::ContextMenuState {
+                                entity_idx: idx,
+                                pos: match elsewhere {
+                                    Some(m) => at - egui::vec2(m.x as f32, m.y as f32),
+                                    None => *pos,
+                                },
+                                surface: elsewhere.map(|m| m.name.clone()),
+                                // Armed after the first showing — see ContextMenuState.
+                                armed: false,
+                                keyboard: false,
+                            });
+                        }
+                    }
+                    // Left press: select and begin a drag, mirroring
+                    // `App::handle_mouse_input` on the winit path. Both were
+                    // missing here — selection was right-click only, and
+                    // dragging a character (the core interaction of a
+                    // desktop-pet overlay) was not implemented on this
+                    // backend at all.
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } if !owned_press(pos) => {
+                        let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
+                        // Select (with its group, keeping the others selected,
+                        // or toggled with Shift) and pick the selection up; on
+                        // empty space, a selection rectangle
+                        // (`crate::input::multi`).
+                        match scene.entity_at_point(at.0, at.1) {
+                            Some(idx) => {
+                                crate::input::multi::press_on(
+                                    &mut *scene,
+                                    &mut *selection,
+                                    &mut *drag,
+                                    idx,
+                                    at,
+                                    modifiers.shift,
+                                );
+                            }
+                            None => {
+                                *marquee = Some(crate::input::multi::Marquee::begin(
+                                    at,
+                                    modifiers.shift,
+                                    &mut *selection,
+                                ));
+                            }
+                        }
+                    }
+                    egui::Event::PointerButton {
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        ..
+                    } if marquee.is_some() => {
+                        *marquee = None;
+                    }
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        modifiers,
+                        ..
+                    } if drag.is_dragging() => {
+                        let (gx, gy) = (pos.x + primary_origin.0, pos.y + primary_origin.1);
+                        // A press/release that never moved is a *tap*, not a
+                        // drag — poke the mascot instead of just dropping it.
+                        let tapped = drag.was_tap(gx, gy, crate::constants::POKE_TAP_RADIUS);
+                        if tapped {
+                            // The hop that follows is play, not an edit.
+                            history.finish(scene);
+                        }
+                        let poke_bounds = monitor::covered_bounds(
+                            plan,
+                            (
+                                renderer.primary.window_width as f32,
+                                renderer.primary.window_height as f32,
+                            ),
+                        );
+                        if tapped {
+                            if let Some(idx) = drag.dragging_entity() {
+                                crate::tap::poke(&mut *scene, idx, gx, poke_bounds);
+                            }
+                        }
+                        // Thrown: the flight is play, as a poke's hop is —
+                        // the step closes where the character was let go.
+                        crate::input::multi::end_drag(
+                            &mut *scene,
+                            &mut *selection,
+                            &mut *drag,
+                            tapped,
+                            modifiers.shift,
+                            |scene| {
+                                history.finish(scene);
+                            },
+                        );
+                        *config_dirty = true;
+                    }
+                    egui::Event::PointerMoved(pos) if marquee.is_some() => {
+                        let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
+                        if let Some(m) = marquee.as_mut() {
+                            m.drag_to(at, scene, &mut *selection);
+                        }
+                    }
+                    egui::Event::PointerMoved(pos) if drag.is_dragging() => {
+                        let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
+                        // Snapping, unless it is off or Alt is held.
+                        let snap_to = (config.global.snap_while_dragging
+                            && !layer.state.last_modifiers.alt)
+                            .then(|| crate::input::arrange::monitor_rects(monitors_now));
+                        crate::input::multi::drag_to(
+                            &mut *scene,
+                            selection,
+                            &mut *drag,
+                            at,
+                            snap_to.as_deref(),
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        } else if config.global.tap_characters && !(*overlay_hidden || aside.hidden || aside.paused)
+        {
+            // Pass-through with tapping on (`crate::tap`): a press and a
+            // release close together on a character poke it. Presses on
+            // the ⚙ button are egui's.
+            for event in events {
+                match event {
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        ..
+                    } if !egui_owns_pointer => {
+                        let at = global(pos);
+                        tap_gesture.press(scene, at.x, at.y);
+                    }
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        ..
+                    } => {
+                        let at = global(pos);
+                        if let Some(idx) = tap_gesture.release(scene, at.x, at.y) {
+                            let bounds = monitor::covered_bounds(
+                                plan,
+                                (
+                                    renderer.primary.window_width as f32,
+                                    renderer.primary.window_height as f32,
+                                ),
+                            );
+                            crate::tap::poke(&mut *scene, idx, at.x, bounds);
+                            *activity = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        extra_menu_events
     }
 }
 
