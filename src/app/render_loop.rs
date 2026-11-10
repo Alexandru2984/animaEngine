@@ -2,20 +2,22 @@
 //! `WindowEvent::RedrawRequested` arm stays a single delegating call
 //! instead of a 250-line nested block.
 //!
-//! Flow per frame:
+//! Flow per frame, a method of `App` each:
 //!
-//! 1. Mark the perf-sampler start; refresh RSS once a second.
-//! 2. Hot-reload check (drains worker channel, maybe spawns one).
-//! 3. Scene tick (behaviours + physics + animation step).
-//! 4. wgpu sprite render → surface texture.
-//! 5. egui pass painting the toggle button + (in edit mode) the
-//!    full settings panel, command palette, context menu, toasts,
-//!    perf overlay.
-//! 6. Apply outcomes the egui closure produced (toggle, menu,
-//!    palette, library) — done outside the closure so we can take
-//!    `&mut self.renderer` etc. without conflicting with the egui
-//!    borrows captured above.
-//! 7. Present + close the perf frame + request next redraw.
+//! 1. The perf frame opened, then `before_the_tick`: stepping aside, the
+//!    hot reload and the results the app waits on, the windows for the
+//!    monitors.
+//! 2. `tick_scene`: behaviours, physics, animation, sounds.
+//! 3. `timed_events`: scenes by the time of day, reminders, the focus
+//!    timer, moods, a greeting for someone back.
+//! 4. `draw_primary`: the textures, the sprite render, and the egui pass
+//!    painting the toggle button and, in edit mode, the settings panel,
+//!    command palette, context menu, toasts and perf overlay; then the
+//!    outcomes the egui closure produced (toggle, menu, palette,
+//!    library), applied outside the closure so `&mut self.renderer` and
+//!    the rest are free again.
+//! 5. The surface's fate (out of memory, lost), the other monitors'
+//!    windows, and `schedule_next_frame` (`crate::pacing`).
 
 use super::App;
 use crate::pacing::{RedrawPacing, IDLE_HEARTBEAT};
@@ -48,6 +50,17 @@ fn next_surface_loss_state(streak: u32) -> (u32, bool) {
     }
 }
 
+/// How the primary window's surface fared in a frame
+/// ([`App::draw_primary`]).
+struct Surface {
+    /// Lost or outdated: reconfigured, and rebuilt if it keeps happening.
+    lost: bool,
+    /// Out of GPU memory: the app saves and exits.
+    out_of_memory: bool,
+    /// Drawn and presented.
+    drew: bool,
+}
+
 impl App {
     pub(super) fn handle_redraw_requested(&mut self, event_loop: &ActiveEventLoop) {
         let frame_start = Instant::now();
@@ -56,6 +69,53 @@ impl App {
         // ring buffer so it's safe to begin/end every frame
         // regardless of whether the overlay is visible.
         self.perf_sampler.begin_frame();
+        self.before_the_tick(event_loop);
+        self.tick_scene();
+
+        // Precompute multi-window facts before the renderer borrow —
+        // the methods take &self and would conflict with &mut renderer.
+        let primary_origin = self.primary_origin();
+        let primary_monitor_name: Option<String> = if self.has_extra_windows() {
+            crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors)
+                .primary
+                .map(|m| m.name)
+        } else {
+            None
+        };
+        self.timed_events();
+        self.close_menu_of_a_gone_monitor();
+        let surface = self.draw_primary(event_loop, primary_origin, primary_monitor_name);
+
+        // GPU OOM is terminal — but the user's unsaved edits aren't the
+        // GPU's fault, so go out through the shared shutdown path rather
+        // than dropping them on the floor.
+        if surface.out_of_memory {
+            self.save_and_exit(event_loop);
+            return;
+        }
+
+        // Surface-loss recovery, now that the `self.renderer` borrow is
+        // released. A clean present resets the streak; a lost surface
+        // either reconfigures (handled above) or, once persistent,
+        // triggers a wholesale renderer rebuild.
+        if surface.lost {
+            self.recover_after_surface_loss(event_loop);
+        } else if surface.drew {
+            self.surface_loss_streak = 0;
+        }
+
+        // The PerMonitor extras, in the same cycle: each only when what
+        // it shows has changed (`windows::needs_frame`).
+        self.render_extra_windows();
+
+        self.schedule_next_frame(event_loop, frame_start);
+    }
+
+    /// What a frame starts with, before the scene moves: stepping aside,
+    /// the portal's answer on starting at login, an undo step for input,
+    /// the perf and soak samples, the input shape, the hot reload and the
+    /// results the app waits on, and the windows for the monitors.
+    fn before_the_tick(&mut self, event_loop: &ActiveEventLoop) {
         // The setting can change in the panel; the report and edit mode
         // are handled where they change, but this is cheap.
         self.update_step_aside();
@@ -138,7 +198,12 @@ impl App {
         self.rebuild_windows_if_mode_changed(event_loop);
         self.check_monitor_topology(event_loop);
         self.poll_window_platforms();
+    }
 
+    /// The scene moves on: the settings it follows, a tick of every
+    /// character (scripts and sounds in it), the fades, the sounds and the
+    /// failures to report, the taps' regions.
+    fn tick_scene(&mut self) {
         // Tick behavior + physics + animation.
         let (screen_w, screen_h) = self
             .window
@@ -243,17 +308,12 @@ impl App {
         self.config_dirty |= self.scene.take_landed();
         // Characters taking taps in pass-through (`crate::tap`).
         self.refresh_tap_regions();
+    }
 
-        // Precompute multi-window facts before the renderer borrow —
-        // the methods take &self and would conflict with &mut renderer.
-        let primary_origin = self.primary_origin();
-        let primary_monitor_name: Option<String> = if self.has_extra_windows() {
-            crate::monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors)
-                .primary
-                .map(|m| m.name)
-        } else {
-            None
-        };
+    /// What comes at its time: scenes by the time of day, reminders, the
+    /// focus timer's turns, the pace by the hour, a greeting for someone
+    /// back.
+    fn timed_events(&mut self) {
         // Scenes by time of day (`crate::schedule`). Not in edit mode, where
         // the scene would change under the user's hands: a rule crossed
         // then fires once it ends. Not input, so the undo step is opened
@@ -334,6 +394,10 @@ impl App {
         if reminded || focus_said || welcomed {
             self.request_redraw();
         }
+    }
+
+    /// The right-click menu's monitor gone: the menu closed.
+    fn close_menu_of_a_gone_monitor(&mut self) {
         // The right-click menu's monitor went — unplugged, or the overlay
         // down to one window: nothing could draw the menu, and it kept
         // every key, so close it.
@@ -347,6 +411,17 @@ impl App {
                 self.ui_state.context_menu = None;
             }
         }
+    }
+
+    /// The primary window's frame: its textures, the scene, and the egui
+    /// pass — the ⚙, the panel, the palette, the menu, the toasts — then
+    /// what they asked for. Gives back how the surface fared.
+    fn draw_primary(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        primary_origin: (f32, f32),
+        primary_monitor_name: Option<String>,
+    ) -> Surface {
         // Speech bubbles for the characters on this window (`crate::speech`),
         // gathered while the scene is still free to borrow.
         let bubbles = crate::speech::shown(&self.scene, primary_origin, |e| {
@@ -789,29 +864,16 @@ impl App {
                 Some((_, Err(e))) => self.render_errors.failed("the overlay", &e),
             }
         }
-
-        // GPU OOM is terminal — but the user's unsaved edits aren't the
-        // GPU's fault, so go out through the shared shutdown path rather
-        // than dropping them on the floor.
-        if out_of_memory {
-            self.save_and_exit(event_loop);
-            return;
+        Surface {
+            lost: surface_lost,
+            out_of_memory,
+            drew: rendered_ok,
         }
+    }
 
-        // Surface-loss recovery, now that the `self.renderer` borrow is
-        // released. A clean present resets the streak; a lost surface
-        // either reconfigures (handled above) or, once persistent,
-        // triggers a wholesale renderer rebuild.
-        if surface_lost {
-            self.recover_after_surface_loss(event_loop);
-        } else if rendered_ok {
-            self.surface_loss_streak = 0;
-        }
-
-        // The PerMonitor extras, in the same cycle: each only when what
-        // it shows has changed (`windows::needs_frame`).
-        self.render_extra_windows();
-
+    /// The next frame: when, from what moves (`crate::pacing`), at most as
+    /// often as set; and the undo step settled.
+    fn schedule_next_frame(&mut self, event_loop: &ActiveEventLoop, frame_start: Instant) {
         // Schedule the next frame. Pre-0.5.5 this was an unconditional
         // request_redraw() — 60 wake-ups/s with the GPU re-rendering an
         // unchanged scene for an overlay that idles 24/7. Pacing keeps
