@@ -29,12 +29,18 @@ change to any of them is a breaking change and waits for 2.0 (see
   window). 1.4 and earlier read a 1.5 config only while it holds
   nothing they do not know, and otherwise not at all; see
   [config.md](config.md#schema-version).
-- **D-Bus surface.** The bus name `com.animaengine.Anima`, object path
-  `/com/animaengine/Anima`, and interface `org.animaengine.Anima` are
+- **D-Bus surface.** The bus name `eu.animaengine.Anima`, object path
+  `/eu/animaengine/Anima`, and interface `org.animaengine.Anima` are
   fixed. (The bus name and the interface are deliberately different
-  namespaces: `com.…` matches the Flatpak app-id, the interface keeps
+  namespaces: `eu.…` matches the Flatpak app-id, the interface keeps
   the conventional reverse-DNS `org.…` — a `gdbus` binding needs both,
-  e.g. `--dest com.animaengine.Anima … --method org.animaengine.Anima.ToggleEditMode`.)
+  e.g. `--dest eu.animaengine.Anima … --method org.animaengine.Anima.ToggleEditMode`.)
+  Before 1.5 the app id, and so the bus name, was `com.animaengine.Anima`,
+  of a domain the project never held. That name and its path,
+  `/com/animaengine/Anima`, still answer with the same interface for the
+  rest of 1.x, so a binding written for them keeps working — except in
+  the Flatpak, which lets an app own only its own id and never shipped
+  the old one.
   The method set — `Activate`, `ToggleEditMode`, `HideOverlay`,
   `ShowOverlay`, `ToggleGlobalPlayback`, and since 1.5 `NextScene`,
   `Snooze(u minutes)`, `Wake`, `StartFocus(u minutes)`, `StopFocus`,

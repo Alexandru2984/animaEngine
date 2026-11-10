@@ -113,7 +113,7 @@ mod unix {
                     // as markup, and an `&` broke it.
                     let body = super::plain_as_markup(&body);
                     let mut hints: HashMap<&str, Value<'_>> = HashMap::new();
-                    hints.insert("desktop-entry", Value::from("com.animaengine.Anima"));
+                    hints.insert("desktop-entry", Value::from(crate::constants::APP_ID));
                     conn.call_method(
                         Some("org.freedesktop.Notifications"),
                         "/org/freedesktop/Notifications",

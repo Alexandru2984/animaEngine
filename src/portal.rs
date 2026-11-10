@@ -79,7 +79,7 @@ pub async fn desktop_portal(
 }
 
 /// This app's id: its desktop file's name, and its bus name.
-pub const APP_ID: &str = "com.animaengine.Anima";
+pub const APP_ID: &str = crate::constants::APP_ID;
 
 /// Say which app this connection is, for the portals that serve no app
 /// without an id (GlobalShortcuts) — first, before any other portal call
@@ -162,7 +162,7 @@ pub async fn wait_for_app_scope(limit: std::time::Duration) -> bool {
 }
 
 /// Whether `/proc/self/cgroup` puts this process in a systemd unit of the
-/// app `app_id`'s — `app-gnome-com.animaengine.Anima-4242.scope`, as the
+/// app `app_id`'s — `app-gnome-eu.animaengine.Anima-4242.scope`, as the
 /// desktop names the ones it launches (systemd's desktop-environment
 /// convention).
 fn in_app_scope(cgroup: &str, app_id: &str) -> bool {
@@ -282,10 +282,15 @@ mod tests {
     #[test]
     fn the_apps_own_scope_is_told_from_others() {
         let ours = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/\
-                    app-gnome-com.animaengine.Anima-2892862.scope\n";
+                    app-gnome-eu.animaengine.Anima-2892862.scope\n";
         assert!(in_app_scope(ours, APP_ID));
         assert!(in_app_scope(
-            "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.animaengine.Anima@x.service",
+            "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-eu.animaengine.Anima@x.service",
+            APP_ID
+        ));
+        // A desktop file from before 1.5, under the old id, is not ours.
+        assert!(!in_app_scope(
+            "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-gnome-com.animaengine.Anima-7.scope",
             APP_ID
         ));
         // Still in the shell's, a moment after it started us.

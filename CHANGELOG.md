@@ -435,6 +435,18 @@ read-only D-Bus names, for the idle time
 
 ### Changed
 
+- **The app id is `eu.animaengine.Anima`**, after animaengine.eu, the
+  project's domain. `com.animaengine.Anima` named animaengine.com, which
+  the project never held, and so was an id Flathub could never verify.
+  The desktop file and the metainfo are named by the new id, and the
+  metainfo says it replaces the old one. A launcher pinned under the old
+  id is pinned again once, and global shortcuts a desktop's portal
+  granted are asked for again once. The D-Bus name and path from before,
+  `com.animaengine.Anima` at `/com/animaengine/Anima`, still answer
+  outside Flatpak, so compositor bindings keep working; a copy from
+  before 1.5 still running through the upgrade is raised, not joined by
+  a second. An autostart entry a 1.5 build wrote under the old name reads
+  as on, and is replaced the next time the switch moves.
 - **The global shortcuts are Super+Alt+A, H and P** (Win+Alt on
   Windows) for edit mode, hiding and pausing, in a new config. Ctrl+Shift+A,
   H and P were taken from every app while this one ran: KDE's standard

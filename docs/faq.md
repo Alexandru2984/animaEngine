@@ -30,7 +30,7 @@ frames, about 20 seconds.
 | Installed as | Settings | Asset library |
 |---|---|---|
 | a package, an AppImage, from source | `~/.config/animaengine/config.toml` | `~/.local/share/animaengine/assets/` |
-| Flatpak | `~/.var/app/com.animaengine.Anima/config/animaengine/` | `~/.var/app/com.animaengine.Anima/data/animaengine/assets/` |
+| Flatpak | `~/.var/app/eu.animaengine.Anima/config/animaengine/` | `~/.var/app/eu.animaengine.Anima/data/animaengine/assets/` |
 | Windows | `%APPDATA%\animaEngine\config\config.toml` | `%APPDATA%\animaEngine\data\assets\` |
 
 The file can be edited while the app runs; it picks the change up within
@@ -105,7 +105,7 @@ Discrete Graphics Card", has it draw on the NVIDIA GPU instead.
 ## Removing it
 
 - `.deb`: `sudo apt remove anima-engine`.
-- Flatpak: `flatpak uninstall com.animaengine.Anima` — add `--delete-data`
+- Flatpak: `flatpak uninstall eu.animaengine.Anima` — add `--delete-data`
   to remove its settings too.
 - AppImage or a build from source: delete the file; `sudo make uninstall`
   if you used `make install`.

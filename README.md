@@ -154,8 +154,8 @@ A Flatpak is built locally (`make flatpak`, see
 ```bash
 flatpak remote-add --user --if-not-exists flathub \
     https://flathub.org/repo/flathub.flatpakrepo
-flatpak install --user build/com.animaengine.Anima.flatpak
-flatpak run com.animaengine.Anima
+flatpak install --user build/eu.animaengine.Anima.flatpak
+flatpak run eu.animaengine.Anima
 ```
 
 `make appimage` and `make deb` build the other two the same way.

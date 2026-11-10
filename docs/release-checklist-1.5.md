@@ -52,12 +52,14 @@ schimbarea din runda 49 (cadrele pe ritm). `check-release-flow.py`:
 1. ~~Scurtăturile globale~~ — făcut în runda 48: Super+Alt+A/H/P la un
    config nou; un config vechi își păstrează scurtăturile.
 2. ~~Adresa pentru pachete~~ — făcut în runda 48.
-3. **Commit-ul de versiune** (al tău, ca de obicei):
-   - `Cargo.toml` → `1.5.0` (și `Cargo.lock`, prin `cargo update -p anima_engine`);
-   - `data/com.animaengine.Anima.metainfo.xml` → un `<release version="1.5.0" date="…">`;
-   - `CHANGELOG.md`: `[Unreleased]` → `[1.5.0] — data`;
-   - `README.md`: rândul de stare și comenzile de instalare (acum `1.4.0`);
-   - `docs/release-notes/v1.5.0.md` există deja — o recitire.
+3. ~~Commit-ul de versiune~~ — făcut de tine pe 10 noiembrie
+   (`5764027`, „Release 1.5.0”).
+   **Id-ul aplicației** (10 noiembrie): `com.animaengine.Anima` numea
+   animaengine.com, care nu e al proiectului, deci Flathub nu l-ar fi
+   putut verifica niciodată. Branch-ul `app-id-eu` îl face
+   `eu.animaengine.Anima`, după animaengine.eu. Numele D-Bus vechi răspunde
+   în continuare, în afara Flatpak-ului. Tag-ul se pune **după** ce
+   branch-ul ajunge în `main`, pe ultimul lui commit.
 4. **Înainte de tag**, `scripts/check-release-flow.py` (fișierele care
    trec între job-urile de release, pe fișiere de probă; câteva secunde).
    **Tag-ul** `v1.5.0` pe `main` și push → `release.yml` construiește
@@ -69,7 +71,7 @@ schimbarea din runda 49 (cadrele pe ritm). `check-release-flow.py`:
    - AUR: `pkgver=1.5.0` și `sha256sums` din arhiva tag-ului
      (`packaging/aur/PKGBUILD`);
    - Flathub: `tag: v1.5.0` și `commit:` în
-     `flatpak/com.animaengine.Anima.flathub.yml` (acum `v1.4.0`);
+     `flatpak/eu.animaengine.Anima.flathub.yml` (acum `v1.4.0`);
    - GitHub Pages: workflow-ul „pages”, pornit manual;
    - magazinele: imaginile din `site/media/store/`, trailerul din
      `build/trailer/` (MP4 pentru Steam, WebM pentru itch.io);

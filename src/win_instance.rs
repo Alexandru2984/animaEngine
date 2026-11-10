@@ -38,9 +38,11 @@ use windows_sys::Win32::System::Threading::{
 };
 use winit::event_loop::EventLoopProxy;
 
-const MUTEX_NAME: &str = r"Local\com.animaengine.Anima";
-const RAISE_EVENT_NAME: &str = r"Local\com.animaengine.Anima.raise";
-const ACK_EVENT_NAME: &str = r"Local\com.animaengine.Anima.raised";
+// The app id (`crate::constants::APP_ID`). Windows builds are new in
+// 1.5, so no copy ever held the names under the old one.
+const MUTEX_NAME: &str = r"Local\eu.animaengine.Anima";
+const RAISE_EVENT_NAME: &str = r"Local\eu.animaengine.Anima.raise";
+const ACK_EVENT_NAME: &str = r"Local\eu.animaengine.Anima.raised";
 
 /// How long a launch keeps trying when the running instance does not
 /// acknowledge — the same bound as the D-Bus handshake's.
@@ -223,6 +225,14 @@ fn wide(s: &str) -> Vec<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_names_are_the_app_ids() {
+        let id = crate::constants::APP_ID;
+        assert_eq!(MUTEX_NAME, format!(r"Local\{id}"));
+        assert_eq!(RAISE_EVENT_NAME, format!(r"Local\{id}.raise"));
+        assert_eq!(ACK_EVENT_NAME, format!(r"Local\{id}.raised"));
+    }
 
     /// Unique per test run, so parallel tests and a running overlay never
     /// share a name.

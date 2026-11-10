@@ -1,9 +1,16 @@
 //! Single-instance lock via D-Bus name ownership.
 //!
-//! At startup we try to claim the well-known name `com.animaengine.Anima`
+//! At startup we try to claim the well-known name `eu.animaengine.Anima`
 //! on the session bus. If we win the claim we keep the connection alive
 //! and expose an `Activate` method; if someone else already owns it, we
 //! call `Activate` on them so they raise their window, then exit.
+//!
+//! The name before 1.5, `com.animaengine.Anima`, is claimed beside it and
+//! the same methods answer at its path too, so a compositor binding
+//! written for it keeps working (docs/stability-policy.md). Held by a
+//! copy from before 1.5 — one still running through an upgrade — it is
+//! that copy which is asked to raise. Inside Flatpak, which lets an app
+//! own only its own id, it is left out.
 //!
 //! Unless that call fails. The owner may be on its way out — a relaunch
 //! right after Quit — or still starting up, with its interfaces not yet
@@ -19,11 +26,12 @@ use winit::event_loop::EventLoopProxy;
 use zbus::interface;
 use zbus::names::WellKnownName;
 
-// Service name kept in sync with the Flatpak app-id and the .desktop
-// file id (see data/com.animaengine.Anima.metainfo.xml and the Flatpak
-// manifest at flatpak/com.animaengine.Anima.yml). Flatpak only lets a
-// sandboxed app own the bus name that matches its app-id.
-const SERVICE_NAME: &str = "com.animaengine.Anima";
+// The app id (`crate::constants::APP_ID`): Flatpak only lets a
+// sandboxed app own the bus name that matches it.
+const SERVICE_NAME: &str = crate::constants::APP_ID;
+/// The name before 1.5 (`crate::constants::LEGACY_APP_ID`), and its path.
+const LEGACY_SERVICE_NAME: &str = crate::constants::LEGACY_APP_ID;
+const LEGACY_OBJECT_PATH: &str = "/com/animaengine/Anima";
 /// How long a launch keeps trying when the instance it found does not
 /// answer — see the module docs. An exiting instance holds its name
 /// until the process is fully gone, which for an overlay with a GPU
@@ -37,9 +45,9 @@ const HANDOFF_RETRY: std::time::Duration = std::time::Duration::from_millis(100)
 /// one answers in milliseconds; without a bound, one that is shutting
 /// down held a new launch for the bus's own 25-second call timeout.
 const ACTIVATE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
-const OBJECT_PATH: &str = "/com/animaengine/Anima";
+const OBJECT_PATH: &str = "/eu/animaengine/Anima";
 // The D-Bus *interface* the methods live on. Distinct from the bus name
-// above: the bus name must match the Flatpak app-id (`com.…`), but the
+// above: the bus name must match the Flatpak app-id (`eu.…`), but the
 // interface keeps the conventional reverse-DNS `org.…`. These are NOT
 // interchangeable — a proxy built with the wrong one calls a
 // non-existent interface and the method silently fails. Must stay equal
@@ -80,7 +88,8 @@ struct CommandRate {
 /// post `AnimaEvent::RaiseWindow` to the main thread.
 struct ActivationService {
     proxy: EventLoopProxy<AnimaEvent>,
-    rate: std::sync::Mutex<CommandRate>,
+    /// Shared with its twin at the other path: one budget for both.
+    rate: std::sync::Arc<std::sync::Mutex<CommandRate>>,
 }
 
 // Plain helpers live outside the `#[interface]` block on purpose —
@@ -89,11 +98,20 @@ impl ActivationService {
     fn new(proxy: EventLoopProxy<AnimaEvent>) -> Self {
         Self {
             proxy,
-            rate: std::sync::Mutex::new(CommandRate {
+            rate: std::sync::Arc::new(std::sync::Mutex::new(CommandRate {
                 window_start: std::time::Instant::now(),
                 count: 0,
                 dropped: 0,
-            }),
+            })),
+        }
+    }
+
+    /// The same service for the other path, counting against the same
+    /// budget.
+    fn twin(&self) -> Self {
+        Self {
+            proxy: self.proxy.clone(),
+            rate: self.rate.clone(),
         }
     }
 
@@ -332,6 +350,9 @@ pub fn try_acquire() -> AcquireOutcome {
             match reply {
                 Ok(RequestNameReply::PrimaryOwner) => {
                     tracing::info!("Claimed single-instance name {SERVICE_NAME}");
+                    if claim_legacy(&connection).await {
+                        return AcquireOutcome::HandedOff;
+                    }
                     return AcquireOutcome::Claimed(Some(connection));
                 }
                 Ok(RequestNameReply::Exists) | Ok(RequestNameReply::AlreadyOwner) => {}
@@ -407,10 +428,20 @@ pub fn install_wayland_service(
         .name("anima-instance-wayland".into())
         .spawn(move || {
             async_io::block_on(async move {
+                let legacy = WaylandActivationService { tx: tx.clone() };
                 let service = WaylandActivationService { tx };
                 if let Err(e) = connection.object_server().at(OBJECT_PATH, service).await {
                     tracing::warn!("Failed to publish Wayland activation service: {e}");
                     return;
+                }
+                if let Err(e) = connection
+                    .object_server()
+                    .at(LEGACY_OBJECT_PATH, legacy)
+                    .await
+                {
+                    tracing::warn!(
+                        "Failed to publish the activation service at {LEGACY_OBJECT_PATH}: {e}"
+                    );
                 }
                 let _conn = connection;
                 std::future::pending::<()>().await;
@@ -445,9 +476,19 @@ pub fn install_service(connection: zbus::Connection, proxy: EventLoopProxy<Anima
         .spawn(move || {
             async_io::block_on(async move {
                 let service = ActivationService::new(proxy);
+                let legacy = service.twin();
                 if let Err(e) = connection.object_server().at(OBJECT_PATH, service).await {
                     tracing::warn!("Failed to publish activation service: {e}");
                     return;
+                }
+                if let Err(e) = connection
+                    .object_server()
+                    .at(LEGACY_OBJECT_PATH, legacy)
+                    .await
+                {
+                    tracing::warn!(
+                        "Failed to publish the activation service at {LEGACY_OBJECT_PATH}: {e}"
+                    );
                 }
                 // Hold the connection (and the name) for the rest of the
                 // process. Dropping it would release the lock.
@@ -460,9 +501,51 @@ pub fn install_service(connection: zbus::Connection, proxy: EventLoopProxy<Anima
     }
 }
 
+/// Claim the name before 1.5 beside the new one (module docs). Returns
+/// whether a copy from before 1.5 holds it and took the hand-off, so this
+/// one exits; any other outcome — claimed, refused (Flatpak), a copy
+/// that does not answer — keeps this one running.
+async fn claim_legacy(connection: &zbus::Connection) -> bool {
+    use zbus::fdo::{RequestNameFlags, RequestNameReply};
+    let Ok(name) = WellKnownName::try_from(LEGACY_SERVICE_NAME) else {
+        return false;
+    };
+    match connection
+        .request_name_with_flags(&name, RequestNameFlags::DoNotQueue.into())
+        .await
+    {
+        Ok(RequestNameReply::PrimaryOwner) => {
+            tracing::debug!("Claimed the name from before 1.5, {LEGACY_SERVICE_NAME}, too");
+            false
+        }
+        Ok(RequestNameReply::Exists) | Err(zbus::Error::NameTaken) => {
+            match signal(connection, LEGACY_SERVICE_NAME, LEGACY_OBJECT_PATH).await {
+                Ok(()) => {
+                    tracing::info!("A copy from before 1.5 is running: asked it to raise");
+                    true
+                }
+                Err(e) => {
+                    tracing::warn!("A copy from before 1.5 holds {LEGACY_SERVICE_NAME} and did not answer: {e}");
+                    false
+                }
+            }
+        }
+        Ok(_) => false,
+        Err(e) => {
+            tracing::debug!("{LEGACY_SERVICE_NAME} not claimed: {e}");
+            false
+        }
+    }
+}
+
 /// Tell the existing primary instance to raise its window.
 async fn signal_existing(connection: &zbus::Connection) -> zbus::Result<()> {
-    let proxy = zbus::Proxy::new(connection, SERVICE_NAME, OBJECT_PATH, INTERFACE_NAME).await?;
+    signal(connection, SERVICE_NAME, OBJECT_PATH).await
+}
+
+/// Ask the instance at `name`, `path` to raise its window.
+async fn signal(connection: &zbus::Connection, name: &str, path: &str) -> zbus::Result<()> {
+    let proxy = zbus::Proxy::new(connection, name, path, INTERFACE_NAME).await?;
     let call = async { proxy.call_method("Activate", &()).await.map(drop) };
     let timeout = async {
         async_io::Timer::after(ACTIVATE_TIMEOUT).await;
@@ -513,7 +596,8 @@ mod tests {
     /// "tidy-up" that reunifies them is caught here, not in the field.
     #[test]
     fn bus_name_and_interface_are_distinct() {
-        assert_eq!(SERVICE_NAME, "com.animaengine.Anima");
+        assert_eq!(SERVICE_NAME, "eu.animaengine.Anima");
+        assert_eq!(LEGACY_SERVICE_NAME, "com.animaengine.Anima");
         assert_eq!(INTERFACE_NAME, "org.animaengine.Anima");
         assert_ne!(
             SERVICE_NAME, INTERFACE_NAME,
@@ -521,9 +605,16 @@ mod tests {
         );
     }
 
-    /// The object path is the bus name with dots as slashes, leading `/`.
+    /// The object path is the bus name with dots as slashes, leading `/`;
+    /// the one before 1.5 too, as bindings written for it name it.
     #[test]
     fn object_path_matches_bus_name() {
-        assert_eq!(OBJECT_PATH, "/com/animaengine/Anima");
+        for (name, path) in [
+            (SERVICE_NAME, OBJECT_PATH),
+            (LEGACY_SERVICE_NAME, LEGACY_OBJECT_PATH),
+        ] {
+            assert_eq!(path, format!("/{}", name.replace('.', "/")));
+        }
+        assert_eq!(LEGACY_OBJECT_PATH, "/com/animaengine/Anima");
     }
 }

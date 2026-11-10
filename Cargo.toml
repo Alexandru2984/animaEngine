@@ -38,11 +38,11 @@ depends = "$auto, libgl1, libvulkan1, libxkbcommon-x11-0"
 assets = [
     ["target/release/anima_engine", "usr/bin/anima-engine", "755"],
     # .desktop filename MUST match the AppStream <id> in the metainfo
-    # file (com.animaengine.Anima). GNOME Shell 47+ on Ubuntu uses the
+    # file (eu.animaengine.Anima). GNOME Shell 47+ on Ubuntu uses the
     # match as a key for icon resolution in the launcher / dock — a
     # mismatch silently falls back to a no-icon placeholder even when
     # theme lookup finds the PNG. (Fixed in 0.3.2.)
-    ["data/com.animaengine.Anima.desktop", "usr/share/applications/", "644"],
+    ["data/eu.animaengine.Anima.desktop", "usr/share/applications/", "644"],
     # SVG for scalable rendering + pre-rasterized PNGs at the seven
     # discrete sizes every freedesktop-spec icon resolver looks up
     # (Yaru / Adwaita / Breeze / Papirus all walk hicolor/<N>x<N>/
@@ -57,7 +57,7 @@ assets = [
     ["build/icons/64/anima-engine.png", "usr/share/icons/hicolor/64x64/apps/", "644"],
     ["build/icons/128/anima-engine.png", "usr/share/icons/hicolor/128x128/apps/", "644"],
     ["build/icons/256/anima-engine.png", "usr/share/icons/hicolor/256x256/apps/", "644"],
-    ["data/com.animaengine.Anima.metainfo.xml", "usr/share/metainfo/", "644"],
+    ["data/eu.animaengine.Anima.metainfo.xml", "usr/share/metainfo/", "644"],
     ["README.md", "usr/share/doc/anima-engine/", "644"],
     # The manual page (cargo-deb compresses it), and the lintian checks
     # that are wrong for this package, each with its reason.

@@ -9,7 +9,7 @@ For the file tree, `ls src/` is honest.
 main()
  ├─ init_tracing()                    src/main.rs
  ├─ single_instance::try_acquire()    src/single_instance.rs        (8.4)
- │    └─ either claim com.animaengine.Anima OR exit cleanly
+ │    └─ either claim eu.animaengine.Anima OR exit cleanly
  ├─ wayland::detect()                 src/wayland/probe.rs          (7.1)
  │    └─ check for zwlr_layer_shell_v1
  ├─ demo::generate_assets()           src/demo/                     (5.2)
@@ -914,7 +914,7 @@ loops feed it (`input`, `settle`); Undo and Redo are shared actions
 |--------|---------|---------------|
 | Main (winit event loop) | Render, input, scene tick | — |
 | `anima-tray` | ksni async runtime + DBus | `EventLoopProxy<AnimaEvent>` |
-| `anima-instance` | zbus connection holding `com.animaengine.Anima` | `EventLoopProxy<AnimaEvent>` |
+| `anima-instance` | zbus connection holding `eu.animaengine.Anima` | `EventLoopProxy<AnimaEvent>` |
 | Hotkey global handler | `GlobalHotKeyEvent::set_event_handler` closure | `EventLoopProxy<AnimaEvent>` |
 | Hot-reload worker | One-shot per mtime change: load + decode | `mpsc::Sender<config_watch::Reloaded>` (`src/config_watch.rs`, both backends) |
 

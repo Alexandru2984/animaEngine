@@ -1,6 +1,6 @@
 # Flatpak
 
-`com.animaengine.Anima.yml` is the manifest that drives `flatpak-builder`.
+`eu.animaengine.Anima.yml` is the manifest that drives `flatpak-builder`.
 The local build path (`scripts/build-flatpak.sh`, invoked by
 `make flatpak`) produces a single `.flatpak` bundle you can install with
 `flatpak install --user`.
@@ -23,24 +23,26 @@ Then from the repo root:
 
 ```bash
 make flatpak
-flatpak install --user -y build/com.animaengine.Anima.flatpak
-flatpak run com.animaengine.Anima
+flatpak install --user -y build/eu.animaengine.Anima.flatpak
+flatpak run eu.animaengine.Anima
 ```
 
 ## Flathub submission
 
-The local manifest (`com.animaengine.Anima.yml`) **lets cargo fetch
+The local manifest (`eu.animaengine.Anima.yml`) **lets cargo fetch
 crates over the network at build time**, which Flathub forbids. The
-submission manifest is `com.animaengine.Anima.flathub.yml`: it builds
+submission manifest is `eu.animaengine.Anima.flathub.yml`: it builds
 offline from `cargo-sources.json`. What is done and what is still open —
 the domain decision and a local build test — is tracked in
 [FLATHUB.md](FLATHUB.md).
 
-The app-id stays `com.animaengine.Anima`. Flatpak lets an app own only
-the D-Bus name equal to its id, and the
-[stability policy](../docs/stability-policy.md) keeps that bus name for
-the whole 1.x series, so a rename would break every compositor keybind
-that calls it.
+The app-id is `eu.animaengine.Anima` from 1.5 (it was
+`com.animaengine.Anima`, of a domain the project never held). Flatpak
+lets an app own only the D-Bus name equal to its id, so inside the
+Flatpak only the new name answers; the native packages answer to the
+old one too, as the [stability policy](../docs/stability-policy.md)
+keeps it for the rest of 1.x. No Flatpak was published under the old
+id.
 
 ## Permissions explained
 
@@ -55,11 +57,11 @@ sees in Flatseal / GNOME Software:
 | `--socket=pulseaudio` | Sound for scripts' `play()`. Flatpak has no playback-only socket; no capture code is linked (docs/threat-model.md). |
 | `--talk-name=org.kde.StatusNotifierWatcher` | System tray icon. Inside Flatpak the item registers under its connection's unique name, since the sandbox cannot own the usual `org.kde.StatusNotifierItem-PID-N`. |
 | `--talk-name=org.freedesktop.Notifications` | Future: toast → desktop notification on minimize. |
-| `--own-name=com.animaengine.Anima` | Single-instance D-Bus name, and the D-Bus methods compositor keybinds call. |
+| `--own-name=eu.animaengine.Anima` | Single-instance D-Bus name, and the D-Bus methods compositor keybinds call. |
 | `--filesystem=xdg-pictures:ro`, `--filesystem=xdg-download:ro` | Files dropped on the overlay usually come from these. Read-only. |
 
 Config, cache and the asset library need no grant: inside the sandbox
-they live under `~/.var/app/com.animaengine.Anima/`, which the app owns.
+they live under `~/.var/app/eu.animaengine.Anima/`, which the app owns.
 
 **Drops from anywhere else do nothing.** A file dragged in from outside
 Pictures and Downloads is not visible inside the sandbox, and the

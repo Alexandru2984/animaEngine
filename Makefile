@@ -24,7 +24,7 @@ MANDIR     := $(DESTDIR)$(PREFIX)/share/man/man1
 ICON_SIZES := 16 24 32 48 64 128 256
 
 BINARY := target/release/anima_engine
-APPID  := com.animaengine.Anima
+APPID  := eu.animaengine.Anima
 ICONS  := build/icons/.rendered
 
 .PHONY: all release install uninstall validate appimage deb flatpak clean-build icons
@@ -46,17 +46,17 @@ deb:
 	scripts/build-deb.sh
 
 # Build a Flatpak bundle via flatpak-builder. See flatpak/README.md for
-# the one-time SDK install. Output: build/com.animaengine.Anima.flatpak.
+# the one-time SDK install. Output: build/eu.animaengine.Anima.flatpak.
 flatpak:
 	scripts/build-flatpak.sh
 
 clean-build:
 	rm -rf build/AppDir build/animaEngine-*.AppImage build/anima-engine_*.deb \
-	       build/com.animaengine.Anima.flatpak build/flatpak-*
+	       build/eu.animaengine.Anima.flatpak build/flatpak-*
 
 install: $(BINARY) $(ICONS)
 	install -Dm0755 $(BINARY)                              $(BINDIR)/anima-engine
-	# .desktop filename MUST match the AppStream <id> (com.animaengine.Anima)
+	# .desktop filename MUST match the AppStream <id> (eu.animaengine.Anima)
 	# — see Cargo.toml metadata.deb assets for the GNOME Shell 47+ reason.
 	install -Dm0644 data/$(APPID).desktop                  $(APPDIR)/$(APPID).desktop
 	install -Dm0644 data/anima-engine.svg                  $(ICONDIR)/anima-engine.svg

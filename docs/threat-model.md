@@ -243,7 +243,13 @@ WebP with a header claiming dimensions larger than `MAX_IMAGE_DIM`
 is rejected without allocating the pixel buffer. Same check applied
 to video frames coming out of openh264.
 
-### D-Bus interface — `com.animaengine.Anima`
+### D-Bus interface — `eu.animaengine.Anima`
+
+From 1.5 the bus name is `eu.animaengine.Anima` at
+`/eu/animaengine/Anima`; the name before, `com.animaengine.Anima` at
+`/com/animaengine/Anima`, is claimed beside it outside Flatpak and
+serves the same interface. Its two objects share one command budget
+(`ActivationService::twin`), so the second path doubles no flood.
 
 Both flavours expose the same ten methods on `org.animaengine.Anima`
 — `Activate`, `ToggleEditMode`, `HideOverlay`, `ShowOverlay`,
@@ -399,7 +405,7 @@ as the rest: the user's own session and machine.
 
 "Start at login" in Appearance (off by default) is the one place the app
 writes outside its own directories: installed natively it writes
-`~/.config/autostart/com.animaengine.Anima.desktop`, whose `Exec` line
+`~/.config/autostart/eu.animaengine.Anima.desktop`, whose `Exec` line
 is this program's own path (the AppImage's, not its mount) — quoted per
 the Desktop Entry spec, so no character in the path can turn into a
 second command — and removes it when switched off. Only on the user's
@@ -455,7 +461,7 @@ What this widens, vs. before 1.4.0:
 
 What it does *not* widen:
 
-- The `com.animaengine.Anima` surface stays minimal — five methods
+- The `eu.animaengine.Anima` surface stays minimal — five methods
   total post-0.5.0, all bounded and coalesced. AT-SPI is a
   separate, standards-required surface
   registered under `org.a11y.atspi.*` by AccessKit, not by us.
@@ -627,7 +633,7 @@ play video are unaffected — nothing reaches the decoder.
 Defence in depth: the **Flatpak** build scopes filesystem access away
 from `$HOME` (only `xdg-pictures` and `xdg-download`, read-only; the
 app's own files live in its `~/.var/app` directory — see
-`flatpak/com.animaengine.Anima.yml`), so even a decoder RCE there can't
+`flatpak/eu.animaengine.Anima.yml`), so even a decoder RCE there can't
 read `~/.ssh`, GPG keys or browser profiles. The `.deb`
 / AppImage builds run unconfined like any native app.
 

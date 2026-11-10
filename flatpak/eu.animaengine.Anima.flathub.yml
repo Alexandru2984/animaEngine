@@ -1,6 +1,6 @@
 # Flathub submission manifest for animaEngine.
 #
-# Differences from the local-dev manifest (com.animaengine.Anima.yml):
+# Differences from the local-dev manifest (eu.animaengine.Anima.yml):
 #   - builds from the released git tag, not the working tree;
 #   - every crate is pinned by hash in cargo-sources.json (Flathub
 #     forbids network access during build), regenerate with:
@@ -11,7 +11,7 @@
 #
 # See FLATHUB.md for the submission checklist.
 
-app-id: com.animaengine.Anima
+app-id: eu.animaengine.Anima
 runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
@@ -39,7 +39,7 @@ finish-args:
   - --talk-name=org.kde.StatusNotifierWatcher
   - --talk-name=org.freedesktop.Notifications
   # Single-instance handshake — we own the bus name matching our app-id.
-  - --own-name=com.animaengine.Anima
+  - --own-name=eu.animaengine.Anima
   # Pausing when away (1.5): GNOME's idle time, read-only — the X
   # server's own counter under XWayland misses input to native apps —
   # and whether the machine runs on battery, from UPower.
@@ -47,7 +47,7 @@ finish-args:
   - --system-talk-name=org.freedesktop.UPower
   # Read-only access to the two usual sources of a dropped file. The
   # app's own config, cache and asset library need no grant: inside the
-  # sandbox they live in ~/.var/app/com.animaengine.Anima/, which the
+  # sandbox they live in ~/.var/app/eu.animaengine.Anima/, which the
   # app always owns. Nothing else in home is reachable, so a decoder
   # exploit cannot read ~/.ssh, ~/.gnupg or browser profiles.
   - --filesystem=xdg-pictures:ro
@@ -65,22 +65,22 @@ modules:
       - cargo --offline build --release --locked
       - install -Dm0755 target/release/anima_engine
             /app/bin/anima-engine
-      - install -Dm0644 data/com.animaengine.Anima.desktop
-            /app/share/applications/com.animaengine.Anima.desktop
+      - install -Dm0644 data/eu.animaengine.Anima.desktop
+            /app/share/applications/eu.animaengine.Anima.desktop
       - install -Dm0644 data/anima-engine.svg
-            /app/share/icons/hicolor/scalable/apps/com.animaengine.Anima.svg
-      - install -Dm0644 data/com.animaengine.Anima.metainfo.xml
-            /app/share/metainfo/com.animaengine.Anima.metainfo.xml
+            /app/share/icons/hicolor/scalable/apps/eu.animaengine.Anima.svg
+      - install -Dm0644 data/eu.animaengine.Anima.metainfo.xml
+            /app/share/metainfo/eu.animaengine.Anima.metainfo.xml
       # Its licence, and those of every crate built in — the latter from
       # 1.5 on: bump the tag below with the release, as FLATHUB.md says.
-      - install -Dm0644 LICENSE /app/share/licenses/com.animaengine.Anima/LICENSE
+      - install -Dm0644 LICENSE /app/share/licenses/eu.animaengine.Anima/LICENSE
       - install -Dm0644 data/THIRD-PARTY-LICENSES.txt
-            /app/share/licenses/com.animaengine.Anima/THIRD-PARTY-LICENSES.txt
+            /app/share/licenses/eu.animaengine.Anima/THIRD-PARTY-LICENSES.txt
       # The .desktop ships Icon=anima-engine for the .deb / AppImage
       # paths; Flatpak export requires the icon name to equal the
       # app-id.
-      - sed -i 's/^Icon=.*/Icon=com.animaengine.Anima/'
-            /app/share/applications/com.animaengine.Anima.desktop
+      - sed -i 's/^Icon=.*/Icon=eu.animaengine.Anima/'
+            /app/share/applications/eu.animaengine.Anima.desktop
     sources:
       - type: git
         url: https://github.com/Alexandru2984/animaEngine.git

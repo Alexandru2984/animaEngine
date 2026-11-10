@@ -85,7 +85,7 @@ make install DESTDIR="$APPDIR" PREFIX=/usr >/dev/null
 # (GNOME Shell 47+ icon-resolution requirement). The symlink target
 # follows the new filename; linuxdeploy then uses it as the canonical
 # AppImage .desktop entry.
-ln -sf usr/share/applications/com.animaengine.Anima.desktop "$APPDIR/com.animaengine.Anima.desktop"
+ln -sf usr/share/applications/eu.animaengine.Anima.desktop "$APPDIR/eu.animaengine.Anima.desktop"
 ln -sf usr/share/icons/hicolor/scalable/apps/anima-engine.svg "$APPDIR/anima-engine.svg"
 
 # ── 3) Fetch linuxdeploy on demand, content-pinned ───────────────────
@@ -141,7 +141,7 @@ ARCH="$ARCH" \
 VERSION="$VERSION" \
 "$LINUXDEPLOY" \
     --appdir "$APPDIR" \
-    --desktop-file "$APPDIR/com.animaengine.Anima.desktop" \
+    --desktop-file "$APPDIR/eu.animaengine.Anima.desktop" \
     --icon-file "$APPDIR/anima-engine.svg" \
     --executable "$APPDIR/usr/bin/anima-engine" \
     --exclude-library 'libxkbcommon.so*' \

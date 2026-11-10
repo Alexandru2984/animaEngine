@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>com.animaengine.Anima</id>
+  <id>eu.animaengine.Anima</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
 
@@ -50,17 +50,22 @@
     </screenshot>
   </screenshots>
 
-  <launchable type="desktop-id">com.animaengine.Anima.desktop</launchable>
+  <launchable type="desktop-id">eu.animaengine.Anima.desktop</launchable>
+
+  <!-- The id before 1.5, of a domain the project never held. -->
+  <replaces>
+    <id>com.animaengine.Anima</id>
+  </replaces>
 
   <provides>
     <binary>anima-engine</binary>
-    <dbus type="session">com.animaengine.Anima</dbus>
+    <dbus type="session">eu.animaengine.Anima</dbus>
   </provides>
 
   <url type="homepage">https://github.com/Alexandru2984/animaEngine</url>
   <url type="bugtracker">https://github.com/Alexandru2984/animaEngine/issues</url>
 
-  <developer id="com.animaengine">
+  <developer id="eu.animaengine">
     <name>animaEngine contributors</name>
   </developer>
 
@@ -93,6 +98,7 @@
           <li>Sounds at the volume you want, one for each character, quiet at bedtime.</li>
           <li>The global shortcuts are Super+Alt+A, H and P in a new configuration.</li>
           <li>A laptop's NVIDIA GPU is left asleep, and fewer frames are drawn while nothing moves.</li>
+          <li>The app's id is eu.animaengine.Anima, after the project's domain; it replaces com.animaengine.Anima.</li>
         </ul>
       </description>
     </release>

@@ -6,7 +6,7 @@ doesn't exist yet.
 
 ## Ready ✅
 
-- `com.animaengine.Anima.flathub.yml` — offline manifest building the
+- `eu.animaengine.Anima.flathub.yml` — offline manifest building the
   `v1.4.0` tag, crates pinned in `cargo-sources.json` (991 entries,
   written from `Cargo.lock` by `scripts/cargo-sources.py`; CI fails
   while the two disagree).
@@ -35,31 +35,29 @@ doesn't exist yet.
 
 ## Blockers ☐
 
-### 1. App-id / domain decision
+### 1. Verify the app id ✅ decided
 
-The id `com.animaengine.Anima` implies control of `animaengine.com`.
-Flathub's verification rules:
+The id is `eu.animaengine.Anima` from 1.5, after **animaengine.eu**,
+the project's domain. It was `com.animaengine.Anima` before, which named
+animaengine.com, someone else's (registered since 2025-01-22), and so
+could never be verified. The metainfo says the new id `<replaces>` the
+old one; the old D-Bus name still answers outside Flatpak
+(docs/stability-policy.md).
 
-- **Own the domain** (or buy it, ~10 €/yr): put a token at
-  `https://animaengine.com/.well-known/org.flathub.VerifiedApps.txt`
-  and the listing gets the *verified* checkmark. No code changes.
-- **Don't own it**: Flathub may still accept the submission, but it
-  can never be verified, and a future rename to
-  `io.github.alexandru2984.animaEngine` is painful (desktop file,
-  D-Bus name, icon names, existing users' config paths). Decide
-  *before* submitting.
+☐ To get the *verified* checkmark, put the token Flathub gives at
+`https://animaengine.eu/.well-known/org.flathub.VerifiedApps.txt`.
 
 ## Submission steps
 
 1. Fork <https://github.com/flathub/flathub>, branch from `new-pr`.
-2. Copy in `com.animaengine.Anima.flathub.yml` (renamed to
-   `com.animaengine.Anima.yml`) and `cargo-sources.json`.
+2. Copy in `eu.animaengine.Anima.flathub.yml` (renamed to
+   `eu.animaengine.Anima.yml`) and `cargo-sources.json`.
 3. Open a PR against the `new-pr` branch; CI builds it; a reviewer
    looks at finish-args and metainfo.
 4. Typical review asks: justify the filesystem grants (answer: only
    `xdg-pictures:ro` + `xdg-download:ro`, the common drag-drop and
    config-path asset sources; the app's own config, cache and asset
-   library live in `~/.var/app/com.animaengine.Anima/` and need none;
+   library live in `~/.var/app/eu.animaengine.Anima/` and need none;
    deliberately *not* `home`, to keep credentials and browser profiles
    out of reach; anything elsewhere comes through the file-chooser
    portal, Scene → Add file…), justify the D-Bus names

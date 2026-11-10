@@ -1,5 +1,16 @@
 //! Cross-module constants. Module-local values stay in their modules.
 
+/// The app's id: its desktop file's and metainfo's name, its D-Bus name,
+/// the id the desktop portals know it by, its Flatpak id. Reverse DNS of
+/// animaengine.eu, the project's domain (1.5) — Flathub verifies an id
+/// against the domain it names.
+pub const APP_ID: &str = "eu.animaengine.Anima";
+
+/// The id before 1.5, of a domain the project never held. Its D-Bus name
+/// and path still answer through 1.x (docs/stability-policy.md); the
+/// metainfo says the new id replaces it.
+pub const LEGACY_APP_ID: &str = "com.animaengine.Anima";
+
 /// Maximum image dimension (width or height) accepted by loaders.
 /// A 4096×4096 RGBA image is 64 MB in RAM — generous for an overlay app
 /// while still rejecting decompression bombs.

@@ -124,7 +124,7 @@ does. Below, *edit* and *hide* mean those (`Super+Alt+H` /
       for your approval* meanwhile, then *The desktop*; the journal says
       `Portal shortcuts active`, not `portal did not respond in time`.
 - [ ] **Bound through the portal at once.** Started from the app grid,
-      the journal (`journalctl --user -t com.animaengine.Anima.desktop`)
+      the journal (`journalctl --user -t eu.animaengine.Anima.desktop`)
       says `Portal shortcuts active`, not `GlobalShortcuts portal session
       failed … An app id is required` and `falling back to XGrabKey`
       (R76: 1.5 asked before GNOME had put it in its scope). Started
@@ -196,7 +196,7 @@ does. Below, *edit* and *hide* mean those (`Super+Alt+H` /
       the app's language, and in another a few seconds after Appearance
       switches it.
 - [ ] **Start at login.** Appearance → *Start at login*: the entry is
-      in `~/.config/autostart/com.animaengine.Anima.desktop` and in
+      in `~/.config/autostart/eu.animaengine.Anima.desktop` and in
       GNOME's startup list; log out and in: it starts. Turn it off
       again if you don't want it.
 - [ ] **Orca hears them.** `Super+Alt+S` starts Orca. A tap, a

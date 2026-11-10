@@ -5,7 +5,7 @@
 #   scripts/build-flatpak.sh
 #
 # Outputs:
-#   build/com.animaengine.Anima.flatpak     (single-file bundle, sharable)
+#   build/eu.animaengine.Anima.flatpak     (single-file bundle, sharable)
 #
 # Prereqs (install once per machine):
 #   sudo apt install flatpak flatpak-builder
@@ -21,7 +21,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
-APP_ID="com.animaengine.Anima"
+APP_ID="eu.animaengine.Anima"
 MANIFEST="flatpak/${APP_ID}.yml"
 BUILD_DIR="$REPO/build"
 STAGE_DIR="$BUILD_DIR/flatpak-build"

@@ -39,7 +39,7 @@
 set -euo pipefail
 
 # A private session bus. On the caller's own bus the soaked app asks for
-# `com.animaengine.Anima` like any launch — so with an overlay already
+# `eu.animaengine.Anima` like any launch — so with an overlay already
 # running, the single-instance handshake hands off to it and the soak
 # measures nothing. CI wraps the script the same way.
 # Its config lists no service directories, so nothing is auto-started on

@@ -2,7 +2,9 @@
 //! desktop start animaEngine at login.
 //!
 //! - Installed natively — a package, an AppImage, a build — it is an XDG
-//!   autostart entry, `~/.config/autostart/com.animaengine.Anima.desktop`.
+//!   autostart entry, `~/.config/autostart/eu.animaengine.Anima.desktop`.
+//!   One a 1.5 build wrote under the id before (`com.…`) reads as on, and
+//!   goes when the switch is next turned either way.
 //!   The file is the truth: the desktop's own "Startup Applications" edits
 //!   the same folder, so the switch reads the file rather than a setting.
 //! - In the Flatpak the sandbox can neither write nor read that folder.
@@ -21,7 +23,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU8, Ordering};
 
 /// The entry's file name: the app id, as the portal names it too.
-pub const ENTRY_NAME: &str = "com.animaengine.Anima.desktop";
+pub const ENTRY_NAME: &str = "eu.animaengine.Anima.desktop";
+
+/// Its name under the id before (`crate::constants::LEGACY_APP_ID`).
+#[cfg(not(windows))]
+const LEGACY_ENTRY_NAME: &str = "com.animaengine.Anima.desktop";
 
 /// Whether this process runs inside a Flatpak.
 pub fn in_flatpak() -> bool {
@@ -30,7 +36,12 @@ pub fn in_flatpak() -> bool {
 
 /// Where the native entry goes.
 pub fn entry_path() -> Option<PathBuf> {
-    directories::BaseDirs::new().map(|d| d.config_dir().join("autostart").join(ENTRY_NAME))
+    autostart_dir().map(|dir| dir.join(ENTRY_NAME))
+}
+
+/// The user's XDG autostart folder.
+fn autostart_dir() -> Option<PathBuf> {
+    directories::BaseDirs::new().map(|d| d.config_dir().join("autostart"))
 }
 
 /// Whether the app starts with the session: on Windows, whether its `Run`
@@ -48,7 +59,38 @@ pub fn is_enabled(granted: bool) -> bool {
     if in_flatpak() {
         granted
     } else {
-        entry_path().is_some_and(|p| p.exists())
+        autostart_dir().is_some_and(|dir| entry_in(&dir))
+    }
+}
+
+/// Whether `dir` holds the entry, under the id or the one before.
+#[cfg(not(windows))]
+fn entry_in(dir: &Path) -> bool {
+    dir.join(ENTRY_NAME).exists() || dir.join(LEGACY_ENTRY_NAME).exists()
+}
+
+/// Write the entry into `dir` to run `exec`, or with `None` take it away;
+/// the one under the id before goes either way, after the new one is
+/// written.
+#[cfg(not(windows))]
+fn set_in(dir: &Path, exec: Option<&str>) -> Result<()> {
+    let path = dir.join(ENTRY_NAME);
+    if let Some(exec) = exec {
+        std::fs::create_dir_all(dir)?;
+        crate::util::atomic_write_bytes(&path, entry(exec).as_bytes())?;
+    } else {
+        remove_if_there(&path)?;
+    }
+    remove_if_there(&dir.join(LEGACY_ENTRY_NAME))
+}
+
+/// Remove `path`; not there is no error.
+#[cfg(not(windows))]
+fn remove_if_there(path: &Path) -> Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -68,20 +110,10 @@ pub fn set(on: bool) -> Result<()> {
         ask_portal(on);
         return Ok(());
     }
-    let path = entry_path().ok_or_else(|| AnimaError::other("no configuration directory"))?;
-    if on {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        crate::util::atomic_write_bytes(&path, entry(&exec_line()?).as_bytes())?;
-        tracing::info!("Start at login: on");
-    } else {
-        match std::fs::remove_file(&path) {
-            Ok(()) => tracing::info!("Start at login: off"),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(e.into()),
-        }
-    }
+    let dir = autostart_dir().ok_or_else(|| AnimaError::other("no configuration directory"))?;
+    let exec = if on { Some(exec_line()?) } else { None };
+    set_in(&dir, exec.as_deref())?;
+    tracing::info!("Start at login: {}", if on { "on" } else { "off" });
     Ok(())
 }
 
@@ -352,6 +384,43 @@ mod tests {
         if was {
             set(true).unwrap();
         }
+    }
+
+    #[test]
+    fn the_entry_is_named_by_the_app_id() {
+        assert_eq!(ENTRY_NAME, format!("{}.desktop", crate::constants::APP_ID));
+        #[cfg(not(windows))]
+        assert_eq!(
+            LEGACY_ENTRY_NAME,
+            format!("{}.desktop", crate::constants::LEGACY_APP_ID)
+        );
+    }
+
+    /// An entry a 1.5 build wrote under the id before reads as on; turned
+    /// on, the switch writes the new one in its place; off, neither stays.
+    #[cfg(not(windows))]
+    #[test]
+    fn the_entry_under_the_old_id_is_read_and_replaced() {
+        let dir = std::env::temp_dir().join(format!("anima_autostart_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (new, old) = (dir.join(ENTRY_NAME), dir.join(LEGACY_ENTRY_NAME));
+        assert!(!entry_in(&dir));
+
+        std::fs::write(&old, entry("/opt/old/anima-engine")).unwrap();
+        assert!(entry_in(&dir), "the old one is read as on");
+        set_in(&dir, Some("/usr/bin/anima-engine")).unwrap();
+        assert!(new.exists() && !old.exists(), "replaced by the new one");
+        assert!(std::fs::read_to_string(&new)
+            .unwrap()
+            .contains("Exec=/usr/bin/anima-engine"));
+
+        std::fs::write(&old, entry("/opt/old/anima-engine")).unwrap();
+        set_in(&dir, None).unwrap();
+        assert!(!new.exists() && !old.exists(), "off takes both");
+        assert!(!entry_in(&dir));
+        set_in(&dir, None).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[cfg(not(windows))]

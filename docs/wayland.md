@@ -143,8 +143,10 @@ On wlroots compositors without a GlobalShortcuts portal backend, use
 compositor-level bindings invoking the **`org.animaengine.Anima`
 D-Bus interface**.
 
-animaEngine exposes these methods on `/com/animaengine/Anima` while
-running:
+animaEngine exposes these methods on `/eu/animaengine/Anima` while
+running (and, outside Flatpak, on `/com/animaengine/Anima` under the name
+`com.animaengine.Anima`, as before 1.5 — a binding written for those
+keeps working):
 
 | Method | Effect |
 |---|---|
@@ -168,8 +170,8 @@ The ones with an argument take it after the method name: `gdbus call …
 
 ```bash
 gdbus call --session \
-    --dest com.animaengine.Anima \
-    --object-path /com/animaengine/Anima \
+    --dest eu.animaengine.Anima \
+    --object-path /eu/animaengine/Anima \
     --method org.animaengine.Anima.ToggleEditMode
 ```
 
@@ -186,20 +188,20 @@ Put these in `~/.config/sway/config`:
 ```
 # Anima: edit mode toggle on Mod4+Mod1+A
 bindsym Mod4+Mod1+a exec gdbus call --session \
-    --dest com.animaengine.Anima \
-    --object-path /com/animaengine/Anima \
+    --dest eu.animaengine.Anima \
+    --object-path /eu/animaengine/Anima \
     --method org.animaengine.Anima.ToggleEditMode
 
 # Anima: hide overlay on Mod4+Mod1+H
 bindsym Mod4+Mod1+h exec gdbus call --session \
-    --dest com.animaengine.Anima \
-    --object-path /com/animaengine/Anima \
+    --dest eu.animaengine.Anima \
+    --object-path /eu/animaengine/Anima \
     --method org.animaengine.Anima.HideOverlay
 
 # Anima: pause / resume playback on Mod4+Mod1+P
 bindsym Mod4+Mod1+p exec gdbus call --session \
-    --dest com.animaengine.Anima \
-    --object-path /com/animaengine/Anima \
+    --dest eu.animaengine.Anima \
+    --object-path /eu/animaengine/Anima \
     --method org.animaengine.Anima.ToggleGlobalPlayback
 ```
 
@@ -210,9 +212,9 @@ Reload sway (`Mod4+Shift+c`) to pick up the new bindings.
 `~/.config/hypr/hyprland.conf`:
 
 ```
-bind = SUPER ALT, A, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleEditMode
-bind = SUPER ALT, H, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.HideOverlay
-bind = SUPER ALT, P, exec, gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleGlobalPlayback
+bind = SUPER ALT, A, exec, gdbus call --session --dest eu.animaengine.Anima --object-path /eu/animaengine/Anima --method org.animaengine.Anima.ToggleEditMode
+bind = SUPER ALT, H, exec, gdbus call --session --dest eu.animaengine.Anima --object-path /eu/animaengine/Anima --method org.animaengine.Anima.HideOverlay
+bind = SUPER ALT, P, exec, gdbus call --session --dest eu.animaengine.Anima --object-path /eu/animaengine/Anima --method org.animaengine.Anima.ToggleGlobalPlayback
 ```
 
 Reload with `hyprctl reload`.
@@ -222,9 +224,9 @@ Reload with `hyprctl reload`.
 `~/.config/river/init`:
 
 ```
-riverctl map normal Super+Alt A spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleEditMode'
-riverctl map normal Super+Alt+Shift H spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.HideOverlay'
-riverctl map normal Super+Alt P spawn 'gdbus call --session --dest com.animaengine.Anima --object-path /com/animaengine/Anima --method org.animaengine.Anima.ToggleGlobalPlayback'
+riverctl map normal Super+Alt A spawn 'gdbus call --session --dest eu.animaengine.Anima --object-path /eu/animaengine/Anima --method org.animaengine.Anima.ToggleEditMode'
+riverctl map normal Super+Alt+Shift H spawn 'gdbus call --session --dest eu.animaengine.Anima --object-path /eu/animaengine/Anima --method org.animaengine.Anima.HideOverlay'
+riverctl map normal Super+Alt P spawn 'gdbus call --session --dest eu.animaengine.Anima --object-path /eu/animaengine/Anima --method org.animaengine.Anima.ToggleGlobalPlayback'
 ```
 
 ## Compositor compatibility — tested matrix

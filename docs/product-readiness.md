@@ -113,9 +113,10 @@ clienți.
 
 - „animaEngine” și „Anima” sunt nume frecvente. Înainte de un magazin,
   trebuie căutat în bazele de mărci (EUIPO, USPTO) și pe magazinele țintă.
-- Domeniul pentru app id (`com.animaengine.Anima`) e încă deschis în
-  [FLATHUB.md](../flatpak/FLATHUB.md): Flathub cere ca domeniul să fie al
-  tău.
+- Domeniul pentru app id: rezolvat pe 10 noiembrie. Id-ul e
+  `eu.animaengine.Anima`, după animaengine.eu, domeniul proiectului. Pentru
+  bifa de verificat pe Flathub mai trebuie pus un fișier pe site
+  ([FLATHUB.md](../flatpak/FLATHUB.md)).
 
 ### 1.5 Confidențialitate
 
