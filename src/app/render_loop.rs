@@ -564,12 +564,8 @@ impl App {
                         draws_last_frame: self.gpu_draws,
                     };
 
-                    let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
-                    let mut palette_outcome: Option<panels::PaletteOutcome> = None;
-                    let mut library_outcome: Option<panels::LibraryOutcome> = None;
-                    let mut shimeji_import: Option<String> = None;
-                    let mut scene_request: Option<panels::SceneRequest> = None;
-                    let mut toggle_requested = false;
+                    // What the egui asks for, as its passes go.
+                    let mut asked_now = panels::OverlayAsked::default();
 
                     if let (Some(ui), Some(window)) = (self.ui.as_mut(), self.window.as_ref()) {
                         // Pick up theme changes made in the settings
@@ -615,14 +611,9 @@ impl App {
                         let perf_sampler_ref = &self.perf_sampler;
                         let perf_overlay_visible = self.perf_overlay_visible;
                         let perf_rss_kib = self.perf_last_rss_kib;
-                        let mut perf_export_request = false;
-                        let perf_export_request_ref = &mut perf_export_request;
                         let monitors_ref = self.monitors.as_slice();
                         let toasts_ref = &self.toasts;
                         let menu_state = self.ui_state.context_menu.clone();
-                        let menu_outcome_ref = &mut menu_outcome;
-                        let palette_outcome_ref = &mut palette_outcome;
-                        let library_outcome_ref = &mut library_outcome;
                         // The library's fresh scan, once it is done.
                         if let Some(rx) = &self.library_scan {
                             match rx.try_recv() {
@@ -637,7 +628,6 @@ impl App {
                             }
                         }
                         let library_ref = self.library.as_ref();
-                        let toggle_requested_ref = &mut toggle_requested;
                         let edit_mode = self.edit_mode;
 
                         // Manual elapsed measurement for the egui pass —
@@ -652,110 +642,56 @@ impl App {
                             &view,
                             size,
                             |ctx| {
-                                crate::ui::motion::set_reduced(
+                                panels::overlay(
                                     ctx,
-                                    config_mut.global.reduced_motion,
-                                );
-                                // The toggle button: the one control
-                                // in pass-through; in edit mode it
-                                // sits on top of everything else.
-                                if (edit_mode || show_toggle_button)
-                                    && panels::toggle_button(ctx, edit_mode)
-                                {
-                                    *toggle_requested_ref = true;
-                                }
-                                // Bubbles and effects are in window pixels.
-                                crate::ui::effects::paint(ctx, &effects, ctx.pixels_per_point());
-                                crate::ui::speech::paint(ctx, &bubbles, ctx.pixels_per_point());
-                                // And to a screen reader (`crate::announce`),
-                                // with the toasts.
-                                crate::ui::speech::announce(ctx);
-                                crate::ui::toasts::announce(ctx, toasts_ref);
-                                // First-run tour (V.2): floats on the
-                                // overlay in both modes; advances to
-                                // its interactive steps in edit mode.
-                                if crate::ui::onboarding::coach_marks(
-                                    ctx,
-                                    &mut config_mut.global.onboarding,
-                                    edit_mode,
-                                    show_toggle_button,
-                                    &config_mut.keybindings,
-                                ) {
-                                    *config_dirty_mut = true;
-                                }
-
-                                // Unconditional call: `open` drives
-                                // SidePanel::show_animated, so leaving
-                                // edit mode slides the panel out
-                                // instead of snapping it away.
-                                panels::settings(
-                                    ctx,
-                                    edit_mode,
-                                    scene_mut,
-                                    selection_mut,
-                                    config_dirty_mut,
-                                    config_mut,
-                                    panels::Supports {
-                                        // winit backend: X11 or XWayland, both read EWMH.
-                                        window_awareness: true,
-                                        // X11's root window is one screen across every monitor,
-                                        // so Span really spans.
-                                        span: true,
-                                        // `crate::a11y` carries the AT-SPI bridge; nothing does
-                                        // elsewhere yet.
-                                        screen_reader: cfg!(unix),
-                                        idle: idle_available,
+                                    panels::Overlay {
+                                        edit_mode,
+                                        show_toggle_button,
+                                        // The window is unmapped while hidden.
+                                        hidden: false,
+                                        // Bubbles and effects are in window pixels.
+                                        in_pixels: true,
+                                        effects: &effects,
+                                        bubbles: &bubbles,
+                                        toasts: toasts_ref,
+                                        scene: &mut *scene_mut,
+                                        selection: &mut *selection_mut,
+                                        config_dirty: &mut *config_dirty_mut,
+                                        config: &mut *config_mut,
+                                        supports: panels::Supports {
+                                            // winit backend: X11 or XWayland, both read EWMH.
+                                            window_awareness: true,
+                                            // X11's root window is one screen across every
+                                            // monitor, so Span really spans.
+                                            span: true,
+                                            // `crate::a11y` carries the AT-SPI bridge; nothing
+                                            // does elsewhere yet.
+                                            screen_reader: cfg!(unix),
+                                            idle: idle_available,
+                                        },
+                                        monitors: monitors_ref,
+                                        library: library_ref,
+                                        warnings: warnings_ref,
+                                        hotkey_backend: hotkey_backend_ref,
+                                        // Only a menu of its own: one opened on
+                                        // another monitor is drawn there.
+                                        menu: menu_state.as_ref().filter(|m| m.surface.is_none()),
+                                        menu_offers,
+                                        perf: perf_overlay_visible.then_some(panels::PerfShown {
+                                            sampler: perf_sampler_ref,
+                                            rss_kib: perf_rss_kib,
+                                            gpu: gpu_stats,
+                                        }),
                                     },
-                                    monitors_ref,
-                                    library_ref,
-                                    library_outcome_ref,
-                                    warnings_ref,
-                                    hotkey_backend_ref,
-                                    &mut shimeji_import,
-                                    &mut scene_request,
+                                    &mut asked_now,
                                 );
-                                if edit_mode {
-                                    // Only a menu of its own: one opened on
-                                    // another monitor is drawn there.
-                                    if let Some(state) =
-                                        menu_state.as_ref().filter(|m| m.surface.is_none())
-                                    {
-                                        *menu_outcome_ref =
-                                            Some(panels::context_menu(ctx, state, menu_offers));
-                                    }
-                                    // Ctrl+K opens the command palette.
-                                    *palette_outcome_ref = panels::command_palette(
-                                        ctx,
-                                        &config_mut.keybindings,
-                                        selection_mut.selected_index().is_some(),
-                                    );
-                                }
-                                // In both modes: one raised outside edit
-                                // mode — a reload, a paused scene — used
-                                // to be gone before the panel opened.
-                                panels::toasts(ctx, toasts_ref);
-                                // Perf overlay sits on top of every
-                                // other surface so a user investigating
-                                // a stutter doesn't have to chase it
-                                // behind a panel.
-                                if perf_overlay_visible
-                                    && crate::ui::perf_overlay::show(
-                                        ctx,
-                                        perf_sampler_ref,
-                                        perf_rss_kib,
-                                        gpu_stats,
-                                    )
-                                    .is_some()
-                                {
-                                    *perf_export_request_ref = true;
-                                }
                             },
                         );
                         // Closure's done; perf_sampler_ref's borrow ended.
                         // Safe to take a fresh &mut self.perf_sampler.
                         self.perf_sampler
                             .add(crate::perf::Category::EguiPaint, egui_start.elapsed());
-                        if perf_export_request {
+                        if asked_now.perf_export {
                             match crate::perf::export_snapshot(&self.perf_sampler) {
                                 Ok(path) => {
                                     // Toast shows full path (user requested
@@ -798,6 +734,15 @@ impl App {
                     // out implicitly: total - sum(other categories).
                     self.perf_sampler.end_frame();
 
+                    let panels::OverlayAsked {
+                        toggle: toggle_requested,
+                        menu: menu_outcome,
+                        palette: palette_outcome,
+                        library: library_outcome,
+                        shimeji_import,
+                        scene_request,
+                        ..
+                    } = asked_now;
                     // Apply UI outcomes AFTER ui.render so we can
                     // take &mut self.renderer / call other &mut self
                     // methods that conflict with the egui borrow.

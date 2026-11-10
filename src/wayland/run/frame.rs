@@ -135,7 +135,7 @@ impl Native {
         gpu: (u32, u32),
         now: Instant,
         shown: bool,
-    ) -> Result<Option<Asked>> {
+    ) -> Result<Option<panels::OverlayAsked>> {
         let Self {
             primary_frame,
             extra_render_errors,
@@ -297,11 +297,6 @@ impl Native {
                 // borrow, same trick as the X11 path uses; the renderer
                 // gates egui's tree on it.
                 let accesskit_snapshot = config.global.accesskit_enabled;
-                let mut toggle_requested = false;
-                let mut palette_outcome: Option<panels::PaletteOutcome> = None;
-                let mut library_outcome: Option<panels::LibraryOutcome> = None;
-                let mut menu_outcome: Option<panels::ContextMenuOutcome> = None;
-                let mut perf_export_request = false;
                 // Built here, while `scene` and `renderer` are still
                 // freely readable — after this point the closure takes
                 // disjoint `&mut` borrows of both.
@@ -312,8 +307,8 @@ impl Native {
                     uploads_last_frame: gpu_uploads,
                     draws_last_frame: gpu_draws,
                 };
-                let mut shimeji_import: Option<String> = None;
-                let mut scene_request: Option<panels::SceneRequest> = None;
+                // What the egui asks for, as its passes go.
+                let mut asked_now = panels::OverlayAsked::default();
                 // The menu on another monitor is drawn by that overlay's
                 // egui, below.
                 let menu_state = context_menu_state.clone().filter(|m| m.surface.is_none());
@@ -330,16 +325,9 @@ impl Native {
                 let idle_available = Some(layer.idle_available());
                 let warnings_ref = &warnings;
                 let hotkey_backend_ref = *hotkey_backend_status;
-                let shimeji_import_ref = &mut shimeji_import;
-                let scene_request_ref = &mut scene_request;
                 let monitors_ref = monitors.as_slice();
                 let toasts_ref = &toasts;
-                let toggle_requested_ref = &mut toggle_requested;
-                let palette_ref = &mut palette_outcome;
-                let library_ref = &mut library_outcome;
-                let menu_outcome_ref = &mut menu_outcome;
                 let perf_sampler_ref = &perf_sampler;
-                let perf_export_ref = &mut perf_export_request;
                 let perf_visible_snapshot = *perf_overlay_visible;
                 if let Some(output) = output {
                     let view = output.create_view();
@@ -359,47 +347,23 @@ impl Native {
                         events,
                         modifiers,
                         |ctx| {
-                            crate::ui::motion::set_reduced(ctx, config_mut.global.reduced_motion);
-                            if hidden_snapshot {
-                                // Hidden means hidden: no sprites (the draw
-                                // list is empty above) and no UI either, so
-                                // the ⚙ button doesn't linger over a
-                                // supposedly hidden overlay. Restore comes
-                                // through the same D-Bus/keybinding channel
-                                // that hid it, exactly as on the winit path.
-                                return;
-                            }
-                            if (edit_mode_snapshot || show_button_snapshot)
-                                && panels::toggle_button(ctx, edit_mode_snapshot)
-                            {
-                                *toggle_requested_ref = true;
-                            }
-                            // Positions here are already in points: pointer
-                            // events map to them one to one.
-                            crate::ui::effects::paint(ctx, &effects, 1.0);
-                            crate::ui::speech::paint(ctx, &bubbles, 1.0);
-                            // And to a screen reader (`crate::announce`), with
-                            // the toasts.
-                            crate::ui::speech::announce(ctx);
-                            crate::ui::toasts::announce(ctx, toasts_ref);
-                            if crate::ui::onboarding::coach_marks(
+                            panels::overlay(
                                 ctx,
-                                &mut config_mut.global.onboarding,
-                                edit_mode_snapshot,
-                                show_button_snapshot,
-                                &config_mut.keybindings,
-                            ) {
-                                *config_dirty_mut = true;
-                            }
-                            {
-                                panels::settings(
-                                    ctx,
-                                    edit_mode_snapshot,
-                                    scene_mut,
-                                    selection_mut,
-                                    config_dirty_mut,
-                                    config_mut,
-                                    panels::Supports {
+                                panels::Overlay {
+                                    edit_mode: edit_mode_snapshot,
+                                    show_toggle_button: show_button_snapshot,
+                                    hidden: hidden_snapshot,
+                                    // Positions here are already in points:
+                                    // pointer events map to them one to one.
+                                    in_pixels: false,
+                                    effects: &effects,
+                                    bubbles: &bubbles,
+                                    toasts: toasts_ref,
+                                    scene: &mut *scene_mut,
+                                    selection: &mut *selection_mut,
+                                    config_dirty: &mut *config_dirty_mut,
+                                    config: &mut *config_mut,
+                                    supports: panels::Supports {
                                         // Native Wayland exposes no window positions.
                                         window_awareness: false,
                                         // A layer surface belongs to one output, so no single
@@ -409,42 +373,22 @@ impl Native {
                                         screen_reader: true,
                                         idle: idle_available,
                                     },
-                                    monitors_ref,
-                                    library.as_ref(),
-                                    library_ref,
-                                    warnings_ref,
-                                    hotkey_backend_ref,
-                                    shimeji_import_ref,
-                                    scene_request_ref,
-                                );
-                                if edit_mode_snapshot {
-                                    if let Some(state) = &menu_state {
-                                        *menu_outcome_ref =
-                                            Some(panels::context_menu(ctx, state, menu_offers));
-                                    }
-                                    *palette_ref = panels::command_palette(
-                                        ctx,
-                                        &config_mut.keybindings,
-                                        selection_mut.selected_index().is_some(),
-                                    );
-                                }
-                                // In both modes, as on the winit path.
-                                panels::toasts(ctx, toasts_ref);
-                                // Above every panel, so someone chasing a
-                                // stutter doesn't have to hunt for it behind
-                                // one — same placement as the winit path.
-                                if perf_visible_snapshot
-                                    && crate::ui::perf_overlay::show(
-                                        ctx,
-                                        perf_sampler_ref,
-                                        crate::perf::read_rss_kib(),
-                                        gpu_stats,
-                                    )
-                                    .is_some()
-                                {
-                                    *perf_export_ref = true;
-                                }
-                            }
+                                    monitors: monitors_ref,
+                                    library: library.as_ref(),
+                                    warnings: warnings_ref,
+                                    hotkey_backend: hotkey_backend_ref,
+                                    // The menu on another monitor is drawn
+                                    // by that overlay's egui.
+                                    menu: menu_state.as_ref(),
+                                    menu_offers,
+                                    perf: perf_visible_snapshot.then(|| panels::PerfShown {
+                                        sampler: perf_sampler_ref,
+                                        rss_kib: crate::perf::read_rss_kib(),
+                                        gpu: gpu_stats,
+                                    }),
+                                },
+                                &mut asked_now,
+                            );
                         },
                     );
                     perf_sampler.add(crate::perf::Category::EguiPaint, egui_start.elapsed());
@@ -456,7 +400,7 @@ impl Native {
                     if let Some(text) = egui_renderer.take_copied_text() {
                         layer.claim_clipboard(text, false);
                     }
-                    if perf_export_request {
+                    if asked_now.perf_export {
                         match crate::perf::export_snapshot(perf_sampler) {
                             Ok(path) => {
                                 // Toast shows the full path — the user asked
@@ -513,7 +457,7 @@ impl Native {
                         extra_menu: &extra_menu,
                         menu_offers,
                         extra_menu_events: &mut extra_menu_events,
-                        menu_outcome: &mut menu_outcome,
+                        menu_outcome: &mut asked_now.menu,
                         now,
                     }
                     .draw();
@@ -521,14 +465,7 @@ impl Native {
                 // Monitors gone, and their eguis and frames with them.
                 extra_eguis.retain(|name, _| extra_surfaces.contains_key(name));
                 extra_frames.retain(|name, _| extra_surfaces.contains_key(name));
-                asked = Some(Asked {
-                    toggle_requested,
-                    scene_request,
-                    shimeji_import,
-                    menu_outcome,
-                    palette_outcome,
-                    library_outcome,
-                });
+                asked = Some(asked_now);
             }
             // Reconfigured, as on X11: an outdated surface was left as it
             // was, and failed again every frame.
@@ -556,14 +493,15 @@ impl Native {
     /// edit mode from the ⚙, a scene to share, import, back up or restore,
     /// a file to add, a Shimeji pack, the right-click menu's action, the
     /// palette's pick, the library's.
-    pub(super) fn apply_asked(&mut self, asked: Asked, primary_origin: (f32, f32)) {
-        let Asked {
-            toggle_requested,
-            scene_request,
+    pub(super) fn apply_asked(&mut self, asked: panels::OverlayAsked, primary_origin: (f32, f32)) {
+        let panels::OverlayAsked {
+            toggle: toggle_requested,
+            menu: menu_outcome,
+            palette: palette_outcome,
+            library: library_outcome,
             shimeji_import,
-            menu_outcome,
-            palette_outcome,
-            library_outcome,
+            scene_request,
+            ..
         } = asked;
         let Self {
             palette_actions,

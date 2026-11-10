@@ -13,6 +13,7 @@ mod inspector;
 mod keybindings_tab;
 mod library;
 mod monitor;
+mod overlay;
 mod presets;
 mod scene;
 mod toasts;
@@ -22,6 +23,7 @@ pub use command_palette::{command_palette, command_palette_open, PaletteOutcome}
 pub(crate) use context_menu::context_menu;
 pub use library::LibraryOutcome;
 pub use monitor::{cycle_entity_monitor, move_to_pinned_monitor};
+pub(crate) use overlay::{overlay, Overlay, OverlayAsked, PerfShown};
 pub use toasts::toasts;
 pub use toggle_button::toggle_button;
 

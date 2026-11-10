@@ -149,22 +149,6 @@ struct EguiInput {
     extra_menu_events: Vec<egui::Event>,
 }
 
-/// What the panels asked for in a frame ([`Native::apply_asked`]).
-struct Asked {
-    /// The ⚙ pressed: edit mode on or off.
-    toggle_requested: bool,
-    /// A scene to paste, share, import, back up or restore, or a file to add.
-    scene_request: Option<panels::SceneRequest>,
-    /// A Shimeji pack to import, by path.
-    shimeji_import: Option<String>,
-    /// The right-click menu: open, closed, or an action picked.
-    menu_outcome: Option<panels::ContextMenuOutcome>,
-    /// The command palette's pick.
-    palette_outcome: Option<panels::PaletteOutcome>,
-    /// The library's: an asset to add.
-    library_outcome: Option<panels::LibraryOutcome>,
-}
-
 // The phases of a turn, each an `impl Native` of its own; after
 // `outcome_ctx!`, which they use.
 mod circumstances;
