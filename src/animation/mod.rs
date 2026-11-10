@@ -10,7 +10,50 @@ pub mod video_loader;
 pub mod webp_loader;
 
 use frame::Frame;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+/// The instant frame changes are counted from, the same for every
+/// animation the app plays ([`on_the_beat`]).
+fn epoch() -> Instant {
+    static EPOCH: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    *EPOCH.get_or_init(Instant::now)
+}
+
+/// The longest hold kept to the beat: past it, a frame changes too seldom
+/// for its moment to matter.
+const BEAT_MAX: Duration = Duration::from_millis(500);
+
+/// When a clock starting at `now`, for frames held `hold`, counts from:
+/// the beat — a whole number of holds since [`epoch`] — nearest `now`.
+/// Animations playing at the same rate so change frames at the same
+/// instant, and the scene draws once for all of them: five characters at
+/// 10 frames a second, each started as its pictures finished loading,
+/// drew 30 frames a second with nothing moving, the compositor drawing
+/// the screen again for each, 8% of an integrated GPU in the rig; on the
+/// beat, they draw 10 (1.5). The first frame is held from half a hold to
+/// one and a half.
+fn on_the_beat(now: Instant, hold: Duration) -> Instant {
+    if hold.is_zero() || hold > BEAT_MAX {
+        return now;
+    }
+    // How far past a beat: `now` may come before the epoch, read first
+    // the first time it is asked for.
+    let (epoch, hold_ns) = (epoch(), hold.as_nanos());
+    let into = match now.checked_duration_since(epoch) {
+        Some(since) => since.as_nanos() % hold_ns,
+        None => (hold_ns - epoch.duration_since(now).as_nanos() % hold_ns) % hold_ns,
+    };
+    // Under BEAT_MAX, so it fits a u64 of nanoseconds.
+    let into = Duration::from_nanos(into as u64);
+    let Some(beat) = now.checked_sub(into) else {
+        return now;
+    };
+    if into > hold / 2 {
+        beat + hold
+    } else {
+        beat
+    }
+}
 
 /// Animation state for a single entity.
 /// Manages frame cycling, FPS timing, and play/pause.
@@ -57,7 +100,7 @@ impl Animation {
     pub fn new(frames: Vec<Frame>, fps: f32, playing: bool) -> Self {
         let has_per_frame_delays = frames.iter().any(|f| f.delay_ms.is_some());
         // `frames` last: its scale is read from it first.
-        Self {
+        let mut animation = Self {
             current_frame: 0,
             fps: fps.max(0.1), // Prevent division by zero
             playing,
@@ -70,7 +113,14 @@ impl Animation {
             tempo: 1.0,
             kept_at: None,
             frames,
-        }
+        };
+        animation.start_clock();
+        animation
+    }
+
+    /// Start its current frame's hold now, on the beat ([`on_the_beat`]).
+    fn start_clock(&mut self) {
+        self.last_frame_time = on_the_beat(Instant::now(), self.current_frame_duration());
     }
 
     /// Loaded with its pictures at most `cap` a side ([`Self::sharper_at`]).
@@ -152,7 +202,7 @@ impl Animation {
             advanced = true;
             steps += 1;
             if steps >= max_steps {
-                self.last_frame_time = Instant::now();
+                self.start_clock();
                 break;
             }
         }
@@ -217,7 +267,7 @@ impl Animation {
     pub fn toggle_playback(&mut self) {
         self.playing = !self.playing;
         if self.playing {
-            self.last_frame_time = Instant::now();
+            self.start_clock();
         }
     }
 
@@ -363,7 +413,7 @@ impl AnimationSet {
             .get_mut(&effective_next)
             .expect("effective state exists by construction");
         anim.current_frame = 0;
-        anim.last_frame_time = Instant::now();
+        anim.start_clock();
         true
     }
 
@@ -426,6 +476,49 @@ mod tests {
 
     fn frames(side: u32) -> Vec<Frame> {
         vec![Frame::new(vec![0u8; (side * side * 4) as usize], side, side); 2]
+    }
+
+    /// Clocks started at any moment count from the same beats, so frames
+    /// at one rate change together; the first is held half a hold to one
+    /// and a half, never skipped.
+    #[test]
+    fn clocks_at_one_rate_count_from_the_same_beats() {
+        let hold = Duration::from_millis(100);
+        let at = |ms| epoch() + Duration::from_millis(ms);
+        // 34 ms past a beat: counts from it, the first frame held 66 ms.
+        assert_eq!(on_the_beat(at(1234), hold), at(1200));
+        // 87 ms past: from the next, held 113 ms.
+        assert_eq!(on_the_beat(at(1287), hold), at(1300));
+        assert_eq!(on_the_beat(at(1300), hold), at(1300));
+        // Read before the epoch was: 30 ms short of it is 70 ms past the
+        // beat before, so counts from the epoch.
+        if let Some(early) = epoch().checked_sub(Duration::from_millis(30)) {
+            assert_eq!(on_the_beat(early, hold), epoch());
+        }
+        for ms in (5_000..5_200).step_by(7) {
+            let beat = on_the_beat(at(ms), hold);
+            let since = beat.duration_since(epoch()).as_nanos();
+            assert_eq!(since % hold.as_nanos(), 0, "on a beat, from {ms} ms");
+            let first = (beat + hold).duration_since(at(ms));
+            assert!(
+                first >= hold / 2 && first <= hold * 3 / 2,
+                "{first:?} at {ms} ms"
+            );
+        }
+        // Long holds start when they start.
+        let slow = Duration::from_secs(2);
+        assert_eq!(on_the_beat(at(1234), slow), at(1234));
+        assert_eq!(on_the_beat(at(1234), Duration::ZERO), at(1234));
+    }
+
+    #[test]
+    fn animations_at_one_rate_change_frames_together() {
+        let ten = || Animation::new(frames(1), 10.0, true);
+        let (a, b) = (ten(), ten());
+        let hold = a.current_frame_duration().as_nanos();
+        for due in [a.next_frame_due(), b.next_frame_due()] {
+            assert_eq!(due.duration_since(epoch()).as_nanos() % hold, 0);
+        }
     }
 
     /// A picture kept at more pixels than it is shown takes them back on
