@@ -52,14 +52,12 @@ pub fn keyboard_held(ctx: &egui::Context) -> bool {
 use crate::asset_library::LibraryIndex;
 use crate::i18n::t;
 use crate::input::selection::SelectionState;
-use crate::keybindings::KeyBindings;
-use crate::monitor::{MonitorInfo, MonitorMode};
+use crate::monitor::MonitorInfo;
 use crate::scene::Scene;
 use crate::ui::banner::Warning;
-use crate::ui::collapse::CollapseState;
 use crate::ui::icons;
-use crate::ui::onboarding::{self, OnboardingProgress};
-use crate::ui::theme::{self, Theme, SPACE_S, SPACE_XS};
+use crate::ui::onboarding;
+use crate::ui::theme::{self, SPACE_S, SPACE_XS};
 
 /// Entity-targeted action requested from the right-click context menu.
 /// `App` applies it after `EguiRenderer::render` returns so it can grab a
@@ -121,7 +119,7 @@ pub struct AwayControls<'a> {
 }
 
 /// A collapsing section with the design-system heading, its open flag
-/// kept in [`CollapseState`] so it survives a restart: seeded from `open`
+/// kept in [`CollapseState`](crate::ui::collapse::CollapseState) so it survives a restart: seeded from `open`
 /// on the first frame, and written back from the widget's animated
 /// openness so a click marks the config dirty exactly once, not on every
 /// frame of the animation. `id` is stable — not `title`, which follows
@@ -156,6 +154,22 @@ pub struct SoundControls<'a> {
     pub volume: &'a mut f32,
     pub muted: &'a mut bool,
     pub quiet_at_bedtime: &'a mut bool,
+}
+
+/// What a backend can do, for the settings that depend on it
+/// ([`settings`]).
+#[derive(Debug, Clone, Copy)]
+pub struct Supports {
+    /// Window positions can be read (EWMH): the window-awareness switch.
+    pub window_awareness: bool,
+    /// One overlay can cover every monitor: the Span mode. False on
+    /// native Wayland, where a layer surface belongs to a single output.
+    pub span: bool,
+    /// There is a screen-reader bridge (`crate::a11y`).
+    pub screen_reader: bool,
+    /// Whether the user's idle time can be read here; `None` until the
+    /// watch has looked.
+    pub idle: Option<bool>,
 }
 
 /// What the right-click menu offers beyond its fixed entries, worked out
@@ -372,55 +386,82 @@ pub fn settings(
     scene: &mut Scene,
     selection: &mut SelectionState,
     config_dirty: &mut bool,
-    theme: &mut Theme,
-    locale: &mut Option<String>,
-    onboarding: &mut OnboardingProgress,
-    monitor_mode: &mut MonitorMode,
-    window_awareness: &mut bool,
-    window_awareness_supported: bool,
-    snap_while_dragging: &mut bool,
-    characters_bump: &mut bool,
-    characters_greet: &mut bool,
-    active_scene: &mut Option<String>,
-    reminders: &mut Vec<crate::reminders::ReminderConfig>,
-    scene_schedule: &mut Vec<crate::schedule::ScheduleRule>,
-    focus: &mut crate::focus::FocusConfig,
-    reminder_sound: &mut crate::reminders::ReminderSound,
-    notify_reminders: &mut bool,
-    // Whether one overlay can cover every monitor. False on native
-    // Wayland, where a layer surface belongs to a single output.
-    span_supported: bool,
-    reduced_motion: &mut bool,
-    large_bubbles: &mut bool,
-    hover_startle: &mut bool,
-    on_fullscreen: &mut crate::fullscreen::OnFullscreen,
-    step_aside_apps: &mut Vec<String>,
-    // Above other windows, or under them on the desktop.
-    always_on_top: &mut bool,
-    tap_characters: &mut bool,
-    show_toggle_button: &mut bool,
-    little_effects: &mut bool,
-    bedtime: &mut crate::bedtime::Bedtime,
-    moods: &mut bool,
-    away: AwayControls<'_>,
-    sounds: SoundControls<'_>,
-    start_at_login: &mut bool,
+    // Every setting the panel shows, written to as it changes.
+    config: &mut crate::config::AppConfig,
+    // What this backend can do, for the settings that depend on it.
+    supports: Supports,
     monitors: &[MonitorInfo],
     library: Option<&LibraryIndex>,
     library_outcome: &mut Option<LibraryOutcome>,
-    keybindings: &mut KeyBindings,
-    collapse_state: &mut CollapseState,
-    accesskit_enabled: &mut bool,
-    // Whether this backend has a screen-reader bridge. egui's comes with
-    // egui-winit; the native Wayland loop has none.
-    accesskit_supported: bool,
     warnings: &std::collections::BTreeSet<Warning>,
-    last_seen_whats_new: &mut Option<String>,
     hotkey_backend: crate::hotkeys::probe::HotkeyStatus,
     shimeji_import: &mut Option<String>,
     // Set when "Add file…" or "Paste" is clicked; the caller acts on it.
     scene_request: &mut Option<SceneRequest>,
 ) {
+    // The settings by name, as the tabs take them.
+    let crate::config::AppConfig {
+        global,
+        reminders,
+        scene_schedule,
+        keybindings,
+        collapse_state,
+        ..
+    } = config;
+    let crate::config::GlobalConfig {
+        theme,
+        locale,
+        onboarding,
+        monitor_mode,
+        window_awareness,
+        snap_while_dragging,
+        characters_bump,
+        characters_greet,
+        active_scene,
+        focus,
+        reminder_sound,
+        notify_reminders,
+        reduced_motion,
+        large_bubbles,
+        hover_startle,
+        on_fullscreen,
+        step_aside_apps,
+        always_on_top,
+        tap_characters,
+        show_toggle_button,
+        little_effects,
+        bedtime,
+        moods,
+        pause_when_idle_minutes,
+        pause_on_battery,
+        frame_rate,
+        welcome_back,
+        sound_volume,
+        sounds_muted,
+        quiet_at_bedtime,
+        start_at_login,
+        accesskit_enabled,
+        last_seen_whats_new,
+        ..
+    } = global;
+    let Supports {
+        window_awareness: window_awareness_supported,
+        span: span_supported,
+        screen_reader: accesskit_supported,
+        idle: idle_available,
+    } = supports;
+    let away = AwayControls {
+        idle_minutes: pause_when_idle_minutes,
+        on_battery: pause_on_battery,
+        frame_rate,
+        welcome_back,
+        idle_available,
+    };
+    let sounds = SoundControls {
+        volume: sound_volume,
+        muted: sounds_muted,
+        quiet_at_bedtime,
+    };
     // Both backends run this every frame, so this is where an input
     // method composing Chinese, Japanese or Korean gets the face it needs.
     crate::ui::icons::load_cjk_for_ime(ctx);

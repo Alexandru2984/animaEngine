@@ -326,44 +326,8 @@ impl Native {
                 let scene_mut = &mut *scene;
                 let selection_mut = &mut *selection;
                 let config_dirty_mut = &mut *config_dirty;
-                let theme_mut = &mut config.global.theme;
-                let locale_mut = &mut config.global.locale;
-                let onboarding_mut = &mut config.global.onboarding;
-                let monitor_mode_mut = &mut config.global.monitor_mode;
-                let window_awareness_mut = &mut config.global.window_awareness;
-                let snap_mut = &mut config.global.snap_while_dragging;
-                let bump_mut = &mut config.global.characters_bump;
-                let greet_mut = &mut config.global.characters_greet;
-                let active_scene_mut = &mut config.global.active_scene;
-                let reminders_mut = &mut config.reminders;
-                let focus_mut = &mut config.global.focus;
-                let reminder_sound_mut = &mut config.global.reminder_sound;
-                let notify_mut = &mut config.global.notify_reminders;
-                let scene_schedule_mut = &mut config.scene_schedule;
-                let reduced_motion_mut = &mut config.global.reduced_motion;
-                let large_bubbles_mut = &mut config.global.large_bubbles;
-                let hover_startle_mut = &mut config.global.hover_startle;
-                let on_fullscreen_mut = &mut config.global.on_fullscreen;
-                let always_on_top_mut = &mut config.global.always_on_top;
-                let step_aside_apps_mut = &mut config.global.step_aside_apps;
-                let bedtime_mut = &mut config.global.bedtime;
-                let moods_mut = &mut config.global.moods;
-                let tap_characters_mut = &mut config.global.tap_characters;
-                let show_toggle_button_mut = &mut config.global.show_toggle_button;
-                let little_effects_mut = &mut config.global.little_effects;
-                let idle_minutes_mut = &mut config.global.pause_when_idle_minutes;
-                let on_battery_mut = &mut config.global.pause_on_battery;
-                let frame_rate_mut = &mut config.global.frame_rate;
-                let welcome_back_mut = &mut config.global.welcome_back;
-                let sound_volume_mut = &mut config.global.sound_volume;
-                let sounds_muted_mut = &mut config.global.sounds_muted;
-                let quiet_at_bedtime_mut = &mut config.global.quiet_at_bedtime;
-                let start_at_login_mut = &mut config.global.start_at_login;
+                let config_mut = &mut *config;
                 let idle_available = Some(layer.idle_available());
-                let accesskit_mut = &mut config.global.accesskit_enabled;
-                let keybindings_mut = &mut config.keybindings;
-                let collapse_state_mut = &mut config.collapse_state;
-                let last_seen_whats_new_mut = &mut config.global.last_seen_whats_new;
                 let warnings_ref = &warnings;
                 let hotkey_backend_ref = *hotkey_backend_status;
                 let shimeji_import_ref = &mut shimeji_import;
@@ -395,7 +359,7 @@ impl Native {
                         events,
                         modifiers,
                         |ctx| {
-                            crate::ui::motion::set_reduced(ctx, *reduced_motion_mut);
+                            crate::ui::motion::set_reduced(ctx, config_mut.global.reduced_motion);
                             if hidden_snapshot {
                                 // Hidden means hidden: no sprites (the draw
                                 // list is empty above) and no UI either, so
@@ -420,10 +384,10 @@ impl Native {
                             crate::ui::toasts::announce(ctx, toasts_ref);
                             if crate::ui::onboarding::coach_marks(
                                 ctx,
-                                onboarding_mut,
+                                &mut config_mut.global.onboarding,
                                 edit_mode_snapshot,
                                 show_button_snapshot,
-                                keybindings_mut,
+                                &config_mut.keybindings,
                             ) {
                                 *config_dirty_mut = true;
                             }
@@ -434,59 +398,21 @@ impl Native {
                                     scene_mut,
                                     selection_mut,
                                     config_dirty_mut,
-                                    theme_mut,
-                                    locale_mut,
-                                    onboarding_mut,
-                                    monitor_mode_mut,
-                                    window_awareness_mut,
-                                    // Native Wayland exposes no window positions.
-                                    false,
-                                    snap_mut,
-                                    bump_mut,
-                                    greet_mut,
-                                    active_scene_mut,
-                                    reminders_mut,
-                                    scene_schedule_mut,
-                                    focus_mut,
-                                    reminder_sound_mut,
-                                    notify_mut,
-                                    // A layer surface belongs to one output, so no single
-                                    // surface can span the desktop here.
-                                    false,
-                                    reduced_motion_mut,
-                                    large_bubbles_mut,
-                                    hover_startle_mut,
-                                    on_fullscreen_mut,
-                                    step_aside_apps_mut,
-                                    always_on_top_mut,
-                                    tap_characters_mut,
-                                    show_toggle_button_mut,
-                                    little_effects_mut,
-                                    bedtime_mut,
-                                    moods_mut,
-                                    panels::AwayControls {
-                                        idle_minutes: &mut *idle_minutes_mut,
-                                        on_battery: &mut *on_battery_mut,
-                                        frame_rate: &mut *frame_rate_mut,
-                                        welcome_back: &mut *welcome_back_mut,
-                                        idle_available,
+                                    config_mut,
+                                    panels::Supports {
+                                        // Native Wayland exposes no window positions.
+                                        window_awareness: false,
+                                        // A layer surface belongs to one output, so no single
+                                        // surface can span the desktop here.
+                                        span: false,
+                                        // `crate::a11y` carries the AT-SPI bridge.
+                                        screen_reader: true,
+                                        idle: idle_available,
                                     },
-                                    panels::SoundControls {
-                                        volume: &mut *sound_volume_mut,
-                                        muted: &mut *sounds_muted_mut,
-                                        quiet_at_bedtime: &mut *quiet_at_bedtime_mut,
-                                    },
-                                    start_at_login_mut,
                                     monitors_ref,
                                     library.as_ref(),
                                     library_ref,
-                                    keybindings_mut,
-                                    collapse_state_mut,
-                                    accesskit_mut,
-                                    // `crate::a11y` carries the AT-SPI bridge.
-                                    true,
                                     warnings_ref,
-                                    last_seen_whats_new_mut,
                                     hotkey_backend_ref,
                                     shimeji_import_ref,
                                     scene_request_ref,
@@ -498,7 +424,7 @@ impl Native {
                                     }
                                     *palette_ref = panels::command_palette(
                                         ctx,
-                                        keybindings_mut,
+                                        &config_mut.keybindings,
                                         selection_mut.selected_index().is_some(),
                                     );
                                 }
@@ -572,141 +498,25 @@ impl Native {
                 // its extra windows, but these stay mapped, and they kept
                 // showing the characters on the other monitors.
                 if !extra_surfaces.is_empty() {
-                    let extra_visible = if *overlay_hidden || aside.hidden {
-                        Vec::new()
-                    } else {
-                        scene.drawn_entities()
-                    };
-                    for (name, surface) in extra_surfaces.iter_mut() {
-                        let Some(mon) = monitors_now.iter().find(|m| &m.name == name) else {
-                            continue;
-                        };
-                        let drawn: Vec<&Entity> = extra_visible
-                            .iter()
-                            .copied()
-                            .filter(|e| {
-                                crate::app::windows::entity_on_monitor(monitors_now, e, name)
-                            })
-                            .collect();
-                        let origin = (mon.x as f32, mon.y as f32);
-                        // Its own egui, run while there are bubbles here —
-                        // and once more when one asked for the frame that
-                        // clears it.
-                        let bubbles = if *overlay_hidden || aside.hidden {
-                            Vec::new()
-                        } else {
-                            crate::speech::shown(scene, origin, |e| {
-                                crate::app::windows::entity_on_monitor(monitors_now, e, name)
-                            })
-                        };
-                        let effects = if *overlay_hidden || aside.hidden {
-                            Vec::new()
-                        } else {
-                            scene.effects_shown(
-                                origin,
-                                (surface.window_width as f32, surface.window_height as f32),
-                                now,
-                            )
-                        };
-                        let asked = extra_eguis.get(name).is_some_and(|e| e.repaint_due(now));
-                        // Hidden means hidden, as on the panel's surface.
-                        let menu_here = extra_menu.as_ref().filter(|m| {
-                            m.surface.as_ref() == Some(name) && !(*overlay_hidden || aside.hidden)
-                        });
-                        let painted = !bubbles.is_empty()
-                            || !effects.is_empty()
-                            || asked
-                            || menu_here.is_some();
-                        // Not drawn when it would show what it shows
-                        // already, as on X11 (`app::windows::needs_frame`):
-                        // one monitor's walker no longer redraws the rest.
-                        let key = surface.frame_key(
-                            &renderer.shared,
-                            &drawn,
-                            &scene.groups,
-                            edit_bar,
-                            marks,
-                            origin,
-                        );
-                        if !crate::app::windows::needs_frame(
-                            extra_frames.get(name).copied(),
-                            key,
-                            painted,
-                            now,
-                        ) {
-                            continue;
-                        }
-                        match surface.render(
-                            &renderer.shared,
-                            &drawn,
-                            &scene.groups,
-                            edit_bar,
-                            marks,
-                            origin,
-                        ) {
-                            Ok(extra_output) => {
-                                if let Some(errors) = extra_render_errors.get_mut(name) {
-                                    errors.drew();
-                                }
-                                if painted {
-                                    let egui =
-                                        extra_eguis.entry(name.clone()).or_insert_with(|| {
-                                            crate::ui::surface_egui::SurfaceEgui::new(
-                                                &renderer.shared.device,
-                                                renderer.shared.surface_format,
-                                                config.global.theme,
-                                            )
-                                        });
-                                    egui.ensure_theme(config.global.theme);
-                                    let view = extra_output.create_view();
-                                    egui.render(
-                                        &renderer.shared.device,
-                                        &renderer.shared.queue,
-                                        &view,
-                                        surface.pixel_size(),
-                                        surface.pixel_scale(),
-                                        if menu_here.is_some() {
-                                            std::mem::take(&mut extra_menu_events)
-                                        } else {
-                                            Vec::new()
-                                        },
-                                        egui::Modifiers::default(),
-                                        |ctx| {
-                                            // In points already, as on the primary.
-                                            crate::ui::effects::paint(ctx, &effects, 1.0);
-                                            crate::ui::speech::paint(ctx, &bubbles, 1.0);
-                                            if let Some(state) = menu_here {
-                                                menu_outcome = Some(panels::context_menu(
-                                                    ctx,
-                                                    state,
-                                                    menu_offers,
-                                                ));
-                                            }
-                                        },
-                                    );
-                                }
-                                surface.present(&renderer.shared, extra_output);
-                                extra_frames.insert(
-                                    name.clone(),
-                                    crate::app::windows::LastFrame {
-                                        key,
-                                        overlay: painted,
-                                        at: now,
-                                    },
-                                );
-                            }
-                            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                                let (w, h) = (surface.window_width, surface.window_height);
-                                surface.resize(&renderer.shared, w, h);
-                                extra_frames.remove(name);
-                            }
-                            Err(wgpu::SurfaceError::Timeout) => {}
-                            Err(e) => extra_render_errors
-                                .entry(name.clone())
-                                .or_default()
-                                .failed(name, &e),
-                        }
+                    ExtraOverlays {
+                        extra_surfaces: &mut *extra_surfaces,
+                        extra_eguis: &mut *extra_eguis,
+                        extra_frames: &mut *extra_frames,
+                        extra_render_errors: &mut *extra_render_errors,
+                        renderer,
+                        scene,
+                        theme: config.global.theme,
+                        monitors_now,
+                        hidden: *overlay_hidden || aside.hidden,
+                        edit_bar,
+                        marks,
+                        extra_menu: &extra_menu,
+                        menu_offers,
+                        extra_menu_events: &mut extra_menu_events,
+                        menu_outcome: &mut menu_outcome,
+                        now,
                     }
+                    .draw();
                 }
                 // Monitors gone, and their eguis and frames with them.
                 extra_eguis.retain(|name, _| extra_surfaces.contains_key(name));
@@ -906,6 +716,179 @@ impl Native {
                 &mut *library,
                 at,
             );
+        }
+    }
+}
+
+/// The other monitors' overlays in a frame, drawn after the primary's
+/// ([`Native::draw`]): each one's characters, and its own egui while it
+/// has bubbles, effects or the right-click menu on it, or asked for a
+/// frame. Not drawn when it would show what it shows already
+/// (`app::windows::needs_frame`).
+struct ExtraOverlays<'a> {
+    extra_surfaces: &'a mut HashMap<String, SurfaceState>,
+    extra_eguis: &'a mut HashMap<String, crate::ui::surface_egui::SurfaceEgui>,
+    extra_frames: &'a mut HashMap<String, crate::app::windows::LastFrame>,
+    extra_render_errors: &'a mut HashMap<String, crate::renderer::ErrorOnce>,
+    renderer: &'a WgpuRenderer,
+    scene: &'a Scene,
+    theme: crate::ui::Theme,
+    monitors_now: &'a [MonitorInfo],
+    /// Hidden by the user or for a full-screen window: nothing drawn.
+    hidden: bool,
+    edit_bar: bool,
+    marks: crate::renderer::wgpu_renderer::EditMarks<'a>,
+    /// The right-click menu when it is on another monitor's overlay, what
+    /// it offers, the events for it, and what it gave.
+    extra_menu: &'a Option<crate::app::ContextMenuState>,
+    menu_offers: panels::MenuOffers,
+    extra_menu_events: &'a mut Vec<egui::Event>,
+    menu_outcome: &'a mut Option<panels::ContextMenuOutcome>,
+    now: Instant,
+}
+
+impl ExtraOverlays<'_> {
+    fn draw(self) {
+        let Self {
+            extra_surfaces,
+            extra_eguis,
+            extra_frames,
+            extra_render_errors,
+            renderer,
+            scene,
+            theme,
+            monitors_now,
+            hidden,
+            edit_bar,
+            marks,
+            extra_menu,
+            menu_offers,
+            extra_menu_events,
+            menu_outcome,
+            now,
+        } = self;
+        let extra_visible = if hidden {
+            Vec::new()
+        } else {
+            scene.drawn_entities()
+        };
+        for (name, surface) in extra_surfaces.iter_mut() {
+            let Some(mon) = monitors_now.iter().find(|m| &m.name == name) else {
+                continue;
+            };
+            let drawn: Vec<&Entity> = extra_visible
+                .iter()
+                .copied()
+                .filter(|e| crate::app::windows::entity_on_monitor(monitors_now, e, name))
+                .collect();
+            let origin = (mon.x as f32, mon.y as f32);
+            // Its own egui, run while there are bubbles here —
+            // and once more when one asked for the frame that
+            // clears it.
+            let bubbles = if hidden {
+                Vec::new()
+            } else {
+                crate::speech::shown(scene, origin, |e| {
+                    crate::app::windows::entity_on_monitor(monitors_now, e, name)
+                })
+            };
+            let effects = if hidden {
+                Vec::new()
+            } else {
+                scene.effects_shown(
+                    origin,
+                    (surface.window_width as f32, surface.window_height as f32),
+                    now,
+                )
+            };
+            let asked = extra_eguis.get(name).is_some_and(|e| e.repaint_due(now));
+            // Hidden means hidden, as on the panel's surface.
+            let menu_here = extra_menu
+                .as_ref()
+                .filter(|m| m.surface.as_ref() == Some(name) && !hidden);
+            let painted =
+                !bubbles.is_empty() || !effects.is_empty() || asked || menu_here.is_some();
+            // Not drawn when it would show what it shows
+            // already, as on X11 (`app::windows::needs_frame`):
+            // one monitor's walker no longer redraws the rest.
+            let key = surface.frame_key(
+                &renderer.shared,
+                &drawn,
+                &scene.groups,
+                edit_bar,
+                marks,
+                origin,
+            );
+            if !crate::app::windows::needs_frame(extra_frames.get(name).copied(), key, painted, now)
+            {
+                continue;
+            }
+            match surface.render(
+                &renderer.shared,
+                &drawn,
+                &scene.groups,
+                edit_bar,
+                marks,
+                origin,
+            ) {
+                Ok(extra_output) => {
+                    if let Some(errors) = extra_render_errors.get_mut(name) {
+                        errors.drew();
+                    }
+                    if painted {
+                        let egui = extra_eguis.entry(name.clone()).or_insert_with(|| {
+                            crate::ui::surface_egui::SurfaceEgui::new(
+                                &renderer.shared.device,
+                                renderer.shared.surface_format,
+                                theme,
+                            )
+                        });
+                        egui.ensure_theme(theme);
+                        let view = extra_output.create_view();
+                        egui.render(
+                            &renderer.shared.device,
+                            &renderer.shared.queue,
+                            &view,
+                            surface.pixel_size(),
+                            surface.pixel_scale(),
+                            if menu_here.is_some() {
+                                std::mem::take(extra_menu_events)
+                            } else {
+                                Vec::new()
+                            },
+                            egui::Modifiers::default(),
+                            |ctx| {
+                                // In points already, as on the primary.
+                                crate::ui::effects::paint(ctx, &effects, 1.0);
+                                crate::ui::speech::paint(ctx, &bubbles, 1.0);
+                                if let Some(state) = menu_here {
+                                    *menu_outcome =
+                                        Some(panels::context_menu(ctx, state, menu_offers));
+                                }
+                            },
+                        );
+                    }
+                    surface.present(&renderer.shared, extra_output);
+                    extra_frames.insert(
+                        name.clone(),
+                        crate::app::windows::LastFrame {
+                            key,
+                            overlay: painted,
+                            at: now,
+                        },
+                    );
+                }
+                Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                    let (w, h) = (surface.window_width, surface.window_height);
+                    surface.resize(&renderer.shared, w, h);
+                    extra_frames.remove(name);
+                }
+                Err(wgpu::SurfaceError::Timeout) => {}
+                Err(e) => extra_render_errors
+                    .entry(name.clone())
+                    .or_default()
+                    .failed(name, &e),
+            }
         }
     }
 }

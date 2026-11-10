@@ -526,40 +526,7 @@ impl App {
                         let scene_mut = &mut self.scene;
                         let selection_mut = &mut self.selection;
                         let config_dirty_mut = &mut self.config_dirty;
-                        let theme_mut = &mut self.config.global.theme;
-                        let locale_mut = &mut self.config.global.locale;
-                        let onboarding_mut = &mut self.config.global.onboarding;
-                        let monitor_mode_mut = &mut self.config.global.monitor_mode;
-                        let window_awareness_mut = &mut self.config.global.window_awareness;
-                        let snap_mut = &mut self.config.global.snap_while_dragging;
-                        let bump_mut = &mut self.config.global.characters_bump;
-                        let greet_mut = &mut self.config.global.characters_greet;
-                        let active_scene_mut = &mut self.config.global.active_scene;
-                        let reminders_mut = &mut self.config.reminders;
-                        let focus_mut = &mut self.config.global.focus;
-                        let reminder_sound_mut = &mut self.config.global.reminder_sound;
-                        let notify_mut = &mut self.config.global.notify_reminders;
-                        let scene_schedule_mut = &mut self.config.scene_schedule;
-                        let reduced_motion_mut = &mut self.config.global.reduced_motion;
-                        let large_bubbles_mut = &mut self.config.global.large_bubbles;
-                        let hover_startle_mut = &mut self.config.global.hover_startle;
-                        let on_fullscreen_mut = &mut self.config.global.on_fullscreen;
-                        let always_on_top_mut = &mut self.config.global.always_on_top;
-                        let step_aside_apps_mut = &mut self.config.global.step_aside_apps;
-                        let bedtime_mut = &mut self.config.global.bedtime;
-                        let moods_mut = &mut self.config.global.moods;
-                        let tap_characters_mut = &mut self.config.global.tap_characters;
                         let show_toggle_button = self.config.global.show_toggle_button;
-                        let show_toggle_button_mut = &mut self.config.global.show_toggle_button;
-                        let little_effects_mut = &mut self.config.global.little_effects;
-                        let idle_minutes_mut = &mut self.config.global.pause_when_idle_minutes;
-                        let on_battery_mut = &mut self.config.global.pause_on_battery;
-                        let frame_rate_mut = &mut self.config.global.frame_rate;
-                        let welcome_back_mut = &mut self.config.global.welcome_back;
-                        let sound_volume_mut = &mut self.config.global.sound_volume;
-                        let sounds_muted_mut = &mut self.config.global.sounds_muted;
-                        let quiet_at_bedtime_mut = &mut self.config.global.quiet_at_bedtime;
-                        let start_at_login_mut = &mut self.config.global.start_at_login;
                         let idle_available = self.idle_source;
                         // Snapshot the AccessKit flag BEFORE taking
                         // its mutable borrow — the renderer gates
@@ -567,12 +534,9 @@ impl App {
                         // writes back through `accesskit_mut`. A new
                         // toggle applies one frame later.
                         let accesskit_enabled = self.config.global.accesskit_enabled;
-                        let keybindings_mut = &mut self.config.keybindings;
-                        let collapse_state_mut = &mut self.config.collapse_state;
-                        let accesskit_mut = &mut self.config.global.accesskit_enabled;
+                        let config_mut = &mut self.config;
                         let warnings_ref = &self.warnings;
                         let hotkey_backend_ref = self.hotkey_backend_status;
-                        let last_seen_whats_new_mut = &mut self.config.global.last_seen_whats_new;
                         let perf_sampler_ref = &self.perf_sampler;
                         let perf_overlay_visible = self.perf_overlay_visible;
                         let perf_rss_kib = self.perf_last_rss_kib;
@@ -613,7 +577,10 @@ impl App {
                             &view,
                             size,
                             |ctx| {
-                                crate::ui::motion::set_reduced(ctx, *reduced_motion_mut);
+                                crate::ui::motion::set_reduced(
+                                    ctx,
+                                    config_mut.global.reduced_motion,
+                                );
                                 // The toggle button: the one control
                                 // in pass-through; in edit mode it
                                 // sits on top of everything else.
@@ -634,10 +601,10 @@ impl App {
                                 // its interactive steps in edit mode.
                                 if crate::ui::onboarding::coach_marks(
                                     ctx,
-                                    onboarding_mut,
+                                    &mut config_mut.global.onboarding,
                                     edit_mode,
                                     show_toggle_button,
-                                    keybindings_mut,
+                                    &config_mut.keybindings,
                                 ) {
                                     *config_dirty_mut = true;
                                 }
@@ -652,60 +619,22 @@ impl App {
                                     scene_mut,
                                     selection_mut,
                                     config_dirty_mut,
-                                    theme_mut,
-                                    locale_mut,
-                                    onboarding_mut,
-                                    monitor_mode_mut,
-                                    window_awareness_mut,
-                                    // winit backend: X11 or XWayland, both read EWMH.
-                                    true,
-                                    snap_mut,
-                                    bump_mut,
-                                    greet_mut,
-                                    active_scene_mut,
-                                    reminders_mut,
-                                    scene_schedule_mut,
-                                    focus_mut,
-                                    reminder_sound_mut,
-                                    notify_mut,
-                                    // X11's root window is one screen across
-                                    // every monitor, so Span really spans.
-                                    true,
-                                    reduced_motion_mut,
-                                    large_bubbles_mut,
-                                    hover_startle_mut,
-                                    on_fullscreen_mut,
-                                    step_aside_apps_mut,
-                                    always_on_top_mut,
-                                    tap_characters_mut,
-                                    show_toggle_button_mut,
-                                    little_effects_mut,
-                                    bedtime_mut,
-                                    moods_mut,
-                                    panels::AwayControls {
-                                        idle_minutes: &mut *idle_minutes_mut,
-                                        on_battery: &mut *on_battery_mut,
-                                        frame_rate: &mut *frame_rate_mut,
-                                        welcome_back: &mut *welcome_back_mut,
-                                        idle_available,
+                                    config_mut,
+                                    panels::Supports {
+                                        // winit backend: X11 or XWayland, both read EWMH.
+                                        window_awareness: true,
+                                        // X11's root window is one screen across every monitor,
+                                        // so Span really spans.
+                                        span: true,
+                                        // `crate::a11y` carries the AT-SPI bridge; nothing does
+                                        // elsewhere yet.
+                                        screen_reader: cfg!(unix),
+                                        idle: idle_available,
                                     },
-                                    panels::SoundControls {
-                                        volume: &mut *sound_volume_mut,
-                                        muted: &mut *sounds_muted_mut,
-                                        quiet_at_bedtime: &mut *quiet_at_bedtime_mut,
-                                    },
-                                    start_at_login_mut,
                                     monitors_ref,
                                     library_ref,
                                     library_outcome_ref,
-                                    keybindings_mut,
-                                    collapse_state_mut,
-                                    accesskit_mut,
-                                    // `crate::a11y` carries the AT-SPI
-                                    // bridge; nothing does elsewhere yet.
-                                    cfg!(unix),
                                     warnings_ref,
-                                    last_seen_whats_new_mut,
                                     hotkey_backend_ref,
                                     &mut shimeji_import,
                                     &mut scene_request,
@@ -722,7 +651,7 @@ impl App {
                                     // Ctrl+K opens the command palette.
                                     *palette_outcome_ref = panels::command_palette(
                                         ctx,
-                                        keybindings_mut,
+                                        &config_mut.keybindings,
                                         selection_mut.selected_index().is_some(),
                                     );
                                 }
