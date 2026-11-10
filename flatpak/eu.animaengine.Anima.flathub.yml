@@ -84,7 +84,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/Alexandru2984/animaEngine.git
-        tag: v1.5.1
+        tag: v1.5.2
         # The tag's commit: a tag moved since fails the build.
-        commit: 55c8561c110260341152720350bfa33186e75d1b
+        commit: 0a4fd73a5eed0db20807d16770d28e4e5e670175
       - cargo-sources.json
