@@ -144,6 +144,22 @@ struct EguiInput {
     extra_menu_events: Vec<egui::Event>,
 }
 
+/// What the panels asked for in a frame ([`Native::apply_asked`]).
+struct Asked {
+    /// The ⚙ pressed: edit mode on or off.
+    toggle_requested: bool,
+    /// A scene to paste, share, import, back up or restore, or a file to add.
+    scene_request: Option<panels::SceneRequest>,
+    /// A Shimeji pack to import, by path.
+    shimeji_import: Option<String>,
+    /// The right-click menu: open, closed, or an action picked.
+    menu_outcome: Option<panels::ContextMenuOutcome>,
+    /// The command palette's pick.
+    palette_outcome: Option<panels::PaletteOutcome>,
+    /// The library's: an asset to add.
+    library_outcome: Option<panels::LibraryOutcome>,
+}
+
 /// What one turn of the loop tells it ([`Native::iteration`]).
 enum Flow {
     /// Round again.
@@ -574,7 +590,7 @@ impl Native {
             self.wait = self.next_wait(shown, outputs.awaiting_primary);
             return Ok(Flow::Next);
         }
-        self.draw(
+        let asked = self.draw(
             &outputs,
             EguiInput {
                 events,
@@ -585,6 +601,9 @@ impl Native {
             now,
             shown,
         )?;
+        if let Some(asked) = asked {
+            self.apply_asked(asked, outputs.primary_origin);
+        }
         // Closed before the pacing sleep, so the overlay reports the work
         // the frame actually did rather than a flat ~16 ms for every
         // frame regardless of load — which would make the number useless
@@ -2568,7 +2587,7 @@ impl Native {
         gpu: (u32, u32),
         now: Instant,
         shown: bool,
-    ) -> Result<()> {
+    ) -> Result<Option<Asked>> {
         let Self {
             primary_frame,
             extra_render_errors,
@@ -2577,17 +2596,11 @@ impl Native {
             extra_eguis,
             extra_surfaces,
             aside,
-            palette_actions,
-            pending_transfer,
-            pending_file_chooser,
-            pending_shimeji,
-            library_root,
             library,
             context_menu_state,
             warnings,
             perf_overlay_visible,
             perf_sampler,
-            config_watch,
             config_dirty,
             toasts,
             marquee,
@@ -2713,6 +2726,7 @@ impl Native {
             } else {
                 Ok(None)
             };
+        let mut asked = None;
         match primary {
             Ok(output) => {
                 if output.is_some() {
@@ -3149,147 +3163,14 @@ impl Native {
                 // Monitors gone, and their eguis and frames with them.
                 extra_eguis.retain(|name, _| extra_surfaces.contains_key(name));
                 extra_frames.retain(|name, _| extra_surfaces.contains_key(name));
-                if toggle_requested {
-                    flip_edit_mode(
-                        &mut *layer,
-                        &mut *config,
-                        scene,
-                        &mut *config_dirty,
-                        &mut *config_watch,
-                        "Wayland, toggle button",
-                    );
-                }
-                // Palette / library outcomes apply outside the egui
-                // closure where we can take &mut *renderer + &mut *toasts
-                // without conflicting.
-                match &scene_request {
-                    // Pasted with the palette's picks, next frame.
-                    Some(panels::SceneRequest::Paste) => palette_actions.push(Action::Paste),
-                    Some(panels::SceneRequest::Share(path)) if pending_transfer.is_none() => {
-                        *pending_transfer =
-                            crate::outcomes::SceneTransfer::share(path, &mut *toasts);
-                    }
-                    Some(panels::SceneRequest::Import) if pending_transfer.is_none() => {
-                        *pending_transfer = Some(crate::outcomes::SceneTransfer::import_chooser());
-                    }
-                    Some(panels::SceneRequest::BackUp) if pending_transfer.is_none() => {
-                        *pending_transfer =
-                            Some(crate::outcomes::SceneTransfer::back_up(config, scene));
-                    }
-                    Some(panels::SceneRequest::Restore) if pending_transfer.is_none() => {
-                        *pending_transfer = Some(crate::outcomes::SceneTransfer::restore_chooser());
-                    }
-                    _ => {}
-                }
-                if scene_request == Some(panels::SceneRequest::AddFile)
-                    && pending_file_chooser.is_none()
-                {
-                    *pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
-                        renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
-                        renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
-                    )));
-                }
-                if let Some(path) = shimeji_import {
-                    // Off the UI thread, like a dropped pack. This used to
-                    // import synchronously right here, freezing the overlay
-                    // for as long as the sprite copy took.
-                    if pending_shimeji.is_none() {
-                        let at = (
-                            renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
-                            renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
-                        );
-                        *pending_shimeji = ShimejiImport::start(
-                            &crate::config::AppConfig::resolve_asset_path(&path),
-                            library_root.as_deref(),
-                            at,
-                            &mut *toasts,
-                        );
-                    }
-                }
-                if let Some(out) = menu_outcome {
-                    match out {
-                        panels::ContextMenuOutcome::Open { settled } => {
-                            // Showing, and the click that opened it is
-                            // over: a *subsequent* click may now dismiss it.
-                            if let Some(state) = context_menu_state.as_mut() {
-                                state.armed |= settled;
-                            }
-                        }
-                        panels::ContextMenuOutcome::Close => {
-                            *context_menu_state = None;
-                        }
-                        // Asks where first, as sharing a scene does.
-                        panels::ContextMenuOutcome::Action(panels::MenuAction::SaveGif(idx)) => {
-                            if pending_transfer.is_none() {
-                                *pending_transfer =
-                                    crate::outcomes::SceneTransfer::save_gif(scene, idx);
-                            }
-                            *context_menu_state = None;
-                        }
-                        panels::ContextMenuOutcome::Action(panels::MenuAction::ShareCharacter(
-                            idx,
-                        )) => {
-                            if pending_transfer.is_none() {
-                                *pending_transfer =
-                                    crate::outcomes::SceneTransfer::share_character(scene, idx);
-                            }
-                            *context_menu_state = None;
-                        }
-                        panels::ContextMenuOutcome::Action(action) => {
-                            outcomes::apply_menu_action(
-                                action,
-                                &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
-                            );
-                            *context_menu_state = None;
-                        }
-                    }
-                }
-                match palette_outcome {
-                    Some(panels::PaletteOutcome::RunAction(action)) => palette_actions.push(action),
-                    Some(panels::PaletteOutcome::AddFile) => {
-                        if pending_file_chooser.is_none() {
-                            *pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
-                                renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
-                                renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
-                            )));
-                        }
-                    }
-                    // As the tray's would: snoozing, out of edit mode.
-                    Some(panels::PaletteOutcome::Snooze(what)) => {
-                        crate::snooze::snooze(what);
-                        if layer.state.edit_mode {
-                            flip_edit_mode(
-                                &mut *layer,
-                                &mut *config,
-                                scene,
-                                &mut *config_dirty,
-                                &mut *config_watch,
-                                "Wayland, palette snooze",
-                            );
-                        }
-                    }
-                    Some(out) => outcomes::apply_palette_outcome(
-                        out,
-                        &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
-                        &mut *config,
-                    ),
-                    None => {}
-                }
-                if let Some(out) = library_outcome {
-                    // The middle of the primary output, in the global
-                    // coordinates the scene uses.
-                    let at = (
-                        renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
-                        renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
-                    );
-                    outcomes::apply_library_outcome(
-                        out,
-                        &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
-                        library_root.as_deref(),
-                        &mut *library,
-                        at,
-                    );
-                }
+                asked = Some(Asked {
+                    toggle_requested,
+                    scene_request,
+                    shimeji_import,
+                    menu_outcome,
+                    palette_outcome,
+                    library_outcome,
+                });
             }
             // Reconfigured, as on X11: an outdated surface was left as it
             // was, and failed again every frame.
@@ -3310,7 +3191,174 @@ impl Native {
             Err(e) => render_errors.failed("the overlay", &e),
         }
 
-        Ok(())
+        Ok(asked)
+    }
+
+    /// What the panels asked for this frame, once every overlay drew:
+    /// edit mode from the ⚙, a scene to share, import, back up or restore,
+    /// a file to add, a Shimeji pack, the right-click menu's action, the
+    /// palette's pick, the library's.
+    fn apply_asked(&mut self, asked: Asked, primary_origin: (f32, f32)) {
+        let Asked {
+            toggle_requested,
+            scene_request,
+            shimeji_import,
+            menu_outcome,
+            palette_outcome,
+            library_outcome,
+        } = asked;
+        let Self {
+            palette_actions,
+            pending_transfer,
+            pending_file_chooser,
+            pending_shimeji,
+            library_root,
+            library,
+            context_menu_state,
+            config_watch,
+            config_dirty,
+            toasts,
+            selection,
+            renderer,
+            layer,
+            config,
+            scene,
+            ..
+        } = self;
+        if toggle_requested {
+            flip_edit_mode(
+                &mut *layer,
+                &mut *config,
+                scene,
+                &mut *config_dirty,
+                &mut *config_watch,
+                "Wayland, toggle button",
+            );
+        }
+        // Palette / library outcomes apply outside the egui
+        // closure where we can take &mut *renderer + &mut *toasts
+        // without conflicting.
+        match &scene_request {
+            // Pasted with the palette's picks, next frame.
+            Some(panels::SceneRequest::Paste) => palette_actions.push(Action::Paste),
+            Some(panels::SceneRequest::Share(path)) if pending_transfer.is_none() => {
+                *pending_transfer = crate::outcomes::SceneTransfer::share(path, &mut *toasts);
+            }
+            Some(panels::SceneRequest::Import) if pending_transfer.is_none() => {
+                *pending_transfer = Some(crate::outcomes::SceneTransfer::import_chooser());
+            }
+            Some(panels::SceneRequest::BackUp) if pending_transfer.is_none() => {
+                *pending_transfer = Some(crate::outcomes::SceneTransfer::back_up(config, scene));
+            }
+            Some(panels::SceneRequest::Restore) if pending_transfer.is_none() => {
+                *pending_transfer = Some(crate::outcomes::SceneTransfer::restore_chooser());
+            }
+            _ => {}
+        }
+        if scene_request == Some(panels::SceneRequest::AddFile) && pending_file_chooser.is_none() {
+            *pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
+                renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
+            )));
+        }
+        if let Some(path) = shimeji_import {
+            // Off the UI thread, like a dropped pack. This used to
+            // import synchronously right here, freezing the overlay
+            // for as long as the sprite copy took.
+            if pending_shimeji.is_none() {
+                let at = (
+                    renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                    renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
+                );
+                *pending_shimeji = ShimejiImport::start(
+                    &crate::config::AppConfig::resolve_asset_path(&path),
+                    library_root.as_deref(),
+                    at,
+                    &mut *toasts,
+                );
+            }
+        }
+        if let Some(out) = menu_outcome {
+            match out {
+                panels::ContextMenuOutcome::Open { settled } => {
+                    // Showing, and the click that opened it is
+                    // over: a *subsequent* click may now dismiss it.
+                    if let Some(state) = context_menu_state.as_mut() {
+                        state.armed |= settled;
+                    }
+                }
+                panels::ContextMenuOutcome::Close => {
+                    *context_menu_state = None;
+                }
+                // Asks where first, as sharing a scene does.
+                panels::ContextMenuOutcome::Action(panels::MenuAction::SaveGif(idx)) => {
+                    if pending_transfer.is_none() {
+                        *pending_transfer = crate::outcomes::SceneTransfer::save_gif(scene, idx);
+                    }
+                    *context_menu_state = None;
+                }
+                panels::ContextMenuOutcome::Action(panels::MenuAction::ShareCharacter(idx)) => {
+                    if pending_transfer.is_none() {
+                        *pending_transfer =
+                            crate::outcomes::SceneTransfer::share_character(scene, idx);
+                    }
+                    *context_menu_state = None;
+                }
+                panels::ContextMenuOutcome::Action(action) => {
+                    outcomes::apply_menu_action(
+                        action,
+                        &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                    );
+                    *context_menu_state = None;
+                }
+            }
+        }
+        match palette_outcome {
+            Some(panels::PaletteOutcome::RunAction(action)) => palette_actions.push(action),
+            Some(panels::PaletteOutcome::AddFile) => {
+                if pending_file_chooser.is_none() {
+                    *pending_file_chooser = Some(crate::outcomes::FileChooserAdd::start((
+                        renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                        renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
+                    )));
+                }
+            }
+            // As the tray's would: snoozing, out of edit mode.
+            Some(panels::PaletteOutcome::Snooze(what)) => {
+                crate::snooze::snooze(what);
+                if layer.state.edit_mode {
+                    flip_edit_mode(
+                        &mut *layer,
+                        &mut *config,
+                        scene,
+                        &mut *config_dirty,
+                        &mut *config_watch,
+                        "Wayland, palette snooze",
+                    );
+                }
+            }
+            Some(out) => outcomes::apply_palette_outcome(
+                out,
+                &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                &mut *config,
+            ),
+            None => {}
+        }
+        if let Some(out) = library_outcome {
+            // The middle of the primary output, in the global
+            // coordinates the scene uses.
+            let at = (
+                renderer.primary.window_width as f32 / 2.0 + primary_origin.0,
+                renderer.primary.window_height as f32 / 2.0 + primary_origin.1,
+            );
+            outcomes::apply_library_outcome(
+                out,
+                &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
+                library_root.as_deref(),
+                &mut *library,
+                at,
+            );
+        }
     }
 }
 
