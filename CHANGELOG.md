@@ -19,6 +19,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the tray and starting animaEngine again, and sits in that corner. In all
   ten languages, on both paths.
 
+### Changed
+
+- Internal: the native Wayland loop is split into phases — its state a
+  `Native`, one turn `Native::iteration`, each phase a method in a file of
+  `src/wayland/run/` (docs/architecture.md, "The native loop"); the X11
+  frame into steps (`src/app/render_loop.rs`); the settings panel takes
+  `&mut AppConfig` and a `Supports` instead of 37 field references. No
+  behaviour changes; a smoke test of both paths in the test rig passes
+  before and after.
+
 ## [1.5.1] — 2026-11-10
 
 ### Added
