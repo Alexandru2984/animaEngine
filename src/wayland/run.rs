@@ -301,6 +301,8 @@ pub fn run_native(
     let mut wait = FRAME_INTERVAL;
     let loop_started = Instant::now();
     let mut reopens = Reopens::default();
+    // Quit asked for: the tray, a signal, the shortcut (`Closing`).
+    let mut quit_requested = false;
     loop {
         let frame_start = Instant::now();
         // Opens the perf frame before the blocking dispatch, so the wait
@@ -328,22 +330,30 @@ pub fn run_native(
         // conflict with the `&mut renderer` uses below.
         let (gpu_uploads, gpu_draws) = renderer.shared.take_frame_gpu_counters();
 
-        if layer.state.close_requested {
-            // The compositor closed the overlay: its monitor went —
-            // unplugged, or Hyprland's stand-in for none replaced by a
-            // real one, which ended an app started from `exec-once`. The
-            // session goes on, so it is made again once a monitor is
-            // there; only a compositor that keeps closing it ends the app,
-            // as every close did before (`Reopens`).
-            if layer.monitors().is_empty() {
+        // The compositor closed the overlay: its monitor went — unplugged,
+        // or Hyprland's stand-in for none replaced by a real one, which
+        // ended an app started from `exec-once`. The session goes on, so it
+        // is made again once a monitor is there; only a compositor that
+        // keeps closing it ends the app, as every close did before
+        // (`Reopens`). A quit is not a close (`Closing`).
+        match closing(
+            quit_requested,
+            layer.state.close_requested,
+            !layer.monitors().is_empty(),
+            &mut reopens,
+            Instant::now(),
+        ) {
+            Closing::Open => {}
+            Closing::Quit => break,
+            Closing::WaitForMonitor => {
                 wait = Duration::from_millis(500);
                 continue;
             }
-            if !reopens.allow(Instant::now()) {
+            Closing::GiveUp => {
                 tracing::info!("Layer surface closed by compositor again and again — exiting.");
                 break;
             }
-            match reopen_primary(&mut layer, &mut renderer) {
+            Closing::Reopen => match reopen_primary(&mut layer, &mut renderer) {
                 Ok(()) => {
                     tracing::info!("Layer surface closed by compositor — made again");
                     let region = region_for_state(
@@ -365,7 +375,7 @@ pub fn run_native(
                     );
                     break;
                 }
-            }
+            },
         }
 
         // Pick up any resize the compositor sent us.
@@ -1160,7 +1170,7 @@ pub fn run_native(
                 crate::outcomes::next_scene(&mut outcome_ctx!(), &mut config.global.active_scene);
             }
             if quit {
-                layer.state.close_requested = true;
+                quit_requested = true;
             }
         }
 
@@ -1351,7 +1361,7 @@ pub fn run_native(
                     // of its own — and doing one here would write the
                     // scene twice on every quit.
                     tracing::info!("Quit action — saving and exiting");
-                    layer.state.close_requested = true;
+                    quit_requested = true;
                 }
                 Action::DeleteSelected | Action::DuplicateSelected | Action::CutSelected => {
                     // The same functions the right-click menu and the winit
@@ -2742,6 +2752,46 @@ fn reopen_primary(layer: &mut LayerWindow, renderer: &mut WgpuRenderer) -> Resul
     Ok(())
 }
 
+/// What the loop does about the overlay going, at the top of an iteration.
+#[derive(Debug, PartialEq, Eq)]
+enum Closing {
+    /// Nothing to do: it is open, and nobody asked to quit.
+    Open,
+    /// Quit was asked for — the tray, a signal, the shortcut.
+    Quit,
+    /// The compositor closed it with no monitor left: wait for one.
+    WaitForMonitor,
+    /// The compositor closed it: make it again.
+    Reopen,
+    /// The compositor closed it once too often ([`Reopens`]): exit.
+    GiveUp,
+}
+
+/// [`Closing`], from whether quit was asked for, whether the compositor
+/// closed the overlay, and whether any monitor is there. A quit is never
+/// taken for a close: in 1.5.1 one flag stood for both, and Quit from the
+/// tray or the session's SIGTERM at logout made the overlay again instead
+/// of ending the app.
+fn closing(
+    quit_requested: bool,
+    closed: bool,
+    monitors: bool,
+    reopens: &mut Reopens,
+    now: Instant,
+) -> Closing {
+    if quit_requested {
+        Closing::Quit
+    } else if !closed {
+        Closing::Open
+    } else if !monitors {
+        Closing::WaitForMonitor
+    } else if !reopens.allow(now) {
+        Closing::GiveUp
+    } else {
+        Closing::Reopen
+    }
+}
+
 /// How often the compositor may close the overlay and see it made again:
 /// past [`Reopens::MAX`] in [`Reopens::WINDOW`], one that will not hold it
 /// ends the app rather than a loop of surfaces.
@@ -3279,6 +3329,42 @@ mod tests {
         assert!(
             reopens.allow(t0 + Duration::from_secs(61)),
             "a minute on, again"
+        );
+    }
+
+    #[test]
+    fn a_quit_ends_the_loop_and_is_not_taken_for_a_close() {
+        let now = Instant::now();
+        let mut reopens = Reopens::default();
+        // Asked to quit: out, whatever the compositor did or did not do.
+        for closed in [false, true] {
+            for monitors in [false, true] {
+                assert_eq!(
+                    closing(true, closed, monitors, &mut reopens, now),
+                    Closing::Quit
+                );
+            }
+        }
+        // None of those used up a reopen.
+        assert!(reopens.at.is_empty());
+        assert_eq!(
+            closing(false, false, true, &mut reopens, now),
+            Closing::Open
+        );
+        assert_eq!(
+            closing(false, true, false, &mut reopens, now),
+            Closing::WaitForMonitor
+        );
+        assert_eq!(
+            closing(false, true, true, &mut reopens, now),
+            Closing::Reopen
+        );
+        for _ in 1..Reopens::MAX {
+            closing(false, true, true, &mut reopens, now);
+        }
+        assert_eq!(
+            closing(false, true, true, &mut reopens, now),
+            Closing::GiveUp
         );
     }
 

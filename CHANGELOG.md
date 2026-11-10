@@ -8,6 +8,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **On sway, Hyprland and other wlroots compositors (native Wayland), Quit
+  did not quit** — from the tray, with the Quit shortcut, or the session's
+  SIGTERM at logout: since 1.5.1 the overlay was made again instead, as if
+  the compositor had closed it. A quit ends the app again, saving first;
+  only the compositor closing the overlay makes it again.
 - **The first-run tour no longer points at a hidden ⚙ button.** With
   Appearance → "Show the ⚙ button" off, its first step named the button
   in the top-right corner; it names the edit-mode shortcut as it is bound,
