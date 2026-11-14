@@ -12,9 +12,9 @@
 #   flatpak remote-add --if-not-exists flathub \
 #     https://flathub.org/repo/flathub.flatpakrepo
 #   flatpak install -y flathub \
-#     org.freedesktop.Sdk//24.08 \
-#     org.freedesktop.Platform//24.08 \
-#     org.freedesktop.Sdk.Extension.rust-stable//24.08
+#     org.freedesktop.Sdk//26.08 \
+#     org.freedesktop.Platform//26.08 \
+#     org.freedesktop.Sdk.Extension.rust-stable//26.08
 
 set -euo pipefail
 

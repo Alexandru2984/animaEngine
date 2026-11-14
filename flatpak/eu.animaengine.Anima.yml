@@ -10,7 +10,7 @@
 
 app-id: eu.animaengine.Anima
 runtime: org.freedesktop.Platform
-runtime-version: '24.08'
+runtime-version: '26.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -37,10 +37,10 @@ finish-args:
   # System tray via StatusNotifierItem — host KDE / GNOME need to
   # see our DBus name.
   - --talk-name=org.kde.StatusNotifierWatcher
-  - --talk-name=org.freedesktop.Notifications
-  # Single-instance handshake (Faza 6.3) — we own the bus name that
-  # matches our app-id.
-  - --own-name=eu.animaengine.Anima
+  # Desktop notifications (`notify_reminders`) go through the
+  # Notification portal inside the sandbox: no grant.
+  # The single-instance name is the app id, which Flatpak lets an app own
+  # without a grant (and Flathub's linter refuses one).
   # Pausing when away (1.5): GNOME's idle time, read-only — the X
   # server's own counter under XWayland misses input to native apps —
   # and whether the machine runs on battery, from UPower.

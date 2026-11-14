@@ -14,9 +14,9 @@ sudo apt install flatpak flatpak-builder
 flatpak remote-add --if-not-exists flathub \
     https://flathub.org/repo/flathub.flatpakrepo
 flatpak install -y flathub \
-    org.freedesktop.Sdk//24.08 \
-    org.freedesktop.Platform//24.08 \
-    org.freedesktop.Sdk.Extension.rust-stable//24.08
+    org.freedesktop.Sdk//26.08 \
+    org.freedesktop.Platform//26.08 \
+    org.freedesktop.Sdk.Extension.rust-stable//26.08
 ```
 
 Then from the repo root:
@@ -56,9 +56,14 @@ sees in Flatseal / GNOME Software:
 | `--device=dri` | wgpu needs GPU access (Vulkan / OpenGL). |
 | `--socket=pulseaudio` | Sound for scripts' `play()`. Flatpak has no playback-only socket; no capture code is linked (docs/threat-model.md). |
 | `--talk-name=org.kde.StatusNotifierWatcher` | System tray icon. Inside Flatpak the item registers under its connection's unique name, since the sandbox cannot own the usual `org.kde.StatusNotifierItem-PID-N`. |
-| `--talk-name=org.freedesktop.Notifications` | Future: toast → desktop notification on minimize. |
-| `--own-name=eu.animaengine.Anima` | Single-instance D-Bus name, and the D-Bus methods compositor keybinds call. |
+| `--talk-name=org.gnome.Mutter.IdleMonitor` | Pausing when away: GNOME's idle time, read-only. The X server's own counter under XWayland misses input to native Wayland apps. |
+| `--system-talk-name=org.freedesktop.UPower` | Pausing on battery: UPower's `OnBattery`, read-only. |
 | `--filesystem=xdg-pictures:ro`, `--filesystem=xdg-download:ro` | Files dropped on the overlay usually come from these. Read-only. |
+
+The single-instance D-Bus name, which the compositor keybinds' D-Bus
+methods are called on, is the app id: Flatpak lets an app own it with
+no grant. Desktop notifications (`notify_reminders`) go through the
+Notification portal, which needs none either.
 
 Config, cache and the asset library need no grant: inside the sandbox
 they live under `~/.var/app/eu.animaengine.Anima/`, which the app owns.
@@ -74,5 +79,5 @@ What we explicitly **don't** request:
 
 - `--share=network` — we never make network calls.
 - `--filesystem=home` (writable) — we only read user files.
-- `--system-talk-name` — no system-bus access.
+- system-bus access beyond UPower's battery state, which is read-only.
 - `--device=all` — `dri` is enough; no microphone, camera, USB.
