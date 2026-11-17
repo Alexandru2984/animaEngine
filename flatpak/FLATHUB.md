@@ -56,26 +56,37 @@ old one; the old D-Bus name still answers outside Flatpak
 ☐ To get the *verified* checkmark, put the token Flathub gives at
 `https://animaengine.eu/.well-known/org.flathub.VerifiedApps.txt`.
 
-### 2. A run of the 26.08 build on a real desktop ☐
+### 2. A run of the 26.08 build on a real desktop ✅ but one
 
-The rig cannot show the X11 path drawing (above). On a desktop session:
-`flatpak install --user build/flathub-pr/animaEngine-1.5.2-runtime-26.08-test.flatpak`
-(made by `flatpak build-bundle` from the local build; not in git), then
-`flatpak run eu.animaengine.Anima`: the characters over the desktop with
-it showing through, the tray, a reminder as a notification (through the
-portal), a sound, pausing when away. `flatpak uninstall --user
-eu.animaengine.Anima` afterwards.
+Done 2026-11-17 on Ubuntu GNOME (Wayland session, the app on XWayland),
+AMD Ryzen 9 9955HX iGPU beside an RTX 5060, from
+`build/flathub-pr/animaEngine-1.5.2-runtime-26.08-test.flatpak` (made by
+`flatpak build-bundle` from the local build; not in git): RADV with a
+`PreMultiplied` surface, the characters over the desktop, the tray, the
+idle time from Mutter, edit mode, characters added from the library,
+Quit from the tray saving first.
+
+☐ **Global shortcuts.** GNOME's GlobalShortcuts portal answered
+`BindShortcuts` with response 2 within 4 s — before anyone could have
+answered a dialog — and the app fell back to `XGrabKey`, which on a
+Wayland session holds only while an X window has the focus. The app was
+started straight after its install; whether GNOME had yet seen its
+`.desktop`, or whether the shortcuts the `.deb` bound under the same app
+id were in the way, is not known. To look again: install, log out and
+in, start it from the app grid, and read the log for "Portal shortcuts
+bound".
 
 ### 3. NVIDIA alone on X11 ☐
 
 In the rig, NVIDIA's Vulkan driver gave the X11 surface `[Opaque]` only,
 and wgpu's GL backend reports `Opaque` for every surface (wgpu-hal 24,
-`gles/adapter.rs`, a TODO). If that holds on a real X server, a machine
-whose only GPU is NVIDIA cannot start the X11 path — the `.deb` and the
-AppImage as much as the Flatpak — and says so (`pick_alpha_mode`). To
-check on a hybrid laptop: `__NV_PRIME_RENDER_OFFLOAD=1
-__VK_LAYER_NV_optimus=NVIDIA_only anima-engine` and look for
-"Available alpha modes" in the log.
+`gles/adapter.rs`, a TODO). The renderer now takes an adapter whose
+surface can be transparent first, logging each with its alpha modes, so
+a machine whose only GPU is NVIDIA falls back to Mesa's software one
+rather than not starting — if NVIDIA's surface is opaque on a real X
+server too. To see on a hybrid laptop: `__NV_PRIME_RENDER_OFFLOAD=1
+anima-engine 2>&1 | grep 'Vulkan adapter'` (a PRIME offload now prefers
+the discrete GPU; before, the integrated one drew regardless).
 
 ## Submission steps
 
