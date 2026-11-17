@@ -1218,6 +1218,24 @@ fn backup_unreadable_config(path: &Path) {
 impl AppConfig {
     /// Get the config file path: ~/.config/animaengine/config.toml
     pub fn config_path() -> PathBuf {
+        // A unit test never reaches the user's config, whatever it runs:
+        // one that dispatched "Save now" (2026-11-17) wrote its scene over
+        // the config of the machine it ran on. Each test process gets a
+        // directory of its own; scenes and backups beside the config
+        // follow it there.
+        #[cfg(test)]
+        {
+            std::env::temp_dir()
+                .join(format!("animaengine-unit-tests-{}", std::process::id()))
+                .join("config.toml")
+        }
+        #[cfg(not(test))]
+        Self::user_config_path()
+    }
+
+    /// Where the config lives for the app (not for its unit tests).
+    #[cfg(not(test))]
+    fn user_config_path() -> PathBuf {
         if let Some(proj_dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
             return proj_dirs.config_dir().to_path_buf().join("config.toml");
         }
@@ -1534,6 +1552,20 @@ fn resolve_asset_path_in(
     }
     // As it is when nothing is there: the caller says it is missing.
     stale.unwrap_or_else(|| PathBuf::from(asset_path))
+}
+
+#[cfg(test)]
+mod config_path_tests {
+    use super::AppConfig;
+
+    #[test]
+    fn a_unit_test_never_reaches_the_users_config() {
+        let path = AppConfig::config_path();
+        assert!(path.starts_with(std::env::temp_dir()), "{}", path.display());
+        if let Some(dirs) = directories::ProjectDirs::from("", "", "animaEngine") {
+            assert!(!path.starts_with(dirs.config_dir()), "{}", path.display());
+        }
+    }
 }
 
 #[cfg(test)]
