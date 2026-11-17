@@ -203,9 +203,7 @@ impl Native {
         // Speech bubbles for the characters on the primary surface
         // (`crate::speech`), gathered while the scene is free to borrow.
         let bubbles = crate::speech::shown(scene, primary_origin, |e| {
-            primary_monitor_name
-                .as_ref()
-                .is_none_or(|name| crate::app::windows::entity_on_monitor(monitors, e, name))
+            crate::app::windows::on_primary(monitors, primary_monitor_name.as_deref(), e)
         });
         // And the hearts, dust and z's on it (`crate::effects`).
         let effects = if *overlay_hidden || aside.hidden {
@@ -227,13 +225,12 @@ impl Native {
             // visible equivalent of the winit path unmapping its window.
             Vec::new()
         } else {
-            match &primary_monitor_name {
-                Some(name) => visible
-                    .into_iter()
-                    .filter(|e| crate::app::windows::entity_on_monitor(monitors, e, name))
-                    .collect(),
-                None => visible,
-            }
+            visible
+                .into_iter()
+                .filter(|e| {
+                    crate::app::windows::on_primary(monitors, primary_monitor_name.as_deref(), e)
+                })
+                .collect()
         };
         egui_renderer.ensure_theme(config.global.theme);
         // Timed with an explicit instant rather than a `scope` guard:
@@ -401,28 +398,7 @@ impl Native {
                         layer.claim_clipboard(text, false);
                     }
                     if asked_now.perf_export {
-                        match crate::perf::export_snapshot(perf_sampler) {
-                            Ok(path) => {
-                                // Toast shows the full path — the user asked
-                                // for the export and wants to find the file.
-                                // The log redacts, so journald doesn't carry
-                                // their home directory.
-                                tracing::info!("Perf snapshot written: {}", redact_path(&path));
-                                tracing::debug!("Perf snapshot full path: {}", path.display());
-                                let mut args = fluent::FluentArgs::new();
-                                args.set("path", path.display().to_string());
-                                toasts.success(crate::i18n::t_args("toast-perf-snapshot", &args));
-                            }
-                            Err(e) => {
-                                tracing::error!("Perf snapshot failed: {e}");
-                                let mut args = fluent::FluentArgs::new();
-                                args.set("error", e.to_string());
-                                toasts.error(crate::i18n::t_args(
-                                    "toast-perf-snapshot-failed",
-                                    &args,
-                                ));
-                            }
-                        }
+                        crate::ui::perf_overlay::export(perf_sampler, toasts);
                     }
                     {
                         let _s = perf_sampler.scope(crate::perf::Category::Present);

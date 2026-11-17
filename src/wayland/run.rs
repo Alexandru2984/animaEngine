@@ -60,7 +60,6 @@
 
 use crate::config::AppConfig;
 use crate::constants::TOGGLE_BUTTON_SIZE;
-use crate::drop_validate::redact_path;
 use crate::entity::Entity;
 use crate::error::{AnimaError, Result};
 use crate::event::AnimaEvent;

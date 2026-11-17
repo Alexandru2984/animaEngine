@@ -425,9 +425,7 @@ impl App {
         // Speech bubbles for the characters on this window (`crate::speech`),
         // gathered while the scene is still free to borrow.
         let bubbles = crate::speech::shown(&self.scene, primary_origin, |e| {
-            primary_monitor_name
-                .as_ref()
-                .is_none_or(|name| super::windows::entity_on_monitor(&self.monitors, e, name))
+            super::windows::on_primary(&self.monitors, primary_monitor_name.as_deref(), e)
         });
         // And the hearts, dust and z's on it (`crate::effects`).
         let effects = match &self.window {
@@ -508,13 +506,16 @@ impl App {
                 // its monitor: entities live in global desktop coords
                 // and translate by the monitor's origin (T.6). The
                 // single-window modes keep the pre-0.6 identity origin.
-                let drawn: Vec<&crate::entity::Entity> = match &primary_monitor_name {
-                    Some(name) => visible
-                        .into_iter()
-                        .filter(|e| super::windows::entity_on_monitor(&self.monitors, e, name))
-                        .collect(),
-                    None => visible,
-                };
+                let drawn: Vec<&crate::entity::Entity> = visible
+                    .into_iter()
+                    .filter(|e| {
+                        super::windows::on_primary(
+                            &self.monitors,
+                            primary_monitor_name.as_deref(),
+                            e,
+                        )
+                    })
+                    .collect();
                 let key = super::windows::primary_key(renderer.primary.frame_key(
                     &renderer.shared,
                     &drawn,
@@ -692,38 +693,7 @@ impl App {
                         self.perf_sampler
                             .add(crate::perf::Category::EguiPaint, egui_start.elapsed());
                         if asked_now.perf_export {
-                            match crate::perf::export_snapshot(&self.perf_sampler) {
-                                Ok(path) => {
-                                    // Toast shows full path (user requested
-                                    // the export, they want to find the
-                                    // file). Log redacts so journald
-                                    // doesn't leak HOME directories.
-                                    tracing::info!(
-                                        "Perf snapshot written: {}",
-                                        crate::drop_validate::redact_path(&path)
-                                    );
-                                    tracing::debug!("Perf snapshot full path: {}", path.display());
-                                    {
-                                        let mut args = fluent::FluentArgs::new();
-                                        args.set("path", path.display().to_string());
-                                        self.toasts.success(crate::i18n::t_args(
-                                            "toast-perf-snapshot",
-                                            &args,
-                                        ));
-                                    }
-                                }
-                                Err(e) => {
-                                    tracing::error!("Perf snapshot failed: {e}");
-                                    {
-                                        let mut args = fluent::FluentArgs::new();
-                                        args.set("error", e.to_string());
-                                        self.toasts.error(crate::i18n::t_args(
-                                            "toast-perf-snapshot-failed",
-                                            &args,
-                                        ));
-                                    }
-                                }
-                            }
+                            crate::ui::perf_overlay::export(&self.perf_sampler, &mut self.toasts);
                         }
                     }
                     {

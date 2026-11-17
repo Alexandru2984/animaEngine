@@ -64,6 +64,13 @@ pub(crate) fn entity_on_monitor(monitors: &[MonitorInfo], e: &Entity, target: &s
         .unwrap_or(false)
 }
 
+/// Whether `e` is drawn on the primary overlay: always when it is the only
+/// one, else when its monitor is the primary's (`primary`, from the plan).
+/// The filter for the primary's characters and bubbles, on both backends.
+pub(crate) fn on_primary(monitors: &[MonitorInfo], primary: Option<&str>, e: &Entity) -> bool {
+    primary.is_none_or(|name| entity_on_monitor(monitors, e, name))
+}
+
 /// One extra (non-primary) overlay window.
 pub(super) struct WindowSlot {
     pub window: Arc<Window>,

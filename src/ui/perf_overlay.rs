@@ -56,6 +56,31 @@ pub struct GpuStats {
 
 /// Render the perf overlay. Returns `Some(ExportRequest)` when the
 /// user clicks the export button this frame.
+/// "Export" in the perf overlay, on either backend: the snapshot written
+/// (`perf::export_snapshot`) and a toast saying where — the full path, as
+/// the user asked for the file — or why not. The log redacts the path, so
+/// journald does not carry a home directory.
+pub fn export(sampler: &PerfSampler, toasts: &mut crate::ui::ToastQueue) {
+    match crate::perf::export_snapshot(sampler) {
+        Ok(path) => {
+            tracing::info!(
+                "Perf snapshot written: {}",
+                crate::drop_validate::redact_path(&path)
+            );
+            tracing::debug!("Perf snapshot full path: {}", path.display());
+            let mut args = fluent::FluentArgs::new();
+            args.set("path", path.display().to_string());
+            toasts.success(crate::i18n::t_args("toast-perf-snapshot", &args));
+        }
+        Err(e) => {
+            tracing::error!("Perf snapshot failed: {e}");
+            let mut args = fluent::FluentArgs::new();
+            args.set("error", e.to_string());
+            toasts.error(crate::i18n::t_args("toast-perf-snapshot-failed", &args));
+        }
+    }
+}
+
 pub fn show(
     ctx: &egui::Context,
     sampler: &PerfSampler,
