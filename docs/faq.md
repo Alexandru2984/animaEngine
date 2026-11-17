@@ -77,7 +77,13 @@ pick, and **Pause on battery** while unplugged.
 **My laptop has an NVIDIA GPU too.** The app draws on the integrated GPU
 and leaves the NVIDIA one asleep, which saves battery and seconds at
 start and quit. `prime-run anima-engine`, or the desktop's "Launch using
-Discrete Graphics Card", has it draw on the NVIDIA GPU instead.
+Discrete Graphics Card", has it draw on the NVIDIA GPU instead — where
+the NVIDIA GPU can draw it transparently. Under X11 and XWayland it
+cannot (its Vulkan driver offers an opaque surface only), so the app
+stays on the integrated GPU and says so in its log. A machine whose only
+GPU is NVIDIA draws there on the CPU, through Mesa's Vulkan driver
+llvmpipe (the `mesa-vulkan-drivers` package; the Flatpak has it), which
+works but costs more.
 
 ## Known problems
 

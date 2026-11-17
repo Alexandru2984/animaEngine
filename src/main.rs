@@ -516,7 +516,8 @@ ENVIRONMENT:
     ANIMA_NO_CACHE=1               Bypass the on-disk RGBA cache
     ANIMA_USE_WAYLAND_NATIVE=1     Try native wlr-layer-shell
     __NV_PRIME_RENDER_OFFLOAD=1    Draw on a laptop's NVIDIA GPU (or use
-                                   prime-run); otherwise it is left asleep
+                                   prime-run) where it can draw transparently
+                                   (not on X11); otherwise it is left asleep
 
 See README.md for more.",
         env!("CARGO_PKG_VERSION")

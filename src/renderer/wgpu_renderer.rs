@@ -362,6 +362,9 @@ fn best_vulkan(
     wants_discrete: bool,
 ) -> Option<wgpu::Adapter> {
     let mut best: Option<((bool, u8), wgpu::Adapter)> = None;
+    // A discrete GPU asked for whose surface here can only be opaque:
+    // NVIDIA's on X11 (an RTX 5060, under XWayland on GNOME).
+    let mut opaque_discrete: Option<String> = None;
     for adapter in instance.enumerate_adapters(wgpu::Backends::VULKAN) {
         if !adapter.is_surface_supported(surface) {
             continue;
@@ -374,13 +377,22 @@ fn best_vulkan(
             info.device_type,
             alpha
         );
-        let rank = adapter_rank(
-            info.device_type,
-            pick_alpha_mode(&alpha).is_ok(),
-            wants_discrete,
-        );
+        let transparent = pick_alpha_mode(&alpha).is_ok();
+        if wants_discrete && info.device_type == wgpu::DeviceType::DiscreteGpu && !transparent {
+            opaque_discrete.get_or_insert(info.name.clone());
+        }
+        let rank = adapter_rank(info.device_type, transparent, wants_discrete);
         if best.as_ref().is_none_or(|(r, _)| rank > *r) {
             best = Some((rank, adapter));
+        }
+    }
+    if let (Some(asked), Some((_, chosen))) = (&opaque_discrete, &best) {
+        if chosen.get_info().device_type != wgpu::DeviceType::DiscreteGpu {
+            tracing::warn!(
+                "The discrete GPU was asked for, but {asked} can only draw this surface \
+                 opaque, which would cover the desktop: drawing on {} instead",
+                chosen.get_info().name
+            );
         }
     }
     best.map(|(_, adapter)| adapter)
