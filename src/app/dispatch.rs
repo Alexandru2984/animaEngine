@@ -30,26 +30,7 @@ impl App {
                 tracing::info!("Quit action — saving and exiting");
                 self.save_and_exit(event_loop);
             }
-            Action::SaveNow => {
-                self.config_dirty = true;
-                self.save_config_if_needed();
-                tracing::info!("Config saved manually");
-            }
-            Action::DeleteSelected => self.delete_selected(),
-            Action::DuplicateSelected => self.duplicate_selected(),
-            Action::CutSelected => self.cut_selected(),
             Action::Paste => self.paste(),
-            Action::TogglePerfOverlay => {
-                self.perf_overlay_visible = !self.perf_overlay_visible;
-                tracing::debug!(
-                    "Perf overlay {}",
-                    if self.perf_overlay_visible {
-                        "shown"
-                    } else {
-                        "hidden"
-                    }
-                );
-            }
             // Actions whose runtime path lives outside the in-app
             // dispatch: HideOverlay fires only as a global hotkey;
             // OpenCommandPalette is intercepted by `panels.rs` reading
@@ -87,6 +68,10 @@ impl App {
                     monitors: &self.monitors,
                     toasts: &mut self.toasts,
                     history: &mut self.history,
+                    config: &mut self.config,
+                    config_watch: &mut self.config_watch,
+                    perf_overlay_visible: &mut self.perf_overlay_visible,
+                    renderer: self.renderer.as_mut(),
                 };
                 crate::keybindings::shared::dispatch_shared(other, &mut ctx);
             }

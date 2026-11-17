@@ -587,13 +587,10 @@ impl App {
     /// Save config if dirty
     fn save_config_if_needed(&mut self) {
         if self.config_dirty {
-            self.config.take_scene(&self.scene);
-            match self.config.save() {
+            // The crash snapshot and the watcher learn of it there.
+            match self.config_watch.save(&mut self.config, &self.scene) {
                 Ok(()) => {
                     self.toasts.success(crate::i18n::t("toast-config-saved"));
-                    // Mirror the clean state into the crash-recovery slot
-                    // so the panic hook has something useful to dump.
-                    crate::crash::record_known_good(&self.config);
                     // Clear the dirty flag only on a successful write. A
                     // transient failure (disk full, permissions) must keep
                     // the scene dirty so the next save-triggering edit
@@ -601,8 +598,6 @@ impl App {
                     // Saves fire on discrete edits, not per frame, so a
                     // persistent failure re-toasts per edit, not per frame.
                     self.config_dirty = false;
-                    // Or hot-reload mistakes our own save for an edit.
-                    self.config_watch.note_saved();
                 }
                 Err(e) => {
                     tracing::warn!("Failed to save config: {}", e);
@@ -944,12 +939,8 @@ impl ApplicationHandler<AnimaEvent> for App {
                 // the app quits, and a config left dirty ignores the file's
                 // own edits until then.
                 if !self.edit_mode {
-                    self.config.take_scene(&self.scene);
-                    match self.config.save() {
-                        Ok(()) => {
-                            self.config_dirty = false;
-                            self.config_watch.note_saved();
-                        }
+                    match self.config_watch.save(&mut self.config, &self.scene) {
+                        Ok(()) => self.config_dirty = false,
                         Err(e) => tracing::warn!("Config save failed: {e}"),
                     }
                 }

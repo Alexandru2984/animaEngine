@@ -8,15 +8,30 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **On native Wayland, a save never updated the crash-recovery
+  snapshot**, so after a crash the config offered back was the one the
+  app had started with. Both backends now save through one function
+  (`ConfigWatcher::save`) that keeps it current.
 - **`prime-run` and the desktop's "Launch using Discrete Graphics Card"
   drew on the integrated GPU anyway.** The app loaded NVIDIA's driver
   when asked but still picked the low-power GPU. A PRIME offload
-  (`__NV_PRIME_RENDER_OFFLOAD=1`, `DRI_PRIME`) now gets the discrete GPU.
+  (`__NV_PRIME_RENDER_OFFLOAD=1`, `DRI_PRIME`) now gets the discrete GPU
+  where it can draw the overlay transparently, and the log says when it
+  cannot: NVIDIA's Vulkan under X11 offers an opaque surface only.
 - **The GPU is picked for a transparent overlay.** Of the Vulkan
   adapters, one whose surface can be transparent comes first, then the
   GPU wanted, software last; before, an adapter whose surface could only
   be opaque was taken over one that could, and the app would not start.
   Each adapter is logged with what its surface offers.
+
+### Changed
+
+- **Delete, duplicate and cut no longer save the config at once on the
+  X11 path**, with a "Config saved" toast each time. Like every other
+  edit, on both backends, they are saved on leaving edit mode, or with
+  S. Internal: the five actions that were written once per backend and
+  had drifted — delete, duplicate, cut, save, the perf overlay — run
+  through `keybindings::shared` for both.
 
 ## [1.5.2] — 2026-11-11
 

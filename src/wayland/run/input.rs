@@ -181,46 +181,6 @@ impl Native {
                         );
                     }
                 }
-                // The next four are not shareable — each one reaches for
-                // something only this loop owns (its config, its shutdown
-                // flag, its renderer's texture cache) — but every piece
-                // they need is already here, and the in-app help screen
-                // lists all four. They did nothing at all on this backend
-                // until now (R27).
-                Action::SaveNow => match sync_and_save(&mut *config, scene) {
-                    Ok(()) => {
-                        *config_dirty = false;
-                        // Our own write changes the file's mtime and would
-                        // otherwise look exactly like somebody else's edit
-                        // to the watcher above, costing a pointless full
-                        // reload — selection and every texture included.
-                        config_watch.note_saved();
-                        tracing::info!("Config saved manually");
-                        toasts.success(crate::i18n::t("toast-config-saved"));
-                    }
-                    Err(e) => {
-                        // `config_dirty` deliberately stays set: a
-                        // transient failure must let the next edit retry
-                        // rather than silently drop the scene, which is
-                        // the same rule `save_config_if_needed` follows
-                        // on the winit path.
-                        tracing::warn!("Failed to save config: {e}");
-                        let mut args = fluent::FluentArgs::new();
-                        args.set("error", e.said());
-                        toasts.error(crate::i18n::t_args("toast-save-failed", &args));
-                    }
-                },
-                Action::TogglePerfOverlay => {
-                    *perf_overlay_visible = !*perf_overlay_visible;
-                    tracing::debug!(
-                        "Perf overlay {}",
-                        if *perf_overlay_visible {
-                            "shown"
-                        } else {
-                            "hidden"
-                        }
-                    );
-                }
                 Action::QuitWithSave => {
                     // The shutdown path at the end of `run` persists
                     // `config_dirty` on its way out, so this needs no save
@@ -228,24 +188,6 @@ impl Native {
                     // scene twice on every quit.
                     tracing::info!("Quit action — saving and exiting");
                     *quit_requested = true;
-                }
-                Action::DeleteSelected | Action::DuplicateSelected | Action::CutSelected => {
-                    // The same functions the right-click menu and the winit
-                    // path use (`crate::outcomes`), so none of the three can
-                    // drift from the others. Every selected character.
-                    let targets = selection.selected_indices();
-                    let mut ctx = outcome_ctx!(scene, selection, toasts, config_dirty, renderer);
-                    match action {
-                        Action::DeleteSelected => {
-                            outcomes::delete_entities(&targets, &mut ctx);
-                        }
-                        Action::CutSelected => {
-                            outcomes::cut_entities(&targets, &mut ctx);
-                        }
-                        _ => {
-                            outcomes::duplicate_entities(&targets, &mut ctx);
-                        }
-                    }
                 }
                 // The desktop's clipboard first: an image or files copied
                 // elsewhere since the last copy here come in as characters
@@ -312,6 +254,10 @@ impl Native {
                         monitors: monitors_now,
                         toasts: &mut *toasts,
                         history: &mut *history,
+                        config: &mut *config,
+                        config_watch: &mut *config_watch,
+                        perf_overlay_visible: &mut *perf_overlay_visible,
+                        renderer: Some(&mut *renderer),
                     };
                     crate::keybindings::shared::dispatch_shared(other, &mut ctx);
                 }

@@ -80,6 +80,21 @@ impl ConfigWatcher {
         }
     }
 
+    /// The scene into `config` and the config to disk: the one save both
+    /// window loops make. It also tells the two who must know — this
+    /// watcher, so the write is not taken for someone else's edit
+    /// ([`Self::note_saved`]), and the crash handler, whose snapshot is
+    /// the last config known good (`crash::record_known_good`). The native
+    /// Wayland loop never told the crash handler: its snapshot stayed the
+    /// config the app started with.
+    pub fn save(&mut self, config: &mut AppConfig, scene: &Scene) -> crate::error::Result<()> {
+        config.take_scene(scene);
+        config.save()?;
+        crate::crash::record_known_good(config);
+        self.note_saved();
+        Ok(())
+    }
+
     /// Call after writing the config ourselves.
     ///
     /// Without it our own save looks exactly like somebody else's edit and

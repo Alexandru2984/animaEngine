@@ -523,7 +523,7 @@ impl Native {
         // or a logout, Ctrl+C or closed terminal, which `quit_signal` turns
         // into that Quit — so the last toggle is not lost.
         if self.config_dirty {
-            if let Err(e) = sync_and_save(&mut self.config, &self.scene) {
+            if let Err(e) = self.config_watch.save(&mut self.config, &self.scene) {
                 tracing::warn!("Final config save failed: {e}");
             }
         }
@@ -1007,19 +1007,6 @@ fn timer_shortcut(action: Action, focus: crate::focus::FocusConfig) -> bool {
     false
 }
 
-/// Mirror the live scene into `config`, then persist it.
-///
-/// The winit path does exactly this in `App::save_config_if_needed`. The
-/// native loop used to call `config.save()` directly, which wrote back
-/// whatever `characters` was parsed at startup — so dragging a sprite,
-/// adding an entity or toggling playback set `config_dirty`, saved the
-/// *stale* scene, and silently discarded the edit. Any save on this path
-/// must go through here.
-fn sync_and_save(config: &mut AppConfig, scene: &Scene) -> Result<()> {
-    config.take_scene(scene);
-    config.save()
-}
-
 /// Pure half of `rebuild_extra_surfaces`'s decision: given what the
 /// plan wants and what's currently tracked, which names need tearing
 /// down and which planned monitors need a brand-new surface. Split
@@ -1195,11 +1182,8 @@ fn flip_edit_mode(
     // dirty ignores every external edit to config.toml until something
     // else happens to save.
     if should_persist_on_exit(new_mode, *config_dirty) {
-        match sync_and_save(config, scene) {
-            Ok(()) => {
-                *config_dirty = false;
-                watcher.note_saved();
-            }
+        match watcher.save(config, scene) {
+            Ok(()) => *config_dirty = false,
             Err(e) => tracing::warn!("Config save failed: {e}"),
         }
     }

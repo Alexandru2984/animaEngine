@@ -1,8 +1,8 @@
 //! Keyboard actions that both backends can run.
 //!
-//! These twenty-four touch only the scene, the selection, the dirty flag,
-//! the toast queue and the undo history — nothing about a window, a
-//! renderer or an event loop — so they belong to neither backend in
+//! They touch the scene, the selection, the config and its saving, the
+//! toasts, the undo history and the texture cache — nothing about a
+//! window or an event loop — so they belong to neither backend in
 //! particular.
 //!
 //! They live here because they were living in `app::dispatch` instead,
@@ -13,11 +13,15 @@
 //! persist while nudge, delete, cycle and the rest stayed inert (R19 in
 //! docs/runtime-findings.md).
 //!
-//! The remaining six stay per-backend because they genuinely differ:
-//! quitting and saving (each loop owns its shutdown), the edit-mode
-//! toggle (Wayland has to reshape its input region), deleting and
-//! duplicating (both reach into the renderer's texture cache), and the
-//! perf overlay (a winit-only counter).
+//! Deleting, duplicating, cutting, saving and the perf overlay joined
+//! them in 1.5.3: they were written twice and had drifted — the winit
+//! path saved after a delete, the native loop's save never updated the
+//! crash snapshot. What stays per-backend genuinely differs: quitting
+//! (each loop owns its shutdown), the edit-mode toggle and hiding (Wayland
+//! reshapes its input region), pasting (each reads its own clipboard),
+//! the right-click menu from the keyboard (pixels on one, points on the
+//! other), and focus, snooze and mute, which each backend runs as the
+//! global shortcut it stands for.
 //!
 //! Centring and monitor-cycling used to be in that list. They only looked
 //! window-bound: centring needs a rectangle, not a window, and cycling
@@ -48,6 +52,15 @@ pub struct ActionCtx<'a> {
     pub toasts: &'a mut ToastQueue,
     /// Edits so far, for undo and redo.
     pub history: &'a mut crate::undo::UndoHistory,
+    /// The config, and the watcher that saves it (`SaveNow`).
+    pub config: &'a mut crate::config::AppConfig,
+    pub config_watch: &'a mut crate::config_watch::ConfigWatcher,
+    /// Whether the perf overlay shows (`TogglePerfOverlay`).
+    pub perf_overlay_visible: &'a mut bool,
+    /// The texture cache, for the characters deleting, duplicating and
+    /// cutting take out or put in. `None` on the winit path before its
+    /// window exists.
+    pub renderer: Option<&'a mut crate::renderer::wgpu_renderer::WgpuRenderer>,
 }
 
 /// Run `action` if it is one of the backend-independent ones.
@@ -64,6 +77,10 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
         monitors,
         toasts,
         history,
+        config,
+        config_watch,
+        perf_overlay_visible,
+        renderer,
     } = ctx;
     let shift_held = *shift_held;
     let bounds = *bounds;
@@ -293,9 +310,59 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
         // date, still cycling characters with Tab.
         Action::ShowEntityInfo => crate::ui::panels::show_inspector(),
         Action::ShowHelp => crate::ui::panels::show_keybindings(),
-        // Copying only reads the scene. Cutting and pasting take
-        // characters out and put them in, textures and all, so the
-        // backends run those, as they do Delete and Duplicate.
+        // Every selected character, through the same functions the
+        // right-click menu uses (`crate::outcomes`). Saved as every other
+        // edit is, on leaving edit mode: the winit path used to write the
+        // config after each of these three alone, with a toast.
+        Action::DeleteSelected | Action::DuplicateSelected | Action::CutSelected => {
+            let targets = selection.selected_indices();
+            let mut out = crate::outcomes::OutcomeCtx {
+                scene,
+                selection,
+                toasts,
+                config_dirty: &mut *config_dirty,
+                renderer: renderer.as_deref_mut(),
+            };
+            match action {
+                Action::DeleteSelected => {
+                    crate::outcomes::delete_entities(&targets, &mut out);
+                }
+                Action::CutSelected => {
+                    crate::outcomes::cut_entities(&targets, &mut out);
+                }
+                _ => {
+                    crate::outcomes::duplicate_entities(&targets, &mut out);
+                }
+            }
+        }
+        // Saved now, whatever was changed; a failure keeps the scene
+        // marked unsaved, so the next edit tries again.
+        Action::SaveNow => match config_watch.save(config, scene) {
+            Ok(()) => {
+                *config_dirty = false;
+                tracing::info!("Config saved manually");
+                toasts.success(crate::i18n::t("toast-config-saved"));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to save config: {e}");
+                let mut args = fluent::FluentArgs::new();
+                args.set("error", e.said());
+                toasts.error(crate::i18n::t_args("toast-save-failed", &args));
+            }
+        },
+        Action::TogglePerfOverlay => {
+            **perf_overlay_visible = !**perf_overlay_visible;
+            tracing::debug!(
+                "Perf overlay {}",
+                if **perf_overlay_visible {
+                    "shown"
+                } else {
+                    "hidden"
+                }
+            );
+        }
+        // Copying only reads the scene. Pasting brings characters in from
+        // the desktop's clipboard, which each backend reads its own way.
         Action::CopySelected => {
             crate::outcomes::copy_entities(&selection.selected_indices(), scene, toasts);
         }
@@ -440,6 +507,53 @@ mod tests {
         )
     }
 
+    /// `action` run with a context of its own, the perf flag and the
+    /// dirty flag given back.
+    fn run_moved(action: Action, scene: &mut Scene, sel: &mut SelectionState) -> (bool, bool) {
+        let mut dirty = false;
+        let mut toasts = ToastQueue::default();
+        let mut history = crate::undo::UndoHistory::default();
+        let mut config = crate::config::AppConfig::default();
+        let mut config_watch = crate::config_watch::ConfigWatcher::new();
+        let mut perf_overlay_visible = false;
+        let mut ctx = ActionCtx {
+            scene,
+            selection: sel,
+            config_dirty: &mut dirty,
+            shift_held: false,
+            bounds: DesktopBounds::from_size(1920.0, 1080.0),
+            monitors: &[],
+            toasts: &mut toasts,
+            history: &mut history,
+            config: &mut config,
+            config_watch: &mut config_watch,
+            perf_overlay_visible: &mut perf_overlay_visible,
+            renderer: None,
+        };
+        assert!(
+            dispatch_shared(action, &mut ctx),
+            "{action:?} is shared now"
+        );
+        (perf_overlay_visible, dirty)
+    }
+
+    #[test]
+    fn deleting_duplicating_and_the_perf_overlay_run_on_either_backend() {
+        let mut scene = scene_with(2);
+        let mut sel = SelectionState::new();
+        sel.select(0);
+        // Taken here (the helper asserts it); a duplicate reloads its
+        // pictures from disk, which these characters have none of — the
+        // outcomes' own tests cover it with real files.
+        run_moved(Action::DuplicateSelected, &mut scene, &mut sel);
+        sel.select(0);
+        let (_, dirty) = run_moved(Action::DeleteSelected, &mut scene, &mut sel);
+        assert_eq!(scene.entities.len(), 1);
+        assert!(dirty, "a delete is an edit to save");
+        let (shown, dirty) = run_moved(Action::TogglePerfOverlay, &mut scene, &mut sel);
+        assert!(shown && !dirty, "the overlay is not the scene");
+    }
+
     fn run_with(
         action: Action,
         scene: &mut Scene,
@@ -449,6 +563,9 @@ mod tests {
     ) -> bool {
         let mut dirty = false;
         let mut toasts = ToastQueue::default();
+        let mut config = crate::config::AppConfig::default();
+        let mut config_watch = crate::config_watch::ConfigWatcher::new();
+        let mut perf_overlay_visible = false;
         let mut ctx = ActionCtx {
             scene,
             selection: sel,
@@ -458,6 +575,10 @@ mod tests {
             monitors: &[],
             toasts: &mut toasts,
             history,
+            config: &mut config,
+            config_watch: &mut config_watch,
+            perf_overlay_visible: &mut perf_overlay_visible,
+            renderer: None,
         };
         dispatch_shared(action, &mut ctx)
     }
@@ -659,12 +780,13 @@ mod tests {
         for action in [
             Action::ToggleEditMode,
             Action::QuitWithSave,
-            Action::SaveNow,
-            Action::DeleteSelected,
-            Action::DuplicateSelected,
-            Action::CutSelected,
             Action::Paste,
-            Action::TogglePerfOverlay,
+            Action::HideOverlay,
+            Action::OpenContextMenu,
+            Action::OpenCommandPalette,
+            Action::ToggleFocus,
+            Action::ToggleSnooze,
+            Action::ToggleMute,
         ] {
             assert!(!run(action, &mut scene, &mut sel, false), "{action:?}");
         }
@@ -677,6 +799,9 @@ mod tests {
         sel.select(0);
         let mut dirty = false;
         let mut toasts = ToastQueue::default();
+        let mut config = crate::config::AppConfig::default();
+        let mut config_watch = crate::config_watch::ConfigWatcher::new();
+        let mut perf_overlay_visible = false;
         let mut ctx = ActionCtx {
             scene: &mut scene,
             selection: &mut sel,
@@ -686,6 +811,10 @@ mod tests {
             monitors: &[],
             toasts: &mut toasts,
             history: &mut crate::undo::UndoHistory::default(),
+            config: &mut config,
+            config_watch: &mut config_watch,
+            perf_overlay_visible: &mut perf_overlay_visible,
+            renderer: None,
         };
         dispatch_shared(Action::NudgeUp, &mut ctx);
         assert!(dirty, "a move that changes the scene must persist");
@@ -721,6 +850,9 @@ mod tests {
             max_x: 3200.0,
             max_y: 720.0,
         };
+        let mut config = crate::config::AppConfig::default();
+        let mut config_watch = crate::config_watch::ConfigWatcher::new();
+        let mut perf_overlay_visible = false;
         let mut ctx = ActionCtx {
             scene: &mut scene,
             selection: &mut sel,
@@ -730,6 +862,10 @@ mod tests {
             monitors: &[],
             toasts: &mut toasts,
             history: &mut crate::undo::UndoHistory::default(),
+            config: &mut config,
+            config_watch: &mut config_watch,
+            perf_overlay_visible: &mut perf_overlay_visible,
+            renderer: None,
         };
         assert!(dispatch_shared(Action::CenterOnScreen, &mut ctx));
         assert_eq!(scene.entities[0].x, 1920.0 + (1280.0 - w) / 2.0);
@@ -767,6 +903,9 @@ mod tests {
         let mons = [monitor("DP-1", 0), monitor("DP-2", 1920)];
         let mut dirty = false;
         let mut toasts = ToastQueue::default();
+        let mut config = crate::config::AppConfig::default();
+        let mut config_watch = crate::config_watch::ConfigWatcher::new();
+        let mut perf_overlay_visible = false;
         let mut ctx = ActionCtx {
             scene: &mut scene,
             selection: &mut sel,
@@ -776,6 +915,10 @@ mod tests {
             monitors: &mons,
             toasts: &mut toasts,
             history: &mut crate::undo::UndoHistory::default(),
+            config: &mut config,
+            config_watch: &mut config_watch,
+            perf_overlay_visible: &mut perf_overlay_visible,
+            renderer: None,
         };
         assert!(dispatch_shared(Action::CycleMonitor, &mut ctx));
         let first = scene.entities[0].monitor.clone();

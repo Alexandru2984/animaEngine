@@ -264,11 +264,8 @@ impl Native {
             // app quits, and a config left dirty ignores the file's own
             // edits until then.
             if mute_changed && !layer.state.edit_mode {
-                match sync_and_save(&mut *config, scene) {
-                    Ok(()) => {
-                        *config_dirty = false;
-                        config_watch.note_saved();
-                    }
+                match config_watch.save(&mut *config, scene) {
+                    Ok(()) => *config_dirty = false,
                     Err(e) => tracing::warn!("Config save failed: {e}"),
                 }
             }

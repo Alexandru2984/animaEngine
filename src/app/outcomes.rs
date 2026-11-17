@@ -54,30 +54,6 @@ impl App {
         }
     }
 
-    /// Delete every selected entity and save.
-    pub(super) fn delete_selected(&mut self) {
-        let targets = self.selection.selected_indices();
-        if outcomes::delete_entities(&targets, &mut outcome_ctx!(self)) > 0 {
-            self.save_config_if_needed();
-        }
-    }
-
-    /// Duplicate every selected entity and save.
-    pub(super) fn duplicate_selected(&mut self) {
-        let targets = self.selection.selected_indices();
-        if !outcomes::duplicate_entities(&targets, &mut outcome_ctx!(self)).is_empty() {
-            self.save_config_if_needed();
-        }
-    }
-
-    /// Cut every selected entity and save.
-    pub(super) fn cut_selected(&mut self) {
-        let targets = self.selection.selected_indices();
-        if outcomes::cut_entities(&targets, &mut outcome_ctx!(self)) > 0 {
-            self.save_config_if_needed();
-        }
-    }
-
     /// Paste: ask the desktop's clipboard first — an image or files
     /// copied elsewhere since the last copy here come in as characters —
     /// and otherwise the characters copied here (`crate::system_clipboard`).
