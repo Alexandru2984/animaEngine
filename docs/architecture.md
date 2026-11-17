@@ -207,7 +207,7 @@ Three independent producers, one consumer:
               ↓
          EventLoopProxy<AnimaEvent>::send_event
               ↓
-         winit user_event → App::user_event arm (src/app/mod.rs)
+         winit user_event → App::on_event arm (src/app/events.rs)
               ↓
          {ToggleEditMode, ToggleGlobalPlayback, HideOverlay,
           ShowOverlay, RaiseWindow, Quit, HotkeysUnavailable,
@@ -973,7 +973,7 @@ top-level `Makefile`. AppImage and `.deb` both go through it.
   react to it. Reads `/proc` directly rather than taking a dependency, so
   "we cannot enumerate processes" is structural rather than a promise.
 - Render pass: `src/renderer/wgpu_renderer.rs::render`
-- Event arm matrix: `src/app/mod.rs::user_event` (the AnimaEvent dispatch)
+- Event arm matrix: `src/app/events.rs::on_event` (the AnimaEvent dispatch)
 - Wayland scaffolding: read `src/wayland/mod.rs` first, then the
   sub-files in the order it lists
 - **Security invariants**: `docs/threat-model.md` — what the codebase

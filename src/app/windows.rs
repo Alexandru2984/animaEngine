@@ -17,6 +17,7 @@ use crate::monitor::{self, MonitorInfo};
 use crate::renderer::wgpu_renderer::SurfaceState;
 use crate::window::overlay::OverlayPlatform;
 use std::sync::Arc;
+use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId, WindowLevel};
 
@@ -755,6 +756,132 @@ mod pacing_tests {
             false,
             now + Duration::from_millis(500)
         ));
+    }
+}
+
+impl App {
+    /// An event for one of the other monitors' windows: sprites repaint on
+    /// expose, surfaces resize, shapes re-apply; in edit mode, the pointer
+    /// and the keys (T.8).
+    pub(super) fn extra_window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        match event {
+            WindowEvent::RedrawRequested => self.render_one_extra(window_id),
+            WindowEvent::Resized(size) => {
+                if let Some(renderer) = &self.renderer {
+                    if let Some(slot) = self.extra_windows.get_mut(&window_id) {
+                        slot.surface
+                            .resize(&renderer.shared, size.width, size.height);
+                    }
+                }
+            }
+            WindowEvent::CloseRequested => {
+                self.extra_windows.remove(&window_id);
+            }
+            WindowEvent::Focused(true) | WindowEvent::Occluded(false) => {
+                self.reapply_extra_input_shapes();
+            }
+            // T.8 — input from extra windows, translated to global
+            // desktop coordinates by the window's monitor origin.
+            // Only reachable in edit mode (pass-through shape on
+            // extras is fully click-through).
+            WindowEvent::CursorMoved { position, .. } => {
+                if let Some(slot) = self.extra_windows.get_mut(&window_id) {
+                    let (ox, oy) = (slot.monitor.x as f32, slot.monitor.y as f32);
+                    // Its own egui hears the pointer while the
+                    // right-click menu is on this monitor.
+                    let ppp = slot.window.scale_factor() as f32;
+                    let at = egui::pos2(position.x as f32 / ppp, position.y as f32 / ppp);
+                    slot.pointer = Some(at);
+                    let name = slot.monitor.name.clone();
+                    if self
+                        .ui_state
+                        .context_menu
+                        .as_ref()
+                        .and_then(|m| m.surface.as_ref())
+                        == Some(&name)
+                    {
+                        slot.pending_events.push(egui::Event::PointerMoved(at));
+                    }
+                    self.pointer_monitor = Some(name);
+                    self.handle_cursor_moved_global(position.x as f32 + ox, position.y as f32 + oy);
+                    self.request_redraw_all();
+                }
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                if let Some(slot) = self.extra_windows.get_mut(&window_id) {
+                    let name = slot.monitor.name.clone();
+                    let menu_here = self
+                        .ui_state
+                        .context_menu
+                        .as_ref()
+                        .and_then(|m| m.surface.as_ref())
+                        == Some(&name);
+                    let egui_button = match button {
+                        winit::event::MouseButton::Left => Some(egui::PointerButton::Primary),
+                        winit::event::MouseButton::Right => Some(egui::PointerButton::Secondary),
+                        winit::event::MouseButton::Middle => Some(egui::PointerButton::Middle),
+                        _ => None,
+                    };
+                    if let (true, Some(pos), Some(button)) = (menu_here, slot.pointer, egui_button)
+                    {
+                        slot.pending_events.push(egui::Event::PointerButton {
+                            pos,
+                            button,
+                            pressed: state == ElementState::Pressed,
+                            modifiers: egui::Modifiers::default(),
+                        });
+                    }
+                    // A press on the menu is the menu's, as egui's are on
+                    // the panel's window; otherwise picking Duplicate
+                    // would start a selection rectangle first, emptying
+                    // the selection the menu acts on.
+                    let on_menu = menu_here
+                        && state == ElementState::Pressed
+                        && slot.egui.as_ref().is_some_and(|e| e.owns_pointer());
+                    self.pointer_monitor = Some(name);
+                    if on_menu {
+                        self.request_redraw_all();
+                        return;
+                    }
+                }
+                self.handle_mouse_input(state, button);
+                self.request_redraw_all();
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                self.handle_mouse_wheel(delta);
+                self.request_redraw_all();
+            }
+            // A file dropped on another monitor. It used to fall
+            // into the catch-all below and vanish; the handler asks
+            // the X server where the pointer is, in global
+            // coordinates, so the window it arrived through does
+            // not matter.
+            WindowEvent::DroppedFile(path) => {
+                self.handle_dropped_file(path);
+                self.request_redraw_all();
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.handle_modifiers_changed(modifiers);
+            }
+            WindowEvent::KeyboardInput {
+                event:
+                    winit::event::KeyEvent {
+                        state: ElementState::Pressed,
+                        ref logical_key,
+                        physical_key,
+                        ..
+                    },
+                ..
+            } if self.edit_mode => {
+                self.dispatch_key(logical_key.as_ref(), physical_key, event_loop, true);
+            }
+            _ => {}
+        }
     }
 }
 
