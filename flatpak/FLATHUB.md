@@ -92,7 +92,10 @@ the discrete GPU; before, the integrated one drew regardless).
 
 1. Fork <https://github.com/flathub/flathub>, branch from `new-pr`.
 2. Copy in `eu.animaengine.Anima.flathub.yml` (renamed to
-   `eu.animaengine.Anima.yml`) and `cargo-sources.json`.
+   `eu.animaengine.Anima.yml`) and **the tag's** `cargo-sources.json`:
+   `git show v1.5.2:flatpak/cargo-sources.json`. The one on `main`
+   follows `main`'s `Cargo.lock`, which moves after a tag (rustix 1.1.6
+   since 1.5.2), and the offline build of the tag would miss a crate.
 3. Open a PR against the `new-pr` branch; CI builds it; a reviewer
    looks at finish-args and metainfo.
 4. Typical review asks: justify the filesystem grants (answer: only
