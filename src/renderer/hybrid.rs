@@ -6,9 +6,10 @@
 //! them, and that wakes it: on an RTX 5060 laptop the answer took 2.9 s
 //! instead of 0.09, and closing the driver at quit woke it again, the
 //! process gone 2.8 s after its config was saved — the GPU awake some
-//! 20 s each time. The renderer asks for the low-power GPU and draws on
-//! the integrated one regardless, so on such a laptop NVIDIA's Vulkan
-//! driver is not loaded at all: `VK_LOADER_DRIVERS_DISABLE=*nvidia*`, set
+//! 20 s each time. The renderer draws on the integrated GPU unless asked
+//! for the discrete one (`wgpu_renderer::wants_discrete`), so on such a
+//! laptop NVIDIA's Vulkan driver is not loaded at all:
+//! `VK_LOADER_DRIVERS_DISABLE=*nvidia*`, set
 //! before any thread exists — the environment is only safe to change
 //! while nothing else can be reading it. A process the app started would
 //! inherit it; the app starts none.

@@ -314,6 +314,78 @@ fn request_adapter(
     }))
 }
 
+/// Whether the user asked for the discrete GPU: a PRIME offload
+/// (`prime-run`, a desktop's "Launch using Discrete Graphics Card",
+/// `DRI_PRIME`). The renderer then prefers it to the integrated one, which
+/// it otherwise picks for its power ([`adapter_rank`]).
+#[cfg(not(windows))]
+fn wants_discrete() -> bool {
+    discrete_asked(|name| std::env::var(name).ok())
+}
+
+#[cfg(any(not(windows), test))]
+fn discrete_asked(get: impl Fn(&str) -> Option<String>) -> bool {
+    get("__NV_PRIME_RENDER_OFFLOAD").is_some_and(|v| v.trim() == "1")
+        || get("__VK_LAYER_NV_optimus").is_some_and(|v| v.trim() == "NVIDIA_only")
+        || get("DRI_PRIME").is_some_and(|v| !v.trim().is_empty() && v.trim() != "0")
+}
+
+/// How well a Vulkan adapter suits the overlay, higher better: one that
+/// can make the surface transparent before any that cannot (an opaque
+/// overlay covers the desktop, and the app will not start on one); then
+/// the kind wanted — the discrete GPU when the user asked for it
+/// ([`wants_discrete`]), else the integrated one, for its power, as
+/// `PowerPreference::LowPower` picks — then the other GPU, a virtual one,
+/// and software last.
+///
+/// Pure, so the order is testable without a GPU.
+#[cfg(any(not(windows), test))]
+fn adapter_rank(kind: wgpu::DeviceType, transparent: bool, wants_discrete: bool) -> (bool, u8) {
+    use wgpu::DeviceType::{Cpu, DiscreteGpu, IntegratedGpu, Other, VirtualGpu};
+    let order = match (kind, wants_discrete) {
+        (DiscreteGpu, true) | (IntegratedGpu, false) => 4,
+        (IntegratedGpu, true) | (DiscreteGpu, false) => 3,
+        (VirtualGpu, _) => 2,
+        (Other, _) => 1,
+        (Cpu, _) => 0,
+    };
+    (transparent, order)
+}
+
+/// The Vulkan adapter to draw on, of those that can present to `surface`
+/// ([`adapter_rank`]). Each is logged with the alpha modes its surface
+/// offers: the lines to read when a GPU will not draw transparently.
+#[cfg(not(windows))]
+fn best_vulkan(
+    instance: &wgpu::Instance,
+    surface: &wgpu::Surface<'static>,
+    wants_discrete: bool,
+) -> Option<wgpu::Adapter> {
+    let mut best: Option<((bool, u8), wgpu::Adapter)> = None;
+    for adapter in instance.enumerate_adapters(wgpu::Backends::VULKAN) {
+        if !adapter.is_surface_supported(surface) {
+            continue;
+        }
+        let info = adapter.get_info();
+        let alpha = surface.get_capabilities(&adapter).alpha_modes;
+        tracing::info!(
+            "Vulkan adapter: {} ({:?}), alpha modes {:?}",
+            info.name,
+            info.device_type,
+            alpha
+        );
+        let rank = adapter_rank(
+            info.device_type,
+            pick_alpha_mode(&alpha).is_ok(),
+            wants_discrete,
+        );
+        if best.as_ref().is_none_or(|(r, _)| rank > *r) {
+            best = Some((rank, adapter));
+        }
+    }
+    best.map(|(_, adapter)| adapter)
+}
+
 /// One backend tried: its instance, a surface from it, and the adapter it
 /// offered, if any.
 #[cfg(not(windows))]
@@ -326,6 +398,15 @@ struct Tried {
 
 /// The instance, adapter and surface to render with: Vulkan first, GL only
 /// when Vulkan has nothing better than software to offer.
+///
+/// Of Vulkan's adapters, [`best_vulkan`]'s: one whose surface can be
+/// transparent first, then the GPU wanted. One that can be transparent is
+/// taken at once, software or not: GL never can — wgpu-hal 24 reports
+/// `Opaque` for every GL surface — so trying GL after it gains nothing.
+/// Before, the adapter was wgpu's low-power pick, whatever its surface
+/// could do: on a laptop asked for its NVIDIA GPU (`prime-run`) the
+/// integrated one still drew, and an adapter with an opaque surface was
+/// taken over one with a transparent one.
 ///
 /// One instance asked for both sets both up, and the GL half is not free:
 /// on Linux it is EGL, which loads and starts every vendor's driver
@@ -340,6 +421,7 @@ struct Tried {
 fn choose_gpu(
     make_surface: &dyn Fn(&wgpu::Instance) -> Result<wgpu::Surface<'static>>,
 ) -> Result<(wgpu::Instance, wgpu::Adapter, wgpu::Surface<'static>)> {
+    let wants_discrete = wants_discrete();
     let try_backend = |backends: wgpu::Backends| -> Option<Tried> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends,
@@ -348,7 +430,11 @@ fn choose_gpu(
         let surface = make_surface(&instance)
             .map_err(|e| tracing::info!("No {backends:?} surface: {e}"))
             .ok()?;
-        let adapter = request_adapter(&instance, Some(&surface), false);
+        let adapter = if backends == wgpu::Backends::VULKAN {
+            best_vulkan(&instance, &surface, wants_discrete)
+        } else {
+            request_adapter(&instance, Some(&surface), false)
+        };
         Some(Tried {
             surface,
             instance,
@@ -360,10 +446,15 @@ fn choose_gpu(
             .as_ref()
             .is_some_and(|a| a.get_info().device_type != wgpu::DeviceType::Cpu)
     };
+    let transparent = |t: &Tried| {
+        t.adapter
+            .as_ref()
+            .is_some_and(|a| pick_alpha_mode(&t.surface.get_capabilities(a).alpha_modes).is_ok())
+    };
     let done = |t: Tried| t.adapter.map(|a| (t.instance, a, t.surface));
 
     let vulkan = match try_backend(wgpu::Backends::VULKAN) {
-        Some(v) if hardware(&v) => return done(v).ok_or(AnimaError::NoAdapter),
+        Some(v) if transparent(&v) || hardware(&v) => return done(v).ok_or(AnimaError::NoAdapter),
         other => other,
     };
     tracing::info!("No Vulkan GPU adapter; trying GL as well");
@@ -1387,7 +1478,49 @@ impl WgpuRenderer {
 
 #[cfg(test)]
 mod alpha_mode_tests {
-    use super::pick_alpha_mode;
+    use super::{adapter_rank, discrete_asked, pick_alpha_mode};
+
+    #[test]
+    fn a_prime_offload_asks_for_the_discrete_gpu() {
+        let with = |pairs: &'static [(&'static str, &'static str)]| {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(k, _)| *k == name)
+                    .map(|(_, v)| v.to_string())
+            }
+        };
+        assert!(!discrete_asked(with(&[])));
+        assert!(discrete_asked(with(&[("__NV_PRIME_RENDER_OFFLOAD", "1")])));
+        assert!(!discrete_asked(with(&[("__NV_PRIME_RENDER_OFFLOAD", "0")])));
+        assert!(discrete_asked(with(&[(
+            "__VK_LAYER_NV_optimus",
+            "NVIDIA_only"
+        )])));
+        assert!(!discrete_asked(with(&[(
+            "__VK_LAYER_NV_optimus",
+            "non_NVIDIA_only"
+        )])));
+        assert!(discrete_asked(with(&[("DRI_PRIME", "1")])));
+        assert!(discrete_asked(with(&[("DRI_PRIME", "pci-0000_01_00_0")])));
+        assert!(!discrete_asked(with(&[("DRI_PRIME", "0")])));
+        assert!(!discrete_asked(with(&[("DRI_PRIME", "")])));
+    }
+
+    #[test]
+    fn a_transparent_surface_beats_every_other_choice() {
+        use wgpu::DeviceType::{Cpu, DiscreteGpu, IntegratedGpu};
+        // Software that can be transparent over a GPU that cannot: an
+        // opaque overlay would not start at all.
+        assert!(adapter_rank(Cpu, true, false) > adapter_rank(DiscreteGpu, false, false));
+        assert!(adapter_rank(Cpu, true, true) > adapter_rank(DiscreteGpu, false, true));
+        // Both transparent: the integrated GPU by default, the discrete one
+        // when asked for, software last either way.
+        assert!(adapter_rank(IntegratedGpu, true, false) > adapter_rank(DiscreteGpu, true, false));
+        assert!(adapter_rank(DiscreteGpu, true, true) > adapter_rank(IntegratedGpu, true, true));
+        assert!(adapter_rank(DiscreteGpu, true, false) > adapter_rank(Cpu, true, false));
+        assert!(adapter_rank(IntegratedGpu, true, true) > adapter_rank(Cpu, true, true));
+    }
     use wgpu::CompositeAlphaMode::{Auto, Opaque, PostMultiplied, PreMultiplied};
 
     #[test]

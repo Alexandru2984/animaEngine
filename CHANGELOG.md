@@ -6,6 +6,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`prime-run` and the desktop's "Launch using Discrete Graphics Card"
+  drew on the integrated GPU anyway.** The app loaded NVIDIA's driver
+  when asked but still picked the low-power GPU. A PRIME offload
+  (`__NV_PRIME_RENDER_OFFLOAD=1`, `DRI_PRIME`) now gets the discrete GPU.
+- **The GPU is picked for a transparent overlay.** Of the Vulkan
+  adapters, one whose surface can be transparent comes first, then the
+  GPU wanted, software last; before, an adapter whose surface could only
+  be opaque was taken over one that could, and the app would not start.
+  Each adapter is logged with what its surface offers.
+
 ## [1.5.2] — 2026-11-11
 
 ### Fixed
