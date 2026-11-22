@@ -93,6 +93,7 @@ mod tests {
             minute,
             day: 5,
             month: 10,
+            date: crate::schedule::days_from_civil(2026, 10, 5),
         })
     }
 

@@ -59,7 +59,7 @@ fn yawn_offset(id: &str) -> u32 {
 #[derive(Debug, Default)]
 pub struct Moods {
     clock: Option<(Instant, Option<crate::schedule::LocalTime>)>,
-    yawned: Vec<(String, (u8, u8))>,
+    yawned: Vec<(String, i32)>,
     /// Whether the tempos are other than 1 (so turning off resets them once).
     applied: bool,
 }
@@ -123,7 +123,15 @@ impl Moods {
         if since >= YAWN_BEFORE {
             return;
         }
-        let night = (clock.month, clock.day);
+        // The night is the date the half hour began on: keyed by the
+        // date of the moment, a half hour across midnight (bedtime
+        // 00:00–00:29) began a new night at 00:00, and everyone yawned
+        // again (BUG-012).
+        let night = if clock.minute >= start {
+            clock.date
+        } else {
+            clock.date - 1
+        };
         self.yawned.retain(|(_, on)| *on == night);
         for i in 0..scene.entities.len() {
             if !scene.effective_visible(i) {
@@ -180,6 +188,7 @@ mod tests {
             minute,
             day: 6,
             month: 10,
+            date: 100,
         };
         // Before the half hour: nobody.
         moods.yawn(&mut scene, at(22 * 60 + 20), &bedtime);
@@ -196,6 +205,53 @@ mod tests {
         assert!(
             scene.entities.iter().all(|e| e.speech.is_none()),
             "once a night"
+        );
+    }
+
+    /// Bedtime at 00:15: the half hour runs 23:45 to 00:15, across
+    /// midnight. Who yawned before it does not yawn again after (BUG-012).
+    #[test]
+    fn a_half_hour_across_midnight_is_one_night() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let bedtime = crate::bedtime::Bedtime {
+            enabled: true,
+            from: "00:15".into(),
+            to: "07:00".into(),
+        };
+        let mut moods = Moods::default();
+        let at = |date, minute| crate::schedule::LocalTime {
+            weekday: 1,
+            minute,
+            day: 6,
+            month: 10,
+            date,
+        };
+        for m in 23 * 60 + 45..24 * 60 {
+            moods.yawn(&mut scene, at(100, m), &bedtime);
+        }
+        let yawned = moods.yawned.len();
+        assert!(yawned > 0);
+        for e in &mut scene.entities {
+            e.speech = None;
+        }
+        for m in 0..15 {
+            moods.yawn(&mut scene, at(101, m), &bedtime);
+        }
+        let again: Vec<_> = scene
+            .entities
+            .iter()
+            .filter(|e| e.speech.is_some())
+            .map(|e| e.id.clone())
+            .collect();
+        let before: Vec<_> = moods
+            .yawned
+            .iter()
+            .take(yawned)
+            .map(|(id, _)| id.clone())
+            .collect();
+        assert!(
+            again.iter().all(|id| !before.contains(id)),
+            "{again:?} yawned twice"
         );
     }
 

@@ -63,15 +63,31 @@ impl At {
     /// [`LATE_BY_MINUTES`] after — or to midnight, for a date. Never if
     /// the time does not read.
     pub fn due_at(&self, now: crate::schedule::LocalTime) -> bool {
-        let Some(time) = crate::schedule::parse_hhmm(&self.time) else {
-            return false;
-        };
-        let (day, late) = match self.date() {
-            Some(date) => (date == (now.month, now.day), 24 * 60),
-            None if self.date.is_some() => return false,
-            None => (self.days.holds_on(now.weekday), time + LATE_BY_MINUTES),
-        };
-        day && now.minute >= time && now.minute < late
+        self.due_on(now).is_some()
+    }
+
+    /// The date (a day number) of the time it is due for at local `now`,
+    /// if it is due: today's, or yesterday's for one whose two hours run
+    /// past midnight. They were cut at midnight — a 23:30 reminder was
+    /// gone at 00:00 — and the date is what `Timers::poll_timed` says it
+    /// once by, so the half after midnight does not say it again
+    /// (BUG-012).
+    pub fn due_on(&self, now: crate::schedule::LocalTime) -> Option<i32> {
+        let time = crate::schedule::parse_hhmm(&self.time)?;
+        match self.date() {
+            Some(date) => (date == (now.month, now.day) && now.minute >= time).then_some(now.date),
+            None if self.date.is_some() => None,
+            None => {
+                let day = 24 * 60;
+                let since = (now.minute + day - time) % day;
+                let (weekday, date) = if now.minute >= time {
+                    (now.weekday, now.date)
+                } else {
+                    ((now.weekday + 6) % 7, now.date - 1)
+                };
+                (since < LATE_BY_MINUTES && self.days.holds_on(weekday)).then_some(date)
+            }
+        }
     }
 }
 
@@ -144,7 +160,7 @@ impl ReminderConfig {
 pub struct Timers {
     due: Vec<(ReminderConfig, Instant)>,
     /// Reminders at a set time, and the (month, day) each was last said.
-    said_on: Vec<(ReminderConfig, (u8, u8))>,
+    said_on: Vec<(ReminderConfig, i32)>,
     /// The local clock, read at most every ten seconds.
     clock: Option<(Instant, Option<crate::schedule::LocalTime>)>,
 }
@@ -216,16 +232,15 @@ impl Timers {
         let Some(now) = clock.filter(|_| !away && can_say) else {
             return Vec::new();
         };
-        let today = (now.month, now.day);
         let mut fired = Vec::new();
         for r in reminders.iter().filter(|r| r.enabled) {
-            let Some(at) = &r.at else {
+            let Some(due) = r.at.as_ref().and_then(|at| at.due_on(now)) else {
                 continue;
             };
-            let said_today = self.said_on.iter().any(|(s, on)| s == r && *on == today);
-            if at.due_at(now) && !said_today {
+            let said = self.said_on.iter().any(|(s, on)| s == r && *on == due);
+            if !said {
                 self.said_on.retain(|(s, _)| s != r);
-                self.said_on.push((r.clone(), today));
+                self.said_on.push((r.clone(), due));
                 fired.push(r.clone());
             }
         }
@@ -566,7 +581,48 @@ mod tests {
             minute: crate::schedule::parse_hhmm(hhmm).unwrap(),
             day,
             month,
+            date: crate::schedule::days_from_civil(2026, u32::from(month), u32::from(day)),
         })
+    }
+
+    /// A reminder at 23:30, started late at 00:15: still within its two
+    /// hours, which ran out at midnight (BUG-012); and once, said before
+    /// midnight, not again after.
+    #[test]
+    fn a_late_reminders_two_hours_run_past_midnight() {
+        use crate::schedule::Days;
+        let list = [at("23:30", Days::Every, None)];
+        let mut t = Timers::default();
+        assert_eq!(
+            t.poll_timed(clock(1, "00:15", 10, 6), &list, false, true)
+                .len(),
+            1
+        );
+        let mut t = Timers::default();
+        assert_eq!(
+            t.poll_timed(clock(1, "23:31", 10, 5), &list, false, true)
+                .len(),
+            1
+        );
+        assert!(
+            t.poll_timed(clock(2, "00:15", 10, 6), &list, false, true)
+                .is_empty(),
+            "said again after midnight"
+        );
+        // A weekday's, after midnight into Saturday: it was Friday's.
+        let list = [at("23:30", Days::Weekdays, None)];
+        let mut t = Timers::default();
+        assert_eq!(
+            t.poll_timed(clock(6, "00:15", 10, 10), &list, false, true)
+                .len(),
+            1
+        );
+        let mut t = Timers::default();
+        assert!(
+            t.poll_timed(clock(1, "00:15", 10, 5), &list, false, true)
+                .is_empty(),
+            "Sunday's"
+        );
     }
 
     #[test]

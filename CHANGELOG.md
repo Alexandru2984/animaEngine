@@ -58,6 +58,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The clock going back no longer switches scenes, and midnight no
+  longer cuts reminders short or makes everyone yawn twice.** When the
+  clocks went back an hour, the schedule took it for midnight passing
+  and switched to the evening's scene at one in the morning; after a
+  week away to the minute, it took it for the same day. A reminder late
+  in the evening was gone at midnight, within its two hours; and with
+  bedtime just after midnight, every character yawned before it and
+  again after. Days are now told apart by their date.
 - **A named pipe in the library no longer stalls its thumbnails.** The
   thumbnail maker opened a library file that was a named pipe and waited
   on it for good, and the panel could do the same with its thumbnail

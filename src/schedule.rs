@@ -83,13 +83,30 @@ pub fn format_hhmm(minute: u32) -> String {
 }
 
 /// A moment of local time: the day of the week (0 = Sunday), the minute
-/// of that day, and the date's day (1–31) and month (1–12).
+/// of that day, the date's day (1–31) and month (1–12), and the date as
+/// a day number ([`days_from_civil`]) — which tells one day from the
+/// next, and the day before, where the weekday and the day of the month
+/// repeat (BUG-012).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalTime {
     pub weekday: u8,
     pub minute: u32,
     pub day: u8,
     pub month: u8,
+    /// Days since 1970-01-01 in the local calendar.
+    pub date: i32,
+}
+
+/// The day number of `year`-`month`-`day` in the proleptic Gregorian
+/// calendar, 1970-01-01 being 0 (H. Hinnant's `days_from_civil`).
+pub fn days_from_civil(year: i32, month: u32, day: u32) -> i32 {
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = y - era * 400;
+    let mp = (month + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy as i32;
+    era * 146_097 + doe - 719_468
 }
 
 /// Local time now, from the system's own time zone.
@@ -112,6 +129,11 @@ pub fn local_now() -> Option<LocalTime> {
             minute: (tm.tm_hour.clamp(0, 23) * 60 + tm.tm_min.clamp(0, 59)) as u32,
             day: tm.tm_mday.clamp(1, 31) as u8,
             month: (tm.tm_mon.clamp(0, 11) + 1) as u8,
+            date: days_from_civil(
+                tm.tm_year.saturating_add(1900),
+                (tm.tm_mon.clamp(0, 11) + 1) as u32,
+                tm.tm_mday.clamp(1, 31) as u32,
+            ),
         })
     }
     #[cfg(windows)]
@@ -126,6 +148,11 @@ pub fn local_now() -> Option<LocalTime> {
             minute: u32::from(st.wHour.min(23)) * 60 + u32::from(st.wMinute.min(59)),
             day: st.wDay.clamp(1, 31) as u8,
             month: st.wMonth.clamp(1, 12) as u8,
+            date: days_from_civil(
+                i32::from(st.wYear),
+                u32::from(st.wMonth.clamp(1, 12)),
+                u32::from(st.wDay.clamp(1, 31)),
+            ),
         })
     }
     #[cfg(not(any(unix, windows)))]
@@ -174,13 +201,20 @@ impl Schedule {
                 None if today && m <= now.minute => crossed.push(((1, m), rule)),
                 None => {}
                 Some(last) if last == now => {}
-                Some(last) if last.weekday == now.weekday && last.minute <= now.minute => {
+                // The clock went back — a DST fall-back, an NTP step:
+                // nothing was crossed. It was taken for midnight passing,
+                // and at 01:05 after 02:00 the evening's scene came on
+                // (BUG-012).
+                Some(last) if (now.date, now.minute) < (last.date, last.minute) => {}
+                // The same day, by its date: by the weekday alone, a week
+                // asleep was the same day too.
+                Some(last) if last.date == now.date => {
                     if today && m > last.minute && m <= now.minute {
                         crossed.push(((1, m), rule));
                     }
                 }
-                // Midnight passed (or the clock went back): what was left
-                // of the last day, then today so far.
+                // Midnight passed: what was left of the last day, then
+                // today so far.
                 Some(last) => {
                     if rule.days.holds_on(last.weekday) && m > last.minute {
                         crossed.push(((0, m), rule));
@@ -218,12 +252,65 @@ mod tests {
     }
 
     fn at(weekday: u8, hhmm: &str) -> LocalTime {
+        on(i32::from(weekday), hhmm)
+    }
+
+    /// Day `date` of a calendar where day 0 is a Sunday.
+    fn on(date: i32, hhmm: &str) -> LocalTime {
         LocalTime {
-            weekday,
+            weekday: date.rem_euclid(7) as u8,
             minute: parse_hhmm(hhmm).unwrap(),
             day: 1,
             month: 1,
+            date,
         }
+    }
+
+    /// Back an hour at the DST fall-back, or an NTP step: 02:00, then
+    /// 01:05 the same day, crossed nothing — it fired the 18:00 rule
+    /// (BUG-012).
+    #[test]
+    fn the_clock_going_back_crosses_nothing() {
+        let rules = [
+            rule("Morning", "08:00", Days::Every),
+            rule("Evening", "18:00", Days::Every),
+        ];
+        let mut s = Schedule::default();
+        s.due(on(10, "02:00"), &rules);
+        assert_eq!(s.due(on(10, "01:05"), &rules), None);
+        assert_eq!(s.due(on(10, "07:59"), &rules), None);
+        assert_eq!(s.due(on(10, "08:00"), &rules).as_deref(), Some("Morning"));
+    }
+
+    /// Asleep a week to the minute: the weekday is the same, but a week of
+    /// rules went by; the latest crossed comes on.
+    #[test]
+    fn a_week_away_is_not_the_same_day() {
+        let rules = [
+            rule("Morning", "08:30", Days::Every),
+            rule("Evening", "18:00", Days::Every),
+        ];
+        let mut s = Schedule::default();
+        s.due(on(10, "08:00"), &rules);
+        assert_eq!(s.due(on(17, "08:15"), &rules).as_deref(), Some("Evening"));
+    }
+
+    #[test]
+    fn day_numbers_follow_the_calendar() {
+        assert_eq!(days_from_civil(1970, 1, 1), 0);
+        assert_eq!(
+            days_from_civil(2000, 3, 1) - days_from_civil(2000, 2, 28),
+            2,
+            "a leap year"
+        );
+        assert_eq!(
+            days_from_civil(2026, 3, 1) - days_from_civil(2026, 2, 28),
+            1
+        );
+        assert_eq!(
+            days_from_civil(2027, 1, 1) - days_from_civil(2026, 12, 31),
+            1
+        );
     }
 
     #[test]

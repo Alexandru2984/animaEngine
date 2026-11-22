@@ -102,6 +102,7 @@ pub fn fuzz_small_parsers(text: &str) {
         minute: minute.unwrap_or(0),
         day: 1 + (text.len() % 31) as u8,
         month: 1 + (text.len() % 12) as u8,
+        date: text.len() as i32,
     };
     let _ = at.due_at(now);
     let _ = crate::placeholders::fill(text, text, Some(now));
