@@ -69,15 +69,40 @@ pub fn atomic_write_with<F>(path: &Path, write: F) -> std::io::Result<()>
 where
     F: FnOnce(&mut std::io::BufWriter<std::fs::File>) -> std::io::Result<()>,
 {
-    let tmp = tmp_sibling(path);
-
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
+    // A temp of our own, never one already there (`create_private`); a
+    // name left by a process that died with our pid is passed over.
+    let (tmp, file) = {
+        let mut tries = 0;
+        loop {
+            let tmp = tmp_sibling(path);
+            match create_private(&tmp) {
+                Ok(file) => break (tmp, file),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && tries < 8 => {
+                    tries += 1;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    };
+    // Removed however this ends short of the rename: only a failed
+    // rename removed it, and a write that failed — a full disk — left
+    // the temp behind (SEC-010).
+    struct Litter<'a>(Option<&'a Path>);
+    impl Drop for Litter<'_> {
+        fn drop(&mut self) {
+            if let Some(tmp) = self.0 {
+                let _ = std::fs::remove_file(tmp);
+            }
+        }
+    }
+    let mut litter = Litter(Some(&tmp));
 
     {
         // Scope so the file is flushed + closed before we rename.
-        let mut w = std::io::BufWriter::new(create_private(&tmp)?);
+        let mut w = std::io::BufWriter::new(file);
         write(&mut w)?;
         w.flush()?;
         // fsync the underlying file before the rename so a crash can't
@@ -85,15 +110,17 @@ where
         w.into_inner().map_err(|e| e.into_error())?.sync_all()?;
     }
 
-    match std::fs::rename(&tmp, path) {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            // Best-effort cleanup of the temp file on failure so we don't
-            // leave litter behind.
-            let _ = std::fs::remove_file(&tmp);
-            Err(e)
+    std::fs::rename(&tmp, path)?;
+    litter.0 = None;
+    // And the directory, so the rename itself outlives a crash (best
+    // effort: not every filesystem lets a directory be synced).
+    #[cfg(unix)]
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        if let Ok(dir) = std::fs::File::open(parent) {
+            let _ = dir.sync_all();
         }
     }
+    Ok(())
 }
 
 /// `<path>.<pid>-<n>.anima.tmp` — kept verbose so we never collide with a
@@ -127,7 +154,7 @@ fn tmp_sibling(path: &Path) -> PathBuf {
 /// covers a failed rename, not a SIGKILL.
 pub const TMP_SUFFIX: &str = ".anima.tmp";
 
-/// Create (truncate) a file readable/writable by the owner only. Config,
+/// Create a new file, readable and writable by the owner only. Config,
 /// library index and crash reports carry the user's asset paths and
 /// state; the umask default (usually `0644`) would leave them readable by
 /// every other local account. `mode(0o600)` sets the bits at creation
@@ -142,17 +169,21 @@ fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
         // truncate whatever it targets. O_NOFOLLOW makes open fail with
         // ELOOP instead, so the atomic write fails closed rather than
         // clobbering an attacker-chosen file.
+        // And O_EXCL (`create_new`): the temp is new, never a file — or
+        // a hard link to one — someone put at its name first (SEC-010).
         std::fs::OpenOptions::new()
             .write(true)
-            .create(true)
-            .truncate(true)
+            .create_new(true)
             .mode(0o600)
             .custom_flags(libc::O_NOFOLLOW)
             .open(path)
     }
     #[cfg(not(unix))]
     {
-        std::fs::File::create(path)
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
     }
 }
 
@@ -276,6 +307,29 @@ fn create_and_verify_private_dir(path: &Path, uid: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A write that fails partway leaves nothing behind: the temp file
+    /// was removed only when the rename failed, not the write (SEC-010).
+    #[test]
+    fn a_failed_atomic_write_leaves_no_temp() {
+        let dir = std::env::temp_dir().join(format!("anima-atomic-fail-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.toml");
+        std::fs::write(&path, b"as it was").unwrap();
+        let failed = atomic_write_with(&path, |w| {
+            w.write_all(b"half")?;
+            Err(std::io::Error::other("the disk filled"))
+        });
+        assert!(failed.is_err());
+        let left: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        let _ = std::fs::read(&path).map(|b| assert_eq!(b, b"as it was"));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(left, ["config.toml"], "litter: {left:?}");
+    }
 
     fn test_dir(name: &str) -> PathBuf {
         // Per-test subdir so cargo's parallel runner doesn't have us

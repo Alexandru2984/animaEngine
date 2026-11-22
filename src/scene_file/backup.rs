@@ -151,13 +151,10 @@ pub fn back_up(
         }
     }
     let manifest = manifest_text(&config, &saved)?;
-    let written = write(to, manifest.as_bytes(), &thumbs, &packer.files);
-    if written.is_err() {
-        let _ = std::fs::remove_file(to);
-    }
+    let written = write(to, manifest.as_bytes(), &thumbs, &packer.files)?;
     Ok(BackedUp {
         scenes: scenes.len(),
-        bytes: written?,
+        bytes: written,
     })
 }
 
@@ -167,8 +164,47 @@ fn write(
     thumbs: &[(String, Vec<u8>)],
     files: &[(String, PathBuf)],
 ) -> Result<u64> {
+    // Measured before `to` is opened, which empties it; refused on a
+    // picture, the backup this one would replace used to be left empty,
+    // then removed (SEC-010).
+    let extra = manifest.len() as u64 + thumbs.iter().map(|(_, p)| p.len() as u64).sum::<u64>();
+    super::files_fit(files, extra, MAX_FILE_BYTES, "error-backup-too-big")?;
+    let file = create_owners(to)?;
+    let written = write_into(file, manifest, thumbs, files);
+    // Past the opening, a failure is a part-written backup: not kept.
+    if written.is_err() {
+        let _ = std::fs::remove_file(to);
+    }
+    written
+}
+
+/// `to`, created or emptied, the owner's alone: a backup holds the
+/// settings and every scene, and was made with the umask's mode,
+/// readable by every local account (SEC-010).
+fn create_owners(to: &Path) -> std::io::Result<std::fs::File> {
+    let mut open = std::fs::OpenOptions::new();
+    open.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        open.mode(0o600);
+        let file = open.open(to)?;
+        // An existing file keeps its mode through `open`: set it too.
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        Ok(file)
+    }
+    #[cfg(not(unix))]
+    open.open(to)
+}
+
+fn write_into(
+    file: std::fs::File,
+    manifest: &[u8],
+    thumbs: &[(String, Vec<u8>)],
+    files: &[(String, PathBuf)],
+) -> Result<u64> {
     use std::io::Write;
-    let out = std::io::BufWriter::new(std::fs::File::create(to)?);
+    let out = std::io::BufWriter::new(file);
     let mut zip = zip::Writer::new(out);
     zip.add(MANIFEST, manifest)?;
     let mut total = manifest.len() as u64;
@@ -410,6 +446,32 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// A backup written over an older one that fails on its pictures —
+    /// one gone, or not a file — leaves the older one as it was: the file
+    /// was opened (truncated) first and then removed on the failure
+    /// (SEC-010).
+    #[test]
+    fn a_failed_backup_leaves_the_last_one() {
+        let dir = tmp("failed_over");
+        let file = dir.join("all.animabackup");
+        std::fs::write(&file, b"the backup made last week").unwrap();
+        let files = vec![("assets/0/a.png".to_string(), dir.join("gone.png"))];
+        assert!(write(&file, b"manifest", &[], &files).is_err());
+        assert_eq!(std::fs::read(&file).unwrap(), b"the backup made last week");
+    }
+
+    /// A backup holds the settings and every scene: the owner's alone.
+    #[cfg(unix)]
+    #[test]
+    fn a_backup_is_the_owners_alone() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tmp("mode");
+        let file = dir.join("all.animabackup");
+        write(&file, b"manifest", &[], &[]).unwrap();
+        let mode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "{mode:o}");
     }
 
     #[test]

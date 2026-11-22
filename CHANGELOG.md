@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- **A backup is readable by you alone, and a failed backup or share no
+  longer destroys the file it would replace.** A backup — the settings
+  and every scene — was made with the system's default mode, readable
+  by every account on the machine. And one written over an older file
+  that then failed on a picture left that file empty (a share) or
+  removed it (a backup); the pictures are now measured first. Files the
+  app saves no longer leave a temporary file behind when the write
+  fails.
 - **A flood of D-Bus calls can no longer make a logout lose unsaved
   changes on native Wayland.** The native loop's commands, the tray's
   and a signal's quit share one queue, and the D-Bus calls had no limit

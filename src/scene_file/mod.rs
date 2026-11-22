@@ -206,6 +206,9 @@ fn write_zip(
     files: &[(String, PathBuf)],
 ) -> Result<u64> {
     use std::io::Write;
+    // Measured before `to` is opened, which empties it (`files_fit`).
+    let extra = manifest.len() as u64 + thumbnail.map_or(0, |t| t.len() as u64);
+    files_fit(files, extra, MAX_FILE_BYTES, "error-share-too-big")?;
     // Straight to `to`: in the Flatpak it is the one file the portal
     // opened to us, and a temporary beside it could not be made.
     let out = std::io::BufWriter::new(std::fs::File::create(to)?);
@@ -243,6 +246,37 @@ fn has_frames(dir: &Path) -> bool {
 }
 
 /// A picture to pack: a regular file within the drop cap.
+/// Whether `files`, with `extra` bytes besides, fit in `max`: each a
+/// regular file within the picture cap, as [`read_asset`] will find it,
+/// and all of them together within the file's cap. Measured before the
+/// file being written is opened — opening it truncates it, so a share or
+/// a backup refused on a picture used to leave the file it was replacing
+/// empty, or (a backup) gone (SEC-010). `too_big` names the message.
+pub(crate) fn files_fit(
+    files: &[(String, PathBuf)],
+    extra: u64,
+    max: u64,
+    too_big: &'static str,
+) -> Result<()> {
+    let mut total = extra;
+    for (_, path) in files {
+        let meta = std::fs::metadata(path).ok().filter(|m| m.is_file());
+        let Some(meta) = meta.filter(|m| m.len() <= MAX_ASSET_FILE_BYTES) else {
+            return Err(AnimaError::said_as(
+                Msg::new("error-picture-not-shareable")
+                    .arg("path", crate::drop_validate::redact_path(path)),
+            ));
+        };
+        total = total.saturating_add(meta.len());
+        if total > max {
+            return Err(AnimaError::said_as(
+                Msg::new(too_big).arg("max", max / (1024 * 1024)),
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn read_asset(path: &Path) -> Result<Vec<u8>> {
     let meta = std::fs::metadata(path)?;
     if !meta.is_file() || meta.len() > MAX_ASSET_FILE_BYTES {
@@ -706,6 +740,31 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    /// A share written over an older file that fails on its pictures
+    /// leaves the older one as it was: it was truncated first (SEC-010).
+    #[test]
+    fn a_failed_share_leaves_the_file_it_would_replace() {
+        let dir = tmp("failed_share");
+        let file = dir.join("old.animascene");
+        std::fs::write(&file, b"last week's").unwrap();
+        let files = vec![("assets/0/a.png".to_string(), dir.join("gone.png"))];
+        assert!(write_zip(&file, b"manifest", None, &files).is_err());
+        assert_eq!(std::fs::read(&file).unwrap(), b"last week's");
+    }
+
+    /// What a set of pictures adds up to is checked before anything is
+    /// written: past the cap, or one not a picture file, is refused.
+    #[test]
+    fn pictures_are_measured_before_the_file_is_opened() {
+        let dir = tmp("fit");
+        std::fs::write(dir.join("a.png"), [0u8; 100]).unwrap();
+        let ok = vec![("a".to_string(), dir.join("a.png"))];
+        assert!(files_fit(&ok, 10, 200, "error-share-too-big").is_ok());
+        assert!(files_fit(&ok, 150, 200, "error-share-too-big").is_err());
+        let gone = vec![("b".to_string(), dir.join("b.png"))];
+        assert!(files_fit(&gone, 0, 200, "error-share-too-big").is_err());
     }
 
     /// The demo scene: a sequence (the cat), still pictures, all shipped.

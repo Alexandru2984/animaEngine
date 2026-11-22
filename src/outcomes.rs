@@ -1376,7 +1376,8 @@ fn fallback_path(name: &str, ext: &str) -> PathBuf {
                 .map(Path::to_path_buf)
                 .or_else(|| Some(u.home_dir().to_path_buf()))
         })
-        .unwrap_or_else(std::env::temp_dir);
+        // Not the bare temp dir, which every local account writes to.
+        .unwrap_or_else(|| crate::util::fallback_scoped_dir("-exports"));
     let stem = crate::scenes::slug(name);
     std::iter::once(dir.join(format!("{stem}.{ext}")))
         .chain((2..).map(|n| dir.join(format!("{stem}-{n}.{ext}"))))
