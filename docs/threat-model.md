@@ -496,6 +496,11 @@ What contains it:
   than tidy: scripts run on the UI thread once per entity per frame, so
   an unbounded one would freeze the overlay rather than merely misbehave.
   A script that exceeds its budget is aborted and the entity holds still.
+  Function pointers are not offered (`Fn` and `curry` disabled, capturing
+  closures compiled out with Rhai's `no_closure`): Rhai leaves a pointer's
+  curried arguments out of its size limits, so `f = f.curry(f)` doubled
+  memory per operation past every cap (SEC-004). Anonymous functions that
+  capture nothing remain.
 - **Contained paths.** Script paths resolve through
   `drop_validate::resolve_library_asset`, the same canonicalize-and-reject
   helper assets use, so a script cannot be loaded from outside the

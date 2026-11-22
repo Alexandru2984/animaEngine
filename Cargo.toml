@@ -156,7 +156,9 @@ pollster = "0.4"
 egui-phosphor = "0.9"
 fluent = "0.17.0"
 unic-langid = "0.9.6"
-rhai = "1.26.0"
+# `no_closure`: a capturing closure carries its captures as curried
+# arguments, which Rhai leaves out of its size limits (SEC-004).
+rhai = { version = "1.26.0", features = ["no_closure"] }
 # Default features are deliberately not used. rodio's defaults include
 # `recording`, which compiles in its microphone module — audio *capture*
 # in a desktop overlay that only ever plays sounds. That is unnecessary

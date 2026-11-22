@@ -267,6 +267,14 @@ impl ScriptHost {
         // `eval` would let a script build code at runtime and slip past
         // any reasoning about what a given file does.
         engine.disable_symbol("eval");
+        // Function pointers carry arguments Rhai's size limits do not
+        // count: `f = f.curry(f)` doubles a pointer per operation, and
+        // sixteen doublings outgrew every cap (SEC-004). No script needs
+        // them; with capturing closures compiled out (`no_closure` in
+        // Cargo.toml) nothing else builds one with arguments. Anonymous
+        // functions that capture nothing still work.
+        engine.disable_symbol("Fn");
+        engine.disable_symbol("curry");
 
         // `play("meow.ogg")` records an intent rather than making noise
         // itself: the audio host needs `&mut`, which a Rhai-registered
@@ -639,6 +647,37 @@ mod tests {
         host.compile("t", source)?;
         let mut scope = rhai::Scope::new();
         host.run("t", &mut scope, &inputs(), &BTreeMap::new())
+    }
+
+    /// Rhai left function pointers out of its size accounting: `curry`
+    /// copied a pointer's arguments without checking them, and a pointer
+    /// counted as size zero. Sixteen doublings below built 65 536 nested
+    /// pointers in a few hundred operations, past every cap; twenty-five
+    /// took the host's memory (SEC-004). Pointers, currying and capturing
+    /// closures are not offered to scripts, which never needed them.
+    #[test]
+    fn currying_function_pointers_is_refused() {
+        let doubling = r#"
+            let f = Fn("noop");
+            for i in 0..16 { f = f.curry(f); }
+            state.f = f;
+        "#;
+        assert!(run_once(doubling).is_err(), "the doubling ran");
+        for source in [
+            r#"let f = Fn("noop");"#,
+            // Compiles, but captures nothing: `a` is not found inside.
+            r#"let a = 1; let f = |x| x + a; f.call(1);"#,
+        ] {
+            assert!(run_once(source).is_err(), "accepted: {source}");
+        }
+    }
+
+    /// What scripts do use still works: an anonymous function that
+    /// captures nothing, called on the spot.
+    #[test]
+    fn plain_scripts_and_capture_free_anonymous_functions_still_run() {
+        let out = run_once("let double = |v| v * 2.0; x = double.call(x);").unwrap();
+        assert_eq!(out.x, 200.0);
     }
 
     #[test]

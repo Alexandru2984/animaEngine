@@ -13,6 +13,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   inside the MP4 demuxer or had it allocate gigabytes. The container is
   now checked before it is demuxed, and such files are refused with an
   error.
+- **Behavior scripts can no longer use function pointers** (`Fn`,
+  `curry`) **or closures that capture variables.** Rhai left a pointer's
+  curried arguments out of its memory limits, so a short loop of
+  `f = f.curry(f)` could take gigabytes in one frame. No bundled script
+  used them; an anonymous function that captures nothing still works.
 
 ### Fixed
 
