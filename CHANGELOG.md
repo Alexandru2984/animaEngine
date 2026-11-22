@@ -73,6 +73,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Native Wayland: edit mode asked for while the overlay is hidden
+  shows it.** Asked for from a shortcut, the tray or D-Bus with the
+  overlay hidden, edit mode took every click and key on the screen for
+  a panel no one could see, until it was asked for again.
 - **Native Wayland: an app that asks for the clipboard and never reads
   it can no longer freeze the overlay**, and drops and pastes no longer
   wait for good. Our copy was written on the main loop, which a reader

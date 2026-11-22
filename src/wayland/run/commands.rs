@@ -275,6 +275,12 @@ impl Native {
                 }
             }
             if toggle_edit_xor {
+                // Shown first if it is hidden (`visibility_for_edit`).
+                last_visibility = super::visibility_for_edit(
+                    !layer.state.edit_mode,
+                    *overlay_hidden,
+                    last_visibility,
+                );
                 // Through `flip_edit_mode`, like the keyboard and the ⚙
                 // button. This path used to set the mode directly, so
                 // leaving edit mode from the tray, a D-Bus call or a portal

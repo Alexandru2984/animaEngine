@@ -1016,7 +1016,16 @@ fn dispatch_with_timeout(
         if ready > 0 && pfds[0].revents != 0 {
             // A spurious wakeup returns WouldBlock — harmless, the next
             // iteration retries, same as wayland-client's own read path.
-            let _ = guard.read();
+            // Anything else is the connection gone (the compositor quit
+            // or crashed): ignored, the socket was ready again at once,
+            // and the loop turned at full speed for good (BUG-010). The
+            // session ends instead, saving first (`Native::run`).
+            match guard.read() {
+                Ok(_) => {}
+                Err(wayland_client::backend::WaylandError::Io(e))
+                    if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(e) => return Err(AnimaError::other(format!("wayland read: {e}"))),
+            }
         }
         // ready == 0 is the timeout (nothing to read) and ready < 0 is
         // EINTR or similar; in both cases dropping the guard cancels the
@@ -1238,6 +1247,23 @@ fn flip_edit_mode(
 /// saves only if something did. Split out so the rule is testable: the
 /// function around it needs a layer surface and a compositor, and this
 /// is two booleans.
+/// The visibility change a turn makes, once edit mode is asked for:
+/// entering it with the overlay hidden shows it (BUG-010). A hidden
+/// native overlay draws nothing, and edit mode's input region is the
+/// whole screen: every click and key went to an overlay no one could see,
+/// until a second toggle. X11 hides by unmapping, which takes no input.
+fn visibility_for_edit(
+    entering_edit: bool,
+    hidden: bool,
+    last: Option<AnimaEvent>,
+) -> Option<AnimaEvent> {
+    if entering_edit && hidden {
+        Some(AnimaEvent::ShowOverlay)
+    } else {
+        last
+    }
+}
+
 fn should_persist_on_exit(new_mode: bool, config_dirty: bool) -> bool {
     !new_mode && config_dirty
 }
@@ -1245,6 +1271,29 @@ fn should_persist_on_exit(new_mode: bool, config_dirty: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Edit mode asked for while the overlay is hidden shows it: a hidden
+    /// native overlay draws nothing, and edit mode's input region is the
+    /// whole screen, so every click went to an overlay no one could see
+    /// (BUG-010). Leaving edit mode, or entering it shown, changes nothing.
+    #[test]
+    fn edit_mode_on_a_hidden_overlay_shows_it() {
+        use crate::event::AnimaEvent::{HideOverlay, ShowOverlay};
+        assert!(matches!(
+            visibility_for_edit(true, true, None),
+            Some(ShowOverlay)
+        ));
+        assert!(matches!(
+            visibility_for_edit(true, true, Some(HideOverlay)),
+            Some(ShowOverlay)
+        ));
+        assert!(visibility_for_edit(true, false, None).is_none());
+        assert!(visibility_for_edit(false, true, None).is_none());
+        assert!(matches!(
+            visibility_for_edit(false, true, Some(HideOverlay)),
+            Some(HideOverlay)
+        ));
+    }
 
     #[test]
     fn a_frame_is_drawn_for_a_reason_or_on_the_heartbeat() {
