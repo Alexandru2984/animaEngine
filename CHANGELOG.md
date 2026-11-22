@@ -73,6 +73,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Windows: starting the app twice while it quits leaves it running,
+  and the tray can no longer take the app down.** Two starts overlapping
+  a copy that was quitting each kept the other from taking over, and
+  both gave up, leaving none running. An error in the tray's menu ended
+  the whole app, and a right click with the menu open opened another.
 - **Native Wayland: edit mode asked for while the overlay is hidden
   shows it.** Asked for from a shortcut, the tray or D-Bus with the
   overlay hidden, edit mode took every click and key on the screen for

@@ -193,6 +193,27 @@ unsafe fn add_icon(hwnd: HWND) -> bool {
 }
 
 unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    // A panic must not cross into Windows: unwinding out of an
+    // `extern "system"` function aborts the process, past the crash
+    // handler and the save (BUG-013). The menu builds its labels through
+    // the translations and the tray's state; a panic there is a lost
+    // click, not a lost session.
+    let handled = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        // SAFETY: the same call, on the same thread, with what Windows
+        // passed in.
+        unsafe { window_message(hwnd, msg, wparam, lparam) }
+    }));
+    match handled {
+        Ok(result) => result,
+        Err(_) => {
+            tracing::error!("Tray: a panic handling message {msg:#x}; ignored");
+            0
+        }
+    }
+}
+
+/// [`wndproc`]'s body.
+unsafe fn window_message(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         WM_TRAY => {
             // Legacy (pre-NOTIFYICON_VERSION_4) callback: the mouse
@@ -225,6 +246,22 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 }
 
 unsafe fn show_menu(hwnd: HWND) {
+    // One at a time: a right click while the menu is open reached here
+    // from inside `TrackPopupMenu`'s own loop, and opened a second menu
+    // on the same stack (BUG-013).
+    thread_local! {
+        static OPEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+    if OPEN.with(|o| o.replace(true)) {
+        return;
+    }
+    struct Closed;
+    impl Drop for Closed {
+        fn drop(&mut self) {
+            OPEN.with(|o| o.set(false));
+        }
+    }
+    let _closed = Closed;
     let menu = CreatePopupMenu();
     if menu == 0 {
         return;

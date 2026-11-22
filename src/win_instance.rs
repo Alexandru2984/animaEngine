@@ -135,11 +135,14 @@ fn try_acquire_named(names: &Names<'_>, patience: Duration) -> Option<Acquire> {
             }
             // A stale acknowledgement must not answer this launch.
             ResetEvent(ack);
+            // Our handle keeps the mutex alive too: let go of it before
+            // waiting, or an owner that exits never takes it away. It was
+            // let go after, so two launches overlapping one that was
+            // exiting each kept it alive for the other, and both handed
+            // off to an instance no longer there (BUG-013).
+            CloseHandle(mutex);
             SetEvent(raise);
             let answered = WaitForSingleObject(ack, millis(ACK_TIMEOUT)) == WAIT_OBJECT_0;
-            // Our handle keeps the mutex alive too: let go of it before
-            // waiting, or an owner that exits never takes it away.
-            CloseHandle(mutex);
             if answered {
                 CloseHandle(raise);
                 CloseHandle(ack);
@@ -320,6 +323,32 @@ mod tests {
             try_acquire_named(&n.names(), QUICK),
             Some(Acquire::HandedOff)
         ));
+    }
+
+    /// Two launches while the instance they find is exiting: one takes
+    /// over. Each held the mutex open through its wait for an answer, so
+    /// for each other it never went away, and both gave up — no instance
+    /// left (BUG-013).
+    #[test]
+    fn two_launches_over_an_exiting_instance_leave_one_running() {
+        let n = TestNames::new("overlap");
+        let Some(Acquire::Claimed(first)) = try_acquire_named(&n.names(), QUICK) else {
+            panic!("the first launch must claim");
+        };
+        let claimed = std::thread::scope(|s| {
+            // Half a wait apart: each one's wait covers the other's pause
+            // between tries.
+            let a = s.spawn(|| try_acquire_named(&n.names(), HANDOFF_PATIENCE));
+            std::thread::sleep(Duration::from_millis(300));
+            drop(first);
+            std::thread::sleep(Duration::from_millis(200));
+            let b = s.spawn(|| try_acquire_named(&n.names(), HANDOFF_PATIENCE));
+            [a.join().unwrap(), b.join().unwrap()]
+                .into_iter()
+                .filter(|r| matches!(r, Some(Acquire::Claimed(_))))
+                .count()
+        });
+        assert!(claimed >= 1, "no launch took over");
     }
 
     /// R48: the instance a launch finds exits while it waits. The launch
