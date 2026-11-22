@@ -438,9 +438,12 @@ impl Native {
                     }
                     .draw();
                 }
-                // Monitors gone, and their eguis and frames with them.
+                // Monitors gone, and their eguis, frames and errors with
+                // them: the errors were kept for every monitor ever
+                // unplugged (BUG-006).
                 extra_eguis.retain(|name, _| extra_surfaces.contains_key(name));
                 extra_frames.retain(|name, _| extra_surfaces.contains_key(name));
+                extra_render_errors.retain(|name, _| extra_surfaces.contains_key(name));
                 asked = Some(asked_now);
             }
             // Reconfigured, as on X11: an outdated surface was left as it

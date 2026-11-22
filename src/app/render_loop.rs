@@ -100,6 +100,11 @@ impl App {
         // triggers a wholesale renderer rebuild.
         if surface.lost {
             self.recover_after_surface_loss(event_loop);
+            // A rebuild that failed went out through `save_and_exit`:
+            // nothing is left to draw the extras with or to schedule.
+            if event_loop.exiting() {
+                return;
+            }
         } else if surface.drew {
             self.surface_loss_streak = 0;
         }
@@ -861,6 +866,15 @@ impl App {
             self.save_and_exit(event_loop);
             return;
         };
+        // The old GPU state goes first, children before the device: a
+        // second surface made on a window whose swapchain is still live
+        // can be refused (VK_ERROR_NATIVE_WINDOW_IN_USE_KHR), turning a
+        // recoverable loss into an exit (BUG-006). All of it is rebuilt
+        // below, against the new device, or the app exits.
+        self.ui = None;
+        self.extra_windows.clear();
+        self.primary_frame = None;
+        self.renderer = None;
         match WgpuRenderer::new(window.clone()) {
             Ok(renderer) => {
                 // egui was built against the *old* device: its pipelines,

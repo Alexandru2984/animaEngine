@@ -41,6 +41,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **An overlay on another monitor no longer stands still for good after
+  a display change.** On the X11 path only a lost surface was set up
+  again; an outdated one, after a mode or scale change, failed every
+  frame from then on. Both are now set up again, on every monitor. The
+  GPU state also goes in order on the way out and when it is rebuilt
+  after a GPU reset: the other monitors' windows and the panels before
+  the device they were made on, and the old surfaces before new ones
+  are made on the same window.
 - **When native Wayland could not start, the X11 path it fell back to
   had lost its quit-saves, its single instance and its tray.** They had
   been wired to the native overlay before it was made: a second launch

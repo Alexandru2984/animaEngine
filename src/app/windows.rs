@@ -96,6 +96,50 @@ pub(super) struct WindowSlot {
     pub render_errors: crate::renderer::ErrorOnce,
 }
 
+/// What a failed frame on another monitor's window calls for.
+#[derive(Debug, PartialEq, Eq)]
+enum ExtraSurfaceFix {
+    /// Lost or outdated: reconfigured at its size, drawn whole next time.
+    Reconfigure,
+    /// Timed out: this frame is dropped, the next tries.
+    Skip,
+    /// Anything else: said once (`renderer::ErrorOnce`).
+    Report,
+}
+
+/// [`ExtraSurfaceFix`] for `e` — as the primary and the native Wayland
+/// loop's other monitors already did. Only `Lost` was reconfigured here,
+/// so an outdated window (a mode or scale change) failed every frame from
+/// then on, and stood still for good; a redraw the window asked for
+/// itself did nothing about any failure (BUG-006).
+fn extra_surface_fix(e: &wgpu::SurfaceError) -> ExtraSurfaceFix {
+    match e {
+        wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => ExtraSurfaceFix::Reconfigure,
+        wgpu::SurfaceError::Timeout => ExtraSurfaceFix::Skip,
+        _ => ExtraSurfaceFix::Report,
+    }
+}
+
+impl WindowSlot {
+    /// Act on a failed frame ([`extra_surface_fix`]).
+    fn frame_failed(
+        &mut self,
+        shared: &crate::renderer::wgpu_renderer::GpuShared,
+        e: &wgpu::SurfaceError,
+    ) {
+        match extra_surface_fix(e) {
+            ExtraSurfaceFix::Reconfigure => {
+                let (w, h) = (self.surface.window_width, self.surface.window_height);
+                self.surface.resize(shared, w, h);
+                // Its contents went with it.
+                self.last_frame = None;
+            }
+            ExtraSurfaceFix::Skip => {}
+            ExtraSurfaceFix::Report => self.render_errors.failed(&self.monitor.name, e),
+        }
+    }
+}
+
 /// What a window's last frame showed, for per-window pacing: in the
 /// primary's frame cycle, a window whose next frame would look the same
 /// is not drawn (`needs_frame`). Every monitor's window used to draw
@@ -558,13 +602,7 @@ impl App {
                         at: now,
                     });
                 }
-                Err(wgpu::SurfaceError::Lost) => {
-                    let (w, h) = (slot.surface.window_width, slot.surface.window_height);
-                    slot.surface.resize(&renderer.shared, w, h);
-                    // Its contents went with it.
-                    slot.last_frame = None;
-                }
-                Err(e) => slot.render_errors.failed(&slot.monitor.name, &e),
+                Err(e) => slot.frame_failed(&renderer.shared, &e),
             }
         }
         if let Some(outcome) = outcome {
@@ -615,7 +653,7 @@ impl App {
             marks,
             origin,
         );
-        if let Ok(output) = slot.surface.render(
+        let output = match slot.surface.render(
             &renderer.shared,
             &drawn,
             &self.scene.groups,
@@ -623,29 +661,34 @@ impl App {
             marks,
             origin,
         ) {
-            let here = menu
-                .as_ref()
-                .filter(|m| m.surface.as_deref() == Some(slot.monitor.name.as_str()))
-                .map(|m| (m, offers));
-            let overlay = Overlay::of(slot, &self.scene, &self.monitors);
-            let painted = overlay.wanted(here.is_some());
-            let decided = paint_overlay(
-                slot,
-                &renderer.shared,
-                overlay,
-                self.config.global.theme,
-                &output,
-                here,
-            );
-            slot.surface.present(&renderer.shared, output);
-            slot.last_frame = Some(LastFrame {
-                key,
-                overlay: painted,
-                at: std::time::Instant::now(),
-            });
-            if let Some(outcome) = decided {
-                self.handle_menu_outcome(outcome);
+            Ok(output) => output,
+            Err(e) => {
+                slot.frame_failed(&renderer.shared, &e);
+                return;
             }
+        };
+        let here = menu
+            .as_ref()
+            .filter(|m| m.surface.as_deref() == Some(slot.monitor.name.as_str()))
+            .map(|m| (m, offers));
+        let overlay = Overlay::of(slot, &self.scene, &self.monitors);
+        let painted = overlay.wanted(here.is_some());
+        let decided = paint_overlay(
+            slot,
+            &renderer.shared,
+            overlay,
+            self.config.global.theme,
+            &output,
+            here,
+        );
+        slot.surface.present(&renderer.shared, output);
+        slot.last_frame = Some(LastFrame {
+            key,
+            overlay: painted,
+            at: std::time::Instant::now(),
+        });
+        if let Some(outcome) = decided {
+            self.handle_menu_outcome(outcome);
         }
     }
 
@@ -727,6 +770,26 @@ impl App {
                 self.window_platforms_active = true;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod surface_error_tests {
+    use super::{extra_surface_fix, ExtraSurfaceFix};
+
+    /// Another monitor's window recovers from what the primary recovers
+    /// from: an outdated surface is reconfigured, not failed every frame
+    /// from then on (BUG-006).
+    #[test]
+    fn an_outdated_extra_window_is_reconfigured() {
+        use wgpu::SurfaceError as E;
+        assert_eq!(
+            extra_surface_fix(&E::Outdated),
+            ExtraSurfaceFix::Reconfigure
+        );
+        assert_eq!(extra_surface_fix(&E::Lost), ExtraSurfaceFix::Reconfigure);
+        assert_eq!(extra_surface_fix(&E::Timeout), ExtraSurfaceFix::Skip);
+        assert_eq!(extra_surface_fix(&E::OutOfMemory), ExtraSurfaceFix::Report);
     }
 }
 

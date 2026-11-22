@@ -329,6 +329,16 @@ pub(crate) struct ContextMenuState {
     pub keyboard: bool,
 }
 
+/// However the app ends — its event loop returning, or an exit that does
+/// not go through `save_and_exit` — the GPU state goes in the order
+/// `release_gpu` keeps, not in field order, which put the window and the
+/// renderer before egui and the other monitors' windows.
+impl Drop for App {
+    fn drop(&mut self) {
+        self.release_gpu();
+    }
+}
+
 impl App {
     pub fn new(config: AppConfig, scene: Scene) -> Self {
         let last_monitor_mode = config.global.monitor_mode.clone();
@@ -447,12 +457,20 @@ impl App {
     /// reason to also lose their scene.
     pub(super) fn save_and_exit(&mut self, event_loop: &ActiveEventLoop) {
         self.save_config_if_needed();
-        // Order matters: egui owns wgpu resources, drop it before the
-        // renderer to avoid use-after-free during Vulkan cleanup.
-        self.ui = None;
-        self.renderer = None;
+        self.release_gpu();
         self.x11_input = None;
         event_loop.exit();
+    }
+
+    /// The GPU state, children before the device they were made on:
+    /// egui, then the other monitors' windows (their surfaces and egui),
+    /// then the renderer. The monitors' windows were left to the end
+    /// before, after the renderer and its device (BUG-006).
+    fn release_gpu(&mut self) {
+        self.ui = None;
+        self.extra_windows.clear();
+        self.primary_frame = None;
+        self.renderer = None;
     }
 
     /// Save config if dirty

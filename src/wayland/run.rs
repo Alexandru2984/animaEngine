@@ -546,11 +546,6 @@ impl Native {
             }
         };
 
-        // Renderer (and every extra surface's wgpu::Surface) is dropped
-        // here before `layer` — each wgpu surface releases its handle
-        // while the wl_surface it points into is still alive. `extra_surfaces`
-        // holds the same kind of raw-handle surface the primary one does
-        // (E.7), so it needs the identical ordering, not just `renderer`.
         // Persist any unsaved edits on a clean shutdown — Quit from the tray,
         // or a logout, Ctrl+C or closed terminal, which `quit_signal` turns
         // into that Quit — so the last toggle is not lost.
@@ -560,8 +555,16 @@ impl Native {
             }
         }
 
-        drop(self.renderer);
+        // Children before the device they were made on, and every wgpu
+        // surface — the primary's in `renderer`, the other monitors' in
+        // `extra_surfaces` (E.7) — before `layer`: each releases its
+        // handle while the wl_surface it points into is still alive.
+        // egui and the other monitors' eguis used to go last, after the
+        // renderer and the layer (BUG-006).
+        drop(self.extra_eguis);
+        drop(self.egui_renderer);
         drop(self.extra_surfaces);
+        drop(self.renderer);
         drop(self.layer);
         ended
     }
