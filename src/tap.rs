@@ -32,12 +32,16 @@ pub fn rects(scene: &Scene, origin: (f32, f32), size: (u32, u32)) -> Vec<Surface
         .filter(|&i| scene.effective_visible(i))
         .filter_map(|i| crate::input::arrange::drawn_rect(scene, i))
         .filter_map(|(l, t, r, b)| {
+            // Held just past the surface first: what is beyond is clipped
+            // off below anyway, and a place billions of pixels away made
+            // the snap overflow `i32` (BUG-007).
+            let on = |v: f32, side: i32| v.clamp(-(GRID as f32), (side + GRID) as f32);
             let snap_down = |v: f32| (v.floor() as i32).div_euclid(GRID) * GRID;
             let snap_up = |v: f32| -(-(v.ceil() as i32)).div_euclid(GRID) * GRID;
-            let l = snap_down(l - origin.0).max(0);
-            let t = snap_down(t - origin.1).max(0);
-            let r = snap_up(r - origin.0).min(w);
-            let b = snap_up(b - origin.1).min(h);
+            let l = snap_down(on(l - origin.0, w)).max(0);
+            let t = snap_down(on(t - origin.1, h)).max(0);
+            let r = snap_up(on(r - origin.0, w)).min(w);
+            let b = snap_up(on(b - origin.1, h)).min(h);
             (r > l && b > t).then(|| (l, t, (r - l) as u32, (b - t) as u32))
         })
         .collect()
@@ -99,6 +103,25 @@ mod tests {
             .collect();
         scene.restore_configs(&configs);
         scene
+    }
+
+    /// A character billions of pixels away: the snap to the grid went
+    /// through `i32` and overflowed, a panic in a debug build and a
+    /// rectangle wrapped onto the surface in a release one (BUG-007).
+    #[test]
+    fn a_character_far_off_the_surface_takes_no_rectangle() {
+        for (x, y) in [
+            (3.0e9, 0.0),
+            (-3.0e9, 10.0),
+            (10.0, 3.0e9),
+            (2.0e38, -2.0e38),
+        ] {
+            let scene = scene_at(&[("far", x, y)]);
+            assert!(
+                rects(&scene, (0.0, 0.0), (1920, 1080)).is_empty(),
+                "{x}, {y}"
+            );
+        }
     }
 
     #[test]

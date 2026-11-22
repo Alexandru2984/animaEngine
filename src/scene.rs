@@ -1119,7 +1119,13 @@ impl Scene {
 
     /// Get the next z_index value (one above the current maximum)
     pub fn next_z_index(&self) -> i32 {
-        self.entities.iter().map(|e| e.z_index).max().unwrap_or(0) + 10
+        // Saturating: a z-index read from a file can be anywhere in `i32`.
+        self.entities
+            .iter()
+            .map(|e| e.z_index)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(10)
     }
 
     /// Convert current scene state back to config for saving
@@ -1287,6 +1293,16 @@ fn check_budget(current: usize, incoming: usize, budget: usize) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    /// A z-index at the top of `i32`, read from a file: the next one
+    /// above it overflowed (BUG-007).
+    #[test]
+    fn the_next_z_index_stops_at_the_top() {
+        let mut scene = Scene::from_config(&AppConfig::default());
+        if let Some(e) = scene.entities.first_mut() {
+            e.z_index = i32::MAX - 3;
+        }
+        assert_eq!(scene.next_z_index(), i32::MAX);
+    }
 
     #[test]
     fn characters_fade_in_and_out() {

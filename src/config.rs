@@ -15,10 +15,10 @@ mod set_aside;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use character::finite_clamp;
 pub use character::{
     default_fps, AssetType, CharacterConfig, StateSequenceConfig, Talk, WindowConfig,
 };
+pub(crate) use character::{finite_clamp, finite_place};
 pub use global::GlobalConfig;
 use migrate::*;
 pub use set_aside::SetAside;
@@ -111,6 +111,9 @@ impl AppConfig {
             for c in &mut w.characters {
                 c.sanitize();
             }
+        }
+        for g in &mut self.groups {
+            g.sanitize();
         }
     }
 }

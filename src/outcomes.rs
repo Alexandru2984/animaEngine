@@ -119,7 +119,7 @@ pub fn apply_menu_action(action: MenuAction, ctx: &mut OutcomeCtx<'_>) {
             };
             for i in covered(idx, ctx.selection) {
                 if let Some(e) = ctx.scene.entities.get_mut(i) {
-                    e.z_index += step;
+                    e.z_index = e.z_index.saturating_add(step);
                     *ctx.config_dirty = true;
                 }
             }

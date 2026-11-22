@@ -227,6 +227,9 @@ pub fn load_counting(path: &Path) -> Result<(SavedScene, usize)> {
     for c in &mut saved.characters {
         c.sanitize();
     }
+    for g in &mut saved.groups {
+        g.sanitize();
+    }
     Ok((saved, left_out))
 }
 
@@ -336,6 +339,32 @@ mod tests {
             .collect();
         scene.restore_configs(&configs);
         scene
+    }
+
+    /// A saved scene's groups were not sanitised on load, as config.toml's
+    /// were not either: `nan` and `inf` went on to the scene (BUG-007).
+    #[test]
+    fn a_saved_scenes_groups_are_held_finite() {
+        let text = r#"
+name = "odd"
+
+[[groups]]
+id = "g"
+name = "g"
+member_ids = []
+offset_x = nan
+offset_y = -inf
+scale = inf
+"#;
+        let dir = tmp("groups");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("odd.toml");
+        std::fs::write(&path, text).unwrap();
+        let (saved, _) = load_counting(&path).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        let g = &saved.groups[0];
+        assert!(g.offset_x.is_finite() && g.offset_y.is_finite(), "{g:?}");
+        assert!((0.1..=5.0).contains(&g.scale), "{g:?}");
     }
 
     /// A scene with a character a newer version made: the rest loads, and

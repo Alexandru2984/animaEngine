@@ -173,15 +173,19 @@ pub(crate) fn finite_clamp(v: f32, min: f32, max: f32, default: f32) -> f32 {
     }
 }
 
-/// Replace a non-finite coordinate with `default`; positions aren't
-/// clamped to a range (entities legitimately sit off-screen) but `NaN` /
-/// `inf` would still poison the render path.
-pub(super) fn finite_or(v: f32, default: f32) -> f32 {
-    if v.is_finite() {
-        v
-    } else {
-        default
-    }
+/// How far from the origin a place read from a file may be, either way.
+///
+/// Characters sit off-screen legitimately, so places are not held to the
+/// desktop; but only having to be finite let ±2e38 through, and the
+/// sums made with it overflowed — to infinity in an imported scene's
+/// fit (`inf × 0 = NaN`), out of `i32` in the input region's grid snap
+/// (BUG-007). A million pixels is far past any desktop.
+pub(crate) const MAX_COORD: f32 = 1_000_000.0;
+
+/// A place read from a file: `default` for `NaN` / `inf`, which would
+/// poison the render path, and held within [`MAX_COORD`].
+pub(crate) fn finite_place(v: f32, default: f32) -> f32 {
+    finite_clamp(v, -MAX_COORD, MAX_COORD, default)
 }
 
 impl CharacterConfig {
@@ -193,8 +197,18 @@ impl CharacterConfig {
         self.scale = finite_clamp(self.scale, 0.1, 5.0, default_scale());
         self.opacity = finite_clamp(self.opacity, 0.0, 1.0, default_opacity());
         self.fps = finite_clamp(self.fps, 0.1, 240.0, default_fps());
-        self.x = finite_or(self.x, 0.0);
-        self.y = finite_or(self.y, 0.0);
+        self.x = finite_place(self.x, 0.0);
+        self.y = finite_place(self.y, 0.0);
+        // A state's own fps, as the character's: `nan` made two states
+        // never equal, an undo step for every gesture, and `inf` was past
+        // the range (BUG-007). Not finite, it falls back to the
+        // character's, as when it is left out.
+        for state in self.animations.values_mut() {
+            state.fps = state
+                .fps
+                .filter(|fps| fps.is_finite())
+                .map(|fps| fps.clamp(0.1, 240.0));
+        }
         // The behavior tunables feed the same physics and transform math
         // every tick, so they need the same coercion as the scalars above.
         self.behavior.sanitize();

@@ -41,6 +41,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Odd numbers in a config, a saved scene or an imported one can no
+  longer break the overlay.** A group's offsets and size, and an
+  animation state's own fps, were not checked when read, so `nan` or
+  `inf` went on into what is drawn and clicked; a character billions of
+  pixels away made the input region overflow; two at the far ends of
+  `f32` came back from an import at NaN; and a z-order at the top of the
+  range overflowed. Places are now held within a million pixels, groups
+  and states as characters are, and the sums made with them cannot
+  overflow.
 - **Windows: the overlay recovers after a GPU reset, and its window
   styles are kept.** A frame that could not be read back from the GPU —
   after a driver reset, or sleep — left the overlay frozen for good; it

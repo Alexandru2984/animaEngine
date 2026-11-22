@@ -757,10 +757,12 @@ mod sanitize_tests {
     }
 
     #[test]
-    fn finite_or_replaces_non_finite_but_keeps_offscreen() {
-        assert_eq!(finite_or(f32::NAN, 0.0), 0.0);
-        assert_eq!(finite_or(f32::INFINITY, 0.0), 0.0);
-        assert_eq!(finite_or(-500.0, 0.0), -500.0); // off-screen is legitimate
+    fn finite_place_replaces_non_finite_but_keeps_offscreen() {
+        assert_eq!(finite_place(f32::NAN, 0.0), 0.0);
+        assert_eq!(finite_place(f32::INFINITY, 0.0), 0.0);
+        assert_eq!(finite_place(-500.0, 0.0), -500.0); // off-screen is legitimate
+        assert_eq!(finite_place(-2.0e38, 0.0), -MAX_COORD); // but not without end
+        assert_eq!(finite_place(3.0e9, 0.0), MAX_COORD);
     }
 
     #[test]
@@ -1002,6 +1004,69 @@ mod doc_example_tests {
                 chords(was).is_some() && now.and_then(chords) == chords(was)
             }
             _ => false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod numbers_from_a_file_tests {
+    use super::*;
+
+    /// Groups were never sanitised, a state's fps neither, and a
+    /// character's place only had to be finite: `nan` and `inf` read from
+    /// config.toml went on into the quads, the hit test and the undo
+    /// steps (`NaN != NaN`), and ±2e38 into sums that overflow (BUG-007).
+    #[test]
+    fn groups_states_and_places_read_from_a_file_are_held_in_range() {
+        let mut config = AppConfig::default();
+        let first = config.characters[0].id.clone();
+        config.characters[0].x = 3.0e9;
+        config.characters[0].y = -2.0e38;
+        let mut state = config.characters[0]
+            .animations
+            .values()
+            .next()
+            .cloned()
+            .unwrap_or(StateSequenceConfig {
+                asset_type: config.characters[0].asset_type.clone(),
+                asset_path: config.characters[0].asset_path.clone(),
+                fps: None,
+                spritesheet_columns: None,
+                spritesheet_rows: None,
+            });
+        state.fps = Some(f32::NAN);
+        config.characters[0]
+            .animations
+            .insert(crate::animation::StateId::Walk, state.clone());
+        state.fps = Some(f32::INFINITY);
+        config.characters[0]
+            .animations
+            .insert(crate::animation::StateId::Fall, state);
+        config.groups.push(crate::group::GroupConfig {
+            id: "g".into(),
+            name: "g".into(),
+            member_ids: vec![first],
+            offset_x: f32::NAN,
+            offset_y: f32::INFINITY,
+            scale: f32::NAN,
+            visible: true,
+        });
+        let text = config.to_toml_string().unwrap();
+        let (back, _) = AppConfig::decode_config_str(&text).unwrap();
+        let g = &back.groups[0];
+        assert!(g.offset_x.is_finite() && g.offset_y.is_finite(), "{g:?}");
+        assert!((0.1..=5.0).contains(&g.scale), "{g:?}");
+        let c = &back.characters[0];
+        assert!(
+            c.x.abs() <= MAX_COORD && c.y.abs() <= MAX_COORD,
+            "{}, {}",
+            c.x,
+            c.y
+        );
+        for (id, s) in &c.animations {
+            if let Some(fps) = s.fps {
+                assert!((0.1..=240.0).contains(&fps), "{id:?}: {fps}");
+            }
         }
     }
 }

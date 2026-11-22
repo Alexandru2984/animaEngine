@@ -511,9 +511,20 @@ pub fn fit_onto(scene: &mut crate::scene::Scene, bounds: crate::monitor::Desktop
 
 /// Positions `pos` (left or top edges) of sprites up to `size` long, put
 /// within `lo..hi` as [`fit_onto`] says.
+///
+/// In `f64`: in `f32`, places ±2e38 apart have a span of infinity, and
+/// `inf × 0` put them at NaN (BUG-007). Any two finite `f32`s are apart
+/// by a finite `f64`.
 fn fit_axis(pos: &[f32], size: f32, lo: f32, hi: f32) -> Vec<f32> {
-    let first = pos.iter().copied().fold(f32::INFINITY, f32::min);
-    let last = pos.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let (size, lo, hi) = (f64::from(size), f64::from(lo), f64::from(hi));
+    let first = pos
+        .iter()
+        .map(|&p| f64::from(p))
+        .fold(f64::INFINITY, f64::min);
+    let last = pos
+        .iter()
+        .map(|&p| f64::from(p))
+        .fold(f64::NEG_INFINITY, f64::max);
     let room = (hi - lo - size).max(0.0);
     if first >= lo && last <= lo + room {
         return pos.to_vec();
@@ -525,10 +536,12 @@ fn fit_axis(pos: &[f32], size: f32, lo: f32, hi: f32) -> Vec<f32> {
         } else {
             lo + room - last
         };
-        return pos.iter().map(|p| p + shift).collect();
+        return pos.iter().map(|&p| (f64::from(p) + shift) as f32).collect();
     }
     let squeeze = room / span;
-    pos.iter().map(|p| lo + (p - first) * squeeze).collect()
+    pos.iter()
+        .map(|&p| (lo + (f64::from(p) - first) * squeeze) as f32)
+        .collect()
 }
 
 /// Write the pictures into `into`, each then held to what a drop is.
@@ -649,21 +662,7 @@ fn tidy(scene: &mut SavedScene) {
             .filter(|ch| !ch.is_control())
             .take(60)
             .collect();
-        g.scale = if g.scale.is_finite() {
-            g.scale.clamp(0.1, 5.0)
-        } else {
-            1.0
-        };
-        g.offset_x = if g.offset_x.is_finite() {
-            g.offset_x
-        } else {
-            0.0
-        };
-        g.offset_y = if g.offset_y.is_finite() {
-            g.offset_y
-        } else {
-            0.0
-        };
+        g.sanitize();
     }
     scene.groups.retain(|g| !g.member_ids.is_empty());
     // A follower whose leader is not in the file follows nobody: the id
@@ -685,6 +684,20 @@ fn tidy(scene: &mut SavedScene) {
 
 #[cfg(test)]
 mod tests {
+    /// Two characters at ±2e38: their span overflowed to infinity, and
+    /// `inf × 0` put both at NaN (BUG-007). They are fitted in, in order.
+    #[test]
+    fn places_far_apart_are_fitted_in_not_lost() {
+        let fitted = super::fit_axis(&[-2.0e38, 2.0e38, 0.0], 100.0, 0.0, 1920.0);
+        assert!(
+            fitted
+                .iter()
+                .all(|p| p.is_finite() && (0.0..=1820.0).contains(p)),
+            "{fitted:?}"
+        );
+        assert!(fitted[0] < fitted[2] && fitted[2] < fitted[1], "{fitted:?}");
+    }
+
     use super::*;
     use crate::config::CharacterConfig;
 

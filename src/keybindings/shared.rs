@@ -268,7 +268,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
         Action::BringForward => {
             for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
-                    entity.z_index += 10;
+                    entity.z_index = entity.z_index.saturating_add(10);
                     tracing::info!("z-index: {} ({})", entity.z_index, entity.name);
                     scene.mark_visible_dirty();
                     *config_dirty = true;
@@ -278,7 +278,7 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
         Action::SendBackward => {
             for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
-                    entity.z_index -= 10;
+                    entity.z_index = entity.z_index.saturating_sub(10);
                     tracing::info!("z-index: {} ({})", entity.z_index, entity.name);
                     scene.mark_visible_dirty();
                     *config_dirty = true;

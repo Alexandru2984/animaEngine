@@ -320,6 +320,20 @@ impl crate::scene::Scene {
     }
 }
 
+impl GroupConfig {
+    /// Hold the numbers read from a file in range: `nan` and `inf` went
+    /// into every member's quad and hit test, and spread through a
+    /// distribute to the whole selection — config.toml's and a saved
+    /// scene's groups were never sanitised, only an imported scene's
+    /// (BUG-007). The same ranges as a character's.
+    pub(crate) fn sanitize(&mut self) {
+        use crate::config::{finite_clamp, finite_place};
+        self.scale = finite_clamp(self.scale, 0.1, 5.0, 1.0);
+        self.offset_x = finite_place(self.offset_x, 0.0);
+        self.offset_y = finite_place(self.offset_y, 0.0);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
