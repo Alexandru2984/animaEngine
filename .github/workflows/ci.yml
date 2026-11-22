@@ -646,7 +646,10 @@ jobs:
             mkdir -p "fuzz/corpus/$t"
             if [ -d "fuzz/seeds/$t" ]; then cp fuzz/seeds/"$t"/* "fuzz/corpus/$t/"; fi
             echo "::group::fuzz $t (${FUZZ_SECONDS} s)"
-            cargo +nightly fuzz run "$t" -- -max_total_time="$FUZZ_SECONDS"
+            # -timeout: an input that runs on is a failure too — a 32-byte
+            # MP4 looped the decoder for good — not a run that ends with
+            # the clock (TEST-001).
+            cargo +nightly fuzz run "$t" -- -max_total_time="$FUZZ_SECONDS" -timeout=10
             echo "::endgroup::"
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
