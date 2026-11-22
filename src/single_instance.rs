@@ -236,60 +236,60 @@ fn snooze_for(minutes: u32) -> crate::snooze::SnoozeFor {
 /// instead of growing memory.
 struct WaylandActivationService {
     tx: std::sync::mpsc::SyncSender<AnimaEvent>,
+    /// The X11 service's budget ([`MAX_COMMANDS_PER_SECOND`]), shared by
+    /// both paths: there was none here, and a flood filled the channel
+    /// the tray and the signal handler send into too (SEC-012).
+    rate: std::sync::Arc<std::sync::Mutex<CommandRate>>,
 }
 
 #[interface(name = "org.animaengine.Anima")]
 impl WaylandActivationService {
     async fn activate(&self) {
-        Self::dispatch(&self.tx, AnimaEvent::RaiseWindow, "Activate");
+        self.dispatch(AnimaEvent::RaiseWindow, "Activate");
     }
 
     async fn toggle_edit_mode(&self) {
-        Self::dispatch(&self.tx, AnimaEvent::ToggleEditMode, "ToggleEditMode");
+        self.dispatch(AnimaEvent::ToggleEditMode, "ToggleEditMode");
     }
 
     async fn hide_overlay(&self) {
-        Self::dispatch(&self.tx, AnimaEvent::HideOverlay, "HideOverlay");
+        self.dispatch(AnimaEvent::HideOverlay, "HideOverlay");
     }
 
     async fn show_overlay(&self) {
-        Self::dispatch(&self.tx, AnimaEvent::ShowOverlay, "ShowOverlay");
+        self.dispatch(AnimaEvent::ShowOverlay, "ShowOverlay");
     }
 
     async fn toggle_global_playback(&self) {
-        Self::dispatch(
-            &self.tx,
-            AnimaEvent::ToggleGlobalPlayback,
-            "ToggleGlobalPlayback",
-        );
+        self.dispatch(AnimaEvent::ToggleGlobalPlayback, "ToggleGlobalPlayback");
     }
 
     async fn next_scene(&self) {
-        Self::dispatch(&self.tx, AnimaEvent::NextScene, "NextScene");
+        self.dispatch(AnimaEvent::NextScene, "NextScene");
     }
 
     async fn snooze(&self, minutes: u32) {
-        Self::dispatch(&self.tx, AnimaEvent::Snooze(snooze_for(minutes)), "Snooze");
+        self.dispatch(AnimaEvent::Snooze(snooze_for(minutes)), "Snooze");
     }
 
     async fn wake(&self) {
-        Self::dispatch(&self.tx, AnimaEvent::Wake, "Wake");
+        self.dispatch(AnimaEvent::Wake, "Wake");
     }
 
     async fn start_focus(&self, minutes: u32) {
-        Self::dispatch(&self.tx, AnimaEvent::StartFocus(minutes), "StartFocus");
+        self.dispatch(AnimaEvent::StartFocus(minutes), "StartFocus");
     }
 
     async fn stop_focus(&self) {
-        Self::dispatch(&self.tx, AnimaEvent::StopFocus, "StopFocus");
+        self.dispatch(AnimaEvent::StopFocus, "StopFocus");
     }
 
     async fn set_muted(&self, muted: bool) {
-        Self::dispatch(&self.tx, AnimaEvent::SetMuted(muted), "SetMuted");
+        self.dispatch(AnimaEvent::SetMuted(muted), "SetMuted");
     }
 
     async fn toggle_mute(&self) {
-        Self::dispatch(&self.tx, AnimaEvent::ToggleMute, "ToggleMute");
+        self.dispatch(AnimaEvent::ToggleMute, "ToggleMute");
     }
 }
 
@@ -300,11 +300,42 @@ impl WaylandActivationService {
     /// their `gdbus` calls aren't taking effect — without escalating
     /// to `warn` (that would let an attacker amplify their flood into
     /// our own log volume).
-    fn dispatch(tx: &std::sync::mpsc::SyncSender<AnimaEvent>, ev: AnimaEvent, name: &'static str) {
-        if let Err(e) = tx.try_send(ev) {
-            tracing::debug!("D-Bus `{name}` dropped (queue full): {e}");
+    ///
+    /// Within this second's budget only, and the loop woken only for what
+    /// went in: woken for every call, a flood kept it turning (SEC-012).
+    fn dispatch(&self, ev: AnimaEvent, name: &'static str) {
+        let allowed = match self.rate.lock() {
+            Ok(mut rate) => rate.allow(std::time::Instant::now()),
+            // A poisoned lock must not disable the overlay's control
+            // surface — fail open, as the X11 service does.
+            Err(_) => true,
+        };
+        if !allowed {
+            return;
         }
-        crate::wayland::waker::wake();
+        match self.tx.try_send(ev) {
+            Ok(()) => crate::wayland::waker::wake(),
+            Err(e) => tracing::debug!("D-Bus `{name}` dropped (queue full): {e}"),
+        }
+    }
+
+    fn new(tx: std::sync::mpsc::SyncSender<AnimaEvent>) -> Self {
+        Self {
+            tx,
+            rate: std::sync::Arc::new(std::sync::Mutex::new(CommandRate {
+                window_start: std::time::Instant::now(),
+                count: 0,
+                dropped: 0,
+            })),
+        }
+    }
+
+    /// The same service for the other path, on the same budget.
+    fn twin(&self) -> Self {
+        Self {
+            tx: self.tx.clone(),
+            rate: self.rate.clone(),
+        }
     }
 }
 
@@ -428,8 +459,8 @@ pub fn install_wayland_service(
         .name("anima-instance-wayland".into())
         .spawn(move || {
             async_io::block_on(async move {
-                let legacy = WaylandActivationService { tx: tx.clone() };
-                let service = WaylandActivationService { tx };
+                let service = WaylandActivationService::new(tx);
+                let legacy = service.twin();
                 if let Err(e) = connection.object_server().at(OBJECT_PATH, service).await {
                     tracing::warn!("Failed to publish Wayland activation service: {e}");
                     return;
@@ -561,6 +592,21 @@ async fn signal(connection: &zbus::Connection, name: &str, path: &str) -> zbus::
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The Wayland service sheds a flood as the X11 one does, on one
+    /// budget for both its paths: it forwarded everything into the
+    /// channel the tray and the signal handler share (SEC-012).
+    #[test]
+    fn the_wayland_service_sheds_a_flood() {
+        let (tx, rx) = std::sync::mpsc::sync_channel(1000);
+        let service = WaylandActivationService::new(tx);
+        let legacy = service.twin();
+        for i in 0..(MAX_COMMANDS_PER_SECOND * 2) {
+            let s = if i % 2 == 0 { &service } else { &legacy };
+            s.dispatch(AnimaEvent::ToggleEditMode, "ToggleEditMode");
+        }
+        assert_eq!(rx.try_iter().count(), MAX_COMMANDS_PER_SECOND as usize);
+    }
 
     /// A session-bus peer can call these methods as fast as it likes, and
     /// each one used to land straight in the unbounded winit queue. The

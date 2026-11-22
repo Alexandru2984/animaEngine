@@ -86,20 +86,45 @@ pub enum EventSink {
     Channel(std::sync::mpsc::SyncSender<AnimaEvent>),
 }
 
+/// What became of an event handed to an [`EventSink`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Delivery {
+    Sent,
+    /// The bounded channel is full: the loop is there, and busy.
+    Full,
+    /// The receiving loop is gone.
+    Gone,
+}
+
 impl EventSink {
     /// Deliver `event`. `false` if the receiving loop is gone, or — for the
     /// bounded channel — momentarily full: a background thread must never
     /// block on the UI, and a dropped click is better than a stalled tray.
     pub fn send(&self, event: AnimaEvent) -> bool {
+        self.deliver(event) == Delivery::Sent
+    }
+
+    /// [`Self::send`], saying which way it did not go: a full channel is
+    /// a loop that is there, which a quit can reach another way
+    /// (`quit_signal::asked`).
+    pub fn deliver(&self, event: AnimaEvent) -> Delivery {
         match self {
-            Self::Winit(proxy) => proxy.send_event(event).is_ok(),
-            Self::Channel(tx) => {
-                let sent = tx.try_send(event).is_ok();
-                // The native Wayland loop sleeps until woken.
-                #[cfg(unix)]
-                crate::wayland::waker::wake();
-                sent
-            }
+            Self::Winit(proxy) => match proxy.send_event(event) {
+                Ok(()) => Delivery::Sent,
+                Err(_) => Delivery::Gone,
+            },
+            Self::Channel(tx) => match tx.try_send(event) {
+                Ok(()) => {
+                    // The native Wayland loop sleeps until woken — for
+                    // what was sent: woken for what was not, a flood kept
+                    // it turning (SEC-012).
+                    #[cfg(unix)]
+                    crate::wayland::waker::wake();
+                    Delivery::Sent
+                }
+                Err(std::sync::mpsc::TrySendError::Full(_)) => Delivery::Full,
+                Err(std::sync::mpsc::TrySendError::Disconnected(_)) => Delivery::Gone,
+            },
         }
     }
 }
@@ -117,5 +142,16 @@ mod tests {
         assert!(matches!(rx.try_recv(), Ok(AnimaEvent::Quit)));
         drop(rx);
         assert!(!sink.send(AnimaEvent::Quit), "receiver gone");
+    }
+
+    /// Full and gone are told apart: a full channel's loop is there.
+    #[test]
+    fn a_full_channel_is_not_a_gone_loop() {
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        let sink = EventSink::Channel(tx);
+        assert_eq!(sink.deliver(AnimaEvent::Quit), Delivery::Sent);
+        assert_eq!(sink.deliver(AnimaEvent::Quit), Delivery::Full);
+        drop(rx);
+        assert_eq!(sink.deliver(AnimaEvent::Quit), Delivery::Gone);
     }
 }

@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- **A flood of D-Bus calls can no longer make a logout lose unsaved
+  changes on native Wayland.** The native loop's commands, the tray's
+  and a signal's quit share one queue, and the D-Bus calls had no limit
+  there: with the queue full, a logout's quit did not go in, and the app
+  ended without saving. D-Bus calls are now held to 20 a second, as on
+  X11, and a quit from a signal reaches the loop whatever the queue
+  holds.
 - **Your home folder's path, and names from files, are kept out of the
   log and the diagnostic report.** A few messages still carried a whole
   path — the library's, among them in an error toasts showed — and

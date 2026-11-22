@@ -13,7 +13,8 @@
 //! starts gets an empty mask from `std::process::Command`. Until the loop
 //! is there to ask ([`connect`]), a signal ends the process as before.
 
-use crate::event::{AnimaEvent, EventSink};
+use crate::event::{AnimaEvent, Delivery, EventSink};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 /// The signals taken.
@@ -21,6 +22,17 @@ const SIGNALS: [libc::c_int; 3] = [libc::SIGTERM, libc::SIGINT, libc::SIGHUP];
 
 /// Where a signal's Quit goes, once the loop exists.
 static SINK: OnceLock<EventSink> = OnceLock::new();
+
+/// A signal asked the app to quit. The native loop looks at it every
+/// turn ([`asked`]): its channel is shared with the D-Bus service and the
+/// tray, and full — a flood of D-Bus calls — the Quit sent there did not
+/// go in, and the process ended without its save (SEC-012).
+static ASKED: AtomicBool = AtomicBool::new(false);
+
+/// Whether a signal asked the app to quit.
+pub fn asked() -> bool {
+    ASKED.load(Ordering::Acquire)
+}
 
 fn signal_set() -> libc::sigset_t {
     // SAFETY: `sigemptyset` initialises the set before `sigaddset` reads
@@ -72,20 +84,51 @@ fn wait(set: libc::sigset_t) {
             tracing::warn!("Signal {signal} again: exiting now, without saving");
             std::process::exit(128 + signal);
         }
-        match SINK.get() {
-            Some(sink) if sink.send(AnimaEvent::Quit) => {
+        match on_signal(SINK.get()) {
+            Some(delivery) => {
                 asked = true;
-                tracing::info!("Signal {signal}: quitting, saving first");
+                tracing::info!("Signal {signal}: quitting, saving first ({delivery:?})");
             }
             // Before the loop is there, or with it gone: as before.
-            _ => std::process::exit(128 + signal),
+            None => std::process::exit(128 + signal),
         }
+    }
+}
+
+/// A first signal: the latch set and the Quit sent, and how — or `None`
+/// when there is no loop to quit, which ends the process. A full channel
+/// is a loop that is there: the latch reaches it, and it is woken.
+fn on_signal(sink: Option<&EventSink>) -> Option<Delivery> {
+    let sink = sink?;
+    ASKED.store(true, Ordering::Release);
+    match sink.deliver(AnimaEvent::Quit) {
+        Delivery::Gone => None,
+        Delivery::Full => {
+            crate::wayland::waker::wake();
+            Some(Delivery::Full)
+        }
+        Delivery::Sent => Some(Delivery::Sent),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A signal while the loop's channel is full of D-Bus calls: the
+    /// latch carries the quit, and the process is not ended where it
+    /// stood (SEC-012). With the loop gone, it is, as before.
+    #[test]
+    fn a_full_channel_does_not_lose_a_signal() {
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        let sink = EventSink::Channel(tx);
+        assert!(sink.send(AnimaEvent::ToggleEditMode));
+        assert_eq!(on_signal(Some(&sink)), Some(Delivery::Full));
+        assert!(asked());
+        drop(rx);
+        assert_eq!(on_signal(Some(&sink)), None);
+        assert_eq!(on_signal(None), None);
+    }
 
     #[test]
     fn the_session_signals_are_the_ones_taken() {

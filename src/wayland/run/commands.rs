@@ -126,6 +126,11 @@ impl Native {
             let mut next_scene = false;
             let mut snoozing = false;
             let mut mute_changed = false;
+            // A signal's quit, whether or not its event found room in the
+            // channel (`quit_signal::asked`).
+            if crate::quit_signal::asked() {
+                quit = true;
+            }
             if let Some(rx) = &command_rx {
                 while let Ok(ev) = rx.try_recv() {
                     *activity = true;
