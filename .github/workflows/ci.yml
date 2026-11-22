@@ -358,9 +358,10 @@ jobs:
       # Known-ignored advisories:
       #   RUSTSEC-2024-0436 — `paste` unmaintained. Pulled in transitively
       #   via wgpu-hal's macOS metal backend and accesskit_winit's Windows
-      #   AT bridge; neither path runs on our Linux X11/Wayland targets,
-      #   so there's no runtime exposure. Revisit when wgpu / accesskit
-      #   drop the dependency upstream.
+      #   AT bridge, so the Windows release does compile it; but it is a
+      #   proc-macro — it runs in the compiler, pasting identifiers, and no
+      #   code of it is in the binary. Unmaintained, not vulnerable.
+      #   Revisit when wgpu / accesskit drop the dependency upstream.
       #   RUSTSEC-2026-0186 — `memmap2` unsound (unchecked pointer offset).
       #   The fixable 0.9.x instance was bumped to 0.9.11 (patched) in the
       #   lockfile; the remaining 0.8.0 instance is pinned by xkbcommon
@@ -381,13 +382,11 @@ jobs:
       #   scan / unbounded NsReader allocation), both fixed in >=0.41.0.
       #   Our *direct* dependency — the one that parses untrusted Shimeji
       #   pack XML in src/shimeji/ — was bumped 0.37 -> 0.41, so the only
-      #   attacker-reachable path is patched. Two transitive copies remain
-      #   and cannot be bumped without upstream: quick-xml 0.39.2 via
-      #   wayland-scanner (a proc-macro — runs at build time generating
-      #   protocol bindings, never parses runtime input), and 0.30.0 via
-      #   accesskit's zbus_xml (parses our own static D-Bus introspection
-      #   XML, not attacker-supplied). Neither uses NsReader on untrusted
-      #   input. Drop these when wayland-scanner / accesskit bump upstream.
+      #   attacker-reachable path is patched; wayland-scanner is on 0.41
+      #   too. One transitive copy remains and cannot be bumped without
+      #   upstream: 0.30.0 via accesskit's zbus_xml (parses our own static
+      #   D-Bus introspection XML, not attacker-supplied; no NsReader on
+      #   untrusted input). Drop these when accesskit bumps upstream.
       # On push / PR this is a hard gate — a human is changing deps, so a
       # vulnerable one must block. On the weekly `schedule` canary the
       # lockfile is UNCHANGED, so a new finding is a freshly-published
@@ -423,13 +422,20 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set +e
-          cargo audit --deny warnings \
-            --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0186 \
-            --ignore RUSTSEC-2026-0192 --ignore RUSTSEC-2026-0194 \
-            --ignore RUSTSEC-2026-0195 --ignore RUSTSEC-2026-0249 \
-            --ignore RUSTSEC-2026-0370 --ignore RUSTSEC-2026-0371 \
-            --ignore RUSTSEC-2026-0372
-          code=$?
+          code=0
+          # The fuzz harness has a lockfile of its own, which nothing
+          # audited: it held an unsound rustix and a yanked async-executor
+          # the main one had moved past (BUILD-001).
+          for lock in Cargo.lock fuzz/Cargo.lock; do
+            echo "::group::cargo audit $lock"
+            cargo audit --file "$lock" --deny warnings \
+              --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0186 \
+              --ignore RUSTSEC-2026-0192 --ignore RUSTSEC-2026-0194 \
+              --ignore RUSTSEC-2026-0195 --ignore RUSTSEC-2026-0249 \
+              --ignore RUSTSEC-2026-0370 --ignore RUSTSEC-2026-0371 \
+              --ignore RUSTSEC-2026-0372 || code=1
+            echo "::endgroup::"
+          done
           if [ "$code" -ne 0 ] && [ "$EVENT_NAME" = "schedule" ]; then
             echo "::warning::cargo audit found a newly-published advisory on an unchanged lockfile. Triage: bump the crate or add a justified --ignore. Not failing the weekly canary."
             exit 0
@@ -626,6 +632,10 @@ jobs:
         with:
           workspaces: fuzz
       - run: cargo install --locked cargo-fuzz
+      # cargo fuzz has no --locked of its own: fail here if
+      # fuzz/Cargo.lock is not the one the build would use, instead of
+      # fuzzing whatever resolved that day (BUILD-001).
+      - run: cargo +nightly metadata --locked --format-version 1 --manifest-path fuzz/Cargo.toml > /dev/null
       # Every target fuzz/Cargo.toml names — a new one is fuzzed without
       # being added here — each corpus seeded from the committed seeds so
       # the fuzzer starts from valid inputs instead of empty ones. A panic
