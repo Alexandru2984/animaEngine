@@ -749,8 +749,28 @@ impl GpuShared {
     }
 
     /// Ensure a texture exists for an entity, creating or updating as needed
+    ///
+    /// A frame that cannot be drawn ([`Frame::is_drawable`]) is skipped:
+    /// wgpu panics on a texture of no pixels or an upload short of its
+    /// size, on the UI thread. The loaders refuse such frames
+    /// (`frame::capped`); this is for one that gets past them (BUG-001).
     pub fn ensure_texture(&mut self, entity: &Entity) {
         let needs_create = !self.textures.contains_key(&entity.id);
+        if let Some(frame) = entity.animation().current_frame_data() {
+            if !frame.is_drawable() {
+                static SAID: std::sync::atomic::AtomicBool =
+                    std::sync::atomic::AtomicBool::new(false);
+                if !SAID.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                    tracing::warn!(
+                        "A frame of {}x{} with {} bytes is not drawn",
+                        frame.width,
+                        frame.height,
+                        frame.rgba.len()
+                    );
+                }
+                return;
+            }
+        }
 
         if needs_create {
             if let Some(frame) = entity.animation().current_frame_data() {

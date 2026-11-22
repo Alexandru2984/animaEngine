@@ -75,7 +75,18 @@ fn validate_single_file(path: &Path) -> Result<(u32, u32)> {
         .and_then(|reader| reader.into_dimensions());
     match dims {
         Ok((w, h)) => {
-            if w > MAX_IMAGE_DIM || h > MAX_IMAGE_DIM {
+            if w == 0 || h == 0 {
+                // Nothing over the limit, so it passed; and what it
+                // decodes to, wgpu refuses with a panic (BUG-001).
+                tracing::warn!(
+                    "Picture of no pixels ({w}x{h}): {}",
+                    crate::drop_validate::redact_path(path)
+                );
+                Err(AnimaError::said_as(
+                    crate::i18n::Msg::new("error-image-unreadable")
+                        .arg("name", crate::drop_validate::redact_path(path)),
+                ))
+            } else if w > MAX_IMAGE_DIM || h > MAX_IMAGE_DIM {
                 Err(AnimaError::ImageTooLarge {
                     width: w,
                     height: h,
@@ -195,7 +206,7 @@ pub fn load_asset(
     // cached: the cache kept the full size and every start resized it
     // again — a 1024² sequence of 24 frames was 96 MB on disk for 6 MB
     // used (cache format 2).
-    let frames = super::frame::capped(frames, max_dim)?;
+    let frames = super::frame::capped(frames, max_dim).map_err(|e| unreadable(asset_path, e))?;
 
     // Best-effort cache write — never fails the load.
     if let Err(e) = cache::try_save(
@@ -697,6 +708,39 @@ mod tests {
             matches!(err, image::ImageError::Limits(_)),
             "refused for its size, not decoded: {err:?}"
         );
+    }
+
+    /// A GIF whose screen is 0×0, holding one 1×1 frame: 35 bytes the
+    /// dimension check passed (nothing is over the limit) and the decoder
+    /// turned into a 0×0 frame, which wgpu refuses as a texture with a
+    /// panic on the UI thread (BUG-001). Refused as unreadable, both by
+    /// its header and, past it, by what it decodes to.
+    #[test]
+    fn a_picture_with_no_pixels_is_refused() {
+        let dir = temp_dir("no_pixels");
+        let path = dir.join("empty.gif");
+        let mut gif = b"GIF89a\x00\x00\x00\x00\x80\x00\x00".to_vec();
+        gif.extend_from_slice(&[0, 0, 0, 255, 255, 255]);
+        gif.extend_from_slice(&[0x2C, 0, 0, 0, 0, 1, 0, 1, 0]);
+        gif.extend_from_slice(&[0, 2, 2, 0x4C, 0x01, 0, 0x3B]);
+        std::fs::write(&path, &gif).unwrap();
+        let err = validate_image_dimensions(&path).unwrap_err();
+        assert!(matches!(err, AnimaError::Said(_)), "{err:?}");
+        let err = load_asset(
+            &AssetType::Gif,
+            &path,
+            None,
+            None,
+            crate::constants::MAX_DROP_SIZE,
+        )
+        .unwrap_err();
+        assert!(matches!(err, AnimaError::Said(_)), "{err:?}");
+        // Past the header: what it decodes to is refused too.
+        let frames = super::super::gif_loader::load_gif(&path);
+        if let Ok(frames) = frames {
+            let err = super::super::frame::capped(frames, 256).unwrap_err();
+            assert!(matches!(err, AnimaError::ImageDecode(_)), "{err:?}");
+        }
     }
 
     #[test]

@@ -16,7 +16,30 @@ pub struct Frame {
 
 /// `frames`, each at most `max_dim` a side ([`Frame::resized`]); how many
 /// changed, and from what, said once.
+///
+/// A frame that cannot be drawn ([`Frame::is_drawable`]) is refused, not
+/// passed on: every decoded animation comes through here, and wgpu
+/// panics on a texture of no pixels or an upload short of its size. A
+/// GIF whose screen is 0×0 decoded to such a frame (BUG-001).
 pub fn capped(frames: Vec<Frame>, max_dim: u32) -> Result<Vec<Frame>> {
+    for f in &frames {
+        if f.width == 0 || f.height == 0 {
+            return Err(AnimaError::ImageDecode(image::ImageError::Decoding(
+                image::error::DecodingError::new(
+                    image::error::ImageFormatHint::Unknown,
+                    format!("a frame of {}x{} pixels", f.width, f.height),
+                ),
+            )));
+        }
+        if !f.is_drawable() {
+            return Err(AnimaError::FrameBufferCorrupt {
+                expected: (f.width as usize)
+                    .saturating_mul(f.height as usize)
+                    .saturating_mul(4),
+                got: f.rgba.len(),
+            });
+        }
+    }
     let first = frames.first().map(|f| (f.width, f.height));
     let over = frames
         .iter()
@@ -44,6 +67,16 @@ impl Frame {
             height,
             delay_ms: None,
         }
+    }
+
+    /// Whether a texture can be made of it: a pixel or more each way, and
+    /// exactly the bytes its size takes. wgpu panics on a texture of no
+    /// pixels, or an upload short of its size.
+    pub fn is_drawable(&self) -> bool {
+        let want = (self.width as usize)
+            .checked_mul(self.height as usize)
+            .and_then(|n| n.checked_mul(4));
+        self.width > 0 && self.height > 0 && want == Some(self.rgba.len())
     }
 
     /// How many empty rows sit above and below what is seen — alpha over
@@ -128,6 +161,33 @@ impl Frame {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A frame with no pixels, or fewer bytes than its size, is refused
+    /// whatever its size against the cap: either reached wgpu, which
+    /// panics on a 0×0 texture or a short upload (BUG-001).
+    #[test]
+    fn a_frame_that_cannot_be_drawn_is_refused() {
+        for (rgba, w, h) in [(vec![], 0, 0), (vec![], 0, 4), (vec![], 4, 0)] {
+            let err = capped(vec![Frame::new(rgba, w, h)], 256).unwrap_err();
+            assert!(
+                matches!(err, AnimaError::ImageDecode(_)),
+                "{w}x{h}: {err:?}"
+            );
+        }
+        let short = Frame::new(vec![0; 4 * 4 * 4 - 1], 4, 4);
+        let err = capped(vec![Frame::new(vec![0; 64], 4, 4), short], 256).unwrap_err();
+        assert!(
+            matches!(err, AnimaError::FrameBufferCorrupt { .. }),
+            "{err:?}"
+        );
+        assert!(capped(vec![Frame::new(vec![0; 64], 4, 4)], 256).is_ok());
+        assert!(Frame::new(vec![0; 4], 1, 1).is_drawable());
+        assert!(!Frame::new(vec![0; 3], 1, 1).is_drawable());
+        assert!(
+            !Frame::new(vec![0; 8], 1, 1).is_drawable(),
+            "more bytes than its size"
+        );
+    }
 
     #[test]
     fn smaller_than_max_returns_unchanged() {

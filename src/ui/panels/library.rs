@@ -283,7 +283,17 @@ fn thumbnail_texture(ui: &egui::Ui, asset: &LibraryAsset) -> Option<egui::Textur
         reader.limits(limits);
         reader.decode()
     };
-    let Ok(img) = read() else {
+    // One of no pixels is as good as none: egui would hand wgpu a texture
+    // it panics on (BUG-001).
+    let Ok(img) = read().and_then(|img| {
+        if img.width() == 0 || img.height() == 0 {
+            Err(image::ImageError::Limits(
+                image::error::LimitError::from_kind(image::error::LimitErrorKind::DimensionError),
+            ))
+        } else {
+            Ok(img)
+        }
+    }) else {
         thumbs
             .missing
             .insert(asset.id.clone(), std::time::Instant::now());

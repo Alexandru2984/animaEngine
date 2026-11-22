@@ -41,6 +41,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A picture of no pixels can no longer crash the app.** A 35-byte GIF
+  whose screen is 0×0 passed every check — nothing in it was over a
+  limit — and decoded to a frame of no pixels, which the GPU refused
+  with a crash the moment it was dropped on the desktop. It is now
+  refused as an unreadable picture, as is any frame of no pixels or with
+  fewer bytes than its size, and the renderer skips one that gets past.
 - **A broken sound file can no longer crash the app.** An MP3 holding
   only a header frame made the decoder divide by zero, taking the app
   down the moment a character, a reminder or a script played it. It now

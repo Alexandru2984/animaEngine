@@ -99,7 +99,7 @@ impl GpuTexture {
     /// Update texture data in-place (for animation frame changes).
     /// Only works if new frame has same dimensions.
     pub fn update_from_frame(&self, queue: &wgpu::Queue, frame: &Frame) {
-        if frame.width != self.width || frame.height != self.height {
+        if frame.width != self.width || frame.height != self.height || !frame.is_drawable() {
             tracing::warn!(
                 "Frame size mismatch: texture is {}x{}, frame is {}x{}",
                 self.width,

@@ -244,6 +244,34 @@ mod tests {
     use super::*;
     use crate::config::{AppConfig, CharacterConfig};
 
+    /// A thumbnail comes with an imported scene or backup, and is shown
+    /// as an egui texture, which wgpu refuses with a panic at no pixels
+    /// (BUG-001). The PNG decoder refuses one already — pinned, since
+    /// the GIF decoder did not. A PNG of 0×0, and one of 0×1, with sound
+    /// CRCs.
+    #[test]
+    fn a_thumbnail_of_no_pixels_is_refused() {
+        for (w, h, ihdr_crc) in [
+            (0u32, 0u32, [59, 139, 124, 18]),
+            (0, 1, [240, 215, 175, 183]),
+        ] {
+            let mut png = b"\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR".to_vec();
+            png.extend_from_slice(&w.to_be_bytes());
+            png.extend_from_slice(&h.to_be_bytes());
+            png.extend_from_slice(&[8, 6, 0, 0, 0]);
+            png.extend_from_slice(&ihdr_crc);
+            png.extend_from_slice(&[0, 0, 0, 8, 73, 68, 65, 84, 120, 156, 3, 0, 0, 0, 0, 1]);
+            png.extend_from_slice(&[
+                72, 6, 137, 210, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+            ]);
+            assert_eq!(png.len(), 65);
+            match decode(&png) {
+                Err(_) => {}
+                Ok(image) => panic!("{w}x{h} decoded to {}x{}", image.width(), image.height()),
+            }
+        }
+    }
+
     fn scene_at(spots: &[(f32, f32)]) -> Scene {
         let mut scene = Scene::from_config(&AppConfig::default());
         let template = AppConfig::default().characters.remove(0);

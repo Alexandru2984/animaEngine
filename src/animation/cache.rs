@@ -558,8 +558,9 @@ fn read_frames_from<R: Read>(r: &mut R) -> Result<Vec<Frame>> {
 
         // Reject a zero dimension: it yields an empty pixel buffer that
         // trips wgpu texture validation at upload (a texture side must be
-        // ≥ 1). A fresh decode never produces one — `Frame::resized` clamps
-        // to 1px — so a cache claiming it is corrupt.
+        // ≥ 1). A fresh decode is never cached with one — `frame::capped`
+        // refuses it, and `Frame::resized` clamps to 1px — so a cache
+        // claiming it is corrupt.
         if w == 0 || h == 0 {
             return Err(AnimaError::other("cache frame has a zero dimension"));
         }
