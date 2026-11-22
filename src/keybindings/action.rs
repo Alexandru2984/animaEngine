@@ -192,6 +192,16 @@ impl Action {
     /// both: Undo pressed mid-drag was lost at the next pointer move, which
     /// put the characters back under it, and Duplicate sent the copies
     /// flying.
+    /// Whether the action looks at Shift itself — the nudges, 1 px with
+    /// it and 10 without — so Shift with its key runs it rather than
+    /// finding nothing (`KeyBindings::action_for_press`).
+    pub fn reads_shift(self) -> bool {
+        matches!(
+            self,
+            Self::NudgeUp | Self::NudgeDown | Self::NudgeLeft | Self::NudgeRight
+        )
+    }
+
     pub fn interrupts_drag(self) -> bool {
         matches!(
             self,

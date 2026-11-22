@@ -51,6 +51,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Shift with an arrow key nudges by one pixel again**, on both
+  backends. The arrows are bound without Shift, so Shift+Arrow found no
+  binding and did nothing at all.
 - **A deleted scene's picture no longer stays in memory.** Each saved
   scene's picture was kept, on the GPU too, until the app quit — also
   after the scene was deleted. They now go with their scene, and only

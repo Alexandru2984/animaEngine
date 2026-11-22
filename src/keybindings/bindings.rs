@@ -184,19 +184,23 @@ impl KeyBindings {
             .find(|&action| self.effective(action).contains(&chord))
     }
 
-    /// The action a key press runs: its chord's, or — for a symbol typed
-    /// with Shift alone that has none — the bare symbol's. A symbol keeps
-    /// its label whatever the layout, so `+` is opacity-up everywhere; but
-    /// on a US keyboard `+` is Shift+=, and the press came as Shift++,
-    /// bound to nothing, while German types `+` unshifted and the binding
-    /// has to say `+` for it. A chord bound with Shift still wins.
+    /// The action a key press runs: its chord's, or — pressed with Shift
+    /// alone and bound to nothing so — the bare key's, for a symbol or
+    /// for an action that reads Shift itself ([`Action::reads_shift`]). A
+    /// symbol keeps its label whatever the layout, so `+` is opacity-up
+    /// everywhere; but on a US keyboard `+` is Shift+=, and the press came
+    /// as Shift++, bound to nothing, while German types `+` unshifted and
+    /// the binding has to say `+` for it. And Shift+Arrow is the 1 px
+    /// nudge, found as Shift+ArrowUp, bound to nothing, so it never ran
+    /// (BUG-008). A chord bound with Shift still wins.
     pub fn action_for_press(&self, chord: KeyChord) -> Option<Action> {
         self.lookup(chord).or_else(|| {
-            let shifted_symbol = chord.mods == super::ModifierMask::SHIFT
-                && matches!(chord.key, super::KeyCode::Symbol(_));
-            shifted_symbol
-                .then(|| self.lookup(KeyChord::new(super::ModifierMask::NONE, chord.key)))
-                .flatten()
+            if chord.mods != super::ModifierMask::SHIFT {
+                return None;
+            }
+            let bare = self.lookup(KeyChord::new(super::ModifierMask::NONE, chord.key))?;
+            let symbol = matches!(chord.key, super::KeyCode::Symbol(_));
+            (symbol || bare.reads_shift()).then_some(bare)
         })
     }
 

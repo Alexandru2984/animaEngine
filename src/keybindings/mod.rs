@@ -412,6 +412,42 @@ mod tests {
         assert_eq!(bindings.action_for_press(shift_plus), Some(Action::FpsUp));
     }
 
+    /// Shift with an arrow is the 1 px nudge — the action reads Shift
+    /// itself — but Shift+ArrowUp is bound to nothing, so the press found
+    /// no action and nothing moved, on either backend (BUG-008). It finds
+    /// the arrow's; Shift with a key whose action does not read it still
+    /// finds nothing, and a chord bound with Shift still wins.
+    #[test]
+    fn shift_with_an_arrow_is_the_fine_nudge() {
+        let mut bindings = KeyBindings::default();
+        let arrow = |k| KeyChord::new(ModifierMask::SHIFT, KeyCode::Named(k));
+        for (key, action) in [
+            (NamedKey::ArrowUp, Action::NudgeUp),
+            (NamedKey::ArrowDown, Action::NudgeDown),
+            (NamedKey::ArrowLeft, Action::NudgeLeft),
+            (NamedKey::ArrowRight, Action::NudgeRight),
+        ] {
+            assert_eq!(
+                bindings.action_for_press(arrow(key)),
+                Some(action),
+                "{key:?}"
+            );
+        }
+        assert_eq!(bindings.action_for_press(arrow(NamedKey::Delete)), None);
+        let ctrl_shift = ModifierMask(ModifierMask::CTRL.0 | ModifierMask::SHIFT.0);
+        assert_eq!(
+            bindings.action_for_press(KeyChord::new(ctrl_shift, KeyCode::Named(NamedKey::ArrowUp))),
+            None
+        );
+        bindings
+            .map
+            .insert(Action::FpsUp, vec![arrow(NamedKey::ArrowUp)]);
+        assert_eq!(
+            bindings.action_for_press(arrow(NamedKey::ArrowUp)),
+            Some(Action::FpsUp)
+        );
+    }
+
     /// Letters follow the label: on AZERTY Ctrl+A is the key with A on
     /// it, which sits where US has Q.
     #[test]
