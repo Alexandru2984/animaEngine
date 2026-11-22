@@ -18,6 +18,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   curried arguments out of its memory limits, so a short loop of
   `f = f.curry(f)` could take gigabytes in one frame. No bundled script
   used them; an anonymous function that captures nothing still works.
+- **A restored backup can no longer slip settings past the checks.** A
+  character or setting the app could not read was kept as written — a
+  script, a file outside the backup, a sound — and a backup whose
+  settings were larger than a config may be was restored, then failed to
+  load. What a backup holds that this version cannot read now stays
+  behind, and oversized settings are refused before anything is written.
 
 ### Fixed
 

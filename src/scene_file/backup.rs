@@ -8,7 +8,9 @@
 //! settings' characters tidied as `super::tidy` does (scripts stood still,
 //! sounds left behind, no monitors), the pictures unpacked into a folder
 //! that did not exist and held to the drop checks, scene pictures decoded
-//! under caps. Restoring adds the scenes under free names — nothing saved
+//! under caps. What the settings hold that this version cannot read and
+//! tidy is left behind, and settings larger than a config are refused.
+//! Restoring adds the scenes under free names — nothing saved
 //! here is written over — and replaces the settings, keeping the old file
 //! beside as `config.toml.before-restore`.
 
@@ -244,6 +246,27 @@ pub fn read(file: &Path, into: &Path) -> Result<Restored> {
     let text = std::str::from_utf8(manifest.data)
         .map_err(|_| super::damaged("its backup.toml is not text"))?;
     let (mut config, scenes) = read_manifest(text)?;
+    // A backup may come from anyone, so it is held to what this version
+    // can read and tidy. What it cannot — a newer version's character or
+    // setting, set aside verbatim, a key it does not know — never went
+    // through `tidy`: a script behavior, a path outside the file, a sound
+    // reached `config.toml` as written, for a version that reads them to
+    // run (SEC-005). They stay behind; a local config keeps its own.
+    let left_behind = config.set_aside.len() + config.extra.len();
+    if left_behind > 0 {
+        tracing::warn!(
+            "Backup: {left_behind} setting(s) or entries this version cannot read left behind"
+        );
+    }
+    config.set_aside = Default::default();
+    config.extra.clear();
+    // A sound file stays behind, as a character's does in `tidy`.
+    if matches!(
+        config.global.reminder_sound,
+        crate::reminders::ReminderSound::File(_)
+    ) {
+        config.global.reminder_sound = crate::reminders::ReminderSound::None;
+    }
 
     let mut assets = Vec::new();
     let mut thumbs: Vec<(usize, image::RgbaImage)> = Vec::new();
@@ -319,6 +342,16 @@ pub fn read(file: &Path, into: &Path) -> Result<Restored> {
             .position(|(n, _)| *n == i)
             .map(|k| thumbs.swap_remove(k).1);
         restored.push((scene, thumb));
+    }
+
+    // Settings that would not load again are refused here, before
+    // anything is written: `backup.toml` may hold four configs' worth for
+    // its scenes, and a config past MAX_CONFIG_BYTES fell back to the
+    // defaults on the next start.
+    if config.to_toml_string()?.len() as u64 > MAX_CONFIG_BYTES {
+        return Err(super::damaged(
+            "its settings are larger than a config may be",
+        ));
     }
 
     if into.exists() {
@@ -410,11 +443,13 @@ mod tests {
     }
 
     /// What the config set aside — a newer version's character, its new
-    /// setting — goes into a backup and comes back out of it, set aside
-    /// again. A backup used to write the config without it, and a restore
-    /// failed whole on it.
+    /// setting — goes into a backup, and a restore reads past it instead
+    /// of failing whole on it, as it once did. It does not come back: a
+    /// backup may come from anyone, and what this version cannot read it
+    /// cannot tidy (SEC-005). A newer version restoring the same backup
+    /// reads those entries, and tidies them.
     #[test]
-    fn what_the_config_set_aside_travels_in_a_backup() {
+    fn what_the_config_set_aside_goes_out_but_does_not_come_back() {
         let dir = tmp("set_aside");
         let text = r#"
             version = 2
@@ -433,12 +468,95 @@ mod tests {
         assert!(config.set_aside.unread());
         let file = dir.join("b.animabackup");
         back_up(&config, &[], &file).unwrap();
-        let restored = read(&file, &dir.join("in")).unwrap();
-        assert!(restored.config.set_aside.unread(), "set aside again");
+        let bytes = std::fs::read(&file).unwrap();
+        let entries = zip::read(&bytes, MAX_ENTRIES).unwrap();
+        let manifest = entries.iter().find(|e| e.name == MANIFEST).unwrap();
+        let manifest = std::str::from_utf8(manifest.data).unwrap();
+        assert!(manifest.contains("future_glow") && manifest.contains("holo"));
+
+        let restored = read(&file, &dir.join("in")).expect("read past it");
+        assert!(!restored.config.set_aside.unread(), "left behind");
         let back: toml::Table = restored.config.to_toml_string().unwrap().parse().unwrap();
-        assert_eq!(back["global"]["future_glow"].as_integer(), Some(3));
-        assert_eq!(back["global"]["theme"].as_str(), Some("sepia"));
-        assert_eq!(back["characters"][0]["id"].as_str(), Some("holo"));
+        assert!(back["global"].get("future_glow").is_none());
+        assert!(!restored.config.to_toml_string().unwrap().contains("holo"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A backup holding `manifest` as its `backup.toml`, and nothing else.
+    fn backup_with(dir: &Path, manifest: &str) -> PathBuf {
+        let mut w = zip::Writer::new(Vec::new());
+        w.add(MANIFEST, manifest.as_bytes()).unwrap();
+        let file = dir.join("b.animabackup");
+        std::fs::write(&file, w.finish().unwrap()).unwrap();
+        file
+    }
+
+    /// A backup may come from anyone. A character this version cannot
+    /// read is set aside verbatim — and so it skipped `tidy`: a script
+    /// behavior, a path outside the backup and a sound went into
+    /// `config.toml` as written, for a version that can read it to run
+    /// (SEC-005). What cannot be read and tidied stays behind now.
+    #[test]
+    fn what_a_backup_cannot_tidy_stays_behind() {
+        let dir = tmp("smuggle");
+        let manifest = r#"
+            format = 1
+            [config]
+            version = 2
+            future_key = "anything"
+            [config.global]
+            reminder_sound = { file = "chime.ogg" }
+            [[config.characters]]
+            id = "evil"
+            name = "Evil"
+            asset_type = "png_static"
+            asset_path = "/etc/passwd"
+            x = 0.0
+            y = 0.0
+            behavior = { type = "script", path = "evil.rhai" }
+            easing = "future_easing_variant_v2"
+            [config.characters.talk]
+            sound = "evil.wav"
+        "#;
+        let file = backup_with(&dir, manifest);
+        let restored = read(&file, &dir.join("in")).expect("the rest restores");
+        let text = restored.config.to_toml_string().unwrap();
+        for smuggled in [
+            "evil.rhai",
+            "/etc/passwd",
+            "evil.wav",
+            "future_key",
+            "chime.ogg",
+        ] {
+            assert!(
+                !text.contains(smuggled),
+                "{smuggled} reached config.toml:\n{text}"
+            );
+        }
+        assert!(!restored.config.set_aside.unread());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `backup.toml` may be four configs' worth, for its scenes; settings
+    /// that come out larger than a config may be were written, and then
+    /// did not load — the next start fell back to the defaults.
+    #[test]
+    fn settings_larger_than_a_config_are_refused_before_anything_is_written() {
+        let dir = tmp("huge");
+        let app = "x".repeat(4096);
+        let apps: Vec<String> = (0..2200).map(|i| format!("\"{app}{i}\"")).collect();
+        let manifest = format!(
+            "format = 1\n[config]\nversion = 2\n[config.global]\nstep_aside_apps = [{}]\n",
+            apps.join(",")
+        );
+        assert!(manifest.len() as u64 > MAX_CONFIG_BYTES);
+        let file = backup_with(&dir, &manifest);
+        let into = dir.join("in");
+        assert!(
+            read(&file, &into).is_err(),
+            "a config too big to load was accepted"
+        );
+        assert!(!into.exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

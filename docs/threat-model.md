@@ -186,6 +186,14 @@ checks, scene pictures decoded under `scene_thumb`'s caps, each scene
 and the settings' own characters through `scene_file::tidy` (scripts
 stood still, sounds and monitors dropped, followers and partners from
 elsewhere cleared), the settings through the config's own sanitising.
+What the settings hold that this version cannot read — a newer
+version's character or setting, set aside, an unknown key — never went
+through `tidy`, so it stays behind instead of being kept as a local
+config keeps it (SEC-005: a set-aside character carried a script
+behavior, an outside path and a sound into `config.toml`); so does the
+reminders' sound file. Settings that would come out larger than a
+config may be (`MAX_CONFIG_BYTES`) are refused before anything is
+written.
 Restoring writes only where the app keeps its own files: scenes are
 added under free names — none written over — and the settings replace
 `config.toml` after a copy to `config.toml.before-restore`. Only the

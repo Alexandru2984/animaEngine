@@ -195,6 +195,11 @@ impl SetAside {
         !self.global.is_empty() || !self.entries.is_empty()
     }
 
+    /// How many settings, entries and unknown keys are set aside.
+    pub(crate) fn len(&self) -> usize {
+        self.global.len() + self.entries.len() + self.unknown.len()
+    }
+
     /// What a scene file (`crate::scenes`) holds that this version does
     /// not read: its characters and groups that do not read, taken out of
     /// `table`, and the keys it does not know — the scene's own, its

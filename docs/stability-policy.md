@@ -28,7 +28,10 @@ change to any of them is a breaking change and waits for 2.0 (see
   knows (`[global]`, a character, its talk and hours, a group, a
   window). 1.4 and earlier read a 1.5 config only while it holds
   nothing they do not know, and otherwise not at all; see
-  [config.md](config.md#schema-version).
+  [config.md](config.md#schema-version). A restored `.animabackup` is
+  not the local config: it may come from anyone, so what it holds that
+  this version cannot read and tidy stays behind rather than being kept
+  (docs/threat-model.md, Backups).
 - **D-Bus surface.** The bus name `eu.animaengine.Anima`, object path
   `/eu/animaengine/Anima`, and interface `org.animaengine.Anima` are
   fixed. (The bus name and the interface are deliberately different
