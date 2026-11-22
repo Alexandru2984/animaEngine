@@ -127,8 +127,8 @@ impl ksni::Tray for AnimaTray {
 ///
 /// Failures to register with D-Bus are logged but don't abort startup;
 /// the app remains usable from the toggle button and keybinds.
-pub fn spawn(sink: EventSink) -> thread::JoinHandle<()> {
-    thread::Builder::new()
+pub fn spawn(sink: EventSink) -> Option<thread::JoinHandle<()>> {
+    let spawned = thread::Builder::new()
         .name("anima-tray".into())
         .spawn(move || {
             async_io::block_on(async move {
@@ -189,8 +189,16 @@ pub fn spawn(sink: EventSink) -> thread::JoinHandle<()> {
                     }
                 }
             });
-        })
-        .expect("failed to spawn tray thread")
+        });
+    // No tray is a lesser app, not a reason to end it: it panicked here
+    // when the thread could not be made (BUG-016).
+    match spawned {
+        Ok(thread) => Some(thread),
+        Err(e) => {
+            tracing::warn!("Tray: no thread for it ({e}); the app runs without one");
+            None
+        }
+    }
 }
 
 #[cfg(test)]

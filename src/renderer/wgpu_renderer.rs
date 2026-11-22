@@ -566,12 +566,15 @@ impl GpuShared {
                 tracing::info!("Available formats: {:?}", caps.formats);
                 let alpha_mode = pick_alpha_mode(&caps.alpha_modes)?;
                 // Prefer sRGB format
+                // A surface offering no format is refused as an error:
+                // indexing the empty list panicked (BUG-016).
                 let format = caps
                     .formats
                     .iter()
                     .find(|f| f.is_srgb())
+                    .or_else(|| caps.formats.first())
                     .copied()
-                    .unwrap_or(caps.formats[0]);
+                    .ok_or_else(|| AnimaError::other("the surface offers no format"))?;
                 (format, alpha_mode)
             }
             // The layered blit fixes both: the DIB is 32-bpp sRGB BGRA, and
