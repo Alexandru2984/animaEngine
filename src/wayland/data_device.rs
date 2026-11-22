@@ -53,12 +53,17 @@ pub fn parse_uri_list(payload: &[u8]) -> Vec<PathBuf> {
 fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
     let path_with_host = uri.strip_prefix("file://")?;
     // `file:///abs/path` → host is empty, path starts after the third
-    // slash. `file://host/abs/path` is rare on Linux but valid; we
-    // ignore the host and take the absolute path that follows.
-    let path = match path_with_host.find('/') {
-        Some(idx) => &path_with_host[idx..],
-        None => path_with_host,
+    // slash. `file://localhost/abs/path` is this machine too; another
+    // host is not, and was taken for the local path under it, so a drop
+    // of `file://elsewhere/home/me/x.png` read this machine's file
+    // (BUG-016).
+    let (host, path) = match path_with_host.find('/') {
+        Some(idx) => path_with_host.split_at(idx),
+        None => (path_with_host, ""),
     };
+    if !(host.is_empty() || host.eq_ignore_ascii_case("localhost")) {
+        return None;
+    }
     let decoded = percent_decode_to_string(path)?;
     // Absolute, as every file manager writes them: `file://cat.png` made a
     // path relative to wherever the app was started.
@@ -107,6 +112,24 @@ const fn hex_digit(b: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A file on another host is not this machine's file of that path.
+    #[test]
+    fn a_file_uri_on_another_host_is_not_local() {
+        assert_eq!(
+            file_uri_to_path("file:///home/a/x.png"),
+            Some(PathBuf::from("/home/a/x.png"))
+        );
+        assert_eq!(
+            file_uri_to_path("file://localhost/home/a/x.png"),
+            Some(PathBuf::from("/home/a/x.png"))
+        );
+        assert_eq!(
+            file_uri_to_path("file://elsewhere.example/home/a/x.png"),
+            None
+        );
+        assert_eq!(file_uri_to_path("file://cat.png"), None);
+    }
 
     #[test]
     fn single_file_uri_decodes() {
