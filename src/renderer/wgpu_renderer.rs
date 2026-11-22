@@ -549,15 +549,26 @@ impl GpuShared {
             }
         );
 
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("animaEngine Device"),
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                memory_hints: Default::default(),
-            },
-            None,
-        ))?;
+        let (device, queue) = pollster::block_on(
+            adapter.request_device(
+                &wgpu::DeviceDescriptor {
+                    label: Some("animaEngine Device"),
+                    required_features: wgpu::Features::empty(),
+                    // The adapter's own texture side, not the default 8192: a
+                    // window spanning monitors, or HiDPI, is past 8192 and
+                    // the GPU can draw it (PERF-004).
+                    required_limits: wgpu::Limits {
+                        max_texture_dimension_2d: adapter
+                            .limits()
+                            .max_texture_dimension_2d
+                            .max(wgpu::Limits::default().max_texture_dimension_2d),
+                        ..wgpu::Limits::default()
+                    },
+                    memory_hints: Default::default(),
+                },
+                None,
+            ),
+        )?;
 
         let (surface_format, alpha_mode) = match surface {
             Some(surface) => {
@@ -854,6 +865,24 @@ impl GpuShared {
     }
 }
 
+/// `width`×`height` held to what `shared`'s device takes for a texture
+/// side: past it `Surface::configure` panicked — a window of 9000 px
+/// from the config, or one spanning monitors (PERF-004). Held, the
+/// overlay draws the part that fits.
+fn within_texture(shared: &GpuShared, width: u32, height: u32) -> (u32, u32) {
+    clamp_extent(
+        shared.device.limits().max_texture_dimension_2d,
+        width,
+        height,
+    )
+}
+
+/// Each side at least 1 and at most `max`.
+fn clamp_extent(max: u32, width: u32, height: u32) -> (u32, u32) {
+    let max = max.max(1);
+    (width.clamp(1, max), height.clamp(1, max))
+}
+
 impl SurfaceState {
     /// Configure a surface against the shared device and build its
     /// per-window buffers. The surface must come from
@@ -877,11 +906,12 @@ impl SurfaceState {
         } else {
             wgpu::PresentMode::Fifo
         };
+        let (width, height) = within_texture(shared, window_width, window_height);
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: shared.surface_format,
-            width: window_width,
-            height: window_height,
+            width,
+            height,
             present_mode,
             alpha_mode: shared.alpha_mode,
             view_formats: vec![],
@@ -1084,8 +1114,7 @@ impl SurfaceState {
         let [pixel_width, pixel_height] = self.pixel_size();
         match &mut self.target {
             Target::Swapchain { surface, config } => {
-                config.width = pixel_width;
-                config.height = pixel_height;
+                (config.width, config.height) = within_texture(shared, pixel_width, pixel_height);
                 surface.configure(&shared.device, config);
             }
             #[cfg(windows)]
@@ -1512,6 +1541,17 @@ impl WgpuRenderer {
     /// Present the primary window's frame. See [`SurfaceState::present`].
     pub fn present(&mut self, frame: AcquiredFrame) {
         self.primary.present(&self.shared, frame);
+    }
+}
+
+#[cfg(test)]
+mod extent_tests {
+    /// A surface is never asked for more than the device takes.
+    #[test]
+    fn a_surface_is_held_to_the_texture_limit() {
+        assert_eq!(super::clamp_extent(8192, 9000, 600), (8192, 600));
+        assert_eq!(super::clamp_extent(8192, 0, 0), (1, 1));
+        assert_eq!(super::clamp_extent(16384, 9000, 9000), (9000, 9000));
     }
 }
 

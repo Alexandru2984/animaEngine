@@ -73,6 +73,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A very wide or very high overlay no longer crashes at start.** Past
+  8192 pixels a side — a window spanning several monitors, a HiDPI
+  screen, or `window_width` set large — the GPU refused the surface
+  with a crash. The app now asks for what the GPU really takes, and
+  holds a surface to it.
 - **X11: a sideways swipe on a touchpad no longer shrinks the selected
   characters.** A scroll with no vertical part was taken for the wheel
   turning down.
