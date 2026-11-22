@@ -194,15 +194,42 @@ async fn request_background(on: bool) -> std::result::Result<bool, crate::portal
 /// mount it runs from, which is gone once it exits — with the native
 /// Wayland opt-in carried over when this run has it.
 fn exec_line() -> Result<String> {
-    let program = std::env::var_os("APPIMAGE")
+    exec_line_for(
+        std::env::var_os("APPIMAGE"),
+        std::env::current_exe().ok(),
+        std::env::var("ANIMA_USE_WAYLAND_NATIVE").as_deref() == Ok("1"),
+    )
+}
+
+#[cfg(not(windows))]
+/// [`exec_line`], from what it reads: `APPIMAGE`, this program's path,
+/// and whether this run is on the native Wayland path.
+///
+/// An empty `APPIMAGE` is none: it gave an empty `Exec=`. A path with a
+/// control character — a line break above all — is refused: the entry
+/// is one key a line, and `Exec="…\nX-…=…"` wrote a key of its own on
+/// the next line (SEC-009). No program is at such a path anyone meant.
+fn exec_line_for(
+    appimage: Option<std::ffi::OsString>,
+    exe: Option<PathBuf>,
+    native: bool,
+) -> Result<String> {
+    let program = appimage
+        .filter(|a| !a.is_empty())
         .map(PathBuf::from)
-        .or_else(|| std::env::current_exe().ok())
+        .or(exe)
         .ok_or_else(|| AnimaError::other("cannot tell where this program is"))?;
+    let program = program.to_string_lossy();
+    if program.chars().any(char::is_control) {
+        return Err(AnimaError::other(
+            "this program's path has a line break or another control character in it",
+        ));
+    }
     let mut line = String::new();
-    if std::env::var("ANIMA_USE_WAYLAND_NATIVE").as_deref() == Ok("1") {
+    if native {
         line.push_str("env ANIMA_USE_WAYLAND_NATIVE=1 ");
     }
-    line.push_str(&exec_arg(&program.to_string_lossy()));
+    line.push_str(&exec_arg(&program));
     Ok(line)
 }
 
@@ -366,6 +393,40 @@ mod tests {
     /// it away, and taking away what is not there is no error. Ignored, as
     /// it writes the user's registry: run it under Wine, in a throwaway
     /// prefix (CONTRIBUTING, "Windows and FreeBSD", with `-- --ignored`).
+    /// A path with a line break wrote a key of its own into the entry —
+    /// `X-…=` or a second `Exec=` — on the line after `Exec=`; an empty
+    /// `APPIMAGE` gave an empty `Exec=` (SEC-009). Both are refused or
+    /// passed over; a path with spaces and `%` still goes as it did.
+    #[cfg(not(windows))]
+    #[test]
+    fn an_exec_line_is_one_line_and_names_a_program() {
+        use std::ffi::OsString;
+        for bad in [
+            "/tmp/a\nExec=/bin/evil",
+            "/tmp/a\rb",
+            "/tmp/a\u{0}b",
+            "/tmp/a\u{85}b",
+        ] {
+            let made = exec_line_for(Some(OsString::from(bad)), None, false);
+            assert!(made.is_err(), "{bad:?} gave {made:?}");
+        }
+        let exe = Some(PathBuf::from("/usr/bin/anima-engine"));
+        assert_eq!(
+            exec_line_for(Some(OsString::new()), exe.clone(), false).unwrap(),
+            "/usr/bin/anima-engine",
+            "an empty APPIMAGE is no AppImage"
+        );
+        assert_eq!(
+            exec_line_for(Some(OsString::from("/home/a b/x 100%.AppImage")), exe, true).unwrap(),
+            "env ANIMA_USE_WAYLAND_NATIVE=1 \"/home/a b/x 100%%.AppImage\""
+        );
+        assert!(
+            entry(&exec_line_for(None, Some(PathBuf::from("/a")), false).unwrap())
+                .lines()
+                .any(|l| l == "Exec=/a")
+        );
+    }
+
     #[cfg(windows)]
     #[test]
     #[ignore = "writes HKCU's Run key: run under Wine in a throwaway prefix"]

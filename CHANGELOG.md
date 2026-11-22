@@ -8,6 +8,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- **"Start at login" can no longer write a second line into its entry.**
+  The app's own path went into the autostart entry as it was, so a path
+  with a line break in it wrote a key of its own on the next line. Such
+  a path is now refused, and an empty `APPIMAGE` no longer gives an
+  entry that starts nothing.
 - **A Shimeji pack can no longer have files outside it read.** A pack
   whose `conf` folder was a link elsewhere had the actions file found
   and read there: the checks against links looked at the file, not at
