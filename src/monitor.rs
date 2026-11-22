@@ -100,6 +100,19 @@ impl MonitorInfo {
     }
 }
 
+/// Whether `name` is a pinned monitor not seen missing before.
+fn first_missing(name: &str) -> bool {
+    static SAID: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    let Ok(mut said) = SAID.lock() else {
+        return false;
+    };
+    if said.iter().any(|s| s == name) || said.len() >= 64 {
+        return false;
+    }
+    said.push(name.to_string());
+    true
+}
+
 /// Resolve which monitor an entity should render on, given its
 /// stored position and an explicit override.
 ///
@@ -132,10 +145,14 @@ pub fn resolve_monitor_for_position<'a>(
         // fall through. The caller observes this by getting a
         // different monitor back than they asked for; they should
         // optionally update the config to clear the stale name.
-        tracing::warn!(
-            "Entity pinned to monitor {:?} but it's no longer present; falling back to centroid resolution",
-            name,
-        );
+        // Said once a name: this runs for every pinned character every
+        // frame, and logged a warning each time (BUG-009).
+        if first_missing(name) {
+            tracing::warn!(
+                "Entity pinned to monitor {:?} but it's no longer present; falling back to centroid resolution",
+                name,
+            );
+        }
     }
 
     // 2) Centroid hit-test.
@@ -391,6 +408,14 @@ pub fn plan_windows(mode: &MonitorMode, monitors: &[MonitorInfo]) -> WindowPlan 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    /// A missing pinned monitor is said once a name, not every frame.
+    #[test]
+    fn a_missing_pin_is_said_once() {
+        assert!(first_missing("test-gone-1"));
+        assert!(!first_missing("test-gone-1"));
+        assert!(first_missing("test-gone-2"));
+    }
 
     fn mon(name: &str, x: i32, y: i32, w: u32, h: u32) -> MonitorInfo {
         MonitorInfo {
