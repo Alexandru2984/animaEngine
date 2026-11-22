@@ -41,6 +41,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **When native Wayland could not start, the X11 path it fell back to
+  had lost its quit-saves, its single instance and its tray.** They had
+  been wired to the native overlay before it was made: a second launch
+  raised nothing, Ctrl+C or a logout ended the app without saving, and
+  a second tray icon appeared. They are now wired only once the native
+  overlay has started. A native session that fails later saves first,
+  then ends, instead of starting the X11 path halfway through a session
+  whose services are its own.
 - **A backup restored with unsaved edits is no longer lost.** The app
   waited to see the restored config change on disk, and did not look
   while the scene had unsaved edits, so it never loaded the backup —

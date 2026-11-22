@@ -12,12 +12,12 @@
 //!    callbacks → egui (`keyboard`, `egui_render`).
 //! 4. ✅ Click-through — `wl_surface::set_input_region` (empty for the
 //!    pass-through area, full region for the toggle button).
-//! 5. ✅ App integration — `run::run_native` drives the loop.
+//! 5. ✅ App integration — `run::start_native` makes the overlay, `NativeSession::run` drives the loop.
 //!
 //! File drops (`wl_data_device` / `text/uri-list`, `data_device`) pass
 //! through the *same* `pre_validate_dropped_file` gate as the X11 path.
 //! The asset library, context menu, and `MonitorMode::PerMonitor`
-//! multi-surface distribution are all wired now too (`run::run_native`);
+//! multi-surface distribution are all wired now too (`run::NativeSession::run`);
 //! the remaining gaps are protocol-inherent, not missing wiring — see
 //! `run`'s module doc for the current list.
 
@@ -31,4 +31,4 @@ pub mod waker;
 
 pub use layer_window::{InputRect, LayerWindow, WaylandState};
 pub use probe::{detect, log_status, WaylandCapabilities};
-pub use run::run_native;
+pub use run::{start_native, NativeSession};

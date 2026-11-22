@@ -79,21 +79,52 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use wayland_client::EventQueue;
 
-/// Drive a native-Wayland session end-to-end.
+/// Make the native overlay and its renderer, up to its first turn: all
+/// that can fail at start (no compositor, missing globals, wgpu surface
+/// creation refused, …). On `Err` the caller falls back to the X11 path.
 ///
-/// Returns `Err` only when initialization fails (no compositor, missing
-/// globals, wgpu surface creation refused, …). The caller falls back to
-/// the X11 path on error. A successful return means the user closed
-/// the layer surface (or the compositor disconnected).
-#[tracing::instrument(skip(scene, config, command_rx, portal_rx))]
-pub fn run_native(
-    scene: Scene,
-    config: AppConfig,
-    // Outside commands: the D-Bus activation service and the tray both send here.
-    command_rx: Option<mpsc::Receiver<AnimaEvent>>,
-    portal_rx: Option<mpsc::Receiver<crate::hotkeys::portal::PortalMsg>>,
-) -> Result<()> {
-    Native::new(scene, config, command_rx, portal_rx)?.run()
+/// The loop is not started: the caller wires the app's outside services
+/// — the D-Bus activation service, the tray, the signal handler, the
+/// portal — to the session only once this has succeeded, then runs it
+/// ([`NativeSession::run`]). Wired before, as they were, a failure here
+/// left the X11 path with a single-instance service and a signal handler
+/// sending into a channel no one read: SIGTERM ended the app without its
+/// save, and a second tray and portal session ran beside its own
+/// (BUG-004).
+#[tracing::instrument(name = "run_native", skip_all)]
+pub fn start_native(scene: Scene, config: AppConfig) -> Result<NativeSession> {
+    Ok(NativeSession(Box::new(Native::new(scene, config)?)))
+}
+
+/// A native overlay made, its loop not started yet ([`start_native`]).
+pub struct NativeSession(Box<Native>);
+
+impl NativeSession {
+    /// Run the session to its end: a quit, or the overlay gone for good.
+    /// `command_rx` takes the D-Bus activation service's and the tray's
+    /// commands, `portal_rx` the portal's shortcuts.
+    ///
+    /// An `Err` is the session failing after it started; unsaved edits
+    /// are saved first. The caller does not fall back to X11 then: the
+    /// services are wired to this session, and a compositor gone takes
+    /// XWayland with it.
+    #[tracing::instrument(name = "run_native", skip_all)]
+    pub fn run(
+        self,
+        command_rx: Option<mpsc::Receiver<AnimaEvent>>,
+        portal_rx: Option<mpsc::Receiver<crate::hotkeys::portal::PortalMsg>>,
+    ) -> Result<()> {
+        let mut native = *self.0;
+        // Keybindings-tab backend status (T.4), updated by PortalMsg.
+        native.hotkey_backend_status = if portal_rx.is_some() {
+            HotkeyStatus::PortalAwaiting
+        } else {
+            HotkeyStatus::CompositorBindings
+        };
+        native.command_rx = command_rx;
+        native.portal_rx = portal_rx;
+        native.run()
+    }
 }
 
 /// What a panel outcome may touch (`crate::outcomes`), from the `&mut`
@@ -164,7 +195,7 @@ enum Flow {
     Exit,
 }
 
-/// The native loop's state, kept from one turn to the next ([`run_native`]).
+/// The native loop's state, kept from one turn to the next ([`start_native`]).
 ///
 /// The fields are in the reverse of the order they are made in, so they
 /// drop as the locals they were did: every wgpu surface before the
@@ -234,22 +265,13 @@ struct Native {
 impl Native {
     /// Everything up to the first turn: the overlay and its renderer, the
     /// library's scan, the other monitors' overlays, the textures.
-    fn new(
-        mut scene: Scene,
-        config: AppConfig,
-        // Outside commands: the D-Bus activation service and the tray both send here.
-        command_rx: Option<mpsc::Receiver<AnimaEvent>>,
-        portal_rx: Option<mpsc::Receiver<crate::hotkeys::portal::PortalMsg>>,
-    ) -> Result<Self> {
+    fn new(mut scene: Scene, config: AppConfig) -> Result<Self> {
         // Tracks the parity of portal HideOverlay toggles — the portal
         // delivers one *action*, the Hide/Show intent derives from state.
         let overlay_hidden = false;
-        // Keybindings-tab backend status (T.4), updated by PortalMsg.
-        let hotkey_backend_status = if portal_rx.is_some() {
-            HotkeyStatus::PortalAwaiting
-        } else {
-            HotkeyStatus::CompositorBindings
-        };
+        // Set by `NativeSession::run`, with the receivers.
+        let hotkey_backend_status = HotkeyStatus::CompositorBindings;
+        let (command_rx, portal_rx) = (None, None);
         // `Single` names the monitor the overlay belongs on; the other modes
         // let the compositor choose.
         let preferred_output = match &config.global.monitor_mode {
@@ -513,9 +535,16 @@ impl Native {
         })
     }
 
-    /// The loop, and the save on the way out.
+    /// The loop, and the save on the way out — also when the loop fails,
+    /// which used to return before it.
     fn run(mut self) -> Result<()> {
-        while let Flow::Next = self.iteration()? {}
+        let ended = loop {
+            match self.iteration() {
+                Ok(Flow::Next) => {}
+                Ok(Flow::Exit) => break Ok(()),
+                Err(e) => break Err(e),
+            }
+        };
 
         // Renderer (and every extra surface's wgpu::Surface) is dropped
         // here before `layer` — each wgpu surface releases its handle
@@ -534,7 +563,7 @@ impl Native {
         drop(self.renderer);
         drop(self.extra_surfaces);
         drop(self.layer);
-        Ok(())
+        ended
     }
 
     /// One turn of the loop: the compositor's events, then everything

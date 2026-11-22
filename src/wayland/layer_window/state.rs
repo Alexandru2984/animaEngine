@@ -122,7 +122,7 @@ pub struct WaylandState {
     /// windows (`app::windows::WindowSlot`). Only the protocol side
     /// lives here (handler callbacks only ever see `WaylandState`,
     /// never the wrapping `LayerWindow`); the matching wgpu surface
-    /// and render state lives in `run_native`'s `extra_surfaces`,
+    /// and render state lives in the native loop's `extra_surfaces`,
     /// keyed by the same `output_name`. Exercised against a real
     /// headless sway session including output hotplug; see
     /// docs/wayland.md.

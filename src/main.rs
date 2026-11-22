@@ -107,7 +107,7 @@ fn main() {
     // Single-instance handshake — must happen before any work, otherwise
     // a redundant launch would do all the setup just to hand off.
     #[cfg(unix)]
-    let mut instance: InstanceHandle = match single_instance::try_acquire() {
+    let instance: InstanceHandle = match single_instance::try_acquire() {
         AcquireOutcome::Claimed(conn) => conn,
         AcquireOutcome::HandedOff => {
             tracing::info!("Another instance is already running. Asked it to raise.");
@@ -204,42 +204,13 @@ fn main() {
     {
         if native_wayland_active {
             tracing::info!("ANIMA_USE_WAYLAND_NATIVE=1 set — trying native layer-shell path");
-            // One channel into the native loop, fed by the D-Bus activation
-            // service (so compositor bindings on sway/Hyprland can dispatch
-            // the same actions the X11 path's global hotkeys produce) and by
-            // the tray, which this path never used to start.
-            let (event_tx, event_rx) = single_instance::wayland_event_channel();
-            if let Some(conn) = instance.take() {
-                single_instance::install_wayland_service(conn, event_tx.clone());
-            }
-            // The battery, for holding still while on it; the compositor
-            // says when the user is away (`anima_engine::away`).
-            anima_engine::away::spawn_watch(
-                anima_engine::event::EventSink::Channel(event_tx.clone()),
-                false,
-            );
-            anima_engine::quit_signal::connect(anima_engine::event::EventSink::Channel(
-                event_tx.clone(),
-            ));
-            let _tray_thread = tray::spawn(anima_engine::event::EventSink::Channel(event_tx));
-            let command_rx = Some(event_rx);
-            // T.2: the portal is the only global-hotkey mechanism that
-            // exists on the native path — XGrabKey has no X server here.
-            let portal_strategy = hotkeys::probe::resolve(
-                config.global.hotkey_backend,
-                hotkeys::probe::portal_version(),
-                false,
-            );
-            tracing::info!("Hotkey strategy (native): {}", portal_strategy.describe());
-            let portal_rx = match portal_strategy {
-                hotkeys::probe::HotkeyStrategy::Portal { .. } => {
-                    Some(hotkeys::portal::spawn_bg(&config.keybindings))
-                }
-                _ => None,
-            };
-            match wayland::run_native(scene, config.clone(), command_rx, portal_rx) {
-                Ok(()) => {
-                    tracing::info!("Native Wayland session ended cleanly.");
+            // The overlay first, and only then what is wired to it
+            // (`run_native_session`): those services are each taken once
+            // per process, and a failure here falls back to the X11 path,
+            // which takes them itself (BUG-004).
+            match wayland::start_native(scene, config.clone()) {
+                Ok(session) => {
+                    run_native_session(session, &config, instance);
                     return;
                 }
                 Err(e) => {
@@ -254,6 +225,59 @@ fn main() {
     }
 
     run_winit_path(config, scene, instance);
+}
+
+/// The native Wayland session, made ([`wayland::start_native`]): wire the
+/// app's outside services to it and run it to its end.
+#[cfg(unix)]
+fn run_native_session(
+    session: wayland::NativeSession,
+    config: &AppConfig,
+    mut instance: InstanceHandle,
+) {
+    // One channel into the native loop, fed by the D-Bus activation
+    // service (so compositor bindings on sway/Hyprland can dispatch
+    // the same actions the X11 path's global hotkeys produce) and by
+    // the tray, which this path never used to start.
+    let (event_tx, event_rx) = single_instance::wayland_event_channel();
+    if let Some(conn) = instance.take() {
+        single_instance::install_wayland_service(conn, event_tx.clone());
+    }
+    // The battery, for holding still while on it; the compositor
+    // says when the user is away (`anima_engine::away`).
+    anima_engine::away::spawn_watch(
+        anima_engine::event::EventSink::Channel(event_tx.clone()),
+        false,
+    );
+    anima_engine::quit_signal::connect(anima_engine::event::EventSink::Channel(event_tx.clone()));
+    let _tray_thread = tray::spawn(anima_engine::event::EventSink::Channel(event_tx));
+    // T.2: the portal is the only global-hotkey mechanism that
+    // exists on the native path — XGrabKey has no X server here.
+    let portal_strategy = hotkeys::probe::resolve(
+        config.global.hotkey_backend,
+        hotkeys::probe::portal_version(),
+        false,
+    );
+    tracing::info!("Hotkey strategy (native): {}", portal_strategy.describe());
+    let portal_rx = match portal_strategy {
+        hotkeys::probe::HotkeyStrategy::Portal { .. } => {
+            Some(hotkeys::portal::spawn_bg(&config.keybindings))
+        }
+        _ => None,
+    };
+    match session.run(Some(event_rx), portal_rx) {
+        Ok(()) => tracing::info!("Native Wayland session ended cleanly."),
+        Err(e) => {
+            // Past the start there is no falling back: the services are
+            // this session's, and a compositor gone takes XWayland too.
+            // Unsaved edits were saved on the way out.
+            tracing::error!(
+                "Native Wayland session failed: {e}. Unset ANIMA_USE_WAYLAND_NATIVE \
+                 to use the X11 path."
+            );
+            std::process::exit(1);
+        }
+    }
 }
 
 /// What the single-instance handshake hands back to be kept alive for the
@@ -287,20 +311,27 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     // On Wayland systems, XWayland provides all the window hints we need.
     // Use `with_user_event` so the tray (and future global hotkeys) can
     // post commands back to the UI thread.
+    // And whether it is X11's: winit's default, when X11's cannot be
+    // made, is Wayland's, where there is no X server for XGrabKey or the
+    // full-screen watch.
     #[cfg(target_os = "linux")]
-    let event_loop = {
+    let (event_loop, has_x11) = {
         let mut builder = winit::event_loop::EventLoop::<AnimaEvent>::with_user_event();
         builder.with_x11();
         match builder.build() {
             Ok(el) => {
                 tracing::info!("Event loop created with X11 backend (XWayland if on Wayland)");
-                el
+                (el, true)
             }
             Err(e) => {
                 tracing::error!("Failed to create X11 event loop: {e}");
                 tracing::info!("Falling back to default event loop…");
                 match winit::event_loop::EventLoop::<AnimaEvent>::with_user_event().build() {
-                    Ok(el) => el,
+                    Ok(el) => {
+                        use winit::platform::x11::EventLoopExtX11;
+                        let x11 = el.is_x11();
+                        (el, x11)
+                    }
                     Err(e2) => {
                         tracing::error!("Failed to create fallback event loop: {e2}");
                         std::process::exit(1);
@@ -311,13 +342,14 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     };
 
     #[cfg(not(target_os = "linux"))]
-    let event_loop = match winit::event_loop::EventLoop::<AnimaEvent>::with_user_event().build() {
-        Ok(el) => el,
-        Err(e) => {
-            tracing::error!("Failed to create event loop: {e}");
-            std::process::exit(1);
-        }
-    };
+    let (event_loop, has_x11) =
+        match winit::event_loop::EventLoop::<AnimaEvent>::with_user_event().build() {
+            Ok(el) => (el, true),
+            Err(e) => {
+                tracing::error!("Failed to create event loop: {e}");
+                std::process::exit(1);
+            }
+        };
 
     // Spawn the tray on its own thread. It posts AnimaEvent commands back
     // to us via this proxy; ignore the join handle — the tray dies with
@@ -331,9 +363,11 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
             event_loop.create_proxy(),
         ));
         // Stepping aside for full-screen apps (`anima_engine::fullscreen`).
-        anima_engine::window::x11_windows::spawn_fullscreen_watch(
-            anima_engine::event::EventSink::Winit(event_loop.create_proxy()),
-        );
+        if has_x11 {
+            anima_engine::window::x11_windows::spawn_fullscreen_watch(
+                anima_engine::event::EventSink::Winit(event_loop.create_proxy()),
+            );
+        }
         // Holding still while nobody is there (`anima_engine::away`).
         anima_engine::away::spawn_watch(
             anima_engine::event::EventSink::Winit(event_loop.create_proxy()),
@@ -354,9 +388,9 @@ fn run_winit_path(config: AppConfig, scene: Scene, instance: InstanceHandle) {
     let strategy = hotkeys::probe::resolve(
         config.global.hotkey_backend,
         hotkeys::probe::portal_version(),
-        // The winit path always has an X server (native or XWayland) —
-        // the event loop above was just built with the X11 backend.
-        true,
+        // An X server (native or XWayland) when the event loop above is
+        // X11's, as it is unless that could not be made.
+        has_x11,
     );
     tracing::info!("Hotkey strategy: {}", strategy.describe());
 
