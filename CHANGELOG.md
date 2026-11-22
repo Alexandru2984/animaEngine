@@ -8,6 +8,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- **A Shimeji pack can no longer have files outside it read.** A pack
+  whose `conf` folder was a link elsewhere had the actions file found
+  and read there: the checks against links looked at the file, not at
+  the folder above it. `conf` must now be a folder of the pack's own;
+  and at most 64 of its XML files are read looking for the actions.
 - **A malformed MP4 can no longer hang or crash the app.** A 32-byte
   file looped the UI thread forever, and files under a kilobyte panicked
   inside the MP4 demuxer or had it allocate gigabytes. The container is

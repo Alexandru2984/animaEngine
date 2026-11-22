@@ -331,18 +331,41 @@ fn pack_stats(root: &Path) -> Result<(usize, u64), String> {
 
 /// `conf/actions.xml` by convention; otherwise the first `conf/*.xml`
 /// whose root element local-name is `Mascot`.
+/// The `conf/*.xml` files read looking for the actions, when there is no
+/// `conf/actions.xml`: a pack has a handful, and every one was read,
+/// however many, before the pack's size was checked (SEC-007).
+const MAX_CONF_XML_LOOKED_AT: usize = 64;
+
 fn find_actions_xml(root: &Path) -> Result<PathBuf, Msg> {
-    let conventional = root.join("conf").join("actions.xml");
+    find_actions_xml_counting(root, &std::cell::Cell::new(0))
+}
+
+/// [`find_actions_xml`], counting in `looked` the files it reads.
+fn find_actions_xml_counting(root: &Path, looked: &std::cell::Cell<usize>) -> Result<PathBuf, Msg> {
+    let conf = root.join("conf");
+    // A folder of the pack's own, not a link: the no-follow checks below
+    // look at the file, not at the folders above it, so a `conf` linked
+    // elsewhere had a file outside the pack found and read (SEC-007).
+    let is_dir = std::fs::symlink_metadata(&conf)
+        .map(|m| m.file_type().is_dir())
+        .unwrap_or(false);
+    if !is_dir {
+        return Err(Msg::new("shimeji-no-actions"));
+    }
+    let conventional = conf.join("actions.xml");
     if is_regular_file(&conventional) {
         return Ok(conventional);
     }
-    let conf = root.join("conf");
     let entries = std::fs::read_dir(&conf).map_err(|_| Msg::new("shimeji-no-actions"))?;
     for entry in entries.flatten() {
         let p = entry.path();
         if p.extension().and_then(|e| e.to_str()) != Some("xml") {
             continue;
         }
+        if looked.get() >= MAX_CONF_XML_LOOKED_AT {
+            break;
+        }
+        looked.set(looked.get() + 1);
         if let Ok(text) = read_capped_utf8(&p) {
             let mut reader = Reader::from_str(&text);
             loop {
@@ -415,8 +438,21 @@ fn read_capped_utf8(path: &Path) -> Result<String, Msg> {
         }
         buf
     };
+    // Capped here too: a file that grew past the cap after the stat was
+    // read whole (SEC-007).
     #[cfg(not(unix))]
-    let bytes = std::fs::read(path).map_err(|e| format!("read: {e}"))?;
+    let bytes = {
+        use std::io::Read;
+        let f = std::fs::File::open(path).map_err(|e| format!("open: {e}"))?;
+        let mut buf = Vec::new();
+        f.take(MAX_XML_BYTES + 1)
+            .read_to_end(&mut buf)
+            .map_err(|e| format!("read: {e}"))?;
+        if buf.len() as u64 > MAX_XML_BYTES {
+            return Err(format!("XML exceeds {} KiB cap", MAX_XML_BYTES / 1024).into());
+        }
+        buf
+    };
 
     String::from_utf8(bytes).map_err(|_| Msg::new("shimeji-not-utf8"))
 }
@@ -839,6 +875,66 @@ mod tests {
         let (count, _bytes) = pack_stats(&pack).unwrap();
         assert_eq!(count, 1, "only the real sprite counts, not linked ones");
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// `conf` a link to a folder outside the pack: its actions.xml was
+    /// found and read through it, the link being the folder above the
+    /// file, which is all the no-follow checks looked at (SEC-007).
+    #[test]
+    #[cfg(unix)]
+    fn a_conf_folder_linked_out_of_the_pack_is_not_read() {
+        use std::os::unix::fs::symlink;
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("shimeji_tests")
+            .join("conf_link");
+        let _ = std::fs::remove_dir_all(&base);
+        let pack = base.join("LinkedMascot");
+        let dest = base.join("library");
+        let outside = base.join("outside");
+        std::fs::create_dir_all(pack.join("img")).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::create_dir_all(&dest).unwrap();
+        for (i, shade) in [(1u8, 10u8), (2, 20), (3, 30), (4, 40)] {
+            write_png(&pack.join("img").join(format!("shime{i}.png")), shade);
+        }
+        std::fs::write(outside.join("actions.xml"), ACTIONS_XML).unwrap();
+        symlink(&outside, pack.join("conf")).unwrap();
+        let result = import_pack(&pack, &dest);
+        let _ = std::fs::remove_dir_all(&base);
+        assert!(
+            result.is_err(),
+            "a pack was read through a linked conf folder"
+        );
+    }
+
+    /// With no `conf/actions.xml`, every `conf/*.xml` was read looking for
+    /// one, however many there were, before the pack's size was checked
+    /// (SEC-007). A pack whose actions are past the first files looked at
+    /// is not a pack.
+    #[test]
+    fn the_search_for_a_packs_actions_stops() {
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("shimeji_tests")
+            .join("many_xml");
+        let _ = std::fs::remove_dir_all(&base);
+        let conf = base.join("conf");
+        std::fs::create_dir_all(&conf).unwrap();
+        for i in 0..(MAX_CONF_XML_LOOKED_AT + 40) {
+            std::fs::write(conf.join(format!("a{i:04}.xml")), "<Other/>").unwrap();
+        }
+        // Named to come last in any order the directory gives.
+        std::fs::write(conf.join("zzzz.xml"), ACTIONS_XML).unwrap();
+        let looked = std::cell::Cell::new(0);
+        let found = find_actions_xml_counting(&base, &looked);
+        let _ = std::fs::remove_dir_all(&base);
+        assert!(
+            looked.get() <= MAX_CONF_XML_LOOKED_AT,
+            "{} files read",
+            looked.get()
+        );
+        let _ = found;
     }
 
     /// A named pipe named like an XML/sprite must be rejected as a
