@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **A malformed MP4 can no longer hang or crash the app.** A 32-byte
+  file looped the UI thread forever, and files under a kilobyte panicked
+  inside the MP4 demuxer or had it allocate gigabytes. The container is
+  now checked before it is demuxed, and such files are refused with an
+  error.
+
 ### Fixed
 
 - **On native Wayland, a save never updated the crash-recovery
