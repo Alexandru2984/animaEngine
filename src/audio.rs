@@ -86,6 +86,35 @@ const RETRIGGER_COOLDOWN: Duration = Duration::from_millis(150);
 /// Sounds allowed to start within one tick, across the whole scene.
 #[cfg(feature = "audio")]
 const MAX_VOICES_PER_TICK: usize = 8;
+/// Names looked up for the first time within one tick, found or not.
+///
+/// Only a failure used to cost nothing: a script naming a new missing
+/// sound on every call had each one looked up, logged and reported, 50
+/// in a tick from one script and up to 256 from a full scene (SEC-006).
+/// A name already looked up costs nothing here, so a scene of characters
+/// each playing its own footstep every frame is not held back.
+#[cfg(feature = "audio")]
+const MAX_ATTEMPTS_PER_TICK: usize = 16;
+/// Names and files kept as unplayable, together. Past it a new failure
+/// is neither kept nor reported — it is looked up again, within the
+/// tick's attempts, and fails again.
+#[cfg(feature = "audio")]
+const MAX_FAILED: usize = 256;
+/// Spellings remembered with the file they name (`a.wav`, `./a.wav`).
+/// Cleared when full: a forgotten one is only looked up again.
+#[cfg(feature = "audio")]
+const MAX_ALIASES: usize = 256;
+/// Sounds playing at once, across the scene. The per-tick cap bounds
+/// how many start; this bounds what the mixer holds, each voice keeping
+/// its decoded sound alive even after the cache has let it go.
+#[cfg(feature = "audio")]
+const MAX_ACTIVE_VOICES: usize = 16;
+/// Slowest sound accepted. With the decode cap it bounds how long one
+/// sound can hold a voice: about four and a half minutes of mono at
+/// 8 kHz, where a 1 Hz file of the same size would have held one for
+/// weeks.
+#[cfg(feature = "audio")]
+const MIN_SAMPLE_RATE: u32 = 8_000;
 /// How long the device stays open after the last sound has finished.
 ///
 /// Long enough that a script chirping every few seconds does not reopen
@@ -144,6 +173,33 @@ struct SharedSamples {
     /// The host's gain, read on every sample, so the volume slider and
     /// mute act on a sound already playing ([`AudioHost::set_level`]).
     gain: std::sync::Arc<std::sync::atomic::AtomicU32>,
+    /// The host's count of voices playing, which this one is part of
+    /// until the mixer drops it — finished, or with the device.
+    live: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[cfg(feature = "audio")]
+impl SharedSamples {
+    fn new(
+        sound: std::sync::Arc<Cached>,
+        gain: std::sync::Arc<std::sync::atomic::AtomicU32>,
+        live: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    ) -> Self {
+        live.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Self {
+            sound,
+            pos: 0,
+            gain,
+            live,
+        }
+    }
+}
+
+#[cfg(feature = "audio")]
+impl Drop for SharedSamples {
+    fn drop(&mut self) {
+        self.live.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 #[cfg(feature = "audio")]
@@ -361,22 +417,40 @@ pub struct AudioHost {
     /// Whether a stream found dead ([`Liveness`]) has been logged.
     #[cfg(feature = "audio")]
     logged_stalled: bool,
+    /// Decoded sounds by the file they came from, so every spelling of a
+    /// name shares one entry.
     #[cfg(feature = "audio")]
-    cache: BTreeMap<String, std::sync::Arc<Cached>>,
+    cache: BTreeMap<std::path::PathBuf, std::sync::Arc<Cached>>,
     #[cfg(feature = "audio")]
     cached_bytes: usize,
-    /// Last time each (entity, sound) pair was triggered, for the
-    /// retrigger cooldown.
+    /// Last time each (entity, file) pair was triggered, for the
+    /// retrigger cooldown; pruned once a pair is past it.
     #[cfg(feature = "audio")]
-    last_played: BTreeMap<(String, String), Instant>,
-    /// Sounds refused this tick, so a broken script is reported once
-    /// rather than sixty times a second — same reasoning as
-    /// `ScriptHost::note_failure`.
+    last_played: BTreeMap<(String, std::path::PathBuf), Instant>,
+    /// Each name played, with the file in the library it resolved to,
+    /// under `aliases_root` — see [`AudioHost::file_for`].
     #[cfg(feature = "audio")]
-    failed: BTreeMap<String, String>,
+    aliases: BTreeMap<String, std::path::PathBuf>,
+    #[cfg(feature = "audio")]
+    aliases_root: Option<std::path::PathBuf>,
+    /// Names that named no sound in the library, and files that did not
+    /// decode, so a broken script is reported once rather than sixty
+    /// times a second — same reasoning as `ScriptHost::note_failure`.
+    /// [`MAX_FAILED`] between them.
+    #[cfg(feature = "audio")]
+    failed: std::collections::BTreeSet<String>,
+    #[cfg(feature = "audio")]
+    broken: std::collections::BTreeSet<std::path::PathBuf>,
+    #[cfg(feature = "audio")]
+    logged_too_many_failed: bool,
     unreported: Vec<(String, String)>,
     #[cfg(feature = "audio")]
     voices_this_tick: usize,
+    #[cfg(feature = "audio")]
+    attempts_this_tick: usize,
+    /// Voices in the mixer right now ([`MAX_ACTIVE_VOICES`]).
+    #[cfg(feature = "audio")]
+    live_voices: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl std::fmt::Debug for AudioHost {
@@ -415,10 +489,22 @@ impl AudioHost {
             #[cfg(feature = "audio")]
             last_played: BTreeMap::new(),
             #[cfg(feature = "audio")]
-            failed: BTreeMap::new(),
+            aliases: BTreeMap::new(),
+            #[cfg(feature = "audio")]
+            aliases_root: None,
+            #[cfg(feature = "audio")]
+            failed: std::collections::BTreeSet::new(),
+            #[cfg(feature = "audio")]
+            broken: std::collections::BTreeSet::new(),
+            #[cfg(feature = "audio")]
+            logged_too_many_failed: false,
             unreported: Vec::new(),
             #[cfg(feature = "audio")]
             voices_this_tick: 0,
+            #[cfg(feature = "audio")]
+            attempts_this_tick: 0,
+            #[cfg(feature = "audio")]
+            live_voices: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
     }
 
@@ -436,13 +522,19 @@ impl AudioHost {
         }
     }
 
-    /// Once per scene tick, paused or not: reset the voice budget, and
-    /// close the device once nothing has played for `LINGER`.
+    /// Once per scene tick, paused or not: reset the voice and lookup
+    /// budgets, forget cooldowns that have run out, and close the device
+    /// once nothing has played for `LINGER`.
     pub fn begin_tick(&mut self) {
         #[cfg(feature = "audio")]
         {
             self.voices_this_tick = 0;
+            self.attempts_this_tick = 0;
             let now = Instant::now();
+            // At most a cooldown's worth of starts, so this stays small;
+            // kept forever, it grew by every name a script made up.
+            self.last_played
+                .retain(|_, at| now.duration_since(*at) < RETRIGGER_COOLDOWN);
             // A failed stream is dropped too, not kept, and so is one that
             // stopped taking sound: the next sound then opens whatever the
             // default device is by then.
@@ -515,8 +607,9 @@ impl AudioHost {
     /// (0 to 1, applied as [`gain_for`] under the global level).
     ///
     /// Silently does nothing when there is no device, when the same entity
-    /// played the same sound within the cooldown, or when this tick's voice
-    /// budget is spent. Load failures are reported once.
+    /// played the same file within the cooldown, when this tick's voice or
+    /// lookup budget is spent, or when as many sounds as may are playing.
+    /// Load failures are reported once.
     #[expect(clippy::too_many_arguments)]
     pub fn play(
         &mut self,
@@ -558,21 +651,33 @@ impl AudioHost {
         }
         // A sound already known to be unloadable is not retried; the entry
         // clears only on a fresh host.
-        if self.failed.contains_key(rel) {
+        if self.failed.contains(rel) {
             return;
         }
         if self.voices_this_tick >= MAX_VOICES_PER_TICK {
             return;
         }
+        let Some(file) = self.file_for(root, rel) else {
+            return;
+        };
+        if self.broken.contains(&file) {
+            return;
+        }
 
-        let key = (entity_id.to_string(), rel.to_string());
+        let key = (entity_id.to_string(), file);
         if let Some(last) = self.last_played.get(&key) {
             if now.duration_since(*last) < RETRIGGER_COOLDOWN {
                 return;
             }
         }
+        let file = &key.1;
+        if self.live_voices.load(std::sync::atomic::Ordering::Relaxed) >= MAX_ACTIVE_VOICES {
+            return;
+        }
 
-        if !self.cache.contains_key(rel) {
+        if !self.cache.contains_key(file) {
+            // Looked up again by name rather than opened by the remembered
+            // path, so the containment check is made as the file is opened.
             match load_sound(root, rel) {
                 Ok(sound) => {
                     // Evicting on a byte budget rather than a count: one
@@ -591,19 +696,17 @@ impl AudioHost {
                         self.cached_bytes = 0;
                     }
                     self.cached_bytes += bytes;
-                    self.cache
-                        .insert(rel.to_string(), std::sync::Arc::new(sound));
+                    self.cache.insert(file.clone(), std::sync::Arc::new(sound));
                 }
                 Err(e) => {
-                    tracing::warn!("sound {rel}: {e}");
-                    self.failed.insert(rel.to_string(), e.clone());
-                    self.unreported.push((rel.to_string(), e));
+                    let file = file.clone();
+                    self.note_failure(rel, e, |host| host.broken.insert(file));
                     return;
                 }
             }
         }
 
-        let Some(sound) = self.cache.get(rel).map(std::sync::Arc::clone) else {
+        let Some(sound) = self.cache.get(file).map(std::sync::Arc::clone) else {
             return;
         };
         // Opened only now, once there is a sound that decoded: a script
@@ -623,15 +726,73 @@ impl AudioHost {
         // Shares the decoded buffer rather than copying it — see
         // `SharedSamples`.
         *close_at = (*close_at).max(now + sound.duration() + LINGER);
-        let buffer = SharedSamples {
+        let buffer = SharedSamples::new(
             sound,
-            pos: 0,
-            gain: std::sync::Arc::clone(&self.gain),
-        };
+            std::sync::Arc::clone(&self.gain),
+            std::sync::Arc::clone(&self.live_voices),
+        );
         sink.mixer().add(panned(buffer, left, right));
 
         self.last_played.insert(key, now);
         self.voices_this_tick += 1;
+    }
+
+    /// The file in the library `rel` names, or `None` if it names none or
+    /// this tick's lookups are spent.
+    ///
+    /// Keyed by the file, `a.wav` and `./a.wav` share a cache entry and a
+    /// cooldown; keyed by the name, each spelling decoded the file again
+    /// on the UI thread and started over the cooldown (SEC-006). A name
+    /// is resolved once and remembered, so a sound played every frame
+    /// costs no lookups and no attempts.
+    #[cfg(feature = "audio")]
+    fn file_for(&mut self, root: &std::path::Path, rel: &str) -> Option<std::path::PathBuf> {
+        if self.aliases_root.as_deref() != Some(root) {
+            self.aliases.clear();
+            self.aliases_root = Some(root.to_path_buf());
+        }
+        if let Some(file) = self.aliases.get(rel) {
+            return Some(file.clone());
+        }
+        if self.attempts_this_tick >= MAX_ATTEMPTS_PER_TICK {
+            return None;
+        }
+        self.attempts_this_tick += 1;
+        match crate::drop_validate::resolve_library_asset(root, std::path::Path::new(rel)) {
+            Ok(file) => {
+                if self.aliases.len() >= MAX_ALIASES {
+                    self.aliases.clear();
+                }
+                self.aliases.insert(rel.to_string(), file.clone());
+                Some(file)
+            }
+            Err(e) => {
+                let name = rel.to_string();
+                self.note_failure(rel, e, |host| host.failed.insert(name));
+                None
+            }
+        }
+    }
+
+    /// Keep a failure with `keep`, then log and report it — unless
+    /// [`MAX_FAILED`] are kept already, when it is dropped.
+    #[cfg(feature = "audio")]
+    fn note_failure(&mut self, rel: &str, e: String, keep: impl FnOnce(&mut Self) -> bool) {
+        if self.failed.len() + self.broken.len() >= MAX_FAILED {
+            if !self.logged_too_many_failed {
+                self.logged_too_many_failed = true;
+                tracing::warn!(
+                    "{MAX_FAILED} sounds have failed to play; further failures are not reported"
+                );
+            }
+            return;
+        }
+        if keep(self) {
+            // The file name only, escaped: the name comes from a script.
+            let name = crate::drop_validate::redact_path(std::path::Path::new(rel));
+            tracing::warn!("sound {name}: {e}");
+            self.unreported.push((rel.to_string(), e));
+        }
     }
 }
 
@@ -788,6 +949,12 @@ fn load_sound(root: &std::path::Path, rel: &str) -> Result<Cached, String> {
     if samples.is_empty() {
         return Err("sound decoded to no audio".into());
     }
+    if sample_rate.get() < MIN_SAMPLE_RATE {
+        return Err(format!(
+            "sound sampled at {} Hz, below the {MIN_SAMPLE_RATE} Hz accepted",
+            sample_rate.get()
+        ));
+    }
     if samples.len() > MAX_SOUND_SAMPLES {
         // Refused rather than truncated: a sound that stops halfway is a
         // confusing artefact, and the caller reports a failure to the user
@@ -932,15 +1099,8 @@ mod pan_tests {
             rodio::SampleRate::new(44_100).unwrap(),
         );
         let gain = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(gain.to_bits()));
-        mixer.add(panned(
-            SharedSamples {
-                sound,
-                pos: 0,
-                gain,
-            },
-            left,
-            right,
-        ));
+        let live = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        mixer.add(panned(SharedSamples::new(sound, gain, live), left, right));
         assert_eq!(out.channels().get(), 2);
         let (mut l, mut r) = (0.0, 0.0);
         let frames: Vec<f32> = out.take(44_100).collect();
@@ -949,6 +1109,51 @@ mod pan_tests {
             r += right * right;
         }
         (l, r)
+    }
+
+    /// A voice counts from the moment it is made until the mixer lets it
+    /// go, and the mixer lets it go once it has played out — so the cap
+    /// on voices playing at once frees up by itself (SEC-006). A mixer of
+    /// rodio's own, with no device behind it.
+    #[test]
+    fn a_voice_counts_until_the_mixer_drops_it() {
+        use std::sync::atomic::Ordering::Relaxed;
+        let sound = std::sync::Arc::new(Cached {
+            samples: vec![0.25; 4_410],
+            channels: rodio::ChannelCount::new(1).unwrap(),
+            sample_rate: rodio::SampleRate::new(44_100).unwrap(),
+        });
+        let (mixer, out) = rodio::mixer::mixer(
+            rodio::ChannelCount::new(2).unwrap(),
+            rodio::SampleRate::new(44_100).unwrap(),
+        );
+        let gain = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(1.0f32.to_bits()));
+        let live = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        for _ in 0..3 {
+            let voice = SharedSamples::new(
+                std::sync::Arc::clone(&sound),
+                std::sync::Arc::clone(&gain),
+                std::sync::Arc::clone(&live),
+            );
+            mixer.add(panned(voice, 1.0, 1.0));
+        }
+        assert_eq!(live.load(Relaxed), 3);
+        let mut out = out;
+        // A tenth of a second of sound, twice over, as stereo frames.
+        for _ in 0..4 * 4_410 {
+            let _ = out.next();
+        }
+        assert_eq!(live.load(Relaxed), 0, "finished voices are still counted");
+        drop(SharedSamples::new(
+            sound,
+            gain,
+            std::sync::Arc::clone(&live),
+        ));
+        assert_eq!(
+            live.load(Relaxed),
+            0,
+            "a voice dropped unplayed is still counted"
+        );
     }
 
     #[test]
@@ -1122,6 +1327,152 @@ mod host_tests {
         let result = load_sound(&root, "xing_only.mp3");
         let _ = std::fs::remove_dir_all(&root);
         assert!(result.is_err(), "a sound with no audio loaded");
+    }
+
+    /// A script naming a new missing sound each call: every failure
+    /// was attempted, logged, kept and reported, none counting against
+    /// the tick's budget — 50 in one tick, without end over a run
+    /// (SEC-006). No device is opened: nothing here loads.
+    #[cfg(feature = "audio")]
+    #[test]
+    fn failures_count_against_the_tick_and_are_kept_within_bounds() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/audio");
+        let mut host = AudioHost::new();
+        host.begin_tick();
+        for i in 0..50 {
+            host.play(&root, &format!("missing_{i}.wav"), "e", 0.0, 0.0, 1.0, 1.0);
+        }
+        let first = host.take_new_failures().len();
+        assert!(
+            first <= MAX_ATTEMPTS_PER_TICK,
+            "{first} failures in one tick"
+        );
+        for tick in 0..400 {
+            host.begin_tick();
+            for i in 0..MAX_ATTEMPTS_PER_TICK {
+                host.play(
+                    &root,
+                    &format!("gone_{tick}_{i}.wav"),
+                    "e",
+                    0.0,
+                    0.0,
+                    1.0,
+                    1.0,
+                );
+            }
+        }
+        let kept = host.failed.len() + host.broken.len();
+        assert!(kept <= MAX_FAILED, "{kept} failures kept");
+        assert!(!host.is_open());
+    }
+
+    /// Cooldowns that have run out are forgotten at the next tick, not
+    /// kept for every name a script ever made up (SEC-006).
+    #[cfg(feature = "audio")]
+    #[test]
+    fn spent_cooldowns_are_forgotten() {
+        let mut host = AudioHost::new();
+        let now = Instant::now();
+        let long_ago = now.checked_sub(RETRIGGER_COOLDOWN * 4).unwrap_or(now);
+        for i in 0..1000 {
+            host.last_played
+                .insert((format!("e{i}"), format!("/lib/s{i}.wav").into()), long_ago);
+        }
+        host.last_played
+            .insert(("e".into(), "/lib/now.wav".into()), now);
+        host.begin_tick();
+        if long_ago < now {
+            assert_eq!(
+                host.last_played.len(),
+                1,
+                "only the running cooldown is kept"
+            );
+        }
+    }
+
+    /// `a.mp3` and `./a.mp3` are one file: the cache, the cooldown and
+    /// the failures are keyed by the file, so an alias neither decodes
+    /// again nor gets past a cooldown (SEC-006).
+    #[cfg(feature = "audio")]
+    #[test]
+    fn spellings_of_one_sound_are_one_sound() {
+        let root = std::env::temp_dir().join(format!("anima_alias_{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        // Not a sound at all, so it fails to decode and no device opens.
+        std::fs::write(root.join("bad.mp3"), b"not an mp3").unwrap();
+        let mut host = AudioHost::new();
+        for rel in ["bad.mp3", "./bad.mp3", ".//bad.mp3"] {
+            host.begin_tick();
+            host.play(&root, rel, "e", 0.0, 0.0, 1.0, 1.0);
+        }
+        // Many more spellings than are remembered, over many ticks: still
+        // one file, and what is remembered stays bounded.
+        for tick in 0..64 {
+            host.begin_tick();
+            for i in 0..MAX_ATTEMPTS_PER_TICK {
+                let rel = format!(
+                    "{}bad.mp3",
+                    "./".repeat(tick * MAX_ATTEMPTS_PER_TICK + i + 1)
+                );
+                host.play(&root, &rel, "e", 0.0, 0.0, 1.0, 1.0);
+            }
+        }
+        let reported = host.take_new_failures().len();
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(
+            reported, 1,
+            "one file, reported as many times as it was spelt"
+        );
+        assert!(
+            host.aliases.len() <= MAX_ALIASES,
+            "{} spellings kept",
+            host.aliases.len()
+        );
+        assert_eq!(host.broken.len(), 1);
+        assert!(!host.is_open());
+    }
+
+    /// A sound sampled slower than any real one plays for an age from a
+    /// small buffer, holding a voice all that while: refused (SEC-006).
+    #[cfg(feature = "audio")]
+    #[test]
+    fn a_sound_sampled_too_slowly_is_refused() {
+        fn wav(rate: u32, frames: u32) -> Vec<u8> {
+            let data = frames * 2;
+            let mut w = Vec::new();
+            w.extend_from_slice(b"RIFF");
+            w.extend_from_slice(&(36 + data).to_le_bytes());
+            w.extend_from_slice(b"WAVEfmt ");
+            w.extend_from_slice(&16u32.to_le_bytes());
+            w.extend_from_slice(&1u16.to_le_bytes()); // PCM
+            w.extend_from_slice(&1u16.to_le_bytes()); // mono
+            w.extend_from_slice(&rate.to_le_bytes());
+            w.extend_from_slice(&(rate * 2).to_le_bytes());
+            w.extend_from_slice(&2u16.to_le_bytes());
+            w.extend_from_slice(&16u16.to_le_bytes());
+            w.extend_from_slice(b"data");
+            w.extend_from_slice(&data.to_le_bytes());
+            for i in 0..frames {
+                w.extend_from_slice(&((i % 64) as i16 * 256).to_le_bytes());
+            }
+            w
+        }
+        let root = std::env::temp_dir().join(format!("anima_slow_{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("slow.wav"), wav(MIN_SAMPLE_RATE / 2, 400)).unwrap();
+        std::fs::write(root.join("ok.wav"), wav(MIN_SAMPLE_RATE, 400)).unwrap();
+        let slow = load_sound(&root, "slow.wav");
+        let ok = load_sound(&root, "ok.wav");
+        let _ = std::fs::remove_dir_all(&root);
+        match slow {
+            Err(e) => assert!(e.contains("Hz"), "wrong refusal: {e}"),
+            Ok(_) => panic!("a {} Hz sound loaded", MIN_SAMPLE_RATE / 2),
+        }
+        assert!(
+            ok.is_ok(),
+            "a sound at the slowest rate accepted was refused: {:?}",
+            ok.err()
+        );
     }
 
     #[test]

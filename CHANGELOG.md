@@ -24,6 +24,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   settings were larger than a config may be was restored, then failed to
   load. What a backup holds that this version cannot read now stays
   behind, and oversized settings are refused before anything is written.
+- **A script can no longer flood the log or memory through sounds.** A
+  script naming a new missing sound on every call had each one looked
+  up, logged and reported, without end, and `./a.wav` was a different
+  sound from `a.wav`: decoded again, and past the other's cooldown.
+  Sounds are now known by the file they name; at most 16 new names are
+  looked up a tick, and 256 failures kept; at most 16 sounds play at
+  once; and a sound sampled slower than 8 kHz is refused.
 
 ### Fixed
 

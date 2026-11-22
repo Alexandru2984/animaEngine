@@ -536,6 +536,14 @@ behind the sound server — opening one would bypass the user's
 PipeWire or PulseAudio routing and volume, and hold the device from them.
 1.2.0 did try them (R47 in `docs/runtime-findings.md`).
 
+What scripts make it play is **bounded**. A sound is known by the file
+it names, however it is spelt (`a.wav`, `./a.wav`): decoded once, with one
+cooldown. At most 4 MiB on disk and 8 MiB decoded, sampled at 8 kHz or
+faster; 8 start a tick and 16 play at once, across the scene; 16 new
+names are looked up a tick, found or not; and 256 failures are kept,
+each logged (the file name only) and reported once, after which further
+ones are dropped.
+
 The **Flatpak** needs `--socket=pulseaudio` to make any sound, and that
 socket carries recording as well as playback: Flatpak has no
 playback-only permission. So inside the sandbox the guarantee is the same
