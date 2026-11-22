@@ -58,6 +58,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **X11: copy and paste keep working after a very large copy, and a
+  paste reads no more than it may.** A copy larger than the X server
+  takes in one request ended the clipboard's thread, and copy and paste
+  stopped for the rest of the session; it is now refused on its own.
+  And a paste read up to 64 MB of anything an app offered, a list of
+  types or of files included, before seeing it was too much.
 - **Importing a Shimeji pack no longer wipes another one, or itself.**
   Every pack named in Japanese (or any other script) went into the same
   folder, each import writing over the last, and so did two packs whose

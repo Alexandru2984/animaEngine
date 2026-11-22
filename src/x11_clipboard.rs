@@ -13,6 +13,7 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use x11rb::connection::Connection as _;
+use x11rb::connection::RequestConnection as _;
 use x11rb::protocol::xproto::{
     Atom, AtomEnum, ConnectionExt as _, CreateWindowAux, EventMask, PropMode, Property,
     SelectionNotifyEvent, SelectionRequestEvent, Window, WindowClass, SELECTION_NOTIFY_EVENT,
@@ -177,17 +178,24 @@ impl Selections {
         })
     }
 
+    /// Do what the app asked.
+    fn command(&mut self, cmd: Cmd) {
+        match cmd {
+            Cmd::Claim(text, ours) => self.take_ownership(text, ours),
+            Cmd::Read(want, reply) => {
+                let content = self
+                    .read(want)
+                    .unwrap_or_else(|e| Content::Failed(e.to_string()));
+                let _ = reply.send(content);
+            }
+        }
+    }
+
     fn run(&mut self, rx: &mpsc::Receiver<Cmd>, wake: &OwnedFd) {
         loop {
             loop {
                 match rx.try_recv() {
-                    Ok(Cmd::Claim(text, ours)) => self.take_ownership(text, ours),
-                    Ok(Cmd::Read(want, reply)) => {
-                        let content = self
-                            .read(want)
-                            .unwrap_or_else(|e| Content::Failed(e.to_string()));
-                        let _ = reply.send(content);
-                    }
+                    Ok(cmd) => self.command(cmd),
                     Err(mpsc::TryRecvError::Empty) => break,
                     Err(mpsc::TryRecvError::Disconnected) => return,
                 }
@@ -216,9 +224,13 @@ impl Selections {
             while unsafe { libc::read(wake.as_raw_fd(), drain.as_mut_ptr().cast(), drain.len()) }
                 > 0
             {}
-            if fds[1].revents & libc::POLLHUP != 0 && rx.try_recv().is_err() {
-                // The app side is gone.
-                return;
+            if fds[1].revents & libc::POLLHUP != 0 {
+                // The app side is gone — but a command it sent last is
+                // still done, not dropped as it was (BUG-015).
+                match rx.try_recv() {
+                    Ok(cmd) => self.command(cmd),
+                    Err(_) => return,
+                }
             }
         }
     }
@@ -294,14 +306,26 @@ impl Selections {
                 )?;
                 answered = property;
             } else if offered.contains(&request.target) {
-                self.conn.change_property8(
-                    PropMode::REPLACE,
-                    request.requestor,
-                    property,
-                    request.target,
-                    text.as_bytes(),
-                )?;
-                answered = property;
+                // Past one request it is refused, not sent: the error
+                // went up through `serve_pending` and ended this thread,
+                // and copy and paste with it for the session (BUG-015).
+                // The names of a selection are far below any server's
+                // limit; sending more takes INCR, which this does not do.
+                if fits_one_request(text.len(), self.conn.maximum_request_bytes()) {
+                    self.conn.change_property8(
+                        PropMode::REPLACE,
+                        request.requestor,
+                        property,
+                        request.target,
+                        text.as_bytes(),
+                    )?;
+                    answered = property;
+                } else {
+                    tracing::debug!(
+                        "Clipboard: {} copied is past one X request; refused",
+                        said_size(text.len() as u64)
+                    );
+                }
             }
         }
         self.conn.send_event(
@@ -340,7 +364,7 @@ impl Selections {
             });
         }
         // Which types it offers — a list too long to be one is no answer.
-        let Answer::Bytes(types) = self.convert(self.atoms.targets)? else {
+        let Answer::Bytes(types) = self.convert(self.atoms.targets, MAX_TARGETS_BYTES)? else {
             return Ok(Content::Nothing);
         };
         let atoms: Vec<Atom> = types
@@ -370,8 +394,9 @@ impl Selections {
         let Some(&(target, _)) = named.iter().find(|(_, n)| *n == wanted) else {
             return Ok(Content::Nothing);
         };
-        let too_big = || Content::Failed(format!("over {} MB", sc::cap_for(&pick) / (1024 * 1024)));
-        match self.convert(target)? {
+        let cap = sc::cap_for(&pick);
+        let too_big = || Content::Failed(format!("over {}", said_size(cap)));
+        match self.convert(target, cap)? {
             Answer::TooBig => Ok(too_big()),
             Answer::Bytes(bytes) if bytes.len() as u64 > sc::cap_for(&pick) => Ok(too_big()),
             Answer::Bytes(bytes) => Ok(Content::from_bytes(&pick, bytes)),
@@ -382,9 +407,14 @@ impl Selections {
     }
 
     /// Ask CLIPBOARD's owner for `target` and read the answer off our
-    /// window, in pieces if it comes that way. Capped at the image cap,
-    /// and all of it within [`INCR_WITHIN`].
-    fn convert(&mut self, target: Atom) -> Result<Answer, Failure> {
+    /// window, in pieces if it comes that way. At most `cap` bytes — the
+    /// image cap was asked of every target, the type list and a list of
+    /// files included, so an owner could make this read 64 MB for either
+    /// (BUG-015) — and all of it within [`INCR_WITHIN`].
+    fn convert(&mut self, target: Atom, cap: u64) -> Result<Answer, Failure> {
+        // An answer left from an earlier one that came too late is not
+        // taken for this one's.
+        self.conn.delete_property(self.window, self.atoms.landing)?;
         self.conn.convert_selection(
             self.window,
             self.atoms.clipboard,
@@ -394,9 +424,10 @@ impl Selections {
         )?;
         self.conn.flush()?;
         let deadline = Instant::now() + ANSWER_WITHIN;
-        let window = self.window;
+        let (window, clipboard) = (self.window, self.atoms.clipboard);
         let notified = self.wait_for(deadline, |e| {
-            matches!(e, Event::SelectionNotify(n) if n.requestor == window && n.target == target)
+            matches!(e, Event::SelectionNotify(n)
+                if n.requestor == window && n.target == target && n.selection == clipboard)
         })?;
         let Some(Event::SelectionNotify(n)) = notified else {
             return Ok(Answer::Nothing);
@@ -404,7 +435,6 @@ impl Selections {
         if n.property == x11rb::NONE {
             return Ok(Answer::Nothing);
         }
-        let cap = sc::MAX_IMAGE_BYTES;
         let words = u32::try_from(cap / 4 + 1).unwrap_or(u32::MAX);
         let first = self
             .conn
@@ -485,5 +515,48 @@ impl Selections {
             // SAFETY: one valid pollfd for the duration of the call.
             unsafe { libc::poll(&mut fd, 1, ms) };
         }
+    }
+}
+
+/// The most read of a type list (`TARGETS`): 256 atoms are looked at, a
+/// kilobyte; anything near this is no list of types.
+const MAX_TARGETS_BYTES: u64 = 16 * 1024;
+
+/// Whether a property of `bytes` goes in one ChangeProperty request on a
+/// connection that takes `max_request` bytes; its header is 24.
+fn fits_one_request(bytes: usize, max_request: usize) -> bool {
+    bytes.saturating_add(24) <= max_request
+}
+
+/// `bytes` for a person: in MB from one, in KiB below — a list of files'
+/// cap, 64 KiB, was "over 0 MB" (BUG-015).
+fn said_size(bytes: u64) -> String {
+    const MB: u64 = 1024 * 1024;
+    if bytes >= MB {
+        format!("{} MB", bytes / MB)
+    } else {
+        format!("{} KiB", bytes.div_ceil(1024))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Text past what one request takes is refused, not sent: sending it
+    /// failed and ended the clipboard's thread (BUG-015).
+    #[test]
+    fn what_one_request_takes() {
+        assert!(fits_one_request(1000, 256 * 1024));
+        assert!(fits_one_request(256 * 1024 - 24, 256 * 1024));
+        assert!(!fits_one_request(256 * 1024 - 23, 256 * 1024));
+        assert!(!fits_one_request(usize::MAX, 256 * 1024));
+    }
+
+    #[test]
+    fn sizes_are_said_in_what_reads() {
+        assert_eq!(said_size(sc::MAX_URI_LIST_BYTES), "64 KiB");
+        assert_eq!(said_size(sc::MAX_TEXT_BYTES), "1 MB");
+        assert_eq!(said_size(sc::MAX_IMAGE_BYTES), "64 MB");
     }
 }
