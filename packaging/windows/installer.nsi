@@ -59,12 +59,18 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright (c) animaEngine contribut
 ; A running copy holds its .exe open. Asked to close — not forced — it
 ; saves as it does when its window is closed; waited for, up to ten
 ; seconds, before its files are written over.
+;
+; Windows' own programs by their full path: one named bare is looked for
+; first in the folder the installer was started from — Downloads, as a
+; rule — so a taskkill.exe or cmd.exe left there ran in place of
+; Windows' own (SEC-001). scripts/check-installer.py keeps it so. cmd
+; drops the outer pair of quotes after /c, which is why there are two.
 !macro CloseRunning
-  nsExec::Exec 'taskkill /im anima-engine.exe'
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /im anima-engine.exe'
   Pop $0
   StrCpy $1 0
   ${Do}
-    nsExec::Exec 'cmd /c tasklist /fi "imagename eq anima-engine.exe" | find /i "anima-engine.exe"'
+    nsExec::Exec '"$SYSDIR\cmd.exe" /c ""$SYSDIR\tasklist.exe" /fi "imagename eq anima-engine.exe" | "$SYSDIR\find.exe" /i "anima-engine.exe""'
     Pop $0
     ${If} $0 != 0
       ${Break}

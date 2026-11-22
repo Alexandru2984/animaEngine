@@ -66,7 +66,10 @@ Windows:
   `%LOCALAPPDATA%\Programs\animaEngine`, without asking for
   administrator rights. It adds a Start-menu entry and an uninstaller
   that Settings -> Apps lists, and speaks the app's ten languages. A
-  running copy is asked to close first, and saves as it would on Quit.
+  running copy is asked to close first, and saves as it would on Quit;
+  the Windows programs that do it (`taskkill`, `tasklist`, `find`,
+  `cmd`) are run by their full path, so none left beside the installer
+  runs in their place (`scripts/check-installer.py`, in CI).
   Uninstalling keeps the settings and characters, and removes "Start at
   login".
 

@@ -269,6 +269,10 @@ jobs:
       # edited by hand, or a template changed without regenerating, is
       # one the next publish would undo or miss.
       - run: python3 scripts/site-pages.py --check
+      # Every program the Windows installer runs, by its full path: one
+      # named bare is looked for first beside the installer, in
+      # Downloads as a rule (SEC-001).
+      - run: python3 scripts/check-installer.py
 
   build:
     name: release build

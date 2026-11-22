@@ -31,6 +31,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Sounds are now known by the file they name; at most 16 new names are
   looked up a tick, and 256 failures kept; at most 16 sounds play at
   once; and a sound sampled slower than 8 kHz is refused.
+- **The Windows installer and uninstaller no longer run a program left
+  beside them.** They closed a running copy with `taskkill`, `tasklist`,
+  `find` and `cmd` named bare, which Windows looks for first in the
+  folder the installer was started from — Downloads, as a rule — so a
+  `taskkill.exe` saved there ran in place of Windows' own. They are now
+  run from the Windows folder, by their full path, and CI checks that
+  every program the installer runs is.
 
 ### Fixed
 
