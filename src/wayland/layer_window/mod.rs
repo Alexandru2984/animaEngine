@@ -69,8 +69,8 @@ use wayland_client::{
 /// What `try_create` produces. The caller stores it and drives the event
 /// loop manually (we don't spawn anything internally).
 ///
-/// The renderer asks it for a wgpu surface ([`LayerWindow::wgpu_surface`])
-/// for each instance it tries. The `LayerWindow` keeps the underlying
+/// The renderer asks it for a wgpu surface (`LayerWindow::wgpu_surface`,
+/// crate-private) for each instance it tries. The `LayerWindow` keeps the underlying
 /// `wl_surface` alive — the raw handle baked into a wgpu surface remains
 /// valid until the `LayerWindow` is dropped, so the caller must drop
 /// `WgpuRenderer` first.
