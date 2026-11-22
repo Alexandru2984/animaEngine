@@ -776,12 +776,14 @@ from the system; `scripts/build-appimage.sh` says why), which removes
 the largest source of drift, but the toolchain and linuxdeploy's
 AppRun still vary with the host. To narrow this:
 
-- A pinned build container ships at [`packaging/Dockerfile.appimage-builder`](
-  ../packaging/Dockerfile.appimage-builder). Building inside that image
-  ensures every maintainer produces the same artefact.
-- The `SHA256SUMS-vX.Y.Z.txt` we publish in GitHub Releases is the
-  hash *of the image-built AppImage*. Reproducing on a different host
-  is expected to differ; reproducing inside the container should match.
+- A build container ships at [`packaging/Dockerfile.appimage-builder`](
+  ../packaging/Dockerfile.appimage-builder), with the packages the
+  release job installs. Building inside that image narrows what differs
+  between maintainers.
+- The `SHA256SUMS-vX.Y.Z.txt` we publish in GitHub Releases hashes the
+  AppImage the release workflow built on GitHub's `ubuntu-22.04` runner,
+  not one built in the container; reproducing it elsewhere may differ
+  where the runner's toolchain and linuxdeploy do.
 - Release artefacts now carry **Sigstore build-provenance
   attestations** (`actions/attest-build-provenance`, keyless via GitHub
   OIDC) for both the `.deb` and the AppImage, verifiable with

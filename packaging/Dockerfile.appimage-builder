@@ -48,6 +48,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxkbcommon-x11-dev \
         libwayland-dev \
         libxrandr-dev \
+        # Sound (the default `audio` feature), and the icons
+        # `scripts/render-icons.sh` draws: what the release job installs
+        libasound2-dev \
+        librsvg2-bin \
+        desktop-file-utils \
         # AppImage tooling fetches linuxdeploy on demand; these are its
         # runtime requirements
         fuse \

@@ -85,7 +85,7 @@ Animated characters on your desktop.
 Run anima-engine.exe. The characters appear over your windows, and clicks
 go through them to whatever is underneath. The gear button in the
 top-right corner of the screen opens edit mode: the settings panel, where
-characters are added, changed and arranged. Ctrl+Shift+A does the same
+characters are added, changed and arranged. Win+Alt+A does the same
 from anywhere. The tray icon has the rest.
 
 Drop a PNG, GIF, WebP or MP4 on the screen in edit mode to make it a

@@ -24,6 +24,10 @@ InstallDir "$LOCALAPPDATA\Programs\${APP}"
 InstallDirRegKey HKCU "Software\${APP}" "InstallDir"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
+; The files' own times are not stored: the stage's build-time mtimes made
+; two builds of one commit differ (BUILD-002). Installed files take the
+; time they are installed.
+SetDateSave off
 ShowInstDetails nevershow
 ShowUninstDetails nevershow
 
