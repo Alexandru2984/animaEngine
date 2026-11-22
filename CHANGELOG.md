@@ -73,6 +73,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Native Wayland: a scene switched from the tray, D-Bus or the
+  schedule is saved at once**, as on X11. It was left unsaved: the
+  config named another scene than the one shown, an edit of the config
+  file was not taken in, and a crash lost the switch. So is a character
+  moved by a drag that edit mode ended.
 - **A very wide or very high overlay no longer crashes at start.** Past
   8192 pixels a side — a window spanning several monitors, a HiDPI
   screen, or `window_width` set large — the GPU refused the surface

@@ -25,6 +25,7 @@ impl Native {
             hours_clock,
             bedtime_watch,
             library,
+            config_watch,
             config_dirty,
             toasts,
             marquee,
@@ -156,6 +157,7 @@ impl Native {
                     &mut config.global.active_scene,
                 ) {
                     *activity = true;
+                    super::save_now(&mut *config_watch, &mut *config, scene, &mut *config_dirty);
                 }
             }
         }

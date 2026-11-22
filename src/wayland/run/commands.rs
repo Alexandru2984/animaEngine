@@ -349,10 +349,12 @@ impl Native {
                     &mut *drag,
                     &mut *marquee,
                 );
-                crate::outcomes::next_scene(
+                if crate::outcomes::next_scene(
                     &mut outcome_ctx!(scene, selection, toasts, config_dirty, renderer),
                     &mut config.global.active_scene,
-                );
+                ) {
+                    super::save_now(&mut *config_watch, &mut *config, scene, &mut *config_dirty);
+                }
             }
             if quit {
                 *quit_requested = true;

@@ -1264,6 +1264,26 @@ fn visibility_for_edit(
     }
 }
 
+/// Save now what changed with no one to save it after: a scene switched
+/// from the tray, D-Bus or the schedule, a drag let go of as edit mode
+/// ended. The winit path saves there (`save_config_if_needed`); left
+/// dirty here, the scene shown was not the one on disk, a later edit of
+/// config.toml was refused as a reload, and a crash lost it (BUG-010).
+fn save_now(
+    config_watch: &mut crate::config_watch::ConfigWatcher,
+    config: &mut AppConfig,
+    scene: &Scene,
+    config_dirty: &mut bool,
+) {
+    if !*config_dirty {
+        return;
+    }
+    match config_watch.save(config, scene) {
+        Ok(()) => *config_dirty = false,
+        Err(e) => tracing::warn!("Config save failed: {e}"),
+    }
+}
+
 fn should_persist_on_exit(new_mode: bool, config_dirty: bool) -> bool {
     !new_mode && config_dirty
 }

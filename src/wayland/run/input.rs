@@ -293,6 +293,7 @@ impl Native {
             tap_gesture,
             context_menu_state,
             config_dirty,
+            config_watch,
             was_editing,
             marquee,
             drag,
@@ -328,12 +329,14 @@ impl Native {
         // drag used to stay open until the next move in edit mode, which
         // made the character jump to the pointer.
         if *was_editing && !layer.state.edit_mode {
-            *config_dirty |= crate::input::multi::cancel(
-                &mut *scene,
-                &mut *selection,
-                &mut *drag,
-                &mut *marquee,
-            );
+            // Leaving edit mode saved before this let go of the drag:
+            // what the drag moved is saved now, not left dirty outside
+            // edit mode (BUG-010).
+            if crate::input::multi::cancel(&mut *scene, &mut *selection, &mut *drag, &mut *marquee)
+            {
+                *config_dirty = true;
+                super::save_now(&mut *config_watch, &mut *config, scene, &mut *config_dirty);
+            }
             selection.deselect();
             *context_menu_state = None;
         }
