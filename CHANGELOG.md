@@ -41,6 +41,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A deleted scene's picture no longer stays in memory.** Each saved
+  scene's picture was kept, on the GPU too, until the app quit — also
+  after the scene was deleted. They now go with their scene, and only
+  the rows on screen are read, where opening a long list read every
+  picture at once.
 - **Without a CJK font installed, Japanese no longer slows the app down
   and fills the log.** With Japanese as the language, or a speech bubble
   in Japanese, and no CJK font on the machine, every frame looked for

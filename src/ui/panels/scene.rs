@@ -866,16 +866,23 @@ fn scenes_section(
     let name_key = egui::Id::new("anima.scene-new-name");
     let mut deleting: Option<std::path::PathBuf> = ui.data(|d| d.get_temp(deleting_key));
     let mut action: Option<SceneAction> = None;
+    // Taken for the pass, and put back below kept to the shelf.
+    let mut thumbs: SceneThumbs =
+        ui.data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<SceneThumbs>(thumbs_id())));
     for entry in &shelf {
         ui.horizontal(|ui| {
-            // Its picture, or an empty frame where there is none yet.
+            // Its picture, or an empty frame where there is none yet —
+            // read only for a row on screen: up to `MAX_SCENES` of them
+            // were decoded on the one frame the list opened (PERF-002).
             let (rect, _) = ui.allocate_exact_size(egui::vec2(80.0, 50.0), egui::Sense::hover());
             ui.painter()
                 .rect_filled(rect, theme::RADIUS_SM, ui.visuals().faint_bg_color);
-            if let Some(texture) = scene_thumbnail(ui, &entry.path) {
-                egui::Image::new(&texture)
-                    .corner_radius(theme::RADIUS_SM)
-                    .paint_at(ui, rect);
+            if ui.is_rect_visible(rect) {
+                if let Some(texture) = scene_thumbnail(ui, &mut thumbs, &entry.path) {
+                    egui::Image::new(&texture)
+                        .corner_radius(theme::RADIUS_SM)
+                        .paint_at(ui, rect);
+                }
             }
             let is_active = active.as_deref() == Some(entry.name.as_str());
             if ui
@@ -979,6 +986,11 @@ fn scenes_section(
         );
     }
 
+    // A scene gone — deleted here or on disk — takes its picture with it:
+    // its texture was kept in egui's memory, and on the GPU, for good.
+    thumbs.keep_only(shelf.iter().map(|e| e.path.as_path()));
+    ui.data_mut(|d| d.insert_temp(thumbs_id(), thumbs));
+
     // An error stays up until the next thing done here.
     let acted = action.is_some();
     let mut error: Option<String> = None;
@@ -1038,17 +1050,14 @@ fn scenes_section(
 /// The picture of the scene saved in `scene_file` (`crate::scene_thumb`),
 /// as a texture: read again when its file changes, which is looked at
 /// every couple of seconds.
-fn scene_thumbnail(ui: &egui::Ui, scene_file: &std::path::Path) -> Option<egui::TextureHandle> {
-    use std::time::{Duration, Instant, SystemTime};
-    #[derive(Clone)]
-    struct Held {
-        checked: Instant,
-        modified: Option<SystemTime>,
-        texture: Option<egui::TextureHandle>,
-    }
+fn scene_thumbnail(
+    ui: &egui::Ui,
+    thumbs: &mut SceneThumbs,
+    scene_file: &std::path::Path,
+) -> Option<egui::TextureHandle> {
+    use std::time::{Duration, Instant};
     let png = crate::scene_thumb::path_for(scene_file);
-    let id = egui::Id::new(("anima.scene-thumb", png.as_path()));
-    let held = ui.ctx().memory(|m| m.data.get_temp::<Held>(id));
+    let held = thumbs.0.get(&png).cloned();
     if let Some(held) = &held {
         if held.checked.elapsed() < Duration::from_secs(2) {
             return held.texture.clone();
@@ -1069,17 +1078,47 @@ fn scene_thumbnail(ui: &egui::Ui, scene_file: &std::path::Path) -> Option<egui::
                 )
             }),
     };
-    ui.ctx().memory_mut(|m| {
-        m.data.insert_temp(
-            id,
-            Held {
-                checked: Instant::now(),
-                modified,
-                texture: texture.clone(),
-            },
-        )
-    });
+    thumbs.0.insert(
+        png,
+        Held {
+            checked: Instant::now(),
+            modified,
+            texture: texture.clone(),
+        },
+    );
     texture
+}
+
+/// The saved scenes' pictures, in one place in egui's memory
+/// ([`thumbs_id`]), by the picture's file, and kept to the scenes on the
+/// shelf ([`Self::keep_only`]). Each was kept under an id of its own,
+/// and a deleted scene's texture stayed in memory and on the GPU until
+/// the app quit (PERF-002).
+#[derive(Clone, Default)]
+struct SceneThumbs(std::collections::HashMap<std::path::PathBuf, Held>);
+
+/// One scene's picture, as last read.
+#[derive(Clone)]
+struct Held {
+    checked: std::time::Instant,
+    modified: Option<std::time::SystemTime>,
+    texture: Option<egui::TextureHandle>,
+}
+
+impl SceneThumbs {
+    /// Keep only the pictures of `scene_files`: the shelf, at most
+    /// `MAX_SCENES`.
+    fn keep_only<'a>(&mut self, scene_files: impl IntoIterator<Item = &'a std::path::Path>) {
+        let live: std::collections::HashSet<std::path::PathBuf> = scene_files
+            .into_iter()
+            .map(crate::scene_thumb::path_for)
+            .collect();
+        self.0.retain(|png, _| live.contains(png));
+    }
+}
+
+fn thumbs_id() -> egui::Id {
+    egui::Id::new("anima.scene-thumbs")
 }
 
 /// Save what is on screen as the scene `name`, which becomes the active
@@ -1359,4 +1398,32 @@ fn scene_list(
 enum ListAction {
     Select(usize),
     Delete(usize),
+}
+
+#[cfg(test)]
+mod thumb_tests {
+    use super::{Held, SceneThumbs};
+    use std::path::Path;
+
+    /// A scene deleted — here, or on disk — takes its picture's entry
+    /// with it at the next pass; one still on the shelf keeps its own
+    /// (PERF-002).
+    #[test]
+    fn a_deleted_scenes_picture_is_let_go() {
+        let held = || Held {
+            checked: std::time::Instant::now(),
+            modified: None,
+            texture: None,
+        };
+        let (kept, gone) = (Path::new("/s/kept.toml"), Path::new("/s/gone.toml"));
+        let mut thumbs = SceneThumbs::default();
+        for scene in [kept, gone] {
+            thumbs.0.insert(crate::scene_thumb::path_for(scene), held());
+        }
+        thumbs.keep_only([kept]);
+        assert_eq!(thumbs.0.len(), 1);
+        assert!(thumbs.0.contains_key(&crate::scene_thumb::path_for(kept)));
+        thumbs.keep_only([]);
+        assert!(thumbs.0.is_empty());
+    }
 }
