@@ -362,7 +362,12 @@ pub fn try_load(
 
     // Stat before slurp: a valid cache is bounded, so an oversized file
     // is corrupt/planted and must not be read whole into RAM (local DoS).
-    let meta = fs::metadata(&key).ok()?;
+    // The cache file itself, a regular one: followed, a link — or a pipe,
+    // which the open would wait on — was read as the cache (BUG-016).
+    let meta = fs::symlink_metadata(&key).ok()?;
+    if !meta.file_type().is_file() {
+        return None;
+    }
     if meta.len() > MAX_CACHE_FILE_BYTES {
         tracing::warn!(
             "Asset cache at {} is {} bytes (> {} cap); ignoring and regenerating",
@@ -539,6 +544,11 @@ fn read_frames_from<R: Read>(r: &mut R) -> Result<Vec<Frame>> {
     }
 
     let count = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;
+    // No frames is no animation: taken as a hit, it made a character of
+    // nothing (BUG-016). Nothing is ever cached with none.
+    if count == 0 {
+        return Err(AnimaError::other("cache holds no frames"));
+    }
     if count > MAX_ANIMATION_FRAMES {
         return Err(AnimaError::other(format!(
             "cache claims {count} frames, max {MAX_ANIMATION_FRAMES}"
@@ -610,6 +620,13 @@ fn read_frames_from<R: Read>(r: &mut R) -> Result<Vec<Frame>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A cache of no frames is no hit (BUG-016).
+    #[test]
+    fn a_cache_of_no_frames_is_refused() {
+        let bytes = serialize_frames(&[]);
+        assert!(read_frames_from(&mut bytes.as_slice()).is_err());
+    }
 
     #[test]
     fn cache_file_cap_admits_the_largest_valid_cache() {
