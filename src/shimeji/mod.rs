@@ -157,21 +157,32 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, M
     });
 
     // ── Copy sprites + build per-state sequence configs ─────────────
-    let import_dir = dest_root.join("imported").join(&slug);
+    // Into a folder of its own, put in place once idle has copied: the
+    // last import's frames stay until then (BUG-014). The paths the
+    // character keeps are where the folder goes.
+    let imported = dest_root.join("imported");
+    let (slug, import_dir) = place_for(&imported, &slug, &pack_name);
+    std::fs::create_dir_all(&imported).map_err(|e| format!("create imported dir: {e}"))?;
+    let staging = fresh_sibling(&import_dir, "importing");
+    std::fs::create_dir(&staging).map_err(|e| format!("create staging dir: {e}"))?;
 
     // One budget for the whole import: the dedup map and the output cap
     // have to span all four state sequences, since the amplification
     // comes from the *same* image being referenced across them.
     let mut budget = CopyBudget::default();
 
-    let idle_dir = copy_state_sequence(
+    if let Err(e) = copy_state_sequence(
         &pack_root,
-        &import_dir,
+        &staging,
         "idle",
         &idle.poses,
         &mut report,
         &mut budget,
-    )?;
+    ) {
+        let _ = std::fs::remove_dir_all(&staging);
+        return Err(e.into());
+    }
+    let idle_dir = import_dir.join("idle");
     let idle_fps = fps_from_poses(&idle.poses);
 
     let mut animations: BTreeMap<crate::animation::StateId, StateSequenceConfig> = BTreeMap::new();
@@ -189,18 +200,18 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, M
         };
         match copy_state_sequence(
             &pack_root,
-            &import_dir,
+            &staging,
             label,
             &action.poses,
             &mut report,
             &mut budget,
         ) {
-            Ok(dir) => {
+            Ok(_) => {
                 animations.insert(
                     state,
                     StateSequenceConfig {
                         asset_type: AssetType::PngSequence,
-                        asset_path: dir.to_string_lossy().into_owned(),
+                        asset_path: import_dir.join(label).to_string_lossy().into_owned(),
                         fps: Some(fps_from_poses(&action.poses)),
                         spritesheet_columns: None,
                         spritesheet_rows: None,
@@ -209,6 +220,14 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, M
             }
             Err(e) => report.skipped.push((label.to_string(), e)),
         }
+    }
+
+    let placed = std::fs::write(staging.join(PACK_MARKER), &pack_name)
+        .map_err(|e| format!("mark the import: {e}"))
+        .and_then(|()| put_in_place(&staging, &import_dir));
+    if let Err(e) = placed {
+        let _ = std::fs::remove_dir_all(&staging);
+        return Err(e.into());
     }
 
     // Walk speed from pose velocities: |vx| px/tick × 25 ticks/s.
@@ -273,11 +292,79 @@ fn slugify(name: &str) -> String {
         }
     }
     let trimmed = out.trim_matches('-');
-    if trimmed.is_empty() {
-        "pack".into()
+    let base = if trimmed.is_empty() { "pack" } else { trimmed };
+    // A name with letters ASCII has not lost them above, and two such
+    // names one slug: every Japanese pack was "pack", and each import
+    // wrote over the last (BUG-014). A stable hash of the whole name
+    // tells them apart.
+    if name.chars().any(|c| c.is_alphanumeric() && !c.is_ascii()) {
+        format!("{base}-{:08x}", fnv1a(name))
     } else {
-        trimmed.into()
+        base.into()
     }
+}
+
+/// FNV-1a, 32 bits: stable across runs and versions, as a slug must be.
+fn fnv1a(text: &str) -> u32 {
+    text.bytes().fold(0x811c_9dc5, |h, b| {
+        (h ^ u32::from(b)).wrapping_mul(0x0100_0193)
+    })
+}
+
+/// The file in an imported pack's folder that says which pack it is.
+const PACK_MARKER: &str = ".anima-pack";
+
+/// The slug and folder under `imported` for the pack `pack_name`: its
+/// own folder if it has one, a free one otherwise — `base`, then
+/// `base-2` and up past folders another pack owns. Two packs of one slug
+/// (`My Mascot`, `my_mascot`) shared a folder, the second writing over
+/// the first (BUG-014). A folder from before the marker is taken for
+/// this pack's, as it always was.
+fn place_for(imported: &Path, base: &str, pack_name: &str) -> (String, PathBuf) {
+    for n in 1..=1000 {
+        let slug = if n == 1 {
+            base.to_string()
+        } else {
+            format!("{base}-{n}")
+        };
+        let dir = imported.join(&slug);
+        match crate::util::read_to_string_capped(&dir.join(PACK_MARKER), 4096) {
+            Ok(owner) if owner.trim_end() != pack_name => continue,
+            _ => return (slug, dir),
+        }
+    }
+    (base.to_string(), imported.join(base))
+}
+
+/// Put the import made in `staging` where `import_dir` is, the last one
+/// there going only once this is in: the frames used to be deleted
+/// before the new ones were copied, and an import that failed partway
+/// left a character with none (BUG-014).
+fn put_in_place(staging: &Path, import_dir: &Path) -> Result<(), String> {
+    if !import_dir.exists() {
+        return std::fs::rename(staging, import_dir).map_err(|e| format!("put in place: {e}"));
+    }
+    let old = fresh_sibling(import_dir, "replaced");
+    std::fs::rename(import_dir, &old).map_err(|e| format!("set the last import aside: {e}"))?;
+    if let Err(e) = std::fs::rename(staging, import_dir) {
+        let _ = std::fs::rename(&old, import_dir);
+        return Err(format!("put in place: {e}"));
+    }
+    let _ = std::fs::remove_dir_all(&old);
+    Ok(())
+}
+
+/// A name beside `dir` that nothing has: `.<name>.<what>-<pid>-<n>`.
+fn fresh_sibling(dir: &Path, what: &str) -> PathBuf {
+    let name = dir
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let parent = dir.parent().unwrap_or(dir);
+    (0u32..)
+        .map(|n| parent.join(format!(".{name}.{what}-{}-{n}", std::process::id())))
+        .find(|p| !p.exists())
+        .unwrap_or_else(|| parent.join(format!(".{name}.{what}")))
 }
 
 /// Count PNG sprites + total byte size of the pack (recursive, depth-
@@ -641,35 +728,6 @@ struct CopyBudget {
     seen: BTreeMap<PathBuf, PathBuf>,
 }
 
-/// Delete the `frame_NNN.png` files a previous import wrote into `dir`.
-///
-/// Re-importing a pack reuses the slug, so it writes into the existing
-/// directory. Without this, a shorter animation leaves the previous
-/// import's higher-numbered frames in place and the sequence loader
-/// picks them up as part of the new animation. Only our own generated
-/// names are removed — never an arbitrary file the user put there.
-fn remove_stale_frames(dir: &Path) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        if !matches!(entry.file_type(), Ok(ft) if ft.is_file()) {
-            continue;
-        }
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else { continue };
-        let Some(mid) = name
-            .strip_prefix("frame_")
-            .and_then(|n| n.strip_suffix(".png"))
-        else {
-            continue;
-        };
-        if !mid.is_empty() && mid.chars().all(|c| c.is_ascii_digit()) {
-            let _ = std::fs::remove_file(entry.path());
-        }
-    }
-}
-
 fn copy_state_sequence(
     pack_root: &Path,
     import_dir: &Path,
@@ -680,7 +738,6 @@ fn copy_state_sequence(
 ) -> Result<PathBuf, String> {
     let dir = import_dir.join(state);
     std::fs::create_dir_all(&dir).map_err(|e| format!("create {state} dir: {e}"))?;
-    remove_stale_frames(&dir);
 
     let mut copied = 0usize;
     for (i, pose) in poses.iter().enumerate() {
@@ -1119,5 +1176,75 @@ mod tests {
         assert_eq!(slugify("My Mascot (v2)!"), "my-mascot-v2");
         assert_eq!(slugify("__"), "pack");
         assert_eq!(slugify("Shimeji"), "shimeji");
+        // Letters ASCII has not, told apart by a hash of the name: every
+        // Japanese pack name was "pack" (BUG-014).
+        assert_ne!(slugify("ねこ"), slugify("いぬ"));
+        assert!(slugify("ねこ").starts_with("pack-"), "{}", slugify("ねこ"));
+        assert_eq!(slugify("ねこ"), slugify("ねこ"), "stable");
+    }
+
+    /// A reimport that fails keeps what the last one made: the frames
+    /// were deleted before the new ones were checked, and a pack whose
+    /// new version did not import left its character with none (BUG-014).
+    #[test]
+    fn a_failed_reimport_keeps_the_last_frames() {
+        let (pack, dest) = build_pack("failed_reimport");
+        let report = import_pack(&pack, &dest).unwrap();
+        let idle_dir = PathBuf::from(&report.characters[0].asset_path);
+        let before: Vec<_> = std::fs::read_dir(&idle_dir)
+            .unwrap()
+            .map(|e| std::fs::read(e.unwrap().path()).unwrap())
+            .collect();
+        assert!(!before.is_empty());
+        // The new version's idle poses name sprites that are not there.
+        let broken = ACTIONS_XML.replace("/shime1.png", "/gone.png");
+        std::fs::write(pack.join("conf").join("actions.xml"), broken).unwrap();
+        assert!(import_pack(&pack, &dest).is_err());
+        let after: Vec<_> = std::fs::read_dir(&idle_dir)
+            .unwrap()
+            .map(|e| std::fs::read(e.unwrap().path()).unwrap())
+            .collect();
+        assert_eq!(before.len(), after.len(), "frames lost");
+        let imported: Vec<_> = std::fs::read_dir(dest.join("imported"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            imported.len(),
+            1,
+            "a staging folder left behind: {imported:?}"
+        );
+    }
+
+    /// Two packs whose names make one slug each get a folder of their
+    /// own: the second wrote over the first (BUG-014). The same pack
+    /// imported again still replaces its own.
+    #[test]
+    fn two_packs_with_one_slug_do_not_share_a_folder() {
+        let (first, dest) = build_pack("slug_clash");
+        let second = first.with_file_name("testmascot");
+        let _ = std::fs::remove_dir_all(&second);
+        std::fs::create_dir_all(second.join("img")).unwrap();
+        std::fs::create_dir_all(second.join("conf")).unwrap();
+        for (i, shade) in [(1u8, 90u8), (2, 91), (3, 92), (4, 93)] {
+            write_png(&second.join("img").join(format!("shime{i}.png")), shade);
+        }
+        std::fs::write(second.join("conf").join("actions.xml"), ACTIONS_XML).unwrap();
+        let a = import_pack(&first, &dest).unwrap();
+        let b = import_pack(&second, &dest).unwrap();
+        let (a_dir, b_dir) = (
+            PathBuf::from(&a.characters[0].asset_path),
+            PathBuf::from(&b.characters[0].asset_path),
+        );
+        assert_ne!(a_dir, b_dir);
+        assert_ne!(a.characters[0].id, b.characters[0].id);
+        assert!(a_dir.join("frame_000.png").exists() && b_dir.join("frame_000.png").exists());
+        let again = import_pack(&first, &dest).unwrap();
+        assert_eq!(
+            PathBuf::from(&again.characters[0].asset_path),
+            a_dir,
+            "reimport moved"
+        );
+        let _ = std::fs::remove_dir_all(&second);
     }
 }

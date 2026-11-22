@@ -58,6 +58,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Importing a Shimeji pack no longer wipes another one, or itself.**
+  Every pack named in Japanese (or any other script) went into the same
+  folder, each import writing over the last, and so did two packs whose
+  names differ only in case or punctuation. And a pack imported again
+  had its frames deleted before the new ones were checked: if the new
+  version failed, the character was left with none. Each pack now has a
+  folder of its own, and an import replaces the last only once it has
+  succeeded.
 - **The clock going back no longer switches scenes, and midnight no
   longer cuts reminders short or makes everyone yawn twice.** When the
   clocks went back an hour, the schedule took it for midnight passing
