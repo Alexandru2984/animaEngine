@@ -125,7 +125,10 @@ fn generate(base: &Path, name: &str) {
     let mut saved = true;
     for (state, into) in states {
         if let Err(e) = std::fs::create_dir_all(&into) {
-            tracing::warn!("Failed to create demo directory {}: {e}", into.display());
+            tracing::warn!(
+                "Failed to create demo directory {}: {e}",
+                crate::drop_validate::redact_path(&into)
+            );
             return;
         }
         saved &= (0..frames_of(state))

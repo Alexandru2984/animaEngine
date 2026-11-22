@@ -47,11 +47,19 @@ use std::path::Path;
 /// of every journald line it appears in — the filename is exactly
 /// the part of the path an attacker-supplied asset controls.
 pub fn redact_path(path: &Path) -> String {
-    let name = match path.file_name() {
-        Some(n) => n.to_string_lossy(),
-        None => return "<no filename>".to_string(),
-    };
-    name.chars()
+    match path.file_name() {
+        Some(n) => escape_untrusted(&n.to_string_lossy()),
+        None => "<no filename>".to_string(),
+    }
+}
+
+/// `text` from outside — a file's name, a scene's or a character's from a
+/// file — with control characters (an ANSI escape among them) and the
+/// invisible Unicode formatting that reorders or hides text escaped to
+/// `\u{…}`, for the log and the diagnostic report. A name with a bidi
+/// override flipped every log line it was on (SEC-013).
+pub fn escape_untrusted(text: &str) -> String {
+    text.chars()
         .flat_map(|c| {
             let escaped = c.is_control()
                 || matches!(
@@ -155,11 +163,10 @@ pub fn resolve_library_asset(root: &Path, relative: &Path) -> Result<std::path::
     let canonical_target = joined
         .canonicalize()
         .map_err(|e| format!("asset path unreachable: {e}"))?;
+    // The root is not in the message: it goes to the log and to toasts,
+    // and it is the user's home (SEC-013).
     if !canonical_target.starts_with(&canonical_root) {
-        return Err(format!(
-            "asset path escapes library root ({})",
-            canonical_root.display()
-        ));
+        return Err("asset path escapes the library".to_string());
     }
     Ok(canonical_target)
 }
@@ -169,6 +176,35 @@ mod tests {
     use super::{pre_validate_dropped_file, redact_path, resolve_library_asset};
     use crate::i18n::Msg;
     use std::path::{Path, PathBuf};
+
+    /// An escape from the library is said without the library's own path,
+    /// which is the user's home (SEC-013).
+    #[test]
+    fn an_escape_is_said_without_the_library_path() {
+        let dir = std::env::temp_dir().join(format!("anima-escape-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let err = resolve_library_asset(&dir, Path::new("/etc/hostname")).unwrap_err();
+        let root = dir.canonicalize().unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!err.contains(&*root.to_string_lossy()), "{err}");
+    }
+
+    /// Text from outside goes to the log with its escapes and its bidi
+    /// override written out, not acted on.
+    #[test]
+    fn untrusted_text_is_escaped() {
+        let text = format!("a{}[31mred{}b", '\u{1b}', '\u{202E}');
+        let out = super::escape_untrusted(&text);
+        assert!(
+            !out.contains('\u{1b}') && !out.contains('\u{202E}'),
+            "{out:?}"
+        );
+        assert!(
+            out.contains("\\u{1b}") && out.contains("\\u{202e}"),
+            "{out:?}"
+        );
+        assert_eq!(super::escape_untrusted("Plain name"), "Plain name");
+    }
 
     #[test]
     fn redact_keeps_plain_filename() {

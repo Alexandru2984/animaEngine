@@ -91,7 +91,10 @@ fn read_manifest(text: &str) -> Result<(AppConfig, Vec<SavedScene>)> {
                 let (scene, left_out) = crate::scenes::from_table(table)
                     .map_err(|e| super::damaged(format!("backup.toml: {e}")))?;
                 if left_out > 0 {
-                    tracing::warn!("Backup scene {}: {left_out} left out, not read", scene.name);
+                    tracing::warn!(
+                        "Backup scene {}: {left_out} left out, not read",
+                        crate::drop_validate::escape_untrusted(&scene.name)
+                    );
                 }
                 scenes.push(scene);
             }

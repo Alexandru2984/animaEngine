@@ -311,11 +311,19 @@ pub fn ensure_asset_root() -> Option<PathBuf> {
     let xdg = xdg_data_dir().join("assets");
     match std::fs::create_dir_all(&xdg) {
         Ok(()) => {
-            tracing::info!("Created asset library at {}", xdg.display());
+            tracing::info!(
+                "Created asset library at {}",
+                crate::drop_validate::redact_path(&xdg)
+            );
+            tracing::debug!("Asset library (full): {}", xdg.display());
             Some(xdg)
         }
         Err(e) => {
-            tracing::warn!("Could not create asset library at {}: {e}", xdg.display());
+            tracing::warn!(
+                "Could not create asset library at {}: {e}",
+                crate::drop_validate::redact_path(&xdg)
+            );
+            tracing::debug!("Asset library (full): {}", xdg.display());
             None
         }
     }

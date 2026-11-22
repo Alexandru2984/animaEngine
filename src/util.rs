@@ -215,7 +215,7 @@ pub fn fallback_scoped_dir(suffix: &str) -> PathBuf {
         tracing::error!(
             "Fallback dir {} failed ownership/mode verification — writes \
              there may be readable by other local users",
-            fallback.display()
+            crate::drop_validate::redact_path(&fallback)
         );
     }
     fallback

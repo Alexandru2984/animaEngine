@@ -178,7 +178,7 @@ pub(super) fn entry_label(entry: &toml::Value) -> String {
     ["name", "id"]
         .iter()
         .find_map(|k| entry.get(k).and_then(toml::Value::as_str))
-        .map(|s| format!("\"{s}\""))
+        .map(|s| format!("\"{}\"", crate::drop_validate::escape_untrusted(s)))
         .unwrap_or_else(|| "one".to_string())
 }
 

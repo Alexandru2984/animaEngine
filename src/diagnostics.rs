@@ -109,9 +109,12 @@ impl Visit for Message {
     }
 }
 
-/// One line, at most [`LINE`] characters.
+/// One line, at most [`LINE`] characters, its control and invisible
+/// formatting characters written out: the report is pasted into issues
+/// and chats, where an ANSI escape or a bidi override from a file's name
+/// would act (SEC-013).
 fn clip(text: &str) -> String {
-    let line = text.lines().next().unwrap_or_default();
+    let line = crate::drop_validate::escape_untrusted(text.lines().next().unwrap_or_default());
     match line.char_indices().nth(LINE) {
         Some((cut, _)) => format!("{}…", &line[..cut]),
         None => line.to_string(),
@@ -120,8 +123,15 @@ fn clip(text: &str) -> String {
 
 /// `text` with the home directory written `~`.
 fn private(text: &str) -> String {
-    match std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
-        Ok(home) if home.len() > 1 => text.replace(&home, "~"),
+    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"));
+    private_with(text, home.ok().as_deref())
+}
+
+/// [`private`], the home given: written with a trailing separator, as a
+/// shell profile may set it, it was never found in a path (SEC-013).
+fn private_with(text: &str, home: Option<&str>) -> String {
+    match home.map(|h| h.trim_end_matches(['/', '\\'])) {
+        Some(home) if home.len() > 1 => text.replace(home, "~"),
         _ => text.to_string(),
     }
 }
@@ -204,6 +214,22 @@ pub fn report() -> String {
 mod tests {
     use super::*;
     use tracing_subscriber::prelude::*;
+
+    /// A home set with a trailing slash is still written `~`; a line's
+    /// ANSI escape and bidi override are written out (SEC-013).
+    #[test]
+    fn the_report_hides_the_home_and_escapes_what_would_act() {
+        assert_eq!(
+            private_with("at /home/someone/a.png", Some("/home/someone/")),
+            "at ~/a.png"
+        );
+        assert_eq!(private_with("at /a.png", Some("/")), "at /a.png");
+        let line = clip(&format!("name {}[2J{}x", '\u{1b}', '\u{202E}'));
+        assert!(
+            !line.contains('\u{1b}') && !line.contains('\u{202E}'),
+            "{line:?}"
+        );
+    }
 
     /// What the log said reaches the report — a fact kept as its latest, a
     /// warning in order — and an info line that is neither does not; the

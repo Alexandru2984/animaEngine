@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- **Your home folder's path, and names from files, are kept out of the
+  log and the diagnostic report.** A few messages still carried a whole
+  path — the library's, among them in an error toasts showed — and
+  names read from a backup, a config or a Shimeji pack went in as they
+  were, so an escape sequence or a right-to-left override in one acted
+  on the terminal or the report. Paths are now the file's name only, and
+  such characters are written out.
 - **"Start at login" can no longer write a second line into its entry.**
   The app's own path went into the autostart entry as it was, so a path
   with a line break in it wrote a key of its own on the next line. Such

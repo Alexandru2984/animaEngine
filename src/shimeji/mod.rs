@@ -94,9 +94,12 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, M
             format!("pack root unreachable: {e}").into()
         }
     })?;
+    // Escaped: the folder's name names the characters, and goes into the
+    // log and a toast, so a bidi override or an ANSI escape in it would
+    // act there (SEC-013).
     let pack_name = pack_root
         .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
+        .map(|n| crate::drop_validate::escape_untrusted(&n.to_string_lossy()))
         .unwrap_or_else(|| "pack".into());
     let slug = slugify(&pack_name);
 
@@ -296,9 +299,12 @@ fn pack_stats(root: &Path) -> Result<(usize, u64), String> {
             // made the old `is_symlink()` check dead code (always false),
             // silently following links right out of the pack. Detect the
             // link itself and skip it.
-            let ft = entry
-                .file_type()
-                .map_err(|e| format!("stat {}: {e}", entry.path().display()))?;
+            let ft = entry.file_type().map_err(|e| {
+                format!(
+                    "stat {}: {e}",
+                    crate::drop_validate::redact_path(&entry.path())
+                )
+            })?;
             if ft.is_symlink() {
                 continue; // never follow symlinks inside a pack
             }
@@ -309,7 +315,12 @@ fn pack_stats(root: &Path) -> Result<(usize, u64), String> {
                 // regular file's own size, not a link target's.
                 let len = entry
                     .metadata()
-                    .map_err(|e| format!("stat {}: {e}", entry.path().display()))?
+                    .map_err(|e| {
+                        format!(
+                            "stat {}: {e}",
+                            crate::drop_validate::redact_path(&entry.path())
+                        )
+                    })?
                     .len();
                 *bytes = bytes.saturating_add(len);
                 let p = entry.path();
