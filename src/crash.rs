@@ -342,13 +342,40 @@ pub fn try_recover() -> RecoverOutcome {
 /// `try_recover`'s gate, split out so it's testable without touching
 /// the real XDG paths `recovery_path`/`AppConfig::config_path` resolve
 /// to.
-fn validate_snapshot_contents(contents: &str) -> Result<(), toml::de::Error> {
-    toml::from_str::<AppConfig>(contents).map(|_| ())
+/// Whether `contents` is a config the app reads, as the loader reads it:
+/// migrated, and with what this version cannot read set aside. A strict
+/// parse refused a snapshot holding a newer version's character, which
+/// the loader takes in (BUG-011).
+fn validate_snapshot_contents(contents: &str) -> Result<(), String> {
+    let table = contents
+        .parse::<toml::Table>()
+        .map_err(|e| format!("parse error: {e}"))?;
+    AppConfig::decode_config_table(table).map(|_| ())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A snapshot with a character a newer version made: the config
+    /// loader sets it aside and reads the rest, but the snapshot was
+    /// checked with a strict parse, and `--recover` refused it as "not a
+    /// valid config" (BUG-011). An unreadable one is still refused.
+    #[test]
+    fn a_snapshot_the_loader_reads_is_a_valid_one() {
+        let mut text = AppConfig::default().to_toml_string().unwrap();
+        text.push_str(
+            "\n[[characters]]\nid = \"holo\"\nname = \"Holo\"\n\
+             asset_type = \"hologram\"\nasset_path = \"h.holo\"\nx = 0.0\ny = 0.0\n",
+        );
+        assert!(
+            validate_snapshot_contents(&text).is_ok(),
+            "{:?}",
+            validate_snapshot_contents(&text)
+        );
+        assert!(validate_snapshot_contents("characters = 5").is_err());
+        assert!(validate_snapshot_contents("[global\n").is_err());
+    }
 
     #[test]
     fn an_isolated_panic_comes_back_as_an_error_and_the_flag_is_cleared() {

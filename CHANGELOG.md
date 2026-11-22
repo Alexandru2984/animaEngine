@@ -51,6 +51,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`--recover` takes back a snapshot that holds a newer version's
+  character.** The snapshot was checked more strictly than the config is
+  read, so one the app would have loaded was refused as "not a valid
+  config". It is now checked as the config is loaded.
 - **Shift with an arrow key nudges by one pixel again**, on both
   backends. The arrows are bound without Shift, so Shift+Arrow found no
   binding and did nothing at all.
