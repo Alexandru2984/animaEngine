@@ -152,22 +152,44 @@ pub fn cjk_font_available() -> bool {
 /// what R23 wanted to avoid was paying it for someone reading English
 /// who never opens it.
 pub fn install_with_cjk(ctx: &egui::Context) {
-    // Cheap re-entry guard. The caller asks once per frame for as long as
-    // the dropdown is open, and a rebuild re-reads ~19 MB from disk and
-    // re-parses it — sixty times a second would be a visible stall, which
-    // is a poor trade for fixing a label.
-    if ctx.data(|d| d.get_temp::<bool>(cjk_installed_id())) == Some(true) {
+    install_with_cjk_from(ctx, load_cjk_font)
+}
+
+/// [`install_with_cjk`], the face read by `load`.
+fn install_with_cjk_from(ctx: &egui::Context, load: impl FnOnce() -> Option<egui::FontData>) {
+    // Cheap re-entry guard. The callers ask once per frame — for as long
+    // as the dropdown is open, a bubble holds CJK, or the language needs
+    // it — and a rebuild re-reads ~19 MB from disk and re-parses it, and
+    // re-uploads the glyph atlas. Looked for and not found counts as
+    // done too: only `Installed` stopped it, so with no CJK face on the
+    // machine every frame looked again, warned again and rebuilt the
+    // fonts again (PERF-001).
+    if matches!(
+        ctx.data(|d| d.get_temp::<Cjk>(cjk_installed_id())),
+        Some(Cjk::Installed | Cjk::Missing)
+    ) {
         return;
     }
-    install_inner(ctx, true)
+    install_inner(ctx, true, load)
 }
 
 pub fn install(ctx: &egui::Context) {
-    install_inner(ctx, false)
+    install_inner(ctx, false, load_cjk_font)
+}
+
+/// Where a context's fonts stand on CJK ([`cjk_installed_id`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Cjk {
+    /// In its stack.
+    Installed,
+    /// Looked for, and no face found: not looked for again.
+    Missing,
+    /// Not asked for: a later [`install_with_cjk`] looks.
+    NotLoaded,
 }
 
 /// Where a context remembers whether its last `install_inner` put the CJK
-/// face in its stack.
+/// face in its stack ([`Cjk`]).
 ///
 /// Mirrors the fonts currently on that context, so it has to be updated on
 /// every path through `install_inner`, including the ones that leave CJK
@@ -180,7 +202,11 @@ fn cjk_installed_id() -> egui::Id {
     egui::Id::new("anima.cjk-installed")
 }
 
-fn install_inner(ctx: &egui::Context, force_cjk: bool) {
+fn install_inner(
+    ctx: &egui::Context,
+    force_cjk: bool,
+    load: impl FnOnce() -> Option<egui::FontData>,
+) {
     let mut fonts = egui::FontDefinitions::default();
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
 
@@ -216,9 +242,9 @@ fn install_inner(ctx: &egui::Context, force_cjk: bool) {
     // Loaded only when the active locale needs it: the face is ~19 MB, and
     // holding that resident for a user reading English buys nothing.
     // Re-installed on a language change, so switching at runtime works.
-    let mut installed_cjk = false;
+    let mut installed_cjk = Cjk::NotLoaded;
     if force_cjk || locale_needs_cjk(&crate::i18n::current_locale()) {
-        match load_cjk_font() {
+        match load() {
             Some(data) => {
                 fonts.font_data.insert("cjk".to_owned(), data.into());
                 for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
@@ -226,12 +252,15 @@ fn install_inner(ctx: &egui::Context, force_cjk: bool) {
                         list.push("cjk".to_owned());
                     }
                 }
-                installed_cjk = true;
+                installed_cjk = Cjk::Installed;
             }
-            None => tracing::warn!(
-                "No CJK font found; this locale will render as empty boxes. \
-                 Install a Noto CJK package to fix it."
-            ),
+            None => {
+                tracing::warn!(
+                    "No CJK font found; this locale will render as empty boxes. \
+                     Install a Noto CJK package to fix it."
+                );
+                installed_cjk = Cjk::Missing;
+            }
         }
     }
 
@@ -334,6 +363,21 @@ pub const ADD: &str = ph::PLUS;
 
 #[cfg(test)]
 mod tests {
+    /// With no CJK face on the machine, asking again is a no-op: every
+    /// frame looked for it again, warned and rebuilt the fonts (PERF-001).
+    #[test]
+    fn a_missing_cjk_face_is_looked_for_once() {
+        let ctx = egui::Context::default();
+        let looked = std::cell::Cell::new(0);
+        for _ in 0..3 {
+            super::install_with_cjk_from(&ctx, || {
+                looked.set(looked.get() + 1);
+                None
+            });
+        }
+        assert_eq!(looked.get(), 1);
+    }
+
     use super::*;
 
     #[test]

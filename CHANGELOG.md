@@ -41,6 +41,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Without a CJK font installed, Japanese no longer slows the app down
+  and fills the log.** With Japanese as the language, or a speech bubble
+  in Japanese, and no CJK font on the machine, every frame looked for
+  one again, logged a warning and rebuilt every font. It now looks once.
 - **Odd numbers in a config, a saved scene or an imported one can no
   longer break the overlay.** A group's offsets and size, and an
   animation state's own fps, were not checked when read, so `nan` or
