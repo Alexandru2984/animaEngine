@@ -41,6 +41,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Windows: the overlay recovers after a GPU reset, and its window
+  styles are kept.** A frame that could not be read back from the GPU —
+  after a driver reset, or sleep — left the overlay frozen for good; it
+  is now taken as a lost surface, and the renderer is rebuilt as on the
+  other platforms. The click-through tracker is stopped before its
+  window goes, so it can no longer touch the next window given the same
+  handle; a style that cannot be read is no longer written back as 0;
+  the bitmap's handles are checked; and the window's size is held to
+  what the GPU takes.
 - **An overlay on another monitor no longer stands still for good after
   a display change.** On the X11 path only a lost surface was set up
   again; an outdated one, after a mode or scale change, failed every

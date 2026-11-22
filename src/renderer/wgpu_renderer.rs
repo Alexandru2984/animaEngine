@@ -1149,6 +1149,10 @@ impl SurfaceState {
             }
             // Cloning is a handle bump, not a copy — the texture itself
             // stays owned by the target across frames.
+            // A readback that failed is a surface lost (`LayeredTarget::lost`):
+            // the loop's loss handling rebuilds the renderer.
+            #[cfg(windows)]
+            Target::Layered(layered) if layered.lost() => return Err(wgpu::SurfaceError::Lost),
             #[cfg(windows)]
             Target::Layered(layered) => AcquiredFrame::Offscreen(layered.texture().clone()),
         };

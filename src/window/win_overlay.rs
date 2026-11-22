@@ -77,7 +77,14 @@ struct Shared {
 /// [`crate::window::overlay::for_window`].
 pub struct WinOverlay {
     shared: Arc<Shared>,
+    /// The cursor tracker, joined on drop ([`spawn_tracker`]).
+    tracker: Option<std::thread::JoinHandle<()>>,
 }
+
+/// Our own writes of a window's extended style, one at a time: the
+/// tracker's and the UI thread's each read, changed and wrote it back, so
+/// one could write over the other's change with what it had read before.
+static STYLE_WRITE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 impl WinOverlay {
     /// Attach to `window`'s HWND. `None` when the winit window isn't a
@@ -102,10 +109,10 @@ impl WinOverlay {
             stop: AtomicBool::new(false),
         });
         apply_hit_test(hwnd, true);
-        spawn_tracker(Arc::clone(&shared));
+        let tracker = spawn_tracker(Arc::clone(&shared));
 
         tracing::info!("WinOverlay: attached to HWND {hwnd:#x}");
-        Some(Self { shared })
+        Some(Self { shared, tracker })
     }
 
     /// Apply the current mode now instead of waiting for the tracker's next
@@ -119,9 +126,16 @@ impl WinOverlay {
 impl Drop for WinOverlay {
     fn drop(&mut self) {
         // The tracker holds its own `Arc`, so the flag — not the refcount —
-        // is what ends it. Not joined: it wakes on its own within an
-        // interval, and shutdown shouldn't block on a sleep.
-        self.shared.stop.store(true, Ordering::Relaxed);
+        // is what ends it. Woken and joined, so it is gone before the
+        // window is: left to wake on its own, it could find the HWND
+        // destroyed and given to a new window in between, and set that
+        // window's styles (BUG-005). The owners drop this before their
+        // window (`App`, `WindowSlot`).
+        self.shared.stop.store(true, Ordering::Release);
+        if let Some(tracker) = self.tracker.take() {
+            tracker.thread().unpark();
+            let _ = tracker.join();
+        }
     }
 }
 
@@ -193,11 +207,11 @@ impl OverlayPlatform for WinOverlay {
 /// Start the cursor tracker. A spawn failure is survivable — pass-through
 /// and edit mode still work, because both setters apply synchronously —
 /// so it degrades to a warning rather than failing construction.
-fn spawn_tracker(shared: Arc<Shared>) {
+fn spawn_tracker(shared: Arc<Shared>) -> Option<std::thread::JoinHandle<()>> {
     let spawned = std::thread::Builder::new()
         .name("anima-win-hittest".into())
         .spawn(move || {
-            while !shared.stop.load(Ordering::Relaxed) {
+            while !shared.stop.load(Ordering::Acquire) {
                 // The window can be destroyed before `Drop` runs (event
                 // loop exit); poking a dead HWND would be pointless.
                 // SAFETY: `IsWindow` accepts any handle value, including a
@@ -207,18 +221,23 @@ fn spawn_tracker(shared: Arc<Shared>) {
                 }
                 let button = shared.button_px.load(Ordering::Relaxed);
                 apply_hit_test(shared.hwnd, want_transparent(&shared, button));
-                std::thread::sleep(if button > 0 {
+                // Parked, not slept: `Drop` wakes it at once to join it.
+                std::thread::park_timeout(if button > 0 {
                     TRACK_INTERVAL
                 } else {
                     IDLE_INTERVAL
                 });
             }
         });
-    if let Err(e) = spawned {
-        tracing::warn!(
-            "WinOverlay: cursor tracker didn't start ({e}); the ⚙ button won't be \
-             clickable in pass-through — use the global hotkey to reach edit mode"
-        );
+    match spawned {
+        Ok(tracker) => Some(tracker),
+        Err(e) => {
+            tracing::warn!(
+                "WinOverlay: cursor tracker didn't start ({e}); the ⚙ button won't be \
+                 clickable in pass-through — use the global hotkey to reach edit mode"
+            );
+            None
+        }
     }
 }
 
@@ -260,15 +279,31 @@ fn cursor_in_corner(hwnd: isize, size: u32) -> bool {
 /// from its own flags and drops it. A no-op when the bits already match:
 /// the tracker calls this 60×/s and most ticks change nothing.
 fn apply_hit_test(hwnd: isize, transparent: bool) {
-    // SAFETY: a style read and a conditional write on a live HWND. Neither
-    // dereferences anything; `GWL_EXSTYLE` is valid for every window.
-    unsafe {
-        let current = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        let next = if transparent {
+    update_ex_style(hwnd, |current| {
+        if transparent {
             current | HIT_TEST | LAYERED
         } else {
             (current & !HIT_TEST) | LAYERED
-        };
+        }
+    });
+}
+
+/// Read `hwnd`'s extended style, change it with `change`, and write it
+/// back if it changed — one such write at a time ([`STYLE_WRITE`]), and
+/// none when the read fails. The overlay's style is never 0 (it is
+/// topmost and layered at least), so 0 is the read failing, and writing
+/// the bits onto it dropped every other style (BUG-005).
+pub(crate) fn update_ex_style(hwnd: isize, change: impl FnOnce(isize) -> isize) {
+    let _one_at_a_time = STYLE_WRITE.lock();
+    // SAFETY: a style read and a conditional write on a window handle.
+    // Neither dereferences anything; `GWL_EXSTYLE` is valid for every
+    // window, and a stale handle makes both fail rather than misbehave.
+    unsafe {
+        let current = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        if current == 0 {
+            return;
+        }
+        let next = change(current);
         if next != current {
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);
         }

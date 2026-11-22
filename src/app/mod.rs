@@ -335,6 +335,10 @@ pub(crate) struct ContextMenuState {
 /// renderer before egui and the other monitors' windows.
 impl Drop for App {
     fn drop(&mut self) {
+        // Before the window, which the fields drop first: on Windows its
+        // cursor tracker is joined there, and must be gone before the
+        // HWND is (`WinOverlay`, BUG-005).
+        self.x11_input = None;
         self.release_gpu();
     }
 }

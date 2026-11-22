@@ -73,10 +73,13 @@ pub(crate) fn on_primary(monitors: &[MonitorInfo], primary: Option<&str>, e: &En
 
 /// One extra (non-primary) overlay window.
 pub(super) struct WindowSlot {
+    /// First, so it drops before `window`: on Windows its cursor tracker
+    /// is joined there, and must be gone before the HWND is — a destroyed
+    /// HWND can be given to the next window made (`WinOverlay`, BUG-005).
+    pub x11_input: Option<Box<dyn OverlayPlatform>>,
     pub window: Arc<Window>,
     pub surface: SurfaceState,
     pub monitor: MonitorInfo,
-    pub x11_input: Option<Box<dyn OverlayPlatform>>,
     /// This monitor's egui, for the speech bubbles of the characters on it
     /// and the right-click menu when it opens here (`ui::surface_egui`),
     /// made the first time one is needed.

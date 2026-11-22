@@ -39,15 +39,16 @@ use windows_sys::Win32::Graphics::Gdi::{
     AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS,
     HBITMAP, HDC, HGDIOBJ, RGBQUAD,
 };
-use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetWindowLongPtrW, SetWindowLongPtrW, UpdateLayeredWindow, GWL_EXSTYLE, ULW_ALPHA,
-    WS_EX_LAYERED,
-};
+use windows_sys::Win32::UI::WindowsAndMessaging::{UpdateLayeredWindow, ULW_ALPHA, WS_EX_LAYERED};
 
 /// `copy_texture_to_buffer` requires each row to start on a 256-byte
 /// boundary, so the readback buffer is wider than the image and the rows
 /// are un-padded on the way into the DIB.
 const COPY_ALIGN: u32 = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+
+/// What `SelectObject` answers for a failure, `(HGDIOBJ)-1` in the SDK;
+/// windows-sys 0.52 does not define it.
+const HGDI_ERROR: HGDIOBJ = -1;
 
 /// The texture format the offscreen target and the DIB agree on. A DIB
 /// section with `BI_RGB` at 32 bpp is B, G, R, A in memory order and holds
@@ -62,17 +63,29 @@ pub struct LayeredTarget {
     texture: wgpu::Texture,
     readback: wgpu::Buffer,
     padded_bytes_per_row: u32,
-    dib: Dib,
+    /// `None` when GDI could not make it; made again at the next present.
+    dib: Option<Dib>,
     /// A frame whose readback failed, said once a streak: it was said
     /// every frame (`super::ErrorOnce`).
     errors: super::ErrorOnce,
+    /// The last readback failed: the device is likely gone (a driver
+    /// reset, sleep and resume). Answered as a lost surface ([`Self::lost`])
+    /// until the renderer is rebuilt; the overlay stood still for good.
+    readback_failed: bool,
+}
+
+/// `width`×`height`, each at least 1 and at most what `device` takes for
+/// a texture side: past it the texture is refused, and the row and
+/// bitmap sizes worked out from it overflowed (BUG-005).
+fn clamped(device: &wgpu::Device, width: u32, height: u32) -> (u32, u32) {
+    let max = device.limits().max_texture_dimension_2d.max(1);
+    (width.clamp(1, max), height.clamp(1, max))
 }
 
 impl LayeredTarget {
     /// Build a target for `hwnd` at `width`×`height` physical pixels.
     pub fn new(device: &wgpu::Device, hwnd: isize, width: u32, height: u32) -> Self {
-        let width = width.max(1);
-        let height = height.max(1);
+        let (width, height) = clamped(device, width, height);
 
         // `UpdateLayeredWindow` refuses a window without WS_EX_LAYERED.
         // Set it once here rather than relying on the input-region code to
@@ -89,7 +102,15 @@ impl LayeredTarget {
             padded_bytes_per_row,
             dib: Dib::new(width, height),
             errors: super::ErrorOnce::default(),
+            readback_failed: false,
         }
+    }
+
+    /// Whether to answer the next frame as a lost surface: the last
+    /// readback failed. The loop's loss handling then rebuilds the
+    /// renderer, and this target with it, as it does for a swapchain.
+    pub fn lost(&self) -> bool {
+        self.readback_failed
     }
 
     /// The texture this frame is rendered into. egui paints onto the same
@@ -100,8 +121,7 @@ impl LayeredTarget {
     }
 
     pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
-        let width = width.max(1);
-        let height = height.max(1);
+        let (width, height) = clamped(device, width, height);
         if width == self.width && height == self.height {
             return;
         }
@@ -121,6 +141,16 @@ impl LayeredTarget {
     /// The wait is the readback itself, which is why this is metered under
     /// the caller's `Present` perf category like a swapchain present is.
     pub fn present(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        // Nothing to blit into, so nothing to read back: the copy and the
+        // wait were made every frame for a bitmap GDI had refused.
+        if self.dib.is_none() {
+            self.dib = Dib::new(self.width, self.height);
+        }
+        if self.dib.is_none() {
+            self.errors
+                .failed("the layered window's bitmap", &"GDI refused it");
+            return;
+        }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Layered Readback"),
         });
@@ -157,13 +187,14 @@ impl LayeredTarget {
             Ok(Ok(())) => self.errors.drew(),
             other => {
                 self.errors.failed("the layered window's readback", &other);
+                self.readback_failed = true;
                 return;
             }
         }
 
-        {
+        if let Some(dib) = &mut self.dib {
             let mapped = slice.get_mapped_range();
-            self.dib.write_rows(&mapped, self.padded_bytes_per_row);
+            dib.write_rows(&mapped, self.padded_bytes_per_row);
         }
         self.readback.unmap();
 
@@ -174,6 +205,9 @@ impl LayeredTarget {
     /// keeps the position winit gave it — this call is a repaint, not a
     /// move.
     fn blit(&self) {
+        let Some(dib) = &self.dib else {
+            return;
+        };
         let size = SIZE {
             cx: self.width as i32,
             cy: self.height as i32,
@@ -186,16 +220,19 @@ impl LayeredTarget {
             // The pixels are already premultiplied by the sprite pipeline.
             AlphaFormat: AC_SRC_ALPHA as u8,
         };
-        // SAFETY: `screen` is a valid screen DC for the duration; `self.dib.dc`
+        // SAFETY: `screen` is a valid screen DC for the duration; `dib.dc`
         // holds the selected 32-bpp section; all pointers are to live locals.
         unsafe {
             let screen = GetDC(0);
+            if screen == 0 {
+                return;
+            }
             let ok = UpdateLayeredWindow(
                 self.hwnd,
                 screen,
                 ptr::null(),
                 &size,
-                self.dib.dc,
+                dib.dc,
                 &src,
                 0,
                 &blend,
@@ -244,14 +281,7 @@ fn alloc_gpu(device: &wgpu::Device, width: u32, height: u32) -> (wgpu::Texture, 
 /// Add `WS_EX_LAYERED` if it isn't already set, leaving every other style
 /// (topmost, tool window, the click-through bit) alone.
 fn ensure_layered(hwnd: isize) {
-    // SAFETY: a style read and a conditional write on a live HWND.
-    unsafe {
-        let current = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        let wanted = current | WS_EX_LAYERED as isize;
-        if wanted != current {
-            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, wanted);
-        }
-    }
+    crate::window::win_overlay::update_ex_style(hwnd, |current| current | WS_EX_LAYERED as isize);
 }
 
 /// A top-down 32-bpp DIB section and the memory DC it is selected into —
@@ -268,13 +298,18 @@ struct Dib {
 }
 
 impl Dib {
-    fn new(width: u32, height: u32) -> Self {
+    /// `None` if GDI refuses any part of it, with what it did make undone:
+    /// the handles were not checked, so a refused DC or section was
+    /// written into and blitted from every frame (BUG-005). The sides are
+    /// texture sides ([`clamped`]), far inside `i32`.
+    fn new(width: u32, height: u32) -> Option<Self> {
+        let (w, h) = (i32::try_from(width).ok()?, i32::try_from(height).ok()?);
         let header = BITMAPINFOHEADER {
             biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: width as i32,
+            biWidth: w,
             // Negative height = top-down rows, matching the texture's
             // origin so no vertical flip is needed on the copy.
-            biHeight: -(height as i32),
+            biHeight: -h,
             biPlanes: 1,
             biBitCount: 32,
             biCompression: BI_RGB,
@@ -299,28 +334,52 @@ impl Dib {
         let mut bits: *mut std::ffi::c_void = ptr::null_mut();
         // SAFETY: `info` is a fully initialised BITMAPINFO describing a
         // 32-bpp BI_RGB section; `bits` receives the pixel pointer, which
-        // stays valid until `DeleteObject` in `Drop`.
+        // stays valid until `DeleteObject` in `Drop`. Each handle is
+        // checked before the next call uses it, and on a refusal what was
+        // made is released here, as `Drop` would.
         let (dc, bitmap, previous) = unsafe {
             let screen = GetDC(0);
+            if screen == 0 {
+                return None;
+            }
             let dc = CreateCompatibleDC(screen);
-            let bitmap = CreateDIBSection(screen, &info, DIB_RGB_COLORS, &mut bits, 0, 0);
+            let bitmap = if dc == 0 {
+                0
+            } else {
+                CreateDIBSection(screen, &info, DIB_RGB_COLORS, &mut bits, 0, 0)
+            };
             ReleaseDC(0, screen);
+            if bitmap == 0 || bits.is_null() {
+                if bitmap != 0 {
+                    DeleteObject(bitmap);
+                }
+                if dc != 0 {
+                    DeleteDC(dc);
+                }
+                return None;
+            }
             let previous = SelectObject(dc, bitmap);
+            if previous == 0 || previous == HGDI_ERROR {
+                DeleteObject(bitmap);
+                DeleteDC(dc);
+                return None;
+            }
             (dc, bitmap, previous)
         };
 
-        Self {
+        Some(Self {
             dc,
             bitmap,
             previous,
             bits: bits.cast::<u8>(),
             stride: width as usize * 4,
             height,
-        }
+        })
     }
 
-    /// Un-pad the readback rows into the bitmap.
-    fn write_rows(&self, mapped: &[u8], padded_bytes_per_row: u32) {
+    /// Un-pad the readback rows into the bitmap. `&mut`: it writes the
+    /// bitmap's memory through `bits`.
+    fn write_rows(&mut self, mapped: &[u8], padded_bytes_per_row: u32) {
         if self.bits.is_null() {
             return;
         }
@@ -353,5 +412,41 @@ impl Drop for Dib {
             DeleteObject(self.bitmap);
             DeleteDC(self.dc);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Dib;
+
+    /// A bitmap GDI can make comes back whole, rows written as they come;
+    /// one it cannot is `None`, not a section of null handles written into
+    /// every frame (BUG-005). Run under Wine on Linux (CONTRIBUTING).
+    #[test]
+    fn a_bitmap_is_made_whole_or_not_at_all() {
+        let mut dib = Dib::new(3, 2).expect("a 3x2 section");
+        assert!(dib.dc != 0 && dib.bitmap != 0 && !dib.bits.is_null());
+        // Rows padded to 16 bytes, as a readback buffer pads them.
+        let mut mapped = vec![0u8; 16 * 2];
+        mapped[..12].copy_from_slice(&[1; 12]);
+        mapped[16..28].copy_from_slice(&[2; 12]);
+        dib.write_rows(&mapped, 16);
+        // SAFETY: the section is 3 × 2 pixels of 4 bytes, alive with `dib`.
+        let pixels = unsafe { std::slice::from_raw_parts(dib.bits, 24) };
+        assert_eq!(&pixels[..12], &[1; 12]);
+        assert_eq!(&pixels[12..], &[2; 12]);
+        assert!(Dib::new(u32::MAX, 1).is_none(), "a side past i32");
+    }
+
+    /// A handle that names no window: the read fails and nothing is
+    /// written, rather than the bits written over a style of 0.
+    #[test]
+    fn a_style_that_cannot_be_read_is_not_written() {
+        let mut called = false;
+        crate::window::win_overlay::update_ex_style(0, |s| {
+            called = true;
+            s
+        });
+        assert!(!called);
     }
 }
