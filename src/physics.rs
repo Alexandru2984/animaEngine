@@ -98,6 +98,14 @@ impl PhysicsState {
     }
 
     pub fn tick(&mut self, y: f32, floor: f32, dt: f32) -> f32 {
+        self.tick_between(y, 0.0, floor, dt)
+    }
+
+    /// [`Self::tick`] under a `ceiling` other than 0: the desktop's top,
+    /// which is above 0 with a monitor placed above the primary. Held at
+    /// 0, a character thrown up onto that monitor hit an invisible
+    /// ceiling across the middle of the desktop (BUG-009).
+    pub fn tick_between(&mut self, y: f32, ceiling: f32, floor: f32, dt: f32) -> f32 {
         if !(self.enabled || self.thrown) || self.frozen {
             return y;
         }
@@ -123,8 +131,8 @@ impl PhysicsState {
             }
         }
 
-        if new_y < 0.0 {
-            new_y = 0.0;
+        if new_y < ceiling {
+            new_y = ceiling;
             self.velocity_y = self.velocity_y.abs();
         }
 
@@ -260,6 +268,29 @@ impl PhysicsState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A monitor above the primary puts the desktop's top below 0: a
+    /// character thrown up there flies on to it, not stopped at 0.
+    #[test]
+    fn the_ceiling_is_the_desktops_top() {
+        let mut physics = PhysicsState {
+            enabled: true,
+            velocity_y: -3000.0,
+            ..Default::default()
+        };
+        let y = physics.tick_between(10.0, -1080.0, 900.0, 1.0 / 60.0);
+        assert!((-1080.0..0.0).contains(&y), "{y}");
+        let mut physics = PhysicsState {
+            enabled: true,
+            velocity_y: -3000.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            physics.tick(10.0, 900.0, 1.0 / 60.0),
+            0.0,
+            "one monitor: 0, as before"
+        );
+    }
 
     /// Flying with physics off: across and down, then put where it landed.
     #[test]

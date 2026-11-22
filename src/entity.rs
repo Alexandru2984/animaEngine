@@ -636,7 +636,7 @@ impl Entity {
         );
         let floor = floor_feet - sprite_h;
         self.physics.release_if_floor_dropped(self.y, floor);
-        self.y = self.physics.tick(self.y, floor, dt);
+        self.y = self.physics.tick_between(self.y, bounds.min_y, floor, dt);
         // A thrown character moves across too, kept on the desktop.
         let max_x = (bounds.max_x - sprite_w).max(bounds.min_x);
         self.x = self.physics.tick_x(self.x, bounds.min_x, max_x, dt);
