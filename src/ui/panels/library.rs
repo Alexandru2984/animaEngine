@@ -272,7 +272,19 @@ fn thumbnail_texture(ui: &egui::Ui, asset: &LibraryAsset) -> Option<egui::Textur
     {
         return None;
     }
+    // The worker's own checks, here too: an id from a hand-edited index
+    // could step out of the cache (`../`), and a named pipe where the
+    // thumbnail goes blocked the UI thread on its open (SEC-011).
+    if !crate::asset_library::is_safe_asset_id(&asset.id) {
+        return None;
+    }
     let path = crate::asset_library::thumbnail_cache_dir().join(asset.thumbnail_filename());
+    if !crate::util::resolves_to_regular_file(&path) {
+        thumbs
+            .missing
+            .insert(asset.id.clone(), std::time::Instant::now());
+        return None;
+    }
     // Ours are 64 px a side. Past 256 a file there is not one of them,
     // and it is not decoded at whatever size it says.
     let read = || -> image::ImageResult<image::DynamicImage> {

@@ -51,6 +51,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A named pipe in the library no longer stalls its thumbnails.** The
+  thumbnail maker opened a library file that was a named pipe and waited
+  on it for good, and the panel could do the same with its thumbnail
+  file. Only regular files are read now, and a thumbnail is written
+  whole or not at all.
 - **`--recover` takes back a snapshot that holds a newer version's
   character.** The snapshot was checked more strictly than the config is
   read, so one the app would have loaded was refused as "not a valid

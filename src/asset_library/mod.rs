@@ -84,7 +84,7 @@ impl LibraryAsset {
 /// Restrict to ASCII alphanumerics — a strict superset of the hex ids
 /// we generate — so `thumb_dir.join(<id>.png)` can never write outside
 /// the cache directory.
-fn is_safe_asset_id(id: &str) -> bool {
+pub(crate) fn is_safe_asset_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 128 && id.bytes().all(|b| b.is_ascii_alphanumeric())
 }
 
@@ -597,8 +597,15 @@ fn ensure_thumbnail_at(root: &Path, asset: &LibraryAsset, thumb_dir: &Path) -> O
 
     // Bail early when the source itself is unreadable — there is nothing
     // to encode from, and `thumbnail_is_fresh` would answer "stale" and
-    // send us on to decode a file we already know we cannot stat.
-    std::fs::metadata(&src).and_then(|m| m.modified()).ok()?;
+    // send us on to decode a file we already know we cannot stat. And a
+    // regular file within the asset cap only: opening a named pipe to
+    // read its header waited for a writer for good, this thread with it
+    // (SEC-011).
+    let meta = std::fs::metadata(&src).ok()?;
+    if !meta.is_file() || meta.len() > crate::constants::MAX_ASSET_FILE_BYTES {
+        return None;
+    }
+    meta.modified().ok()?;
     if thumbnail_is_fresh(&src, &thumb) {
         return Some(thumb);
     }
@@ -644,7 +651,15 @@ fn ensure_thumbnail_at(root: &Path, asset: &LibraryAsset, thumb_dir: &Path) -> O
     if let Some(parent) = thumb.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    match small.save(&thumb) {
+    // Encoded in memory and put in place whole: written straight to its
+    // name, a thumbnail cut short — the app quitting, a full disk — was
+    // a broken PNG the panel kept reading (SEC-011).
+    let mut png = Vec::new();
+    let written = small
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .map_err(|e| e.to_string())
+        .and_then(|()| crate::util::atomic_write_bytes(&thumb, &png).map_err(|e| e.to_string()));
+    match written {
         Ok(()) => Some(thumb),
         Err(e) => {
             tracing::debug!("Thumbnail write failed: {e}");
@@ -1016,6 +1031,43 @@ mod tests {
         assert!(!thumbnail_is_fresh(&src, &cache));
         fs::write(&src, b"x").unwrap();
         assert!(!thumbnail_is_fresh(&src, &cache));
+    }
+
+    /// A library entry that is a named pipe: the thumbnail worker opened
+    /// it to read its header and waited for a writer for good (SEC-011).
+    /// Not a regular file, it is passed over at once. Run on a thread
+    /// with a deadline, so a regression fails instead of hanging.
+    #[cfg(unix)]
+    #[test]
+    fn a_pipe_in_the_library_gets_no_thumbnail_and_no_hang() {
+        use std::ffi::CString;
+        let dir = tempdir("thumb_fifo");
+        let root = dir.join("root");
+        fs::create_dir_all(&root).unwrap();
+        let fifo = root.join("pipe.png");
+        let c = CString::new(fifo.to_str().unwrap()).unwrap();
+        // SAFETY: a valid NUL-terminated path and a plain mode.
+        assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o600) }, 0);
+        let asset = LibraryAsset {
+            id: "fifo00000000".into(),
+            path: "pipe.png".into(),
+            kind: LibraryKind::Image,
+            tags: vec![],
+            added_at: SystemTime::now(),
+            last_used_at: None,
+        };
+        let thumbs = dir.join("thumbs");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (r, a, t) = (root.clone(), asset.clone(), thumbs.clone());
+        std::thread::spawn(move || {
+            let _ = tx.send(ensure_thumbnail_at(&r, &a, &t));
+        });
+        let got = rx.recv_timeout(std::time::Duration::from_secs(5));
+        if got.is_err() {
+            // Let the stuck open go, so the thread ends with the test.
+            let _ = std::fs::OpenOptions::new().write(true).open(&fifo);
+        }
+        assert!(matches!(got, Ok(None)), "{got:?}");
     }
 
     #[test]
