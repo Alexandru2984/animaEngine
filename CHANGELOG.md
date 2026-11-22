@@ -73,6 +73,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`ANIMA_USE_WAYLAND_NATIVE=0` now means off.** Set to anything at
+  all, the native Wayland path was tried, `0` included, while "Start at
+  login" carried it over only for `1`. Empty, `0`, `false`, `no` and
+  `off` are off, on both.
 - **Windows: starting the app twice while it quits leaves it running,
   and the tray can no longer take the app down.** Two starts overlapping
   a copy that was quitting each kept the other from taking over, and

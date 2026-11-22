@@ -137,8 +137,10 @@ fn main() {
     #[cfg(unix)]
     let native_wayland_active = {
         let wayland_caps = wayland::detect();
-        let active =
-            wayland_caps.layer_shell && std::env::var_os("ANIMA_USE_WAYLAND_NATIVE").is_some();
+        let active = wayland_caps.layer_shell
+            && anima_engine::util::env_flag_on(
+                std::env::var_os("ANIMA_USE_WAYLAND_NATIVE").as_deref(),
+            );
         wayland::log_status(&wayland_caps, active);
         active
     };

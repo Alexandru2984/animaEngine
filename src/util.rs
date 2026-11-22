@@ -25,6 +25,21 @@ pub fn resolves_to_regular_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Whether an opt-in variable such as `ANIMA_USE_WAYLAND_NATIVE` is on:
+/// set to anything but nothing, `0`, `false`, `no` or `off`. Set at all
+/// was on, so `=0` turned the native path on, while "Start at login"
+/// carried it over only for `=1` (BUG-016).
+pub fn env_flag_on(value: Option<&std::ffi::OsStr>) -> bool {
+    value.is_some_and(|v| {
+        let v = v.to_string_lossy();
+        let v = v.trim();
+        !(v.is_empty()
+            || ["0", "false", "no", "off"]
+                .iter()
+                .any(|off| v.eq_ignore_ascii_case(off)))
+    })
+}
+
 /// Read a small text file into a `String`, refusing anything larger than
 /// `max_bytes`. Config/library files are parsed whole, so an unbounded
 /// `read_to_string` would let a runaway or hostile file be slurped into
@@ -307,6 +322,18 @@ fn create_and_verify_private_dir(path: &Path, uid: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_opt_in_set_to_off_is_off() {
+        use std::ffi::OsStr;
+        for off in ["0", "", " ", "false", "No", "OFF"] {
+            assert!(!env_flag_on(Some(OsStr::new(off))), "{off:?}");
+        }
+        for on in ["1", "yes", "true", "on"] {
+            assert!(env_flag_on(Some(OsStr::new(on))), "{on:?}");
+        }
+        assert!(!env_flag_on(None));
+    }
 
     /// A write that fails partway leaves nothing behind: the temp file
     /// was removed only when the rename failed, not the write (SEC-010).

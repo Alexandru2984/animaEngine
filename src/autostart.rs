@@ -197,7 +197,7 @@ fn exec_line() -> Result<String> {
     exec_line_for(
         std::env::var_os("APPIMAGE"),
         std::env::current_exe().ok(),
-        std::env::var("ANIMA_USE_WAYLAND_NATIVE").as_deref() == Ok("1"),
+        crate::util::env_flag_on(std::env::var_os("ANIMA_USE_WAYLAND_NATIVE").as_deref()),
     )
 }
 
