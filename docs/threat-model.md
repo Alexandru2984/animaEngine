@@ -615,8 +615,15 @@ source), which runs **in-process and unsandboxed**. A malformed `.mp4`
 therefore reaches C code that we don't control. We accept this for 1.0
 rather than sandbox it, and bound it instead:
 
-- The container is demuxed by the pure-Rust `mp4` crate, which validates
-  box structure before any sample bytes reach the decoder.
+- The container is demuxed by the pure-Rust `mp4` crate (0.14), which
+  trusts the container's numbers: a zero-sized child box looped forever,
+  a short `stts` or overflowing fragment counts panicked, a declared
+  sample size was allocated before it was read. `mp4_guard` checks first
+  — a bounded walk of the boxes the crate walks (no zero or undersized
+  child, none past its parent, no `emsg`), then the track's tables
+  (fragment counts and times without overflow, only the samples `stts`
+  times, sample sizes adding up to no more than the file) — so a
+  malformed file is an error in milliseconds.
 - Our hand-written NALU length-prefix walk (`avcc_to_annex_b`) is
   bounds-checked and **fuzzed** (W.4); it's the only bespoke parser on
   the path.

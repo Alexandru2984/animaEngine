@@ -18,7 +18,8 @@
 
 use super::frame::Frame;
 use crate::constants::{
-    MAX_DECODED_ASSET_BYTES, MAX_IMAGE_DIM, MAX_VIDEO_FRAMES, MAX_VIDEO_SAMPLES,
+    MAX_ASSET_FILE_BYTES, MAX_DECODED_ASSET_BYTES, MAX_IMAGE_DIM, MAX_VIDEO_FRAMES,
+    MAX_VIDEO_SAMPLES,
 };
 use crate::error::{AnimaError, Result};
 use mp4::Mp4Reader;
@@ -35,7 +36,17 @@ const ANNEX_B_START: &[u8] = &[0, 0, 0, 1];
 pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
     let file = File::open(path)?;
     let size = file.metadata()?.len();
-    let reader = BufReader::new(file);
+    // Checked here too, not only on a drop: the library, the file chooser
+    // and a paste reach this without one. It also keeps every sum of
+    // sample sizes below 2³², the width `mp4` adds them in.
+    if size > MAX_ASSET_FILE_BYTES {
+        return Err(AnimaError::VideoDecode(format!(
+            "file is {size} bytes, over the {MAX_ASSET_FILE_BYTES}-byte limit"
+        )));
+    }
+    let mut reader = BufReader::new(file);
+    // The boxes `mp4` will walk, walked first (`mp4_guard`).
+    super::mp4_guard::check_box_tree(&mut reader, size)?;
     let mut mp4 = Mp4Reader::read_header(reader, size)
         .map_err(|e| AnimaError::VideoDecode(format!("MP4 header: {e}")))?;
 
@@ -48,6 +59,10 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
         .ok_or_else(|| AnimaError::VideoDecode("no H.264 video track found".into()))?;
     let track_id = *track_id;
 
+    // The samples that can be read without the crate overflowing,
+    // panicking on a missing time or allocating past the file — checked
+    // before `sample_count()`, which sums fragments with `expect`.
+    let sample_limit = super::mp4_guard::checked_samples(track, size, MAX_VIDEO_SAMPLES)?;
     let sample_count = track.sample_count();
     let timescale = track.timescale();
     if sample_count == 0 {
@@ -141,7 +156,6 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
     // Bound the *attempts*, not just the frames kept: a file with millions
     // of (mostly non-decodable) samples would otherwise feed the in-process
     // C decoder millions of times. Real clips finish well under this.
-    let sample_limit = sample_count.min(MAX_VIDEO_SAMPLES);
     if sample_count > sample_limit {
         tracing::warn!(
             "Video has {sample_count} samples; only attempting the first {sample_limit}"
@@ -177,6 +191,13 @@ pub fn load_video(path: &Path) -> Result<Vec<Frame>> {
         match decoder.decode(&annex_b) {
             Ok(Some(yuv)) => {
                 let (w, h) = yuv.dimensions();
+                // Never a 0×0 frame: it would reach the GPU as an empty
+                // texture.
+                if w == 0 || h == 0 {
+                    return Err(AnimaError::VideoDecode(format!(
+                        "sample {sample_id} decoded to a {w}×{h} frame"
+                    )));
+                }
                 // Sanity-check what openh264 just handed us. A pathological
                 // stream could claim huge dimensions; refuse before alloc.
                 if w as u32 > MAX_IMAGE_DIM || h as u32 > MAX_IMAGE_DIM {
@@ -644,5 +665,198 @@ mod tests {
             matches!(err, AnimaError::VideoDecode(ref m) if m.contains("first chunk")),
             "wrong error for a zero-first-chunk stsc: {err}"
         );
+    }
+
+    // ── Malformed containers (SEC-003) ────────────────────────────────
+    //
+    // Each of these, as found against 1.5.2, hung the UI thread, panicked
+    // inside `mp4` 0.14 or had it allocate whatever a header asked for.
+    // Every one must come back as a plain error, quickly.
+
+    /// `load_video(path)` on a worker thread, given `secs` to answer: a
+    /// regression back to a hang fails the test instead of the run.
+    fn load_within(path: &std::path::Path, secs: u64) -> std::thread::Result<Result<Vec<Frame>>> {
+        let path = path.to_path_buf();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let r = std::panic::catch_unwind(|| load_video(&path));
+            let _ = tx.send(r);
+        });
+        rx.recv_timeout(std::time::Duration::from_secs(secs))
+            .expect("load_video hung on a malformed container")
+    }
+
+    fn be32(n: u32) -> [u8; 4] {
+        n.to_be_bytes()
+    }
+
+    /// One box: its 32-bit size, its type, its payload.
+    fn mp4_box(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+        let mut b = be32(8 + payload.len() as u32).to_vec();
+        b.extend_from_slice(kind);
+        b.extend_from_slice(payload);
+        b
+    }
+
+    /// A real muxed clip with `edit` applied to its bytes.
+    fn edited_mp4(
+        dir: &std::path::Path,
+        name: &str,
+        edit: impl FnOnce(&mut Vec<u8>),
+    ) -> std::path::PathBuf {
+        let good = dir.join("good.mp4");
+        if !good.exists() {
+            build_three_frame_mp4(&good);
+        }
+        let mut bytes = std::fs::read(&good).unwrap();
+        edit(&mut bytes);
+        let bad = dir.join(name);
+        std::fs::write(&bad, &bytes).unwrap();
+        bad
+    }
+
+    fn find(bytes: &[u8], kind: &[u8; 4]) -> usize {
+        bytes
+            .windows(4)
+            .position(|w| w == kind)
+            .unwrap_or_else(|| panic!("no {} box", String::from_utf8_lossy(kind)))
+    }
+
+    /// `child` added at the end of `moov`, its size raised to match. The
+    /// muxer writes `moov` last, after `mdat`, so no chunk offset moves.
+    fn into_moov(bytes: &mut Vec<u8>, child: &[u8]) {
+        let at = find(bytes, b"moov") - 4;
+        let size = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
+        let end = at + size as usize;
+        assert_eq!(end, bytes.len(), "moov is the last box");
+        bytes.extend_from_slice(child);
+        bytes[at..at + 4].copy_from_slice(&be32(size + child.len() as u32));
+    }
+
+    /// A movie fragment for track 1 whose `trun` has `trun_payload` after
+    /// its version and flags.
+    fn moof(trun_flags: u32, trun_payload: &[u8]) -> Vec<u8> {
+        let mfhd = mp4_box(b"mfhd", &[0, 0, 0, 0, 0, 0, 0, 1]);
+        let tfhd = mp4_box(b"tfhd", &[0, 0, 0, 0, 0, 0, 0, 1]);
+        let mut trun_body = be32(trun_flags).to_vec();
+        trun_body.extend_from_slice(trun_payload);
+        let trun = mp4_box(b"trun", &trun_body);
+        let traf = mp4_box(b"traf", &[tfhd, trun].concat());
+        mp4_box(b"moof", &[mfhd, traf].concat())
+    }
+
+    fn assert_refused(r: std::thread::Result<Result<Vec<Frame>>>, what: &str) {
+        match r {
+            Ok(Err(AnimaError::VideoDecode(_))) => {}
+            Ok(Err(e)) => panic!("{what}: refused, but as {e}"),
+            Ok(Ok(frames)) => panic!("{what}: loaded {} frames", frames.len()),
+            Err(_) => panic!("{what}: panicked instead of an error"),
+        }
+    }
+
+    /// 32 bytes: `ftyp`, then a `moov` whose one child says its size is
+    /// zero. `mp4` 0.14 stops at a zero-sized box at the top level only;
+    /// inside a container it skipped zero bytes, read the same header
+    /// again, and spun at 100% CPU forever.
+    #[test]
+    fn a_zero_sized_box_inside_a_container_is_refused_not_a_hang() {
+        let dir = scratch("zero_box");
+        let mut bytes = mp4_box(b"ftyp", b"isom\0\0\0\0");
+        bytes.extend(mp4_box(b"moov", &[0, 0, 0, 0, b'f', b'r', b'e', b'e']));
+        assert_eq!(bytes.len(), 32);
+        let path = dir.join("zero.mp4");
+        std::fs::write(&path, &bytes).unwrap();
+        assert_refused(load_within(&path, 20), "zero-sized child box");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `read_sample` unwraps the sample's time from `stts`; a table that
+    /// covers no sample made it panic on the first one.
+    #[test]
+    fn a_time_table_covering_no_sample_is_refused_not_a_panic() {
+        let dir = scratch("stts_empty");
+        let bad = edited_mp4(&dir, "stts.mp4", |b| {
+            let at = find(b, b"stts");
+            let entry0 = at + 4 + 4 + 4; // fourcc, version+flags, entry_count
+            b[entry0..entry0 + 4].copy_from_slice(&be32(0));
+        });
+        assert_refused(load_within(&bad, 20), "stts covering nothing");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A time table covering fewer samples than the clip has: the samples
+    /// it covers still play, where the rest used to panic.
+    #[test]
+    fn a_time_table_covering_some_samples_plays_those() {
+        let dir = scratch("stts_short");
+        let bad = edited_mp4(&dir, "stts1.mp4", |b| {
+            let at = find(b, b"stts");
+            let entry0 = at + 4 + 4 + 4;
+            b[entry0..entry0 + 4].copy_from_slice(&be32(1));
+        });
+        let frames = load_within(&bad, 30)
+            .expect("no panic")
+            .expect("the covered sample plays");
+        assert_eq!(frames.len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A constant sample size larger than the whole file: `read_sample`
+    /// allocated it before reading (up to 4 GiB from a 682-byte file).
+    /// The size here is 1 MiB, so a regression costs a megabyte, not RAM.
+    #[test]
+    fn a_sample_larger_than_the_file_is_refused_before_any_allocation() {
+        let dir = scratch("stsz_big");
+        let bad = edited_mp4(&dir, "stsz.mp4", |b| {
+            let at = find(b, b"stsz");
+            let sample_size = at + 4 + 4; // fourcc, version+flags
+            b[sample_size..sample_size + 4].copy_from_slice(&be32(1 << 20));
+        });
+        match load_within(&bad, 20) {
+            Ok(Err(AnimaError::VideoDecode(m))) => {
+                assert!(m.contains("more than the file"), "refused late: {m}")
+            }
+            other => panic!("sample bigger than the file: {other:?}"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Two fragments whose `trun` sample counts overflow a u32 together:
+    /// `track.sample_count()` sums them with `expect` and panicked.
+    #[test]
+    fn fragment_sample_counts_that_overflow_are_refused_not_a_panic() {
+        let dir = scratch("trun_sum");
+        let bad = edited_mp4(&dir, "trun.mp4", |b| {
+            let count = be32(0x8000_0001);
+            b.extend(moof(0, &count));
+            b.extend(moof(0, &count));
+        });
+        assert_refused(load_within(&bad, 20), "overflowing trun sum");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A fragmented track's sample time is `(sample - 1) × duration` in
+    /// u32, unchecked: a default duration past 2³¹ overflowed on the third
+    /// sample.
+    #[test]
+    fn a_fragment_duration_that_overflows_is_refused_not_a_panic() {
+        let dir = scratch("trex_dur");
+        let bad = edited_mp4(&dir, "trex.mp4", |b| {
+            let mut trex = be32(0).to_vec(); // version + flags
+            trex.extend(be32(1)); // track_id
+            trex.extend(be32(1)); // default_sample_description_index
+            trex.extend(be32(0x8000_0001)); // default_sample_duration
+            trex.extend(be32(0)); // default_sample_size
+            trex.extend(be32(0)); // default_sample_flags
+            into_moov(b, &mp4_box(b"mvex", &mp4_box(b"trex", &trex)));
+            // Three samples of ten bytes each.
+            let mut run = be32(3).to_vec();
+            for _ in 0..3 {
+                run.extend(be32(10));
+            }
+            b.extend(moof(0x0000_0200, &run));
+        });
+        assert_refused(load_within(&bad, 20), "overflowing fragment time");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

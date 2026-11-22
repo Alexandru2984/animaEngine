@@ -3,6 +3,8 @@ pub mod cache;
 pub mod frame;
 pub mod gif_loader;
 pub mod loader;
+#[cfg(feature = "video")]
+mod mp4_guard;
 pub mod png_sequence;
 pub mod spritesheet;
 #[cfg(feature = "video")]
