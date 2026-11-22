@@ -56,6 +56,31 @@ pub fn record_known_good(config: &AppConfig) {
     }
 }
 
+thread_local! {
+    /// Set while this thread runs library code under [`isolate`]: a panic
+    /// there is that library failing on its input, not a crash of ours.
+    static ISOLATED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Run `f` — library code that may panic on what it is given, a decoder
+/// on a crafted file — and give a panic back as an error: logged as a
+/// warning, with no crash report or recovery snapshot written, since the
+/// app goes on. For third-party code only; a panic of ours is a bug, and
+/// must reach the hook.
+pub fn isolate<T>(what: &str, f: impl FnOnce() -> T) -> std::result::Result<T, String> {
+    let was = ISOLATED.with(|c| c.replace(true));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+    ISOLATED.with(|c| c.set(was));
+    result.map_err(|payload| {
+        let why = payload
+            .downcast_ref::<&str>()
+            .map(|s| s.to_string())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "no message".into());
+        format!("{what} failed on it ({why})")
+    })
+}
+
 /// Chain a panic hook in front of the current one. The new hook writes
 /// the crash report and the snapshot, then defers to the previous hook
 /// so default behavior (printing the panic, backtrace, unwinding) is
@@ -63,6 +88,11 @@ pub fn record_known_good(config: &AppConfig) {
 pub fn install_panic_hook() {
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
+        // Inside `isolate`: the caller turns it into an error and goes on.
+        if ISOLATED.with(|c| c.get()) {
+            tracing::warn!("A library panicked on its input, isolated: {info}");
+            return;
+        }
         tracing::error!("Panic — writing crash report + recovery snapshot. {info}");
         match write_crash_report(info) {
             Ok(path) => {
@@ -319,6 +349,18 @@ fn validate_snapshot_contents(contents: &str) -> Result<(), toml::de::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_isolated_panic_comes_back_as_an_error_and_the_flag_is_cleared() {
+        let r: std::result::Result<u8, String> = isolate("a test library", || panic!("bad input"));
+        let err = r.unwrap_err();
+        assert!(
+            err.contains("a test library") && err.contains("bad input"),
+            "{err}"
+        );
+        assert!(!ISOLATED.with(|c| c.get()), "the flag outlived the call");
+        assert_eq!(isolate("a test library", || 7), Ok(7));
+    }
 
     #[test]
     fn record_then_read_back() {

@@ -768,16 +768,22 @@ fn load_sound(root: &std::path::Path, rel: &str) -> Result<Cached, String> {
     }
 
     let file = std::fs::File::open(&resolved).map_err(|e| format!("sound unreadable: {e}"))?;
-    let decoder = rodio::Decoder::try_from(file).map_err(|e| format!("cannot decode: {e}"))?;
-    let channels = decoder.channels();
-    let sample_rate = decoder.sample_rate();
-
-    // `take` one past the cap so an oversized sound is *detected* without
-    // ever being fully decoded. Collecting first and measuring afterwards
-    // is what let a 23 KB FLAC allocate 38 MB, and the same trick on a
-    // file at the 4 MB limit would have gone far further. It also caps
-    // what `collect` can pre-allocate from the decoder's size hint.
-    let samples: Vec<f32> = decoder.take(MAX_SOUND_SAMPLES + 1).collect();
+    // The decoders panic on some files rather than return an error: an
+    // MP3 whose one frame is a Xing header made rodio size a buffer from
+    // zero channels, a divide by zero on the UI thread (BUG-002). Isolated,
+    // such a file fails to load like any other broken sound.
+    let (channels, sample_rate, samples) = crate::crash::isolate("the sound decoder", || {
+        let decoder = rodio::Decoder::try_from(file).map_err(|e| format!("cannot decode: {e}"))?;
+        let channels = decoder.channels();
+        let sample_rate = decoder.sample_rate();
+        // `take` one past the cap so an oversized sound is *detected*
+        // without ever being fully decoded. Collecting first and measuring
+        // afterwards is what let a 23 KB FLAC allocate 38 MB, and the same
+        // trick on a file at the 4 MB limit would have gone far further. It
+        // also caps what `collect` can pre-allocate from the size hint.
+        let samples: Vec<f32> = decoder.take(MAX_SOUND_SAMPLES + 1).collect();
+        Ok::<_, String>((channels, sample_rate, samples))
+    })??;
 
     if samples.is_empty() {
         return Err("sound decoded to no audio".into());
@@ -1097,6 +1103,25 @@ mod host_tests {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/audio");
         assert!(load_sound(&root, "../../Cargo.toml").is_err());
         assert!(load_sound(&root, "/etc/passwd").is_err());
+    }
+
+    /// An MP3 whose one frame is a Xing header and no audio: symphonia
+    /// hits the end before decoding a frame, and rodio sized its first
+    /// buffer from a spec of zero channels — a divide by zero on the UI
+    /// thread, from 417 bytes, before any device was touched (BUG-002).
+    /// It fails to load, once, like any broken sound.
+    #[cfg(feature = "audio")]
+    #[test]
+    fn a_sound_the_decoder_panics_on_fails_to_load() {
+        let root = std::env::temp_dir().join(format!("anima_xing_{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let mut mp3 = vec![0u8; 417];
+        mp3[..4].copy_from_slice(&[0xFF, 0xFB, 0x90, 0xC0]);
+        mp3[21..25].copy_from_slice(b"Xing");
+        std::fs::write(root.join("xing_only.mp3"), &mp3).unwrap();
+        let result = load_sound(&root, "xing_only.mp3");
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(result.is_err(), "a sound with no audio loaded");
     }
 
     #[test]

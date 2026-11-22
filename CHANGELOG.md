@@ -27,6 +27,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A broken sound file can no longer crash the app.** An MP3 holding
+  only a header frame made the decoder divide by zero, taking the app
+  down the moment a character, a reminder or a script played it. It now
+  fails to load, reported once, like any other unplayable sound.
 - **On native Wayland, a save never updated the crash-recovery
   snapshot**, so after a crash the config offered back was the one the
   app had started with. Both backends now save through one function
