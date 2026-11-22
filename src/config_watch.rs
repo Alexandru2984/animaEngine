@@ -58,6 +58,8 @@ pub struct ConfigWatcher {
     last_check: Instant,
     mtime: Option<SystemTime>,
     rx: Option<mpsc::Receiver<Result<Reloaded, String>>>,
+    /// Read the file at the next poll, changed or not ([`Self::reload_now`]).
+    forced: bool,
 }
 
 impl Default for ConfigWatcher {
@@ -69,7 +71,7 @@ impl Default for ConfigWatcher {
 impl ConfigWatcher {
     /// Whether a reload is being read, its answer still to come.
     pub fn waiting(&self) -> bool {
-        self.rx.is_some()
+        self.rx.is_some() || self.forced
     }
 
     pub fn new() -> Self {
@@ -77,6 +79,7 @@ impl ConfigWatcher {
             last_check: Instant::now(),
             mtime: current_mtime(),
             rx: None,
+            forced: false,
         }
     }
 
@@ -100,8 +103,26 @@ impl ConfigWatcher {
     /// Without it our own save looks exactly like somebody else's edit and
     /// the next poll reloads the file we just wrote — throwing away the
     /// selection and every texture for no reason.
+    ///
+    /// A reload still running is dropped: it read the file as it was
+    /// before this save, which wrote over it. The save left the scene
+    /// clean, so when that answer came it was installed, and the save
+    /// was undone on screen and at the next save on disk (BUG-003).
     pub fn note_saved(&mut self) {
         self.mtime = current_mtime();
+        if self.rx.take().is_some() {
+            tracing::debug!("A reload in progress was dropped: the file it read was saved over");
+        }
+    }
+
+    /// Read the file at the next poll, changed or not, and drop a reload
+    /// still running — for a backup just put in its place, which the
+    /// caller has dropped its unsaved edits for (`Transfer::Restored`).
+    /// Waiting for the mtime instead missed it while the scene had unsaved
+    /// edits, and the next save wrote them over the restored file.
+    pub fn reload_now(&mut self) {
+        self.rx = None;
+        self.forced = true;
     }
 
     /// Drive one step: collect a finished worker, then decide whether to
@@ -134,13 +155,14 @@ impl ConfigWatcher {
             }
         }
 
-        if !should_check(self.last_check.elapsed().as_secs(), config_dirty) {
+        let forced = std::mem::take(&mut self.forced);
+        if !forced && !should_check(self.last_check.elapsed().as_secs(), config_dirty) {
             return Poll::Idle;
         }
         self.last_check = Instant::now();
 
         let new_mtime = current_mtime();
-        if new_mtime == self.mtime {
+        if !forced && new_mtime == self.mtime {
             return Poll::Idle;
         }
         // Recorded before the worker runs, so a file edited twice in quick
@@ -307,6 +329,7 @@ mod tests {
             last_check: Instant::now(),
             mtime: None,
             rx: Some(rx),
+            forced: false,
         }
     }
 
@@ -339,6 +362,7 @@ mod tests {
             last_check: Instant::now(),
             mtime: None,
             rx: Some(rx),
+            forced: false,
         };
         assert!(matches!(w.poll(false), Poll::WorkerLost));
     }
@@ -404,5 +428,50 @@ mod tests {
     fn a_new_watcher_starts_idle() {
         let mut w = ConfigWatcher::new();
         assert!(matches!(w.poll(false), Poll::Idle));
+    }
+
+    /// A reload started before our own save read the file as it was
+    /// then: the save wrote over that, so what the worker brings back is
+    /// out of date, and installing it threw the save away. The save made
+    /// `config_dirty` false, so the dirty check let it through (BUG-003).
+    #[test]
+    fn a_reload_started_before_a_save_is_dropped() {
+        let (tx, rx) = mpsc::channel();
+        let mut w = ConfigWatcher::new();
+        w.rx = Some(rx);
+        w.note_saved();
+        let _ = tx.send(Ok(reloaded()));
+        assert!(
+            matches!(w.poll(false), Poll::Idle),
+            "a stale reload was installed"
+        );
+        assert!(!w.waiting());
+    }
+
+    /// A restored backup is read at once, not at the next check, and the
+    /// loop is kept awake for it; a reload already running is dropped
+    /// (BUG-003). The worker reads this test process's own config
+    /// (`AppConfig::config_path`), never the user's.
+    #[test]
+    fn a_reload_asked_for_starts_at_once() {
+        let (_tx, rx) = mpsc::channel();
+        let mut w = ConfigWatcher::new();
+        w.rx = Some(rx);
+        w.reload_now();
+        assert!(w.waiting(), "the loop must stay awake for it");
+        // Just checked, the file unchanged: a poll would not have looked.
+        assert!(matches!(w.poll(false), Poll::Idle));
+        assert!(w.rx.is_some(), "no worker was started");
+        assert!(!w.forced);
+        let started = Instant::now();
+        loop {
+            match w.poll(false) {
+                Poll::Idle if started.elapsed() < std::time::Duration::from_secs(20) => {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                Poll::Idle => panic!("the reload never answered"),
+                _ => break,
+            }
+        }
     }
 }

@@ -265,6 +265,12 @@ impl Native {
                     *pending_transfer = None;
                     *activity = true;
                 }
+                crate::outcomes::Transfer::Restored => {
+                    *pending_transfer = None;
+                    *activity = true;
+                    *config_dirty = false;
+                    config_watch.reload_now();
+                }
                 crate::outcomes::Transfer::Imported(saved) => {
                     *pending_transfer = None;
                     *activity = true;

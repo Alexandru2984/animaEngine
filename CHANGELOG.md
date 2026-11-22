@@ -41,6 +41,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A backup restored with unsaved edits is no longer lost.** The app
+  waited to see the restored config change on disk, and did not look
+  while the scene had unsaved edits, so it never loaded the backup —
+  and the next save wrote those edits over it. A restore now drops the
+  unsaved edits it replaces and loads the backup at once. And a save
+  made while an edit of the config file was still loading is no longer
+  undone when that load finishes.
 - **A picture of no pixels can no longer crash the app.** A 35-byte GIF
   whose screen is 0×0 passed every check — nothing in it was over a
   limit — and decoded to a frame of no pixels, which the GPU refused

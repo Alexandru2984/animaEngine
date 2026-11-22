@@ -452,6 +452,10 @@ impl App {
         match transfer.poll(&mut self.toasts) {
             crate::outcomes::Transfer::Pending => return,
             crate::outcomes::Transfer::Done => {}
+            crate::outcomes::Transfer::Restored => {
+                self.config_dirty = false;
+                self.config_watch.reload_now();
+            }
             crate::outcomes::Transfer::Imported(saved) => {
                 // Not input, so no undo step is open: open one, as the
                 // tray's "Next scene" does; and let go of any gesture.

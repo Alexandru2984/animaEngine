@@ -938,6 +938,12 @@ pub enum Transfer {
     /// Read: the caller puts it on screen (`apply_imported`), with an
     /// undo step open first.
     Imported(crate::scene_file::Imported),
+    /// A backup was put in place of the config, said in a toast. The
+    /// caller drops its unsaved edits, which the restore replaces, and
+    /// has the config read at once (`ConfigWatcher::reload_now`): left
+    /// dirty, the restore was never read, and the next save wrote the
+    /// edits over it (BUG-003).
+    Restored,
 }
 
 impl SceneTransfer {
@@ -1252,7 +1258,7 @@ impl SceneTransfer {
                         let mut args = fluent::FluentArgs::new();
                         args.set("count", scenes);
                         toasts.success(crate::i18n::t_args("toast-restored", &args));
-                        Transfer::Done
+                        Transfer::Restored
                     }
                     Ok(TransferDone::Gif(Ok(path))) => {
                         tracing::info!("GIF saved: {}", redact_path(&path));
