@@ -73,6 +73,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **X11: a sideways swipe on a touchpad no longer shrinks the selected
+  characters.** A scroll with no vertical part was taken for the wheel
+  turning down.
 - **`ANIMA_USE_WAYLAND_NATIVE=0` now means off.** Set to anything at
   all, the native Wayland path was tried, `0` included, while "Start at
   login" carried it over only for `1`. Empty, `0`, `false`, `no` and

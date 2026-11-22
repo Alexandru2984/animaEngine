@@ -361,7 +361,11 @@ impl App {
             MouseScrollDelta::LineDelta(_, y) => y,
             MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 50.0,
         };
-        let factor = if scroll_y > 0.0 { 1.1 } else { 0.9 };
+        // Sideways only (a touchpad's horizontal swipe) is no zoom: it was
+        // taken for zooming out, 10% a step (BUG-016).
+        let Some(factor) = wheel_factor(scroll_y) else {
+            return;
+        };
         // Every selected character, by the same factor. An index that
         // outlived its entity (a hot-reload swapped the scene between
         // selecting and scrolling) is skipped, not a panic.
@@ -576,5 +580,30 @@ fn drop_position() -> Option<(f32, f32)> {
     #[cfg(not(unix))]
     {
         None
+    }
+}
+
+/// The size step a wheel gives: up larger, down smaller, `None` for no
+/// vertical turn at all.
+fn wheel_factor(scroll_y: f32) -> Option<f32> {
+    if scroll_y > 0.0 {
+        Some(1.1)
+    } else if scroll_y < 0.0 {
+        Some(0.9)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod wheel_tests {
+    use super::wheel_factor;
+
+    #[test]
+    fn a_sideways_scroll_is_no_zoom() {
+        assert_eq!(wheel_factor(0.0), None);
+        assert_eq!(wheel_factor(1.0), Some(1.1));
+        assert_eq!(wheel_factor(-0.02), Some(0.9));
+        assert_eq!(wheel_factor(f32::NAN), None);
     }
 }
