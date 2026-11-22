@@ -11,6 +11,8 @@ naming its others (hreflang) and listing them in its footer, each
 language by its own name. No script and nothing from elsewhere: the site
 stays as private as the app. Every language must have every key.
 """
+import html
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -32,12 +34,39 @@ LANGUAGES = [
     ("ja", "ja"),
 ]
 PAGES = ["index.html", "privacy.html"]
+# Where the site is: `hreflang` alternates must be absolute URLs; they
+# were relative, which search engines do not take (BUILD-003).
+SITE = "https://animaengine.eu/"
+# The markup a translation may hold. A string is HTML, so a translator's
+# `<script>`, an `onclick=` or a `javascript:` link would have gone onto
+# the published page as it was (BUILD-003): anything past these is
+# refused, here and by `--check` in CI.
+TAGS = {"a", "code", "em", "strong"}
+FORBIDDEN = re.compile(r"javascript:|\son[a-z]+\s*=|<!--", re.I)
+PLACEHOLDER = re.compile(r"\{\{([a-z0-9_]+)\}\}")
+
+
+def check_markup(lang, key, value):
+    """Refuse a translation holding markup past [`TAGS`]."""
+    tags = {t.lower() for t in re.findall(r"</?\s*([a-zA-Z][a-zA-Z0-9]*)", value)}
+    if tags - TAGS or FORBIDDEN.search(value):
+        raise SystemExit(
+            f"site-src/strings/{lang}.toml: `{key}` holds markup a translation may not "
+            f"({sorted(tags - TAGS) or FORBIDDEN.search(value).group(0)!r}); allowed: {sorted(TAGS)}"
+        )
 
 
 def strings(lang):
     path = SRC / "strings" / f"{lang}.toml"
     with path.open("rb") as f:
         return tomllib.load(f)
+
+
+def absolute(to_folder, page):
+    """The page's own URL, for `hreflang`."""
+    there = f"{to_folder}/" if to_folder else ""
+    name = "" if page == "index.html" else page
+    return SITE + there + name
 
 
 def href(from_folder, to_folder, page):
@@ -53,10 +82,10 @@ def render(template, words, lang, folder, page, all_words):
     values["lang"] = lang
     values["root"] = "../" if folder else ""
     alternates = [
-        f'<link rel="alternate" hreflang="{other}" href="{href(folder, other_folder, page)}">'
+        f'<link rel="alternate" hreflang="{other}" href="{absolute(other_folder, page)}">'
         for other, other_folder in LANGUAGES
     ]
-    alternates.append(f'<link rel="alternate" hreflang="x-default" href="{href(folder, "", page)}">')
+    alternates.append(f'<link rel="alternate" hreflang="x-default" href="{absolute("", page)}">')
     values["alternates"] = "\n".join(alternates)
     links = []
     for other, other_folder in LANGUAGES:
@@ -66,16 +95,45 @@ def render(template, words, lang, folder, page, all_words):
         else:
             links.append(f'<a href="{href(folder, other_folder, page)}" hreflang="{other}" lang="{other}">{name}</a>')
     values["languages"] = f'{words["language_label"]}: ' + " · ".join(links)
-    out = template
-    for key in set(part.split("}}")[0] for part in template.split("{{")[1:]):
+    return substitute(template, values, f"site-src/strings/{lang}.toml", page)
+
+
+def substitute(template, values, source, page):
+    """`template` with each `{{key}}` its value, in one pass — what a value
+    holds is never looked at for keys, and the order is the template's —
+    and escaped where it sits in an attribute (`alt="{{demo_alt}}"`): a
+    `"` there ended the attribute (BUILD-003). Between tags a value is
+    HTML, as the strings are written."""
+    def value(m):
+        key = m.group(1)
         if key not in values:
-            raise SystemExit(f"site-src/strings/{lang}.toml: no `{key}` (used in {page})")
-        out = out.replace("{{" + key + "}}", values[key])
-    return out
+            raise SystemExit(f"{source}: no `{key}` (used in {page})")
+        before = template[: m.start()]
+        in_tag = before.rfind("<") > before.rfind(">")
+        return html.escape(values[key], quote=True) if in_tag else values[key]
+    return PLACEHOLDER.sub(value, template)
+
+
+def self_check():
+    """The escaping and the markup check, on what they are for: a check
+    letting these through would be checking nothing."""
+    out = substitute('<p title="{{t}}">{{b}}</p>', {"t": 'a"b<', "b": "<strong>x</strong> {{t}}"}, "self", "self")
+    assert out == '<p title="a&quot;b&lt;"><strong>x</strong> {{t}}</p>', out
+    for bad in ['<script>x</script>', '<a href="javascript:x">y</a>', '<a onclick="x">y</a>', '<img src=x>']:
+        try:
+            check_markup("self", "k", bad)
+        except SystemExit:
+            continue
+        raise AssertionError(f"not refused: {bad}")
+    check_markup("self", "k", 'A <code>.deb</code>, <a href="https://x/">y</a>')
 
 
 def build():
+    self_check()
     all_words = {lang: strings(lang) for lang, _ in LANGUAGES}
+    for lang, words in all_words.items():
+        for key, value in words.items():
+            check_markup(lang, key, value)
     english = set(all_words["en"])
     for lang, words in all_words.items():
         missing = english - set(words)
