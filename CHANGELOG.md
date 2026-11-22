@@ -58,6 +58,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Native Wayland: an app that asks for the clipboard and never reads
+  it can no longer freeze the overlay**, and drops and pastes no longer
+  wait for good. Our copy was written on the main loop, which a reader
+  that never read stopped for good; and a drop or a paste whose source
+  never wrote held its reader for good — after four such drops, no drop
+  was taken again. Each is now written or read with a deadline, off the
+  main loop.
 - **X11: copy and paste keep working after a very large copy, and a
   paste reads no more than it may.** A copy larger than the X server
   takes in one request ended the clipboard's thread, and copy and paste

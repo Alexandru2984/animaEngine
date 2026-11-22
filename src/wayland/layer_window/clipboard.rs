@@ -12,7 +12,7 @@ use super::LayerWindow;
 use crate::system_clipboard::{self as sc, Content, Pick};
 use smithay_client_toolkit::data_device_manager::data_source::CopyPasteSource;
 use smithay_client_toolkit::data_device_manager::WritePipe;
-use std::io::{Read, Write};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use wayland_client::protocol::wl_data_source::WlDataSource;
 
@@ -66,43 +66,103 @@ impl LayerWindow {
             Pick::Nothing => return ClipboardRead::Ready(Content::Nothing),
             Pick::Image(mime, _) | Pick::Files(mime) | Pick::Text(mime) => mime.clone(),
         };
+        // At most a few readers at once: a source that never wrote kept
+        // its reader, and its pipe, for good, one more each paste
+        // (SEC-008).
+        if READERS.fetch_add(1, Ordering::AcqRel) >= MAX_READERS {
+            READERS.fetch_sub(1, Ordering::AcqRel);
+            return ClipboardRead::Ready(Content::Failed("a paste is still being read".into()));
+        }
         let pipe = match offer.receive(mime) {
             Ok(pipe) => pipe,
-            Err(e) => return ClipboardRead::Ready(Content::Failed(e.to_string())),
+            Err(e) => {
+                READERS.fetch_sub(1, Ordering::AcqRel);
+                return ClipboardRead::Ready(Content::Failed(e.to_string()));
+            }
         };
         let (tx, rx) = mpsc::channel();
         let spawned = std::thread::Builder::new()
             .name("anima-clipboard-read".into())
             .spawn(move || {
+                let mut pipe = pipe;
                 let cap = sc::cap_for(&pick);
-                let mut bytes = Vec::new();
-                let content = match pipe.take(cap + 1).read_to_end(&mut bytes) {
-                    Ok(_) if bytes.len() as u64 > cap => {
-                        Content::Failed(format!("over {} MB", cap / (1024 * 1024)))
-                    }
-                    Ok(_) => Content::from_bytes(&pick, bytes),
-                    Err(e) => Content::Failed(e.to_string()),
-                };
+                let content =
+                    match super::pipes::read_within(&mut pipe, cap, super::pipes::READ_WITHIN) {
+                        Ok(bytes) if bytes.len() as u64 > cap => {
+                            Content::Failed(format!("over {}", said_size(cap)))
+                        }
+                        Ok(bytes) => Content::from_bytes(&pick, bytes),
+                        Err(e) => Content::Failed(e.to_string()),
+                    };
+                READERS.fetch_sub(1, Ordering::AcqRel);
                 let _ = tx.send(content);
+                // The loop may be asleep; the paste is its to show now.
+                crate::wayland::waker::wake();
             });
         if let Err(e) = spawned {
+            READERS.fetch_sub(1, Ordering::AcqRel);
             return ClipboardRead::Ready(Content::Failed(e.to_string()));
         }
         ClipboardRead::Pending(rx)
     }
 }
 
+/// Pastes being read, and requests for our copy being written, at once.
+static READERS: AtomicUsize = AtomicUsize::new(0);
+static WRITERS: AtomicUsize = AtomicUsize::new(0);
+const MAX_READERS: usize = 4;
+const MAX_WRITERS: usize = 4;
+
+/// `bytes` for a person: MB from one, KiB below — a list of files' 64 KiB
+/// cap was "over 0 MB" (SEC-008).
+fn said_size(bytes: u64) -> String {
+    const MB: u64 = 1024 * 1024;
+    if bytes >= MB {
+        format!("{} MB", bytes / MB)
+    } else {
+        format!("{} KiB", bytes.div_ceil(1024))
+    }
+}
+
 impl WaylandState {
     /// Another client asked for what we put on the clipboard.
-    pub(super) fn send_clipboard(&mut self, source: &WlDataSource, mut fd: WritePipe) {
-        if let Some(claim) = &self.clipboard_claim {
-            if claim.source.inner() == source {
-                if let Err(e) = fd.write_all(claim.text.as_bytes()) {
+    ///
+    /// Written on a thread of its own, with a deadline: written here, a
+    /// reader that never read kept the main loop in `write` for good
+    /// (SEC-008). At most a few at once; past that the pipe is closed
+    /// unwritten, which the reader sees as an empty answer.
+    pub(super) fn send_clipboard(&mut self, source: &WlDataSource, fd: WritePipe) {
+        let Some(claim) = self
+            .clipboard_claim
+            .as_ref()
+            .filter(|c| c.source.inner() == source)
+        else {
+            return;
+        };
+        if WRITERS.fetch_add(1, Ordering::AcqRel) >= MAX_WRITERS {
+            WRITERS.fetch_sub(1, Ordering::AcqRel);
+            tracing::debug!("Clipboard: too many readers at once; one refused");
+            return;
+        }
+        let text = claim.text.clone();
+        let spawned = std::thread::Builder::new()
+            .name("anima-clipboard-write".into())
+            .spawn(move || {
+                let mut fd = fd;
+                if let Err(e) = super::pipes::write_all_within(
+                    &mut fd,
+                    text.as_bytes(),
+                    super::pipes::WRITE_WITHIN,
+                ) {
                     tracing::debug!("Clipboard: writing our text failed: {e}");
                 }
-            }
+                WRITERS.fetch_sub(1, Ordering::AcqRel);
+                // Dropping the pipe closes it: the reader sees the end.
+            });
+        if let Err(e) = spawned {
+            WRITERS.fetch_sub(1, Ordering::AcqRel);
+            tracing::debug!("Clipboard: no writer thread: {e}");
         }
-        // Dropping the pipe closes it: the reader sees the end.
     }
 
     /// Something else was copied: the clipboard is no longer ours.

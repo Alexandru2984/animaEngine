@@ -42,7 +42,6 @@ use smithay_client_toolkit::data_device_manager::{
     data_source::DataSourceHandler,
     WritePipe,
 };
-use std::io::Read;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -193,22 +192,29 @@ impl DataDeviceHandler for WaylandState {
                 // decrements regardless of how we exit (success, error,
                 // or panic during read_to_end).
                 let _guard = guard;
-                // F.2: cap the payload via `Read::take` so the previous
-                // unbounded `read_to_end` can't be exploited by a source
-                // that streams gigabytes. 64 KiB covers every legitimate
-                // drag (hundreds of paths fit comfortably).
-                let mut capped = pipe.take(MAX_URI_LIST_BYTES);
-                let mut buf = Vec::with_capacity(512);
-                let read = capped.read_to_end(&mut buf);
+                // F.2: capped, so a source streaming gigabytes is cut off
+                // at 64 KiB — every legitimate drag fits, hundreds of
+                // paths. And with a deadline: a source that never wrote
+                // held this worker for good, and four of them every drop
+                // after (SEC-008).
+                let mut pipe = pipe;
+                let read = super::pipes::read_within(
+                    &mut pipe,
+                    MAX_URI_LIST_BYTES - 1,
+                    super::pipes::READ_WITHIN,
+                );
                 // Tell the source it is over either way; wayland-client
                 // proxies may be used from any thread, and the main loop
                 // flushes the requests on its next pass.
                 offer.finish();
                 offer.destroy();
-                if let Err(e) = read {
-                    tracing::warn!("Drop: read pipe failed: {e}");
-                    return;
-                }
+                let buf = match read {
+                    Ok(buf) => buf,
+                    Err(e) => {
+                        tracing::warn!("Drop: read pipe failed: {e}");
+                        return;
+                    }
+                };
                 let paths = parse_uri_list(&buf);
                 if !paths.is_empty() {
                     // `try_send` so a stuck consumer (main loop) can't
@@ -217,6 +223,8 @@ impl DataDeviceHandler for WaylandState {
                     if let Err(e) = tx.try_send(DroppedFiles { paths, at }) {
                         tracing::warn!("Drop: result queue full, dropping batch: {e}");
                     }
+                    // The loop may be asleep; the drop is its to take now.
+                    crate::wayland::waker::wake();
                 }
             });
         // Spawn failure drops the closure (and `guard` with it), which

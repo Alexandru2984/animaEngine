@@ -34,6 +34,7 @@ mod drag_drop;
 mod handlers;
 mod idle;
 mod keyboard_handler;
+mod pipes;
 mod pointer_handler;
 mod scale;
 mod state;
