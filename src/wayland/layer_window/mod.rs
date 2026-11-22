@@ -75,6 +75,11 @@ use wayland_client::{
 /// valid until the `LayerWindow` is dropped, so the caller must drop
 /// `WgpuRenderer` first.
 pub struct LayerWindow {
+    /// Primary layer surfaces replaced by `reopen_primary`, kept alive
+    /// until [`Self::release_retired`]: a wgpu surface made from one holds
+    /// its `wl_surface` as a raw pointer, and may outlive the swap when
+    /// making the new one fails. First, so they go before the connection.
+    retired: Vec<LayerSurface>,
     pub connection: Connection,
     pub event_queue: EventQueue<WaylandState>,
     pub state: WaylandState,
@@ -261,6 +266,7 @@ impl LayerWindow {
 
         let size = state.pending_size;
         Ok(Self {
+            retired: Vec::new(),
             connection,
             event_queue,
             state,
@@ -274,12 +280,16 @@ impl LayerWindow {
 ///
 /// Nothing is leaked here (despite the `'static` in the return type):
 /// the handles are plain `NonNull` copies of the display/surface
-/// pointers, and the SAFETY contract is lifetime-based — the caller
-/// must keep the `wl_surface` alive for as long as the returned
-/// `wgpu::Surface` exists, and drop the surface *first* (see
-/// `LayerWindow`'s doc and `rebuild_extra_surfaces`' teardown order).
-/// Called once per surface, including each PerMonitor extra.
-pub(crate) fn build_wgpu_surface(
+/// pointers. Called once per surface, including each PerMonitor extra.
+///
+/// # Safety
+///
+/// The returned surface holds `connection`'s `wl_display` and `surface`
+/// as raw pointers: both must stay alive for as long as it exists, and it
+/// must be dropped first (see `LayerWindow`'s doc and
+/// `rebuild_extra_surfaces`' teardown order). The `'static` is a promise
+/// the caller keeps, not one the types do.
+pub(crate) unsafe fn build_wgpu_surface(
     instance: &wgpu::Instance,
     connection: &Connection,
     surface: &wl_surface::WlSurface,
@@ -318,9 +328,25 @@ pub(crate) fn build_wgpu_surface(
 impl LayerWindow {
     /// A wgpu surface for the layer, from `instance` — the renderer asks
     /// for one per instance it tries (`WgpuRenderer::with_surface_from`).
-    /// It must be dropped before this window (`build_wgpu_surface`).
-    pub fn wgpu_surface(&self, instance: &wgpu::Instance) -> Result<wgpu::Surface<'static>> {
-        build_wgpu_surface(instance, &self.connection, self.state.layer.wl_surface())
+    ///
+    /// # Safety
+    ///
+    /// The surface points into this window's `wl_surface`: it must be
+    /// dropped before this window is, or the primary is reopened and the
+    /// old one released ([`build_wgpu_surface`]).
+    pub(crate) unsafe fn wgpu_surface(
+        &self,
+        instance: &wgpu::Instance,
+    ) -> Result<wgpu::Surface<'static>> {
+        // SAFETY: passed on to the caller, above.
+        unsafe { build_wgpu_surface(instance, &self.connection, self.state.layer.wl_surface()) }
+    }
+
+    /// Drop the primary layer surfaces `reopen_primary` replaced. Call
+    /// once no wgpu surface points into them: after the renderer's primary
+    /// surface has been made again on the new one.
+    pub fn release_retired(&mut self) {
+        self.retired.clear();
     }
 
     /// Drain pointer events accumulated since the previous call. Frame
@@ -705,10 +731,14 @@ impl LayerWindow {
     /// none replaced by a real one. A new `wl_surface` (a layer surface
     /// may not be made over one that has had a buffer), on no output in
     /// particular as at start, in the layer and keyboard mode the old one
-    /// had, and its first `configure` waited for. Returns the old layer,
-    /// for the caller to drop only once the wgpu surface made from its
-    /// `wl_surface` is gone, and the new `wl_surface`, to make one from.
-    pub fn reopen_primary(&mut self) -> Result<(LayerSurface, wl_surface::WlSurface)> {
+    /// had, and its first `configure` waited for. Returns the new
+    /// `wl_surface`, to make a wgpu surface from. The old layer is kept
+    /// ([`Self::release_retired`]) whatever happens here: the wgpu surface
+    /// made from its `wl_surface` still points into it. It was returned to
+    /// the caller, and dropped on the error paths — this one's roundtrip
+    /// and the caller's making of the new wgpu surface — while that wgpu
+    /// surface lived on (SEC-002).
+    pub fn reopen_primary(&mut self) -> Result<wl_surface::WlSurface> {
         let qh = self.event_queue.handle();
         let wl_surface = self.state.compositor.create_surface(&qh);
         let layer = self.state._layer_shell.create_layer_surface(
@@ -731,6 +761,7 @@ impl LayerWindow {
         layer.set_exclusive_zone(-1);
         layer.commit();
         let old = std::mem::replace(&mut self.state.layer, layer);
+        self.retired.push(old);
         // The old surface's scale objects go before it does.
         self.state.primary_scale =
             scale::SurfaceScale::new(&self.state.scale_globals, &wl_surface, &qh);
@@ -740,7 +771,7 @@ impl LayerWindow {
         self.event_queue
             .roundtrip(&mut self.state)
             .map_err(|e| AnimaError::other(format!("roundtrip after reopening: {e}")))?;
-        Ok((old, wl_surface))
+        Ok(wl_surface)
     }
 
     /// Above other windows (the overlay layer), or under them on the

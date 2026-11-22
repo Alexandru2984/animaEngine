@@ -267,7 +267,11 @@ impl Native {
         // `renderer` is dropped before `layer` (Rust drops locals in reverse
         // declaration order).
         let mut renderer = WgpuRenderer::with_surface_from(
-            &|instance| layer.wgpu_surface(instance),
+            // SAFETY: the renderer goes before the layer — here as locals,
+            // and in `Native`, whose fields drop in declaration order with
+            // `renderer` ahead of `layer`; `Native::run` drops them in that
+            // order too.
+            &|instance| unsafe { layer.wgpu_surface(instance) },
             width,
             height,
         )?;
@@ -764,20 +768,23 @@ fn binding_chord(event: &egui::Event, egui_owns_keyboard: bool) -> Option<KeyCho
 /// (`LayerWindow::reopen_primary`), with a wgpu surface on its new
 /// `wl_surface`. The old wgpu surface goes, with the state it is replaced
 /// by, before the old layer and its `wl_surface` — the order
-/// `rebuild_extra_surfaces` keeps for the extras.
+/// `rebuild_extra_surfaces` keeps for the extras. On an error the old
+/// layer stays in `layer` (`LayerWindow::release_retired`), as alive as
+/// the wgpu surface still pointing into it.
 fn reopen_primary(layer: &mut LayerWindow, renderer: &mut WgpuRenderer) -> Result<()> {
-    let (old, wl_surface) = layer.reopen_primary()?;
+    let wl_surface = layer.reopen_primary()?;
     let (w, h) = layer.state.pending_size.take().unwrap_or((
         renderer.primary.window_width,
         renderer.primary.window_height,
     ));
-    let wgpu_surface = layer_window::build_wgpu_surface(
-        &renderer.shared.instance,
-        &layer.connection,
-        &wl_surface,
-    )?;
+    // SAFETY: `wl_surface` is the primary layer's now, kept by `layer`,
+    // which outlives the renderer holding this surface (`Native`).
+    let wgpu_surface = unsafe {
+        layer_window::build_wgpu_surface(&renderer.shared.instance, &layer.connection, &wl_surface)
+    }?;
     renderer.primary = SurfaceState::new(&renderer.shared, wgpu_surface, w, h);
-    drop(old);
+    // The old wgpu surface is gone: the old layer may go too.
+    layer.release_retired();
     Ok(())
 }
 
@@ -1118,11 +1125,16 @@ fn rebuild_extra_surfaces(
         let (configured_w, configured_h) = layer
             .take_extra_configured_size(&mon.name)
             .unwrap_or((mon.width, mon.height));
-        let wgpu_surface = match layer_window::build_wgpu_surface(
-            &renderer.shared.instance,
-            &layer.connection,
-            &wl_surface,
-        ) {
+        // SAFETY: `wl_surface` is this extra's layer's, kept by `layer`
+        // until `destroy_extra_layer`, which `rebuild_extra_surfaces` calls
+        // only after dropping the `SurfaceState` made here.
+        let wgpu_surface = match unsafe {
+            layer_window::build_wgpu_surface(
+                &renderer.shared.instance,
+                &layer.connection,
+                &wl_surface,
+            )
+        } {
             Ok(s) => s,
             Err(e) => {
                 tracing::warn!("Couldn't create wgpu surface for {}: {e}", mon.name);
