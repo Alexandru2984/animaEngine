@@ -737,7 +737,20 @@ impl Scene {
         cursor: Option<(f32, f32)>,
         scripts: Option<crate::scripting::ScriptContext<'_>>,
     ) {
-        let now = Instant::now();
+        self.tick_at(Instant::now(), bounds, cursor, scripts);
+    }
+
+    /// [`Self::tick`] at `now`: the tests' clock, stepped as they say,
+    /// in place of a sleep between ticks that a loaded machine stretches
+    /// (TEST-001). Not before the last tick.
+    pub(crate) fn tick_at(
+        &mut self,
+        now: Instant,
+        bounds: crate::monitor::DesktopBounds,
+        cursor: Option<(f32, f32)>,
+        scripts: Option<crate::scripting::ScriptContext<'_>>,
+    ) {
+        let now = now.max(self.last_tick);
         let dt = now.duration_since(self.last_tick).as_secs_f32();
         self.last_tick = now;
 
@@ -810,6 +823,7 @@ impl Scene {
             };
             let was_thrown = entity.physics.thrown;
             entity.tick(
+                now,
                 dt,
                 bounds,
                 cursor,

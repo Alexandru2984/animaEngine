@@ -120,13 +120,30 @@ mod tests {
         assert!(scene.entities[1].speech.is_some(), "only the Zzz… goes");
     }
 
+    /// The scene's clock, stepped by the tests (`Scene::tick_at`): no
+    /// sleeps, which a loaded machine stretches (TEST-001).
+    struct Clock(Instant);
+
+    impl Clock {
+        fn start() -> Self {
+            Self(Instant::now())
+        }
+        fn tick(&mut self, scene: &mut Scene, step: Duration) {
+            self.0 += step;
+            scene.tick_at(self.0, bounds(), None, None);
+        }
+        fn since(&self, began: Instant) -> Duration {
+            self.0.duration_since(began)
+        }
+    }
+
     #[test]
     fn nobody_walks_in_their_sleep() {
         let mut scene = scene_of(1);
+        let mut clock = Clock::start();
         scene.set_dozing(true);
         let x = scene.entities[0].x;
-        std::thread::sleep(Duration::from_millis(20));
-        scene.tick(bounds(), None, None);
+        clock.tick(&mut scene, Duration::from_millis(20));
         assert_eq!(scene.entities[0].x, x);
         // Nobody in the air: asleep at the first step.
         assert!(!scene.is_running());
@@ -138,16 +155,15 @@ mod tests {
     #[test]
     fn a_scene_arriving_in_their_sleep_settles_too() {
         let mut scene = scene_of(1);
+        let mut clock = Clock::start();
         scene.set_dozing(true);
-        std::thread::sleep(Duration::from_millis(20));
-        scene.tick(bounds(), None, None);
+        clock.tick(&mut scene, Duration::from_millis(20));
         assert!(!scene.is_running(), "asleep");
         // A scheduled switch, say.
         let configs = scene_of(2).to_character_configs();
         scene.restore_configs(&configs);
         assert!(scene.is_running(), "they land first");
-        std::thread::sleep(Duration::from_millis(20));
-        scene.tick(bounds(), None, None);
+        clock.tick(&mut scene, Duration::from_millis(20));
         assert!(!scene.is_running(), "then sleep");
         assert!(
             scene
@@ -165,11 +181,11 @@ mod tests {
         let floor = 1000.0 - scene.entities[0].scaled_height();
         scene.entities[0].y = floor - 5.0;
         scene.entities[0].physics.throw(30.0, 0.0);
-        let began = Instant::now();
+        let mut clock = Clock::start();
+        let began = clock.0;
         let mut landed = false;
-        while began.elapsed() < Duration::from_secs(3) && !landed {
-            std::thread::sleep(Duration::from_millis(10));
-            scene.tick(bounds(), None, None);
+        while clock.since(began) < Duration::from_secs(3) && !landed {
+            clock.tick(&mut scene, Duration::from_millis(10));
             landed = scene.take_landed();
         }
         assert!(landed, "came to rest and said so");
@@ -184,18 +200,17 @@ mod tests {
         // 30 px above the floor: down in well under `SETTLE_LIMIT`.
         let start = 1000.0 - scene.entities[0].scaled_height() - 30.0;
         scene.entities[0].y = start;
+        let mut clock = Clock::start();
         scene.set_dozing(true);
-        let began = Instant::now();
-        std::thread::sleep(Duration::from_millis(20));
-        scene.tick(bounds(), None, None);
+        let began = clock.0;
+        clock.tick(&mut scene, Duration::from_millis(20));
         assert!(scene.is_running(), "still falling");
         assert!(scene.entities[0].y > start, "and it fell");
-        while scene.is_running() && began.elapsed() < SETTLE_LIMIT {
-            std::thread::sleep(Duration::from_millis(10));
-            scene.tick(bounds(), None, None);
+        while scene.is_running() && clock.since(began) < SETTLE_LIMIT {
+            clock.tick(&mut scene, Duration::from_millis(10));
         }
         assert!(
-            began.elapsed() < SETTLE_LIMIT,
+            clock.since(began) < SETTLE_LIMIT,
             "it landed, not ran out of time"
         );
         assert!(!scene.is_running(), "landed and asleep");

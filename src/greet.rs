@@ -241,14 +241,14 @@ mod tests {
     fn they_stand_still_a_moment_then_go_on() {
         let mut scene = scene_at(&[("a", 100.0)]);
         scene.entities[0].behavior = crate::behavior::Behavior::WalkAround { speed: 200.0 };
-        scene.entities[0].still_until = Some(Instant::now() + Duration::from_millis(200));
+        // On the scene's clock, stepped here (`Scene::tick_at`): no sleeps.
+        let t0 = Instant::now();
+        scene.entities[0].still_until = Some(t0 + Duration::from_millis(200));
         let bounds = crate::monitor::DesktopBounds::from_size(1600.0, 1000.0);
         let x = scene.entities[0].x;
-        std::thread::sleep(Duration::from_millis(20));
-        scene.tick(bounds, None, None);
+        scene.tick_at(t0 + Duration::from_millis(20), bounds, None, None);
         assert_eq!(scene.entities[0].x, x, "standing still");
-        std::thread::sleep(Duration::from_millis(220));
-        scene.tick(bounds, None, None);
+        scene.tick_at(t0 + Duration::from_millis(240), bounds, None, None);
         assert_ne!(scene.entities[0].x, x, "walking again");
         assert!(scene.entities[0].still_until.is_none());
     }

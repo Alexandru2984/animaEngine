@@ -487,6 +487,8 @@ impl Entity {
     #[expect(clippy::too_many_arguments)]
     pub fn tick(
         &mut self,
+        // The scene's clock (`Scene::tick_at`): a stand-still ends by it.
+        now: Instant,
         dt: f32,
         bounds: crate::monitor::DesktopBounds,
         cursor: Option<(f32, f32)>,
@@ -514,7 +516,7 @@ impl Entity {
         // Behavior — autonomous motion (can affect both X and Y). Not
         // while thrown: nobody walks mid-air.
         let x_before = self.x;
-        let still = self.still_until.is_some_and(|until| Instant::now() < until);
+        let still = self.still_until.is_some_and(|until| now < until);
         if !still {
             self.still_until = None;
         }
@@ -1055,9 +1057,27 @@ mod tests {
             e.animations
                 .insert(StateId::Drag, Animation::new(frames(), 50.0, true));
             e.dragging = true;
-            e.tick(0.016, wide_bounds(), None, &[], reduced, false, None);
+            e.tick(
+                Instant::now(),
+                0.016,
+                wide_bounds(),
+                None,
+                &[],
+                reduced,
+                false,
+                None,
+            );
             std::thread::sleep(std::time::Duration::from_millis(30));
-            e.tick(0.016, wide_bounds(), None, &[], reduced, false, None);
+            e.tick(
+                Instant::now(),
+                0.016,
+                wide_bounds(),
+                None,
+                &[],
+                reduced,
+                false,
+                None,
+            );
             let frame = e.animations.current().current_frame;
             assert_eq!(frame == 0, reduced, "reduced {reduced}: frame {frame}");
         }
@@ -1176,7 +1196,16 @@ mod tests {
                     e.x + e.scaled_width() / 2.0 + 2.0,
                     e.y + e.scaled_height() / 2.0,
                 );
-                e.tick(0.016, wide_bounds(), Some(middle), &[], false, true, None);
+                e.tick(
+                    Instant::now(),
+                    0.016,
+                    wide_bounds(),
+                    Some(middle),
+                    &[],
+                    false,
+                    true,
+                    None,
+                );
             }
             assert_eq!((e.x, e.y), (500.0, 500.0), "{behavior:?}");
         }
@@ -1194,7 +1223,16 @@ mod tests {
                 e.x + e.scaled_width() / 2.0,
                 e.y + e.scaled_height() / 2.0 + 5.0,
             );
-            e.tick(0.016, bounds, Some(below), &[], false, true, None);
+            e.tick(
+                Instant::now(),
+                0.016,
+                bounds,
+                Some(below),
+                &[],
+                false,
+                true,
+                None,
+            );
         }
         assert!(e.y >= bounds.min_y, "{}", e.y);
     }
