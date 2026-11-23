@@ -308,6 +308,14 @@ impl Native {
                 let mut asked_now = panels::OverlayAsked::default();
                 // The menu on another monitor is drawn by that overlay's
                 // egui, below.
+                // A menu on a character no longer at its index goes
+                // (BUG-011).
+                if context_menu_state
+                    .as_ref()
+                    .is_some_and(|m| !m.still_for(scene))
+                {
+                    *context_menu_state = None;
+                }
                 let menu_state = context_menu_state.clone().filter(|m| m.surface.is_none());
                 let extra_menu = context_menu_state.clone().filter(|m| m.surface.is_some());
                 let menu_offers = context_menu_state

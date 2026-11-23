@@ -298,9 +298,24 @@ pub(crate) struct UiState {
     pub context_menu: Option<ContextMenuState>,
 }
 
+impl ContextMenuState {
+    /// Whether the character it was opened on is still where it points.
+    pub(crate) fn still_for(&self, scene: &crate::scene::Scene) -> bool {
+        scene
+            .entities
+            .get(self.entity_idx)
+            .is_some_and(|e| e.id == self.entity_id)
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct ContextMenuState {
     pub entity_idx: usize,
+    /// Who it was opened on. The index outlives a scene replaced under it
+    /// — a reload, a scene switched in, an import, an undo — and then
+    /// named whoever came to sit there: the menu acted on another
+    /// character (BUG-011). See [`Self::still_for`].
+    pub entity_id: String,
     /// Anchor for the floating menu, in the points of the surface it is on.
     pub pos: egui::Pos2,
     /// The monitor whose overlay shows it — the one clicked on — or `None`
@@ -722,5 +737,43 @@ mod tests {
         assert!(toggle_button_px(-1.0) >= 1);
         assert_eq!(toggle_button_px(f64::NAN), TOGGLE_BUTTON_SIZE);
         assert_eq!(toggle_button_px(f64::INFINITY), TOGGLE_BUTTON_SIZE);
+    }
+}
+
+#[cfg(test)]
+mod menu_tests {
+    use super::ContextMenuState;
+
+    /// A menu stays for the character it was opened on: once the scene
+    /// under it is replaced and another sits at its index, it is not that
+    /// one's (BUG-011).
+    #[test]
+    fn a_menu_is_for_its_own_character() {
+        let config = crate::config::AppConfig::default();
+        let mut scene = crate::scene::Scene::from_config(&config);
+        let template = config.characters[0].clone();
+        let at = |ids: &[&str]| -> Vec<_> {
+            ids.iter()
+                .map(|id| crate::config::CharacterConfig {
+                    id: (*id).into(),
+                    asset_path: String::new(),
+                    ..template.clone()
+                })
+                .collect()
+        };
+        scene.restore_configs(&at(&["a", "b"]));
+        let menu = ContextMenuState {
+            entity_idx: 0,
+            entity_id: "a".into(),
+            pos: egui::Pos2::ZERO,
+            surface: None,
+            armed: false,
+            keyboard: false,
+        };
+        assert!(menu.still_for(&scene));
+        scene.restore_configs(&at(&["b", "a"]));
+        assert!(!menu.still_for(&scene), "the menu now named b");
+        scene.restore_configs(&at(&[]));
+        assert!(!menu.still_for(&scene));
     }
 }

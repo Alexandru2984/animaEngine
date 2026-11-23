@@ -154,6 +154,11 @@ impl Native {
                             crate::input::multi::select_for_menu(scene, &mut *selection, idx);
                             *context_menu_state = Some(crate::app::ContextMenuState {
                                 entity_idx: idx,
+                                entity_id: scene
+                                    .entities
+                                    .get(idx)
+                                    .map(|e| e.id.clone())
+                                    .unwrap_or_default(),
                                 pos: crate::input::multi::keyboard_menu_at(
                                     at - egui::vec2(primary_origin.0, primary_origin.1),
                                     egui::vec2(
@@ -454,6 +459,11 @@ impl Native {
                             });
                             *context_menu_state = Some(crate::app::ContextMenuState {
                                 entity_idx: idx,
+                                entity_id: scene
+                                    .entities
+                                    .get(idx)
+                                    .map(|e| e.id.clone())
+                                    .unwrap_or_default(),
                                 pos: match elsewhere {
                                     Some(m) => at - egui::vec2(m.x as f32, m.y as f32),
                                     None => *pos,

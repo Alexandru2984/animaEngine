@@ -121,6 +121,15 @@ impl App {
     /// the perf and soak samples, the input shape, the hot reload and the
     /// results the app waits on, and the windows for the monitors.
     fn before_the_tick(&mut self, event_loop: &ActiveEventLoop) {
+        // A menu on a character no longer at its index goes (BUG-011).
+        if self
+            .ui_state
+            .context_menu
+            .as_ref()
+            .is_some_and(|m| !m.still_for(&self.scene))
+        {
+            self.ui_state.context_menu = None;
+        }
         // The setting can change in the panel; the report and edit mode
         // are handled where they change, but this is cheap.
         self.update_step_aside();

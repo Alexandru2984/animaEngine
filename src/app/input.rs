@@ -194,6 +194,12 @@ impl App {
         let pos = crate::input::multi::keyboard_menu_at(self.menu_anchor(None, x, y), size);
         self.ui_state.context_menu = Some(ContextMenuState {
             entity_idx,
+            entity_id: self
+                .scene
+                .entities
+                .get(entity_idx)
+                .map(|e| e.id.clone())
+                .unwrap_or_default(),
             pos,
             surface: None,
             armed: false,
@@ -264,6 +270,12 @@ impl App {
                 let pos = self.menu_anchor(surface.as_deref(), self.mouse_x, self.mouse_y);
                 self.ui_state.context_menu = Some(ContextMenuState {
                     entity_idx,
+                    entity_id: self
+                        .scene
+                        .entities
+                        .get(entity_idx)
+                        .map(|e| e.id.clone())
+                        .unwrap_or_default(),
                     pos,
                     surface,
                     // Armed after the first showing — see ContextMenuState.
