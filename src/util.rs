@@ -96,6 +96,24 @@ pub fn read_to_string_capped(path: &Path, max_bytes: u64) -> std::io::Result<Str
     Ok(buf)
 }
 
+/// [`read_to_string_capped`] for bytes: a file read whole, refused past
+/// `max_bytes` by a bounded reader — not by a size looked up first, which
+/// a file growing in between gets past (SEC-010).
+pub fn read_capped(path: &Path, max_bytes: u64) -> std::io::Result<Vec<u8>> {
+    use std::io::Read;
+    let mut buf = Vec::new();
+    let n = std::fs::File::open(path)?
+        .take(max_bytes + 1)
+        .read_to_end(&mut buf)?;
+    if n as u64 > max_bytes {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("file exceeds the {max_bytes}-byte cap"),
+        ));
+    }
+    Ok(buf)
+}
+
 /// Write `contents` to `path` atomically: data goes into a sibling
 /// `<path>.anima.tmp`, gets `fsync`-ed, then `rename`d over the target.
 /// On Linux `rename` within the same filesystem is atomic, so either the
@@ -381,6 +399,21 @@ fn create_and_verify_private_dir(path: &Path, uid: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A bounded read takes a file up to its cap and refuses one past it,
+    /// whatever its size said before.
+    #[test]
+    fn a_capped_read_stops_at_the_cap() {
+        let dir = std::env::temp_dir().join(format!("anima-read-capped-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("f");
+        std::fs::write(&file, [7u8; 10]).unwrap();
+        assert_eq!(read_capped(&file, 10).unwrap(), [7u8; 10]);
+        let err = read_capped(&file, 9).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// A copy aside of something that is not a regular file is refused at
     /// once: a FIFO would have blocked the open (SEC-010).

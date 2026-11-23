@@ -272,7 +272,8 @@ pub fn read(file: &Path, into: &Path) -> Result<Restored> {
     if meta.len() > MAX_FILE_BYTES {
         return Err(super::too_big_to_open());
     }
-    let bytes = std::fs::read(file)?;
+    // Held to the cap as it is read too (`scene_file::read_whole`).
+    let bytes = super::read_whole(file)?;
     let entries = zip::read(&bytes, MAX_ENTRIES)
         .map_err(|e| super::not_ours_or_damaged(&e, "error-not-a-backup"))?;
     let manifest = entries
@@ -393,14 +394,7 @@ pub fn read(file: &Path, into: &Path) -> Result<Restored> {
         ));
     }
 
-    if into.exists() {
-        return Err(AnimaError::other("the folder for its pictures is taken"));
-    }
-    let unpacked = super::unpack(&assets, into);
-    if unpacked.is_err() {
-        let _ = std::fs::remove_dir_all(into);
-    }
-    unpacked?;
+    super::unpack(&assets, into)?;
     Ok(Restored {
         config,
         scenes: restored,

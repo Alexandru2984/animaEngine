@@ -279,14 +279,24 @@ pub(crate) fn files_fit(
 }
 
 fn read_asset(path: &Path) -> Result<Vec<u8>> {
-    let meta = std::fs::metadata(path)?;
-    if !meta.is_file() || meta.len() > MAX_ASSET_FILE_BYTES {
-        return Err(AnimaError::said_as(
+    let not_shareable = || {
+        AnimaError::said_as(
             Msg::new("error-picture-not-shareable")
                 .arg("path", crate::drop_validate::redact_path(path)),
-        ));
+        )
+    };
+    let meta = std::fs::metadata(path)?;
+    if !meta.is_file() || meta.len() > MAX_ASSET_FILE_BYTES {
+        return Err(not_shareable());
     }
-    Ok(std::fs::read(path)?)
+    // Held to the cap as it is read too (`util::read_capped`).
+    crate::util::read_capped(path, MAX_ASSET_FILE_BYTES).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::InvalidData {
+            not_shareable()
+        } else {
+            e.into()
+        }
+    })
 }
 
 /// Gathers the pictures a scene shows, each once, under `assets/<n>/`.
@@ -381,7 +391,9 @@ pub fn import(file: &Path, into: &Path) -> Result<Imported> {
     if meta.len() > MAX_FILE_BYTES {
         return Err(too_big_to_open());
     }
-    let bytes = std::fs::read(file)?;
+    // Held to the cap as it is read too: the size above was looked up
+    // before, and the file may have grown since.
+    let bytes = read_whole(file)?;
     let entries = zip::read(&bytes, MAX_ENTRIES)
         .map_err(|e| not_ours_or_damaged(&e, "error-not-a-scene-file"))?;
     let manifest = entries
@@ -453,14 +465,7 @@ pub fn import(file: &Path, into: &Path) -> Result<Imported> {
         }
     }
 
-    if into.exists() {
-        return Err(AnimaError::other("the folder for its pictures is taken"));
-    }
-    let unpacked = unpack(&assets, into);
-    if unpacked.is_err() {
-        let _ = std::fs::remove_dir_all(into);
-    }
-    unpacked?;
+    unpack(&assets, into)?;
     Ok(Imported {
         scene,
         thumbnail,
@@ -580,9 +585,41 @@ fn fit_axis(pos: &[f32], size: f32, lo: f32, hi: f32) -> Vec<f32> {
         .collect()
 }
 
-/// Write the pictures into `into`, each then held to what a drop is.
+/// A scene or backup file read whole, within `MAX_FILE_BYTES` as it is
+/// read (`util::read_capped`).
+fn read_whole(file: &Path) -> Result<Vec<u8>> {
+    crate::util::read_capped(file, MAX_FILE_BYTES).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::InvalidData {
+            too_big_to_open()
+        } else {
+            e.into()
+        }
+    })
+}
+
+/// Claim `into` — made here, never one already there: it was looked for
+/// and then made, and another could come in between (SEC-010) — and write
+/// the pictures into it, each then held to what a drop is. On failure the
+/// folder is taken away again, and nothing is left.
 fn unpack(assets: &[zip::Entry<'_>], into: &Path) -> Result<()> {
-    std::fs::create_dir_all(into)?;
+    if let Some(parent) = into.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    match std::fs::create_dir(into) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(AnimaError::other("the folder for its pictures is taken"));
+        }
+        Err(e) => return Err(e.into()),
+    }
+    let written = write_pictures(assets, into);
+    if written.is_err() {
+        let _ = std::fs::remove_dir_all(into);
+    }
+    written
+}
+
+fn write_pictures(assets: &[zip::Entry<'_>], into: &Path) -> Result<()> {
     for entry in assets {
         let path = into.join(entry.name);
         if let Some(parent) = path.parent() {
@@ -865,6 +902,34 @@ mod tests {
         export(&saved, None, &file).expect("goes out");
         let back = import(&file, &dir.join("in")).unwrap().scene;
         assert!(has_frames(Path::new(&back.characters[0].asset_path)));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A link where the pictures' folder goes is not a folder of ours: the
+    /// import is refused, nothing is written where it points, and the link
+    /// is left as it was.
+    #[cfg(unix)]
+    #[test]
+    fn a_link_where_the_folder_goes_is_not_written_through() {
+        let dir = tmp("link_into");
+        let file = dir.join("s.animascene");
+        export(&demo(), None, &file).unwrap();
+        let elsewhere = dir.join("elsewhere");
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        let into = dir.join("in");
+        std::os::unix::fs::symlink(&elsewhere, &into).unwrap();
+        assert!(import(&file, &into).is_err());
+        assert_eq!(std::fs::read_dir(&elsewhere).unwrap().count(), 0);
+        assert!(std::fs::symlink_metadata(&into)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        // A link to nowhere: the same.
+        let nowhere = dir.join("nowhere");
+        std::fs::remove_file(&into).unwrap();
+        std::os::unix::fs::symlink(&nowhere, &into).unwrap();
+        assert!(import(&file, &into).is_err());
+        assert!(!nowhere.exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
