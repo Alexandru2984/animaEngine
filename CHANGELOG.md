@@ -73,6 +73,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A folder of frames named `.PNG` loads, and shares.** A frame folder
+  from Windows or a camera names its pictures in capitals: dropping it
+  was accepted, then loading found no frames in it, and sharing a scene
+  with it failed. Frames are now counted the same way everywhere — by
+  the drop, the loader and the share — in any case; a folder holding
+  only links to pictures is refused when it is dropped rather than
+  failing after.
 - **A preset added a second time comes in again, and "Replace" starts
   the scene over.** The second "Append" of the same preset added nobody
   — its characters got the same names as the first time and were

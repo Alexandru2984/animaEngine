@@ -236,12 +236,13 @@ fn write_zip(
     Ok(file.metadata()?.len())
 }
 
-/// Whether the folder `dir` holds a PNG frame.
+/// Whether the folder `dir` holds a PNG frame, as the loader counts them
+/// (`png_sequence::is_frame`).
 fn has_frames(dir: &Path) -> bool {
     std::fs::read_dir(dir).is_ok_and(|entries| {
         entries
             .flatten()
-            .any(|e| e.path().extension().is_some_and(|x| x == "png"))
+            .any(|e| crate::animation::png_sequence::is_frame(&e))
     })
 }
 
@@ -308,11 +309,12 @@ impl Packer {
         }
         let dir = format!("assets/{}", self.placed.len());
         let at = if *asset_type == AssetType::PngSequence {
+            // The frames the loader plays (`png_sequence::is_frame`):
+            // `.PNG` ones too, or such a character went out empty.
             let mut frames: Vec<PathBuf> = std::fs::read_dir(&source)?
                 .filter_map(|e| e.ok())
-                .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+                .filter(crate::animation::png_sequence::is_frame)
                 .map(|e| e.path())
-                .filter(|p| p.extension().is_some_and(|x| x == "png"))
                 .take(MAX_SEQUENCE_FILES)
                 .collect();
             if frames.is_empty() {
@@ -841,6 +843,28 @@ mod tests {
             }
         }
         assert!(saved.characters.iter().all(|c| c.animations.is_empty()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A folder whose frames are named `.PNG` loads (BUG-016), so it
+    /// goes out with them too: the share took `.png` alone and refused
+    /// it as empty.
+    #[test]
+    fn frames_named_in_capitals_go_out() {
+        let dir = tmp("capitals");
+        let frames = dir.join("frames");
+        std::fs::create_dir_all(&frames).unwrap();
+        image::RgbaImage::from_pixel(2, 2, image::Rgba([9, 8, 7, 255]))
+            .save_with_format(frames.join("FRAME_001.PNG"), image::ImageFormat::Png)
+            .unwrap();
+        let mut saved = demo();
+        saved.characters.truncate(1);
+        saved.characters[0].asset_type = AssetType::PngSequence;
+        saved.characters[0].asset_path = frames.to_string_lossy().into_owned();
+        let file = dir.join("s.animascene");
+        export(&saved, None, &file).expect("goes out");
+        let back = import(&file, &dir.join("in")).unwrap().scene;
+        assert!(has_frames(Path::new(&back.characters[0].asset_path)));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -130,16 +130,11 @@ fn holds_png_frames(dir: &Path) -> bool {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return false;
     };
+    // The frames the loader takes, by the same rule.
     entries
         .flatten()
         .take(crate::constants::MAX_SEQUENCE_FILES)
-        .any(|entry| {
-            let path = entry.path();
-            path.extension()
-                .and_then(|e| e.to_str())
-                .is_some_and(|e| e.eq_ignore_ascii_case("png"))
-                && crate::util::resolves_to_regular_file(&path)
-        })
+        .any(|entry| crate::animation::png_sequence::is_frame(&entry))
 }
 
 /// Resolve a library-relative asset path against its root and verify

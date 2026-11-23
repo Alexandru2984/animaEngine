@@ -41,15 +41,10 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
     let mut overflowed = false;
     for entry in fs::read_dir(dir_path)? {
         let Ok(entry) = entry else { continue };
-        let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("png") {
-            continue;
+        if !is_frame(&entry) {
+            continue; // symlink / FIFO / socket / dir / device, or no `.png`
         }
-        match entry.file_type() {
-            Ok(ft) if ft.is_file() => {}
-            _ => continue, // symlink / FIFO / socket / dir / device
-        }
-        entries.push(path);
+        entries.push(entry.path());
         if entries.len() > MAX_SEQUENCE_FILES {
             overflowed = true;
             break;
@@ -201,11 +196,31 @@ pub fn load_picture(path: &Path) -> Result<Vec<Frame>> {
 /// first image data. Not an error when it cannot be read: it is then no
 /// animation.
 pub fn is_apng(path: &Path) -> bool {
-    fs::File::open(path)
-        .ok()
-        .and_then(|f| image::codecs::png::PngDecoder::new(std::io::BufReader::new(f)).ok())
-        .and_then(|d| d.is_apng().ok())
-        .unwrap_or(false)
+    // Only a regular file is opened: a `.png` FIFO would block the open
+    // until something wrote to it.
+    crate::util::resolves_to_regular_file(path)
+        && fs::File::open(path)
+            .ok()
+            .and_then(|f| image::codecs::png::PngDecoder::new(std::io::BufReader::new(f)).ok())
+            .and_then(|d| d.is_apng().ok())
+            .unwrap_or(false)
+}
+
+/// Whether a folder's entry is one of a sequence's frames: a regular file
+/// by the entry itself — a link is not followed, so a FIFO or a device
+/// named `frame.png` is never opened — named `.png` in any case
+/// (`FRAME_001.PNG`, as a camera or Windows writes it). The drop check
+/// (`drop_validate`), the validation pass (`loader`) and the loader all
+/// count frames by this: the drop check took any case and followed
+/// links, the others neither, so a folder it took could load nothing
+/// (BUG-016).
+pub(crate) fn is_frame(entry: &fs::DirEntry) -> bool {
+    entry
+        .path()
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("png"))
+        && entry.file_type().is_ok_and(|ft| ft.is_file())
 }
 
 /// Load a single static PNG file
@@ -401,6 +416,64 @@ mod tests {
         std::fs::write(dir.join("text.png"), b"not a picture").unwrap();
         assert!(!is_apng(&dir.join("text.png")));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A frame folder from Windows or a camera names its frames `.PNG`:
+    /// the drop check took it, being of any case, and the loader found
+    /// none in it (BUG-016).
+    #[test]
+    fn frames_named_in_capitals_load() {
+        let dir = temp_dir("capitals");
+        write_colored_png(&dir.join("FRAME_001.PNG"), 2, 2, [1, 2, 3, 255]);
+        write_colored_png(&dir.join("frame_002.Png"), 2, 2, [4, 5, 6, 255]);
+        assert!(crate::drop_validate::pre_validate_dropped_file(&dir).is_ok());
+        assert_eq!(load_png_sequence(&dir).expect("loads").len(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Frames only linked to are not loaded — a link is not followed —
+    /// so the drop check does not take the folder either: it said yes,
+    /// and loading then failed on an empty folder.
+    #[cfg(unix)]
+    #[test]
+    fn a_folder_of_links_is_refused_at_the_drop() {
+        let dir = temp_dir("links");
+        let real = temp_dir("links-real");
+        write_colored_png(&real.join("frame.png"), 2, 2, [1, 2, 3, 255]);
+        std::os::unix::fs::symlink(real.join("frame.png"), dir.join("frame.png")).unwrap();
+        assert!(load_png_sequence(&dir).is_err());
+        assert!(crate::drop_validate::pre_validate_dropped_file(&dir).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&real);
+    }
+
+    /// A FIFO named `.png` is never opened to look for an animation: the
+    /// open waits for a writer that never comes.
+    #[cfg(unix)]
+    #[test]
+    fn a_png_fifo_is_not_opened() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = temp_dir("fifo");
+        let fifo = dir.join("wedge.png");
+        let c = std::ffi::CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        // SAFETY: a NUL-terminated path we own, for the call.
+        assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o600) }, 0);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let probe = fifo.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(super::super::loader::detect_asset_type(&probe).0);
+        });
+        let got = rx.recv_timeout(std::time::Duration::from_secs(3));
+        if got.is_err() {
+            // Let the stuck probe go before failing.
+            use std::os::unix::fs::OpenOptionsExt;
+            let _ = std::fs::OpenOptions::new()
+                .write(true)
+                .custom_flags(libc::O_NONBLOCK)
+                .open(&fifo);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(got.is_ok(), "the probe opened the FIFO and waited");
     }
 
     #[test]

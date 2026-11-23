@@ -136,17 +136,12 @@ fn validate_directory(dir: &Path) -> Result<()> {
     let mut checked = 0usize;
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
-        let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("png") {
+        // The frames the sequence loader takes: symlinks / FIFOs /
+        // sockets / dirs / devices are skipped without opening them.
+        if !png_sequence::is_frame(&entry) {
             continue;
         }
-        // Same dirent-level filter the sequence loader uses: skip
-        // symlinks / FIFOs / sockets / dirs / devices without opening them.
-        match entry.file_type() {
-            Ok(ft) if ft.is_file() => {}
-            _ => continue,
-        }
-        validate_single_file(&path)?;
+        validate_single_file(&entry.path())?;
         checked += 1;
         if checked >= MAX_SEQUENCE_FILES {
             tracing::debug!(
