@@ -5,7 +5,9 @@
 //! with a file from someone else.
 //!
 //! What the reader guards against: names and sizes pointing outside the
-//! file, a CRC that does not match, and entries that share their bytes.
+//! file, a CRC that does not match, a local header that says other than
+//! the directory, bytes in the directory past its entries, and entries
+//! that share their bytes.
 //! Stored entries cannot expand, so with no two overlapping, what comes
 //! out is never more than the file itself — the zip-bomb trick of many
 //! entries over one run of data does not get through.
@@ -168,6 +170,18 @@ pub fn read(bytes: &[u8], max_entries: usize) -> Result<Vec<Entry<'_>>, String> 
         if u32_at(bytes, local)? != LOCAL {
             return Err(format!("damaged entry: {name}"));
         }
+        // The local header as the directory has it: another reader goes
+        // by that one, and the two must not see two different files.
+        let local_says = (
+            u16_at(bytes, local + 6)?,
+            u16_at(bytes, local + 8)?,
+            u32_at(bytes, local + 14)?,
+            u32_at(bytes, local + 18)? as usize,
+            u32_at(bytes, local + 22)? as usize,
+        );
+        if local_says != (flags, method, crc, packed, size) {
+            return Err(format!("damaged entry: {name}"));
+        }
         let local_name_len = usize::from(u16_at(bytes, local + 26)?);
         let local_extra_len = usize::from(u16_at(bytes, local + 28)?);
         if slice(bytes, local + LOCAL_LEN, local_name_len)? != name.as_bytes() {
@@ -186,6 +200,10 @@ pub fn read(bytes: &[u8], max_entries: usize) -> Result<Vec<Entry<'_>>, String> 
         }
         spans.push((local, start + size));
         entries.push(Entry { name, data });
+    }
+    // Nothing in the directory past its last entry.
+    if at != end {
+        return Err("damaged directory".into());
     }
     spans.sort_unstable();
     if spans.windows(2).any(|w| w[1].0 < w[0].1) {
@@ -364,5 +382,41 @@ mod tests {
         let mut locked = good.clone();
         locked[cd + 8] |= 1;
         assert!(read(&locked, 10).unwrap_err().contains("encrypted"));
+    }
+
+    /// The local header says the same as the directory: its flags, method,
+    /// CRC and sizes are read and compared, so no two readers see two
+    /// different files in one (BUG-016). They were not read at all.
+    #[test]
+    fn a_local_header_that_disagrees_is_refused() {
+        let good = zip_of(&[("a.png", b"abcdef")]);
+        assert!(read(&good, 10).is_ok());
+        // Offsets in the local header: flags 6, method 8, CRC 14,
+        // packed 18, size 22.
+        for (at, what) in [
+            (6, "flags"),
+            (8, "method"),
+            (14, "crc"),
+            (18, "packed"),
+            (22, "size"),
+        ] {
+            let mut bad = good.clone();
+            bad[at] ^= 0x08;
+            assert!(read(&bad, 10).is_err(), "{what} told apart");
+        }
+    }
+
+    /// The directory runs to the end record and no further: bytes left
+    /// over in it, past its last entry, are refused.
+    #[test]
+    fn bytes_left_in_the_directory_are_refused() {
+        let mut bytes = zip_of(&[("a.png", b"abcdef")]);
+        let end = find_end(&bytes).unwrap();
+        let junk = [0u8; 12];
+        bytes.splice(end..end, junk.iter().copied());
+        let end = end + junk.len();
+        let cd_size = u32_at(&bytes, end + 12).unwrap() + junk.len() as u32;
+        bytes[end + 12..end + 16].copy_from_slice(&cd_size.to_le_bytes());
+        assert_eq!(read(&bytes, 10).unwrap_err(), "damaged directory");
     }
 }
