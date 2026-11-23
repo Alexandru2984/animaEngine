@@ -726,6 +726,13 @@ impl App {
         }
     }
 
+    /// Whether window awareness can work on this path: EWMH, on X11 and
+    /// XWayland. Windows has no such query here, and the Scene tab offered
+    /// the switch there all the same (BUG-016).
+    pub(super) const fn window_awareness_possible() -> bool {
+        cfg!(unix)
+    }
+
     /// Window-awareness poll (~300 ms): refresh the desktop-window
     /// platform set the physics floor resolution reads. Lazy-connects
     /// the EWMH watcher on first need; on sessions without an X server
@@ -1024,5 +1031,23 @@ mod tests {
         };
         let (size, _) = primary_window_geometry(&plan, (800, 0), (1920, 1080));
         assert_eq!(size, (1366, 768));
+    }
+}
+
+#[cfg(all(test, windows))]
+mod win_tests {
+    /// Windows has no window positions to read here: the Scene tab does
+    /// not offer the switch (BUG-016).
+    #[test]
+    fn win_window_awareness_is_not_offered() {
+        assert!(!super::App::window_awareness_possible());
+    }
+}
+
+#[cfg(all(test, unix))]
+mod awareness_tests {
+    #[test]
+    fn x11_reads_window_positions() {
+        assert!(super::App::window_awareness_possible());
     }
 }

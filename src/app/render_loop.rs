@@ -674,8 +674,9 @@ impl App {
                                         config_dirty: &mut *config_dirty_mut,
                                         config: &mut *config_mut,
                                         supports: panels::Supports {
-                                            // winit backend: X11 or XWayland, both read EWMH.
-                                            window_awareness: true,
+                                            // X11 or XWayland, both read EWMH
+                                            // (`App::window_awareness_possible`).
+                                            window_awareness: App::window_awareness_possible(),
                                             // X11's root window is one screen across every
                                             // monitor, so Span really spans.
                                             span: true,
