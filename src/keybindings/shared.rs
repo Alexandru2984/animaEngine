@@ -706,6 +706,42 @@ mod tests {
         assert_eq!(scene.entities[0].x, 111.0, "shift nudge should be 1 px");
     }
 
+    /// A key pressed while a character is dragged, as both loops run it:
+    /// the drag let go first when the action interrupts it, then the
+    /// action, then the pointer moves on. Where the action left the
+    /// character, it must stay: a nudge or a centring mid-drag was undone
+    /// by the next pointer move (BUG-016).
+    #[test]
+    fn what_a_key_does_mid_drag_is_kept() {
+        use crate::input::multi;
+        for action in [
+            Action::NudgeUp,
+            Action::NudgeDown,
+            Action::NudgeLeft,
+            Action::NudgeRight,
+            Action::CenterOnScreen,
+        ] {
+            let mut scene = scene_with(1);
+            let mut sel = SelectionState::default();
+            let mut drag = crate::input::drag::DragController::new();
+            multi::press_on(&mut scene, &mut sel, &mut drag, 0, (101.0, 201.0), false);
+            multi::drag_to(&mut scene, &sel, &mut drag, (111.0, 211.0), None);
+            if action.interrupts_drag() {
+                multi::cancel(&mut scene, &mut sel, &mut drag, &mut None);
+            }
+            assert!(run(action, &mut scene, &mut sel, false));
+            let left = (scene.entities[0].x, scene.entities[0].y);
+            multi::drag_to(&mut scene, &sel, &mut drag, (112.0, 212.0), None);
+            assert_eq!(
+                (scene.entities[0].x, scene.entities[0].y),
+                left,
+                "{action:?} undone by the pointer"
+            );
+        }
+        // Select all changes what a drag of the selection holds.
+        assert!(Action::SelectAll.interrupts_drag());
+    }
+
     /// Ctrl+A selects what a rectangle could: every visible character,
     /// so a keyboard can group and arrange them too.
     #[test]

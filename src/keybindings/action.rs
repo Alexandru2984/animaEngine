@@ -186,12 +186,6 @@ impl Action {
         )
     }
 
-    /// Whether a drag or selection rectangle in progress lets go before
-    /// this runs (`crate::input::multi::cancel`). These change which
-    /// characters exist or are selected, and a gesture holds indices into
-    /// both: Undo pressed mid-drag was lost at the next pointer move, which
-    /// put the characters back under it, and Duplicate sent the copies
-    /// flying.
     /// Whether the action looks at Shift itself — the nudges, 1 px with
     /// it and 10 without — so Shift with its key runs it rather than
     /// finding nothing (`KeyBindings::action_for_press`).
@@ -202,16 +196,29 @@ impl Action {
         )
     }
 
+    /// Whether a drag or selection rectangle in progress lets go before
+    /// this runs (`crate::input::multi::cancel`). These change which
+    /// characters exist or are selected, and a gesture holds indices into
+    /// both — or move the characters it holds: Undo pressed mid-drag was
+    /// lost at the next pointer move, which put the characters back under
+    /// it, Duplicate sent the copies flying, and a nudge or a centring was
+    /// undone the same way (BUG-016).
     pub fn interrupts_drag(self) -> bool {
         matches!(
             self,
             Self::Undo
                 | Self::Redo
                 | Self::CycleEntity
+                | Self::SelectAll
                 | Self::DeleteSelected
                 | Self::DuplicateSelected
                 | Self::CutSelected
                 | Self::Paste
+                | Self::NudgeUp
+                | Self::NudgeDown
+                | Self::NudgeLeft
+                | Self::NudgeRight
+                | Self::CenterOnScreen
         )
     }
 
