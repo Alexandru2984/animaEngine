@@ -152,10 +152,9 @@ pub fn spawn_watch(sink: EventSink, watch_idle: bool) {
             let mut tick: u32 = 0;
             loop {
                 let after = IDLE_AFTER_MS.load(Ordering::Relaxed);
-                let now_away = match idle.as_mut() {
-                    Some(source) if after > 0 => source.away(after),
-                    _ => false,
-                };
+                // Asked with 0 too: a compositor's notification is then
+                // put away, and its socket still read.
+                let now_away = idle.as_mut().is_some_and(|source| source.away(after));
                 // Resent until delivered: a full channel is not a gone loop.
                 if now_away != away && sink.send(AnimaEvent::Away(now_away)) {
                     away = now_away;
@@ -246,11 +245,13 @@ impl IdleSource {
         }
     }
 
-    /// Whether there has been no input for `after_ms`.
+    /// Whether there has been no input for `after_ms`; never with 0, which
+    /// is not watching.
     fn away(&mut self, after_ms: u64) -> bool {
         match self {
             #[cfg(unix)]
             Self::Wayland(wayland) => wayland.away(after_ms).unwrap_or(false),
+            _ if after_ms == 0 => false,
             _ => self.idle_ms().is_some_and(|ms| ms >= after_ms),
         }
     }
@@ -340,8 +341,9 @@ mod wayland_idle {
         }
 
         /// Whether the seat has had no input for `after_ms`, as the
-        /// compositor has said by now; asked again when the time changes.
-        /// `None` when the connection is gone.
+        /// compositor has said by now; asked again when the time changes,
+        /// and 0 puts the notification away. `None` when the connection is
+        /// gone.
         pub fn away(&mut self, after_ms: u64) -> Option<bool> {
             if after_ms != self.timeout_ms {
                 if let Some(old) = self.notification.take() {
@@ -367,7 +369,7 @@ mod wayland_idle {
                 }
             }
             self.queue.dispatch_pending(&mut self.state).ok()?;
-            Some(self.state.idle)
+            Some(after_ms > 0 && self.state.idle)
         }
     }
 
