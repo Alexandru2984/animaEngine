@@ -520,12 +520,16 @@ impl LayerWindow {
             Some(output),
         );
         layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
-        // On demand, like the primary: a click on a character on this
-        // monitor gives it keyboard focus, so Delete, the arrow keys
-        // and the rest act on what was just selected. In pass-through
-        // the region is empty, so it is never clicked and never
-        // focused.
-        layer.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+        // As the primary is now (`set_keyboard_wanted`): on demand in
+        // edit mode, so a click on a character here gives it the keys —
+        // Delete, the arrows; none in pass-through with tapping on, where
+        // a tap must not take the keys from the app being typed in. A
+        // monitor plugged in then got on demand anyway (BUG-010).
+        layer.set_keyboard_interactivity(if self.state.keyboard_on_demand {
+            KeyboardInteractivity::OnDemand
+        } else {
+            KeyboardInteractivity::None
+        });
         layer.set_exclusive_zone(-1);
         // Empty region (no `add` calls) → every pixel is click-through.
         let region = self.state.compositor.wl_compositor().create_region(&qh, ());
