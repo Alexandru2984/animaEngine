@@ -153,8 +153,17 @@ impl Native {
                         AnimaEvent::Shortcut(..) => {}
                         AnimaEvent::ToggleEditMode => toggle_edit_xor ^= true,
                         AnimaEvent::ToggleGlobalPlayback => toggle_playback_xor ^= true,
-                        AnimaEvent::HideOverlay => last_visibility = Some(AnimaEvent::HideOverlay),
-                        AnimaEvent::ShowOverlay => last_visibility = Some(AnimaEvent::ShowOverlay),
+                        // Taken at once, not only at the end of the turn: a
+                        // shortcut's toggle later in the same turn read the
+                        // state from before them (BUG-010).
+                        AnimaEvent::HideOverlay => {
+                            *overlay_hidden = true;
+                            last_visibility = Some(AnimaEvent::HideOverlay);
+                        }
+                        AnimaEvent::ShowOverlay => {
+                            *overlay_hidden = false;
+                            last_visibility = Some(AnimaEvent::ShowOverlay);
+                        }
                         AnimaEvent::Quit => {
                             quit = true;
                             tracing::info!("Quit requested (tray, or a signal)");
