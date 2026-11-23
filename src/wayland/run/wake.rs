@@ -168,6 +168,9 @@ impl Native {
             layer,
             config,
             scene,
+            overlay_hidden,
+            aside,
+            drag_widened,
             ..
         } = self;
         // Hot-reload. The README lists it as a feature and its parity
@@ -192,6 +195,22 @@ impl Native {
             // The scene was replaced from the file: the steps no longer
             // describe it.
             history.clear();
+            // The ⚙ corner may have come or gone with the file: in pass-
+            // through the input region kept the old one, a dead corner
+            // or an invisible one taking clicks, until edit mode was
+            // next left (BUG-010).
+            if !layer.state.edit_mode {
+                let region = super::region_for_state(
+                    *overlay_hidden || aside.hidden,
+                    *drag_widened,
+                    renderer.primary.window_width,
+                    renderer.primary.window_height,
+                    super::shown_button(&config.global),
+                );
+                if let Err(e) = layer.set_input_region(region) {
+                    tracing::warn!("input region after a reload: {e}");
+                }
+            }
         }
         if let Some(import) = &pending_shimeji {
             if import
