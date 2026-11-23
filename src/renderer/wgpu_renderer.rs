@@ -190,6 +190,11 @@ pub struct SurfaceState {
     /// Pre-allocated vertex buffer for dynamic quad drawing.
     /// Reused every frame via `queue.write_buffer()`.
     dynamic_vertex_buffer: wgpu::Buffer,
+    /// The frame's quads' vertices, gathered here and written to
+    /// `dynamic_vertex_buffer` at once: each quad was a `write_buffer` of
+    /// its own, up to 136 a monitor a frame (PERF-003). Kept, not made
+    /// anew, from frame to frame.
+    quad_vertices: Vec<SpriteVertex>,
     /// `true` while the scene is over the quad cap — gates the
     /// overflow warning to once per episode instead of once per frame.
     quad_overflow_logged: bool,
@@ -997,6 +1002,7 @@ impl SurfaceState {
             uniform_buffer,
             uniform_bind_group,
             dynamic_vertex_buffer,
+            quad_vertices: Vec::with_capacity(MAX_QUADS * 4),
             quad_overflow_logged: false,
         }
     }
@@ -1132,24 +1138,24 @@ impl SurfaceState {
         tracing::debug!("Resized to {}x{}", new_width, new_height);
     }
 
-    /// Write quad vertices into the dynamic buffer at the given quad index offset.
+    /// Gather quad `quad_index`'s vertices for the frame (`quad_vertices`,
+    /// written at once before the pass). Quads come in order from 0.
     /// `rect` is `(x, y, w, h)` in window-local pixels.
     fn write_quad(
-        &self,
-        shared: &GpuShared,
+        &mut self,
         quad_index: usize,
         rect: (f32, f32, f32, f32),
         opacity: f32,
         flip_x: bool,
     ) {
-        let (x, y, w, h) = rect;
-        let vertices = make_quad_vertices(x, y, w, h, opacity, flip_x);
-        let offset = (quad_index * 4 * std::mem::size_of::<SpriteVertex>()) as u64;
-        shared.queue.write_buffer(
-            &self.dynamic_vertex_buffer,
-            offset,
-            bytemuck::cast_slice(&vertices),
+        debug_assert_eq!(
+            self.quad_vertices.len(),
+            quad_index * 4,
+            "quads out of order"
         );
+        let (x, y, w, h) = rect;
+        self.quad_vertices
+            .extend_from_slice(&make_quad_vertices(x, y, w, h, opacity, flip_x));
     }
 
     /// Render the given entities + UI overlay to this window's surface.
@@ -1198,6 +1204,7 @@ impl SurfaceState {
 
         // --- Pre-compute all quad vertices into the dynamic buffer ---
         let mut quad_idx: usize = 0;
+        self.quad_vertices.clear();
 
         // Build a draw list: (quad_index, bind_group reference)
         // `texture_entity_id` borrows straight from `entities` instead
@@ -1246,7 +1253,6 @@ impl SurfaceState {
                 let local_y = entity.y + gy - origin.1;
 
                 self.write_quad(
-                    shared,
                     quad_idx,
                     (local_x, local_y, width, height),
                     // Fading in or out (`Scene::fade_step`).
@@ -1264,7 +1270,6 @@ impl SurfaceState {
                 if edit_mode && marks.selected.contains(&entity.id.as_str()) {
                     let pad = 6.0; // padding around entity
                     self.write_quad(
-                        shared,
                         quad_idx,
                         (
                             local_x - pad,
@@ -1300,7 +1305,7 @@ impl SurfaceState {
                 ((l, t, e, h), 1.0),
                 ((r - e, t, e, h), 1.0),
             ] {
-                self.write_quad(shared, quad_idx, rect, opacity, false);
+                self.write_quad(quad_idx, rect, opacity, false);
                 draws.push(DrawCmd {
                     quad_index: quad_idx,
                     texture: Texture::Marquee,
@@ -1325,7 +1330,7 @@ impl SurfaceState {
                     GUIDE_WIDTH,
                 ),
             };
-            self.write_quad(shared, quad_idx, rect, 1.0, false);
+            self.write_quad(quad_idx, rect, 1.0, false);
             draws.push(DrawCmd {
                 quad_index: quad_idx,
                 texture: Texture::Guide,
@@ -1336,7 +1341,6 @@ impl SurfaceState {
         // Edit mode indicator bar
         if edit_mode {
             self.write_quad(
-                shared,
                 quad_idx,
                 (0.0, 0.0, self.window_width as f32, 4.0),
                 1.0,
@@ -1350,6 +1354,15 @@ impl SurfaceState {
         }
         // The toggle button (⚙) is rendered as a real egui Button in
         // App's egui pass — no sprite needed here.
+
+        // Every quad's vertices in one write.
+        if !self.quad_vertices.is_empty() {
+            shared.queue.write_buffer(
+                &self.dynamic_vertex_buffer,
+                0,
+                bytemuck::cast_slice(&self.quad_vertices),
+            );
+        }
 
         // --- Render pass ---
         {
