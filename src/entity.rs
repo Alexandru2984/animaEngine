@@ -535,7 +535,15 @@ impl Entity {
                 dt,
             );
         }
-        if !gaming && !self.physics.thrown && !still && !self.tick_script(&ctx, scripts) {
+        // Nor while the user holds it: the drag puts it under the pointer
+        // at each move, and between them it walked, bounced or ran its
+        // script out from under it, to jump back at the next (BUG-008).
+        if !gaming
+            && !self.physics.thrown
+            && !still
+            && !self.dragging
+            && !self.tick_script(&ctx, scripts)
+        {
             let y_before = self.y;
             self.behavior
                 .tick(&mut self.behavior_state, &mut self.x, &mut self.y, &ctx);
@@ -559,7 +567,7 @@ impl Entity {
         // Applied before `dx` so facing follows the recoil; physics
         // re-governs Y for grounded entities, so the visible effect is a
         // scoot away. Suppressed under reduced motion.
-        if hover_startle && !reduced_motion {
+        if hover_startle && !reduced_motion && !self.dragging {
             if let Some((cx, cy)) = cursor {
                 let (px, py) = hover_startle_push(
                     self.x + sprite_w * 0.5,
@@ -569,7 +577,9 @@ impl Entity {
                     dt,
                 );
                 self.x = bounds.clamp_x(self.x + px, sprite_w);
-                self.y += py;
+                // On the screen up and down too: it flinched past the top.
+                self.y =
+                    (self.y + py).clamp(bounds.min_y, (bounds.max_y - sprite_h).max(bounds.min_y));
             }
         }
 
@@ -1141,6 +1151,51 @@ mod tests {
         assert!(text.contains("[talk]"), "{text}");
         let back: CharacterConfig = toml::from_str(&text).unwrap();
         assert_eq!(back.talk, c.talk);
+    }
+
+    /// Held by the user, a character does not walk, bounce or flinch on
+    /// its own between pointer moves: it slid out from under the pointer
+    /// and jumped back at the next move (BUG-008).
+    #[test]
+    fn a_held_character_moves_only_with_the_pointer() {
+        for behavior in [
+            crate::behavior::Behavior::WalkAround { speed: 300.0 },
+            crate::behavior::Behavior::Bounce {
+                amplitude_px: 40.0,
+                period_sec: 0.3,
+                axis: Default::default(),
+            },
+        ] {
+            let mut e = entity_at(500.0, 500.0);
+            e.behavior = behavior.clone();
+            e.dragging = true;
+            for _ in 0..30 {
+                // The pointer right by its middle, as it is while dragging.
+                let middle = (
+                    e.x + e.scaled_width() / 2.0 + 2.0,
+                    e.y + e.scaled_height() / 2.0,
+                );
+                e.tick(0.016, wide_bounds(), Some(middle), &[], false, true, None);
+            }
+            assert_eq!((e.x, e.y), (500.0, 500.0), "{behavior:?}");
+        }
+    }
+
+    /// A flinch from the pointer keeps the character on the screen, up and
+    /// down as across: it went past the top edge (BUG-008).
+    #[test]
+    fn a_flinch_stays_on_the_screen() {
+        let bounds = crate::monitor::DesktopBounds::from_size(1000.0, 1000.0);
+        let mut e = entity_at(400.0, 0.0);
+        for _ in 0..120 {
+            // The pointer just below its middle: the push is upward.
+            let below = (
+                e.x + e.scaled_width() / 2.0,
+                e.y + e.scaled_height() / 2.0 + 5.0,
+            );
+            e.tick(0.016, bounds, Some(below), &[], false, true, None);
+        }
+        assert!(e.y >= bounds.min_y, "{}", e.y);
     }
 
     fn entity_at(x: f32, y: f32) -> Entity {

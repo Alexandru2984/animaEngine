@@ -79,6 +79,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A character you hold stays under the pointer.** A walking, bouncing
+  or scripted character went on moving between two moves of the
+  pointer, slid out from under it and jumped back; flinching from the
+  pointer it could also leave the top of the screen.
 - **X11: poking a character in edit mode no longer saves the settings
   and says "Config saved" each time.** A tap changes nothing of yours;
   a drag that moves a character is still saved at once.
