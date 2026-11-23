@@ -204,12 +204,42 @@ mod tests {
         }
     }
 
+    /// A key a newer version binds and this one cannot read stays with
+    /// its action through a save, beside the keys this one reads — it was
+    /// left out, and gone for the newer version (BUG-011). Once the user
+    /// changes that action here, the action is theirs as set.
+    #[test]
+    fn a_key_this_version_cannot_read_is_kept_with_its_action() {
+        #[derive(serde::Deserialize, serde::Serialize)]
+        struct Wrap {
+            keybindings: KeyBindings,
+        }
+        let text = r#"
+            [keybindings.map]
+            toggle_edit_mode = ["Super+Alt+A", "Ctrl+Gamepad7"]
+        "#;
+        let mut w: Wrap = toml::from_str(text).unwrap();
+        assert_eq!(w.keybindings.map[&Action::ToggleEditMode].len(), 1);
+        let out = toml::to_string(&w).unwrap();
+        assert!(out.contains("Ctrl+Gamepad7"), "left out:\n{out}");
+        assert!(out.contains("Super+Alt+A"), "{out}");
+        w.keybindings
+            .map
+            .insert(Action::ToggleEditMode, vec!["F9".parse().unwrap()]);
+        let out = toml::to_string(&w).unwrap();
+        assert!(
+            !out.contains("Ctrl+Gamepad7"),
+            "kept past the user's change:\n{out}"
+        );
+    }
+
     #[test]
     fn empty_keybindings_section_falls_back_to_defaults_at_lookup() {
         // Simulates a config that has no [keybindings] section.
         let bindings = KeyBindings {
             map: BTreeMap::new(),
             unknown: BTreeMap::new(),
+            unread: BTreeMap::new(),
         };
         let chord: KeyChord = "Q".parse().unwrap();
         assert_eq!(bindings.lookup(chord), Some(Action::QuitWithSave));

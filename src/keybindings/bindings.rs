@@ -32,6 +32,12 @@ pub struct KeyBindings {
     /// Actions this build does not have, as written: a newer animaEngine
     /// bound them, and finds them again after this one has saved.
     pub unknown: BTreeMap<String, toml::Value>,
+    /// Keys a newer version gave an action this one has, which this one
+    /// cannot read, as written — with the action's keys as read at load.
+    /// Written back beside them while the action is as it was loaded;
+    /// they were left out, and lost to the newer version at the first
+    /// save (BUG-011). Changed here, the action is the user's as set.
+    pub unread: BTreeMap<Action, (Vec<KeyChord>, Vec<toml::Value>)>,
 }
 
 /// `[keybindings]` as stored: action names to chord strings.
@@ -46,6 +52,7 @@ impl<'de> Deserialize<'de> for KeyBindings {
         let stored = Stored::deserialize(deserializer)?;
         let mut map = BTreeMap::new();
         let mut unknown = BTreeMap::new();
+        let mut unread = BTreeMap::new();
         for (name, value) in stored.map {
             let Ok(action) = toml::Value::String(name.clone()).try_into::<Action>() else {
                 tracing::warn!("keybindings: no action `{name}` in this version; kept as written");
@@ -63,18 +70,23 @@ impl<'de> Deserialize<'de> for KeyBindings {
                     continue;
                 }
             };
-            let chords = written
+            let mut not_read = Vec::new();
+            let chords: Vec<KeyChord> = written
                 .into_iter()
                 .filter_map(|v| match v.as_str().map(str::parse::<KeyChord>) {
                     Some(Ok(chord)) => Some(chord),
                     _ => {
                         tracing::warn!(
-                            "keybindings: `{name}`: {v} is not a key this version reads; left out"
+                            "keybindings: `{name}`: {v} is not a key this version reads; kept as written"
                         );
+                        not_read.push(v);
                         None
                     }
                 })
                 .collect();
+            if !not_read.is_empty() {
+                unread.insert(action, (chords.clone(), not_read));
+            }
             map.insert(action, chords);
         }
         // Cycle character as it came before 1.5 — Tab, which the panel
@@ -91,7 +103,11 @@ impl<'de> Deserialize<'de> for KeyBindings {
                 Action::CycleEntity.default_chords().to_vec(),
             );
         }
-        Ok(Self { map, unknown })
+        Ok(Self {
+            map,
+            unknown,
+            unread,
+        })
     }
 }
 
@@ -104,7 +120,18 @@ impl Serialize for KeyBindings {
                 use serde::ser::SerializeMap;
                 let mut out = serializer.serialize_map(None)?;
                 for (action, chords) in &self.0.map {
-                    out.serialize_entry(action, chords)?;
+                    match self.0.unread.get(action) {
+                        // As loaded: the keys read, then those not.
+                        Some((at_load, not_read)) if at_load == chords => {
+                            let all: Vec<toml::Value> = chords
+                                .iter()
+                                .map(|c| toml::Value::String(c.to_string()))
+                                .chain(not_read.iter().cloned())
+                                .collect();
+                            out.serialize_entry(action, &all)?;
+                        }
+                        _ => out.serialize_entry(action, chords)?,
+                    }
                 }
                 for (name, value) in &self.0.unknown {
                     out.serialize_entry(name, value)?;
@@ -129,6 +156,7 @@ impl Default for KeyBindings {
         Self {
             map,
             unknown: BTreeMap::new(),
+            unread: BTreeMap::new(),
         }
     }
 }
