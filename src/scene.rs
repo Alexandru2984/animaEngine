@@ -847,14 +847,26 @@ impl Scene {
 
     /// With bumping on, each character's floors: the windows' and the
     /// others' tops, taken before anyone moves this tick. Empty with it
-    /// off — the windows' alone apply then.
+    /// off or nobody falling — the windows' alone apply then — and empty
+    /// for a character that does not fall, whose floor nothing reads.
     pub(crate) fn floors(&self) -> Vec<Vec<crate::platforms::PlatformRect>> {
-        if !self.bump {
+        // Only a character that falls stands on anything — physics on, or
+        // thrown — and only it gets the others' tops: each character got
+        // a list of every other's, a 64 × 64 build on every tick, for
+        // characters whose floor nothing reads (PERF-003).
+        let falls = |e: &Entity| e.physics.enabled || e.physics.thrown;
+        if !self.bump || !self.entities.iter().any(falls) {
             return Vec::new();
         }
         let solids = crate::bump::solids(self);
         (0..self.entities.len())
-            .map(|i| crate::bump::platforms_for(self, &solids, i, &self.window_platforms))
+            .map(|i| {
+                if falls(&self.entities[i]) {
+                    crate::bump::platforms_for(self, &solids, i, &self.window_platforms)
+                } else {
+                    Vec::new()
+                }
+            })
             .collect()
     }
 
@@ -1358,6 +1370,26 @@ mod tests {
             e.z_index = i32::MAX - 3;
         }
         assert_eq!(scene.next_z_index(), i32::MAX);
+    }
+
+    /// With bumping on, a character that falls gets the others' tops for
+    /// floors; one that does not fall gets none built for it (PERF-003).
+    #[test]
+    fn only_a_character_that_falls_gets_floors_built() {
+        let mut scene = empty_scene();
+        for (id, x) in [("a", 0.0), ("b", 100.0), ("c", 200.0)] {
+            let mut e = make_entity(id, 0, true);
+            e.x = x;
+            scene.entities.push(e);
+        }
+        scene.mark_visible_dirty();
+        scene.set_bump(true);
+        assert!(scene.floors().is_empty(), "nobody falls: nothing built");
+        scene.entities[1].physics.enable();
+        let floors = scene.floors();
+        assert_eq!(floors.len(), 3);
+        assert!(floors[0].is_empty() && floors[2].is_empty());
+        assert_eq!(floors[1].len(), 2, "the two others' tops");
     }
 
     /// The stand-in for a character whose picture did not load pulses on

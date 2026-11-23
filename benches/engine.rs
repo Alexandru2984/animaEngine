@@ -255,8 +255,40 @@ fn bench_drawn_entities(c: &mut Criterion) {
     });
 }
 
+/// `scene_tick` with the characters bumping into each other and greeting
+/// those they meet — both off by default — at the most a scene holds.
+fn bench_scene_tick_together(c: &mut Criterion) {
+    let mut scene = build_scene(64);
+    scene.set_bump(true);
+    scene.set_greet(true);
+    c.bench_function("scene_tick_bump_greet/64", |b| {
+        b.iter(|| {
+            scene.tick(
+                anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
+                Some((960.0, 540.0)),
+                None,
+            )
+        });
+    });
+    for (name, bump, greet) in [("bump", true, false), ("greet", false, true)] {
+        let mut scene = build_scene(64);
+        scene.set_bump(bump);
+        scene.set_greet(greet);
+        c.bench_function(&format!("scene_tick_{name}/64"), |b| {
+            b.iter(|| {
+                scene.tick(
+                    anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
+                    Some((960.0, 540.0)),
+                    None,
+                )
+            });
+        });
+    }
+}
+
 criterion_group!(
     benches,
+    bench_scene_tick_together,
     bench_drawn_entities,
     bench_eased_frame_due,
     bench_scene_tick,
