@@ -73,6 +73,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Two characters playing tag no longer stop to greet each other at a
+  catch.** On the tick of a catch they were briefly out of the game, so
+  greetings took them for two that met and stood them still 2.5 seconds
+  instead of the game's short breath.
 - **A window entry this version cannot read no longer stops the whole
   config from loading.** One written by a newer version — a monitor mode
   this one does not know — made the config unreadable, characters and

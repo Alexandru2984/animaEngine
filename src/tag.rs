@@ -180,8 +180,8 @@ fn play(scene: &mut Scene, game: &mut Game, i: usize, j: usize, speed: f32, now:
             e.scaled_width() / 2.0,
         )
     };
-    let (chaser, runner) = if game.player_chases { (i, j) } else { (j, i) };
-    let (c, r) = (middle(scene, chaser), middle(scene, runner));
+    let (mut chaser, mut runner) = if game.player_chases { (i, j) } else { (j, i) };
+    let (mut c, mut r) = (middle(scene, chaser), middle(scene, runner));
     let distance = ((c.0 - r.0).powi(2) + (c.1 - r.1).powi(2)).sqrt();
     if now >= game.catchable_from && distance < (c.2 + r.2) * REACH {
         // Caught: a breath, and they swap.
@@ -195,7 +195,12 @@ fn play(scene: &mut Scene, game: &mut Game, i: usize, j: usize, speed: f32, now:
             scene.entities[chaser].name,
             scene.entities[runner].name
         );
-        return;
+        // Still in the game on this tick, the roles swapped (the breath
+        // holds them where they are): without a move each, the two met
+        // to `crate::greet`, which stood them still for a greeting
+        // instead.
+        (chaser, runner) = (runner, chaser);
+        (c, r) = (r, c);
     }
     scene.entities[chaser].game_move = Some(Move {
         point: (r.0, r.1),
@@ -278,6 +283,26 @@ mod tests {
         step(&mut scene, now + Duration::from_millis(900));
         assert!(!scene.games.games[0].player_chases);
         assert!(scene.entities[1].game_move.is_some_and(|m| !m.away));
+    }
+
+    #[test]
+    fn a_catch_is_no_meeting() {
+        let mut scene = players();
+        let now = Instant::now();
+        step(&mut scene, now);
+        crate::greet::step(&mut scene, now);
+        scene.entities[1].x = scene.entities[0].x + 5.0;
+        let caught = now + Duration::from_millis(10);
+        step(&mut scene, caught);
+        crate::greet::step(&mut scene, caught);
+        assert!(
+            scene
+                .entities
+                .iter()
+                .all(|e| e.still_until == Some(caught + CAUGHT_PAUSE)),
+            "a breath, not a greeting's stand"
+        );
+        assert!(scene.entities.iter().all(|e| e.speech.is_none()));
     }
 
     #[test]
