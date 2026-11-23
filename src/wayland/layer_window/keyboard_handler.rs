@@ -99,6 +99,9 @@ impl KeyboardHandler for WaylandState {
         // thinking Ctrl is still down on the next focus.
         self.last_modifiers = SctkModifiers::default();
         self.keyboard_on_primary = false;
+        // And Super, which the shortcut matching reads from its own flag:
+        // left held, the next keys looked like Super+key (BUG-010).
+        crate::keybindings::set_super_held(false);
     }
 
     fn press_key(
@@ -118,11 +121,12 @@ impl KeyboardHandler for WaylandState {
         // other backend: Copy and Cut for egui to answer with the text,
         // and a paste the loop fills from the desktop's clipboard.
         if self.last_modifiers.ctrl && !self.last_modifiers.alt {
-            match event.keysym {
-                Keysym::c | Keysym::C => self.pending_egui_events.push(egui::Event::Copy),
-                Keysym::x | Keysym::X => self.pending_egui_events.push(egui::Event::Cut),
-                Keysym::v | Keysym::V => self.text_paste_requested = true,
-                _ => {}
+            use crate::wayland::keyboard::{clipboard_key, ClipboardKey};
+            match clipboard_key(event.keysym, event.raw_code) {
+                Some(ClipboardKey::Copy) => self.pending_egui_events.push(egui::Event::Copy),
+                Some(ClipboardKey::Cut) => self.pending_egui_events.push(egui::Event::Cut),
+                Some(ClipboardKey::Paste) => self.text_paste_requested = true,
+                None => {}
             }
         }
         // UTF-8 text — already composed by xkbcommon. Push as a

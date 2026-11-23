@@ -106,6 +106,35 @@ pub fn keysym_to_egui_key(keysym: Keysym) -> Option<egui::Key> {
     })
 }
 
+/// A text field's clipboard key, with Ctrl: Copy, Cut or Paste.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClipboardKey {
+    Copy,
+    Cut,
+    Paste,
+}
+
+/// The clipboard key `keysym` is, or — when it is no Latin letter at all,
+/// as on Cyrillic, Greek or Arabic — the one at its key's place
+/// (`raw_code`, as on a US layout). By the keysym alone, Ctrl+C, X and V
+/// did nothing in the panel's text fields on those layouts (BUG-010); by
+/// the place alone, Dvorak's Ctrl+C would be its Ctrl+J.
+pub fn clipboard_key(keysym: Keysym, raw_code: u32) -> Option<ClipboardKey> {
+    let latin = |k: Keysym| matches!(k.raw(), 0x41..=0x5a | 0x61..=0x7a);
+    match keysym {
+        Keysym::c | Keysym::C => Some(ClipboardKey::Copy),
+        Keysym::x | Keysym::X => Some(ClipboardKey::Cut),
+        Keysym::v | Keysym::V => Some(ClipboardKey::Paste),
+        k if latin(k) => None,
+        _ => match evdev_to_egui_key(raw_code)? {
+            egui::Key::C => Some(ClipboardKey::Copy),
+            egui::Key::X => Some(ClipboardKey::Cut),
+            egui::Key::V => Some(ClipboardKey::Paste),
+            _ => None,
+        },
+    }
+}
+
 /// The key at this physical position, named as on a US layout, from the
 /// Linux evdev scancode `wl_keyboard` delivers (`KeyEvent::raw_code`).
 ///
@@ -195,6 +224,29 @@ pub fn modifiers_to_egui(m: SctkModifiers) -> egui::Modifiers {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Ctrl+C, X and V by the letter where there is one, by the place
+    /// where the layout has no Latin letters.
+    #[test]
+    fn clipboard_keys_on_every_layout() {
+        // evdev: C 46, X 45, V 47, J 36.
+        assert_eq!(clipboard_key(Keysym::c, 46), Some(ClipboardKey::Copy));
+        assert_eq!(
+            clipboard_key(Keysym::Cyrillic_es, 46),
+            Some(ClipboardKey::Copy)
+        );
+        assert_eq!(
+            clipboard_key(Keysym::Cyrillic_che, 45),
+            Some(ClipboardKey::Cut)
+        );
+        assert_eq!(
+            clipboard_key(Keysym::Cyrillic_em, 47),
+            Some(ClipboardKey::Paste)
+        );
+        // Dvorak: the key at C's place types J.
+        assert_eq!(clipboard_key(Keysym::j, 46), None);
+        assert_eq!(clipboard_key(Keysym::c, 36), Some(ClipboardKey::Copy));
+    }
 
     #[test]
     fn letters_round_trip() {

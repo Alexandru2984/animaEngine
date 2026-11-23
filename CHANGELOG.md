@@ -73,6 +73,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Native Wayland: Ctrl+C, Ctrl+X and Ctrl+V work in the panel's text
+  fields on Cyrillic, Greek and other non-Latin layouts**, as on X11:
+  they were read by the letter typed, which those layouts do not have.
 - **Native Wayland: a scene switched from the tray, D-Bus or the
   schedule is saved at once**, as on X11. It was left unsaved: the
   config named another scene than the one shown, an edit of the config
