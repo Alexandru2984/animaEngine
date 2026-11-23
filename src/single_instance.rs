@@ -187,7 +187,7 @@ fn snooze_for(minutes: u32) -> crate::snooze::SnoozeFor {
 /// instead of growing memory.
 struct WaylandActivationService {
     tx: std::sync::mpsc::SyncSender<AnimaEvent>,
-    /// The X11 service's budget ([`MAX_COMMANDS_PER_SECOND`]), shared by
+    /// The X11 service's budget ([`crate::event::MAX_COMMANDS_PER_SECOND`]), shared by
     /// both paths: there was none here, and a flood filled the channel
     /// the tray and the signal handler send into too (SEC-012).
     rate: std::sync::Arc<std::sync::Mutex<CommandRate>>,
