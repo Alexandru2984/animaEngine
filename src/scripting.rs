@@ -165,6 +165,10 @@ impl std::fmt::Display for ScriptError {
 
 impl std::error::Error for ScriptError {}
 
+/// How often a script's source is looked at on disk for an edit
+/// (`ScriptHost::source_mtime_now`).
+const RECHECK_SOURCE: std::time::Duration = std::time::Duration::from_secs(1);
+
 /// One Rhai engine plus the compiled scripts, keyed by whatever the
 /// caller uses to identify them (a library-relative path, in practice).
 ///
@@ -185,6 +189,16 @@ pub struct ScriptHost {
     /// error handling would cost more than the feature. The entry clears
     /// when the file changes, which is exactly when retrying is useful.
     failed: BTreeMap<String, Failed>,
+    /// Each script's source mtime as last looked up, when, and under which
+    /// library root: looked up again at most every [`RECHECK_SOURCE`].
+    looked: BTreeMap<
+        String,
+        (
+            std::time::Instant,
+            std::path::PathBuf,
+            Option<std::time::SystemTime>,
+        ),
+    >,
     /// Failures not yet reported to the user, drained by the app once per
     /// frame. Kept here rather than toasting from the tick path so this
     /// module stays free of UI.
@@ -323,6 +337,7 @@ impl ScriptHost {
             scopes: BTreeMap::new(),
             failed: BTreeMap::new(),
             unreported: Vec::new(),
+            looked: BTreeMap::new(),
             load: crate::sysload::SystemLoad::new(),
             pending_sounds,
             pending_speech,
@@ -366,7 +381,7 @@ impl ScriptHost {
         // Computed first, and tolerant of a path that doesn't resolve at
         // all: `None` is a legitimate answer that still lets the failure
         // be deduped, and lets a later "the user created the file" retry.
-        let mtime = self.source_mtime(root, rel);
+        let mtime = self.source_mtime_now(root, rel);
 
         // Already known broken, and the file hasn't moved: hand back the
         // same error without touching the disk again.
@@ -445,6 +460,27 @@ impl ScriptHost {
         tracing::warn!("behavior script {key}: {error}");
         self.unreported.push((key.to_string(), error.clone()));
         self.failed.insert(key.to_string(), Failed { error, mtime });
+    }
+
+    /// [`Self::source_mtime`], looked up on disk at most every
+    /// [`RECHECK_SOURCE`] for a script: each lookup is two `canonicalize`
+    /// and a `stat`, and it was made for every scripted character on every
+    /// frame (PERF-003). An edit is still picked up within a second.
+    fn source_mtime_now(
+        &mut self,
+        root: &std::path::Path,
+        rel: &str,
+    ) -> Option<std::time::SystemTime> {
+        let now = std::time::Instant::now();
+        if let Some((at, under, mtime)) = self.looked.get(rel) {
+            if under == root && now.duration_since(*at) < RECHECK_SOURCE {
+                return *mtime;
+            }
+        }
+        let mtime = self.source_mtime(root, rel);
+        self.looked
+            .insert(rel.to_string(), (now, root.to_path_buf(), mtime));
+        mtime
     }
 
     /// Source mtime for a library-relative script, for `note_failure`.
@@ -1154,6 +1190,24 @@ mod tests {
             .run("r.rhai", &mut scope, &inputs(), &BTreeMap::new())
             .unwrap();
         assert_eq!(second.x, 2.0, "edit did not take effect");
+    }
+
+    /// A script's file is looked at once a second, not on every frame —
+    /// two canonicalize and a stat for each scripted character (PERF-003):
+    /// gone the frame after, it still runs; a second on, it is missed.
+    #[test]
+    fn a_scripts_file_is_looked_at_once_a_second() {
+        let root = TempRoot::new("recheck");
+        root.write("s.rhai", "x += 1.0;");
+        let mut host = ScriptHost::new();
+        host.ensure_compiled(&root.0, "s.rhai").unwrap();
+        std::fs::remove_file(root.0.join("s.rhai")).unwrap();
+        assert!(
+            host.ensure_compiled(&root.0, "s.rhai").is_ok(),
+            "looked at again at once"
+        );
+        std::thread::sleep(RECHECK_SOURCE + std::time::Duration::from_millis(100));
+        assert!(host.ensure_compiled(&root.0, "s.rhai").is_err(), "and then");
     }
 
     // ── One-shot failure reporting ────────────────────────────────────
