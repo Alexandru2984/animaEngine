@@ -81,10 +81,13 @@ impl PointerHandler for WaylandState {
                     let dx = -horizontal.absolute as f32;
                     let dy = -vertical.absolute as f32;
                     if dx != 0.0 || dy != 0.0 {
+                        // With the keys held, as the clicks have: egui reads
+                        // Ctrl+wheel as zoom and Shift+wheel as sideways,
+                        // and got none (BUG-010).
                         self.pending_egui_events.push(egui::Event::MouseWheel {
                             unit: egui::MouseWheelUnit::Point,
                             delta: egui::vec2(dx, dy),
-                            modifiers: egui::Modifiers::NONE,
+                            modifiers: modifiers_to_egui(self.last_modifiers),
                         });
                     }
                 }
