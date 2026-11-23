@@ -4,7 +4,8 @@ use crate::error::{AnimaError, Result};
 use rayon::prelude::*;
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Condvar, Mutex, PoisonError};
 
 /// At most this many threads decode a sequence. They are the load's own
 /// and go when it is done: rayon's global pool would keep one per core
@@ -95,9 +96,10 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
     // every frame into memory and only then truncated, so a 1000-file
     // sequence of 4 K RGBA produced ~33 GB peak transient before the
     // post-hoc cap kicked in — a self-DoS path for a library scan.
-    // Worker threads check the shared running total before pushing
-    // their decoded frame and bail out once the cap would be crossed.
-    let total_bytes = AtomicUsize::new(0);
+    // And a frame's decode is counted before it starts (`DecodeBudget`):
+    // counted after, eight workers each held a 16-bit frame and its 8-bit
+    // copy at once — 1.4 GiB for 256 MiB kept (PERF-004).
+    let budget = DecodeBudget::new(MAX_DECODED_ASSET_BYTES);
     let truncated_for_bytes = AtomicBool::new(false);
     let decode = || -> Vec<Option<Frame>> {
         entries
@@ -106,30 +108,41 @@ pub fn load_png_sequence(dir_path: &Path) -> Result<Vec<Frame>> {
                 if truncated_for_bytes.load(Ordering::Acquire) {
                     return None;
                 }
-                let frame = match load_single_png(path) {
-                    Ok(f) => f,
+                let failed = |e: &dyn std::fmt::Display| {
+                    tracing::warn!(
+                        "Failed to load PNG {}: {}",
+                        crate::drop_validate::redact_path(path),
+                        e
+                    );
+                };
+                let (peak, out) = match decode_cost(path) {
+                    Ok(cost) => cost,
                     Err(e) => {
-                        tracing::warn!(
-                            "Failed to load PNG {}: {}",
-                            crate::drop_validate::redact_path(path),
-                            e
-                        );
+                        failed(&e);
                         return None;
                     }
                 };
-                let want = frame.rgba.len();
-                // Reserve our slice of the budget atomically. If the
-                // reservation crosses the cap, mark the run truncated and
-                // discard this frame (preserving ordering of the kept
-                // prefix — par_iter().collect() honours source order, so
-                // the trailing `None`s end up after any kept frame).
-                let prev = total_bytes.fetch_add(want, Ordering::AcqRel);
-                if prev.saturating_add(want) > MAX_DECODED_ASSET_BYTES {
-                    total_bytes.fetch_sub(want, Ordering::AcqRel);
+                if !budget.reserve(peak, out) {
                     truncated_for_bytes.store(true, Ordering::Release);
                     return None;
                 }
-                Some(frame)
+                let frame = match load_single_png(path) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        budget.done(peak, None);
+                        failed(&e);
+                        return None;
+                    }
+                };
+                // Kept if it still fits: the order the workers finish in
+                // decides near the cap (par_iter().collect() honours source
+                // order, so a refused frame leaves a gap or a short tail).
+                if budget.done(peak, Some(frame.rgba.len())) {
+                    Some(frame)
+                } else {
+                    truncated_for_bytes.store(true, Ordering::Release);
+                    None
+                }
             })
             .collect()
     };
@@ -223,9 +236,89 @@ pub(crate) fn is_frame(entry: &fs::DirEntry) -> bool {
         && entry.file_type().is_ok_and(|ft| ft.is_file())
 }
 
+/// What decoding the picture at `path` takes, from its header alone: at
+/// the peak — the picture as stored and its 8-bit RGBA copy, or the one
+/// buffer when it is stored so — and the frame kept after.
+fn decode_cost(path: &Path) -> image::ImageResult<(usize, usize)> {
+    use image::ImageDecoder;
+    let mut reader = image::ImageReader::open(path)?.with_guessed_format()?;
+    reader.limits(super::loader::decode_limits());
+    let decoder = reader.into_decoder()?;
+    let (w, h) = decoder.dimensions();
+    let pixels = w as usize * h as usize;
+    let out = pixels.saturating_mul(4);
+    let peak = match decoder.color_type() {
+        image::ColorType::Rgba8 => out,
+        stored => out.saturating_add(pixels.saturating_mul(usize::from(stored.bytes_per_pixel()))),
+    };
+    Ok((peak, out))
+}
+
+/// The decode budget a sequence's workers share: what the kept frames
+/// hold, and what the decodes under way take at their peak
+/// ([`decode_cost`]). A worker reserves a frame's peak before decoding it
+/// and keeps only the frame after; it waits while others' decodes hold the
+/// room, and is refused only when the kept frames leave none.
+struct DecodeBudget {
+    cap: usize,
+    /// (kept, under way).
+    held: Mutex<(usize, usize)>,
+    freed: Condvar,
+}
+
+impl DecodeBudget {
+    fn new(cap: usize) -> Self {
+        Self {
+            cap,
+            held: Mutex::new((0, 0)),
+            freed: Condvar::new(),
+        }
+    }
+
+    /// Room for a decode taking `peak` whose frame keeps `out`: at once
+    /// if it fits beside the kept frames and the decodes under way, when
+    /// they are done if not, and never when the kept frames leave no room
+    /// for `out`. With nothing else under way it goes even past the cap —
+    /// one frame's decode over it, at most.
+    fn reserve(&self, peak: usize, out: usize) -> bool {
+        let mut held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
+        loop {
+            let (kept, under_way) = *held;
+            if kept.saturating_add(out) > self.cap {
+                return false;
+            }
+            if under_way == 0 || kept + under_way + peak <= self.cap {
+                held.1 += peak;
+                return true;
+            }
+            held = self
+                .freed
+                .wait(held)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+    }
+
+    /// A decode reserved with `peak` is over: its frame, `out` bytes, is
+    /// kept if it still fits (`true`), or there was none.
+    fn done(&self, peak: usize, out: Option<usize>) -> bool {
+        let mut held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
+        held.1 -= peak;
+        let kept = match out {
+            Some(out) if held.0.saturating_add(out) <= self.cap => {
+                held.0 += out;
+                true
+            }
+            _ => false,
+        };
+        self.freed.notify_all();
+        kept
+    }
+}
+
 /// Load a single static PNG file
 pub fn load_single_png(path: &Path) -> Result<Frame> {
-    let img = super::loader::open_image(path)?.to_rgba8();
+    // Its own buffer when it is 8-bit RGBA already, not a copy of it.
+    let img = super::loader::open_image(path)?.into_rgba8();
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
     Ok(Frame::new(rgba, width, height))
@@ -474,6 +567,95 @@ mod tests {
         }
         let _ = std::fs::remove_dir_all(&dir);
         assert!(got.is_ok(), "the probe opened the FIFO and waited");
+    }
+
+    /// The shared decode budget: a decode waits while others hold the
+    /// room and goes once they are done; one that fits beside nothing goes
+    /// even past the cap; a frame is refused only when the kept ones leave
+    /// no room for it (PERF-004).
+    #[test]
+    fn the_decode_budget_waits_rather_than_refuses() {
+        let budget = std::sync::Arc::new(DecodeBudget::new(100));
+        // Alone: a peak over the cap still goes, its output fitting.
+        assert!(budget.reserve(150, 40));
+        // Another must wait for it.
+        let other = {
+            let budget = budget.clone();
+            std::thread::spawn(move || budget.reserve(60, 30))
+        };
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        assert!(!other.is_finished(), "waits while the first decodes");
+        assert!(budget.done(150, Some(40)), "kept: 40 of 100");
+        assert!(other.join().unwrap(), "then goes");
+        assert!(budget.done(60, Some(30)), "kept: 70 of 100");
+        // 70 kept leaves no room for 40 more: refused, not waited for.
+        assert!(!budget.reserve(50, 40));
+        // A frame that came out larger than said is not kept past the cap.
+        assert!(budget.reserve(20, 20));
+        assert!(!budget.done(20, Some(40)));
+        assert_eq!(*budget.held.lock().unwrap(), (70, 0));
+    }
+
+    /// What a picture takes to decode is read from its header: an 8-bit
+    /// RGBA one is decoded into its own buffer, a 16-bit one needs its
+    /// copy besides.
+    #[test]
+    fn a_pictures_decode_cost_comes_from_its_header() {
+        let dir = temp_dir("decode_cost");
+        write_colored_png(&dir.join("rgba8.png"), 10, 20, [1, 2, 3, 255]);
+        image::ImageBuffer::<image::Rgba<u16>, _>::from_pixel(10, 20, image::Rgba([1, 2, 3, 4]))
+            .save(dir.join("rgba16.png"))
+            .unwrap();
+        assert_eq!(decode_cost(&dir.join("rgba8.png")).unwrap(), (800, 800));
+        assert_eq!(
+            decode_cost(&dir.join("rgba16.png")).unwrap(),
+            (800 + 1600, 800)
+        );
+        assert!(decode_cost(&dir.join("missing.png")).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The memory a sequence of large frames takes while it decodes stays
+    /// near the decode budget: eight workers each held a 16-bit frame and
+    /// its 8-bit copy at once, before any of it was counted (PERF-004).
+    /// Heavy — twelve 4096² 16-bit frames — so run it alone:
+    /// `cargo test --release --lib decode_peak -- --ignored --test-threads=1`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore]
+    fn decode_peak_stays_near_the_budget() {
+        fn peak_kib() -> usize {
+            std::fs::read_to_string("/proc/self/status")
+                .unwrap()
+                .lines()
+                .find_map(|l| l.strip_prefix("VmHWM:"))
+                .and_then(|v| v.trim().trim_end_matches("kB").trim().parse().ok())
+                .unwrap()
+        }
+        let dir = temp_dir("decode_peak");
+        let side = crate::constants::MAX_IMAGE_DIM;
+        let img = image::ImageBuffer::<image::Rgba<u16>, _>::from_pixel(
+            side,
+            side,
+            image::Rgba([40_000, 20_000, 10_000, 65_535]),
+        );
+        for i in 0..12 {
+            img.save(dir.join(format!("frame_{i:03}.png"))).unwrap();
+        }
+        drop(img);
+        // The high-water mark from here (Linux: 5 resets it).
+        std::fs::write("/proc/self/clear_refs", "5").unwrap();
+        let base = peak_kib();
+        let frames = load_png_sequence(&dir).unwrap();
+        let rose_mib = (peak_kib() - base) / 1024;
+        let kept_mib = frames.iter().map(|f| f.rgba.len()).sum::<usize>() / (1024 * 1024);
+        drop(frames);
+        let _ = std::fs::remove_dir_all(&dir);
+        let budget_mib = crate::constants::MAX_DECODED_ASSET_BYTES / (1024 * 1024);
+        eprintln!("decode peak rose {rose_mib} MiB, kept {kept_mib} MiB, budget {budget_mib} MiB");
+        // The budget, and one frame's decode besides.
+        let one_frame_mib = (side as usize * side as usize * 12) / (1024 * 1024);
+        assert!(rose_mib <= budget_mib + one_frame_mib, "{rose_mib} MiB");
     }
 
     #[test]

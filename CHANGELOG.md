@@ -79,6 +79,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Loading a folder of large frames takes far less memory.** A
+  sequence of big pictures could take over a gigabyte for a moment
+  while it loaded, five times what it keeps; it now stays close to the
+  256 MB a character's frames may take.
 - **Settings a newer version added to a reminder, a scheduled scene, a
   character's walk, fall or drag animation, or a character's behavior
   are kept.** They were dropped when this version read the file and
