@@ -221,8 +221,24 @@ fn bench_group_transform(c: &mut Criterion) {
     });
 }
 
+/// When a 600-frame eased animation's next frame is due — what the pacing
+/// asks of every visible animation each frame. The interval under a
+/// bouncing curve was normalised by a sum over every frame, worked out
+/// again on each ask (PERF-003).
+fn bench_eased_frame_due(c: &mut Criterion) {
+    let frames = (0..600)
+        .map(|_| generate_fallback_frame([200, 100, 50, 255], 8))
+        .collect();
+    let mut animation = Animation::new(frames, 24.0, true);
+    animation.easing = Some(anima_engine::anim::EasingCurve::BounceOut);
+    c.bench_function("eased_frame_due/bounce_600", |b| {
+        b.iter(|| black_box(&animation).next_frame_due())
+    });
+}
+
 criterion_group!(
     benches,
+    bench_eased_frame_due,
     bench_scene_tick,
     bench_scripted_scene_tick,
     bench_visible_entities,

@@ -162,6 +162,19 @@ impl EasingCurve {
     /// curves the deltas are already positive and sum to exactly
     /// `f(1) - f(0) = 1`, so this reduces to the raw-delta formula.
     pub fn frame_interval(self, frame_index: usize, frame_count: usize, total: f32) -> f32 {
+        self.frame_interval_in(frame_index, frame_count, total, self.abs_sum(frame_count))
+    }
+
+    /// [`Self::frame_interval`] with the sum of the `frame_count` absolute
+    /// deltas given ([`Self::abs_sum`]): worked out again on every ask, it
+    /// made each one cost a pass over every frame (PERF-003).
+    pub fn frame_interval_in(
+        self,
+        frame_index: usize,
+        frame_count: usize,
+        total: f32,
+        abs_sum: f32,
+    ) -> f32 {
         if frame_count == 0 {
             return total;
         }
@@ -170,20 +183,30 @@ impl EasingCurve {
         let t0 = (i / n).clamp(0.0, 1.0);
         let t1 = ((i + 1.0) / n).clamp(0.0, 1.0);
         let delta = (self.apply(t1) - self.apply(t0)).abs();
-
-        let abs_sum: f32 = (0..frame_count)
-            .map(|k| {
-                let a = (k as f32 / n).clamp(0.0, 1.0);
-                let b = ((k as f32 + 1.0) / n).clamp(0.0, 1.0);
-                (self.apply(b) - self.apply(a)).abs()
-            })
-            .sum();
         // Degenerate flat curve — split the loop evenly rather than
         // dividing by zero.
         if abs_sum <= f32::EPSILON {
             return total / n;
         }
         delta / abs_sum * total
+    }
+
+    /// The sum of the absolute deltas over `frame_count` even steps — what
+    /// [`Self::frame_interval`] normalises by. A monotonic curve's is its
+    /// whole rise, `f(1) - f(0)`; only `BounceOut` goes down on the way,
+    /// and needs the pass over every step.
+    pub fn abs_sum(self, frame_count: usize) -> f32 {
+        if self != Self::BounceOut {
+            return (self.apply(1.0) - self.apply(0.0)).abs();
+        }
+        let n = frame_count as f32;
+        (0..frame_count)
+            .map(|k| {
+                let a = (k as f32 / n).clamp(0.0, 1.0);
+                let b = ((k as f32 + 1.0) / n).clamp(0.0, 1.0);
+                (self.apply(b) - self.apply(a)).abs()
+            })
+            .sum()
     }
 }
 

@@ -86,6 +86,10 @@ pub struct Animation {
     pub easing: Option<crate::anim::EasingCurve>,
     /// See [`Animation::steady_margins`]; worked out the first time asked.
     margins: std::sync::OnceLock<(f32, f32)>,
+    /// The easing's normaliser for these frames (`EasingCurve::abs_sum`),
+    /// for the curve and count it was worked out for: a pass over every
+    /// frame, once, not on every ask of the next frame's time (PERF-003).
+    easing_sum: std::sync::Mutex<Option<(crate::anim::EasingCurve, usize, f32)>>,
     /// How fast it plays, runtime-only: 1 as made, more or less with the
     /// time of day (`crate::moods`). Divides every frame's hold.
     pub tempo: f32,
@@ -112,6 +116,7 @@ impl Animation {
             largest: largest_side(&frames),
             pixel_scale: pixel_scale_of(largest_side(&frames)),
             margins: std::sync::OnceLock::new(),
+            easing_sum: std::sync::Mutex::new(None),
             tempo: 1.0,
             kept_at: None,
             frames,
@@ -241,7 +246,22 @@ impl Animation {
         let interval = match self.easing {
             None | Some(crate::anim::EasingCurve::Linear) => 1.0 / self.fps,
             Some(curve) => {
-                curve.frame_interval(self.current_frame, self.frames.len(), baseline_total)
+                let n = self.frames.len();
+                let sum = {
+                    let mut held = self
+                        .easing_sum
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    match *held {
+                        Some((c, count, sum)) if c == curve && count == n => sum,
+                        _ => {
+                            let sum = curve.abs_sum(n);
+                            *held = Some((curve, n, sum));
+                            sum
+                        }
+                    }
+                };
+                curve.frame_interval_in(self.current_frame, n, baseline_total, sum)
             }
         };
         // Defensive: an extreme curve at very low frame count can in
@@ -669,6 +689,35 @@ mod tests {
             anim.current_frame_duration() <= plain * 4,
             "held within bounds"
         );
+    }
+
+    /// The easing's normaliser is worked out once and kept, and what a
+    /// frame holds is what the curve says — after a change of curve too
+    /// (PERF-003: it was a pass over every frame on each ask).
+    #[test]
+    fn an_eased_frames_hold_is_the_curves_with_the_sum_kept() {
+        use crate::anim::EasingCurve;
+        let frames = (0..120).map(|_| Frame::new(vec![0; 4], 1, 1)).collect();
+        let mut a = Animation::new(frames, 24.0, true);
+        let total = 120.0 / 24.0;
+        for curve in [
+            EasingCurve::BounceOut,
+            EasingCurve::Sine,
+            EasingCurve::BounceOut,
+        ] {
+            a.easing = Some(curve);
+            for i in [0, 1, 59, 119] {
+                a.current_frame = i;
+                let want = curve.frame_interval(i, 120, total).max(0.001);
+                let got = a.current_frame_duration().as_secs_f32();
+                assert!(
+                    (got - want).abs() < 1e-6,
+                    "{curve:?} frame {i}: {got} vs {want}"
+                );
+            }
+        }
+        // A monotonic curve's sum is its whole rise.
+        assert_eq!(EasingCurve::EaseInOutQuad.abs_sum(600), 1.0);
     }
 
     fn two_frame_anim() -> Animation {
