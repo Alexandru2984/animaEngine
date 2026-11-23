@@ -236,8 +236,28 @@ fn bench_eased_frame_due(c: &mut Criterion) {
     });
 }
 
+/// What is drawn, back to front, for 64 characters in eight groups — asked
+/// two or three times a frame by both loops. It filtered every character
+/// through the groups and sorted them anew each time (PERF-003).
+fn bench_drawn_entities(c: &mut Criterion) {
+    let mut scene = build_scene(64);
+    for g in 0..8 {
+        let members: Vec<usize> = (g * 8..g * 8 + 8).collect();
+        scene.group_entities(&members, |n| format!("Group {n}"));
+    }
+    scene.tick(
+        anima_engine::monitor::DesktopBounds::from_size(1920.0, 1080.0),
+        None,
+        None,
+    );
+    c.bench_function("drawn_entities/64_in_8_groups", |b| {
+        b.iter(|| black_box(scene.drawn_entities().len()))
+    });
+}
+
 criterion_group!(
     benches,
+    bench_drawn_entities,
     bench_eased_frame_due,
     bench_scene_tick,
     bench_scripted_scene_tick,

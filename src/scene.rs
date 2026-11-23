@@ -633,13 +633,47 @@ impl Scene {
     }
 
     /// What is drawn, back to front: who can be seen, and who is still
-    /// fading out.
+    /// fading out. From the visible set as kept (`visible_cache`), sorted
+    /// already: each character went through the groups and the lot was
+    /// sorted anew, two or three times a frame (PERF-003). Only while one
+    /// hidden is still fading out is the order worked out again.
     pub fn drawn_entities(&self) -> Vec<&Entity> {
+        let drawn = self.drawn_order();
+        debug_assert_eq!(
+            drawn,
+            self.drawn_order_afresh(),
+            "the visible set as kept is stale: a change of visibility or z-order \
+             without mark_visible_dirty"
+        );
+        drawn.into_iter().map(|i| &self.entities[i]).collect()
+    }
+
+    /// [`Self::drawn_entities`], as indices.
+    fn drawn_order(&self) -> Vec<usize> {
+        self.refresh_visible_cache();
+        let cache = self.visible_cache.borrow();
+        let mut shown = vec![false; self.entities.len()];
+        for &i in &cache.indices {
+            shown[i] = true;
+        }
+        let fading_out = |i: usize| !shown[i] && self.entities[i].fade > 0.0;
+        if !(0..self.entities.len()).any(fading_out) {
+            return cache.indices.clone();
+        }
+        let mut order: Vec<usize> = (0..self.entities.len())
+            .filter(|&i| shown[i] || fading_out(i))
+            .collect();
+        order.sort_by_key(|&i| self.entities[i].z_index);
+        order
+    }
+
+    /// What is drawn, worked out from nothing: the check on the kept set.
+    fn drawn_order_afresh(&self) -> Vec<usize> {
         let mut order: Vec<usize> = (0..self.entities.len())
             .filter(|&i| self.effective_visible(i) || self.entities[i].fade > 0.0)
             .collect();
         order.sort_by_key(|&i| self.entities[i].z_index);
-        order.into_iter().map(|i| &self.entities[i]).collect()
+        order
     }
 
     /// Bigger text in every bubble (`crate::speech::LARGE`). Cheap, called
@@ -909,19 +943,22 @@ impl Scene {
     /// from cached indices, not a full filter + sort. The cache is invalidated
     /// on add/remove and via `mark_visible_dirty` for direct field changes.
     pub fn visible_entities(&self) -> Vec<&Entity> {
-        {
-            let mut cache = self.visible_cache.borrow_mut();
-            if !cache.valid {
-                cache.indices.clear();
-                cache
-                    .indices
-                    .extend((0..self.entities.len()).filter(|&i| self.effective_visible(i)));
-                cache.indices.sort_by_key(|&i| self.entities[i].z_index);
-                cache.valid = true;
-            }
-        }
+        self.refresh_visible_cache();
         let cache = self.visible_cache.borrow();
         cache.indices.iter().map(|&i| &self.entities[i]).collect()
+    }
+
+    /// Work the visible set out again if it was marked stale.
+    fn refresh_visible_cache(&self) {
+        let mut cache = self.visible_cache.borrow_mut();
+        if !cache.valid {
+            cache.indices.clear();
+            cache
+                .indices
+                .extend((0..self.entities.len()).filter(|&i| self.effective_visible(i)));
+            cache.indices.sort_by_key(|&i| self.entities[i].z_index);
+            cache.valid = true;
+        }
     }
 
     /// Resolve effective visibility for the entity at `idx`, folding
@@ -1318,6 +1355,42 @@ mod tests {
             e.z_index = i32::MAX - 3;
         }
         assert_eq!(scene.next_z_index(), i32::MAX);
+    }
+
+    /// What is drawn comes from the visible set as kept, and follows it:
+    /// a group hidden, one still fading out, the group shown again — in
+    /// z-order throughout (PERF-003; the debug check compares each answer
+    /// with one worked out afresh).
+    #[test]
+    fn what_is_drawn_follows_the_kept_visible_set() {
+        let mut scene = Scene::from_config(&AppConfig::default());
+        for e in &mut scene.entities {
+            e.fade = 1.0;
+        }
+        let n = scene.entities.len();
+        let ids = |scene: &Scene| -> Vec<String> {
+            scene
+                .drawn_entities()
+                .iter()
+                .map(|e| e.id.clone())
+                .collect()
+        };
+        let all = ids(&scene);
+        assert_eq!(all.len(), n);
+        let z: Vec<i32> = scene.drawn_entities().iter().map(|e| e.z_index).collect();
+        assert!(z.windows(2).all(|w| w[0] <= w[1]), "back to front");
+        scene.group_entities(&[0, 1], |k| format!("Group {k}"));
+        scene.groups[0].visible = false;
+        scene.mark_visible_dirty();
+        // Hidden, but still fading out: drawn.
+        assert_eq!(ids(&scene).len(), n);
+        for i in [0, 1] {
+            scene.entities[i].fade = 0.0;
+        }
+        assert_eq!(ids(&scene).len(), n - 2, "gone once faded");
+        scene.groups[0].visible = true;
+        scene.mark_visible_dirty();
+        assert_eq!(ids(&scene), all, "back, in the same order");
     }
 
     #[test]
