@@ -79,6 +79,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **X11, several monitors: the overlay follows a change of monitor
+  mode, and Center on screen stays on its monitor.** Switching from one
+  monitor to every monitor left the main overlay window where it was, on
+  top of the new one there, so clicks and drawing no longer matched; it
+  now moves to its monitor (also when a monitor is plugged in or out).
+  Center on screen, the arrow keys' limits and a character added from
+  the Library worked as if the overlay always started at the first
+  monitor: on the second, a centred character vanished onto the first.
 - **A character you hold stays under the pointer.** A walking, bouncing
   or scripted character went on moving between two moves of the
   pointer, slid out from under it and jumped back; flinching from the

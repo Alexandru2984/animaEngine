@@ -453,6 +453,40 @@ impl App {
             // The new window gets the keyboard hint on the next frame.
             self.focusable = None;
         }
+        // Made click-through above; in edit mode they take the pointer like
+        // the primary — a switch of monitor mode in Appearance happens in
+        // edit mode, and left the new extras unclickable (BUG-009).
+        self.reapply_extra_input_shapes();
+    }
+
+    /// Put the primary window where the plan puts it now: the monitor mode
+    /// changed, or a monitor came or went. It was placed once, at start —
+    /// from Single on one monitor to PerMonitor it stayed there, under the
+    /// new extra, while `primary_origin` already named the primary monitor,
+    /// so what it drew and where the pointer hit no longer agreed
+    /// (BUG-009). Span names no monitor: the desktop's origin, as
+    /// `primary_origin` says.
+    fn place_primary_window(&mut self) {
+        let Some(window) = self.window.clone() else {
+            return;
+        };
+        let plan = monitor::plan_windows(&self.config.global.monitor_mode, &self.monitors);
+        let now = window.inner_size();
+        let ((w, h), pos) = primary_window_geometry(
+            &plan,
+            (
+                self.config.global.window_width,
+                self.config.global.window_height,
+            ),
+            (now.width, now.height),
+        );
+        let (x, y) = pos.unwrap_or((0, 0));
+        if (now.width, now.height) != (w, h) {
+            // The renderer and the input shape follow on `Resized`.
+            let _ = window.request_inner_size(winit::dpi::PhysicalSize::new(w, h));
+        }
+        window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y));
+        tracing::info!("Primary overlay window placed at {x},{y} ({w}x{h})");
     }
 
     /// Hotplug detection (T.9). winit has no monitor-change event on
@@ -503,6 +537,7 @@ impl App {
 
         crate::monitor::log_topology(&fresh);
         self.monitors = fresh;
+        self.place_primary_window();
         self.rebuild_extra_windows(event_loop);
         self.request_redraw_all();
     }
@@ -516,6 +551,7 @@ impl App {
                 self.last_monitor_mode,
                 self.config.global.monitor_mode
             );
+            self.place_primary_window();
             self.rebuild_extra_windows(event_loop);
             self.request_redraw_all();
         }
