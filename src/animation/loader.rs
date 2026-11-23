@@ -515,12 +515,20 @@ pub(crate) fn open_image(path: &Path) -> image::ImageResult<image::DynamicImage>
 /// Generate a fallback frame — a simple colored rectangle
 /// Used when asset loading fails
 pub fn generate_fallback_frame(color: [u8; 4], size: u32) -> Frame {
-    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
-    for y in 0..size {
-        for x in 0..size {
+    generate_fallback_frame_in(color, size, size)
+}
+
+/// [`generate_fallback_frame`]'s circle for `size`, in the middle of a
+/// `canvas` a side: frames of one animation that share a size update
+/// their texture in place, where one of another size builds it anew.
+pub fn generate_fallback_frame_in(color: [u8; 4], size: u32, canvas: u32) -> Frame {
+    let canvas = canvas.max(size);
+    let mut rgba = Vec::with_capacity((canvas * canvas * 4) as usize);
+    for y in 0..canvas {
+        for x in 0..canvas {
             // Create a simple shape with rounded corners
-            let cx = size as f32 / 2.0;
-            let cy = size as f32 / 2.0;
+            let cx = canvas as f32 / 2.0;
+            let cy = canvas as f32 / 2.0;
             let dx = x as f32 - cx;
             let dy = y as f32 - cy;
             let dist = (dx * dx + dy * dy).sqrt();
@@ -537,7 +545,7 @@ pub fn generate_fallback_frame(color: [u8; 4], size: u32) -> Frame {
             }
         }
     }
-    Frame::new(rgba, size, size)
+    Frame::new(rgba, canvas, canvas)
 }
 
 #[cfg(test)]

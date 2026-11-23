@@ -1,4 +1,4 @@
-use crate::animation::loader::{generate_fallback_frame, load_asset};
+use crate::animation::loader::{generate_fallback_frame_in, load_asset};
 use crate::animation::Animation;
 use crate::config::{AppConfig, CharacterConfig};
 use crate::constants::{max_total_decoded_bytes, MAX_DROP_SIZE, MAX_ENTITIES};
@@ -384,11 +384,14 @@ impl Scene {
             _ => [255, 200, 100, 200],       // Orange
         };
 
-        // Generate 3 frames with slight size variation for animation
+        // Generate 3 frames with slight size variation for animation, on
+        // one canvas: frames of other sizes built a new texture, sampler and
+        // bind group at every step (PERF-003).
+        const CANVAS: u32 = 72;
         let frames: Vec<_> = (0..3)
             .map(|i| {
                 let size = 64 + (i as u32) * 4;
-                generate_fallback_frame(color, size)
+                generate_fallback_frame_in(color, size, CANVAS)
             })
             .collect();
 
@@ -1355,6 +1358,25 @@ mod tests {
             e.z_index = i32::MAX - 3;
         }
         assert_eq!(scene.next_z_index(), i32::MAX);
+    }
+
+    /// The stand-in for a character whose picture did not load pulses on
+    /// one canvas: its frames were 64, 68 and 72 px, and a frame of another
+    /// size makes the renderer build a new texture, sampler and bind group
+    /// at every step (PERF-003).
+    #[test]
+    fn the_stand_ins_frames_share_one_size() {
+        let mut config = make_entity("gone", 0, true).to_config();
+        config.asset_path = "/nowhere/at/all.png".into();
+        let entity = Scene::create_fallback_entity(&config);
+        let frames = &entity.animations.current().frames;
+        assert!(frames.len() > 1, "it still pulses");
+        let size = (frames[0].width, frames[0].height);
+        assert!(
+            frames.iter().all(|f| (f.width, f.height) == size),
+            "one size"
+        );
+        assert_ne!(frames[0].rgba, frames[frames.len() - 1].rgba, "a pulse");
     }
 
     /// What is drawn comes from the visible set as kept, and follows it:
