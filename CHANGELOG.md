@@ -73,6 +73,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **X11: poking a character in edit mode no longer saves the settings
+  and says "Config saved" each time.** A tap changes nothing of yours;
+  a drag that moves a character is still saved at once.
 - **X11: a global shortcut changed while the app runs works at once.**
   Changed in the Keybindings tab or in `config.toml`, it was grabbed
   only at the next start — the old one went on working, the new one did

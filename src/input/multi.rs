@@ -230,6 +230,14 @@ pub fn cancel(
     true
 }
 
+/// Whether letting go of a press on a character is an edit, to be saved:
+/// a drag is. A tap pokes the character and changes nothing of the
+/// user's; on the winit path each one wrote the whole config and said
+/// "Config saved" (BUG-016).
+pub fn release_is_an_edit(tapped: bool) -> bool {
+    !tapped
+}
+
 /// A selection rectangle being dragged over empty space.
 #[derive(Debug, Clone)]
 pub struct Marquee {
@@ -466,6 +474,12 @@ mod tests {
         end_drag(&mut s, &mut sel, &mut drag, false, false, |_| {});
         assert_eq!(sel.count(), 2, "a real drag keeps the group");
         assert!(s.entities.iter().all(|e| !e.dragging));
+    }
+
+    #[test]
+    fn a_tap_is_no_edit_and_a_drag_is() {
+        assert!(!release_is_an_edit(true), "a poke");
+        assert!(release_is_an_edit(false), "a drag");
     }
 
     #[test]

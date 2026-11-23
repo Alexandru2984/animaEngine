@@ -355,8 +355,13 @@ impl App {
                         self.history.finish(scene);
                     },
                 );
-                self.config_dirty = true;
-                self.save_config_if_needed();
+                // A drag is an edit, saved at once. A tap pokes: nothing
+                // of the user's changed, and every poke wrote the whole
+                // config and said "Config saved" (BUG-016).
+                if crate::input::multi::release_is_an_edit(tapped) {
+                    self.config_dirty = true;
+                    self.save_config_if_needed();
+                }
             }
             _ => {}
         }

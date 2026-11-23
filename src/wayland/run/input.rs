@@ -559,7 +559,9 @@ impl Native {
                                 history.finish(scene);
                             },
                         );
-                        *config_dirty = true;
+                        // A poke changes nothing of the user's: no save
+                        // for it (`multi::release_is_an_edit`).
+                        *config_dirty |= crate::input::multi::release_is_an_edit(tapped);
                     }
                     egui::Event::PointerMoved(pos) if marquee.is_some() => {
                         let at = (pos.x + primary_origin.0, pos.y + primary_origin.1);
