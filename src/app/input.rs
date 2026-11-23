@@ -48,8 +48,10 @@ impl App {
         }
     }
 
-    /// The region the overlay covers, which a poke's recoil stays in.
-    fn poke_bounds(&self) -> crate::monitor::DesktopBounds {
+    /// The region the overlay covers, in desktop coordinates: what a
+    /// poke's recoil stays in, and what the keyboard's actions arrange
+    /// within (`dispatch_action`).
+    pub(super) fn covered_bounds(&self) -> crate::monitor::DesktopBounds {
         let fallback = self
             .window
             .as_ref()
@@ -234,7 +236,7 @@ impl App {
                             self.tap_gesture
                                 .release(&self.scene, self.mouse_x, self.mouse_y)
                         {
-                            let bounds = self.poke_bounds();
+                            let bounds = self.covered_bounds();
                             crate::tap::poke(&mut self.scene, idx, self.mouse_x, bounds);
                             self.request_redraw_all();
                         }
@@ -335,7 +337,7 @@ impl App {
                 // shove a mascot off the region it's allowed to occupy —
                 // and, on a multi-monitor desktop, doesn't clamp one that
                 // lives on a secondary monitor back onto the primary.
-                let poke_bounds = self.poke_bounds();
+                let poke_bounds = self.covered_bounds();
                 // Drop the freeze. Physics remains whatever the user set —
                 // off by default (entity stays put), on if they pressed G.
                 if tapped {

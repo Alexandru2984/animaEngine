@@ -50,14 +50,11 @@ impl App {
             // `keybindings::shared`, so the native Wayland loop can run it
             // too — it previously handled one action out of twenty-eight.
             other => {
-                let bounds = self
-                    .window
-                    .as_ref()
-                    .map(|w| {
-                        let s = w.inner_size();
-                        crate::monitor::DesktopBounds::from_size(s.width as f32, s.height as f32)
-                    })
-                    .unwrap_or_else(|| crate::monitor::DesktopBounds::from_size(1920.0, 1080.0));
+                // What the overlay covers, in desktop coordinates. It was
+                // the primary window's size at (0, 0): on a monitor right
+                // of the first, Center on screen put the selection on the
+                // first, where nothing is drawn in Single (BUG-009).
+                let bounds = self.covered_bounds();
                 let mut ctx = crate::keybindings::shared::ActionCtx {
                     scene: &mut self.scene,
                     selection: &mut self.selection,

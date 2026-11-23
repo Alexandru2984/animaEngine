@@ -170,15 +170,18 @@ impl App {
 
     pub(super) fn handle_library_outcome(&mut self, outcome: panels::LibraryOutcome) {
         // Drop in the middle of the visible viewport, falling back to
-        // a sensible default when the window isn't fully wired yet.
+        // a sensible default when the window isn't fully wired yet — in
+        // desktop coordinates: the window's own put it on the first
+        // monitor whatever the one the overlay is on (BUG-009).
+        let (ox, oy) = self.primary_origin();
         let at = self
             .window
             .as_ref()
             .map(|w| {
                 let size = w.inner_size();
-                (size.width as f32 / 2.0, size.height as f32 / 2.0)
+                (ox + size.width as f32 / 2.0, oy + size.height as f32 / 2.0)
             })
-            .unwrap_or((400.0, 300.0));
+            .unwrap_or((ox + 400.0, oy + 300.0));
         outcomes::apply_library_outcome(
             outcome,
             &mut outcome_ctx!(self),
