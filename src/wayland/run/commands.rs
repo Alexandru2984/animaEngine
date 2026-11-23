@@ -214,7 +214,18 @@ impl Native {
             if let Some(rx) = &portal_rx {
                 use crate::hotkeys::portal::PortalMsg;
                 use crate::keybindings::Action as KbAction;
-                while let Ok(msg) = rx.try_recv() {
+                // Read to its end; a portal gone without a word left the
+                // Keybindings tab saying "waiting" for good (BUG-010).
+                let mut gone = false;
+                loop {
+                    let msg = match rx.try_recv() {
+                        Ok(msg) => msg,
+                        Err(mpsc::TryRecvError::Empty) => break,
+                        Err(mpsc::TryRecvError::Disconnected) => {
+                            gone = true;
+                            break;
+                        }
+                    };
                     *activity = true;
                     match msg {
                         PortalMsg::Ready => {
@@ -255,6 +266,10 @@ impl Native {
                             _ => {}
                         },
                     }
+                }
+                if gone && *hotkey_backend_status == HotkeyStatus::PortalAwaiting {
+                    tracing::warn!("Portal shortcuts: the portal's thread ended unanswered");
+                    *hotkey_backend_status = HotkeyStatus::CompositorBindings;
                 }
             }
             // Snoozing out of edit mode: the panel goes with the rest.
