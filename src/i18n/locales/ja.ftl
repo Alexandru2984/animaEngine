@@ -535,6 +535,7 @@ keybindings-backend-grab-declined = アプリ自身（ショートカットの�
 keybindings-backend-compositor = なし — コンポジターでキーを割り当てるか、トレイメニューを使ってください
 keybindings-backend-tray = なし — トレイメニューを使ってください
 keybindings-portal-restart-hint = トリガーの変更は次回起動時に反映されます（デスクトップが承認を記憶します）。
+keybindings-restart-hint = トリガーの変更は次回起動時に反映されます。
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = { $n ->

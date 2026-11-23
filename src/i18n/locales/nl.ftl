@@ -538,6 +538,7 @@ keybindings-backend-grab-declined = De app zelf (toestemming voor sneltoetsen ge
 keybindings-backend-compositor = Geen — wijs toetsen toe in uw compositor, of gebruik het menu in het systeemvak
 keybindings-backend-tray = Geen — gebruik het menu in het systeemvak
 keybindings-portal-restart-hint = Triggerwijzigingen gelden vanaf de volgende start (de desktop onthoudt uw goedkeuring).
+keybindings-restart-hint = Triggerwijzigingen gelden vanaf de volgende start.
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = { $n ->

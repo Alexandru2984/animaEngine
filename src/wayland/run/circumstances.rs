@@ -82,6 +82,9 @@ impl Native {
             !config.reminders.is_empty() || global.welcome_back,
         );
         layer.set_idle_timeout(idle_watch);
+        // The XGrabKey fallback, when the portal was declined, follows a
+        // changed shortcut as on the winit path (`crate::hotkeys::follow`).
+        crate::hotkeys::follow(&config.keybindings);
         crate::away::configure(
             idle_watch,
             global.pause_on_battery || global.frame_rate.watches_battery(),

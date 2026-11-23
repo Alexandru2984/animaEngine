@@ -1,6 +1,7 @@
 //! Global shortcuts on X11: grabbed on the root window (`XGrabKey`) and
 //! waited for. The thread sleeps in the X server's socket until one is
-//! pressed, or the keyboard's layout changes.
+//! pressed, the keyboard's layout changes, or the app's shortcuts do
+//! ([`follow`]: a pipe wakes it, and it grabs them anew).
 //!
 //! The `global-hotkey` crate did this on unix before 1.5, and polled its
 //! connection every 50 ms in between — twenty wake-ups a second, all day,
@@ -8,12 +9,75 @@
 //! system delivers them.
 
 use crate::keybindings::{Action, KeyChord, KeyCode, ModifierMask, NamedKey, SymbolKey};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::sync::{Mutex, OnceLock};
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::protocol::xproto::{
     ConnectionExt, GrabMode, KeyButMask, Keycode, Mapping, ModMask, Window,
 };
 use x11rb::protocol::{ErrorKind, Event};
 use x11rb::rust_connection::RustConnection;
+
+/// The way a change to the shortcuts reaches the grabber's thread: the
+/// chords it was last told, the ones to take next, and the pipe's end that
+/// wakes it. Set once a grabber serves; one grabber a process.
+struct Follow {
+    told: Mutex<Vec<(KeyChord, Action)>>,
+    next: Mutex<Option<Vec<(KeyChord, Action)>>>,
+    wake: OwnedFd,
+}
+
+static FOLLOW: OnceLock<Follow> = OnceLock::new();
+
+/// Whether a grabber serves, so that [`follow`] has someone to tell.
+pub fn serving() -> bool {
+    FOLLOW.get().is_some()
+}
+
+/// Grab `chords` from now on instead, unless they are the ones the grabber
+/// was last told: a change in the Keybindings tab, or a hot reload of the
+/// config. They were grabbed once, at start, and a changed shortcut did
+/// nothing until a restart (BUG-016). Cheap when nothing changed: the
+/// winit loop asks every frame (`hotkeys::follow`).
+pub fn follow(chords: Vec<(KeyChord, Action)>) {
+    let Some(f) = FOLLOW.get() else {
+        return;
+    };
+    let Ok(mut told) = f.told.lock() else {
+        return;
+    };
+    if *told == chords {
+        return;
+    }
+    told.clone_from(&chords);
+    if let Ok(mut next) = f.next.lock() {
+        *next = Some(chords);
+    }
+    // One byte wakes it; with the pipe full, it is awake already.
+    // SAFETY: one byte from a live local, to the pipe's write end, which
+    // `FOLLOW` owns for the life of the process.
+    let _ = unsafe { libc::write(f.wake.as_raw_fd(), [1u8].as_ptr().cast(), 1) };
+}
+
+/// A pipe, both ends kept from children and the read end not blocking:
+/// (read, write).
+fn wake_pipe() -> Option<(OwnedFd, OwnedFd)> {
+    let mut fds = [0; 2];
+    // SAFETY: `pipe` fills the two-int array it is given.
+    if unsafe { libc::pipe(fds.as_mut_ptr()) } != 0 {
+        return None;
+    }
+    // SAFETY: both descriptors were just made, and are owned from here.
+    let (read, write) = unsafe { (OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1])) };
+    for fd in [&read, &write] {
+        // SAFETY: fcntl on a descriptor we own.
+        unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_SETFD, libc::FD_CLOEXEC) };
+    }
+    // SAFETY: as above. The write end may block: a byte a change, each
+    // read at once, never fills it.
+    unsafe { libc::fcntl(read.as_raw_fd(), libc::F_SETFL, libc::O_NONBLOCK) };
+    Some((read, write))
+}
 
 /// The modifiers a chord is told apart by. X11 counts NumLock (`M2`) and
 /// CapsLock (`LOCK`) as modifiers too, so each chord is grabbed with every
@@ -152,39 +216,109 @@ impl Grabber {
         let _ = self.conn.flush();
     }
 
-    /// Wait for the shortcuts, and hand each press of one to `pressed`.
-    /// Returns when the X server goes away.
+    /// Wait for the shortcuts, and hand each press of one to `pressed`;
+    /// grab them anew when the app's change ([`follow`]). Returns when the
+    /// X server goes away.
     pub fn serve(mut self, mut pressed: impl FnMut(Action, KeyChord)) {
-        loop {
-            let event = match self.conn.wait_for_event() {
-                Ok(event) => event,
-                Err(e) => {
-                    tracing::warn!("Global shortcuts: the X connection is gone ({e})");
-                    return;
-                }
+        // Told of changes from now on — unless the pipe cannot be made,
+        // or another grabber is told already: then the shortcuts stay as
+        // they were at start.
+        let wake = wake_pipe().and_then(|(read, write)| {
+            let follow = Follow {
+                told: Mutex::new(self.chords.clone()),
+                next: Mutex::new(None),
+                wake: write,
             };
-            match event {
-                Event::KeyPress(e) => {
-                    let mods = chord_mods(e.state);
-                    for grab in &mut self.grabs {
-                        if grab.keycode == e.detail && grab.mods == mods && !grab.down {
-                            grab.down = true;
-                            pressed(grab.action, grab.chord);
-                        }
+            FOLLOW.set(follow).ok().map(|()| read)
+        });
+        loop {
+            // Every event come already, the chords if they changed, then
+            // sleep until there is more.
+            loop {
+                match self.conn.poll_for_event() {
+                    Ok(Some(event)) => self.handle(event, &mut pressed),
+                    Ok(None) => break,
+                    Err(e) => {
+                        tracing::warn!("Global shortcuts: the X connection is gone ({e})");
+                        return;
                     }
                 }
-                Event::KeyRelease(e) => {
-                    for grab in self.grabs.iter_mut().filter(|g| g.keycode == e.detail) {
-                        grab.down = false;
-                    }
-                }
-                // Another layout: the same chords may be other keys now.
-                // XKB says so to a client that uses it; the core protocol
-                // to one that does not.
-                Event::XkbMapNotify(_) | Event::XkbNewKeyboardNotify(_) => self.regrab(),
-                Event::MappingNotify(e) if e.request == Mapping::KEYBOARD => self.regrab(),
-                _ => {}
             }
+            let next = wake
+                .as_ref()
+                .and_then(|_| FOLLOW.get()?.next.lock().ok()?.take());
+            if let Some(chords) = next {
+                tracing::info!("Global shortcuts changed: grabbing them anew");
+                self.chords = chords;
+                self.regrab();
+                continue;
+            }
+            if !self.wait(wake.as_ref()) {
+                tracing::warn!("Global shortcuts: the X connection is gone");
+                return;
+            }
+        }
+    }
+
+    /// Sleep until the X server says something or [`follow`] wakes the
+    /// thread; take what woke it from the pipe. Whether the connection is
+    /// still there.
+    fn wait(&self, wake: Option<&OwnedFd>) -> bool {
+        let mut fds = [
+            libc::pollfd {
+                fd: self.conn.stream().as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            },
+            libc::pollfd {
+                fd: wake.map_or(-1, AsRawFd::as_raw_fd),
+                events: libc::POLLIN,
+                revents: 0,
+            },
+        ];
+        // SAFETY: two initialised `pollfd`s we own for the call; a
+        // negative fd is skipped by poll(2).
+        let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
+        if n < 0 {
+            // Interrupted: look again.
+            return true;
+        }
+        if let Some(wake) = wake.filter(|_| fds[1].revents & libc::POLLIN != 0) {
+            let mut sink = [0u8; 64];
+            // SAFETY: reads into a local buffer of its length; the end is
+            // non-blocking, so this stops when the pipe is empty.
+            while unsafe { libc::read(wake.as_raw_fd(), sink.as_mut_ptr().cast(), sink.len()) } > 0
+            {
+            }
+        }
+        // Hung up with nothing left to read: the event poll would say so
+        // too, but this is where the loop would spin.
+        fds[0].revents & (libc::POLLHUP | libc::POLLERR) == 0 || fds[0].revents & libc::POLLIN != 0
+    }
+
+    /// One event from the X server.
+    fn handle(&mut self, event: Event, pressed: &mut impl FnMut(Action, KeyChord)) {
+        match event {
+            Event::KeyPress(e) => {
+                let mods = chord_mods(e.state);
+                for grab in &mut self.grabs {
+                    if grab.keycode == e.detail && grab.mods == mods && !grab.down {
+                        grab.down = true;
+                        pressed(grab.action, grab.chord);
+                    }
+                }
+            }
+            Event::KeyRelease(e) => {
+                for grab in self.grabs.iter_mut().filter(|g| g.keycode == e.detail) {
+                    grab.down = false;
+                }
+            }
+            // Another layout: the same chords may be other keys now.
+            // XKB says so to a client that uses it; the core protocol
+            // to one that does not.
+            Event::XkbMapNotify(_) | Event::XkbNewKeyboardNotify(_) => self.regrab(),
+            Event::MappingNotify(e) if e.request == Mapping::KEYBOARD => self.regrab(),
+            _ => {}
         }
     }
 }

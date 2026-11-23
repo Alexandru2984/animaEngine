@@ -69,12 +69,15 @@ pub(super) fn keybindings_tab(
     );
     ui.label(egui::RichText::new(hotkey_backend.label()).small().strong())
         .on_hover_text(t("keybindings-backend-tooltip"));
-    if hotkey_backend.is_portal() {
-        ui.label(
-            egui::RichText::new(t("keybindings-portal-restart-hint"))
-                .small()
-                .weak(),
-        );
+    // The portal remembers the user's approval; Windows' are registered
+    // once. X11's grab follows a change at once (`hotkeys::follow`).
+    if hotkey_backend.changes_wait_for_restart() {
+        let hint = if hotkey_backend.is_portal() {
+            "keybindings-portal-restart-hint"
+        } else {
+            "keybindings-restart-hint"
+        };
+        ui.label(egui::RichText::new(t(hint)).small().weak());
     }
     ui.add_space(SPACE_XS);
 

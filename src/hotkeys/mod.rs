@@ -111,6 +111,22 @@ pub fn global_chords(bindings: &KeyBindings) -> Vec<(KeyChord, Action)> {
         .collect()
 }
 
+/// Keep the shortcuts taken to `bindings` as they change — in the
+/// Keybindings tab, or by a hot reload — where they can be taken anew
+/// without a restart: X11's grab (`x11_grab::follow`). The portal's are
+/// the desktop's to keep, and Windows' are registered once
+/// (`HotkeyStatus::follows_changes`). The loops call it every frame; with
+/// nothing changed it is a comparison of a few chords, and nothing at all
+/// without a grab.
+pub fn follow(bindings: &KeyBindings) {
+    #[cfg(unix)]
+    if x11_grab::serving() {
+        x11_grab::follow(global_chords(bindings));
+    }
+    #[cfg(not(unix))]
+    let _ = bindings;
+}
+
 /// Try to register the user's globally-bound chords (Windows). Returns `None`
 /// when no chord could be registered — callers treat that as a soft
 /// failure: the app remains fully usable through tray + ⚙ button.

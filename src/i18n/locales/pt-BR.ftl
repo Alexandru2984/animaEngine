@@ -538,6 +538,7 @@ keybindings-backend-grab-declined = O próprio app (a permissão de atalhos foi 
 keybindings-backend-compositor = Nenhum — atribua teclas no seu compositor ou use o menu da bandeja
 keybindings-backend-tray = Nenhum — use o menu da bandeja
 keybindings-portal-restart-hint = Mudanças de atalho valem a partir da próxima inicialização (o desktop lembra sua aprovação).
+keybindings-restart-hint = Mudanças de atalho valem a partir da próxima inicialização.
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = { $n ->

@@ -550,6 +550,7 @@ keybindings-backend-grab-declined = The app itself (shortcut permission was decl
 keybindings-backend-compositor = None — bind keys in your compositor, or use the tray menu
 keybindings-backend-tray = None — use the tray menu
 keybindings-portal-restart-hint = Trigger changes apply at the next launch (the desktop remembers your approval).
+keybindings-restart-hint = Trigger changes apply at the next launch.
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = { $n ->

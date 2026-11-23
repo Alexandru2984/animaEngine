@@ -538,6 +538,7 @@ keybindings-backend-grab-declined = La propia app (se denegó el permiso de ataj
 keybindings-backend-compositor = Ninguno — asigna teclas en tu compositor o usa el menú de bandeja
 keybindings-backend-tray = Ninguno — usa el menú de bandeja
 keybindings-portal-restart-hint = Los cambios de atajos se aplican en el próximo arranque (el escritorio recuerda tu aprobación).
+keybindings-restart-hint = Los cambios de atajos se aplican en el próximo arranque.
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = { $n ->

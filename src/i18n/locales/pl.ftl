@@ -549,6 +549,7 @@ keybindings-backend-grab-declined = Sama aplikacja (odmówiono uprawnień do skr
 keybindings-backend-compositor = Brak — przypisz klawisze w kompozytorze albo użyj menu w zasobniku
 keybindings-backend-tray = Brak — użyj menu w zasobniku
 keybindings-portal-restart-hint = Zmiany skrótów zadziałają od następnego uruchomienia (pulpit pamięta twoją zgodę).
+keybindings-restart-hint = Zmiany skrótów zadziałają od następnego uruchomienia.
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = { $n ->

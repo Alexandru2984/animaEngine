@@ -538,6 +538,7 @@ keybindings-backend-grab-declined = Die App selbst (Berechtigung für Kurzbefehl
 keybindings-backend-compositor = Keine — belegen Sie Tasten im Compositor oder nutzen Sie das Tray-Menü
 keybindings-backend-tray = Keine — nutzen Sie das Tray-Menü
 keybindings-portal-restart-hint = Trigger-Änderungen gelten ab dem nächsten Start (der Desktop merkt sich Ihre Freigabe).
+keybindings-restart-hint = Trigger-Änderungen gelten ab dem nächsten Start.
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = { $n ->

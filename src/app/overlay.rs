@@ -186,6 +186,9 @@ impl App {
         if self.scene.set_clock(minute) {
             self.request_redraw_all();
         }
+        // A global shortcut changed in the Keybindings tab or by a hot
+        // reload is grabbed anew (`crate::hotkeys::follow`).
+        crate::hotkeys::follow(&self.config.keybindings);
         // Away or on battery, if asked: held still too (`crate::away`).
         let global = &self.config.global;
         crate::away::configure(

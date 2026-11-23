@@ -88,6 +88,22 @@ impl HotkeyStatus {
     pub fn is_portal(self) -> bool {
         matches!(self, Self::PortalAwaiting | Self::Portal)
     }
+
+    /// Whether a changed shortcut is taken at once: X11's grab takes it
+    /// anew (`hotkeys::follow`). Windows registers them once, at start, and
+    /// the portal's are the desktop's — both at the next start. With none
+    /// taken by the app, there is nothing to follow.
+    pub fn follows_changes(self) -> bool {
+        matches!(self, Self::Grab | Self::GrabPortalDeclined) && cfg!(unix)
+    }
+
+    /// Whether the Keybindings tab says a changed shortcut waits for the
+    /// next start: shortcuts there are, and they do not follow changes.
+    /// Only the portal's were said to, and X11's and Windows' did not
+    /// follow either (BUG-016).
+    pub fn changes_wait_for_restart(self) -> bool {
+        !self.follows_changes() && !matches!(self, Self::CompositorBindings | Self::TrayOnly)
+    }
 }
 
 /// Pick the strategy from probe results. Pure so the truth table is
@@ -269,5 +285,22 @@ mod tests {
         );
         assert_eq!(choose(None, true).status(), HotkeyStatus::Grab);
         assert_eq!(choose(None, false).status(), HotkeyStatus::TrayOnly);
+    }
+
+    /// The Keybindings tab says a change waits for the next start only
+    /// where it does: the portal and Windows. X11's grab follows it at
+    /// once, and the tab said nothing of X11 or Windows (BUG-016).
+    #[test]
+    fn a_restart_is_asked_for_only_where_a_change_waits() {
+        use HotkeyStatus as S;
+        assert!(S::Portal.changes_wait_for_restart());
+        assert!(S::PortalAwaiting.changes_wait_for_restart());
+        for grab in [S::Grab, S::GrabPortalDeclined] {
+            assert_eq!(grab.follows_changes(), cfg!(unix));
+            assert_eq!(grab.changes_wait_for_restart(), !cfg!(unix));
+        }
+        for none in [S::CompositorBindings, S::TrayOnly] {
+            assert!(!none.follows_changes() && !none.changes_wait_for_restart());
+        }
     }
 }

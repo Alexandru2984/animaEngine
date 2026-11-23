@@ -73,6 +73,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **X11: a global shortcut changed while the app runs works at once.**
+  Changed in the Keybindings tab or in `config.toml`, it was grabbed
+  only at the next start — the old one went on working, the new one did
+  nothing — and the tab said nothing of a restart. The keys are now
+  grabbed anew as soon as they change. On Windows, where they are still
+  registered once, the tab says a change applies at the next launch, as
+  it already did for the desktop's portal.
 - **A folder of frames named `.PNG` loads, and shares.** A frame folder
   from Windows or a camera names its pictures in capitals: dropping it
   was accepted, then loading found no frames in it, and sharing a scene

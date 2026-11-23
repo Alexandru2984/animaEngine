@@ -538,6 +538,7 @@ keybindings-backend-grab-declined = L’app elle-même (permission de raccourcis
 keybindings-backend-compositor = Aucun — associez des touches dans votre compositeur, ou utilisez le menu de la zone de notification
 keybindings-backend-tray = Aucun — utilisez le menu de la zone de notification
 keybindings-portal-restart-hint = Les changements de déclencheurs s’appliquent au prochain lancement (le bureau retient votre accord).
+keybindings-restart-hint = Les changements de déclencheurs s’appliquent au prochain lancement.
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = { $n ->

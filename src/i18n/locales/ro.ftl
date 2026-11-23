@@ -554,6 +554,7 @@ keybindings-backend-grab-declined = Aplicația însăși (permisiunea pentru scu
 keybindings-backend-compositor = Niciunul — atribuie taste în compositor sau folosește meniul din tray
 keybindings-backend-tray = Niciunul — folosește meniul din tray
 keybindings-portal-restart-hint = Schimbările de combinații se aplică la următoarea pornire (desktop-ul ține minte aprobarea).
+keybindings-restart-hint = Schimbările de combinații se aplică la următoarea pornire.
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = { $n ->

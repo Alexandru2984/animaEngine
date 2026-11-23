@@ -538,6 +538,7 @@ keybindings-backend-grab-declined = L’app stessa (permesso per le scorciatoie 
 keybindings-backend-compositor = Nessuno — assegna i tasti nel compositor, o usa il menu nell’area di notifica
 keybindings-backend-tray = Nessuno — usa il menu nell’area di notifica
 keybindings-portal-restart-hint = Le modifiche ai trigger valgono dal prossimo avvio (il desktop ricorda la tua approvazione).
+keybindings-restart-hint = Le modifiche ai trigger valgono dal prossimo avvio.
 
 # ── Monitor hotplug (T.9) ─────────────────────────────────────────────
 monitor-unplugged-toast = { $n ->
