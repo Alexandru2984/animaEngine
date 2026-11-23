@@ -218,23 +218,23 @@ impl Scene {
                 continue;
             }
             let config = self.entities[i].to_config();
-            let fresh = match Self::load_entity_at(&config, cap) {
-                Ok(fresh) => fresh.animations,
+            let others = self.total_decoded_bytes() - self.entities[i].animations.decoded_bytes();
+            let fresh = match Self::load_entity_at(&config, cap, others, budget) {
+                Ok(Ok(fresh)) => fresh.animations,
+                Ok(Err(_)) => {
+                    tracing::info!(
+                        "Entity '{}' kept at {MAX_DROP_SIZE} px: sharper would pass the decode budget",
+                        config.id
+                    );
+                    self.entities[i].animations.keep_as_is();
+                    continue;
+                }
                 Err(e) => {
                     tracing::warn!("Entity '{}': not loaded sharper ({e})", config.id);
                     self.entities[i].animations.keep_as_is();
                     continue;
                 }
             };
-            let others = self.total_decoded_bytes() - self.entities[i].animations.decoded_bytes();
-            if check_budget(others, fresh.decoded_bytes(), budget).is_err() {
-                tracing::info!(
-                    "Entity '{}' kept at {MAX_DROP_SIZE} px: sharper would pass the decode budget",
-                    config.id
-                );
-                self.entities[i].animations.keep_as_is();
-                continue;
-            }
             let entity = &mut self.entities[i];
             entity.animations.replace_frames(fresh);
             entity.texture_dirty = true;
@@ -251,7 +251,7 @@ impl Scene {
     /// budget: the app loads within it ([`Self::load_entity_within`]).
     #[cfg(test)]
     fn load_entity(config: &CharacterConfig) -> Result<Entity> {
-        Self::load_entity_at(config, crate::entity::picture_cap())
+        Self::load_entity_at(config, crate::entity::picture_cap(), 0, usize::MAX).and_then(|e| e)
     }
 
     /// [`Self::load_entity_at`] within the decode budget, `used` of it
@@ -265,15 +265,12 @@ impl Scene {
         used: usize,
         budget: usize,
     ) -> Result<Entity> {
-        let entity = Self::load_entity_at(config, cap)?;
-        let fits = check_budget(used, entity.animations.decoded_bytes(), budget);
-        if fits.is_ok() || cap <= MAX_DROP_SIZE {
-            return fits.map(|()| entity);
+        match Self::load_entity_at(config, cap, used, budget)? {
+            Ok(entity) => return Ok(entity),
+            Err(over) if cap <= MAX_DROP_SIZE => return Err(over),
+            Err(_) => {}
         }
-        drop(entity);
-        let entity = Self::load_entity_at(config, MAX_DROP_SIZE)?;
-        check_budget(used, entity.animations.decoded_bytes(), budget)?;
-        Ok(entity)
+        Self::load_entity_at(config, MAX_DROP_SIZE, used, budget)?
     }
 
     /// Load a single entity from config, each picture at most `cap` a
@@ -282,7 +279,20 @@ impl Scene {
     /// states (U.1). A state that fails to load is skipped with a warning
     /// — the `Idle` fallback covers it — so a missing walk sequence can't
     /// take the whole entity down.
-    fn load_entity_at(config: &CharacterConfig, cap: u32) -> Result<Entity> {
+    ///
+    /// Held to the decode budget — `used` of `budget` taken — as each state
+    /// comes in: the inner `Err` says it would pass it, and the states left
+    /// are not loaded. All of them were loaded first and looked at after:
+    /// five states of 256 MiB took 1.3 GiB to be refused for a 300 MiB
+    /// budget (PERF-004). The outer `Err` is the idle state not loading.
+    fn load_entity_at(
+        config: &CharacterConfig,
+        cap: u32,
+        used: usize,
+        budget: usize,
+    ) -> Result<Result<Entity>> {
+        let over =
+            |set: &crate::animation::AnimationSet| check_budget(used, set.decoded_bytes(), budget);
         let resolved_path = AppConfig::resolve_asset_path(&config.asset_path);
         let frames = load_asset(
             &config.asset_type,
@@ -294,6 +304,9 @@ impl Scene {
         let frames = Self::cap_to(frames, cap)?;
         let idle = Animation::new(frames, config.fps, config.playing).kept_at(cap);
         let mut set = crate::animation::AnimationSet::single(idle);
+        if let Err(e) = over(&set) {
+            return Ok(Err(e));
+        }
 
         for (state, scfg) in &config.animations {
             if *state == crate::animation::StateId::Idle {
@@ -319,6 +332,9 @@ impl Scene {
                     let fps = scfg.fps.unwrap_or(config.fps);
                     let animation = Animation::new(frames, fps, config.playing).kept_at(cap);
                     set.insert(*state, animation);
+                    if let Err(e) = over(&set) {
+                        return Ok(Err(e));
+                    }
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -346,6 +362,9 @@ impl Scene {
                 Ok(frames) => {
                     let animation = Animation::new(frames, config.fps, config.playing);
                     set.insert(state, animation.kept_at(cap));
+                    if let Err(e) = over(&set) {
+                        return Ok(Err(e));
+                    }
                 }
                 Err(e) => tracing::debug!(
                     "Entity '{}': its {state:?} folder did not load ({e})",
@@ -353,7 +372,7 @@ impl Scene {
                 ),
             }
         }
-        Ok(Entity::from_config_set(config, set))
+        Ok(Ok(Entity::from_config_set(config, set)))
     }
 
     /// Create a fallback entity with procedurally generated frame
@@ -1389,6 +1408,52 @@ mod tests {
     use super::*;
     use crate::animation::frame::Frame;
     use crate::config::{AssetType, GlobalConfig};
+
+    /// A character of five states is held to the scene's budget as it
+    /// loads, state by state: all five were decoded and kept — 1.28 GiB
+    /// at most — before the budget was looked at (PERF-004). Heavy (1280
+    /// frames of 512²), so run it alone:
+    /// `cargo test --release --lib state_by_state -- --ignored --test-threads=1`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore]
+    fn a_many_state_character_is_held_to_the_budget_state_by_state() {
+        fn peak_mib() -> usize {
+            std::fs::read_to_string("/proc/self/status")
+                .unwrap()
+                .lines()
+                .find_map(|l| l.strip_prefix("VmHWM:"))
+                .and_then(|v| v.trim().trim_end_matches("kB").trim().parse::<usize>().ok())
+                .unwrap()
+                / 1024
+        }
+        let dir = std::env::temp_dir().join(format!("anima-states-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let frame = image::RgbaImage::from_pixel(512, 512, image::Rgba([9, 8, 7, 255]));
+        for sub in ["", "walk", "fall", "drag", "sleep"] {
+            let at = dir.join(sub);
+            std::fs::create_dir_all(&at).unwrap();
+            for i in 0..256 {
+                frame.save(at.join(format!("frame_{i:03}.png"))).unwrap();
+            }
+        }
+        let mut config = make_entity("many", 0, true).to_config();
+        config.asset_type = AssetType::PngSequence;
+        config.asset_path = dir.to_string_lossy().into_owned();
+        let budget = 300 * 1024 * 1024;
+        std::fs::write("/proc/self/clear_refs", "5").unwrap();
+        let base = peak_mib();
+        let loaded = Scene::load_entity_within(&config, 512, 0, budget);
+        let rose = peak_mib() - base;
+        let _ = std::fs::remove_dir_all(&dir);
+        eprintln!(
+            "loading rose {rose} MiB for a {} MiB budget",
+            budget / (1024 * 1024)
+        );
+        assert!(loaded.is_err(), "five states of 256 MiB do not fit 300 MiB");
+        // The budget, and one state's worth besides.
+        assert!(rose <= 300 + 256 + 64, "{rose} MiB");
+    }
 
     pub(super) fn make_entity(id: &str, z: i32, visible: bool) -> Entity {
         let frame = Frame::new(vec![0u8; 4], 1, 1);
