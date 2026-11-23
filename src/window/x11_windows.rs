@@ -6,8 +6,11 @@
 //!
 //! What qualifies as a platform:
 //! - `_NET_WM_WINDOW_TYPE` is NORMAL (or the property is absent, which
-//!   EWMH says to treat as normal). Docks, menus, tooltips — and our
-//!   own dock-type overlay windows — are excluded by type.
+//!   EWMH says to treat as normal). Docks, menus, tooltips are excluded
+//!   by type.
+//! - not one of the overlay's own windows: those are NORMAL too (docks
+//!   get no mouse on XWayland/Mutter), so they are told by who made them
+//!   (`made_here`).
 //! - not `_NET_WM_STATE_HIDDEN` (minimized windows have no edges).
 //!
 //! Geometry is the WM frame rectangle: client geometry translated to
@@ -39,11 +42,55 @@ use x11rb::rust_connection::RustConnection;
 /// on; beyond this many, the extra rects change nothing visible.
 const MAX_WATCHED_WINDOWS: usize = 256;
 
+/// Whether a window is one of the overlay's own, from its `_NET_WM_PID`
+/// (`pid`, which winit sets on every window it makes) and its `WM_CLASS`
+/// halves: this process's id, and our class — a process of another PID
+/// namespace (a Flatpak's) can have the same number.
+fn made_here(pid: Option<u32>, classes: &[String], me: u32) -> bool {
+    pid == Some(me) && classes.iter().any(|c| c == "animaEngine")
+}
+
+/// A window's `_NET_WM_PID`, if it has one.
+fn pid_of(conn: &RustConnection, window: Window, net_wm_pid: Atom) -> Option<u32> {
+    conn.get_property(false, window, net_wm_pid, AtomEnum::CARDINAL, 0, 1)
+        .ok()?
+        .reply()
+        .ok()?
+        .value32()?
+        .next()
+}
+
+/// A window's app: the two halves of its `WM_CLASS`, instance and class.
+/// Nothing else about it is read.
+fn classes_of(conn: &RustConnection, window: Window) -> Vec<String> {
+    conn.get_property(false, window, AtomEnum::WM_CLASS, AtomEnum::STRING, 0, 64)
+        .ok()
+        .and_then(|c| c.reply().ok())
+        .map(|r| {
+            r.value
+                .split(|&b| b == 0)
+                .filter(|part| !part.is_empty())
+                .map(|part| String::from_utf8_lossy(part).into_owned())
+                .take(2)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Whether `window` is one of the overlay's own ([`made_here`]): one
+/// round-trip for most windows, two for ours.
+fn is_own(conn: &RustConnection, window: Window, net_wm_pid: Atom) -> bool {
+    let me = std::process::id();
+    let pid = pid_of(conn, window, net_wm_pid);
+    pid == Some(me) && made_here(pid, &classes_of(conn, window), me)
+}
+
 /// Pooled connection + interned atoms for the EWMH window walk.
 pub struct WindowWatcher {
     conn: RustConnection,
     root: Window,
     net_client_list: Atom,
+    net_wm_pid: Atom,
     net_wm_window_type: Atom,
     net_wm_window_type_normal: Atom,
     net_wm_state: Atom,
@@ -67,6 +114,7 @@ impl WindowWatcher {
                 .map(|r| r.atom)
         };
         let net_client_list = intern("_NET_CLIENT_LIST")?;
+        let net_wm_pid = intern("_NET_WM_PID")?;
         let net_wm_window_type = intern("_NET_WM_WINDOW_TYPE")?;
         let net_wm_window_type_normal = intern("_NET_WM_WINDOW_TYPE_NORMAL")?;
         let net_wm_state = intern("_NET_WM_STATE")?;
@@ -78,6 +126,7 @@ impl WindowWatcher {
             conn,
             root,
             net_client_list,
+            net_wm_pid,
             net_wm_window_type,
             net_wm_window_type_normal,
             net_wm_state,
@@ -148,6 +197,9 @@ impl WindowWatcher {
         if !types.is_empty() && !types.contains(&self.net_wm_window_type_normal) {
             return None;
         }
+        if is_own(&self.conn, window, self.net_wm_pid) {
+            return None;
+        }
         if self
             .read_atoms(window, self.net_wm_state)
             .contains(&self.net_wm_state_hidden)
@@ -207,13 +259,15 @@ impl WindowWatcher {
 /// aside (`crate::fullscreen`). The active window is `_NET_ACTIVE_WINDOW`
 /// on the root; it counts when its type is NORMAL (or absent) and its
 /// `_NET_WM_STATE` holds `_NET_WM_STATE_FULLSCREEN`. The overlay's own
-/// windows are docks, so they never count. On XWayland only X11 clients
+/// windows never count (`made_here`): they cover a monitor, and a window
+/// manager may well call that full screen. On XWayland only X11 clients
 /// are seen, as for window-awareness.
 pub struct FullscreenWatch {
     conn: RustConnection,
     root: Window,
     net_active_window: Atom,
     net_client_list: Atom,
+    net_wm_pid: Atom,
     net_wm_window_type: Atom,
     net_wm_window_type_normal: Atom,
     net_wm_state: Atom,
@@ -234,6 +288,7 @@ impl FullscreenWatch {
         };
         let net_active_window = intern("_NET_ACTIVE_WINDOW")?;
         let net_client_list = intern("_NET_CLIENT_LIST")?;
+        let net_wm_pid = intern("_NET_WM_PID")?;
         let net_wm_window_type = intern("_NET_WM_WINDOW_TYPE")?;
         let net_wm_window_type_normal = intern("_NET_WM_WINDOW_TYPE_NORMAL")?;
         let net_wm_state = intern("_NET_WM_STATE")?;
@@ -243,6 +298,7 @@ impl FullscreenWatch {
             root,
             net_active_window,
             net_client_list,
+            net_wm_pid,
             net_wm_window_type,
             net_wm_window_type_normal,
             net_wm_state,
@@ -267,22 +323,9 @@ impl FullscreenWatch {
             .filter(|&w| w != 0)
     }
 
-    /// A window's app: the two halves of its `WM_CLASS`, instance and
-    /// class (`crate::chosen_apps`). Nothing else about it is read.
+    /// A window's app (`crate::chosen_apps`): [`classes_of`].
     fn classes_of(&self, window: Window) -> Vec<String> {
-        self.conn
-            .get_property(false, window, AtomEnum::WM_CLASS, AtomEnum::STRING, 0, 64)
-            .ok()
-            .and_then(|c| c.reply().ok())
-            .map(|r| {
-                r.value
-                    .split(|&b| b == 0)
-                    .filter(|part| !part.is_empty())
-                    .map(|part| String::from_utf8_lossy(part).into_owned())
-                    .take(2)
-                    .collect()
-            })
-            .unwrap_or_default()
+        classes_of(&self.conn, window)
     }
 
     /// Whether the window in front is an app the user chose.
@@ -368,7 +411,7 @@ impl FullscreenWatch {
         any
     }
 
-    /// Two or three round-trips; any error reads as "not full screen".
+    /// Two to five round-trips; any error reads as "not full screen".
     pub fn fullscreen_in_front(&self) -> bool {
         let Some(active) = self.active_window() else {
             return false;
@@ -386,6 +429,7 @@ impl FullscreenWatch {
             return false;
         }
         atoms(self.net_wm_state).contains(&self.net_wm_state_fullscreen)
+            && !is_own(&self.conn, active, self.net_wm_pid)
     }
 }
 
@@ -451,5 +495,23 @@ pub fn spawn_fullscreen_watch(sink: crate::event::EventSink) {
         });
     if let Err(e) = spawned {
         tracing::warn!("Full-screen watch thread failed to start: {e}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::made_here;
+
+    /// The overlay's windows are NORMAL type, so they are told by who made
+    /// them (BUG-016): our process and our class, not either alone.
+    #[test]
+    fn the_overlay_knows_its_own_windows() {
+        let ours = ["animaEngine".to_string(), "animaEngine".to_string()];
+        let theirs = ["foot".to_string(), "foot".to_string()];
+        assert!(made_here(Some(42), &ours, 42));
+        assert!(!made_here(Some(42), &theirs, 42), "a pid alone is not ours");
+        assert!(!made_here(Some(7), &ours, 42), "another instance's");
+        assert!(!made_here(None, &ours, 42), "no pid said");
+        assert!(!made_here(Some(42), &[], 42));
     }
 }
