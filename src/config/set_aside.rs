@@ -36,6 +36,9 @@ pub struct SetAside {
 pub(super) enum Seg {
     Key(String),
     Id(String, usize),
+    /// After a key: that table, only while its key `.0` still says `.1` —
+    /// a behavior's keys belong to its kind.
+    Where(String, String),
 }
 
 /// Which of the entries with its id each entry of a list is, in order.
@@ -97,6 +100,16 @@ pub(super) fn table_at<'a>(root: &'a mut toml::Table, path: &[Seg]) -> Option<&'
     while let Some(seg) = steps.next() {
         let Seg::Key(key) = seg else { return None };
         table = match steps.peek() {
+            // Never made: one that is not there, or says another thing, is
+            // not where these keys go.
+            Some(Seg::Where(k, v)) => {
+                steps.next();
+                let there = table.get_mut(key)?.as_table_mut()?;
+                if there.get(k).and_then(toml::Value::as_str) != Some(v.as_str()) {
+                    return None;
+                }
+                there
+            }
             Some(Seg::Id(id, n)) => {
                 steps.next();
                 table
@@ -158,6 +171,37 @@ pub(super) fn note_character(
             let mut deeper = here.clone();
             deeper.push(Seg::Key(key.to_string()));
             note_unknown(nested, &deeper, known, out);
+        }
+    }
+    note_behavior(table, &here, out);
+}
+
+/// A behavior's unknown keys, put back only while it is of the kind it
+/// was (BUG-011): they were dropped. Its kinds are an enum, whose fields
+/// serde does not list (`fields_of`); every field it knows is written out,
+/// so the keys it did not write back are the ones it does not know.
+fn note_behavior(character: &toml::Table, at: &[Seg], out: &mut Vec<(Vec<Seg>, toml::Value)>) {
+    const TAG: &str = "type";
+    let Some(table) = character.get("behavior").and_then(toml::Value::as_table) else {
+        return;
+    };
+    let Some(kind) = table.get(TAG).and_then(toml::Value::as_str) else {
+        return;
+    };
+    let Ok(behavior) = toml::Value::Table(table.clone()).try_into::<crate::behavior::Behavior>()
+    else {
+        return;
+    };
+    let Ok(toml::Value::Table(known)) = toml::Value::try_from(&behavior) else {
+        return;
+    };
+    for (key, value) in table {
+        if !known.contains_key(key) {
+            let mut path = at.to_vec();
+            path.push(Seg::Key("behavior".into()));
+            path.push(Seg::Where(TAG.into(), kind.into()));
+            path.push(Seg::Key(key.clone()));
+            out.push((path, value.clone()));
         }
     }
 }

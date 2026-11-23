@@ -1233,3 +1233,66 @@ mod duplicate_id_tests {
         assert!(twins[1].contains_key("second_only") && !twins[1].contains_key("first_only"));
     }
 }
+
+#[cfg(test)]
+mod behavior_keys_tests {
+    use super::*;
+
+    fn walker_with(extra: &str) -> AppConfig {
+        let mut text = AppConfig::default().to_toml_string().unwrap();
+        text.push_str(&format!(
+            "\n[[characters]]\nid = \"walker\"\nname = \"Walker\"\nasset_type = \"png_sequence\"\n\
+             asset_path = \"assets/demo/cat\"\nx = 1.0\ny = 1.0\n\
+             [characters.behavior]\ntype = \"walk_around\"\nspeed = 50.0\n{extra}"
+        ));
+        AppConfig::decode_config_str(&text).expect("reads").0
+    }
+
+    fn behavior_of(config: &AppConfig) -> Option<toml::Table> {
+        let written: toml::Table = toml::from_str(&config.to_toml_string().unwrap()).unwrap();
+        written["characters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c.get("id").and_then(toml::Value::as_str) == Some("walker"))
+            .and_then(|c| c.get("behavior"))
+            .and_then(toml::Value::as_table)
+            .cloned()
+    }
+
+    /// A newer version's key inside a behavior is kept while the
+    /// behavior is the same kind (BUG-011): it was dropped at load.
+    #[test]
+    fn a_behaviors_newer_keys_are_kept_while_it_is_the_same() {
+        let config = walker_with("pause_secs = 2.0\n");
+        let behavior = behavior_of(&config).expect("written");
+        assert_eq!(behavior.get("pause_secs"), Some(&toml::Value::Float(2.0)));
+        assert_eq!(behavior.get("speed"), Some(&toml::Value::Float(50.0)));
+    }
+
+    /// Changed here to another kind, or to none, the old kind's keys do
+    /// not follow — and nothing is made where there is no behavior.
+    #[test]
+    fn another_behavior_does_not_take_them() {
+        let mut config = walker_with("pause_secs = 2.0\n");
+        let i = config
+            .characters
+            .iter()
+            .position(|c| c.id == "walker")
+            .unwrap();
+        config.characters[i].behavior = crate::behavior::Behavior::Bounce {
+            amplitude_px: 10.0,
+            period_sec: 1.0,
+            axis: Default::default(),
+        };
+        let behavior = behavior_of(&config).expect("written");
+        assert!(!behavior.contains_key("pause_secs"), "{behavior:?}");
+        config.characters[i].behavior = crate::behavior::Behavior::Idle;
+        assert!(behavior_of(&config).is_none(), "no table made for it");
+        let (back, _) = AppConfig::decode_config_str(&config.to_toml_string().unwrap()).unwrap();
+        assert!(
+            back.characters.iter().any(|c| c.id == "walker"),
+            "still reads"
+        );
+    }
+}
