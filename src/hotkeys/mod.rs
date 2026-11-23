@@ -258,9 +258,22 @@ fn keycode_to_global_code(key: KeyCode) -> Option<Code> {
             'Z' => Code::KeyZ,
             _ => return None,
         },
-        // Digits would need Digit0..=Digit9 (not currently bound to any
-        // action — skip rather than match an unused branch).
-        KeyCode::Digit(_) => return None,
+        // A chord on a digit is grabbed on X11 and offered to the portal;
+        // here it was skipped, so Ctrl+Alt+1 bound to a global action did
+        // nothing on Windows alone (BUG-016).
+        KeyCode::Digit(d) => match d {
+            0 => Code::Digit0,
+            1 => Code::Digit1,
+            2 => Code::Digit2,
+            3 => Code::Digit3,
+            4 => Code::Digit4,
+            5 => Code::Digit5,
+            6 => Code::Digit6,
+            7 => Code::Digit7,
+            8 => Code::Digit8,
+            9 => Code::Digit9,
+            _ => return None,
+        },
         KeyCode::Named(n) => match n {
             NamedKey::Escape => Code::Escape,
             NamedKey::Space => Code::Space,
@@ -301,4 +314,23 @@ fn keycode_to_global_code(key: KeyCode) -> Option<Code> {
             SymbolKey::Backquote => Code::Backquote,
         },
     })
+}
+
+#[cfg(all(test, windows))]
+mod win_tests {
+    use super::*;
+
+    /// A digit chord is registered as on X11 and the portal: it was
+    /// skipped here (BUG-016).
+    #[test]
+    fn win_a_digit_chord_has_a_global_hotkey() {
+        let chord: KeyChord = "Ctrl+Alt+1".parse().unwrap();
+        let hk = chord_to_global_hotkey(chord).expect("registered");
+        assert_eq!(
+            hk,
+            HotKey::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Digit1)
+        );
+        let nine: KeyChord = "Super+9".parse().unwrap();
+        assert!(chord_to_global_hotkey(nine).is_some());
+    }
 }
