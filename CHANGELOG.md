@@ -73,6 +73,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A character saved while walking, falling or asleep keeps its own
+  speed and easing.** The demo characters walk at their own pace: saved
+  mid-walk, that pace became the character's and its easing was lost,
+  and walking about made undo steps on its own. Speed, pause and easing
+  set while it walks are the character's too, not the walk's alone.
 - **A snooze and the focus timer keep their time when the clock is
   changed**: a DST change or a clock set back made them run an hour long
   or stop. They now run on a clock that only goes forward and still

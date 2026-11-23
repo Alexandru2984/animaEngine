@@ -211,10 +211,10 @@ impl Entity {
         std::hash::Hash::hash(&config.id, &mut hasher);
         let seed = std::hash::Hasher::finish(&hasher);
 
-        // Easing applies to the active (idle) sequence — per-state
-        // easing is not a thing; GIF/WebP per-frame delays in any
-        // state stay authoritative regardless.
-        animations.current_mut().easing = config.easing;
+        // Easing applies to the idle sequence — per-state easing is not
+        // a thing; GIF/WebP per-frame delays in any state stay
+        // authoritative regardless.
+        animations.idle_mut().easing = config.easing;
 
         Self {
             id: config.id.clone(),
@@ -816,16 +816,20 @@ impl Entity {
             y: self.y,
             scale: self.scale,
             opacity: self.opacity,
-            fps: self.animation().fps,
+            // The character's own (Idle's), whatever state it is in: the
+            // active one's was saved, so a walking character with a walk
+            // of its own pace saved the walk's as its own, and its easing
+            // as none (BUG-011).
+            fps: self.fps(),
             visible: self.visible,
-            playing: self.animation().playing,
+            playing: self.playing(),
             z_index: self.z_index,
             physics_enabled: self.physics.enabled,
             behavior: self.behavior.clone(),
             spritesheet_columns: self.spritesheet_columns,
             spritesheet_rows: self.spritesheet_rows,
             monitor: self.monitor.clone(),
-            easing: self.animation().easing,
+            easing: self.animations.idle().easing,
             animations: self.state_configs.clone(),
             talk: self.talk.clone(),
             hours: self.hours.clone(),
@@ -874,10 +878,50 @@ impl Entity {
         // A bounce oscillates around where it started; moved, it starts
         // again from here — as after a nudge.
         self.behavior_state.bounce_invalidate();
-        let animation = self.animation_mut();
-        animation.set_fps(config.fps);
-        animation.playing = config.playing;
-        animation.easing = config.easing;
+        self.set_fps(config.fps);
+        self.set_playing(config.playing);
+        self.animations.idle_mut().easing = config.easing;
+    }
+
+    /// The character's own fps: Idle's, which every state without one of
+    /// its own goes at.
+    pub fn fps(&self) -> f32 {
+        self.animations.idle().fps
+    }
+
+    /// Set the character's fps: Idle's, and every state's that has none
+    /// of its own — as they were made from the config
+    /// (`scene::load_entity_at`). Set on the active state only, a change
+    /// made while walking went to the walk and was lost (BUG-011).
+    pub fn set_fps(&mut self, fps: f32) {
+        let own = &self.state_configs;
+        for (state, animation) in self.animations.each_mut() {
+            let has_own = state != crate::animation::StateId::Idle
+                && own.get(&state).and_then(|c| c.fps).is_some();
+            if !has_own {
+                animation.set_fps(fps);
+            }
+        }
+    }
+
+    /// Whether the character plays: Idle's say.
+    pub fn playing(&self) -> bool {
+        self.animations.idle().playing
+    }
+
+    /// Play or pause the character, every state: paused on the active
+    /// one only, it played again on the next change of state.
+    pub fn set_playing(&mut self, playing: bool) {
+        for (_, animation) in self.animations.each_mut() {
+            if animation.playing != playing {
+                animation.toggle_playback();
+            }
+        }
+    }
+
+    /// The character's easing, Idle's (the only state it applies to).
+    pub fn easing_mut(&mut self) -> &mut Option<crate::anim::EasingCurve> {
+        &mut self.animations.idle_mut().easing
     }
 }
 
@@ -906,6 +950,46 @@ fn hover_startle_push(ecx: f32, ecy: f32, cx: f32, cy: f32, dt: f32) -> (f32, f3
 mod tests {
     use super::*;
     use crate::animation::frame::Frame;
+
+    /// A character with a walk of its own pace, saved while walking: its
+    /// fps and easing are its own (Idle's), not the walk's — the walk's
+    /// fps was saved as the character's and its easing lost (BUG-011).
+    /// Paused while walking, it stays paused back at Idle.
+    #[test]
+    fn a_walking_character_saves_its_own_pace() {
+        use crate::animation::StateId;
+        let frame = || Frame::new(vec![255; 4], 1, 1);
+        let mut config = crate::config::AppConfig::default().characters.remove(0);
+        config.fps = 10.0;
+        config.easing = Some(crate::anim::EasingCurve::EaseInOutQuad);
+        config.animations.insert(
+            StateId::Walk,
+            crate::config::StateSequenceConfig {
+                asset_type: config.asset_type.clone(),
+                asset_path: "walk".into(),
+                fps: Some(20.0),
+                spritesheet_columns: None,
+                spritesheet_rows: None,
+            },
+        );
+        let mut set = AnimationSet::single(Animation::new(vec![frame()], 10.0, true));
+        set.insert(StateId::Walk, Animation::new(vec![frame()], 20.0, true));
+        let mut e = Entity::from_config_set(&config, set);
+        e.animations.switch(StateId::Walk);
+        let saved = e.to_config();
+        assert_eq!(saved.fps, 10.0, "the walk's pace saved as the character's");
+        assert_eq!(saved.easing, config.easing, "easing lost while walking");
+        e.set_playing(false);
+        e.animations.switch(StateId::Idle);
+        assert!(
+            !e.to_config().playing && !e.animation().playing,
+            "the pause stayed with the walk"
+        );
+        e.set_fps(14.0);
+        assert_eq!(e.to_config().fps, 14.0);
+        e.animations.switch(StateId::Walk);
+        assert_eq!(e.animation().fps, 20.0, "a state's own pace is its own");
+    }
 
     #[test]
     fn hover_startle_pushes_away_within_radius_and_is_inert_outside() {

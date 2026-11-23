@@ -303,7 +303,7 @@ fn entity_inspector(
         &mut collapse_state.inspector_animation,
         config_dirty,
         |ui| {
-            let mut fps = entity.animation().fps;
+            let mut fps = entity.fps();
             let fps_resp = ui
                 .add(
                     egui::Slider::new(&mut fps, 1.0..=60.0)
@@ -312,18 +312,18 @@ fn entity_inspector(
                 )
                 .on_hover_text(t("inspector-double-click-reset-hint"));
             if fps_resp.double_clicked() {
-                entity.animation_mut().set_fps(crate::config::default_fps());
+                entity.set_fps(crate::config::default_fps());
                 change.any_field = true;
             } else if fps_resp.changed() {
-                entity.animation_mut().set_fps(fps);
+                entity.set_fps(fps);
                 change.any_field = true;
             }
-            let mut playing = entity.animation().playing;
+            let mut playing = entity.playing();
             if ui.checkbox(&mut playing, t("inspector-playing")).changed() {
-                entity.animation_mut().playing = playing;
+                entity.set_playing(playing);
                 change.any_field = true;
             }
-            if easing_picker(ui, &mut entity.animation_mut().easing) {
+            if easing_picker(ui, entity.easing_mut()) {
                 change.any_field = true;
             }
         },

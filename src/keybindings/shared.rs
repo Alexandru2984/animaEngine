@@ -226,12 +226,10 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
             }
         }
         Action::TogglePlayback => {
-            if let Some(target) = primary(scene, selection).map(|e| !e.animation().playing) {
+            if let Some(target) = primary(scene, selection).map(|e| !e.playing()) {
                 for idx in selection.selected_indices() {
                     if let Some(entity) = scene.entities.get_mut(idx) {
-                        if entity.animation().playing != target {
-                            entity.animation_mut().toggle_playback();
-                        }
+                        entity.set_playing(target);
                         tracing::info!(
                             "Entity '{}': {}",
                             entity.name,
@@ -288,9 +286,9 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
         Action::FpsDown => {
             for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
-                    let fps = entity.animation().fps;
-                    entity.animation_mut().set_fps((fps - 2.0).max(1.0));
-                    tracing::info!("FPS: {:.0} ({})", entity.animation().fps, entity.name);
+                    let fps = entity.fps();
+                    entity.set_fps((fps - 2.0).max(1.0));
+                    tracing::info!("FPS: {:.0} ({})", entity.fps(), entity.name);
                     *config_dirty = true;
                 }
             }
@@ -298,9 +296,9 @@ pub fn dispatch_shared(action: Action, ctx: &mut ActionCtx<'_>) -> bool {
         Action::FpsUp => {
             for idx in selection.selected_indices() {
                 if let Some(entity) = scene.entities.get_mut(idx) {
-                    let fps = entity.animation().fps;
-                    entity.animation_mut().set_fps(fps + 2.0);
-                    tracing::info!("FPS: {:.0} ({})", entity.animation().fps, entity.name);
+                    let fps = entity.fps();
+                    entity.set_fps(fps + 2.0);
+                    tracing::info!("FPS: {:.0} ({})", entity.fps(), entity.name);
                     *config_dirty = true;
                 }
             }

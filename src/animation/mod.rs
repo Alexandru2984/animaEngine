@@ -378,6 +378,25 @@ impl AnimationSet {
             .expect("AnimationSet invariant: Idle always present")
     }
 
+    /// The Idle sequence: the character's own, whose fps, easing and play
+    /// state are what its config says (`Entity::to_config`).
+    pub fn idle(&self) -> &Animation {
+        self.states
+            .get(&StateId::Idle)
+            .expect("AnimationSet invariant: Idle always present")
+    }
+
+    pub fn idle_mut(&mut self) -> &mut Animation {
+        self.states
+            .get_mut(&StateId::Idle)
+            .expect("AnimationSet invariant: Idle always present")
+    }
+
+    /// Every state's animation, with its state.
+    pub fn each_mut(&mut self) -> impl Iterator<Item = (StateId, &mut Animation)> {
+        self.states.iter_mut().map(|(state, a)| (*state, a))
+    }
+
     pub fn current_mut(&mut self) -> &mut Animation {
         let key = if self.states.contains_key(&self.active) {
             self.active
