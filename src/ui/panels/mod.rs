@@ -705,6 +705,7 @@ pub fn settings(
             start_at_login,
             library_outcome,
             config_dirty,
+            active_scene,
         );
     }
 }

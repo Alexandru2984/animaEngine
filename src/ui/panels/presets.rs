@@ -2,9 +2,8 @@
 //! Extracted in I.9.
 //!
 //! The gallery is a CollapsingHeader; each card is one `Preset` with
-//! Append / Replace actions. `apply_preset` runs the diff and dispatches
-//! to `Scene::reset_to_configs` (Replace) or repeated
-//! `Scene::append_character_config` (Append, skipping duplicates).
+//! Append / Replace actions, which go through `presets::apply` as the
+//! command palette's do.
 
 use crate::i18n::{t, t_args};
 use crate::input::selection::SelectionState;
@@ -19,6 +18,7 @@ pub(super) fn preset_gallery(
     scene: &mut Scene,
     selection: &mut SelectionState,
     config_dirty: &mut bool,
+    active_scene: &mut Option<String>,
     open: &mut bool,
 ) {
     let header = egui::RichText::new(format!("{}  {}", icons::SPARKLE, t("scene-presets-header")))
@@ -29,7 +29,7 @@ pub(super) fn preset_gallery(
         .show(ui, |ui| {
             ui.add_space(SPACE_S);
             for id in PresetId::ALL {
-                preset_card(ui, *id, scene, selection, config_dirty);
+                preset_card(ui, *id, scene, selection, config_dirty, active_scene);
                 ui.add_space(SPACE_S);
             }
         });
@@ -46,6 +46,7 @@ fn preset_card(
     scene: &mut Scene,
     selection: &mut SelectionState,
     config_dirty: &mut bool,
+    active_scene: &mut Option<String>,
 ) {
     let preset = Preset::for_id(id);
     let (bg, accent, body_color) = {
@@ -82,7 +83,7 @@ fn preset_card(
                     .named(t_args("palette-append-row", &args))
                     .clicked()
                 {
-                    apply_preset(scene, selection, &preset, ApplyMode::Append);
+                    apply_preset(scene, selection, active_scene, &preset, ApplyMode::Append);
                     *config_dirty = true;
                 }
                 let error_color = ui.visuals().error_fg_color;
@@ -92,37 +93,64 @@ fn preset_card(
                     .on_hover_text(t("scene-preset-replace-tooltip"))
                     .clicked()
                 {
-                    apply_preset(scene, selection, &preset, ApplyMode::Replace);
+                    apply_preset(scene, selection, active_scene, &preset, ApplyMode::Replace);
                     *config_dirty = true;
                 }
             });
         });
 }
 
+/// `presets::apply`, and what follows it here: after a "Replace" nothing
+/// is selected, and the saved scene that was on is not on screen any
+/// more (`GlobalConfig::active_scene`).
 pub(super) fn apply_preset(
     scene: &mut Scene,
     selection: &mut SelectionState,
+    active_scene: &mut Option<String>,
     preset: &Preset,
     mode: ApplyMode,
 ) {
-    let existing = scene.to_character_configs();
-    let new = presets::apply_to_scene(existing, preset, mode);
-    if matches!(mode, ApplyMode::Replace) {
-        scene.reset_to_configs(&new);
+    let applied = presets::apply(scene, preset, mode);
+    if mode == ApplyMode::Replace {
         selection.deselect();
-    } else {
-        // Append the suffixed preset characters that aren't already present.
-        let already: std::collections::HashSet<&str> =
-            scene.entities.iter().map(|e| e.id.as_str()).collect();
-        let to_add: Vec<_> = new
-            .iter()
-            .filter(|c| !already.contains(c.id.as_str()))
-            .cloned()
-            .collect();
-        for cfg in &to_add {
-            if let Err(e) = scene.append_character_config(cfg) {
-                tracing::warn!("Preset entity '{}' failed to append: {}", cfg.id, e);
-            }
-        }
+        *active_scene = None;
+    }
+    for e in &applied.failed {
+        tracing::warn!(
+            "Preset '{}': a character failed to append: {e}",
+            preset.name
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// After "Replace" the saved scene that was on is not what is on
+    /// screen: "Next scene" and the Scene tab's "Update" must not take it
+    /// for that one. "Append" keeps it, as any edit does.
+    #[test]
+    fn replace_forgets_the_saved_scene_that_was_on() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let mut selection = SelectionState::default();
+        let mut active = Some("Work".to_string());
+        let preset = Preset::for_id(PresetId::CozyCompanion);
+        apply_preset(
+            &mut scene,
+            &mut selection,
+            &mut active,
+            &preset,
+            ApplyMode::Append,
+        );
+        assert_eq!(active.as_deref(), Some("Work"));
+        apply_preset(
+            &mut scene,
+            &mut selection,
+            &mut active,
+            &preset,
+            ApplyMode::Replace,
+        );
+        assert_eq!(active, None);
     }
 }

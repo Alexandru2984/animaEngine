@@ -247,11 +247,9 @@ impl Scene {
         changed
     }
 
-    /// Load a single entity from config. The legacy top-level asset
-    /// fields define the `Idle` state; `[characters.animations.*]`
-    /// tables add further states (U.1). A state that fails to load is
-    /// skipped with a warning — the `Idle` fallback covers it — so a
-    /// missing walk sequence can't take the whole entity down.
+    /// [`Self::load_entity_at`] at the picture cap, outside the decode
+    /// budget: the app loads within it ([`Self::load_entity_within`]).
+    #[cfg(test)]
     fn load_entity(config: &CharacterConfig) -> Result<Entity> {
         Self::load_entity_at(config, crate::entity::picture_cap())
     }
@@ -278,8 +276,12 @@ impl Scene {
         Ok(entity)
     }
 
-    /// [`Self::load_entity`], each picture at most `cap` a side
-    /// ([`Self::cap_to`]).
+    /// Load a single entity from config, each picture at most `cap` a
+    /// side ([`Self::cap_to`]). The legacy top-level asset fields define
+    /// the `Idle` state; `[characters.animations.*]` tables add further
+    /// states (U.1). A state that fails to load is skipped with a warning
+    /// — the `Idle` fallback covers it — so a missing walk sequence can't
+    /// take the whole entity down.
     fn load_entity_at(config: &CharacterConfig, cap: u32) -> Result<Entity> {
         let resolved_path = AppConfig::resolve_asset_path(&config.asset_path);
         let frames = load_asset(
@@ -1133,10 +1135,14 @@ impl Scene {
         self.entities.iter().map(|e| e.to_config()).collect()
     }
 
-    /// Replace every entity with the given character configs. Used by
-    /// the preset gallery (`presets::apply_to_scene`) when the user
-    /// picks "Replace". Failed loads fall back to a placeholder so a
-    /// missing asset can't strand the preset application midway.
+    /// Start the scene over with the given character configs: a preset's
+    /// "Replace" (`presets::apply`). What went with the characters goes
+    /// too — groups, games, hearts, who has met — and the startup limits
+    /// hold, as for a saved scene (`Scene::restore_configs`): at most
+    /// `MAX_ENTITIES`, and the decode budget. It kept the groups, the
+    /// games and the meetings, and loaded every config whatever the
+    /// budget. Failed loads fall back to a placeholder so a missing asset
+    /// can't strand the preset application midway.
     ///
     /// SECURITY: this entry point assumes `configs` come from a trusted
     /// in-binary source (hardcoded `Preset::for_id` rosters). Each
@@ -1147,21 +1153,12 @@ impl Scene {
     /// whitelist, byte cap, frame cap) on every `asset_path` first, or
     /// route it through `add_entity_from_path` per character instead.
     pub fn reset_to_configs(&mut self, configs: &[CharacterConfig]) {
+        // None kept: every one is loaded afresh (and fades in).
         self.entities.clear();
-        for cfg in configs {
-            let entity = Self::load_entity(cfg).unwrap_or_else(|err| {
-                tracing::warn!(
-                    "Preset entity '{}' failed to load: {}; using fallback",
-                    cfg.id,
-                    err,
-                );
-                Self::create_fallback_entity(cfg)
-            });
-            self.entities.push(entity);
-        }
+        self.groups.clear();
+        self.effects.clear();
+        self.restore_configs(configs);
         self.entities.sort_by_key(|e| e.z_index);
-        self.mark_visible_dirty();
-        self.settle_again();
     }
 
     /// Make the scene match `configs`, in their order — undo and redo

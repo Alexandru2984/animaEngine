@@ -73,6 +73,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A preset added a second time comes in again, and "Replace" starts
+  the scene over.** The second "Append" of the same preset added nobody
+  — its characters got the same names as the first time and were
+  skipped as there already — and still said "Preset loaded". "Replace"
+  kept the old scene's groups over characters that were gone, still
+  named the saved scene that was on (so "Next scene" went on from it),
+  and loaded the preset past the memory budget a saved scene keeps to.
+  A full scene now says so once, not once a character.
 - **Two characters playing tag no longer stop to greet each other at a
   catch.** On the tick of a catch they were briefly out of the game, so
   greetings took them for two that met and stood them still 2.5 seconds

@@ -6,9 +6,10 @@
 //! `cat`, and from 1.5 `bunny`, `frog`, `robot`, `cloud`, `mushroom`). Because no preset references external paths, applying one
 //! is a pure-data operation that always works after `cargo run`.
 //!
-//! Presets are consumed from the Scene tab via [`apply_to_scene`] in
-//! two modes: `Replace` (clears existing entities first) or `Append`
-//! (keeps everything and shifts IDs to avoid collisions).
+//! Presets go into the scene by [`apply`] — the Scene tab's gallery,
+//! the first-run picker and the command palette alike — in two modes:
+//! `Replace` (starts the scene over) or `Append` (keeps everything and
+//! gives the preset's characters ids nothing in the scene has).
 //!
 //! Adding a new preset means:
 //! 1. Adding a [`PresetId`] variant.
@@ -21,6 +22,7 @@ use crate::behavior::Behavior;
 use crate::config::{AssetType, CharacterConfig};
 use crate::constants::MAX_ENTITIES;
 use crate::i18n::t;
+use crate::scene::Scene;
 use crate::ui::icons;
 
 /// Identifier for a curated preset. Stable across versions — UI code
@@ -68,8 +70,59 @@ pub enum ApplyMode {
     /// Wipe the existing scene first, then drop the preset in.
     Replace,
     /// Keep existing entities; append the preset's characters with
-    /// IDs suffixed `_a`, `_b`, … so they can't collide.
+    /// IDs suffixed `_a`, `_b`, … so they can't collide — and a number
+    /// after when the same preset is added again (`ghost_1_a2`).
     Append,
+}
+
+/// What [`apply`] did: how many of the preset's characters came in, and
+/// why any did not.
+#[derive(Debug, Default)]
+pub struct Applied {
+    pub added: usize,
+    pub failed: Vec<crate::error::AnimaError>,
+}
+
+/// Put `preset` into `scene`. `Replace` starts the scene over
+/// (`Scene::reset_to_configs`): its groups, games and hearts go with its
+/// characters, and the startup limits hold. `Append` adds the preset's
+/// characters under ids the scene does not have yet — added twice, the
+/// same preset comes in twice — until the scene is full, which is said
+/// once in `failed`.
+///
+/// The caller deselects after a `Replace` (the selection's indices were
+/// into the scene that is gone), and forgets the saved scene that was on
+/// (`GlobalConfig::active_scene`): what is on screen is not it any more.
+pub fn apply(scene: &mut Scene, preset: &Preset, mode: ApplyMode) -> Applied {
+    match mode {
+        ApplyMode::Replace => {
+            scene.reset_to_configs(&apply_to_scene(Vec::new(), preset, mode));
+            Applied {
+                added: scene.entities.len(),
+                failed: Vec::new(),
+            }
+        }
+        ApplyMode::Append => {
+            let existing = scene.to_character_configs();
+            let ours = existing.len();
+            // Not cut to `MAX_ENTITIES` here: the scene says when it is
+            // full.
+            let mut applied = Applied::default();
+            for cfg in &with_free_ids(existing, preset)[ours..] {
+                match scene.append_character_config(cfg) {
+                    Ok(()) => applied.added += 1,
+                    Err(e) => {
+                        let full = scene.entities.len() >= MAX_ENTITIES;
+                        applied.failed.push(e);
+                        if full {
+                            break;
+                        }
+                    }
+                }
+            }
+            applied
+        }
+    }
 }
 
 /// Apply a preset to `existing`, returning the new entity list.
@@ -84,21 +137,35 @@ pub fn apply_to_scene(
     mode: ApplyMode,
 ) -> Vec<CharacterConfig> {
     let mut out = match mode {
-        ApplyMode::Replace => Vec::with_capacity(preset.characters.len()),
-        ApplyMode::Append => existing,
+        ApplyMode::Replace => preset.characters.clone(),
+        ApplyMode::Append => with_free_ids(existing, preset),
     };
+    out.truncate(MAX_ENTITIES);
+    out
+}
 
+/// `existing`, then the preset's characters with their ids suffixed so
+/// they can't collide with anything already there. The single-letter
+/// suffix lets the user still recognize the source preset in the scene
+/// list; taken already — the same preset added again — a number follows.
+/// It used to be the letter alone, so a second "Append" made the same
+/// ids, every one was skipped as there already, and nothing came in.
+fn with_free_ids(existing: Vec<CharacterConfig>, preset: &Preset) -> Vec<CharacterConfig> {
+    let mut taken: std::collections::HashSet<String> =
+        existing.iter().map(|c| c.id.clone()).collect();
+    let mut out = existing;
     for (idx, mut character) in preset.characters.iter().cloned().enumerate() {
-        if matches!(mode, ApplyMode::Append) {
-            // Suffix the preset's IDs so they can't collide with anything
-            // already in the scene. Single-letter suffix lets the user
-            // still recognize the source preset in the scene list.
-            character.id = format!("{}_{}", character.id, suffix(idx));
+        let base = format!("{}_{}", character.id, suffix(idx));
+        let mut id = base.clone();
+        let mut n = 2;
+        while taken.contains(&id) {
+            id = format!("{base}{n}");
+            n += 1;
         }
+        taken.insert(id.clone());
+        character.id = id;
         out.push(character);
     }
-
-    out.truncate(MAX_ENTITIES);
     out
 }
 
@@ -580,5 +647,87 @@ mod tests {
             .collect();
         let out = apply_to_scene(existing, &preset, ApplyMode::Append);
         assert_eq!(out.len(), MAX_ENTITIES);
+    }
+
+    fn filler(n: usize) -> Vec<CharacterConfig> {
+        (0..n)
+            .map(|i| CharacterConfig {
+                asset_path: String::new(),
+                ..demo_character(
+                    &format!("e_{i}"),
+                    "filler",
+                    "assets/demo/ghost",
+                    0.0,
+                    0.0,
+                    Behavior::Idle,
+                )
+            })
+            .collect()
+    }
+
+    /// A second "Append" of the same preset made the same ids as the
+    /// first, so every character was skipped as there already — and
+    /// "Preset loaded" was said all the same (BUG-016).
+    #[test]
+    fn a_preset_added_twice_comes_in_twice() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let before = scene.entities.len();
+        let preset = Preset::for_id(PresetId::HalloweenParty);
+        for round in 1..=2 {
+            let applied = apply(&mut scene, &preset, ApplyMode::Append);
+            assert_eq!(applied.added, preset.characters.len(), "round {round}");
+            assert!(applied.failed.is_empty());
+        }
+        assert_eq!(scene.entities.len(), before + 2 * preset.characters.len());
+        let ids: HashSet<&str> = scene.entities.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids.len(), scene.entities.len(), "every id once");
+        assert!(ids.contains("ghost_1_a") && ids.contains("ghost_1_a2"));
+    }
+
+    /// "Replace" kept the old scene's groups (and games, and who had
+    /// met) over characters that were gone.
+    #[test]
+    fn replace_starts_the_scene_over() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        let ids: Vec<String> = scene.entities.iter().map(|e| e.id.clone()).collect();
+        scene.groups.push(crate::group::GroupConfig {
+            id: "g".into(),
+            name: "g".into(),
+            member_ids: ids,
+            ..Default::default()
+        });
+        let preset = Preset::for_id(PresetId::CozyCompanion);
+        let applied = apply(&mut scene, &preset, ApplyMode::Replace);
+        assert_eq!(applied.added, preset.characters.len());
+        assert_eq!(scene.entities.len(), preset.characters.len());
+        assert!(
+            scene.groups.is_empty(),
+            "the old scene's group went with it"
+        );
+        assert!(!scene.games.any());
+    }
+
+    /// Starting over holds to the startup limits, as a saved scene does.
+    #[test]
+    fn starting_over_holds_to_the_limit() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        scene.reset_to_configs(&filler(MAX_ENTITIES + 3));
+        assert_eq!(scene.entities.len(), MAX_ENTITIES);
+    }
+
+    /// A full scene says so once, not once a character, and nothing is
+    /// "loaded".
+    #[test]
+    fn a_full_scene_says_so_once() {
+        let mut scene = Scene::from_config(&crate::config::AppConfig::default());
+        scene.restore_configs(&filler(MAX_ENTITIES));
+        let applied = apply(
+            &mut scene,
+            &Preset::for_id(PresetId::HalloweenParty),
+            ApplyMode::Append,
+        );
+        assert_eq!(applied.added, 0);
+        assert_eq!(applied.failed.len(), 1);
+        assert_eq!(scene.entities.len(), MAX_ENTITIES);
     }
 }

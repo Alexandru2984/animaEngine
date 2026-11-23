@@ -242,6 +242,7 @@ pub(super) fn scene_tab(
         scene,
         selection,
         config_dirty,
+        active_scene,
         &mut collapse_state.scene_presets,
     );
 }

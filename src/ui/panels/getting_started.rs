@@ -35,6 +35,7 @@ pub(super) fn window(
     start_at_login: &mut bool,
     library_outcome: &mut Option<LibraryOutcome>,
     config_dirty: &mut bool,
+    active_scene: &mut Option<String>,
 ) {
     if progress.getting_started {
         return;
@@ -101,7 +102,7 @@ pub(super) fn window(
                 }
             }
             ui.add_space(SPACE_S);
-            if preset_picker(ui, scene, selection) {
+            if preset_picker(ui, scene, selection, active_scene) {
                 *config_dirty = true;
             }
             ui.add_space(SPACE_M);
@@ -257,7 +258,12 @@ fn tile(ui: &mut egui::Ui, name: &str, on: bool) -> egui::Response {
 
 /// "Or start from a scene": a preset in place of the characters there
 /// are. Returns whether one was picked.
-fn preset_picker(ui: &mut egui::Ui, scene: &mut Scene, selection: &mut SelectionState) -> bool {
+fn preset_picker(
+    ui: &mut egui::Ui,
+    scene: &mut Scene,
+    selection: &mut SelectionState,
+    active_scene: &mut Option<String>,
+) -> bool {
     let mut picked = None;
     ui.horizontal_wrapped(|ui| {
         ui.label(t("first-run-preset"));
@@ -280,7 +286,13 @@ fn preset_picker(ui: &mut egui::Ui, scene: &mut Scene, selection: &mut Selection
     });
     match picked {
         Some(preset) => {
-            super::presets::apply_preset(scene, selection, &preset, ApplyMode::Replace);
+            super::presets::apply_preset(
+                scene,
+                selection,
+                active_scene,
+                &preset,
+                ApplyMode::Replace,
+            );
             true
         }
         None => false,

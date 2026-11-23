@@ -603,33 +603,28 @@ pub fn apply_palette_outcome(
         }
         PaletteOutcome::ApplyPreset(id, mode) => {
             let preset = Preset::for_id(id);
-            let existing = ctx.scene.to_character_configs();
-            let new = presets::apply_to_scene(existing, &preset, mode);
-            match mode {
-                presets::ApplyMode::Replace => {
-                    ctx.scene.reset_to_configs(&new);
-                    // The selection is an index into the scene that was
-                    // just rebuilt, so whatever it pointed at is gone.
-                    ctx.selection.deselect();
-                }
-                presets::ApplyMode::Append => {
-                    let already: std::collections::HashSet<String> =
-                        ctx.scene.entities.iter().map(|e| e.id.clone()).collect();
-                    for cfg in new.iter().filter(|c| !already.contains(&c.id)) {
-                        if let Err(e) = ctx.scene.append_character_config(cfg) {
-                            tracing::warn!("Palette preset append failed: {e}");
-                            let mut args = fluent::FluentArgs::new();
-                            args.set("error", e.said());
-                            ctx.toasts
-                                .warn(crate::i18n::t_args("toast-preset-entry-failed", &args));
-                        }
-                    }
-                }
+            let applied = presets::apply(ctx.scene, &preset, mode);
+            if mode == presets::ApplyMode::Replace {
+                // The selection is an index into the scene that was
+                // just rebuilt, so whatever it pointed at is gone.
+                ctx.selection.deselect();
+                config.global.active_scene = None;
             }
-            let mut args = fluent::FluentArgs::new();
-            args.set("name", preset.name);
-            ctx.toasts
-                .success(crate::i18n::t_args("toast-preset-loaded", &args));
+            for e in &applied.failed {
+                tracing::warn!("Palette preset append failed: {e}");
+                let mut args = fluent::FluentArgs::new();
+                args.set("error", e.said());
+                ctx.toasts
+                    .warn(crate::i18n::t_args("toast-preset-entry-failed", &args));
+            }
+            // Said only when it came in: a second "Append" added nothing
+            // and still said so.
+            if applied.added > 0 {
+                let mut args = fluent::FluentArgs::new();
+                args.set("name", preset.name);
+                ctx.toasts
+                    .success(crate::i18n::t_args("toast-preset-loaded", &args));
+            }
         }
     }
     *ctx.config_dirty = true;
