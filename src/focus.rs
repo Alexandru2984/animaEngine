@@ -106,10 +106,10 @@ static STATE: Mutex<State> = Mutex::new(State {
 #[cfg(test)]
 pub(crate) static TEST_LOCK: Mutex<()> = Mutex::new(());
 
+/// Now, on the clock the timer is kept on: one the wall clock's jumps do
+/// not move and a suspend does not stop (`util::steady_secs`, BUG-012).
 fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs())
+    crate::util::steady_secs()
 }
 
 fn with<T>(f: impl FnOnce(&mut State) -> T) -> Option<T> {
@@ -178,9 +178,8 @@ pub fn phase() -> Option<Phase> {
 /// time (`crate::pacing`).
 pub fn next_turn() -> Option<std::time::Instant> {
     let until = with(|s| s.timer.map(|t| t.until)).flatten()?;
-    let ends = std::time::UNIX_EPOCH + std::time::Duration::from_secs(until);
-    let left = ends.duration_since(std::time::SystemTime::now()).ok()?;
-    Some(std::time::Instant::now() + left)
+    let left = until.checked_sub(now_secs())?;
+    Some(std::time::Instant::now() + std::time::Duration::from_secs(left))
 }
 
 /// What to say now, if anything — taken only when `shown`, so news that

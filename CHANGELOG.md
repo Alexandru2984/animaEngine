@@ -73,6 +73,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A snooze and the focus timer keep their time when the clock is
+  changed**: a DST change or a clock set back made them run an hour long
+  or stop. They now run on a clock that only goes forward and still
+  counts the time the computer slept.
 - **Native Wayland: Ctrl+C, Ctrl+X and Ctrl+V work in the panel's text
   fields on Cyrillic, Greek and other non-Latin layouts**, as on X11:
   they were read by the letter typed, which those layouts do not have.

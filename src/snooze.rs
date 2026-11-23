@@ -2,8 +2,8 @@
 //! an hour, an hour, or until the morning — and back on their own.
 //!
 //! The tray and D-Bus set it from their own threads and the loops read it
-//! every frame, so the deadline is one process-wide atomic: seconds since
-//! the epoch, 0 for none. While it holds, the loops step aside as they do
+//! every frame, so the deadline is one process-wide atomic: seconds on a
+//! steady clock (`util::steady_secs`), 0 for none. While it holds, the loops step aside as they do
 //! for a full-screen app set to hide (`crate::fullscreen`): hidden and
 //! still, reminders waiting. It does not outlive the app.
 
@@ -20,17 +20,17 @@ pub enum SnoozeFor {
     Morning,
 }
 
-/// The deadline, in seconds since the epoch; 0 when not snoozing.
+/// The deadline, in [`crate::util::steady_secs`]; 0 when not snoozing.
 static UNTIL: AtomicU64 = AtomicU64::new(0);
 
 /// Tests that snooze take turns: the deadline is one for the process.
 #[cfg(test)]
 pub(crate) static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// Now, on the clock the deadline is kept on: one the wall clock's jumps
+/// do not move and a suspend does not stop (`util::steady_secs`).
 fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs())
+    crate::util::steady_secs()
 }
 
 /// How many seconds `what` lasts from the local minute of the day `minute`

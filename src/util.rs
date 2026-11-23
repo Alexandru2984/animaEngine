@@ -25,6 +25,41 @@ pub fn resolves_to_regular_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Seconds on a clock that goes on through a suspend and never moves with
+/// the wall clock: for "in an hour" — a snooze, the focus timer. On the
+/// wall clock a DST change or an NTP step moved those an hour or stopped
+/// them; on `Instant` (CLOCK_MONOTONIC on Linux) an hour of suspend did
+/// not count (BUG-012). CLOCK_BOOTTIME on Linux, GetTickCount64 on
+/// Windows, CLOCK_MONOTONIC on the other Unixes.
+pub fn steady_secs() -> u64 {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    let clock = libc::CLOCK_BOOTTIME;
+    #[cfg(all(unix, not(any(target_os = "linux", target_os = "android"))))]
+    let clock = libc::CLOCK_MONOTONIC;
+    #[cfg(unix)]
+    {
+        let mut ts = libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        // SAFETY: `clock_gettime` writes only the `timespec` it is given,
+        // which lives for the call.
+        if unsafe { libc::clock_gettime(clock, &mut ts) } == 0 {
+            return u64::try_from(ts.tv_sec).unwrap_or(0);
+        }
+        0
+    }
+    #[cfg(windows)]
+    {
+        // SAFETY: no arguments, no preconditions.
+        unsafe { windows_sys::Win32::System::SystemInformation::GetTickCount64() / 1000 }
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        0
+    }
+}
+
 /// Whether an opt-in variable such as `ANIMA_USE_WAYLAND_NATIVE` is on:
 /// set to anything but nothing, `0`, `false`, `no` or `off`. Set at all
 /// was on, so `=0` turned the native path on, while "Start at login"
@@ -322,6 +357,14 @@ fn create_and_verify_private_dir(path: &Path, uid: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_steady_clock_runs_and_never_goes_back() {
+        let a = steady_secs();
+        let b = steady_secs();
+        assert!(a > 0, "the clock reads");
+        assert!(b >= a);
+    }
 
     #[test]
     fn an_opt_in_set_to_off_is_off() {
