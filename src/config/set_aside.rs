@@ -168,6 +168,7 @@ pub(super) fn entry_reads(list: &str, entry: &toml::Value) -> std::result::Resul
             .try_into::<crate::reminders::ReminderConfig>()
             .map(drop),
         "scene_schedule" => entry.try_into::<crate::schedule::ScheduleRule>().map(drop),
+        "windows" => entry.try_into::<WindowConfig>().map(drop),
         _ => entry.try_into::<CharacterConfig>().map(drop),
     }
     .map_err(|e| e.to_string().trim().replace('\n', " "))
@@ -351,6 +352,10 @@ impl SetAside {
                     sift(SetAsideList::WindowCharacters(id), "characters", items);
                 }
             }
+            // Then each window whole, its characters sifted already: one
+            // this version cannot read — a newer monitor mode — failed
+            // the whole config, every character with it (BUG-011).
+            sift(SetAsideList::Top("windows"), "windows", windows);
         }
         // Every `[global]` setting has a default, so each reads on its
         // own or does not.

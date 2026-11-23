@@ -73,6 +73,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A window entry this version cannot read no longer stops the whole
+  config from loading.** One written by a newer version — a monitor mode
+  this one does not know — made the config unreadable, characters and
+  all. It is now set aside like a character or a group would be, and
+  kept in the file.
 - **A character saved while walking, falling or asleep keeps its own
   speed and easing.** The demo characters walk at their own pace: saved
   mid-walk, that pace became the character's and its easing was lost,

@@ -1070,3 +1070,33 @@ mod numbers_from_a_file_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod window_set_aside_tests {
+    use super::*;
+
+    /// A `[[windows]]` entry this version cannot read — a newer monitor
+    /// mode — failed the whole config, every character with it; it is
+    /// set aside, the rest read, and written back as it was (BUG-011).
+    #[test]
+    fn a_window_this_version_cannot_read_is_set_aside() {
+        let mut text = AppConfig::default().to_toml_string().unwrap();
+        text.push_str(
+            "\n[[windows]]\nid = \"later\"\nname = \"Later\"\n\
+             monitor_mode = { kind = \"hologram_wall\" }\n\
+             \n[[windows]]\nid = \"now\"\nname = \"Now\"\n",
+        );
+        let (config, _) = AppConfig::decode_config_str(&text).expect("the rest reads");
+        assert_eq!(
+            config.characters.len(),
+            AppConfig::default().characters.len()
+        );
+        assert_eq!(config.windows.len(), 1);
+        assert_eq!(config.windows[0].id, "now");
+        let written = config.to_toml_string().unwrap();
+        assert!(
+            written.contains("hologram_wall"),
+            "not written back:\n{written}"
+        );
+    }
+}
