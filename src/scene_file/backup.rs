@@ -425,9 +425,10 @@ pub fn put_in_place(restored: Restored) -> Result<usize> {
     }
     let config_path = AppConfig::config_path();
     if config_path.exists() {
-        std::fs::copy(
+        // The user's alone, and never through a link (`util::copy_private`).
+        crate::util::copy_private(
             &config_path,
-            config_path.with_extension("toml.before-restore"),
+            &config_path.with_extension("toml.before-restore"),
         )?;
     }
     restored.config.save()?;

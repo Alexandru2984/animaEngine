@@ -664,6 +664,41 @@ mod migration_tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The copy aside is the user's alone, and goes where it is named:
+    /// `fs::copy` made it with the source's mode (0644 from the umask,
+    /// readable by every account) and wrote through a link left at its
+    /// name (SEC-010).
+    #[cfg(unix)]
+    #[test]
+    fn the_copy_aside_is_private_and_follows_no_link() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("anima-bak-private-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let cfg = dir.join("config.toml");
+        std::fs::write(&cfg, "not [ toml").unwrap();
+        std::fs::set_permissions(&cfg, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let elsewhere = dir.join("elsewhere");
+        std::fs::write(&elsewhere, "someone else's").unwrap();
+        let bak = dir.join("config.toml.bak-corrupt");
+        std::os::unix::fs::symlink(&elsewhere, &bak).unwrap();
+
+        backup_unreadable_config(&cfg);
+
+        assert_eq!(
+            std::fs::read_to_string(&elsewhere).unwrap(),
+            "someone else's"
+        );
+        let meta = std::fs::symlink_metadata(&bak).unwrap();
+        assert!(
+            meta.file_type().is_file(),
+            "a file of its own, not the link"
+        );
+        assert_eq!(meta.permissions().mode() & 0o777, 0o600);
+        assert_eq!(std::fs::read_to_string(&bak).unwrap(), "not [ toml");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn v1_config_migrates_and_decodes() {
         // A minimal pre-0.9 config: no version key.

@@ -5,7 +5,6 @@ use crate::keybindings::KeyBindings;
 use crate::monitor::MonitorMode;
 use crate::ui::{CollapseState, OnboardingProgress, Theme};
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::path::{Path, PathBuf};
 
 mod character;
@@ -224,7 +223,7 @@ pub fn loaded_defaults_over_unreadable_config() -> bool {
 /// without redirecting the real config path.
 fn backup_unreadable_config(path: &Path) {
     let backup = path.with_extension("toml.bak-corrupt");
-    match fs::copy(path, &backup) {
+    match crate::util::copy_private(path, &backup) {
         Ok(_) => tracing::warn!(
             "Config was unreadable — backed the original up to {} before writing defaults",
             crate::drop_validate::redact_path(&backup)
@@ -372,7 +371,7 @@ impl AppConfig {
                         // the next launch skips re-migrating.
                         if from < CURRENT_SCHEMA_VERSION {
                             let backup = path.with_extension(format!("toml.bak-v{from}"));
-                            match fs::copy(&path, &backup) {
+                            match crate::util::copy_private(&path, &backup) {
                                 Ok(_) => tracing::info!(
                                     "Migrating config v{from} → v{CURRENT_SCHEMA_VERSION}; backed up original to {}",
                                     crate::drop_validate::redact_path(&backup)

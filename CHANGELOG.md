@@ -8,6 +8,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- **The copies of your settings kept aside are readable by you alone.**
+  The copy made before a migration, before a restore, of an unreadable
+  config and of the live config on crash recovery took the file's mode —
+  usually readable by every account on the machine — and wrote through
+  a link left at its name. They are now made private (0600), whole or
+  not at all, and replace such a link rather than follow it.
 - **A backup is readable by you alone, and a failed backup or share no
   longer destroys the file it would replace.** A backup — the settings
   and every scene — was made with the system's default mode, readable

@@ -321,7 +321,7 @@ pub fn try_recover() -> RecoverOutcome {
     // crashed, the user might still want to see it.
     let backup = if target.exists() {
         let path = target.with_extension("toml.bak");
-        match std::fs::copy(&target, &path) {
+        match crate::util::copy_private(&target, &path) {
             Ok(_) => Some(path),
             Err(e) => return RecoverOutcome::Failed(format!("backup live config: {e}")),
         }

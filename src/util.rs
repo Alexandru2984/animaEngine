@@ -110,6 +110,30 @@ pub fn atomic_write_bytes(path: &Path, contents: &[u8]) -> std::io::Result<()> {
     atomic_write_with(path, |w| w.write_all(contents))
 }
 
+/// Copy `from` to `to` as [`atomic_write_with`] writes: `0600`, through
+/// a temp of our own and a rename — so a link at `to` is replaced, not
+/// written through, and no half copy is left. Streamed, whatever the size.
+/// Only a regular file is read (a FIFO would block). For the config's
+/// copies aside (`.bak`, `.bak-corrupt`, `.bak-v<n>`, `.before-restore`):
+/// `fs::copy` gave them the source's mode — 0644 from the umask, readable
+/// by every account — followed a link at `to`, and could leave half a file
+/// (SEC-010). Returns the bytes copied.
+pub fn copy_private(from: &Path, to: &Path) -> std::io::Result<u64> {
+    if !resolves_to_regular_file(from) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "not a regular file",
+        ));
+    }
+    let mut source = std::fs::File::open(from)?;
+    let mut copied = 0;
+    atomic_write_with(to, |w| {
+        copied = std::io::copy(&mut source, w)?;
+        Ok(())
+    })?;
+    Ok(copied)
+}
+
 /// Like [`atomic_write_bytes`], but the caller **streams** the payload
 /// into a `BufWriter` over the temp file, so a large serialized blob (the
 /// frame cache — hundreds of MiB) never has to exist in memory alongside
@@ -357,6 +381,24 @@ fn create_and_verify_private_dir(path: &Path, uid: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A copy aside of something that is not a regular file is refused at
+    /// once: a FIFO would have blocked the open (SEC-010).
+    #[cfg(unix)]
+    #[test]
+    fn a_private_copy_refuses_a_fifo() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = std::env::temp_dir().join(format!("anima-copy-fifo-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let fifo = dir.join("config.toml");
+        let c = std::ffi::CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        // SAFETY: a NUL-terminated path we own, for the call.
+        assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o600) }, 0);
+        assert!(copy_private(&fifo, &dir.join("config.toml.bak")).is_err());
+        assert!(!dir.join("config.toml.bak").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn the_steady_clock_runs_and_never_goes_back() {
