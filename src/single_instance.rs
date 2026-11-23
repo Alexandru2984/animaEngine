@@ -66,23 +66,9 @@ pub enum AcquireOutcome {
     HandedOff,
 }
 
-/// Commands forwarded per second before the service starts shedding.
-///
-/// Each method here posts into the winit event loop, which has no bound
-/// of its own — so a script hammering the session bus can grow that queue
-/// faster than the UI thread drains it, and synchronous asset decode on
-/// that thread widens the window further. Human use is a handful of
-/// activations per second at worst, so anything past this is a flood and
-/// dropping it is what keeps the overlay responsive. (The Wayland twin
-/// below already posts into a bounded channel.)
-const MAX_COMMANDS_PER_SECOND: u32 = 20;
-
-/// Fixed-window counter behind [`ActivationService::post`].
-struct CommandRate {
-    window_start: std::time::Instant,
-    count: u32,
-    dropped: u64,
-}
+use crate::event::CommandRate;
+#[cfg(test)]
+use crate::event::MAX_COMMANDS_PER_SECOND;
 
 /// Service exposed on the D-Bus. Activations by a second-launch instance
 /// post `AnimaEvent::RaiseWindow` to the main thread.
@@ -98,11 +84,7 @@ impl ActivationService {
     fn new(proxy: EventLoopProxy<AnimaEvent>) -> Self {
         Self {
             proxy,
-            rate: std::sync::Arc::new(std::sync::Mutex::new(CommandRate {
-                window_start: std::time::Instant::now(),
-                count: 0,
-                dropped: 0,
-            })),
+            rate: CommandRate::shared(),
         }
     }
 
@@ -117,40 +99,9 @@ impl ActivationService {
 
     /// Forward `event` unless this second's budget is already spent.
     fn post(&self, event: AnimaEvent) {
-        let allowed = match self.rate.lock() {
-            Ok(mut rate) => rate.allow(std::time::Instant::now()),
-            // A poisoned lock must not disable the overlay's control
-            // surface — fail open, forwarding is the safe direction.
-            Err(_) => true,
-        };
-        if allowed {
+        if CommandRate::allowed(&self.rate) {
             let _ = self.proxy.send_event(event);
         }
-    }
-}
-
-impl CommandRate {
-    /// Whether a command arriving at `now` fits this second's budget.
-    /// Split out from `post` so the shedding logic is testable without
-    /// standing up an event loop.
-    fn allow(&mut self, now: std::time::Instant) -> bool {
-        if now.duration_since(self.window_start) >= std::time::Duration::from_secs(1) {
-            if self.dropped > 0 {
-                tracing::warn!(
-                    "dropped {} flooding D-Bus command(s) in the last second",
-                    self.dropped
-                );
-            }
-            self.window_start = now;
-            self.count = 0;
-            self.dropped = 0;
-        }
-        if self.count >= MAX_COMMANDS_PER_SECOND {
-            self.dropped = self.dropped.saturating_add(1);
-            return false;
-        }
-        self.count += 1;
-        true
     }
 }
 
@@ -304,13 +255,7 @@ impl WaylandActivationService {
     /// Within this second's budget only, and the loop woken only for what
     /// went in: woken for every call, a flood kept it turning (SEC-012).
     fn dispatch(&self, ev: AnimaEvent, name: &'static str) {
-        let allowed = match self.rate.lock() {
-            Ok(mut rate) => rate.allow(std::time::Instant::now()),
-            // A poisoned lock must not disable the overlay's control
-            // surface — fail open, as the X11 service does.
-            Err(_) => true,
-        };
-        if !allowed {
+        if !CommandRate::allowed(&self.rate) {
             return;
         }
         match self.tx.try_send(ev) {
@@ -322,11 +267,7 @@ impl WaylandActivationService {
     fn new(tx: std::sync::mpsc::SyncSender<AnimaEvent>) -> Self {
         Self {
             tx,
-            rate: std::sync::Arc::new(std::sync::Mutex::new(CommandRate {
-                window_start: std::time::Instant::now(),
-                count: 0,
-                dropped: 0,
-            })),
+            rate: CommandRate::shared(),
         }
     }
 
@@ -455,6 +396,7 @@ pub fn install_wayland_service(
     // never-run closure, so `rx` just reports disconnected and the
     // run loop's `try_recv` loop already treats that as "nothing to
     // do" rather than an error worth propagating.
+    let kept = connection.clone();
     if let Err(e) = std::thread::Builder::new()
         .name("anima-instance-wayland".into())
         .spawn(move || {
@@ -480,6 +422,18 @@ pub fn install_wayland_service(
         })
     {
         tracing::warn!("Failed to spawn Wayland activation service thread: {e}");
+        keep_for_good(kept);
+    }
+}
+
+/// Hold `connection`, and the bus name it owns, until the process ends.
+/// For a service thread that could not be made: the connection went with
+/// its closure, and with it the name, so a second launch found no
+/// instance and started another beside this one (SEC-012).
+fn keep_for_good(connection: zbus::Connection) {
+    static KEPT: std::sync::Mutex<Vec<zbus::Connection>> = std::sync::Mutex::new(Vec::new());
+    if let Ok(mut kept) = KEPT.lock() {
+        kept.push(connection);
     }
 }
 
@@ -502,6 +456,7 @@ pub fn install_service(connection: zbus::Connection, proxy: EventLoopProxy<Anima
     // exhaustion. Degrading to "no activation service" means a
     // second launch won't be able to raise this instance's window,
     // but the instance that's already running keeps running.
+    let kept = connection.clone();
     if let Err(e) = std::thread::Builder::new()
         .name("anima-instance".into())
         .spawn(move || {
@@ -529,6 +484,7 @@ pub fn install_service(connection: zbus::Connection, proxy: EventLoopProxy<Anima
         })
     {
         tracing::warn!("Failed to spawn single-instance activation thread: {e}");
+        keep_for_good(kept);
     }
 }
 

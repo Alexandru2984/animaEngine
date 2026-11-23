@@ -63,6 +63,10 @@ impl Clicked {
 /// Tray + menu — owned and updated only on the tray thread.
 struct AnimaTray {
     sink: EventSink,
+    /// The tray's own budget (`event::CommandRate`): its menu is a D-Bus
+    /// interface too, and its clicks went straight into the winit queue,
+    /// which has no bound (SEC-012).
+    rate: std::sync::Mutex<crate::event::CommandRate>,
 }
 
 impl ksni::Tray for AnimaTray {
@@ -90,7 +94,9 @@ impl ksni::Tray for AnimaTray {
 
     /// Default activation (single click on KDE, double click on GNOME).
     fn activate(&mut self, _x: i32, _y: i32) {
-        self.sink.send(crate::tray_menu::ACTIVATE);
+        if crate::event::CommandRate::allowed(&self.rate) {
+            self.sink.send(crate::tray_menu::ACTIVATE);
+        }
     }
 
     /// Rendered from `tray_menu::entries`, which the Windows tray shares.
@@ -110,8 +116,10 @@ impl ksni::Tray for AnimaTray {
                     enabled: event.is_some(),
                     activate: Box::new(move |this: &mut Self| {
                         if let Some(event) = event {
-                            this.sink.send(event);
-                            CLICKED.raise();
+                            if crate::event::CommandRate::allowed(&this.rate) {
+                                this.sink.send(event);
+                                CLICKED.raise();
+                            }
                         }
                     }),
                     ..Default::default()
@@ -132,7 +140,10 @@ pub fn spawn(sink: EventSink) -> Option<thread::JoinHandle<()>> {
         .name("anima-tray".into())
         .spawn(move || {
             async_io::block_on(async move {
-                let tray = AnimaTray { sink };
+                let tray = AnimaTray {
+                    sink,
+                    rate: std::sync::Mutex::new(crate::event::CommandRate::new()),
+                };
                 // A tray item normally owns a per-process bus name,
                 // `org.kde.StatusNotifierItem-PID-N`. Flatpak's bus proxy
                 // lets an app own only the names its manifest declares, so

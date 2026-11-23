@@ -86,6 +86,67 @@ pub enum EventSink {
     Channel(std::sync::mpsc::SyncSender<AnimaEvent>),
 }
 
+/// Commands from outside a second may pass: the D-Bus methods, the tray,
+/// Windows' raise. Human use is a handful a second at worst, so past this
+/// is a flood, and dropping it keeps the overlay answering: the winit
+/// queue has no bound of its own, and the native loop's channel is shared
+/// with the signal handler (SEC-012).
+pub(crate) const MAX_COMMANDS_PER_SECOND: u32 = 20;
+
+/// A fixed-window count of the commands of this second.
+pub(crate) struct CommandRate {
+    pub(crate) window_start: std::time::Instant,
+    pub(crate) count: u32,
+    pub(crate) dropped: u64,
+}
+
+impl CommandRate {
+    pub(crate) fn new() -> Self {
+        Self {
+            window_start: std::time::Instant::now(),
+            count: 0,
+            dropped: 0,
+        }
+    }
+
+    /// One budget for several senders.
+    #[cfg(unix)]
+    pub(crate) fn shared() -> std::sync::Arc<std::sync::Mutex<Self>> {
+        std::sync::Arc::new(std::sync::Mutex::new(Self::new()))
+    }
+
+    /// Whether a command arriving at `now` fits this second's budget.
+    pub(crate) fn allow(&mut self, now: std::time::Instant) -> bool {
+        if now.duration_since(self.window_start) >= std::time::Duration::from_secs(1) {
+            if self.dropped > 0 {
+                tracing::warn!(
+                    "dropped {} flooding command(s) in the last second",
+                    self.dropped
+                );
+            }
+            self.window_start = now;
+            self.count = 0;
+            self.dropped = 0;
+        }
+        if self.count >= MAX_COMMANDS_PER_SECOND {
+            self.dropped = self.dropped.saturating_add(1);
+            return false;
+        }
+        self.count += 1;
+        true
+    }
+
+    /// [`Self::allow`] for one behind a lock; a poisoned lock lets the
+    /// command through, as a control surface must not go dead.
+    #[cfg(unix)]
+    pub(crate) fn allowed(rate: &std::sync::Mutex<Self>) -> bool {
+        match rate.lock() {
+            Ok(mut rate) => rate.allow(std::time::Instant::now()),
+            Err(_) => true,
+        }
+    }
+}
+
 /// What became of an event handed to an [`EventSink`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Delivery {

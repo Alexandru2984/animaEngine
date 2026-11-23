@@ -171,10 +171,20 @@ impl Instance {
     /// Consumes the handle: the listener thread keeps the mutex (and so
     /// the claim) until the process exits.
     pub fn listen(self, proxy: EventLoopProxy<AnimaEvent>) {
+        // Shared with the thread, so that if it cannot be made the
+        // instance is not dropped with its closure — that closed the
+        // mutex, and a second launch started beside this one (SEC-012).
+        let slot = std::sync::Arc::new(std::sync::Mutex::new(Some(self)));
+        let theirs = std::sync::Arc::clone(&slot);
         let spawned = std::thread::Builder::new()
             .name("anima-instance".into())
             .spawn(move || {
-                let instance = self;
+                let Some(instance) = theirs.lock().ok().and_then(|mut s| s.take()) else {
+                    return;
+                };
+                // A flood of raises is shed, as D-Bus calls are on the
+                // other platforms; each launch still gets its answer.
+                let mut rate = crate::event::CommandRate::new();
                 loop {
                     // SAFETY: `raise` is a live event handle owned by
                     // `instance`, which this thread holds.
@@ -183,7 +193,9 @@ impl Instance {
                         tracing::warn!("Single-instance listener stopped ({woke})");
                         return;
                     }
-                    if proxy.send_event(AnimaEvent::RaiseWindow).is_err() {
+                    if rate.allow(std::time::Instant::now())
+                        && proxy.send_event(AnimaEvent::RaiseWindow).is_err()
+                    {
                         // The event loop is gone; the process is exiting.
                         // No acknowledgement, so the launch waits for the
                         // mutex instead of trusting a hand-off to nobody.
@@ -194,6 +206,8 @@ impl Instance {
             });
         if let Err(e) = spawned {
             tracing::warn!("Single-instance listener failed to start: {e}");
+            // Held for the rest of the process: the mutex stays ours.
+            std::mem::forget(slot);
         }
     }
 }
