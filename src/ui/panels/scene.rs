@@ -486,6 +486,7 @@ fn reminders_section(
                     character: None,
                     enabled: true,
                     at: None,
+                    unknown: toml::Table::new(),
                 });
                 *config_dirty = true;
             }
@@ -671,6 +672,7 @@ fn reminders_section(
                     .on_date
                     .then(|| format!("{:02}-{:02}", draft.month, draft.day)),
             }),
+            unknown: toml::Table::new(),
         });
         *config_dirty = true;
         draft = ReminderDraft::default();
@@ -822,6 +824,7 @@ fn schedule_section(
                 at: format_hhmm(draft.hour * 60 + draft.minute),
                 days: draft.days,
                 enabled: true,
+                unknown: toml::Table::new(),
             });
             *config_dirty = true;
         }

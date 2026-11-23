@@ -1367,6 +1367,7 @@ mod tests {
                 fps: None,
                 spritesheet_columns: None,
                 spritesheet_rows: None,
+                unknown: toml::Table::new(),
             },
         );
         let mut entity = Scene::load_entity(&config).expect("loads");

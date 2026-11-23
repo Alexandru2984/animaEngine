@@ -140,6 +140,12 @@ pub struct StateSequenceConfig {
     pub spritesheet_columns: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spritesheet_rows: Option<u32>,
+    /// Keys this version does not read — a newer one's — kept with the
+    /// entry and written back with it (BUG-011). With the entry, not by
+    /// where it was: put back by where it was, a
+    /// state deleted here came back as a part-entry holding only them.
+    #[serde(flatten)]
+    pub unknown: toml::Table,
 }
 
 pub(super) fn is_idle_behavior(b: &Behavior) -> bool {

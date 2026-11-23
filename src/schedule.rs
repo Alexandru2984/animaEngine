@@ -54,6 +54,12 @@ pub struct ScheduleRule {
     pub days: Days,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// Keys this version does not read — a newer one's — kept with the
+    /// entry and written back with it (BUG-011). With the entry, not by
+    /// where it was: rules have no id to find it
+    /// by, and one deleted before it would hand its keys on.
+    #[serde(flatten)]
+    pub unknown: toml::Table,
 }
 
 fn default_true() -> bool {
@@ -248,6 +254,7 @@ mod tests {
             at: at.into(),
             days,
             enabled: true,
+            unknown: toml::Table::new(),
         }
     }
 

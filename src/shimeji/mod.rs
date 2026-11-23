@@ -215,6 +215,7 @@ pub fn import_pack(pack_root: &Path, dest_root: &Path) -> Result<ImportReport, M
                         fps: Some(fps_from_poses(&action.poses)),
                         spritesheet_columns: None,
                         spritesheet_rows: None,
+                        unknown: toml::Table::new(),
                     },
                 );
             }

@@ -980,6 +980,7 @@ mod tests {
                 fps: Some(20.0),
                 spritesheet_columns: None,
                 spritesheet_rows: None,
+                unknown: toml::Table::new(),
             },
         );
         let mut set = AnimationSet::single(Animation::new(vec![frame()], 10.0, true));

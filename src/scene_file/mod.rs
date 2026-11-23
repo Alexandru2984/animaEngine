@@ -190,6 +190,7 @@ fn pack_character(c: &mut crate::config::CharacterConfig, packer: &mut Packer) -
                     fps: None,
                     spritesheet_columns: None,
                     spritesheet_rows: None,
+                    unknown: toml::Table::new(),
                 },
             );
         }

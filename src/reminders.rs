@@ -29,6 +29,12 @@ pub struct ReminderConfig {
     /// is then not used.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at: Option<At>,
+    /// Keys this version does not read — a newer one's — kept with the
+    /// entry and written back with it (BUG-011). With the entry, not by
+    /// where it was: reminders have no id to find
+    /// it by, and one deleted before it would hand its keys on.
+    #[serde(flatten)]
+    pub unknown: toml::Table,
 }
 
 /// When a reminder at a set time is said (1.5): a time of day on some
@@ -375,6 +381,7 @@ mod tests {
             character: None,
             enabled: true,
             at: None,
+            unknown: toml::Table::new(),
         }
     }
 

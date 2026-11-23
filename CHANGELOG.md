@@ -79,6 +79,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Settings a newer version added to a reminder, a scheduled scene or
+  a character's walk, fall or drag animation are kept.** They were
+  dropped when this version read the file and lost at its next save.
 - **X11, several monitors: the overlay follows a change of monitor
   mode, and Center on screen stays on its monitor.** Switching from one
   monitor to every monitor left the main overlay window where it was, on

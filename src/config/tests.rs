@@ -1068,6 +1068,7 @@ mod numbers_from_a_file_tests {
                 fps: None,
                 spritesheet_columns: None,
                 spritesheet_rows: None,
+                unknown: toml::Table::new(),
             });
         state.fps = Some(f32::NAN);
         config.characters[0]
@@ -1133,5 +1134,71 @@ mod window_set_aside_tests {
             written.contains("hologram_wall"),
             "not written back:\n{written}"
         );
+    }
+}
+
+#[cfg(test)]
+mod entry_keys_tests {
+    use super::*;
+
+    /// A newer version's keys inside a reminder, a schedule rule and a
+    /// character's animation state are written back with the entry they
+    /// came in — even when an entry before it is gone (BUG-011). They
+    /// were dropped at load and lost at the next save.
+    #[test]
+    fn a_newer_versions_keys_stay_with_their_entry() {
+        let mut text = AppConfig::default().to_toml_string().unwrap();
+        text.push_str(
+            "\n[[reminders]]\ntext = \"Stretch\"\nevery_minutes = 30\nchime = \"bell\"\n\
+             \n[[reminders]]\ntext = \"Water\"\nevery_minutes = 45\nvolume_boost = 2\n\
+             [reminders.at]\ntime = \"10:00\"\n\
+             \n[[scene_schedule]]\nscene = \"Work\"\nat = \"09:00\"\nfade_secs = 3\n",
+        );
+        let (mut config, _) = AppConfig::decode_config_str(&text).expect("reads");
+        assert_eq!(config.reminders.len(), 2);
+        let written = config.to_toml_string().unwrap();
+        for key in ["chime = \"bell\"", "volume_boost = 2", "fade_secs = 3"] {
+            assert!(written.contains(key), "{key} not written back:\n{written}");
+        }
+        // The first reminder deleted: the second keeps its own key, and the
+        // first's goes with it.
+        config.reminders.remove(0);
+        let written = config.to_toml_string().unwrap();
+        let (back, _) = AppConfig::decode_config_str(&written).expect("reads again");
+        assert_eq!(back.reminders.len(), 1);
+        assert_eq!(back.reminders[0].text, "Water");
+        assert!(written.contains("volume_boost = 2"), "{written}");
+        assert!(!written.contains("chime"), "{written}");
+    }
+
+    /// A state's own newer keys go with the state: one deleted here does
+    /// not come back as a part-entry holding only them.
+    #[test]
+    fn a_states_newer_keys_go_with_it() {
+        let mut text = AppConfig::default().to_toml_string().unwrap();
+        text.push_str(
+            "\n[[characters]]\nid = \"walker\"\nname = \"Walker\"\nasset_type = \"png_sequence\"\n\
+             asset_path = \"assets/demo/cat\"\nx = 1.0\ny = 1.0\n\
+             [characters.animations.walk]\nasset_type = \"png_sequence\"\n\
+             asset_path = \"assets/demo/cat/walk\"\nsway = 0.5\n",
+        );
+        let (mut config, _) = AppConfig::decode_config_str(&text).expect("reads");
+        let walker = config
+            .characters
+            .iter()
+            .position(|c| c.id == "walker")
+            .unwrap();
+        let written = config.to_toml_string().unwrap();
+        assert!(written.contains("sway = 0.5"), "{written}");
+        config.characters[walker]
+            .animations
+            .remove(&crate::animation::StateId::Walk);
+        let written = config.to_toml_string().unwrap();
+        assert!(
+            !written.contains("sway"),
+            "came back as a part-entry:\n{written}"
+        );
+        let (back, _) = AppConfig::decode_config_str(&written).expect("reads again");
+        assert!(back.characters.iter().any(|c| c.id == "walker"));
     }
 }
