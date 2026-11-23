@@ -78,6 +78,21 @@ pub struct Imported {
     /// Characters and groups left out: they did not read here — a newer
     /// version's, or mistyped.
     pub left_out: usize,
+    /// The folder its pictures were unpacked into, made by [`import`]:
+    /// taken away again when nothing of it comes in ([`forget_unpacked`]).
+    pub dir: Option<PathBuf>,
+}
+
+/// Take away the folder `import` or `backup::read` unpacked pictures into,
+/// when nothing that points into it came in — the scene could not be
+/// shelved, the characters did not fit, the restore stopped before its
+/// first scene. It was left for good (SEC-010).
+pub fn forget_unpacked(dir: Option<&Path>) {
+    if let Some(dir) = dir {
+        if let Err(e) = std::fs::remove_dir_all(dir) {
+            tracing::debug!("Unused pictures not taken away: {e}");
+        }
+    }
 }
 
 /// What an export wrote.
@@ -472,6 +487,7 @@ pub fn import(file: &Path, into: &Path) -> Result<Imported> {
         character,
         at: None,
         left_out,
+        dir: Some(into.to_path_buf()),
     })
 }
 

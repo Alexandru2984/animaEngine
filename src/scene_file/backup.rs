@@ -235,6 +235,8 @@ pub struct Restored {
     pub config: AppConfig,
     /// Each scene, and its picture if it had one.
     pub scenes: Vec<(SavedScene, Option<image::RgbaImage>)>,
+    /// Where [`read`] unpacked the pictures.
+    pub dir: PathBuf,
 }
 
 /// For `super::fuzz_read`: a backup's manifest parsed and each scene in
@@ -398,6 +400,7 @@ pub fn read(file: &Path, into: &Path) -> Result<Restored> {
     Ok(Restored {
         config,
         scenes: restored,
+        dir: into.to_path_buf(),
     })
 }
 
@@ -406,16 +409,29 @@ pub fn read(file: &Path, into: &Path) -> Result<Restored> {
 /// `config.toml.before-restore`. The running app picks the settings up as
 /// it does an edit of the file. Returns how many scenes came.
 pub fn put_in_place(restored: Restored) -> Result<usize> {
-    let dir = crate::scenes::dir();
+    let pictures = restored.dir.clone();
     let mut count = 0;
+    let done = put_each(restored, &mut count);
+    // Stopped before its first scene, and the settings not written:
+    // nothing points into the pictures' folder.
+    if done.is_err() && count == 0 {
+        super::forget_unpacked(Some(&pictures));
+    }
+    done.map(|()| count)
+}
+
+/// [`put_in_place`]'s work: `count` says how many scenes are shelved.
+fn put_each(restored: Restored, count: &mut usize) -> Result<()> {
+    let dir = crate::scenes::dir();
     for (mut scene, thumb) in restored.scenes {
         scene.name = crate::scenes::free_name(&crate::scenes::list_in(&dir), &scene.name);
         let path = crate::scenes::write_in(&dir, &scene)?;
+        // On the shelf, pointing into the pictures' folder, from here.
+        *count += 1;
         if let Some(image) = thumb {
             let png = crate::scene_thumb::encode(&image)?;
             crate::util::atomic_write_bytes(&crate::scene_thumb::path_for(&path), &png)?;
         }
-        count += 1;
     }
     let config_path = AppConfig::config_path();
     if config_path.exists() {
@@ -426,7 +442,7 @@ pub fn put_in_place(restored: Restored) -> Result<usize> {
         )?;
     }
     restored.config.save()?;
-    Ok(count)
+    Ok(())
 }
 
 #[cfg(test)]

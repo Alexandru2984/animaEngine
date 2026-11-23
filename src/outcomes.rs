@@ -1433,11 +1433,17 @@ pub fn apply_imported(
         ctx.toasts.warn(crate::i18n::t("toast-scene-partly-read"));
     }
     if imported.character {
-        return add_shared_characters(imported, ctx, bounds);
+        let pictures = imported.dir.clone();
+        let added = add_shared_characters(imported, ctx, bounds);
+        if !added {
+            crate::scene_file::forget_unpacked(pictures.as_deref());
+        }
+        return added;
     }
     let crate::scene_file::Imported {
         scene: mut saved,
         thumbnail,
+        dir: pictures,
         ..
     } = imported;
     let dir = crate::scenes::dir();
@@ -1449,6 +1455,7 @@ pub fn apply_imported(
             args.set("error", e.said());
             ctx.toasts
                 .error(crate::i18n::t_args("toast-scene-import-failed", &args));
+            crate::scene_file::forget_unpacked(pictures.as_deref());
             return false;
         }
     };
@@ -2075,6 +2082,35 @@ mod tests {
         assert!(!w.dirty);
     }
 
+    /// A shared character that cannot come in — the scene is full —
+    /// leaves nothing behind: the folder its pictures were unpacked into
+    /// went unused, kept for good (SEC-010).
+    #[test]
+    fn a_character_that_does_not_come_in_leaves_no_pictures() {
+        let mut w = demo_world();
+        let dir = std::env::temp_dir().join(format!("anima-orphan-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let file = dir.join("cat.animachar");
+        std::fs::create_dir_all(&dir).unwrap();
+        let cat = w.scene.entities[0].to_config();
+        crate::scene_file::export_character(&cat, &file).unwrap();
+        let into = dir.join("unpacked");
+        let imported = crate::scene_file::import(&file, &into).unwrap();
+        assert!(into.exists());
+        let fill: Vec<_> = (0..crate::constants::MAX_ENTITIES)
+            .map(|i| crate::config::CharacterConfig {
+                id: format!("f{i}"),
+                asset_path: String::new(),
+                ..cat.clone()
+            })
+            .collect();
+        w.scene.restore_configs(&fill);
+        let bounds = crate::monitor::DesktopBounds::from_size(1600.0, 1000.0);
+        assert!(!apply_imported(imported, &mut w.ctx(), &mut None, bounds));
+        assert!(!into.exists(), "its pictures went with it");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// The containment check runs before anything is decoded.
     #[test]
     fn a_shared_character_joins_the_scene_where_it_was_dropped() {
@@ -2096,6 +2132,7 @@ mod tests {
             character: true,
             at: Some((500.0, 400.0)),
             left_out: 0,
+            dir: None,
         };
         let mut active = Some("Work".to_string());
         let bounds = crate::monitor::DesktopBounds::from_size(1600.0, 1000.0);
