@@ -1202,3 +1202,34 @@ mod entry_keys_tests {
         assert!(back.characters.iter().any(|c| c.id == "walker"));
     }
 }
+
+#[cfg(test)]
+mod duplicate_id_tests {
+    use super::*;
+
+    /// Two characters with one id — a hand-edited file — each keep their
+    /// own newer keys: the second's went to the first, found first by
+    /// its id (BUG-011).
+    #[test]
+    fn two_characters_with_one_id_keep_their_own_keys() {
+        let mut text = AppConfig::default().to_toml_string().unwrap();
+        for (key, x) in [("first_only", 1.0), ("second_only", 2.0)] {
+            text.push_str(&format!(
+                "\n[[characters]]\nid = \"twin\"\nname = \"Twin\"\nasset_type = \"png_sequence\"\n\
+                 asset_path = \"assets/demo/cat\"\nx = {x}\ny = 1.0\n{key} = true\n"
+            ));
+        }
+        let (config, _) = AppConfig::decode_config_str(&text).expect("reads");
+        let written: toml::Table = toml::from_str(&config.to_toml_string().unwrap()).unwrap();
+        let twins: Vec<&toml::Table> = written["characters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(toml::Value::as_table)
+            .filter(|c| c.get("id").and_then(toml::Value::as_str) == Some("twin"))
+            .collect();
+        assert_eq!(twins.len(), 2);
+        assert!(twins[0].contains_key("first_only") && !twins[0].contains_key("second_only"));
+        assert!(twins[1].contains_key("second_only") && !twins[1].contains_key("first_only"));
+    }
+}

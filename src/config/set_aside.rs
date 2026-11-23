@@ -29,11 +29,28 @@ pub struct SetAside {
 }
 
 /// One step to a key set aside: a table's key, or the entry of a list
-/// whose `id` is this.
+/// whose `id` is this — the `n`th of them, 0 the first: a hand-edited
+/// file can give two entries one id, and the second's keys went to the
+/// first, found first by it (BUG-011).
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Seg {
     Key(String),
-    Id(String),
+    Id(String, usize),
+}
+
+/// Which of the entries with its id each entry of a list is, in order.
+#[derive(Default)]
+pub(super) struct IdCount(std::collections::HashMap<String, usize>);
+
+impl IdCount {
+    /// The step to `entry`'s table, if it has an id.
+    pub(super) fn step(&mut self, entry: &toml::Value) -> Option<Seg> {
+        let id = entry.get("id").and_then(toml::Value::as_str)?;
+        let n = self.0.entry(id.to_string()).or_insert(0);
+        let step = Seg::Id(id.to_string(), *n);
+        *n += 1;
+        Some(step)
+    }
 }
 
 /// The keys a struct reads, as serde names them — asked of its
@@ -73,21 +90,22 @@ pub(super) fn fields_of<T: serde::de::DeserializeOwned>() -> Option<&'static [&'
 /// The table at `path` under `root`: a key steps into a table — made
 /// empty when this version left it out, as it does a table of defaults —
 /// and a key followed by an id into the entry of that list whose `id` it
-/// is, which is never made: `None` when it is gone.
+/// is (the `n`th such), which is never made: `None` when it is gone.
 pub(super) fn table_at<'a>(root: &'a mut toml::Table, path: &[Seg]) -> Option<&'a mut toml::Table> {
     let mut table = root;
     let mut steps = path.iter().peekable();
     while let Some(seg) = steps.next() {
         let Seg::Key(key) = seg else { return None };
         table = match steps.peek() {
-            Some(Seg::Id(id)) => {
+            Some(Seg::Id(id, n)) => {
                 steps.next();
                 table
                     .get_mut(key)?
                     .as_array_mut()?
                     .iter_mut()
                     .filter_map(toml::Value::as_table_mut)
-                    .find(|entry| entry.get("id").and_then(toml::Value::as_str) == Some(id))?
+                    .filter(|entry| entry.get("id").and_then(toml::Value::as_str) == Some(id))
+                    .nth(*n)?
             }
             _ => table
                 .entry(key.clone())
@@ -118,20 +136,19 @@ pub(super) fn note_unknown(
     }
 }
 
-/// A character's own unknown keys, and those of its nested tables.
+/// A character's own unknown keys, and those of its nested tables;
+/// `ids` counts the list's ids so far.
 pub(super) fn note_character(
     entry: &toml::Value,
     at: &[Seg],
+    ids: &mut IdCount,
     out: &mut Vec<(Vec<Seg>, toml::Value)>,
 ) {
-    let (Some(table), Some(id)) = (
-        entry.as_table(),
-        entry.get("id").and_then(toml::Value::as_str),
-    ) else {
+    let (Some(table), Some(step)) = (entry.as_table(), ids.step(entry)) else {
         return;
     };
     let mut here = at.to_vec();
-    here.push(Seg::Id(id.to_string()));
+    here.push(step);
     note_unknown(table, &here, fields_of::<CharacterConfig>, out);
     for (key, known) in [
         ("talk", fields_of::<Talk> as Known),
@@ -263,27 +280,26 @@ impl SetAside {
         }
         self.note_unknown_in_lists(table);
         let out = &mut self.unknown;
+        let mut window_ids = IdCount::default();
         for window in table
             .get("windows")
             .and_then(toml::Value::as_array)
             .into_iter()
             .flatten()
         {
-            if let (Some(t), Some(id)) = (
-                window.as_table(),
-                window.get("id").and_then(toml::Value::as_str),
-            ) {
-                let at = vec![Seg::Key("windows".into()), Seg::Id(id.into())];
+            if let (Some(t), Some(step)) = (window.as_table(), window_ids.step(window)) {
+                let at = vec![Seg::Key("windows".into()), step];
                 note_unknown(t, &at, fields_of::<WindowConfig>, out);
                 let mut chars = at.clone();
                 chars.push(Seg::Key("characters".into()));
+                let mut ids = IdCount::default();
                 for entry in t
                     .get("characters")
                     .and_then(toml::Value::as_array)
                     .into_iter()
                     .flatten()
                 {
-                    note_character(entry, &chars, out);
+                    note_character(entry, &chars, &mut ids, out);
                 }
             }
         }
@@ -294,25 +310,24 @@ impl SetAside {
     pub(super) fn note_unknown_in_lists(&mut self, table: &toml::Table) {
         let out = &mut self.unknown;
         let key = |k: &str| vec![Seg::Key(k.to_string())];
+        let mut ids = IdCount::default();
         for entry in table
             .get("characters")
             .and_then(toml::Value::as_array)
             .into_iter()
             .flatten()
         {
-            note_character(entry, &key("characters"), out);
+            note_character(entry, &key("characters"), &mut ids, out);
         }
+        let mut ids = IdCount::default();
         for entry in table
             .get("groups")
             .and_then(toml::Value::as_array)
             .into_iter()
             .flatten()
         {
-            if let (Some(t), Some(id)) = (
-                entry.as_table(),
-                entry.get("id").and_then(toml::Value::as_str),
-            ) {
-                let at = vec![Seg::Key("groups".into()), Seg::Id(id.into())];
+            if let (Some(t), Some(step)) = (entry.as_table(), ids.step(entry)) {
+                let at = vec![Seg::Key("groups".into()), step];
                 note_unknown(t, &at, fields_of::<crate::group::GroupConfig>, out);
             }
         }
