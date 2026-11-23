@@ -20,16 +20,18 @@ impl Native {
             scene,
             ..
         } = self;
-        // Opens the perf frame before the blocking dispatch, so the wait
-        // for the compositor lands in `Idle` rather than vanishing — the
-        // same placement the winit loop uses relative to its own wait.
-        perf_sampler.begin_frame();
         let dispatched = dispatch_with_timeout(
             &mut layer.event_queue,
             &mut layer.state,
             waker.as_ref(),
             *wait,
         )?;
+        // The perf frame opens after the wait for the compositor, as the
+        // winit loop's opens after its own: opened before it, every frame
+        // counted the wait — up to 2 s — and the overlay's average and p95
+        // with it (PERF-003). A turn that draws nothing is no frame
+        // (`cancel_frame`).
+        perf_sampler.begin_frame();
         // Whether anything happened this iteration that a frame should
         // show. Input and every other compositor event count; so does
         // whatever the loop picks up from its channels below.

@@ -33,10 +33,10 @@ impl Native {
         // walk-around behaviors stay inside the visible area.
         if let Some(soak) = soak.as_mut() {
             soak.maybe_sample(
-                crate::perf::read_rss_kib(),
+                crate::perf::rss_kib_now(),
                 scene.total_decoded_bytes(),
                 renderer.shared.textures.len(),
-                None,
+                perf_sampler.recent_p95_total(60).map(|d| d.as_micros()),
             );
         }
         scene.set_reduced_motion(config.global.reduced_motion);
@@ -388,7 +388,7 @@ impl Native {
                                     menu_offers,
                                     perf: perf_visible_snapshot.then(|| panels::PerfShown {
                                         sampler: perf_sampler_ref,
-                                        rss_kib: crate::perf::read_rss_kib(),
+                                        rss_kib: crate::perf::rss_kib_now(),
                                         gpu: gpu_stats,
                                     }),
                                 },

@@ -79,6 +79,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Native Wayland: the performance overlay's frame times are the
+  frames' own.** They counted the waits between frames too — up to two
+  seconds each with the scene still — so the average and the 95th
+  percentile showed seconds instead of milliseconds.
 - **Loading large characters takes far less memory.** A sequence of
   big pictures could take over a gigabyte for a moment while it loaded,
   five times what it keeps; it now stays close to the 256 MB a

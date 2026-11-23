@@ -618,7 +618,7 @@ impl Native {
         // the frame, for the rest of the turn.
         let shown = !(self.overlay_hidden || self.aside.hidden);
         if !self.should_draw(now, shown, activity) {
-            self.perf_sampler.end_frame();
+            self.perf_sampler.cancel_frame();
             self.wait = self.next_wait(shown, outputs.awaiting_primary);
             return Ok(Flow::Next);
         }

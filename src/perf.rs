@@ -167,6 +167,13 @@ impl PerfSampler {
 
     /// Finalise the current frame: compute `total`, push into the
     /// ring buffer, evict the oldest if we're at capacity.
+    /// Drop the frame in progress: the turn drew nothing, and is no
+    /// frame. The native loop closed every turn as one — its waits for
+    /// the compositor, up to 2 s each, among them (PERF-003).
+    pub fn cancel_frame(&mut self) {
+        self.current_start_instant = None;
+    }
+
     pub fn end_frame(&mut self) {
         let Some(start) = self.current_start_instant.take() else {
             return;
@@ -262,6 +269,24 @@ impl PerfSampler {
 /// Linux-only — returns `None` on other platforms or when the proc
 /// file isn't readable. Cheap (sub-microsecond) but called only
 /// every N frames so even the syscall is invisible.
+/// [`read_rss_kib`] at most once a second, the last reading in between:
+/// for what reads it every frame — the perf overlay, the soak rows.
+pub fn rss_kib_now() -> Option<u64> {
+    use std::sync::Mutex;
+    static LAST: Mutex<Option<(Instant, Option<u64>)>> = Mutex::new(None);
+    let mut last = LAST
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    match *last {
+        Some((at, kib)) if at.elapsed() < Duration::from_secs(1) => kib,
+        _ => {
+            let kib = read_rss_kib();
+            *last = Some((Instant::now(), kib));
+            kib
+        }
+    }
+}
+
 pub fn read_rss_kib() -> Option<u64> {
     let content = std::fs::read_to_string("/proc/self/status").ok()?;
     for line in content.lines() {
@@ -464,6 +489,34 @@ mod tests {
         let content = std::fs::read_to_string(&path).expect("file readable");
         assert_eq!(content, r#"{"traceEvents":[],"displayTimeUnit":"ms"}"#);
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// A turn that draws nothing is no frame: cancelled, it leaves the
+    /// history as it was, and the next frame is timed from its own start
+    /// (PERF-003: the native loop's waits were recorded as frames).
+    #[test]
+    fn a_cancelled_frame_is_not_recorded() {
+        let mut s = PerfSampler::new(10);
+        s.begin_frame();
+        std::thread::sleep(Duration::from_millis(30));
+        s.cancel_frame();
+        s.end_frame();
+        assert_eq!(s.history_len(), 0, "nothing to end once cancelled");
+        s.begin_frame();
+        s.end_frame();
+        assert_eq!(s.history_len(), 1);
+        assert!(s.recent_avg_total(1).unwrap() < Duration::from_millis(30));
+    }
+
+    /// The process's memory, read at most once a second for what asks
+    /// every frame.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn the_rss_is_read_at_most_once_a_second() {
+        let first = rss_kib_now();
+        assert!(first.is_some());
+        let _grow = vec![1u8; 64 * 1024 * 1024];
+        assert_eq!(rss_kib_now(), first, "the last reading, within the second");
     }
 
     #[test]
