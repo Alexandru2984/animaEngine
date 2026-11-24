@@ -62,6 +62,16 @@ thread_local! {
     static ISOLATED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+/// Whether this thread runs under [`isolate`] now: for a fuzz target's
+/// panic hook, which aborts on every panic — one isolated is handled, as
+/// the app's own hook says (`install_panic_hook`). Built only for the
+/// fuzzer (`--cfg fuzzing`).
+#[cfg(fuzzing)]
+#[doc(hidden)]
+pub fn fuzz_isolated() -> bool {
+    ISOLATED.with(|c| c.get())
+}
+
 /// Run `f` — library code that may panic on what it is given, a decoder
 /// on a crafted file — and give a panic back as an error: logged as a
 /// warning, with no crash report or recovery snapshot written, since the

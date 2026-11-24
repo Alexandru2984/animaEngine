@@ -201,6 +201,7 @@ version = "0.0.0"
 dependencies = [
  "anima_engine",
  "libfuzzer-sys",
+ "rhai",
 ]
 
 [[package]]

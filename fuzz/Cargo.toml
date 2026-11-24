@@ -9,6 +9,8 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+# For `rhai_script`'s `rhai::Scope`: the app's own, as the app pins it.
+rhai = { version = "1.26.0", features = ["no_closure"] }
 
 [dependencies.anima_engine]
 path = ".."
@@ -88,5 +90,29 @@ doc = false
 [[bin]]
 name = "folder_drop"
 path = "fuzz_targets/folder_drop.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "video_decode"
+path = "fuzz_targets/video_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "rhai_script"
+path = "fuzz_targets/rhai_script.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "audio_decode"
+path = "fuzz_targets/audio_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "scene_import"
+path = "fuzz_targets/scene_import.rs"
 test = false
 doc = false

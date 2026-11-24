@@ -261,3 +261,8 @@ opt-level = 1
 [profile.release]
 opt-level = 3
 lto = true
+
+# cargo-fuzz builds with `--cfg fuzzing`; entry points only the fuzzer
+# needs are behind it (TEST-001), and the compiler is told it exists.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(fuzzing)"] }

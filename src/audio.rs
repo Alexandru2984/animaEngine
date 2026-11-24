@@ -914,6 +914,16 @@ fn pan_gains(centre_x: f32, min_x: f32, max_x: f32) -> (f32, f32) {
     (FLOOR + (1.0 - FLOOR) * left, FLOOR + (1.0 - FLOOR) * right)
 }
 
+/// Fuzz entry point: one sound decoded as the app would, from `root`
+/// (TEST-001: the decoders behind `rodio` were never fuzzed). Built only
+/// for the fuzzer (`--cfg fuzzing`, which cargo-fuzz sets), not into the
+/// app. Whether it decoded.
+#[cfg(all(fuzzing, feature = "audio"))]
+#[doc(hidden)]
+pub fn fuzz_load_sound(root: &std::path::Path, rel: &str) -> bool {
+    load_sound(root, rel).is_ok()
+}
+
 /// Decode one sound from the library into memory.
 #[cfg(feature = "audio")]
 fn load_sound(root: &std::path::Path, rel: &str) -> Result<Cached, String> {
@@ -1327,6 +1337,21 @@ mod host_tests {
         let result = load_sound(&root, "xing_only.mp3");
         let _ = std::fs::remove_dir_all(&root);
         assert!(result.is_err(), "a sound with no audio loaded");
+    }
+
+    /// 169 bytes named `.wav` that symphonia's AAC (ADTS) reader takes
+    /// for its own and panics on, at `adts.rs:303` — found by the
+    /// `audio_decode` fuzz target (TEST-001). Isolated, it fails to load
+    /// like any broken sound, with nothing out of the ordinary otherwise.
+    #[cfg(feature = "audio")]
+    #[test]
+    fn a_sound_the_aac_reader_panics_on_fails_to_load() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/audio");
+        let err = match load_sound(&root, "adts-panic.wav") {
+            Ok(_) => panic!("loaded"),
+            Err(e) => e,
+        };
+        assert!(err.contains("failed on it"), "{err}");
     }
 
     /// A script naming a new missing sound each call: every failure
