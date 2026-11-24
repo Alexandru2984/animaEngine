@@ -150,6 +150,17 @@ fn walk<R: Read + Seek>(
                 };
                 walk(r, children, box_end, Level::Children, depth + 1, boxes)?;
             }
+            // A full box — version and flags, an entry count — then its
+            // entries, boxes the crate reads one after another. One of size
+            // 0 sends it back to read the same entry again, as many times as
+            // the count says: a 970-byte file took 38 s (TEST-001's fuzzing).
+            (b"dref", _) => {
+                const FIELDS: u64 = 8;
+                if box_end - body < FIELDS {
+                    return Err(refused("a data reference list shorter than its fields"));
+                }
+                walk(r, body + FIELDS, box_end, Level::Children, depth + 1, boxes)?;
+            }
             (b"ilst", _) => walk(r, body, box_end, Level::Items, depth + 1, boxes)?,
             (k, Level::Items) if ILST_ITEMS.contains(k) => {
                 walk(r, body, box_end, Level::Item, depth + 1, boxes)?;
@@ -279,6 +290,32 @@ mod tests {
         let mut cursor = Cursor::new(&bytes);
         check_box_tree(&mut cursor, bytes.len() as u64).expect("well formed");
         assert_eq!(cursor.position(), 0);
+    }
+
+    /// A data reference list whose entry says size 0: `mp4` 0.14 reads the
+    /// entry, steps back to its start, and does it again — as many times as
+    /// the list's count says. 117 million of them took a 970-byte file 38 s
+    /// to open, found by the `video_decode` fuzz target (TEST-001). The
+    /// entries are walked as children now; a real one passes.
+    #[test]
+    fn a_data_reference_entry_that_goes_nowhere_is_refused() {
+        let dref = |entry: Vec<u8>| {
+            let mut fields = vec![0, 0, 0, 0, 0x07, 0, 0, 0];
+            fields.extend(entry);
+            let dinf = mp4_box(b"dinf", &mp4_box(b"dref", &fields));
+            let mut bytes = ftyp();
+            bytes.extend(mp4_box(
+                b"moov",
+                &mp4_box(b"trak", &mp4_box(b"mdia", &mp4_box(b"minf", &dinf))),
+            ));
+            bytes
+        };
+        let nowhere = [0, 0, 0, 0, b'u', b'r', b'l', b' ', 0, 0, 0, 1].to_vec();
+        let started = std::time::Instant::now();
+        assert!(check(&dref(nowhere)).is_err());
+        assert!(started.elapsed() < std::time::Duration::from_secs(1));
+        let real = mp4_box(b"url ", &[0, 0, 0, 1]);
+        assert!(check(&dref(real)).is_ok(), "a real data reference");
     }
 
     #[test]

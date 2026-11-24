@@ -8,6 +8,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- **A crafted MP4 can no longer freeze the app for a minute.** A video
+  of under a kilobyte whose data-reference list sent the MP4 reader
+  back over the same entry, a hundred million times over, held the
+  overlay for well over half a minute when it was dropped or opened.
+  Such a file is now refused at once. Found by fuzzing.
 - **The copies of your settings kept aside are readable by you alone.**
   The copy made before a migration, before a restore, of an unreadable
   config and of the live config on crash recovery took the file's mode —
