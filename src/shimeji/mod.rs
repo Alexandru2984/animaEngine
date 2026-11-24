@@ -1219,11 +1219,13 @@ mod tests {
 
     /// Two packs whose names make one slug each get a folder of their
     /// own: the second wrote over the first (BUG-014). The same pack
-    /// imported again still replaces its own.
+    /// imported again still replaces its own. The names differ by more
+    /// than case: on Windows `TestMascot` and `testmascot` are one folder,
+    /// one pack.
     #[test]
     fn two_packs_with_one_slug_do_not_share_a_folder() {
         let (first, dest) = build_pack("slug_clash");
-        let second = first.with_file_name("testmascot");
+        let second = first.with_file_name("testmascot!");
         let _ = std::fs::remove_dir_all(&second);
         std::fs::create_dir_all(second.join("img")).unwrap();
         std::fs::create_dir_all(second.join("conf")).unwrap();

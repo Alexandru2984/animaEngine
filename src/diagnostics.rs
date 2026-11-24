@@ -121,10 +121,17 @@ fn clip(text: &str) -> String {
     }
 }
 
+/// The home directory the report writes `~`: `HOME`, or Windows'
+/// `USERPROFILE`.
+fn home() -> Option<String> {
+    std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .ok()
+}
+
 /// `text` with the home directory written `~`.
 fn private(text: &str) -> String {
-    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"));
-    private_with(text, home.ok().as_deref())
+    private_with(text, home().as_deref())
 }
 
 /// [`private`], the home given: written with a trailing separator, as a
@@ -237,7 +244,9 @@ mod tests {
     #[test]
     fn the_report_keeps_the_facts_and_the_problems() {
         let subscriber = tracing_subscriber::registry().with(Layer);
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/someone".into());
+        // Looked up as the report looks it up: on Windows there is no
+        // `HOME`, and the test's own fallback was never redacted there.
+        let home = super::home().unwrap_or_else(|| "/home/someone".into());
         tracing::subscriber::with_default(subscriber, || {
             tracing::info!("GPU adapter: Old");
             tracing::info!("GPU adapter: Test GPU");
