@@ -8,6 +8,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- **A crafted FLAC sound can no longer ask for gigabytes of memory.** A
+  sound file under a kilobyte whose picture said it was 3 GB long made
+  the decoder set aside that much before reading it — enough to end the
+  app on a machine with little memory. FLAC metadata is now checked
+  against what the file holds before it is decoded. Found by fuzzing.
 - **A crafted MP4 can no longer freeze the app for a minute.** A video
   of under a kilobyte whose data-reference list sent the MP4 reader
   back over the same entry, a hundred million times over, held the

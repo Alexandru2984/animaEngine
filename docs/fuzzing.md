@@ -17,15 +17,19 @@ that sit closest to untrusted input:
 | `config_round_trip` | `config::fuzz_config_round_trip` | `config.toml` itself, as a newer version or a hand edit leaves it: whatever reads, written and read again, must read and write the same — what is set aside and the keys this build does not know included (1.5) |
 | `scene_save_over` | `scenes::fuzz_scene_save_over` | a named scene's file saved over itself (1.5): whatever reads must read the same after, leave the same out, keep every key a scene does not read as it was, and not change when saved again |
 | `content_sniff` | `animation::loader::fuzz_content_sniff` | a dropped or library file's bytes under a name that may lie (1.5): the type known by its first bytes, the drop's checks, the dimension check, the decode and how its failure is said — not the frame cache. The first byte picks the name |
+| `video_decode` | `animation::video_loader::load_video` | an MP4 as a drop or the library opens it: the `mp4` demuxer behind `mp4_guard`, the sample walk, the Annex-B rewrite and the H.264 decoder, under the size and frame caps. The decoder is C++, not instrumented by the sanitizer: what it finds is panics, hangs and runaway allocation. Run with `-timeout` |
+| `rhai_script` | `scripting::ScriptHost` | a character's behavior script: compiled under the app's limits, then run a few steps with its inputs and params. Run with `-timeout` |
+| `audio_decode` | `audio::fuzz_load_sound` (`--cfg fuzzing` only) | a library sound: the decoders behind `rodio` (WAV, Vorbis, FLAC, MP3, AAC) under the size, length and rate caps. A decoder's panic the app isolates (`crash::isolate`) is a failed load here too. The first byte picks the name |
+| `scene_import` | `scene_file::import`, `scene_file::backup::read` | a shared scene, character or backup all the way in, the pictures unpacked into a folder of their own and checked as drops — never `put_in_place`, which writes the user's scenes and settings |
 | `folder_drop` | `animation::loader::fuzz_folder_drop` | a dropped folder (1.5), built from the input: PNG frames, broken ones, named pipes, links to `/dev/zero`, out and back, folders named like pictures, thousands of empty frames — checked, typed, measured and decoded as a sequence. A pipe or link that is opened hangs a run: run with `-timeout` |
 
 The invariant for every target is "**never panic**, return a typed
 error or sensible default on adversarial input." `config_round_trip`
 and `scene_save_over` ask more: a second round of writing and reading
-changes nothing. The asset decoders
-themselves (PNG / GIF / WebP / MP4) aren't fuzzed here because they
-delegate to `image` and `mp4parse` upstream, both of which have their
-own fuzz suites — but the **hand-written** parsers around them (our
+changes nothing. The picture decoders
+themselves (PNG / GIF / WebP) aren't fuzzed on their own because they
+delegate to `image` upstream, which has its own fuzz suite — but the
+**hand-written** parsers around them (our
 cache codec, the NALU length-prefix walk, the Shimeji XML reader) are
 exactly the bespoke code that warrants fuzzing, added in W.4 (0.9).
 The readers of the files 1.5 opens and its small parsers followed; the
@@ -98,8 +102,22 @@ out-of-memory in any. Runs: `keychord_parse` 1.03 billion,
 `asset_type_detect` 252 million, `shimeji_xml` 181 million,
 `scene_file_read` 103 million, `thumbnail_decode` 58 million,
 `content_sniff` 9.2 million, `scene_save_over` 9.1 million,
-`config_round_trip` 5.1 million, `folder_drop` 144 thousand. To repeat
-one:
+`config_round_trip` 5.1 million, `folder_drop` 144 thousand.
+
+The four targets added for the audit (2026-11) found three things in
+their first minutes. `video_decode`: a 970-byte MP4 whose data reference
+list sent `mp4` back over the same entry 117 million times — 38 s to
+open, the overlay frozen; `mp4_guard` walks `dref`'s entries now.
+`audio_decode`: a file symphonia's AAC reader panics on (already
+isolated by the app: a failed load, kept as a test fixture), and an
+837-byte FLAC whose picture block said its media type was 3 GB long,
+which symphonia allocates before reading — `load_sound` checks FLAC
+metadata now (`flac_metadata_checked`). After the fixes: `video_decode`
+1.26 million runs and `audio_decode` 1.24 million, nothing;
+`rhai_script` 140 thousand and `scene_import` 2.2 million in 90 s each,
+nothing. symphonia allocates at file-given lengths elsewhere too (Vorbis
+comments in Ogg, ID3 frames): not found by these runs, and not guarded;
+an out-of-process decoder would close all of them. To repeat one:
 
 ```bash
 cargo +nightly fuzz run scene_file_read -- -max_total_time=1800 -rss_limit_mb=2048

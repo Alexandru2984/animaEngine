@@ -742,11 +742,13 @@ for wlroots users who want to skip XWayland.
 - `deny.toml` license allowlist is narrow on purpose — bumping a dep
   that pulls a new SPDX expression fails CI and forces a deliberate
   choice rather than silent license drift.
-- `cargo fuzz` ships six targets (`keychord_parse`, `uri_list_parse`,
-  `asset_type_detect`, `cache_deserialize`, `avcc_nalu_walk`,
-  `shimeji_xml`); see [docs/fuzzing.md](fuzzing.md). The `image`
-  crate's own GIF/WebP decode paths aren't fuzzed here — they
-  delegate to upstream, which runs its own fuzz suite.
+- `cargo fuzz` ships seventeen targets, from the key-chord and
+  uri-list parsers to whole MP4s (`video_decode`), behavior scripts
+  (`rhai_script`), sounds (`audio_decode`) and shared scenes imported
+  (`scene_import`); see [docs/fuzzing.md](fuzzing.md) for the list and
+  what each found. The `image` crate's own GIF/WebP decode paths aren't
+  fuzzed on their own — they delegate to upstream, which runs its own
+  fuzz suite.
 
 ## Build reproducibility
 

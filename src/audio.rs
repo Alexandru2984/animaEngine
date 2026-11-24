@@ -914,6 +914,101 @@ fn pan_gains(centre_x: f32, min_x: f32, max_x: f32) -> (f32, f32) {
     (FLOOR + (1.0 - FLOOR) * left, FLOOR + (1.0 - FLOOR) * right)
 }
 
+/// Whether every FLAC metadata block in `bytes` holds what its fields say:
+/// symphonia allocates a picture's media type, description and data, and
+/// each Vorbis comment, at the length the file gives — up to 4 GiB each —
+/// before it reads them. An 837-byte file asked for 3 GB: past what a small
+/// machine has, or any with strict overcommit, and an allocation that
+/// fails ends the process, isolated or not (TEST-001's fuzzing). Every
+/// `fLaC` is looked at, as symphonia's probe finds one past other bytes.
+#[cfg(feature = "audio")]
+fn flac_metadata_checked(bytes: &[u8]) -> Result<(), String> {
+    const PICTURE: u8 = 6;
+    const VORBIS_COMMENT: u8 = 4;
+    let refused = |what: &str| Err(format!("FLAC metadata says more than it holds ({what})"));
+    let mut from = 0;
+    while let Some(found) = bytes[from..].windows(4).position(|w| w == b"fLaC") {
+        let mut at = from + found + 4;
+        while let Some(header) = bytes.get(at..at + 4) {
+            let kind = header[0] & 0x7F;
+            let last = header[0] & 0x80 != 0;
+            let len = u32::from_be_bytes([0, header[1], header[2], header[3]]) as usize;
+            let start = at + 4;
+            // Cut short where the file ends: what the reader has to read.
+            let body = &bytes[start.min(bytes.len())..start.saturating_add(len).min(bytes.len())];
+            let mut fields = Fields(body);
+            let held = match kind {
+                PICTURE => fields.picture(),
+                VORBIS_COMMENT => fields.comments(),
+                _ => true,
+            };
+            if !held {
+                return refused(if kind == PICTURE {
+                    "a picture"
+                } else {
+                    "a comment"
+                });
+            }
+            if last {
+                break;
+            }
+            at = start.saturating_add(len);
+        }
+        from += found + 1;
+    }
+    Ok(())
+}
+
+/// A metadata block's fields, read from the front.
+#[cfg(feature = "audio")]
+struct Fields<'a>(&'a [u8]);
+
+#[cfg(feature = "audio")]
+impl Fields<'_> {
+    fn u32_with(&mut self, from: fn([u8; 4]) -> u32) -> Option<usize> {
+        let (head, rest) = self.0.split_first_chunk::<4>()?;
+        self.0 = rest;
+        Some(from(*head) as usize)
+    }
+
+    /// Skip `len` bytes, if there are that many.
+    fn skip(&mut self, len: usize) -> Option<()> {
+        self.0 = self.0.get(len..)?;
+        Some(())
+    }
+
+    /// A picture: type, media type, description, four sizes, data.
+    fn picture(&mut self) -> bool {
+        let mut read = || -> Option<()> {
+            self.skip(4)?;
+            let media = self.u32_with(u32::from_be_bytes)?;
+            self.skip(media)?;
+            let description = self.u32_with(u32::from_be_bytes)?;
+            self.skip(description)?;
+            self.skip(16)?;
+            let data = self.u32_with(u32::from_be_bytes)?;
+            self.skip(data)
+        };
+        read().is_some()
+    }
+
+    /// Vorbis comments, little-endian: a vendor string, then a count of
+    /// comments, each a length and its bytes.
+    fn comments(&mut self) -> bool {
+        let mut read = || -> Option<()> {
+            let vendor = self.u32_with(u32::from_le_bytes)?;
+            self.skip(vendor)?;
+            let count = self.u32_with(u32::from_le_bytes)?;
+            for _ in 0..count {
+                let len = self.u32_with(u32::from_le_bytes)?;
+                self.skip(len)?;
+            }
+            Some(())
+        };
+        read().is_some()
+    }
+}
+
 /// Fuzz entry point: one sound decoded as the app would, from `root`
 /// (TEST-001: the decoders behind `rodio` were never fuzzed). Built only
 /// for the fuzzer (`--cfg fuzzing`, which cargo-fuzz sets), not into the
@@ -938,13 +1033,25 @@ fn load_sound(root: &std::path::Path, rel: &str) -> Result<Cached, String> {
         return Err(format!("sound larger than {MAX_SOUND_BYTES} bytes"));
     }
 
-    let file = std::fs::File::open(&resolved).map_err(|e| format!("sound unreadable: {e}"))?;
+    // Read once, within the cap as it is read: what is checked below is
+    // what is decoded.
+    let bytes = crate::util::read_capped(&resolved, MAX_SOUND_BYTES)
+        .map_err(|e| format!("sound unreadable: {e}"))?;
+    flac_metadata_checked(&bytes)?;
     // The decoders panic on some files rather than return an error: an
     // MP3 whose one frame is a Xing header made rodio size a buffer from
     // zero channels, a divide by zero on the UI thread (BUG-002). Isolated,
     // such a file fails to load like any other broken sound.
     let (channels, sample_rate, samples) = crate::crash::isolate("the sound decoder", || {
-        let decoder = rodio::Decoder::try_from(file).map_err(|e| format!("cannot decode: {e}"))?;
+        // As `try_from(File)` builds it: its length and seekable — without
+        // them the MP4 (AAC) reader does not take it.
+        let len = bytes.len() as u64;
+        let decoder = rodio::Decoder::builder()
+            .with_data(std::io::Cursor::new(bytes))
+            .with_byte_len(len)
+            .with_seekable(true)
+            .build()
+            .map_err(|e| format!("cannot decode: {e}"))?;
         let channels = decoder.channels();
         let sample_rate = decoder.sample_rate();
         // `take` one past the cap so an oversized sound is *detected*
@@ -1352,6 +1459,49 @@ mod host_tests {
             Err(e) => e,
         };
         assert!(err.contains("failed on it"), "{err}");
+    }
+
+    /// A FLAC picture block that says its media type is 3 GB long, in an
+    /// 837-byte file: symphonia allocates what it says before reading —
+    /// past what a small machine has, or any with strict overcommit, and an
+    /// allocation that fails ends the process, isolated or not. Found by the
+    /// `audio_decode` fuzz target (TEST-001). Refused before decoding; a
+    /// real FLAC still loads.
+    #[cfg(feature = "audio")]
+    #[test]
+    fn a_flac_whose_metadata_says_more_than_it_holds_is_refused() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/audio");
+        let err = match load_sound(&root, "flac-picture-3gb.wav") {
+            Ok(_) => panic!("loaded"),
+            Err(e) => e,
+        };
+        assert!(err.contains("metadata"), "{err}");
+        // The checks alone, on a well-formed block chain and a bad one.
+        let block = |kind: u8, last: bool, body: &[u8]| {
+            let mut b = vec![kind | if last { 0x80 } else { 0 }];
+            b.extend_from_slice(&(body.len() as u32).to_be_bytes()[1..]);
+            b.extend_from_slice(body);
+            b
+        };
+        let mut picture = Vec::new();
+        for field in [3u32, 9] {
+            picture.extend_from_slice(&field.to_be_bytes());
+        }
+        picture.extend_from_slice(b"image/png");
+        picture.extend_from_slice(&0u32.to_be_bytes()); // description
+        picture.extend_from_slice(&[0; 16]); // width, height, depth, colours
+        picture.extend_from_slice(&2u32.to_be_bytes());
+        picture.extend_from_slice(&[1, 2]);
+        let mut good = b"fLaC".to_vec();
+        good.extend(block(0, false, &[0; 34]));
+        good.extend(block(6, true, &picture));
+        assert!(flac_metadata_checked(&good).is_ok());
+        let mut lying = picture.clone();
+        lying[4..8].copy_from_slice(&3_000_000_000u32.to_be_bytes());
+        let mut bad = b"junk before it".to_vec();
+        bad.extend_from_slice(b"fLaC");
+        bad.extend(block(6, true, &lying));
+        assert!(flac_metadata_checked(&bad).is_err());
     }
 
     /// A script naming a new missing sound each call: every failure
