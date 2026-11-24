@@ -160,7 +160,6 @@ jobs:
     env:
       PKG_CONFIG_ALLOW_CROSS: "1"
       CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: x86_64-w64-mingw32-gcc
-      CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER: wine64
       WINEDEBUG: -all
       # No Mono or Gecko prompts, and no menu entries written for the
       # throwaway prefix.
@@ -177,6 +176,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             gcc-mingw-w64-x86-64 wine64 libxkbcommon-dev libasound2-dev
+      # The package names its launcher differently from release to
+      # release: 24.04's `wine64` (Wine 9) has no `wine64` on PATH, only
+      # /usr/lib/wine/wine64; newer ones add `wine64-stable` and an
+      # alternative. Use the one this runner has, that runs.
+      - name: Find Wine
+        run: |
+          for w in wine64 wine64-stable wine-stable wine \
+                   /usr/lib/wine/wine64 /usr/lib/x86_64-linux-gnu/wine/wine64 \
+                   /usr/lib/x86_64-linux-gnu/wine/wine; do
+            if path=$(command -v "$w") && "$path" --version; then
+              echo "CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=$path" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          dpkg -L wine64 | grep -E '/bin/|/wine' || true
+          echo "::error::no Wine launcher found"
+          exit 1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: windows-wine

@@ -126,7 +126,8 @@ env -u DISPLAY -u WAYLAND_DISPLAY WINEPREFIX="$(mktemp -d)" WINEDEBUG=-all \
 ```
 
 `winemenubuilder.exe=d` keeps a new prefix from writing menu entries and
-file associations into your real home. The prefix is about 1 GB; delete
+file associations into your real home. Ubuntu 24.04's `wine64` (Wine 9)
+puts no `wine64` on PATH: use `/usr/lib/wine/wine64` as the runner there. The prefix is about 1 GB; delete
 it afterwards. Running the overlay
 itself still needs real Windows: Wine has no GPU path worth testing on.
 
