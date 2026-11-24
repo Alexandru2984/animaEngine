@@ -95,9 +95,10 @@ documented item, or that edits a module-level doc comment.
 
 ### Windows and FreeBSD
 
-Nothing in CI *runs* on either, so the `cross` job at least compiles
-both, lint-clean and with their docs, on every push. To do the same
-before pushing a change that touches `cfg(unix)` / `cfg(windows)` code:
+CI's `cross` job compiles both, lint-clean and with their docs, on every
+push, and its `windows-tests` job runs the Windows build's lib tests
+under Wine (below); nothing runs on FreeBSD. To do the same before
+pushing a change that touches `cfg(unix)` / `cfg(windows)` code:
 
 ```bash
 rustup target add x86_64-pc-windows-gnu x86_64-unknown-freebsd
