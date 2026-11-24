@@ -529,3 +529,59 @@ fn test_loader_detect_asset_type() {
     let (t, _) = detect_asset_type(Path::new("blob.bmp"));
     assert_eq!(t, AssetType::PngStatic);
 }
+
+// ============================================================================
+// The formats a drop takes besides PNG and GIF (TEST-001): an animated WebP,
+// an animated PNG, a JPEG and an H.264 MP4, through the decoders the app
+// uses — not `load_asset`, whose frame cache is the user's own.
+// ============================================================================
+
+fn picture_fixture(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pictures")
+        .join(name)
+}
+
+#[test]
+fn an_animated_webp_brings_every_frame_and_its_delay() {
+    use anima_engine::animation::webp_loader;
+    let frames = webp_loader::load_webp(&picture_fixture("three-frames.webp")).expect("loads");
+    assert_eq!(frames.len(), 3);
+    assert!(frames.iter().all(|f| (f.width, f.height) == (24, 24)));
+    assert!(frames.iter().all(|f| f.delay_ms.is_some_and(|d| d > 0)));
+    assert_ne!(frames[0].rgba, frames[2].rgba, "the frames differ");
+}
+
+#[test]
+fn an_animated_png_brings_every_frame_and_its_delay() {
+    use anima_engine::animation::png_sequence;
+    let frames = png_sequence::load_picture(&picture_fixture("three-frames.png")).expect("loads");
+    assert_eq!(frames.len(), 3);
+    assert!(frames.iter().all(|f| (f.width, f.height) == (24, 24)));
+    assert!(frames.iter().all(|f| f.delay_ms.is_some_and(|d| d > 0)));
+}
+
+#[test]
+fn a_jpeg_loads_as_one_picture() {
+    use anima_engine::animation::png_sequence;
+    let dir = temp_dir("jpeg_picture");
+    let path = dir.join("photo.jpg");
+    let img = image::RgbImage::from_pixel(20, 10, image::Rgb([200, 120, 40]));
+    img.save(&path).expect("save JPEG");
+    let frames = png_sequence::load_picture(&path).expect("loads");
+    assert_eq!(frames.len(), 1);
+    assert_eq!((frames[0].width, frames[0].height), (20, 10));
+    assert_eq!(frames[0].rgba.len(), 20 * 10 * 4, "RGBA");
+    assert_eq!(frames[0].rgba[3], 255, "opaque");
+}
+
+#[cfg(feature = "video")]
+#[test]
+fn an_h264_mp4_brings_every_frame() {
+    use anima_engine::animation::video_loader;
+    let frames =
+        video_loader::load_video(&picture_fixture("four-frames-h264.mp4")).expect("decodes");
+    assert_eq!(frames.len(), 4);
+    assert!(frames.iter().all(|f| (f.width, f.height) == (32, 32)));
+    assert!(frames.iter().all(|f| f.delay_ms.is_some_and(|d| d > 0)));
+}
